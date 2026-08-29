@@ -5,7 +5,7 @@
 | **Version** | 0.4.0 |
 | **Status** | Living |
 | **Date** | 2026-08-01 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, documentation model, and compatibility strategy for `@dotcraft/sdk`.
 
@@ -1476,11 +1476,9 @@ Electron Main owns SDK connections and host policy. Preload exposes an end-to-en
 
 The repository-local package is bundled into Electron Main and Preload output rather than externalized, so packaged applications do not depend on the checkout-relative package path.
 
-### 22.3 Python SDK Relationship
+### 22.3 Hosted Channel Module Ownership
 
-The Python SDK is a full peer general-purpose SDK (see [Python SDK Binding](python.md)). The TypeScript and Python SDKs maintain parallel surfaces per [Unified SDK Specification §2.1](sdk.md#21-parallel-surface-idiomatic-casing), including connection, raw client, transports, Hub local bootstrap, the Run profile, approval and user-input handling, event streaming, App Binding helpers, and the channel adapter.
-
-TypeScript additionally owns the first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup), which remains a TypeScript-only sub-profile.
+TypeScript owns the first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup), which remains a TypeScript-only sub-profile.
 
 ---
 

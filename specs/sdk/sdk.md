@@ -5,7 +5,7 @@
 | **Version** | 0.4.0 |
 | **Status** | Living |
 | **Date** | 2026-08-01 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
 
@@ -41,23 +41,23 @@ This is the design center of the cross-language contract. Bindings stay idiomati
 
 The canonical surface below is the spine all general-purpose bindings converge on:
 
-| Concept | TypeScript | .NET | Python |
-|---------|-----------|------|--------|
-| Connect (local Hub) | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
-| Connect (default Chat) | `DotCraft.localChat()` | `DotCraftClient.ConnectLocalChatAsync()` | `DotCraft.connect_local_chat()` |
-| Connect (remote WebSocket) | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
-| Raw request escape hatch | `requestRaw()` | `RequestRawAsync()` | `request_raw()` |
-| Thread manager | `dotcraft.threads` | `client.Threads` | `dotcraft.threads` |
-| Active thread handle | `DotCraftThread` | `DotCraftThread` | `DotCraftThread` |
-| Run, buffered | `thread.run()` | `thread.RunAsync()` | `thread.run()` |
-| Run, streamed | `thread.runStreamed()` | `thread.RunStreamedAsync()` | `thread.run_streamed()` |
-| Normalized run event | `DotCraftRunEvent` | `DotCraftRunEvent` | `RunEvent` |
-| Approval handler | `approvalHandler` | `ApprovalHandler` | `approval_handler` |
-| User-input handler | `userInputHandler` | `UserInputHandler` | `user_input_handler` |
-| Dynamic tool handler | `thread.onToolCall()` | `thread.OnToolCall()` | `thread.on_tool_call()` |
-| App Binding helpers | `dotcraft.appBindings` | `client.AppBindings` | `dotcraft.app_bindings` |
+| Concept | TypeScript | .NET |
+|---------|-----------|------|
+| Connect (local Hub) | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` |
+| Connect (default Chat) | `DotCraft.localChat()` | `DotCraftClient.ConnectLocalChatAsync()` |
+| Connect (remote WebSocket) | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` |
+| Raw request escape hatch | `requestRaw()` | `RequestRawAsync()` |
+| Thread manager | `dotcraft.threads` | `client.Threads` |
+| Active thread handle | `DotCraftThread` | `DotCraftThread` |
+| Run, buffered | `thread.run()` | `thread.RunAsync()` |
+| Run, streamed | `thread.runStreamed()` | `thread.RunStreamedAsync()` |
+| Normalized run event | `DotCraftRunEvent` | `DotCraftRunEvent` |
+| Approval handler | `approvalHandler` | `ApprovalHandler` |
+| User-input handler | `userInputHandler` | `UserInputHandler` |
+| Dynamic tool handler | `thread.onToolCall()` | `thread.OnToolCall()` |
+| App Binding helpers | `dotcraft.appBindings` | `client.AppBindings` |
 
-Streaming is a variant of one verb (`run` vs `runStreamed`), not a separate object model. Both return the same normalized event type, exposed over each language's native iteration primitive: `for await … of` (TypeScript), `await foreach` over `IAsyncEnumerable<T>` (.NET), `async for` (Python).
+Streaming is a variant of one verb (`run` vs `runStreamed`), not a separate object model. Both return the same normalized event type, exposed over each language's native iteration primitive: `for await … of` (TypeScript) and `await foreach` over `IAsyncEnumerable<T>` (.NET).
 
 ### 2.2 Layered SDK Architecture
 
@@ -67,7 +67,7 @@ Every general-purpose binding has three public SDK layers:
 2. **Wire** owns JSON-RPC framing, generated typed operations, explicitly named raw escape hatches, initialization, request correlation, connection state, timeouts, and optional reconnection. It does not re-export Contracts or own Thread, Run, callback, Dynamic Tool, or Channel policy.
 3. **High-level** owns product concepts such as `DotCraft`, `DotCraftThread`, Run, callbacks, input helpers, App Binding helpers, and high-level errors. It composes Wire and returns Contracts DTOs instead of defining synonymous projections.
 
-Channel authoring and hosted Channel runtime APIs are outside these three SDK layers. TypeScript ships them from the independent `@dotcraft/channel` package; Python keeps its adapter in the `dotcraft` distribution under `dotcraft.channel`.
+Channel authoring and hosted Channel runtime APIs are outside these three SDK layers. TypeScript ships them from the independent `@dotcraft/channel` package.
 
 Host adapters integrate an SDK with an environment such as Electron. They own IPC, window and workspace routing, executable discovery, UI localization, and host security policy, but not another JSON-RPC client.
 
@@ -91,7 +91,7 @@ Every typed SDK wrapper must map to one or more rows in this spec's capability m
 
 A few SDK surfaces are naturally language-specific. Examples:
 
-- The first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup) is owned by TypeScript, because hosted channel modules are Node packages. The channel **adapter** base class itself is a shared capability that any SDK building external channels may provide; TypeScript and Python both ship one today.
+- The first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup) is owned by TypeScript, because hosted channel modules are Node packages. The channel **adapter** base class itself is a shared capability that any SDK building external channels may provide; TypeScript ships one today.
 - Publishing, packaging, and runtime baselines remain language binding concerns.
 
 Everything else — including App Binding helpers, the Run profile, and approval/user-input callbacks — is a shared capability with parallel surfaces across every general-purpose SDK, not a single-language feature. Language-specific profiles must still use the shared protocol semantics and stable wire shapes.
@@ -173,7 +173,7 @@ SDKs may expose App Binding methods as generic typed requests first, then add st
 
 ### 3.6 Channel Adapter Profile
 
-The Channel Adapter profile is required only for languages that ship first-party external channel adapters. TypeScript and Python both provide a channel adapter base class today; .NET does not. The hosted-module runtime (manifests, config descriptors, module lifecycle, conformance helpers) is a TypeScript-only sub-profile.
+The Channel Adapter profile is required only for languages that ship first-party external channel adapters. TypeScript provides a channel adapter base class today; .NET does not. The hosted-module runtime (manifests, config descriptors, module lifecycle, conformance helpers) is a TypeScript-only sub-profile.
 
 - Channel adapter initialize capability declaration.
 - Per-identity message queueing.
@@ -318,58 +318,58 @@ Status values:
 - **Partial**: some methods in the capability family are typed or generic, while others remain raw or unsupported.
 - **Gap**: no support beyond what the lower layer incidentally exposes.
 
-Parity Target applies to every general-purpose SDK (TypeScript, .NET, Python) unless the row names a single-language profile. Cells record the current status per language.
+Parity Target applies to every general-purpose SDK (TypeScript and .NET) unless the row names a single-language profile. Cells record the current status per language.
 
-| Capability | Owning Spec | TypeScript | .NET | Python | Parity Target |
-|------------|-------------|------------|------|--------|---------------|
-| Initialize / initialized | AppServer | Typed | Typed | Typed | Required |
-| Raw AppServer request | AppServer | Typed | Typed | Typed | Required |
-| Raw notification consumption | AppServer | Typed | Typed | Typed | Required |
-| Server request dispatch | AppServer | Typed | Typed | Typed | Required |
-| Stdio or stream JSON-RPC transport | AppServer | Typed | Typed | Typed | Required low-level |
-| WebSocket JSON-RPC transport | AppServer | Typed | Typed | Typed | Required |
-| Custom transport injection | SDK | Raw constructor | Typed high-level | Typed | Required low-level |
-| Hub lock discovery and validation | Hub | Typed | Typed | Typed | Required local |
-| Hub startup | Hub | Typed | Typed | Typed | Required local |
-| AppServer ensure | Hub | Typed | Typed | Typed | Required local |
-| Default Chat AppServer ensure | Hub | Typed | Typed | Typed | Required local |
-| AppServer lookup by workspace | Hub | Gap | Typed | Gap | Optional typed |
-| Hub status | Hub | Typed | Gap | Gap | Optional typed |
-| Hub SSE events | Hub | Typed | Gap | Gap | Optional typed |
-| Thread start | AppServer | Typed | Typed | Typed | Required |
-| Thread resume | AppServer | Typed | Typed | Typed | Required |
-| Thread read | AppServer | Typed | Typed | Typed | Required |
-| Thread subscribe | AppServer | Typed | Typed | Typed | Required |
-| Thread list | AppServer | Typed | Typed | Typed | Required application |
-| Thread unsubscribe | AppServer | Typed | Typed | Typed | Required application |
-| Thread archive/delete | AppServer | Typed | Typed | Typed | Optional typed |
-| Thread mode set | AppServer | Typed | Typed | Typed | Optional typed |
-| Turn start | AppServer | Typed | Typed | Typed | Required |
-| Turn enqueue | AppServer | Typed | Typed | Typed | Required |
-| Turn interrupt | AppServer | Typed | Typed | Typed | Required |
-| High-level run | SDK | Typed | Typed | Typed | Required Run profile |
-| Streaming run events | SDK/AppServer | Typed | Typed | Typed | Required Run profile |
-| Delta/snapshot text merge | SDK/Session | Typed | Typed | Typed | Required Run profile |
-| Approval callback | AppServer | Callback | Callback | Callback | Required when advertised |
-| User-input callback | AppServer | Callback | Callback | Callback | Required when advertised |
-| Runtime Dynamic Tool declaration | AppServer | Typed | Typed | Typed | Required |
-| Runtime Dynamic Tool callback | AppServer | Callback | Callback | Callback | Required |
-| Model list | AppServer | Typed | Typed | Typed | Optional typed |
-| App Binding handoff parse | App Binding | Typed | Typed | Typed | App Binding profile |
-| App Binding request inspect | App Binding | Raw | Typed | Typed | App Binding profile |
-| App Binding principal authenticate/refresh | App Binding | Typed | Typed | Typed | App Binding profile |
-| App Binding enable/activate/rebind | App Binding | Typed | Typed | Typed | App Binding profile |
-| App Binding capability confirmation | App Binding | Typed | Typed | Typed | App Binding profile |
-| App Binding app list/view | App Binding | Typed | Typed | Typed | Optional typed |
-| App Binding connection start/revoke/status | App Binding | Typed | Typed | Typed | Optional typed |
-| Thread app bindings list/revoke | App Binding | Typed | Typed | Typed | Required typed |
-| App Binding tool error shape | App Binding | Typed | Typed | Typed | Required App Binding profile |
-| Channel adapter base class | External Channel Adapter | Profile | Gap | Profile | TypeScript + Python profile |
-| Channel runtime reducers/dispatchers | External Channel Adapter | Profile | Gap | Profile | TypeScript + Python profile |
-| Media source normalization for channel tools | SDK | Profile | Gap | Gap | TypeScript profile |
-| Hosted channel module manifest | External Channel Adapter | Profile | Gap | Gap | TypeScript profile |
-| Module conformance helper | SDK | Profile | Gap | Gap | TypeScript profile |
-| SDK conformance fixtures | SDK | Typed | Typed | Typed | Required for new wrappers |
+| Capability | Owning Spec | TypeScript | .NET | Parity Target |
+|------------|-------------|------------|------|---------------|
+| Initialize / initialized | AppServer | Typed | Typed | Required |
+| Raw AppServer request | AppServer | Typed | Typed | Required |
+| Raw notification consumption | AppServer | Typed | Typed | Required |
+| Server request dispatch | AppServer | Typed | Typed | Required |
+| Stdio or stream JSON-RPC transport | AppServer | Typed | Typed | Required low-level |
+| WebSocket JSON-RPC transport | AppServer | Typed | Typed | Required |
+| Custom transport injection | SDK | Raw constructor | Typed high-level | Required low-level |
+| Hub lock discovery and validation | Hub | Typed | Typed | Required local |
+| Hub startup | Hub | Typed | Typed | Required local |
+| AppServer ensure | Hub | Typed | Typed | Required local |
+| Default Chat AppServer ensure | Hub | Typed | Typed | Required local |
+| AppServer lookup by workspace | Hub | Gap | Typed | Optional typed |
+| Hub status | Hub | Typed | Gap | Optional typed |
+| Hub SSE events | Hub | Typed | Gap | Optional typed |
+| Thread start | AppServer | Typed | Typed | Required |
+| Thread resume | AppServer | Typed | Typed | Required |
+| Thread read | AppServer | Typed | Typed | Required |
+| Thread subscribe | AppServer | Typed | Typed | Required |
+| Thread list | AppServer | Typed | Typed | Required application |
+| Thread unsubscribe | AppServer | Typed | Typed | Required application |
+| Thread archive/delete | AppServer | Typed | Typed | Optional typed |
+| Thread mode set | AppServer | Typed | Typed | Optional typed |
+| Turn start | AppServer | Typed | Typed | Required |
+| Turn enqueue | AppServer | Typed | Typed | Required |
+| Turn interrupt | AppServer | Typed | Typed | Required |
+| High-level run | SDK | Typed | Typed | Required Run profile |
+| Streaming run events | SDK/AppServer | Typed | Typed | Required Run profile |
+| Delta/snapshot text merge | SDK/Session | Typed | Typed | Required Run profile |
+| Approval callback | AppServer | Callback | Callback | Required when advertised |
+| User-input callback | AppServer | Callback | Callback | Required when advertised |
+| Runtime Dynamic Tool declaration | AppServer | Typed | Typed | Required |
+| Runtime Dynamic Tool callback | AppServer | Callback | Callback | Required |
+| Model list | AppServer | Typed | Typed | Optional typed |
+| App Binding handoff parse | App Binding | Typed | Typed | App Binding profile |
+| App Binding request inspect | App Binding | Raw | Typed | App Binding profile |
+| App Binding principal authenticate/refresh | App Binding | Typed | Typed | App Binding profile |
+| App Binding enable/activate/rebind | App Binding | Typed | Typed | App Binding profile |
+| App Binding capability confirmation | App Binding | Typed | Typed | App Binding profile |
+| App Binding app list/view | App Binding | Typed | Typed | Optional typed |
+| App Binding connection start/revoke/status | App Binding | Typed | Typed | Optional typed |
+| Thread app bindings list/revoke | App Binding | Typed | Typed | Required typed |
+| App Binding tool error shape | App Binding | Typed | Typed | Required App Binding profile |
+| Channel adapter base class | External Channel Adapter | Profile | Gap | TypeScript profile |
+| Channel runtime reducers/dispatchers | External Channel Adapter | Profile | Gap | TypeScript profile |
+| Media source normalization for channel tools | SDK | Profile | Gap | TypeScript profile |
+| Hosted channel module manifest | External Channel Adapter | Profile | Gap | TypeScript profile |
+| Module conformance helper | SDK | Profile | Gap | TypeScript profile |
+| SDK conformance fixtures | SDK | Typed | Typed | Required for new wrappers |
 
 When a status changes, update this table and the relevant language binding spec in the same change.
 
@@ -389,9 +389,8 @@ Current binding specs:
 
 - [TypeScript SDK Binding](typescript.md)
 - [.NET SDK Binding](dotnet.md)
-- [Python SDK Binding](python.md)
 
-All three are general-purpose SDKs and must satisfy the Core, Hub Bootstrap, Application, Run, and App Binding profiles at the parity targets in §5. TypeScript and Python additionally provide the Channel Adapter profile.
+Both are general-purpose SDKs and must satisfy the Core, Hub Bootstrap, Application, Run, and App Binding profiles at the parity targets in §5. TypeScript additionally provides the Channel Adapter profile.
 
 ## 7. Testing And Conformance
 
@@ -451,4 +450,4 @@ A complete shared SDK specification state satisfies:
 - Capability parity is tracked in this document's matrix.
 - Language-specific SDK designs remain documented without duplicating shared protocol semantics.
 - Contracts, Wire, high-level, and host-adapter responsibilities remain distinct.
-- TypeScript, .NET, and Python expose equivalent typed and explicit raw Wire semantics and the same generic Hub capability set.
+- TypeScript and .NET expose equivalent typed and explicit raw Wire semantics and the same generic Hub capability set.

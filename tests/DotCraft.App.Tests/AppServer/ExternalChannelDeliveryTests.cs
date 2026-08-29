@@ -540,7 +540,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 Enabled = true,
                 Transport = ExternalChannelTransport.Subprocess,
                 Command = "python",
-                Args = ["-m", "dotcraft_telegram"],
+                Args = ["-m", "sample_adapter"],
                 WorkingDirectory = _tempDir,
                 Env = new Dictionary<string, string> { ["DOTCRAFT_TEST"] = "1" }
             },

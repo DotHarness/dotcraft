@@ -69,30 +69,6 @@ function Update-DotNetPackageVersionFile {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
-function Update-TomlVersionLine {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$NewVersion
-    )
-
-    Assert-Exists -Path $Path
-    $content = [System.IO.File]::ReadAllText($Path)
-    $content = Replace-Regex -Content $content -Pattern '(^\s*version\s*=\s*")[^"]+(")' -Replacement ('${1}' + $NewVersion + '${2}') -Multiline
-    Write-Utf8NoBomFile -Path $Path -Content $content
-}
-
-function Update-PythonModuleVersion {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$NewVersion
-    )
-
-    Assert-Exists -Path $Path
-    $content = [System.IO.File]::ReadAllText($Path)
-    $content = Replace-Regex -Content $content -Pattern '(^\s*__version__\s*=\s*")[^"]+(")' -Replacement ('${1}' + $NewVersion + '${2}') -Multiline
-    Write-Utf8NoBomFile -Path $Path -Content $content
-}
-
 function Update-TypeScriptProtocolMetadataVersion {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -271,8 +247,6 @@ $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.Oratorio/DotCraft.Oratorio.csproj" },
     @{ Type = "dotnetPackage"; Path = "src/DotCraft.Harness/DotCraft.Harness.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
-    @{ Type = "toml"; Path = "sdk/python/pyproject.toml" },
-    @{ Type = "pythonModule"; Path = "sdk/python/dotcraft/__init__.py" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
     @{ Type = "packageJson"; Path = "desktop/resources/plugins/dotcraft-bundled/plugins/oratorio/.craft-plugin/plugin.json" },
     @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true; UpdateLinkedDesktopPlugin = $true },
@@ -317,12 +291,6 @@ foreach ($target in $targets) {
         }
         "dotnetPackage" {
             Update-DotNetPackageVersionFile -Path $absolutePath -NewVersion $Version
-        }
-        "toml" {
-            Update-TomlVersionLine -Path $absolutePath -NewVersion $Version
-        }
-        "pythonModule" {
-            Update-PythonModuleVersion -Path $absolutePath -NewVersion $Version
         }
         "typescriptProtocolMetadata" {
             Update-TypeScriptProtocolMetadataVersion -Path $absolutePath -NewVersion $Version

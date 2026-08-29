@@ -6,9 +6,9 @@
 | **Status** | Living |
 | **Date** | 2026-08-03 |
 | **Parent Specs** | [SDK](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [TypeScript SDK](typescript.md), [.NET SDK](dotnet.md), [Python SDK](python.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
+| **Related Specs** | [TypeScript SDK](typescript.md), [.NET SDK](dotnet.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
 
-Purpose: define the executable AppServer wire contract, typed RPC catalog, deterministic contract artifacts, and generated low-level bindings shared by the .NET, TypeScript, and Python SDKs.
+Purpose: define the executable AppServer wire contract, typed RPC catalog, deterministic contract artifacts, and generated low-level bindings shared by the .NET and TypeScript SDKs.
 
 ## 1. Overview
 
@@ -28,7 +28,6 @@ C# wire contracts and typed RPC catalog
               +-- Session item payload catalog
               +-- .NET typed RPC bindings
               +-- TypeScript DTOs and method maps
-              +-- Python Pydantic models and RPC mixins
 ```
 
 The generated layer covers wire contracts and low-level method bindings. Transports, high-level SDK objects, run aggregation, callback orchestration, error hierarchies, and raw JSON-RPC escape hatches remain handwritten.
@@ -44,7 +43,7 @@ The contract system must:
 - preserve required, optional, nullable, enum, union, and opaque JSON semantics across languages;
 - generate deterministic artifacts without starting AppServer or loading runtime services;
 - let the server and .NET SDK share the same C# contracts;
-- generate typed TypeScript and Python low-level bindings while preserving idiomatic high-level SDKs;
+- generate typed TypeScript low-level bindings while preserving idiomatic high-level SDKs;
 - retain raw request, notification, and unknown-message fallbacks;
 - detect contract drift and classify protocol changes locally before artifacts are committed.
 
@@ -58,7 +57,7 @@ This specification defines:
 - canonical Session item payload DTOs, parsing, and unknown-kind fallback;
 - Contract IR construction and validation;
 - AppServer Manifest, JSON Schema, OpenRPC, and contract hash artifacts;
-- generated .NET, TypeScript, and Python wire bindings;
+- generated .NET and TypeScript wire bindings;
 - typed server dispatch and notification/request emission;
 - first-party AppServer contract modules;
 - compatibility, deterministic generation, local validation, and protocol diff behavior.
@@ -125,7 +124,7 @@ It is responsible for:
 - generating serializer context registrations and C# binding helpers;
 - reporting compile-time diagnostics for invalid contract declarations.
 
-It does not write repository files and does not emit TypeScript, Python, Manifest, Schema, or OpenRPC artifacts.
+It does not write repository files and does not emit TypeScript, Manifest, Schema, or OpenRPC artifacts.
 
 ### 5.3 Repository generator
 
@@ -156,21 +155,19 @@ These boundaries use `JsonElement`, `JsonNode`, `JsonValue`, or a dictionary who
 
 Contract properties must make presence and nullability explicit.
 
-| C# declaration | Wire meaning | TypeScript | Python model meaning |
-|----------------|--------------|------------|----------------------|
-| `required T` | required, non-null | `field: T` | required `T` |
-| `[JsonRequired] T?` | required, nullable | `field: T \| null` | required `T \| None` |
-| `T?` | optional, nullable | `field?: T \| null` | defaulted `T \| None`, omitted with `exclude_unset` |
-| `Optional<T>` | optional, explicit null invalid | `field?: T` | optional field with non-null validation |
-| `Optional<T?>` | missing, null, or value | `field?: T \| null` | unset-aware `T \| None` |
+| C# declaration | Wire meaning | TypeScript |
+|----------------|--------------|------------|
+| `required T` | required, non-null | `field: T` |
+| `[JsonRequired] T?` | required, nullable | `field: T \| null` |
+| `T?` | optional, nullable | `field?: T \| null` |
+| `Optional<T>` | optional, explicit null invalid | `field?: T` |
+| `Optional<T?>` | missing, null, or value | `field?: T \| null` |
 
 The analyzer rejects public contract properties whose declaration does not resolve to one of these states. Patch, update, and merge requests use `Optional<T>` where omission differs from an explicit value.
 
-Python generated models must preserve the difference between an omitted field and an explicitly null field through Pydantic field-set tracking and `exclude_unset=True` serialization.
-
 ### 6.4 Enums and open string sets
 
-Closed wire enums serialize as camelCase strings. TypeScript represents them as string unions. Python represents them as `str` enums or literals as selected by the normalized schema.
+Closed wire enums serialize as camelCase strings. TypeScript represents them as string unions.
 
 A field that must accept future string values is modeled as an open string set in the Contract IR rather than a closed enum. Generated clients expose known constants without rejecting unknown non-empty wire values.
 
@@ -183,17 +180,17 @@ Public unions require a stable string discriminator such as `type`. Every varian
 - Protocol identifiers are strings.
 - Integer values whose protocol domain is bounded to JavaScript's safe range may use
   `[JsonSafeInteger] long`/`long?` in C#. Contract IR records the inclusive
-  `-(2^53-1)` to `2^53-1` bounds, JSON Schema emits those bounds, TypeScript uses
-  `number`, and Python uses a bounded `int` model. Producers must not emit values outside that range.
+  `-(2^53-1)` to `2^53-1` bounds, JSON Schema emits those bounds, and TypeScript
+  uses `number`. Producers must not emit values outside that range.
 - Values that can legitimately exceed JavaScript's safe integer range are strings on the wire.
-- Timestamps use ISO 8601 UTC strings. C# may expose `DateTimeOffset`; TypeScript and Python wire models retain their serialized string form unless a language binding explicitly wraps them at a higher layer.
+- Timestamps use ISO 8601 UTC strings. C# may expose `DateTimeOffset`; TypeScript wire models retain their serialized string form unless a language binding explicitly wraps them at a higher layer.
 - Arrays preserve order.
 - Dictionaries have string keys and an explicitly modeled value type.
 - Contract collections use read-only interfaces in public C# declarations where mutation is not part of the wire contract.
 
 ### 6.7 Serializer behavior
 
-Wire names use explicit `JsonPropertyName` declarations. Optional fields use explicit null/default omission rules. Unknown fields are ignored by C# deserialization and preserved by Python Pydantic models through `extra="allow"`.
+Wire names use explicit `JsonPropertyName` declarations. Optional fields use explicit null/default omission rules. Unknown fields are ignored by C# deserialization and preserved on the wire.
 
 Custom converters are prohibited unless the contract system has an explicit schema/IR adapter for that converter. Built-in string-enum and approved discriminated-union handling are supported.
 
@@ -304,7 +301,7 @@ Each field records its wire name, type reference, requiredness, nullability, des
 
 ### 8.2 Construction
 
-ProtocolGen reads generated catalog metadata and System.Text.Json serializer metadata from the compiled Contracts assembly. TypeScript and Python emitters do not reflect C# independently and do not parse each other's generated files.
+ProtocolGen reads generated catalog metadata and System.Text.Json serializer metadata from the compiled Contracts assembly. The TypeScript emitter does not reflect C# independently and does not parse other generated files.
 
 ### 8.3 Validation
 
@@ -394,8 +391,6 @@ Every command accepts `--profile stable|experimental`; `stable` is the default. 
 
 Generation first compiles and validates the complete Contract IR, then renders every contract and SDK output into an isolated staging directory. Files are normalized before hashing. Installation replaces each destination through a same-directory temporary file only after the complete staged output succeeds; generation failures before installation leave checked-in artifacts unchanged. `check` performs the same construction and validation without writing repository files.
 
-Python model generation resolves its interpreter from `DOTCRAFT_PYTHON` first and then the repository-local `sdk/python/.venv`. It never silently selects an arbitrary interpreter from `PATH`. The selected environment must contain the exactly pinned `datamodel-code-generator`; failures identify the expected setup and version.
-
 These commands run locally. Generated artifacts are reviewed and committed manually. CI workflow integration requires a separate approved change.
 
 ## 11. Language binding generation
@@ -446,35 +441,7 @@ export interface ClientRequestMap {
 
 The low-level client uses method literals to infer params and result types. Unknown methods remain available only through explicitly named raw APIs. `@dotcraft/sdk/contracts` re-exports these I/O-free generated artifacts.
 
-### 11.3 Python
-
-ProtocolGen writes a normalized aggregate Schema and invokes an exactly pinned `datamodel-code-generator` development dependency to produce Pydantic v2 models. Custom emitters use the Manifest to generate notification registries, typed RPC mixins, and protocol metadata.
-
-```text
-sdk/python/dotcraft/_generated/appserver/
-|-- models_generated.py
-|-- notification_registry_generated.py
-|-- item_payloads_generated.py
-|-- client_methods_generated.py
-|-- method_groups_generated.py
-`-- protocol_info_generated.py
-```
-
-The generated payload registry maps every known `payloadKind` to its Pydantic model, validates known payloads, and returns unknown payload JSON unchanged. Generated models inherit a contract-owned `WireModel` base with these semantics:
-
-- `ConfigDict(populate_by_name=True, extra="allow")`;
-- snake_case Python attributes with camelCase wire aliases;
-- parsing through `model_validate`;
-- wire serialization through `model_dump(by_alias=True, exclude_unset=True)`;
-- explicit validation for optional-but-non-null fields;
-- stable handling of required-but-nullable fields;
-- preservation of unknown fields.
-
-Schema normalization, generator templates, or structured generator extension points resolve naming and semantic gaps. Generated Python source is not repaired through ad hoc string replacement.
-
-The Python SDK adds Pydantic v2 as a runtime dependency. `datamodel-code-generator` remains an exactly pinned development dependency. `dotcraft.contracts` provides the supported public re-export surface while implementation files remain generated internals.
-
-### 11.4 Handwritten SDK layer
+### 11.3 Handwritten SDK layer
 
 All language bindings keep these components handwritten:
 
@@ -591,7 +558,7 @@ Tests generate artifacts twice and compare bytes. They validate ordering, refere
 
 Shared JSON fixtures cover initialization, thread start/resume/list/read, turn start and terminal states, approval, user input, dynamic tools, lifecycle notifications, errors, empty objects, unknown fields, and extension payloads.
 
-The same fixtures are consumed by xUnit, the TypeScript test runner, and pytest.
+The same fixtures are consumed by xUnit and the TypeScript test runner.
 
 The portable message fixtures under `specs/protocols/fixtures/` are durable protocol assets. Fixtures use synthetic identifiers and values. They must not contain machine-specific paths, credentials, user identities, or references to external projects.
 
@@ -599,11 +566,7 @@ The portable message fixtures under `specs/protocols/fixtures/` are durable prot
 
 Tests compile generated method maps and validate DTO round trips, discriminator narrowing, optional/null behavior, raw unknown notifications, and generated client method inference.
 
-### 16.5 Python
-
-Tests cover Pydantic aliases, unknown fields, missing/null/value states, required-nullable fields, open string sets, unions, notification registry dispatch, RPC mixins, and wire dumps using aliases and `exclude_unset`.
-
-### 16.6 Integration invariants
+### 16.5 Integration invariants
 
 Existing AppServer integration suites continue to verify cancellation, response ordering, notification filtering, server-initiated callbacks, raw escape hatches, and high-level SDK behavior.
 
@@ -622,7 +585,7 @@ CI workflows do not enforce these commands. Automated drift and compatibility ga
 
 ## 18. Implementation state
 
-The repository implements the complete bundled AppServer contract surface across core, App Binding, Automations, Teams, ACP, Node REPL, and External Channel modules. The checked-in Manifest is the authoritative machine-readable method inventory; generated schemas, OpenRPC, TypeScript bindings, and Python bindings are projections of the same IR.
+The repository implements the complete bundled AppServer contract surface across core, App Binding, Automations, Teams, ACP, Node REPL, and External Channel modules. The checked-in Manifest is the authoritative machine-readable method inventory; generated schemas, OpenRPC, and TypeScript bindings are projections of the same IR.
 
 Server dispatch uses typed descriptors for bundled methods while preserving the generic JSON-RPC envelope and raw third-party extension path. Portable fixtures remain durable conformance assets. CI enforcement, Hub OpenAPI generation, external artifact publication, and dynamic third-party contract generation remain outside this specification.
 
@@ -635,7 +598,6 @@ Server dispatch uses typed descriptors for bundled methods while preserving the 
 - [x] All emitters derive from one Contract IR.
 - [x] Manifest, Schema, OpenRPC, and contract hash are deterministic.
 - [x] TypeScript bindings provide typed method maps and raw fallbacks.
-- [x] Python bindings provide generated Pydantic models, registries, mixins, and raw fallbacks.
 - [x] Missing, null, enum, union, and opaque JSON semantics agree across languages.
 - [x] Session Thread, Turn, and Item DTOs explicitly declare the complete public Wire shape.
 - [x] All canonical Session item payloads share one generated cross-language catalog and unknown fallback.
@@ -648,7 +610,7 @@ Server dispatch uses typed descriptors for bundled methods while preserving the 
 
 ## 20. Open questions
 
-None. Changes to the source-of-truth model, Python generation path, Hub boundary, artifact policy, or stability profile policy require an amendment to this specification.
+None. Changes to the source-of-truth model, generation path, Hub boundary, artifact policy, or stability profile policy require an amendment to this specification.
 
 ## Related docs
 
@@ -656,4 +618,3 @@ None. Changes to the source-of-truth model, Python generation path, Hub boundary
 - [AppServer Protocol](../protocols/appserver-protocol.md)
 - [TypeScript SDK](typescript.md)
 - [.NET SDK](dotnet.md)
-- [Python SDK](python.md)

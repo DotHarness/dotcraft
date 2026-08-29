@@ -556,7 +556,7 @@ Any new divergence in tool identity, exposure, deferred discovery, or Dynamic de
 
 ## 18. Protocol consistency
 
-Core, Desktop, and the .NET, TypeScript, and Python SDKs use the same canonical tool identity, Runtime Dynamic declaration, MCP Apps, and App Binding contracts. Unsupported fields and method names are rejected rather than interpreted as alternate protocol shapes.
+Core, Desktop, and the .NET and TypeScript SDKs use the same canonical tool identity, Runtime Dynamic declaration, MCP Apps, and App Binding contracts. Unsupported fields and method names are rejected rather than interpreted as alternate protocol shapes.
 
 ## 19. Security invariants
 

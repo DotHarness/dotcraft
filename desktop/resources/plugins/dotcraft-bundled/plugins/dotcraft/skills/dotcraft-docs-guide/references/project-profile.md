@@ -37,15 +37,13 @@ GitHub-flavored, used sparingly:
 
 ## Multi-language code
 
-Group parallel examples with VitePress code-group, canonical order **TypeScript → .NET → Python**:
+Group parallel examples with VitePress code-group, canonical order **TypeScript → .NET**:
 
 ```
 ::: code-group
 \`\`\`ts [TypeScript]
 \`\`\`
 \`\`\`csharp [.NET]
-\`\`\`
-\`\`\`python [Python]
 \`\`\`
 :::
 ```

@@ -194,10 +194,6 @@ Short gloss of purpose, then the exact contract.
 // equivalent
 \`\`\`
 
-\`\`\`python [Python]
-# equivalent
-\`\`\`
-
 :::
 
 > [!CAUTION]
