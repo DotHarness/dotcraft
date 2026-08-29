@@ -1129,7 +1129,7 @@ export function registerIpcHandlers(
     async (_event, method: string, params?: unknown, timeoutMs?: number) => {
       const client = getWireClient()
       if (!client) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+        throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
       }
       const requestParams = withDesktopRequestIdentity(
         method,
@@ -1150,7 +1150,7 @@ export function registerIpcHandlers(
     async (_event, method: AppServerRequestMethod, params?: unknown, timeoutMs?: number) => {
       const client = getWireClient()
       if (!client) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+        throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
       }
       const requestParams = withDesktopRequestIdentity(
         method,
@@ -1163,12 +1163,17 @@ export function registerIpcHandlers(
     }
   )
 
-  handleSafe('appserver:model-list', async () => {
+  handleSafe('appserver:model-list', async (_event, providerId?: string | null) => {
     const client = getWireClient()
     if (!client) {
-      throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+      return null
     }
-    return client.sendRequest('model/list', {}, 20_000)
+    const normalizedProviderId = providerId?.trim() || null
+    return client.sendRequest(
+      'model/list',
+      normalizedProviderId ? { providerId: normalizedProviderId } : {},
+      20_000
+    )
   })
 
   handleSafe('appserver:workspace-config-schema', async () => {

@@ -434,8 +434,8 @@ const api = {
       return ipcRenderer.invoke('appserver:send-request-raw', method, params, timeoutMs)
     },
 
-    listModels(): Promise<unknown> {
-      return ipcRenderer.invoke('appserver:model-list')
+    listModels(providerId?: string | null): Promise<unknown> {
+      return ipcRenderer.invoke('appserver:model-list', providerId)
     },
 
     requestWorkspaceConfigSchema(): Promise<WorkspaceConfigSchema | null> {

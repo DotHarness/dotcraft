@@ -576,6 +576,33 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('identifies an AppServer request rejected before connection', async () => {
+    const handlers = registerHandlersForTest('/workspace', () => null)
+
+    await expect(
+      handlers.get('appserver:send-request')?.({}, 'command/list', { privateValue: 'hidden' })
+    ).rejects.toThrow('AppServer is not connected (command/list)')
+  })
+
+  it('defers model listing until AppServer is connected', async () => {
+    const handlers = registerHandlersForTest('/workspace', () => null)
+
+    await expect(
+      handlers.get('appserver:model-list')?.({}, 'openrouter')
+    ).resolves.toBeNull()
+  })
+
+  it('forwards provider-specific model listing through its dedicated channel', async () => {
+    const result = { success: true, models: [{ id: 'model-1' }] }
+    const sendRequest = vi.fn().mockResolvedValue(result)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+
+    await expect(
+      handlers.get('appserver:model-list')?.({}, ' openrouter ')
+    ).resolves.toBe(result)
+    expect(sendRequest).toHaveBeenCalledWith('model/list', { providerId: 'openrouter' }, 20_000)
+  })
+
   it('enriches raw Desktop thread starts with identity and existing runtime tools', async () => {
     const client = {
       sendRequest: vi.fn().mockResolvedValue({ thread: { id: 'thread-1' } })

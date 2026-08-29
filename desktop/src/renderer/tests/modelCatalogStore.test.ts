@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
-const appServerSendRequest = vi.fn()
+const appServerListModels = vi.fn()
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -20,11 +20,11 @@ describe('modelCatalogStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useModelCatalogStore.getState().reset()
-    installDesktopApiMock({ appServer: { sendRequest: appServerSendRequest } })
+    installDesktopApiMock({ appServer: { listModels: appServerListModels } })
   })
 
   it('treats model/list failures as retryable errors', async () => {
-    appServerSendRequest
+    appServerListModels
       .mockResolvedValueOnce({
         success: false,
         errorCode: 'EndpointNotSupported',
@@ -37,7 +37,7 @@ describe('modelCatalogStore', () => {
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
-    expect(appServerSendRequest).toHaveBeenCalledWith('model/list', {}, 20_000)
+    expect(appServerListModels).toHaveBeenCalledWith(null)
     expect(useModelCatalogStore.getState()).toMatchObject({
       status: 'error',
       modelOptions: [],
@@ -48,7 +48,7 @@ describe('modelCatalogStore', () => {
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
-    expect(appServerSendRequest).toHaveBeenCalledTimes(2)
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
     expect(useModelCatalogStore.getState()).toMatchObject({
       status: 'ready',
       modelOptions: ['gpt-5'],
@@ -59,7 +59,7 @@ describe('modelCatalogStore', () => {
   })
 
   it('stores thrown model/list errors', async () => {
-    appServerSendRequest.mockRejectedValueOnce(new Error('proxy unavailable'))
+    appServerListModels.mockRejectedValueOnce(new Error('proxy unavailable'))
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
@@ -71,8 +71,22 @@ describe('modelCatalogStore', () => {
     })
   })
 
+  it('keeps a pre-connection model list retryable without surfacing an error', async () => {
+    appServerListModels.mockResolvedValueOnce(null)
+
+    await useModelCatalogStore.getState().loadIfNeeded()
+
+    expect(useModelCatalogStore.getState()).toMatchObject({
+      status: 'idle',
+      models: [],
+      modelOptions: [],
+      errorCode: null,
+      errorMessage: null
+    })
+  })
+
   it('passes provider id to model/list and reloads when it changes', async () => {
-    appServerSendRequest
+    appServerListModels
       .mockResolvedValueOnce({
         success: true,
         models: [{ id: 'claude-sonnet' }]
@@ -85,8 +99,8 @@ describe('modelCatalogStore', () => {
     await useModelCatalogStore.getState().loadIfNeeded(false, 'anthropic-main')
     await useModelCatalogStore.getState().loadIfNeeded(false, 'openrouter')
 
-    expect(appServerSendRequest).toHaveBeenNthCalledWith(1, 'model/list', { providerId: 'anthropic-main' }, 20_000)
-    expect(appServerSendRequest).toHaveBeenNthCalledWith(2, 'model/list', { providerId: 'openrouter' }, 20_000)
+    expect(appServerListModels).toHaveBeenNthCalledWith(1, 'anthropic-main')
+    expect(appServerListModels).toHaveBeenNthCalledWith(2, 'openrouter')
     expect(useModelCatalogStore.getState()).toMatchObject({
       providerId: 'openrouter',
       modelOptions: ['gpt-5']
@@ -96,14 +110,14 @@ describe('modelCatalogStore', () => {
   it('runs a provider-specific reload after another model list request is already in flight', async () => {
     const first = createDeferred<unknown>()
     const second = createDeferred<unknown>()
-    appServerSendRequest
+    appServerListModels
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
 
     const defaultLoad = useModelCatalogStore.getState().loadIfNeeded()
     const providerLoad = useModelCatalogStore.getState().loadIfNeeded(false, 'anthropic-main')
 
-    expect(appServerSendRequest).toHaveBeenCalledTimes(1)
+    expect(appServerListModels).toHaveBeenCalledTimes(1)
     first.resolve({
       success: true,
       providerId: 'openai',
@@ -112,7 +126,7 @@ describe('modelCatalogStore', () => {
     await defaultLoad
     await Promise.resolve()
 
-    expect(appServerSendRequest).toHaveBeenNthCalledWith(2, 'model/list', { providerId: 'anthropic-main' }, 20_000)
+    expect(appServerListModels).toHaveBeenNthCalledWith(2, 'anthropic-main')
     second.resolve({
       success: true,
       providerId: 'anthropic-main',
@@ -128,7 +142,7 @@ describe('modelCatalogStore', () => {
   })
 
   it('stores the effective provider id returned for the workspace default provider', async () => {
-    appServerSendRequest.mockResolvedValueOnce({
+    appServerListModels.mockResolvedValueOnce({
       success: true,
       providerId: 'openai',
       models: [{ id: 'gpt-5.5' }]
@@ -136,7 +150,7 @@ describe('modelCatalogStore', () => {
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
-    expect(appServerSendRequest).toHaveBeenCalledWith('model/list', {}, 20_000)
+    expect(appServerListModels).toHaveBeenCalledWith(null)
     expect(useModelCatalogStore.getState()).toMatchObject({
       providerId: 'openai',
       requestedProviderId: null,
@@ -145,7 +159,7 @@ describe('modelCatalogStore', () => {
   })
 
   it('keeps reasoning metadata from model/list', async () => {
-    appServerSendRequest.mockResolvedValueOnce({
+    appServerListModels.mockResolvedValueOnce({
       success: true,
       models: [
         {
@@ -185,7 +199,7 @@ describe('modelCatalogStore', () => {
   })
 
   it('keeps Fast capability from model/list', async () => {
-    appServerSendRequest.mockResolvedValueOnce({
+    appServerListModels.mockResolvedValueOnce({
       success: true,
       models: [{
         id: 'gpt-5.5',

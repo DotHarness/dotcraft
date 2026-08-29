@@ -6,8 +6,8 @@
 }
 
 .indicator {
-  --cdp-deep: color-mix(in srgb, var(--accent) 64%, var(--error));
-  --cdp-bright: color-mix(in srgb, var(--accent-hover) 72%, var(--error));
+  --cdp-deep: var(--info);
+  --cdp-bright: color-mix(in srgb, var(--info) 24%, white);
   display: inline-grid;
   width: 24px;
   height: 24px;
