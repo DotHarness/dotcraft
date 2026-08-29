@@ -83,6 +83,7 @@ Provider 对象字段：
 | `ChatGptPlanType` | 由 Sign in with ChatGPT 流程写入的 ChatGPT 订阅档位（`free`、`plus`、`pro`、`business`、`enterprise`、`edu`），不要手动编辑 | 空 |
 | `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
+| `MaxOutputTokens` | 单个 Provider 的默认最大输出 token 数，请求自己没有指定时使用该值 | 空 |
 | `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
 | `SupportsHostedImageGeneration` | 是否为该提供商启用 hosted image generation。省略时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理。OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理。 | 提供商默认值 |
@@ -109,7 +110,9 @@ Sign in with ChatGPT 示例：
 |--------|------|--------|
 | `Memory.AutoConsolidateEnabled` | 启用长期记忆自动沉淀 | `true` |
 | `Memory.ConsolidateEveryNTurns` | 每个线程成功完成多少轮后触发一次长期记忆沉淀 | `5` |
+| `Skills.DisabledSkills` | 当前工作区禁用的 skill 名称列表。被禁用的 skill 仍留在磁盘上，但不会注入 Agent 上下文 | `[]` |
 | `Skills.SelfLearning.Enabled` | Skill 自学习主开关。关闭后模型看不到 skill 编辑能力 | `true` |
+| `Skills.SelfLearning.VariantMode` | Skill variant 写入模式。`enabled` 把自学习更新写入工作区本地 skill variant，`disabled` 关闭 variant | `enabled` |
 | `Skills.SelfLearning.MaxSkillContentChars` | 通过自学习写入单个 `SKILL.md` 的最大字符数 | `100000` |
 | `Skills.SelfLearning.MaxSupportingFileBytes` | 通过自学习写入单个 supporting file 的最大字节数 | `1048576` |
 
@@ -148,6 +151,7 @@ Skill 自学习示例：
 | `Compaction.ContextWindow` | 模型上下文窗口（Token）。未配置时按当前有效模型推导 | 模型映射值 / `256000` |
 | `Compaction.MaxContextWindow` | 推导模型上下文窗口时使用的上限。显式值保留 | `256000` |
 | `Compaction.SummaryReserveTokens` | 为摘要输出预留的 Token | `20000` |
+| `Compaction.SummaryMaxOutputTokens` | 压缩摘要请求的最大输出 Token 数 | `12000` |
 | `Compaction.AutoCompactBufferTokens` | 低于硬上限多少 Token 时触发自动压缩 | `13000` |
 | `Compaction.WarningBufferTokens` | 到达自动阈值前多少 Token 发出 warning | `20000` |
 | `Compaction.ErrorBufferTokens` | 到达自动阈值前多少 Token 发出 error | `10000` |
@@ -266,6 +270,8 @@ Deep-thinking adapter 文件：
 | `Tools.Web.Timeout` | Web 请求超时时间（秒） | `300` |
 | `Tools.Web.SearchMaxResults` | 联网搜索默认返回结果数 | `5` |
 | `Tools.Web.SearchProvider` | 搜索引擎提供商：`Bing` / `Exa` | `Exa` |
+| `Tools.ResultLimits.MaxToolResultChars` | 工具结果落盘前的默认长度上限（字符）。`0` 表示对使用全局默认值的工具不做限制 | `50000` |
+| `Tools.ResultLimits.SpillPreviewLines` | 结果落盘时，预览中保留的首尾行数 | `40` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 | `Tools.Lsp.MaxFileSize` | LSP 打开或同步文件时允许的最大文件大小 | `10485760` |
 | `Tools.ImageGeneration.Enabled` | 允许支持的 OpenAI Responses 提供商在对话中生成图片 | `true` |
@@ -283,6 +289,7 @@ Deep-thinking adapter 文件：
 | `Tools.Sandbox.AllowedEgressDomains` | 自定义允许出站域名列表 | `[]` |
 | `Tools.Sandbox.IdleTimeoutSeconds` | 空闲超时（秒） | `300` |
 | `Tools.Sandbox.SyncWorkspace` | 是否同步 workspace 到容器 | `true` |
+| `Tools.Sandbox.SyncExclude` | 同步时排除的工作区相对路径，按路径前缀匹配。默认值用于避免敏感的 `.craft/` 运行数据进入容器，建议在默认值上追加而不是整体替换 | `[".craft/config.json", ".craft/sessions", ".craft/memory", ".craft/dashboard", ".craft/security", ".craft/logs"]` |
 
 使用支持的 OpenAI Responses 提供商时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
 
@@ -340,6 +347,7 @@ OpenSandbox 示例：
 |--------|------|--------|
 | `Automations.Enabled` | 是否启用 Automations 编排器 | `true` |
 | `Automations.LocalTasksRoot` | 本地任务根目录，留空使用 `.craft/tasks/` | 空 |
+| `Automations.UserTemplatesRoot` | 用户自建模板根目录，留空使用 `.craft/automations/templates/` | 空 |
 | `Automations.PollingInterval` | 轮询间隔 | `00:00:30` |
 | `Automations.MaxConcurrentTasks` | 本地任务最大并发数 | `3` |
 | `Automations.TurnTimeout` | 单轮对话超时时间 | `00:30:00` |
@@ -552,7 +560,7 @@ session stream debug 记录使用独立文件，因为它们可能包含敏感�
 | `DashBoard.Enabled` | 是否启用 Dashboard | `true` |
 | `DashBoard.Host` | Dashboard 监听地址 | `127.0.0.1` |
 | `DashBoard.Port` | Dashboard 监听端口 | `8080` |
-| `AppServer.Mode` | AppServer transport mode，例如 stdio 或 WebSocket | 空 |
+| `AppServer.Mode` | AppServer 传输模式：`Disabled`、`Stdio`、`WebSocket` 或 `StdioAndWebSocket` | `Disabled` |
 | `AppServer.WebSocket.Host` | WebSocket 监听地址 | `127.0.0.1` |
 | `AppServer.WebSocket.Port` | WebSocket 监听端口 | `9100` |
 | `AppServer.WebSocket.Token` | 远程 WebSocket 客户端需要使用的 token | 空 |
@@ -613,6 +621,8 @@ Desktop 托管的内置 TypeScript 渠道：
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
+| `Plugins.EnabledPlugins` | 当前工作区显式启用的插件 id 列表 | `[]` |
+| `Plugins.DisabledPlugins` | 当前工作区显式禁用的插件 id 列表。禁用条目优先于启用条目，也优先于插件自身的默认状态 | `[]` |
 | `Plugins.PluginRoots` | `.craft/plugins/` 之外额外维护的 plugin root 目录 | `[]` |
 | `Plugins.PluginRegistries` | 用于发现插件目录的 plugin marketplace 来源 | `[]` |
 | `Plugins.DisableDefaultPluginRegistry` | 忽略宿主提供的默认官方 plugin registry | `false` |
@@ -683,6 +693,7 @@ MCP 示例：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `SubAgent.MaxDepth` | session-backed subagent 的最大生成深度。第一级 subagent 深度为 `1` | `1` |
+| `SubAgent.MaxConcurrentSubAgents` | 同一根线程子树内同时驻留的 session-backed subagent 上限。超出时自动关闭最旧的空闲 subagent，若驻留的 subagent 全部仍在运行则本次 spawn 失败 | `16` |
 | `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 subagent 偏好。缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最小值，单位毫秒 | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent` 调用未传 timeout 时使用的默认毫秒数 | `60000` |

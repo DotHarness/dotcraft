@@ -83,6 +83,7 @@ Provider object fields:
 | `ChatGptPlanType` | ChatGPT plan tier written by the Sign in with ChatGPT flow (`free`, `plus`, `pro`, `business`, `enterprise`, `edu`); do not edit manually | Empty |
 | `EndPoint` | Provider base URL; empty values use the protocol default endpoint | OpenAI protocols: `https://api.openai.com/v1`; `anthropic`: `https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
+| `MaxOutputTokens` | Per-provider default maximum output tokens, applied when a request does not set its own | Empty |
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
 | `StreamIdleTimeoutMs` | Per-provider idle timeout for streaming responses, in milliseconds | `300000` |
 | `SupportsHostedImageGeneration` | Enables hosted image generation for this provider. When omitted, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false`. | Provider default |
@@ -109,7 +110,9 @@ A `chatgptOAuth` provider authenticates with a ChatGPT subscription instead of a
 |-------|-------------|---------|
 | `Memory.AutoConsolidateEnabled` | Enables automatic long-term memory consolidation | `true` |
 | `Memory.ConsolidateEveryNTurns` | Successful turns per thread between long-term memory consolidation attempts | `5` |
+| `Skills.DisabledSkills` | Skill names disabled for this workspace. A disabled skill stays on disk but is left out of agent context | `[]` |
 | `Skills.SelfLearning.Enabled` | Master switch for agent skill self-learning; off hides skill editing from the model | `true` |
+| `Skills.SelfLearning.VariantMode` | Skill variant write mode: `enabled` routes self-learning updates to workspace-local skill variants, `disabled` turns variants off | `enabled` |
 | `Skills.SelfLearning.MaxSkillContentChars` | Max chars for a single `SKILL.md` written through self-learning | `100000` |
 | `Skills.SelfLearning.MaxSupportingFileBytes` | Max bytes for a single supporting file written through self-learning | `1048576` |
 
@@ -148,6 +151,7 @@ Self-learning example:
 | `Compaction.ContextWindow` | Model context window in tokens. When unset, DotCraft infers it from the current effective model | Model catalog value / `256000` |
 | `Compaction.MaxContextWindow` | Upper bound used for inferred model catalog context windows; explicit values are preserved | `256000` |
 | `Compaction.SummaryReserveTokens` | Tokens reserved for summary output | `20000` |
+| `Compaction.SummaryMaxOutputTokens` | Maximum output tokens for a compaction summary request | `12000` |
 | `Compaction.AutoCompactBufferTokens` | Token buffer below the hard limit that triggers auto compaction | `13000` |
 | `Compaction.WarningBufferTokens` | Token buffer before auto threshold that emits warning | `20000` |
 | `Compaction.ErrorBufferTokens` | Token buffer before auto threshold that emits error | `10000` |
@@ -267,6 +271,8 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.Web.Timeout` | Web request timeout in seconds | `300` |
 | `Tools.Web.SearchMaxResults` | Default search result count | `5` |
 | `Tools.Web.SearchProvider` | `Bing` / `Exa` | `Exa` |
+| `Tools.ResultLimits.MaxToolResultChars` | Default tool result length in characters before the result spills to disk; `0` removes the limit for tools that use the global default | `50000` |
+| `Tools.ResultLimits.SpillPreviewLines` | Head and tail lines kept in the preview when a result spills to disk | `40` |
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 | `Tools.Lsp.MaxFileSize` | Max LSP file size | `10485760` |
 | `Tools.ImageGeneration.Enabled` | Allows supported OpenAI Responses providers to generate images in conversation | `true` |
@@ -284,6 +290,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.Sandbox.AllowedEgressDomains` | Custom allowed egress domains | `[]` |
 | `Tools.Sandbox.IdleTimeoutSeconds` | Idle timeout in seconds | `300` |
 | `Tools.Sandbox.SyncWorkspace` | Sync workspace into container | `true` |
+| `Tools.Sandbox.SyncExclude` | Workspace-relative paths excluded from that sync, matched as path prefixes. The defaults keep sensitive `.craft/` runtime data out of the container, so extend the list instead of replacing it | `[".craft/config.json", ".craft/sessions", ".craft/memory", ".craft/dashboard", ".craft/security", ".craft/logs"]` |
 
 With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output and shows the image inline in clients that render rich content.
 
@@ -341,6 +348,7 @@ OpenSandbox example:
 |-------|-------------|---------|
 | `Automations.Enabled` | Enables the Automations orchestrator | `true` |
 | `Automations.LocalTasksRoot` | Local task root. Empty uses `.craft/tasks/` | Empty |
+| `Automations.UserTemplatesRoot` | User-authored template root. Empty uses `.craft/automations/templates/` | Empty |
 | `Automations.PollingInterval` | Polling interval | `00:00:30` |
 | `Automations.MaxConcurrentTasks` | Maximum concurrent local tasks | `3` |
 | `Automations.TurnTimeout` | Single-turn timeout | `00:30:00` |
@@ -555,7 +563,7 @@ files because they can contain sensitive or high-volume payloads.
 | `DashBoard.Enabled` | Enables Dashboard | `true` |
 | `DashBoard.Host` | Dashboard listen address | `127.0.0.1` |
 | `DashBoard.Port` | Dashboard listen port | `8080` |
-| `AppServer.Mode` | AppServer transport mode, such as stdio or WebSocket | Empty |
+| `AppServer.Mode` | AppServer transport mode: `Disabled`, `Stdio`, `WebSocket`, or `StdioAndWebSocket` | `Disabled` |
 | `AppServer.WebSocket.Host` | WebSocket listen host | `127.0.0.1` |
 | `AppServer.WebSocket.Port` | WebSocket listen port | `9100` |
 | `AppServer.WebSocket.Token` | Token required by remote WebSocket clients | Empty |
@@ -616,6 +624,8 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 
 | Field | Description | Default |
 |-------|-------------|---------|
+| `Plugins.EnabledPlugins` | Plugin ids explicitly enabled for this workspace | `[]` |
+| `Plugins.DisabledPlugins` | Plugin ids explicitly disabled for this workspace. A disabled entry wins over an enabled entry and over the plugin's default state | `[]` |
 | `Plugins.PluginRoots` | Extra plugin root directories maintained outside `.craft/plugins/` | `[]` |
 | `Plugins.PluginRegistries` | Plugin marketplace sources available for catalog discovery | `[]` |
 | `Plugins.DisableDefaultPluginRegistry` | Ignore the host-provided default official plugin registry | `false` |
@@ -686,6 +696,7 @@ For the concept and everyday use, read [Subagents](../features/agent-system/suba
 | Field | Description | Default |
 |-------|-------------|---------|
 | `SubAgent.MaxDepth` | Maximum spawn depth for session-backed subagents. The first child is depth `1` | `1` |
+| `SubAgent.MaxConcurrentSubAgents` | Maximum resident session-backed subagents inside one root thread's subtree. Exceeding it auto-closes the oldest idle subagent, and the spawn fails instead when every resident subagent is still running | `16` |
 | `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | Minimum accepted `WaitAgent.timeoutMs` value in milliseconds | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent.timeoutMs` used when the tool call omits a timeout | `60000` |
