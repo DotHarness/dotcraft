@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
@@ -263,6 +264,9 @@ public sealed class GitLabReadSyncTests
             GitLabSettings(),
             services =>
             {
+                services.Remove(services.Single(descriptor =>
+                    descriptor.ServiceType == typeof(IHostedService) &&
+                    descriptor.ImplementationType == typeof(AutoReviewDispatchWorker)));
                 services.RemoveAll<IGitHubApiClient>();
                 services.AddSingleton<IGitHubApiClient>(fakeGitHub);
                 services.RemoveAll<IDotCraftAppServerProcessManager>();

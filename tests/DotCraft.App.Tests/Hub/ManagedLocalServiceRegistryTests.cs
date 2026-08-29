@@ -22,7 +22,7 @@ public sealed class ManagedLocalServiceRegistryTests : IDisposable
 
         var responses = await Task.WhenAll(requests);
 
-        Assert.Equal(1, starts.Count);
+        Assert.Single(starts);
         Assert.All(responses, item => Assert.Equal(HubManagedServiceStates.Running, item.State));
         Assert.Single(responses.Select(item => item.AccessToken).Distinct());
         Assert.Single(responses.Select(item => item.Pid).Distinct());
