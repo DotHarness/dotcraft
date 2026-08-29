@@ -11,7 +11,7 @@
 | [Desktop](./desktop) | 图形化桌面应用 | 第一次使用、长期协作、需要逐项审阅 diff 和审批 |
 | [CLI](../../getting-started) | 一次性命令 | 脚本、SSH、CI 和轻量任务 |
 | [IDE / 编辑器（ACP）](./editors) | 嵌在 JetBrains、Obsidian、Unity 等编辑器里 | 让 Agent 读到未保存的改动，用编辑器自己的终端和 diff 视图 |
-| [Channels 与 Bots](./channels) | QQ、企业微信、飞书、Telegram、微信 | 团队群聊、知识库机器人、客服机器人 |
+| [社交渠道](../channels/) | QQ、企业微信、飞书、Telegram、微信 | 团队群聊、知识库机器人、客服机器人 |
 
 ## 怎么挑
 

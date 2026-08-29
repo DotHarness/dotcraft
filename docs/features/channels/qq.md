@@ -1,6 +1,6 @@
 # Connect DotCraft to QQ
 
-Connect a QQ account to DotCraft through NapCat or another OneBot v11 gateway.
+Connect a QQ account to DotCraft as a [channel](./) through NapCat or another OneBot v11 gateway.
 
 > [!CAUTION]
 > Third-party QQ protocol frameworks can create account risk. Use a dedicated QQ account and review the risk before deployment.
@@ -49,7 +49,7 @@ If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an addr
 - A QQ group shares one conversation, with the actual sender recorded on each message.
 - Group messages require an @mention by default.
 - Empty admin and allowlist settings mean the bot ignores QQ messages.
-- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`.
+- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 - Voice, video, and file delivery are available through channel delivery tools.
 - Voice and video tools use `filePath` for local files, `fileUrl` for HTTP(S) URLs, and `fileBase64` for raw base64 payloads. The `file` argument accepts only URL and `base64://` sources; use `filePath` for local paths so DotCraft can request file-read approval.
 - For local voice, video, and file uploads, DotCraft reads the file before sending it to NapCat. Docker deployments do not need to mount the workspace into the NapCat container.
@@ -66,15 +66,10 @@ npx dotcraft-channel-qq --workspace /path/to/workspace
 
 Use `--config /custom/qq.json` when the adapter config is not stored at `.craft/qq.json`.
 
-Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
-
-## Reference
-
-See [Channel configuration reference](./reference) for the QQ JSON example, `ExternalChannels` registration, and field table.
+The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels)
-- [Channel configuration reference](./reference)
-- [Channel adapters](../sdks/channels)
-- [Channel Module integration](../integrations/typescript-module)
+- [Channel configuration reference](./reference) — every field, default, and registration shape for the QQ config file.
+- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
+- [Channel Module integration](../../developing/integrations/typescript-module) — embed a TypeScript channel module in your own host process.

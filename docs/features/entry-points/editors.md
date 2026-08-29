@@ -108,4 +108,4 @@ With `--remote`, several clients stay connected to one AppServer at once. A sess
 ## Related docs
 
 - [Desktop](./desktop) — the graphical entry point to the same agent, best for diffs, approvals, and history
-- [Channels & Bots](./channels) — reach the same workspace from QQ, Feishu, and other chat tools
+- [Channels & Bots](../channels/) — reach the same workspace from QQ, Feishu, and other chat tools

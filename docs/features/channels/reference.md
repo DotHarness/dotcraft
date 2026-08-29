@@ -1,6 +1,6 @@
 # Channel configuration reference
 
-This page documents TypeScript channel registration and adapter config files for Desktop-managed and standalone deployments.
+This page documents how TypeScript channels are registered in Desktop-managed and standalone deployments, and the fields and defaults of every adapter config file.
 
 ## Registration modes
 
@@ -51,11 +51,11 @@ Standalone adapters read `dotcraft.wsUrl` and `dotcraft.token` from their adapte
 
 | Channel | Built-in module | Adapter config |
 |---|---|---|
-| **QQ** | `channel-qq` | `.craft/qq.json` |
-| **WeCom** | `channel-wecom` | `.craft/wecom.json` |
-| **Feishu / Lark** | `channel-feishu` | `.craft/feishu.json` |
-| **Telegram** | `channel-telegram` | `.craft/telegram.json` |
-| **Weixin** | `channel-weixin` | `.craft/weixin.json` |
+| **[QQ](./qq)** | `channel-qq` | `.craft/qq.json` |
+| **[WeCom](./wecom)** | `channel-wecom` | `.craft/wecom.json` |
+| **[Feishu / Lark](./feishu)** | `channel-feishu` | `.craft/feishu.json` |
+| **[Telegram](./telegram)** | `channel-telegram` | `.craft/telegram.json` |
+| **[Weixin](./weixin)** | `channel-weixin` | `.craft/weixin.json` |
 
 ## Adapter config files
 
@@ -91,7 +91,7 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `qq.accessToken` | Optional OneBot access token. Must match NapCat when set. | Empty |
 | `qq.adminUsers` | QQ user IDs with admin permission. | `[]` |
 | `qq.whitelistedUsers` | QQ user IDs allowed to chat with DotCraft. | `[]` |
-| `qq.whitelistedGroups` | QQ group IDs allowed to chat with DotCraft. | `[]` |
+| `qq.whitelistedGroups` | QQ group IDs whose members may chat with DotCraft. | `[]` |
 | `qq.approvalTimeoutMs` | Approval timeout in milliseconds. | `60000` |
 | `qq.requireMentionInGroups` | Require @mention in QQ groups. | `true` |
 
@@ -185,9 +185,9 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 
 When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI in forced Bot mode. The CLI child receives the App ID and tenant access token, not the App Secret, and does not use personal Feishu authorization.
 
-Start with the official Skills embedded in the CLI. Read a known Skill directly, or call `skills list` first when you do not know which Skill applies. If the Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. The Feishu Thread context makes the Channel's Bot-only policy take precedence over upstream recommendations to use user identity. Omit `--as` or use `--as bot`; use `whoami` to inspect the effective identity and token status.
+The adapter injects a usage policy into the Feishu Thread context. Read a known Skill directly, and call `skills list` only when you do not know which Skill applies. When a Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. The Channel's Bot-only policy takes precedence over upstream recommendations to use a user identity, so omit `--as` or pass `--as bot`. `whoami` reports the effective identity and token status.
 
-Call the bundled CLI through `FeishuCli`, not through a shell. CLI file arguments must stay inside the workspace. Document, wiki, file, media, and page tokens are business resource identifiers and are allowed. Raw `api`, CLI `auth`/`config`/`profile` management, `--profile`, caller-supplied `--yes`, runtime installation, and self-update are unavailable. The adapter appends `--yes` only after DotCraft approval and pinned CLI risk classification identify a `high-risk-write` operation. `--help` returns plain-text help without requesting a tenant token; business commands still return structured JSON.
+The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file arguments must stay inside the workspace. Document, wiki, file, media, and page tokens are business resource identifiers and are allowed. Raw `api`, CLI `auth`/`config`/`profile` management, `--profile`, caller-supplied `--yes`, runtime installation, and self-update are unavailable. The adapter appends `--yes` only after DotCraft approval and the pinned CLI's risk classification identify a `high-risk-write` operation. `--help` returns plain-text help without requesting a tenant token. Business commands still return structured JSON.
 
 ### Telegram
 
@@ -245,7 +245,6 @@ Call the bundled CLI through `FeishuCli`, not through a shell. CLI file argument
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels)
-- [Configuration Reference](../configuration)
-- [Channel adapters](../sdks/channels)
-- [Channel Module integration](../integrations/typescript-module)
+- [DotCraft Full Configuration Reference](../../developing/configuration) — the workspace config file that holds `ExternalChannels`, plus every other setting.
+- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
+- [Channel Module integration](../../developing/integrations/typescript-module) — embed a TypeScript channel module in your own host process.

@@ -1,6 +1,6 @@
 # Connect DotCraft to Telegram
 
-Connect a Telegram bot to DotCraft with a BotFather token. DotCraft receives messages by long polling, so you do not need a public webhook URL.
+Connect a Telegram bot to DotCraft as a [channel](./) with a BotFather token. DotCraft receives messages by long polling, so no public webhook URL is needed.
 
 ## Quick setup
 
@@ -42,8 +42,7 @@ With Telegram privacy mode enabled, the bot may only receive commands, replies, 
 ## What works after setup
 
 - Direct messages and group messages can start DotCraft turns when Telegram delivers them to the bot.
-- `/new` starts a fresh DotCraft conversation.
-- `/help` shows available commands.
+- `/new` starts a fresh DotCraft conversation and `/help` lists the available commands. The adapter also registers the workspace's own slash commands in the Telegram command menu.
 - Approval and user-input prompts use Telegram inline buttons when possible.
 - File and image delivery are available through channel delivery tools.
 - Only one long-polling process can use the same bot token at a time.
@@ -58,15 +57,9 @@ npm run build --workspace @dotcraft/channel-telegram
 npx dotcraft-channel-telegram --workspace /path/to/workspace
 ```
 
-Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
-
-## Reference
-
-See [Channel configuration reference](./reference) for the Telegram JSON example, `ExternalChannels` registration, and field table.
+The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels)
-- [Channel configuration reference](./reference)
-- [Channel adapters](../sdks/channels)
-- [Telegram Python adapter](./python-telegram)
+- [Channel configuration reference](./reference) — every field, default, and registration shape for the Telegram config file.
+- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.

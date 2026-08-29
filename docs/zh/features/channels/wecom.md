@@ -1,6 +1,6 @@
 # 将 DotCraft 接入企业微信
 
-使用企业微信管理后台中的回调设置，把企业微信群机器人接入 DotCraft。
+用企业微信管理后台中的回调设置，把企业微信群机器人接成 DotCraft 的一个[渠道](./)。
 
 ## 快速设置
 
@@ -45,7 +45,7 @@
 
 - 来自允许用户或允许会话的企业微信消息可以触发 DotCraft 回合。
 - 管理员用户可以在企业微信中审批高风险操作。
-- 审批回复支持常规 approve 和 reject 关键词。
+- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。回复 `同意全部` 或 `approve all` 会在本会话内放行同类操作。
 - 文件和图片投递可通过渠道投递工具使用。
 - 白名单之外的用户或会话消息会被忽略。
 
@@ -59,15 +59,10 @@ npm run build --workspace @dotcraft/channel-wecom
 npx dotcraft-channel-wecom --workspace /path/to/workspace
 ```
 
-独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
-
-## 参考
-
-企业微信的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
+独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels 与 Bots](../../features/entry-points/channels)
-- [渠道配置参考](./reference)
-- [微信渠道](./weixin)
-- [Channel adapters](../sdks/channels)
+- [渠道配置参考](./reference)——企业微信配置文件的全部字段、默认值与注册形态。
+- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
+- [微信渠道](./weixin)——个人微信走另一条链路，通过腾讯 iLink 扫码接入。

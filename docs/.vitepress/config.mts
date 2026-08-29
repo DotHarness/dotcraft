@@ -67,8 +67,20 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / Editors (ACP)'), link: '/features/entry-points/editors' },
-          { text: withIcon('bot', 'Channels & Bots'), link: '/features/entry-points/channels' },
           { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' }
+        ]
+      },
+      {
+        text: withIcon('bot', 'Channels & Bots'),
+        link: '/features/channels/',
+        items: [
+          { text: withIcon('globe', 'Overview'), link: '/features/channels/' },
+          { text: withIcon('qq', 'QQ'), link: '/features/channels/qq' },
+          { text: withIcon('wecom', 'WeCom'), link: '/features/channels/wecom' },
+          { text: withIcon('feishu', 'Feishu'), link: '/features/channels/feishu' },
+          { text: withIcon('telegram', 'Telegram'), link: '/features/channels/telegram' },
+          { text: withIcon('weixin', 'Weixin'), link: '/features/channels/weixin' },
+          { text: withIcon('fileJson', 'Configuration Reference'), link: '/features/channels/reference' }
         ]
       },
       {
@@ -140,8 +152,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('mcp', 'MCP Runtime'), link: '/developing/sdks/mcp-runtime' },
           { text: withIcon('satelliteDish', 'Channel Adapters'), link: '/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdks/typescript' },
-          { text: withIcon('dotnet', '.NET'), link: '/developing/sdks/dotnet' },
-          { text: withIcon('python', 'Python'), link: '/developing/sdks/python' }
+          { text: withIcon('dotnet', '.NET'), link: '/developing/sdks/dotnet' }
         ]
       },
       {
@@ -157,16 +168,6 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('code', 'Desktop Plugin API'), link: '/developing/integrations/desktop-plugin-api' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/developing/integrations/oratorio' },
           { text: withIcon('blocks', 'Channel Module'), link: '/developing/integrations/typescript-module' }
-        ]
-      },
-      {
-        text: withIcon('satelliteDish', 'Channels'),
-        items: [
-          { text: withIcon('qq', 'QQ'), link: '/developing/channels/qq' },
-          { text: withIcon('wecom', 'WeCom'), link: '/developing/channels/wecom' },
-          { text: withIcon('feishu', 'Feishu'), link: '/developing/channels/feishu' },
-          { text: withIcon('telegram', 'Telegram'), link: '/developing/channels/telegram' },
-          { text: withIcon('weixin', 'Weixin'), link: '/developing/channels/weixin' }
         ]
       }
     ]
@@ -211,8 +212,20 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / 编辑器（ACP）'), link: '/zh/features/entry-points/editors' },
-          { text: withIcon('bot', 'Channels 与 Bots'), link: '/zh/features/entry-points/channels' },
           { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' }
+        ]
+      },
+      {
+        text: withIcon('bot', '社交渠道'),
+        link: '/zh/features/channels/',
+        items: [
+          { text: withIcon('globe', '总览'), link: '/zh/features/channels/' },
+          { text: withIcon('qq', 'QQ'), link: '/zh/features/channels/qq' },
+          { text: withIcon('wecom', '企业微信'), link: '/zh/features/channels/wecom' },
+          { text: withIcon('feishu', '飞书'), link: '/zh/features/channels/feishu' },
+          { text: withIcon('telegram', 'Telegram'), link: '/zh/features/channels/telegram' },
+          { text: withIcon('weixin', '微信'), link: '/zh/features/channels/weixin' },
+          { text: withIcon('fileJson', '配置参考'), link: '/zh/features/channels/reference' }
         ]
       },
       {
@@ -284,8 +297,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('mcp', 'MCP 运行时'), link: '/zh/developing/sdks/mcp-runtime' },
           { text: withIcon('satelliteDish', '渠道适配器'), link: '/zh/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdks/typescript' },
-          { text: withIcon('dotnet', '.NET'), link: '/zh/developing/sdks/dotnet' },
-          { text: withIcon('python', 'Python'), link: '/zh/developing/sdks/python' }
+          { text: withIcon('dotnet', '.NET'), link: '/zh/developing/sdks/dotnet' }
         ]
       },
       {
@@ -300,17 +312,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('dashboard', 'Desktop Plugins'), link: '/zh/developing/integrations/desktop-plugins' },
           { text: withIcon('code', 'Desktop Plugin API'), link: '/zh/developing/integrations/desktop-plugin-api' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/zh/developing/integrations/oratorio' },
-          { text: withIcon('blocks', 'Channel Module'), link: '/zh/developing/integrations/typescript-module' }
-        ]
-      },
-      {
-        text: withIcon('satelliteDish', 'Channels'),
-        items: [
-          { text: withIcon('qq', 'QQ'), link: '/zh/developing/channels/qq' },
-          { text: withIcon('wecom', '企业微信'), link: '/zh/developing/channels/wecom' },
-          { text: withIcon('feishu', '飞书'), link: '/zh/developing/channels/feishu' },
-          { text: withIcon('telegram', 'Telegram'), link: '/zh/developing/channels/telegram' },
-          { text: withIcon('weixin', '微信'), link: '/zh/developing/channels/weixin' }
+          { text: withIcon('blocks', '渠道模块'), link: '/zh/developing/integrations/typescript-module' }
         ]
       }
     ]
@@ -359,15 +361,22 @@ const redirectMap: Record<string, string> = {
   'reference/hub-protocol.md': 'developing/protocols/hub-protocol.md',
   'reference/dashboard-api.md': 'developing/protocols/dashboard-api.md',
   'sdk/index.md': 'developing/sdks/index.md',
-  'sdk/python.md': 'developing/sdks/python.md',
+  'sdk/python.md': 'developing/sdks/index.md',
   'sdk/typescript.md': 'developing/sdks/typescript.md',
   'sdk/dotnet.md': 'developing/sdks/dotnet.md',
-  'sdk/python-telegram.md': 'developing/channels/python-telegram.md',
-  'sdk/typescript-feishu.md': 'developing/channels/feishu.md',
-  'sdk/typescript-telegram.md': 'developing/channels/telegram.md',
-  'sdk/typescript-weixin.md': 'developing/channels/weixin.md',
-  'sdk/typescript-qq.md': 'developing/channels/qq.md',
-  'sdk/typescript-wecom.md': 'developing/channels/wecom.md',
+  'sdk/python-telegram.md': 'developing/sdks/channels.md',
+  'sdk/typescript-feishu.md': 'features/channels/feishu.md',
+  'sdk/typescript-telegram.md': 'features/channels/telegram.md',
+  'sdk/typescript-weixin.md': 'features/channels/weixin.md',
+  'sdk/typescript-qq.md': 'features/channels/qq.md',
+  'sdk/typescript-wecom.md': 'features/channels/wecom.md',
+  'developing/channels/qq.md': 'features/channels/qq.md',
+  'developing/channels/wecom.md': 'features/channels/wecom.md',
+  'developing/channels/feishu.md': 'features/channels/feishu.md',
+  'developing/channels/telegram.md': 'features/channels/telegram.md',
+  'developing/channels/weixin.md': 'features/channels/weixin.md',
+  'developing/channels/reference.md': 'features/channels/reference.md',
+  'features/entry-points/channels.md': 'features/channels/index.md',
   'skills/agent-self-learning.md': 'features/agent-system/skills.md',
   'skills/marketplace.md': 'features/agent-system/skills.md',
   'plugins/install.md': 'features/agent-system/plugins-tools.md',
@@ -399,7 +408,7 @@ const redirectMap: Record<string, string> = {
   'developing/sdk.md': 'developing/sdks/index.md',
   'developing/sdk-typescript.md': 'developing/sdks/typescript.md',
   'developing/sdk-dotnet.md': 'developing/sdks/dotnet.md',
-  'developing/sdk-python.md': 'developing/sdks/python.md',
+  'developing/sdk-python.md': 'developing/sdks/index.md',
   'developing/app-binding.md': 'developing/integrations/app-binding.md',
   'developing/typescript-module.md': 'developing/integrations/typescript-module.md'
 }

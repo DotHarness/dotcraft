@@ -11,17 +11,17 @@ Put DotCraft in the chat tools your team already uses, so a colleague can ask in
 3. Finish the matching setup in the platform console or bot tool.
 4. Turn the channel on, and send the bot a test message.
 
-Desktop hosts the channel process for you — nothing else to deploy. Which credentials each platform needs is on its setup page in the table below. Settings shared by every channel are in the [Channel configuration reference](../../developing/channels/reference).
+Desktop hosts the channel process for you — nothing else to deploy. Which credentials each platform needs is on its setup page in the table below. Settings shared by every channel are in the [Channel configuration reference](./reference).
 
 ## Built-in channels
 
 | Platform | Connection | Main capabilities | Setup |
 |---|---|---|---|
-| **QQ** | NapCat or OneBot v11 reverse WebSocket | Private chats, groups, approval keywords, media delivery | [QQ setup](../../developing/channels/qq) |
-| **WeCom** | Group bot callback URL, Token, EncodingAESKey | Enterprise group chats, approvals, file and image delivery | [WeCom setup](../../developing/channels/wecom) |
-| **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional official CLI | [Feishu setup](../../developing/channels/feishu) |
-| **Telegram** | BotFather token and long polling | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](../../developing/channels/telegram) |
-| **WeChat / Weixin** | Tencent iLink QR login | Weixin chats, saved login session, plain-text replies, file and image delivery | [Weixin setup](../../developing/channels/weixin) |
+| **QQ** | NapCat or OneBot v11 reverse WebSocket | Private chats, groups, approval keywords, media delivery | [QQ setup](./qq) |
+| **WeCom** | Group bot callback URL, Token, EncodingAESKey | Enterprise group chats, approvals, file and image delivery | [WeCom setup](./wecom) |
+| **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional official CLI | [Feishu setup](./feishu) |
+| **Telegram** | BotFather token and long polling | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](./telegram) |
+| **WeChat / Weixin** | Tencent iLink QR login | Weixin chats, saved login session, plain-text replies, file and image delivery | [Weixin setup](./weixin) |
 
 ## How channel conversations work
 
@@ -56,7 +56,7 @@ The exact field names are in the [Configuration Reference](../../developing/conf
 
 ## Connect your own platform
 
-When the built-in channels don't cover the platform you need, write an adapter. [Channel adapters](../../developing/sdks/channels) covers the base class and message flow, and [Channel Module integration](../../developing/integrations/typescript-module) covers wiring the finished module into DotCraft. To build in Python, start from the [Python SDK](../../developing/sdks/python). The [Python Telegram adapter](../../developing/channels/python-telegram) is a reference implementation you can adapt. The underlying message format is in the [AppServer Protocol](../../developing/protocols/appserver-protocol).
+When the built-in channels don't cover the platform you need, write an adapter. [Channel adapters](../../developing/sdks/channels) covers the base class and message flow, and [Channel Module integration](../../developing/integrations/typescript-module) covers wiring the finished module into DotCraft. The underlying message format is in the [AppServer Protocol](../../developing/protocols/appserver-protocol).
 
 ## Related docs
 

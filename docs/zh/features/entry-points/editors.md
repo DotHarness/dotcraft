@@ -108,4 +108,4 @@ ACP 会话就是一个完整的工作区会话，和你的 Desktop、Bot 会话�
 ## 相关文档
 
 - [Desktop](./desktop) — 同一个 Agent 的图形界面入口，适合看 diff、处理审批和查历史
-- [Channels 与 Bots](./channels) — 把同一个工作区接到 QQ、飞书这类聊天工具里
+- [社交渠道](../channels/) — 把同一个工作区接到 QQ、飞书这类聊天工具里

@@ -11,7 +11,7 @@ One workspace opens from several surfaces: the desktop app, a terminal, your edi
 | [Desktop](./desktop) | Graphical desktop app | First-time use, long-running collaboration, reviewing diffs and approvals one by one |
 | [CLI](../../getting-started) | One-shot command | Scripts, SSH, CI, lightweight tasks |
 | [IDE / Editors (ACP)](./editors) | Inside JetBrains, Obsidian, Unity, and other editors | Letting the agent read unsaved edits, using the editor's own terminal and diff view |
-| [Channels & Bots](./channels) | QQ, WeCom, Feishu, Telegram, WeChat | Group chats, knowledge bots, support bots |
+| [Channels & Bots](../channels/) | QQ, WeCom, Feishu, Telegram, WeChat | Group chats, knowledge bots, support bots |
 
 ## Picking one
 

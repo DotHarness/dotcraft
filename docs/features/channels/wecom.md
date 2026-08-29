@@ -1,6 +1,6 @@
 # Connect DotCraft to WeCom
 
-Connect a WeCom group bot to DotCraft with the WeCom callback settings from your enterprise admin console.
+Connect a WeCom group bot to DotCraft as a [channel](./) with the callback settings from your enterprise admin console.
 
 ## Quick setup
 
@@ -45,7 +45,7 @@ WeCom must reach the callback from the public internet. For local Desktop use, p
 
 - WeCom messages from allowed users or chats can start DotCraft turns.
 - Admin users can approve higher-risk actions from WeCom.
-- Approval replies accept the normal approve and reject keywords.
+- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 - File and image delivery are available through channel delivery tools.
 - Messages from users or chats outside the allowlist are ignored.
 
@@ -59,15 +59,10 @@ npm run build --workspace @dotcraft/channel-wecom
 npx dotcraft-channel-wecom --workspace /path/to/workspace
 ```
 
-Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
-
-## Reference
-
-See [Channel configuration reference](./reference) for the WeCom JSON example, `ExternalChannels` registration, and field table.
+The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels)
-- [Channel configuration reference](./reference)
-- [Weixin channel](./weixin)
-- [Channel adapters](../sdks/channels)
+- [Channel configuration reference](./reference) — every field, default, and registration shape for the WeCom config file.
+- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
+- [Weixin channel](./weixin) — personal WeChat takes a different route, through a Tencent iLink QR login.

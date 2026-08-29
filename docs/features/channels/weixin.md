@@ -1,6 +1,6 @@
 # Connect DotCraft to Weixin
 
-Connect Weixin to DotCraft through Tencent iLink. The first login uses a QR code, and normal replies are sent as plain text.
+Connect Weixin to DotCraft as a [channel](./) through Tencent iLink. The first login uses a QR code, and normal replies are sent as plain text.
 
 ## Quick setup
 
@@ -45,7 +45,7 @@ No public callback URL is required for the Desktop-managed Weixin channel.
 - If the session expires, Desktop shows a new QR code.
 - Regular replies and media captions are flattened to plain text because iLink does not expose Markdown rendering.
 - File and image delivery are available through channel delivery tools.
-- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, and `reject`.
+- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 
 ## Standalone adapter
 
@@ -59,15 +59,10 @@ npx dotcraft-channel-weixin --workspace /path/to/workspace
 
 Use `--config /custom/weixin.json` when the adapter config is not stored at `.craft/weixin.json`. In terminal mode, the QR code is rendered in the terminal.
 
-Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
-
-## Reference
-
-See [Channel configuration reference](./reference) for the Weixin JSON example, `ExternalChannels` registration, and field table.
+The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels)
-- [Channel configuration reference](./reference)
-- [WeCom channel](./wecom)
-- [Channel adapters](../sdks/channels)
+- [Channel configuration reference](./reference) — every field, default, and registration shape for the Weixin config file.
+- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
+- [WeCom channel](./wecom) — enterprise chats take a different route, through a callback URL.

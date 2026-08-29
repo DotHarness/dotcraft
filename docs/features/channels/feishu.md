@@ -1,6 +1,6 @@
 # Connect DotCraft to Feishu
 
-Connect a Feishu or Lark bot to DotCraft with a self-built app and WebSocket event subscription.
+Connect a Feishu or Lark bot to DotCraft as a [channel](./) with a self-built app and WebSocket event subscription.
 
 ## Quick setup
 
@@ -67,15 +67,10 @@ npm run build --workspace @dotcraft/channel-feishu
 npx dotcraft-channel-feishu --workspace /path/to/workspace
 ```
 
-Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
-
-## Reference
-
-See [Channel configuration reference](./reference) for the Feishu JSON example, `ExternalChannels` registration, and field table.
+The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels)
-- [Channel configuration reference](./reference)
-- [Channel adapters](../sdks/channels)
-- [Channel Module integration](../integrations/typescript-module)
+- [Channel configuration reference](./reference) — every field, default, and registration shape for the Feishu config file.
+- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
+- [Channel Module integration](../../developing/integrations/typescript-module) — the Feishu module is the worked example of that contract.

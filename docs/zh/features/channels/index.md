@@ -1,4 +1,4 @@
-# Channels 与 Bots
+# 社交渠道
 
 把 DotCraft 接进团队已经在用的聊天工具，同事在群里问一句就能拿到答案，不必打开 Desktop。QQ、企业微信、飞书 / Lark、Telegram 和微信都可以接，聊出来的会话和记忆与工作区的其他入口完全共用。
 
@@ -11,17 +11,17 @@
 3. 到平台后台或 Bot 工具里完成对应设置。
 4. 启用渠道，给 Bot 发一条测试消息。
 
-渠道进程由 Desktop 托管，不用另外部署。每个平台需要哪些凭据，见下表对应的设置页。所有渠道共用的配置项见[渠道配置参考](../../developing/channels/reference)。
+渠道进程由 Desktop 托管，不用另外部署。每个平台需要哪些凭据，见下表对应的设置页。所有渠道共用的配置项见[渠道配置参考](./reference)。
 
 ## 内置渠道
 
 | 平台 | 接入方式 | 主要能力 | 设置 |
 |---|---|---|---|
-| **QQ** | NapCat 或 OneBot v11 反向 WebSocket | 私聊、群聊、审批关键词、媒体投递 | [QQ 设置](../../developing/channels/qq) |
-| **企业微信 / WeCom** | 群机器人回调 URL、Token、EncodingAESKey | 企业微信群聊、审批、文件和图片投递 | [企业微信设置](../../developing/channels/wecom) |
-| **飞书 / Lark** | 启用 Bot 和 WebSocket 事件订阅的自建应用 | 卡片回复、审批、reaction、可选官方 CLI | [飞书设置](../../developing/channels/feishu) |
-| **Telegram** | BotFather token 和 long polling | 私聊、群聊、`/new`、`/help`、inline 审批 | [Telegram 设置](../../developing/channels/telegram) |
-| **微信 / Weixin** | 腾讯 iLink 二维码登录 | 微信聊天、保存登录状态、纯文本回复、文件和图片投递 | [微信设置](../../developing/channels/weixin) |
+| **QQ** | NapCat 或 OneBot v11 反向 WebSocket | 私聊、群聊、审批关键词、媒体投递 | [QQ 设置](./qq) |
+| **企业微信 / WeCom** | 群机器人回调 URL、Token、EncodingAESKey | 企业微信群聊、审批、文件和图片投递 | [企业微信设置](./wecom) |
+| **飞书 / Lark** | 启用 Bot 和 WebSocket 事件订阅的自建应用 | 卡片回复、审批、reaction、可选官方 CLI | [飞书设置](./feishu) |
+| **Telegram** | BotFather token 和 long polling | 私聊、群聊、`/new`、`/help`、inline 审批 | [Telegram 设置](./telegram) |
+| **微信 / Weixin** | 腾讯 iLink 二维码登录 | 微信聊天、保存登录状态、纯文本回复、文件和图片投递 | [微信设置](./weixin) |
 
 ## 渠道会话如何工作
 
@@ -56,7 +56,7 @@
 
 ## 接入自己的平台
 
-内置渠道覆盖不了你要接的平台时，可以自己写一个适配器。[渠道适配器](../../developing/sdks/channels)讲基类和消息流转，[Channel Module 集成](../../developing/integrations/typescript-module)讲怎么把写好的模块挂进 DotCraft。想用 Python 写，从 [Python SDK](../../developing/sdks/python) 起步，[Python Telegram 适配器](../../developing/channels/python-telegram)是一份可以照着改的参考实现。底层的消息格式见 [AppServer 协议](../../developing/protocols/appserver-protocol)。
+内置渠道覆盖不了你要接的平台时，可以自己写一个适配器。[渠道适配器](../../developing/sdks/channels)讲基类和消息流转，[渠道模块集成](../../developing/integrations/typescript-module)讲怎么把写好的模块挂进 DotCraft。底层的消息格式见 [AppServer 协议](../../developing/protocols/appserver-protocol)。
 
 ## 相关文档
 

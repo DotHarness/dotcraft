@@ -45,7 +45,7 @@ Open the plugin, then open **App Settings**. Select **Reconnect** when the conne
 > [!CAUTION]
 > Turning an app off in a conversation affects only that conversation. Disconnecting it in **App Settings** affects every conversation in the current workspace.
 
-For apps used through social channels, follow the channel's binding flow. See [Channels & Bots](../entry-points/channels).
+For apps used through social channels, follow the channel's binding flow. See [Channels & Bots](../channels/).
 
 ## Related docs
 

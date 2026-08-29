@@ -1,6 +1,6 @@
 # 渠道配置参考
 
-本文档记录 TypeScript 渠道在 Desktop 托管和独立部署中的注册方式，以及各适配器配置文件。
+本页记录 TypeScript 渠道在 Desktop 托管和独立部署两种模式下的注册方式，以及各适配器配置文件的字段与默认值。
 
 ## 注册模式
 
@@ -51,11 +51,11 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 
 | 渠道 | 内置模块 | 适配器配置 |
 |---|---|---|
-| **QQ** | `channel-qq` | `.craft/qq.json` |
-| **企业微信 / WeCom** | `channel-wecom` | `.craft/wecom.json` |
-| **飞书 / Lark** | `channel-feishu` | `.craft/feishu.json` |
-| **Telegram** | `channel-telegram` | `.craft/telegram.json` |
-| **微信 / Weixin** | `channel-weixin` | `.craft/weixin.json` |
+| **[QQ](./qq)** | `channel-qq` | `.craft/qq.json` |
+| **[企业微信 / WeCom](./wecom)** | `channel-wecom` | `.craft/wecom.json` |
+| **[飞书 / Lark](./feishu)** | `channel-feishu` | `.craft/feishu.json` |
+| **[Telegram](./telegram)** | `channel-telegram` | `.craft/telegram.json` |
+| **[微信 / Weixin](./weixin)** | `channel-weixin` | `.craft/weixin.json` |
 
 ## 适配器配置文件
 
@@ -91,7 +91,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `qq.accessToken` | 可选 OneBot access token。设置后必须与 NapCat 一致。 | 空 |
 | `qq.adminUsers` | 拥有管理员权限的 QQ 用户 ID。 | `[]` |
 | `qq.whitelistedUsers` | 允许与 DotCraft 对话的 QQ 用户 ID。 | `[]` |
-| `qq.whitelistedGroups` | 允许与 DotCraft 对话的 QQ 群 ID。 | `[]` |
+| `qq.whitelistedGroups` | 允许群成员与 DotCraft 对话的 QQ 群 ID。 | `[]` |
 | `qq.approvalTimeoutMs` | 审批超时时间，单位毫秒。 | `60000` |
 | `qq.requireMentionInGroups` | QQ 群聊是否需要 @ 机器人。 | `true` |
 
@@ -185,9 +185,9 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 
 启用 `feishu.cli.enabled` 后，飞书来源的 Thread 会获得 `FeishuCli` 工具，每次调用都需要审批。适配器会使用配置的应用凭据换取并缓存 tenant access token，再以强制 Bot 模式运行内置 CLI。CLI 子进程只接收 App ID 和 tenant access token，不接收 App Secret，也不使用个人飞书授权。
 
-调用业务命令前，先使用 CLI 内置的官方 Skill。已知相关 Skill 时直接读取；不确定时再先调用 `skills list`。如果 Skill 链接了参考文件，先通过 `skills read <skill-name> <relative-path>` 加载参考，再执行业务命令。飞书 Thread context 规定 Channel 的 Bot-only 策略优先于上游 Skill 对 user 身份的通用推荐。省略 `--as` 或使用 `--as bot`；使用 `whoami` 可以检查实际生效的身份和 token 状态。
+适配器会向飞书 Thread context 注入一份调用策略。已知该用哪个 Skill 时直接读取，不确定时才先调用 `skills list`。Skill 链接了参考文件时，先用 `skills read <skill-name> <relative-path>` 加载，再执行业务命令。Channel 的 Bot-only 策略优先于上游 Skill 对 user 身份的推荐，因此省略 `--as` 或传 `--as bot`。`whoami` 可以查看当前生效的身份和 token 状态。
 
-通过 `FeishuCli` 调用内置 CLI，不要从 Shell 运行。CLI 的文件参数必须位于 workspace 内。文档、知识库、文件、媒体和分页 token 属于业务资源标识，可以正常传入。raw `api`、CLI `auth`/`config`/`profile` 管理、`--profile`、调用方传入的 `--yes`、运行时安装和自更新不可用。只有在 DotCraft 审批完成，且固定版本 CLI 的风险分类认定操作为 `high-risk-write` 后，适配器才会追加 `--yes`。`--help` 无需获取 tenant token，直接返回纯文本帮助；业务命令仍返回结构化 JSON。
+内置 CLI 只能通过 `FeishuCli` 调用，不能从 Shell 启动。CLI 的文件参数必须位于 workspace 内。文档、知识库、文件、媒体和分页 token 属于业务资源标识，可以正常传入。`api` 原始命令、CLI 的 `auth`/`config`/`profile` 管理、`--profile`、调用方传入的 `--yes`、运行时安装和自更新都不可用。只有 DotCraft 审批通过、且固定版本 CLI 的风险分类判定操作为 `high-risk-write` 时，适配器才会追加 `--yes`。`--help` 不获取 tenant token，直接返回纯文本帮助。业务命令仍返回结构化 JSON。
 
 ### Telegram
 
@@ -245,7 +245,6 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 
 ## 相关文档
 
-- [Channels 与 Bots](../../features/entry-points/channels)
-- [配置完整参考](../configuration)
-- [Channel adapters](../sdks/channels)
-- [Channel Module 集成](../integrations/typescript-module)
+- [DotCraft 完整配置参考](../../developing/configuration)——`ExternalChannels` 所在的 workspace 配置文件，以及其余配置项。
+- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
+- [渠道模块集成](../../developing/integrations/typescript-module)——把 TypeScript 渠道模块嵌入自己的宿主进程。

@@ -1,6 +1,6 @@
 # 将 DotCraft 接入 QQ
 
-通过 NapCat 或其他 OneBot v11 网关，把一个 QQ 账号接入 DotCraft。
+通过 NapCat 或其他 OneBot v11 网关，把一个 QQ 账号接成 DotCraft 的一个[渠道](./)。
 
 > [!CAUTION]
 > 第三方 QQ 协议框架可能带来账号风险。部署前请使用专用 QQ 账号，并自行评估风险。
@@ -49,7 +49,7 @@ NapCat 连上 DotCraft 监听地址后，Desktop 中的 QQ 渠道应显示为 co
 - 一个 QQ 群共享一条会话，每条消息会记录实际发送者。
 - 群聊默认需要 @ 机器人后才响应。
 - 管理员和白名单都为空时，机器人会忽略 QQ 消息。
-- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。
+- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。回复 `同意全部` 或 `approve all` 会在本会话内放行同类操作。
 - 语音、视频和文件投递可通过渠道投递工具使用。
 - 语音和视频工具使用 `filePath` 表示本地文件，`fileUrl` 表示 HTTP(S) URL，`fileBase64` 表示原始 base64 载荷。`file` 参数仅接受 URL 和 `base64://` 来源。本地路径请使用 `filePath`，以便 DotCraft 发起文件读取审批。
 - 本地语音、视频和文件上传时，DotCraft 会先读取文件再发送给 NapCat。Docker 部署不需要把 workspace 挂载到 NapCat 容器中。
@@ -66,15 +66,10 @@ npx dotcraft-channel-qq --workspace /path/to/workspace
 
 当适配器配置不在 `.craft/qq.json` 时，使用 `--config /custom/qq.json`。
 
-独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
-
-## 参考
-
-QQ 的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
+独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels 与 Bots](../../features/entry-points/channels)
-- [渠道配置参考](./reference)
-- [Channel adapters](../sdks/channels)
-- [Channel Module 集成](../integrations/typescript-module)
+- [渠道配置参考](./reference)——QQ 配置文件的全部字段、默认值与注册形态。
+- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
+- [渠道模块集成](../../developing/integrations/typescript-module)——把 TypeScript 渠道模块嵌入自己的宿主进程。

@@ -1,6 +1,6 @@
 # 将 DotCraft 接入 Telegram
 
-使用 BotFather token 把 Telegram Bot 接入 DotCraft。DotCraft 通过 long polling 接收消息，因此不需要公网 webhook URL。
+用 BotFather 签发的 token 把 Telegram Bot 接成 DotCraft 的一个[渠道](./)。DotCraft 通过 long polling 接收消息，不需要公网 webhook URL。
 
 ## 快速设置
 
@@ -42,8 +42,7 @@ Telegram 的平台设置主要在 BotFather 中完成：
 ## 设置后可用能力
 
 - Telegram 将私聊或群聊消息投递给 Bot 后，这些消息可以触发 DotCraft 回合。
-- `/new` 会开启新的 DotCraft 会话。
-- `/help` 会显示可用命令。
+- `/new` 开启新的 DotCraft 会话，`/help` 列出可用命令。适配器还会把 workspace 中定义的斜杠命令一并注册到 Telegram 命令菜单。
 - 审批和用户输入请求会尽量使用 Telegram inline buttons。
 - 文件和图片投递可通过渠道投递工具使用。
 - 同一个 bot token 同一时间只能被一个 long-polling 进程使用。
@@ -58,15 +57,9 @@ npm run build --workspace @dotcraft/channel-telegram
 npx dotcraft-channel-telegram --workspace /path/to/workspace
 ```
 
-独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
-
-## 参考
-
-Telegram 的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
+独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels 与 Bots](../../features/entry-points/channels)
-- [渠道配置参考](./reference)
-- [Channel adapters](../sdks/channels)
-- [Telegram Python 适配器](./python-telegram)
+- [渠道配置参考](./reference)——Telegram 配置文件的全部字段、默认值与注册形态。
+- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。

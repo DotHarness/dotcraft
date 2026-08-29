@@ -1,6 +1,6 @@
 # 将 DotCraft 接入飞书
 
-通过自建应用和 WebSocket 事件订阅，把飞书或 Lark 机器人接入 DotCraft。
+通过自建应用和 WebSocket 事件订阅，把飞书或 Lark 机器人接成 DotCraft 的一个[渠道](./)。
 
 ## 快速设置
 
@@ -55,7 +55,7 @@ Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected�
 
 ### 官方飞书 CLI
 
-将 `feishu.cli.enabled` 设为 `true` 后，飞书来源的会话可以通过当前配置的 Bot 身份使用内置官方飞书 CLI。只为应用授予计划使用的命令所需 scope。飞书要求时，还需把目标资源分享给应用 Bot。审批和命令限制见[渠道配置参考](./reference#飞书)。
+将 `feishu.cli.enabled` 设为 `true` 后，飞书来源的会话可以用当前配置的 Bot 身份调用内置官方飞书 CLI。只为应用授予计划使用的命令所需 scope。飞书要求时，还需把目标资源分享给应用 Bot。审批和命令限制见[渠道配置参考](./reference#飞书-lark)。
 
 ## 独立适配器
 
@@ -67,15 +67,10 @@ npm run build --workspace @dotcraft/channel-feishu
 npx dotcraft-channel-feishu --workspace /path/to/workspace
 ```
 
-独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
-
-## 参考
-
-飞书的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
+独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels 与 Bots](../../features/entry-points/channels)
-- [渠道配置参考](./reference)
-- [Channel adapters](../sdks/channels)
-- [Channel Module 集成](../integrations/typescript-module)
+- [渠道配置参考](./reference)——飞书配置文件的全部字段、默认值与注册形态。
+- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
+- [渠道模块集成](../../developing/integrations/typescript-module)——飞书模块就是这份契约的完整实现示例。

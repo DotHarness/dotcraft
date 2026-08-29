@@ -1,6 +1,6 @@
 # 将 DotCraft 接入微信
 
-通过腾讯 iLink 把微信接入 DotCraft。首次登录需要扫码，普通回复会以纯文本发送。
+通过腾讯 iLink 把微信接成 DotCraft 的一个[渠道](./)。首次登录需要扫码，普通回复以纯文本发送。
 
 ## 快速设置
 
@@ -45,7 +45,7 @@ Desktop 托管的微信渠道不需要公网回调 URL。
 - 会话过期时，Desktop 会显示新的二维码。
 - iLink 不提供 Markdown 渲染入口，因此普通回复和媒体 caption 会转为纯文本。
 - 文件和图片投递可通过渠道投递工具使用。
-- 审批回复支持 `同意`、`允许`、`yes`、`approve` 和 `reject` 等纯聊天关键词。
+- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny` 等纯聊天关键词。回复 `同意全部` 或 `approve all` 会在本会话内放行同类操作。
 
 ## 独立适配器
 
@@ -59,15 +59,10 @@ npx dotcraft-channel-weixin --workspace /path/to/workspace
 
 当适配器配置不在 `.craft/weixin.json` 时，使用 `--config /custom/weixin.json`。终端模式会在终端中渲染二维码。
 
-独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
-
-## 参考
-
-微信的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
+独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels 与 Bots](../../features/entry-points/channels)
-- [渠道配置参考](./reference)
-- [企业微信渠道](./wecom)
-- [Channel adapters](../sdks/channels)
+- [渠道配置参考](./reference)——微信配置文件的全部字段、默认值与注册形态。
+- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
+- [企业微信渠道](./wecom)——企业内部会话走另一条链路，通过回调 URL 接入。
