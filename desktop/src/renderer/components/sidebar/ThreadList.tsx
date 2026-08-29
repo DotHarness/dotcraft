@@ -53,7 +53,7 @@ import {
   sameWorkspaceProjectKey
 } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
-import { useThreadEntryDetails } from './ThreadEntryDetails'
+import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 
 interface ThreadListProps {
@@ -1696,14 +1696,15 @@ function ReadonlyThreadRow({
   const waiting = isThreadWaiting(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
+  const subAgent = isSubAgentThread(thread)
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
     projectName: project.name || project.path,
-    relativeTime
+    relativeTime,
+    origin: threadOriginBadge({ thread, isSubAgent: subAgent, t })
   })
   const rowProjectKey = projectIdentity(project)
-  const subAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
   const [hovered, setHovered] = useState(false)
   const [pinButtonFocused, setPinButtonFocused] = useState(false)

@@ -124,6 +124,22 @@
   line-height: var(--type-secondary-line-height);
 }
 
+/* The origin badge hugs the title, so the meta keeps the trailing edge. */
+.sidebar-entry-details-header--with-origin .sidebar-entry-details-title {
+  flex: 0 1 auto;
+}
+
+.sidebar-entry-details-header--with-origin .sidebar-entry-details-meta {
+  margin-left: auto;
+}
+
+.sidebar-entry-details-origin {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  margin-left: -4px;
+}
+
 .sidebar-entry-details-row {
   min-height: 28px;
   gap: 8px;

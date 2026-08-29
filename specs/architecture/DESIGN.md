@@ -784,6 +784,9 @@ a control must reveal on keyboard focus as well, or it is unreachable without a
 pointer. Reveal by changing opacity rather than by mounting the control, so the
 row does not shift as the pointer crosses it. Metadata that only identifies the
 row — a path, a source URL — may stay a tooltip instead of taking layout at all.
+Metadata that only some rows carry belongs there by default: a column reserved
+for it makes the rows that have it a different shape from the rows that do not,
+and the list reads as ragged rather than as one column.
 
 ### Scrollbars
 

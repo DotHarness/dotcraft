@@ -39,6 +39,12 @@ function renderThreadEntry(thread: ThreadSummary): void {
   )
 }
 
+/** The origin badge lives in the hover card, so tests have to open it first. */
+async function openDetailsCard(): Promise<HTMLElement> {
+  fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
+  return await screen.findByRole('tooltip')
+}
+
 describe('ThreadEntry', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -126,44 +132,48 @@ describe('ThreadEntry', () => {
     expect(gitInspectHead).not.toHaveBeenCalled()
   })
 
-  it('shows relative time by default and swaps to compact archive slot on hover', async () => {
+  it('keeps the row free of the relative time and reveals archive on hover', async () => {
     renderThreadEntry(makeThread())
 
-    const timeLabel = screen.getByText('1h')
     const archiveButton = screen.getByRole('button', { name: 'Archive' })
-
-    expect(timeLabel).toBeVisible()
+    expect(screen.queryByText('1h')).not.toBeInTheDocument()
     expect(archiveButton).not.toBeVisible()
 
     fireEvent.mouseEnter(screen.getByTestId('thread-entry-thread-1'))
 
     await waitFor(() => {
-      expect(timeLabel).not.toBeVisible()
       expect(archiveButton).toBeVisible()
     })
   })
 
-  it('places a frameless 12px origin icon before the running spinner', () => {
+  it('shows the origin channel beside the title in the details card, not in the row', async () => {
     useThreadStore.setState({ runningTurnThreadIds: new Set(['thread-1']) })
     renderThreadEntry(makeThread({ originChannel: 'heartbeat' }))
 
     const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    const originSlot = screen.getByTestId('thread-origin-slot-thread-1')
-    const originIcon = within(originSlot).getByLabelText('Origin channel: heartbeat')
-    const spinner = screen.getByTestId('thread-running-indicator-thread-1')
+    expect(within(statusSlot).queryByLabelText('Origin channel: heartbeat')).not.toBeInTheDocument()
 
-    expect(statusSlot).toContainElement(originSlot)
-    expect(statusSlot).toContainElement(spinner)
-    expect(originSlot.compareDocumentPosition(spinner) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-    expect(originIcon).toHaveStyle({
-      width: '12px',
-      height: '12px',
-      background: 'transparent'
-    })
-    expect(originIcon).toHaveStyle({ borderWidth: '0px' })
+    fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
+
+    const card = await screen.findByRole('tooltip')
+    const originIcon = within(card).getByLabelText('Origin channel: heartbeat')
+    const title = within(card).getByText('Optimize workspace cleanup')
+
+    expect(title.compareDocumentPosition(originIcon) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(card).toHaveTextContent('1h')
+    expect(originIcon).toHaveStyle({ width: '14px', height: '14px', background: 'transparent' })
   })
 
-  it('lets a pending pill replace both the origin icon and running spinner', () => {
+  it('omits the origin badge for a thread started from Desktop', async () => {
+    renderThreadEntry(makeThread({ originChannel: 'dotcraft-desktop' }))
+
+    fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
+
+    const card = await screen.findByRole('tooltip')
+    expect(within(card).queryByLabelText(/^Origin channel:/)).not.toBeInTheDocument()
+  })
+
+  it('lets a pending pill replace the running spinner', () => {
     useThreadStore.setState({
       runningTurnThreadIds: new Set(['thread-1']),
       pendingApprovalThreadIds: new Set(['thread-1'])
@@ -171,23 +181,20 @@ describe('ThreadEntry', () => {
     renderThreadEntry(makeThread({ originChannel: 'automations' }))
 
     expect(screen.getByTestId('thread-pending-approval-thread-1')).toHaveTextContent('Awaiting approval')
-    expect(screen.queryByTestId('thread-origin-slot-thread-1')).not.toBeInTheDocument()
     expect(screen.queryByTestId('thread-running-indicator-thread-1')).not.toBeInTheDocument()
   })
 
-  it('hides origin and spinner together when Archive takes the trailing slot', async () => {
+  it('hides the spinner when Archive takes the trailing slot', async () => {
     useThreadStore.setState({ runningTurnThreadIds: new Set(['thread-1']) })
     renderThreadEntry(makeThread({ originChannel: 'cron' }))
 
     const row = screen.getByTestId('thread-entry-thread-1')
     const spinner = screen.getByTestId('thread-running-indicator-thread-1')
-    expect(screen.getByTestId('thread-origin-slot-thread-1')).toBeVisible()
     expect(spinner).toBeVisible()
 
     fireEvent.mouseEnter(row)
 
     await waitFor(() => {
-      expect(screen.queryByTestId('thread-origin-slot-thread-1')).not.toBeInTheDocument()
       expect(spinner).not.toBeVisible()
       expect(screen.getByRole('button', { name: 'Archive' })).toBeVisible()
     })
@@ -198,16 +205,13 @@ describe('ThreadEntry', () => {
     renderThreadEntry(makeThread())
 
     const row = screen.getByTestId('thread-entry-thread-1')
-    const timeLabel = screen.getByText('1h')
     const archiveButton = screen.getByRole('button', { name: 'Archive' })
 
-    expect(timeLabel).toBeVisible()
     expect(archiveButton).not.toBeVisible()
 
     fireEvent.mouseEnter(row)
 
     await waitFor(() => {
-      expect(timeLabel).not.toBeVisible()
       expect(archiveButton).toBeVisible()
     })
   })
@@ -637,10 +641,11 @@ describe('ThreadEntry', () => {
     expect(screen.queryByLabelText('paused')).not.toBeInTheDocument()
   })
 
-  it('renders origin channel as an icon badge with tooltip text', () => {
+  it('renders origin channel as an icon badge with tooltip text', async () => {
     renderThreadEntry(makeThread({ originChannel: 'qq' }))
+    const card = await openDetailsCard()
 
-    expect(screen.getByLabelText('Origin channel: qq')).toBeInTheDocument()
+    expect(within(card).getByLabelText('Origin channel: qq')).toBeInTheDocument()
     expect(screen.queryByText('qq')).not.toBeInTheDocument()
   })
 
@@ -708,17 +713,14 @@ describe('ThreadEntry', () => {
     })
   })
 
-  it('keeps no-badge rows without a badge slot while showing relative time', () => {
+  it('keeps no-badge rows free of both a badge slot and status content', () => {
     renderThreadEntry(makeThread({
       lastActiveAt: new Date(Date.now() - 20 * 1000).toISOString()
     }))
 
-    const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    const timeLabel = screen.getByText('just now')
-
     expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-    expect(timeLabel).toHaveTextContent('just now')
-    expect(statusSlot).toContainElement(timeLabel)
+    expect(screen.queryByText('just now')).not.toBeInTheDocument()
+    expect(screen.getByTestId('thread-status-slot-thread-1')).toHaveTextContent('')
   })
 
   it('lets no-badge running rows span title text while the spinner stays in the status slot', () => {
@@ -791,8 +793,8 @@ describe('ThreadEntry', () => {
       })
     )
 
-    const badge = await screen.findByLabelText('Origin app: Workflow App')
-    expect(badge).toBeInTheDocument()
+    const card = await openDetailsCard()
+    const badge = within(card).getByLabelText('Origin app: Workflow App')
     const img = badge.querySelector('img')
     expect(img?.getAttribute('src')).toBe(icon)
   })
@@ -817,7 +819,8 @@ describe('ThreadEntry', () => {
       })
     )
 
-    const badge = await screen.findByLabelText('Origin: Builder')
+    const card = await openDetailsCard()
+    const badge = within(card).getByLabelText('Origin: Builder')
     expect(badge.querySelector('img')?.getAttribute('src')).toBe(presentationIcon)
     expect(screen.queryByLabelText('Origin app: Secondary origin')).not.toBeInTheDocument()
   })
@@ -832,13 +835,15 @@ describe('ThreadEntry', () => {
       })
     )
 
-    expect(await screen.findByLabelText('Origin: Native source')).toBeInTheDocument()
+    const card = await openDetailsCard()
+    expect(within(card).getByLabelText('Origin: Native source')).toBeInTheDocument()
   })
 
-  it('falls back to the channel badge when originApp is absent', () => {
+  it('falls back to the channel badge when originApp is absent', async () => {
     renderThreadEntry(makeThread({ originChannel: 'workflow' }))
+    const card = await openDetailsCard()
 
-    expect(screen.getByLabelText('Origin channel: workflow')).toBeInTheDocument()
+    expect(within(card).getByLabelText('Origin channel: workflow')).toBeInTheDocument()
     expect(screen.queryByLabelText('Origin app: Workflow App')).not.toBeInTheDocument()
   })
 
@@ -850,7 +855,8 @@ describe('ThreadEntry', () => {
       })
     )
 
-    expect(await screen.findByLabelText('Origin app: Workflow App')).toBeInTheDocument()
+    const card = await openDetailsCard()
+    expect(within(card).getByLabelText('Origin app: Workflow App')).toBeInTheDocument()
   })
 
   it('uses the per-member tooltip when app origin metadata carries a member id', async () => {
@@ -862,7 +868,8 @@ describe('ThreadEntry', () => {
       })
     )
 
-    expect(await screen.findByLabelText('Origin: Worker')).toBeInTheDocument()
+    const card = await openDetailsCard()
+    expect(within(card).getByLabelText('Origin: Worker')).toBeInTheDocument()
     expect(screen.queryByLabelText('Origin app: Worker')).not.toBeInTheDocument()
   })
 })

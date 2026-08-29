@@ -1,21 +1,84 @@
-import { useCallback, type JSX } from 'react'
+import { useCallback, type JSX, type ReactNode } from 'react'
 import { Folder, GitBranch } from 'lucide-react'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
+import { ChannelIconBadge } from '../ui/channelMeta'
 import { Skeleton } from '../ui/Skeleton'
+
+/** Threads started from Desktop itself carry no badge. */
+export function threadOriginBadge({
+  thread,
+  isSubAgent,
+  t
+}: {
+  thread: ThreadSummary
+  isSubAgent: boolean
+  t: (key: string, vars?: Record<string, string>) => string
+}): ReactNode {
+  const presentation = thread.originPresentation
+  const visible =
+    !isSubAgent &&
+    (Boolean(presentation || thread.originApp) || (
+      thread.originChannel.length > 0 &&
+      thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
+    ))
+  if (!visible) return null
+
+  if (presentation) {
+    return (
+      <ChannelIconBadge
+        channelName={thread.originChannel}
+        iconSrc={presentation.icon ?? undefined}
+        label={presentation.displayName}
+        tooltip={t('threadEntry.originMember', { name: presentation.displayName })}
+        size={14}
+        framed={false}
+        muted
+      />
+    )
+  }
+  if (thread.originApp) {
+    return (
+      <ChannelIconBadge
+        channelName={thread.originChannel}
+        iconSrc={thread.originApp.icon ?? undefined}
+        label={thread.originApp.displayName}
+        tooltip={
+          thread.originApp.memberId
+            ? t('threadEntry.originMember', { name: thread.originApp.displayName })
+            : t('threadEntry.originApp', { app: thread.originApp.displayName })
+        }
+        size={14}
+        framed={false}
+        muted
+      />
+    )
+  }
+  return (
+    <ChannelIconBadge
+      channelName={thread.originChannel}
+      tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
+      size={14}
+      framed={false}
+      muted
+    />
+  )
+}
 
 export function useThreadEntryDetails({
   thread,
   project,
   projectName,
-  relativeTime
+  relativeTime,
+  origin
 }: {
   thread: ThreadSummary
   project?: WorkspaceProjectSummary | null
   projectName: string | null
   relativeTime: string
+  origin?: ReactNode
 }): { content: JSX.Element; onOpen: () => void } {
   const worktreeBranch = thread.worktree?.branchName?.trim() || null
   const gitPath = (
@@ -45,8 +108,15 @@ export function useThreadEntryDetails({
     onOpen: ensureHead,
     content: (
       <>
-        <div className="sidebar-entry-details-header">
+        <div
+          className={
+            origin
+              ? 'sidebar-entry-details-header sidebar-entry-details-header--with-origin'
+              : 'sidebar-entry-details-header'
+          }
+        >
           <span className="sidebar-entry-details-title" title={title}>{title}</span>
+          {origin && <span className="sidebar-entry-details-origin">{origin}</span>}
           <span className="sidebar-entry-details-meta">{relativeTime}</span>
         </div>
         {projectName && (

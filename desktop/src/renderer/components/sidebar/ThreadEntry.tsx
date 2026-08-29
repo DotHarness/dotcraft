@@ -11,7 +11,6 @@ import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ThreadRowLayout } from './ThreadRowLayout'
-import { ChannelIconBadge } from '../ui/channelMeta'
 import { Archive, ArrowRightLeft, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
 import { useAutomationsStore } from '../../stores/automationsStore'
@@ -24,7 +23,7 @@ import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threa
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
-import { useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
+import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 
 interface ThreadEntryProps {
@@ -109,15 +108,9 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     thread: { ...thread, displayName },
     project,
     projectName,
-    relativeTime
+    relativeTime,
+    origin: threadOriginBadge({ thread, isSubAgent, t })
   })
-  const originPresentation = thread.originPresentation
-  const showOriginBadge =
-    !isSubAgent &&
-    (Boolean(originPresentation || thread.originApp) || (
-      thread.originChannel.length > 0 &&
-      thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
-    ))
   // Hide the archive action during a drag session so the right side stays
   // clean while the drop-hint / already-bound pill is shown.
   const canPin = !isSubAgent && thread.status !== 'archived'
@@ -136,8 +129,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   // spinner — unless a drag / success state already owns the middle badge column.
   const showPendingInStatus =
     showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
-  const reserveOriginStatusSlot = showOriginBadge && !showPendingInStatus
-  const showOriginInStatus = reserveOriginStatusSlot && !showArchiveAction
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
   const showStatusIcon = !isActive && thread.status !== 'active'
   const showUnreadCompletedDot =
@@ -146,66 +137,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     && !isSubAgent
     && thread.status === 'active'
     && hasUnreadCompleted
-  const showRelativeTimeStatus =
-    !showPendingInStatus && !hasRunningTurn && !showUnreadCompletedDot && !showStatusIcon
   const compactStatusColumn = '24px'
-  const relativeTimeStatusColumn = 'minmax(24px, max-content)'
-  // On hover the archive action replaces the status content in a compact 24px
-  // slot; otherwise the relative-time slot / pending pill may grow to fit its
-  // content and hug the trailing edge.
-  const showRelativeTimeSlot = !showArchiveAction && showRelativeTimeStatus
+  // Only the pending pill grows past the compact slot, and the archive action
+  // replaces it on hover.
   const showPendingSlot = !showArchiveAction && showPendingInStatus
-  const usesWideStatusColumn = showRelativeTimeSlot || showPendingSlot
-  const originStatusColumn = usesWideStatusColumn ? 'minmax(49px, max-content)' : '49px'
-  const statusColumn = reserveOriginStatusSlot
-    ? originStatusColumn
-    : usesWideStatusColumn
-      ? relativeTimeStatusColumn
-      : compactStatusColumn
-  const statusSlotWidth = usesWideStatusColumn
-    ? 'max-content'
-    : reserveOriginStatusSlot
-      ? '49px'
-      : compactStatusColumn
-  const statusSlotMinWidth = reserveOriginStatusSlot ? '49px' : compactStatusColumn
-  const statusSlotJustifySelf = usesWideStatusColumn ? 'end' : 'center'
-  // Center the relative time / pending pill in its (>=24px) slot so it shares the
-  // horizontal center of the spinner / archive / status icons that replace it.
-  const statusContentJustify = 'center'
-
-  const originBadge = !showOriginBadge ? null : originPresentation ? (
-    <ChannelIconBadge
-      channelName={thread.originChannel}
-      iconSrc={originPresentation.icon ?? undefined}
-      label={originPresentation.displayName}
-      tooltip={t('threadEntry.originMember', { name: originPresentation.displayName })}
-      muted={!isActive}
-      size={12}
-      framed={false}
-    />
-  ) : thread.originApp ? (
-    <ChannelIconBadge
-      channelName={thread.originChannel}
-      iconSrc={thread.originApp.icon ?? undefined}
-      label={thread.originApp.displayName}
-      tooltip={
-        thread.originApp.memberId
-          ? t('threadEntry.originMember', { name: thread.originApp.displayName })
-          : t('threadEntry.originApp', { app: thread.originApp.displayName })
-      }
-      muted={!isActive}
-      size={12}
-      framed={false}
-    />
-  ) : (
-    <ChannelIconBadge
-      channelName={thread.originChannel}
-      tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
-      muted={!isActive}
-      size={12}
-      framed={false}
-    />
-  )
+  const statusColumn = showPendingSlot ? 'minmax(24px, max-content)' : compactStatusColumn
+  const statusSlotWidth = showPendingSlot ? 'max-content' : compactStatusColumn
+  const statusSlotJustifySelf = showPendingSlot ? 'end' : 'center'
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
     // One-click archive: archived threads are restorable anytime from
@@ -359,9 +297,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         nameStyle={{ fontWeight: 'var(--type-ui-weight)' }}
         statusColumn={statusColumn}
         statusSlotWidth={statusSlotWidth}
-        statusSlotMinWidth={statusSlotMinWidth}
         statusJustifySelf={statusSlotJustifySelf}
-        statusContentJustify={statusContentJustify}
         statusSlotRef={actionSlotRef}
         statusSlotProps={{
           onBlurCapture: (e) => {
@@ -525,41 +461,20 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           <span
             aria-hidden={showArchiveAction}
             style={{
-              fontSize: 'var(--type-secondary-size)',
-              color: 'var(--text-dimmed)',
-              lineHeight: 'var(--type-secondary-line-height)',
-              whiteSpace: 'nowrap',
               display: showArchiveAction ? 'none' : 'inline-flex',
               alignItems: 'center',
-              justifyContent: statusContentJustify,
+              justifyContent: 'center',
               width: '100%',
               overflow: 'hidden',
-              textOverflow: 'clip',
               opacity: showArchiveAction ? 0 : 1
             }}
           >
-            {showOriginInStatus && (
-              <span
-                data-testid={`thread-origin-slot-${thread.id}`}
-                style={{
-                  width: '12px',
-                  height: '12px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: '13px',
-                  flexShrink: 0
-                }}
-              >
-                {originBadge}
-              </span>
-            )}
             <span
               style={{
                 minWidth: compactStatusColumn,
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: statusContentJustify,
+                justifyContent: 'center',
                 flexShrink: 0
               }}
             >
@@ -631,9 +546,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     {thread.status === 'paused' ? '⏸' : '🗄'}
                   </span>
                 </ActionTooltip>
-              ) : (
-                relativeTime
-              )}
+              ) : null}
             </span>
           </span>
         }
