@@ -1,6 +1,6 @@
 # Configure model providers
 
-DotCraft Harness includes OpenAI and Anthropic provider integrations. The host selects a provider and model through `AppConfig`, then passes the effective configuration to `AddDotCraftHarness`.
+DotCraft Harness ships two built-in provider integrations, OpenAI and Anthropic. The host selects a provider and model through `AppConfig`, then passes the effective configuration to [`AddDotCraftHarness`](./).
 
 ## Configure OpenAI
 
@@ -34,7 +34,28 @@ var appConfig = new AppConfig
 };
 ```
 
-Use `ModelProviderProtocols.OpenAIChatCompletions` for endpoints that implement the Chat Completions protocol. Use `ModelProviderProtocols.OpenAIResponses` for the Responses protocol.
+Use `ModelProviderProtocols.OpenAIChatCompletions` for endpoints that implement the Chat Completions protocol, and `ModelProviderProtocols.OpenAIResponses` for the Responses protocol.
+
+## Authenticate with a ChatGPT subscription
+
+OpenAI providers accept a second authentication method. `AuthMethod = "chatgptOAuth"` replaces the static API key with the OpenAI Sign in with ChatGPT flow, authenticating requests with a ChatGPT subscription account:
+
+```csharp
+appConfig.Providers["openai"] = new AppConfig.ModelProviderConfig
+{
+    DisplayName = "OpenAI (ChatGPT)",
+    Protocol = ModelProviderProtocols.OpenAIResponses,
+    AuthMethod = ModelProviderAuthMethods.ChatGptOAuth
+};
+```
+
+In this mode the provider resolves differently:
+
+- The protocol must be an OpenAI protocol. `anthropic` combined with `chatgptOAuth` throws a `ModelProviderConfigurationException` when the provider is resolved, and the effective protocol is always `openai-responses`.
+- `ApiKey` and `EndPoint` are ignored. Requests go to the ChatGPT backend at `https://chatgpt.com/backend-api/codex`.
+- Every request attaches a fresh access token from the token bundle stored as `auth.json` in the user data directory. Tokens refresh automatically, and a `401` first adopts credentials rotated by another process before refreshing at the issuer.
+
+Sign-in happens once, outside provider configuration. `IOpenAIAuthService`, registered together with the OpenAI provider, runs the PKCE browser login through `LoginAsync` and persists the tokens. On a machine with the DotCraft app, `dotcraft auth openai login` does the same and also writes the provider entry into the global configuration. `ChatGptAccountId` and `ChatGptPlanType` are written by that flow — treat them as read-only metadata. Signing out with `LogoutAsync` or `dotcraft auth openai logout` deletes the tokens and reverts the provider to `apiKey`.
 
 ## Configure Anthropic
 
@@ -88,11 +109,11 @@ appConfig.ProviderPreferences["company-models"] = new ModelPreference
 };
 ```
 
-The endpoint must implement the protocol selected by `Protocol`. A custom provider ID names a configuration record. It does not define a new wire protocol.
+The endpoint must implement the protocol selected by `Protocol`. A custom provider ID names a configuration record. It does not define a new wire protocol — the three above are the only choices.
 
 ## Select a model per Thread
 
-New Threads capture the effective workspace provider and model. Override them for one Thread with `ThreadConfiguration`:
+A new Thread captures the effective workspace provider and model at creation time. Override them for that one Thread with `ThreadConfiguration`:
 
 ```csharp
 var thread = await sessions.CreateThreadAsync(
@@ -105,19 +126,18 @@ var thread = await sessions.CreateThreadAsync(
     ct: cancellationToken);
 ```
 
-Changes to the host configuration do not silently rewrite the model snapshot of existing Threads.
+Later changes to the host configuration do not rewrite the model snapshot of existing Threads.
 
 > [!TIP]
 > Keep API keys outside workspace configuration. Resolve secrets in the host and construct the effective `AppConfig` immediately before composition.
 
 ## Provider registration
 
-`AddDotCraftHarness` registers both built-in Provider implementations idempotently.
+`AddDotCraftHarness` registers both built-in provider implementations idempotently, so repeated registration produces no duplicates.
 
-A protocol can have only one registered `IModelProvider`. Registering multiple implementations for the same protocol is rejected during Runtime composition.
+A protocol can have only one `IModelProvider`. Multiple implementations for the same protocol throw during Runtime composition and the Host fails to start.
 
 ## Related docs
 
-- [Harness overview](./)
-- [Configuration and paths](./configuration-paths)
-- [Threads and Turns](./threads-turns)
+- [Configuration and paths](./configuration-paths) — how the application prepares the effective `AppConfig` before registration.
+- [Threads and Turns](./threads-turns) — where a Thread captures its provider and model snapshot.

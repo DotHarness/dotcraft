@@ -43,13 +43,13 @@ Scaffold 会把 `@dotcraft/plugin` 固定为创建它的 DotCraft 版本。请�
 }
 ```
 
-`version` 必须存在，并使用规范的 `MAJOR.MINOR.PATCH` 格式。使用可选的 `description` 说明 Desktop contribution 的作用；插件详情页会优先显示它，而不是父插件的描述。`entry` 必须指向 `./desktop/dist/` 下已经存在的 `.mjs` 文件。可选 `styles` 中的每一项都必须指向同一输出树下已经存在的 `.css` 文件。导入的 chunks 与 assets 也必须留在该树中。
+`version` 必须存在，并使用规范的 `MAJOR.MINOR.PATCH` 格式。可选的 `description` 说明这个 Desktop 模块做什么，插件详情页会优先显示它，父插件的描述只作为兜底。`entry` 必须指向 `./desktop/dist/` 下已存在的 `.mjs` 文件，可选 `styles` 的每一项都必须指向同一输出目录下已存在的 `.css` 文件。导入的 chunk 与 asset 也必须留在这个目录里。
 
-Desktop 模块共享父插件的 identity、version、enabled state 与 interface metadata。同时包含 .NET 的 bundle 可以声明 dependencies，但它们只负责 managed generation 的顺序，不负责 Desktop activation 的顺序。Manifest 中的 `capabilities` labels 不会授予或限制 renderer access。
+Desktop 模块共享父插件的 id、版本、启用状态与 `interface` 元数据。同时包含 .NET 的 bundle 可以声明依赖，但依赖只决定 managed generation 的顺序，不决定 Desktop 的激活顺序。Manifest 里的 `capabilities` 标签既不授予也不限制 renderer 访问权限。
 
 ## 激活插件
 
-从 `desktop/src/index.tsx` 导出具名 `activate` 函数。它接收 `DesktopPluginHost`，可以注册 runtime work，而不需要返回值：
+从 `desktop/src/index.tsx` 导出具名 `activate` 函数。它接收 `DesktopPluginHost`，可以直接注册运行时行为，不需要返回值：
 
 ```tsx
 import type { DesktopPluginActivate } from "@dotcraft/plugin";
@@ -69,7 +69,7 @@ export const activate: DesktopPluginActivate = (host) => {
 };
 ```
 
-每次调用都会立即生效，并归属于该插件 revision。如果 `activate` 随后失败，Desktop 会清理已经完成的 registrations。`activate` 也可以返回 `DesktopPluginActivation` convenience object，或者同时使用返回的 contributions 与直接 kernel registrations。
+每次调用都会立即生效，并归属于当前插件 revision。如果 `activate` 随后失败，Desktop 会撤销此前已经生效的注册。`activate` 也可以返回 `DesktopPluginActivation` 便捷对象，或者把返回的 contribution 与直接的 kernel 注册混用。
 
 ## 构建并重新加载
 
@@ -80,18 +80,15 @@ npm install
 npm run build
 ```
 
-Scaffold 会先执行 TypeScript 检查，再运行 `dotcraft-plugin build`。Builder 把 `src/index.tsx`、导入的 CSS、chunks 和 assets 打包到 `dist/`，同时把 React 与共享组件连接到 Desktop runtime。
-
-可运行的 [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) 包含两个 .NET 与 Desktop bundle。Core 插件替换背景、包装整个应用，并拥有 renderer service、event 与自定义 surface；Consumer 插件添加 Composer 控件，并向 Core 拥有的 surface 注入 UI。
+构建脚本先做 TypeScript 类型检查，再运行 `dotcraft-plugin build`，把 `src/index.tsx`、导入的 CSS、chunk 与 asset 打包进 `dist/`，并把 React 与共享组件接到 Desktop 自己的 React runtime 上。
 
 请在 DotCraft 发现插件或打包插件之前完成构建。刷新插件列表，然后启用插件。源码变更后重新构建，再刷新或重新启用插件。
+
+可运行的 [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) 包含两个同时带 .NET 与 Desktop 的 bundle。Core 插件替换背景、包装整个应用，并拥有一个 renderer service、一个 event 与一个自定义 surface。Consumer 插件添加 Composer 控件，并向 Core 拥有的 surface 注入 UI。
 
 完整的 surface 目录、context、组合语义、Host API 与 generation 生命周期请参阅 [Desktop Plugin API](./desktop-plugin-api)。
 
 ## 相关文档
 
-- [Desktop Plugin API](./desktop-plugin-api)
-- [插件市场](./plugin-market)
-- [开发 .NET 插件](./dotnet-plugins)
-- [MCP Apps](./mcp-apps)
-- [插件与工具](../../features/agent-system/plugins-tools)
+- [开发 .NET 插件](./dotnet-plugins)——功能需要后端执行或 Agent 工具时，为同一个 bundle 补上 .NET 模块。
+- [插件市场](./plugin-market)——把构建好的插件发布出去，供其他人安装。

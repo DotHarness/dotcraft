@@ -1,10 +1,10 @@
-# AppServer protocol
-
-> App Binding clients negotiate `capabilities.appBindingVersion: 2`. Authenticated app-principal connections may call only the version-2 app-role allowlist: connection authentication, refresh, status, and revoke; binding request, activation, rebind, and list; `app/surface/publish`; and `app/threadInput/enqueue`. Tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`; undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [DotCraft App](../integrations/app-binding).
+# AppServer Protocol
 
 AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 
-This page defines the AppServer JSON-RPC wire contract, including initialization, message directions, method groups, transports, errors, ordering, and compatibility. The [DotCraft SDK](../sdks/) pages document client library APIs, while [Hub Protocol](./hub-protocol) documents local AppServer discovery and startup.
+This page defines the AppServer JSON-RPC wire contract: initialization, message directions, method groups, transports, error handling, and client compatibility requirements. The [DotCraft SDK](../sdks/) pages document the per-language client library APIs, and [Hub Protocol](./hub-protocol) documents local AppServer discovery and startup.
+
+![DotCraft AppServer protocol flow](/appserver-protocol-flow.svg)
 
 ## Protocol
 
@@ -60,15 +60,13 @@ Notification:
 | `stdio` | UTF-8 JSONL; one full JSON-RPC message per line | Subprocess clients, one-to-one connections, default mode |
 | `websocket` | One full JSON-RPC message per WebSocket text frame | Multi-client workspace sharing, Hub-managed local mode, remote connections |
 
-In stdio mode, stdout is reserved for protocol messages. Logs and diagnostics should go to stderr.
+In stdio mode, stdout is reserved for protocol messages. Send logs and diagnostics to stderr.
 
 In WebSocket mode, each connection has independent initialization state and thread subscriptions. With Hub-managed local mode, clients usually connect to the URL returned in `endpoints.appServerWebSocket`.
 
 ## Initialization
 
 The first request on every connection must be `initialize`. After it succeeds, the client must send an `initialized` notification.
-
-![DotCraft AppServer protocol flow](/appserver-protocol-flow.svg)
 
 Initialize request:
 
@@ -141,7 +139,7 @@ Requests sent before initialization are rejected. Repeated `initialize` calls on
 |-----------|-------------|
 | Thread | A resumable conversation with workspace, origin channel, configuration, and turns. |
 | Turn | One user input and the agent work it triggers. |
-| Item | A unit inside a turn, such as user message, agent message, command execution, file change, tool call, plan, or reasoning. |
+| Item | A unit inside a turn, such as user message, agent message, command execution, tool call, tool result, or reasoning. |
 
 Common flow:
 
@@ -207,9 +205,9 @@ Common thread methods:
 | `thread/unsubscribe` | Unsubscribe from thread events. |
 | `thread/rename` | Update the display name. |
 | `thread/pause` | Pause an active thread until it is resumed. |
-| `thread/archive` | Block new turns, stop or invalidate active background terminals, and archive the thread and its SubAgent subtree. |
-| `thread/unarchive` | Restore an archived thread and descendants whose SubAgent edges remain open. Explicitly closed descendants stay archived. |
-| `thread/delete` | Permanently delete a thread and its SubAgent subtree from durable state. Thread-owned filesystem cleanup is best effort and retryable. |
+| `thread/archive` | Block new turns, stop or invalidate active background terminals, and archive the thread and its subagent subtree. |
+| `thread/unarchive` | Restore an archived thread and descendants whose subagent edges remain open. Explicitly closed descendants stay archived. |
+| `thread/delete` | Permanently delete a thread and its subagent subtree from durable state. Thread-owned filesystem cleanup is best effort and retryable. |
 | `thread/config/update` | Update thread configuration. |
 | `thread/mode/set` | Switch agent mode, such as `plan` or `agent`. |
 
@@ -217,7 +215,7 @@ Common thread methods:
 
 `thread/read` accepts only `threadId` and does not return persisted Turns or Items. Read history with `thread/turns/list` and `thread/items/list`. Turn pages default to 20 entries and allow at most 100; Item pages default to 100 and allow at most 500. Both default to descending order and return data in the requested direction. Item pages may include an optional `turnId`. Continue with the opaque `nextCursor` only for the same Thread, scope, optional Turn, and direction. After rollback, fork, archive, or unarchive, discard affected cursors and reload the required history pages.
 
-Archiving is reversible: it blocks new turns and stops or invalidates active background terminals, but it does not cancel a main Turn that is already executing. Conversation history is retained, while retained artifacts remain subject to their normal retention rules. Restoring a parent restores only descendants whose SubAgent edges remain open. Deletion permanently removes persisted thread data and bound tracing data; cleanup of thread-owned filesystem artifacts is attempted synchronously, and individual failures can be retried. Clients receive `thread/statusChanged` for archive and restore operations, and a workspace-level `thread/deleted` broadcast after deletion. See [Session persistence](../architecture/session-persistence) for the storage lifecycle.
+Archiving is reversible: it blocks new turns and stops or invalidates active background terminals, but it does not cancel a main Turn that is already executing. Conversation history is retained, while retained artifacts remain subject to their normal retention rules. Restoring a parent restores only descendants whose subagent edges remain open. Deletion permanently removes persisted thread data and bound tracing data; cleanup of thread-owned filesystem artifacts is attempted synchronously, and individual failures can be retried. Clients receive `thread/statusChanged` for archive and restore operations, and a workspace-level `thread/deleted` broadcast after deletion. See [Session persistence](../architecture/session-persistence) for the storage lifecycle.
 
 ### Runtime Dynamic Tools and app context
 
@@ -326,7 +324,7 @@ If a turn is already running, Desktop-style clients usually use `turn/enqueue` t
 
 ## Events
 
-AppServer pushes thread, turn, and item state through notifications. Clients should keep reading the transport stream and treat `item/completed` as the final state for that item.
+AppServer pushes thread, turn, and item state through notifications. Keep reading the transport stream, and treat `item/completed` as the final state for that item.
 
 Common notifications:
 
@@ -341,7 +339,6 @@ Common notifications:
 | `turn/completed` | Turn completed successfully. |
 | `turn/failed` | Turn failed. |
 | `turn/cancelled` | Turn was cancelled. |
-| `turn/diff/updated` | File-change diff updated. |
 | `plan/updated` | Plan updated, with source `threadId` and the complete plan/todo snapshot. |
 | `item/started` | Item started. |
 | `item/completed` | Item completed with final state. |
@@ -412,20 +409,23 @@ The table below covers common method families used by AppServer clients.
 | Plugin marketplaces | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | User-managed plugin catalog sources. |
 | Commands | `command/list`, `command/execute` | Custom command discovery and execution. |
 | Models | `model/list` | Model catalog. |
-| MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/status/list`, `mcp/test` | MCP configuration and status. |
+| MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP configuration and status. |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | External channel configuration. |
-| SubAgents | `subagent/profiles/list`, `subagent/profiles/upsert` | SubAgent profile management. |
+| Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | Subagent profile management. |
 | Automations | `automation/task/list`, `automation/task/create`, `automation/task/discardWorktree` | Local task lifecycle, binding, and managed worktree cleanup. |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | Managed Git worktree status and handoff. |
 | Workspace config | `workspace/config/update` | Workspace configuration updates. |
+| App Binding | `app/connection/authenticate`, `app/binding/activate`, `app/threadInput/enqueue` | Extension module for external apps, gated by `capabilities.appBindingVersion`. |
 
-Clients should use `capabilities` from the `initialize` response before showing feature-specific UI.
+Use `capabilities` from the `initialize` response before showing feature-specific UI.
 
 Skill entries returned by `skills/list` may include `hasVariant: true`, which means the current runtime resolves that skill through a workspace adaptation. `skills/read` still reads the source `SKILL.md`; use `skills/view` when a client needs the effective content.
 
+App Binding clients negotiate `capabilities.appBindingVersion: 1`. An authenticated app-principal connection may call only the app-role allowlist — connection authentication, refresh, status, and revoke, binding request, activation, rebind, and list, `app/surface/publish`, and `app/threadInput/enqueue` — and its tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`, undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [DotCraft App](../integrations/app-binding).
+
 ### Automation and worktree status
 
-Automation task wires use canonical `workspaceMode` values: `project` or `worktree`. A worktree-mode task reports `worktree: null` until a managed worktree is provisioned, when the server falls back to the task workspace, or after the worktree is discarded.
+Automation task wires use canonical `workspaceMode` values: `project` or `worktree`. A worktree-mode task reports `worktree: null` in three cases: no managed worktree is provisioned yet, the server fell back to the task workspace, or the worktree was discarded.
 
 Clients that render automation review UI can call `worktree/status` for the task thread. `ThreadWorktreeStatus` includes `hasUncommittedChanges`, `hasCommitsAheadOfBase`, and `aheadCount`, which are enough for compact review indicators and delete/discard warnings.
 
@@ -433,7 +433,7 @@ Use `automation/task/discardWorktree` with `{ taskId }` to remove a task's manag
 
 ### Plugin and skill management
 
-Clients should check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.pluginManagement` before calling `plugin/*`, and `capabilities.pluginMarketplaces` before calling `marketplace/*`.
+Check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.pluginManagement` before calling `plugin/*`, and `capabilities.pluginMarketplaces` before calling `marketplace/*`.
 
 `skills/uninstall` deletes removable workspace or personal skills only. System skills cannot be uninstalled; plugin-contained skills are managed by the plugin lifecycle and are not uninstalled separately. If the removed source skill has associated variants, the server also removes those workspace-local variants and broadcasts `workspace/configChanged` with `regions: ["skills"]`.
 
@@ -582,7 +582,7 @@ send(
 );
 ```
 
-Production clients should also handle process exit, JSON parse errors, request timeouts, approval requests, turn cancellation, and reconnect.
+A production client also handles process exit, JSON parse errors, request timeouts, approval requests, turn cancellation, and reconnect.
 
 ## Errors and backpressure
 
@@ -620,8 +620,6 @@ Recommended handling:
 
 ## Related docs
 
-- [SDK quickstart](../sdks/quickstart)
-- [Hub Protocol](./hub-protocol)
-- [Dashboard API](./dashboard-api)
-- [AppServer Mode](../lifecycle/appserver)
-- [Plugins & Tools](../../features/agent-system/plugins-tools)
+- [SDK quickstart](../sdks/quickstart) — run the same flow through an official client library instead of hand-writing this contract.
+- [AppServer mode](../lifecycle/appserver) — how the process behind this protocol starts, listens, and shuts down.
+- [Dashboard API](./dashboard-api) — the separate HTTP surface for inspecting traces and session records.

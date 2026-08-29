@@ -1,8 +1,8 @@
 # DotCraft SDK
 
-使用 DotCraft SDK 把应用连接到 AppServer。常规应用从高层 API 开始，用它处理 thread、run、工具、审批和用户输入。
+使用 DotCraft SDK 把应用连接到 AppServer。从高层 API 开始，用它处理 thread、run、工具、审批和用户输入。
 
-![DotCraft SDK 分层与连接归属：应用从高层 API 进入，其下是 Wire 层和生成的 Contracts 层；本地场景由 Hub 确保工作区 AppServer 就绪，SDK 直连该 AppServer 并抵达 session core](/sdk-layers-topology.svg)
+![DotCraft SDK 分层与连接归属：应用从高层 API 进入，其下是 Wire 层和生成的 Contracts 层。本地场景由 Hub 确保工作区 AppServer 就绪，SDK 直连该 AppServer 并抵达 session core](/sdk-layers-topology.svg)
 
 ## 从这里开始
 
@@ -20,7 +20,7 @@
 | **Wire** | 强类型 JSON-RPC、连接状态、超时和显式 raw 扩展调用。 |
 | **Contracts** | 不含传输 I/O 的生成 DTO、方法映射、注册表和协议元数据。 |
 
-Host adapter 和 Channel runtime 使用这些 SDK 层级，提供工作区路由、heartbeat、平台投递和 UI 交互等特定环境的集成能力。
+Host adapter 和 Channel runtime 建立在这些层级之上，补上特定运行环境的集成：工作区路由、heartbeat、平台投递和 UI 交互。
 
 ## 包
 
@@ -28,24 +28,23 @@ Host adapter 和 Channel runtime 使用这些 SDK 层级，提供工作区路由
 | --- | --- | --- |
 | TypeScript | `@dotcraft/sdk` | 已发布到 npm。 |
 | .NET | `DotCraft.Sdk` | 已发布到 NuGet。 |
-| Python | `dotcraft` | 源码预览，需要从本仓库安装。 |
 
 [快速开始](./quickstart)是安装命令的唯一来源。
 
 ## 常用能力
 
-| 任务 | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| 连接工作区 | `DotCraft.local()` | `ConnectLocalAsync()` | `connect_local()` |
-| 连接默认 Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` | `connect_local_chat()` |
-| 连接远程服务 | `DotCraft.remote()` | `ConnectRemoteAsync()` | `connect_remote()` |
-| 运行 turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `run()` / `run_streamed()` |
-| 读取历史分页 | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` | `list_turns()` / `list_items()` |
-| 列出模型 | `models.list()` | `Models.GetCatalogAsync()` | `models.list()` |
-| 使用 MCP runtime | `mcpRuntime` | `McpRuntime` | `mcp_runtime` |
-| 使用 App Binding | `appBindings` | `AppBindings` | `app_bindings` |
+| 任务 | TypeScript | .NET |
+| --- | --- | --- |
+| 连接工作区 | `DotCraft.local()` | `ConnectLocalAsync()` |
+| 连接默认 Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` |
+| 连接远程服务 | `DotCraft.remote()` | `ConnectRemoteAsync()` |
+| 运行 turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` |
+| 读取历史分页 | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` |
+| 列出模型 | `models.list()` | `Models.GetCatalogAsync()` |
+| 使用 MCP runtime | `mcpRuntime` | `McpRuntime` |
+| 使用 App Binding | `appBindings` | `AppBindings` |
 
-TypeScript 和 Python 还提供 Channel Adapter profile，.NET 不提供。
+TypeScript 还提供 Channel Adapter profile，.NET 不提供。
 
 ## 连接所有权
 
@@ -57,12 +56,9 @@ TypeScript 和 Python 还提供 Channel Adapter profile，.NET 不提供。
 
 - [TypeScript](./typescript)
 - [.NET](./dotnet)
-- [Python](./python)
 
 ## 相关文档
 
-- [Hub 生命周期](../lifecycle/hub)
-- [AppServer 模式](../lifecycle/appserver)
-- [AppServer 协议](../protocols/appserver-protocol)
-- [MCP 运行时](./mcp-runtime)
-- [DotCraft App](../integrations/app-binding)
+- [AppServer 模式](../lifecycle/appserver)——SDK 所连接的 AppServer 如何启动、加固并对外暴露 WebSocket 端点。
+- [AppServer 协议](../protocols/appserver-protocol)——这些 client 实际收发的方法与通知。
+- [DotCraft App](../integrations/app-binding)——App Binding，供应用向 thread 暴露自身能力。

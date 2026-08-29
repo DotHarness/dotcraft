@@ -11,11 +11,13 @@ dotnet add package DotCraft.Harness
 dotnet add package Microsoft.Extensions.Hosting
 ```
 
-应用必须以 .NET 10 或兼容的目标框架为目标。
+应用需要以 .NET 10 或更高版本为目标框架。
+
+包内已附带 Runtime、Core 与内置模型 Provider 程序集，因此应用只需引用 `DotCraft.Harness` 这一个 DotCraft 包。
 
 ## 注册 Harness
 
-安装后，先准备 `AppConfig`，再将 Harness 注册到应用服务集合：
+安装后先准备 `AppConfig`，再把 Harness 注册到应用服务集合：
 
 ```csharp
 using DotCraft.Harness;
@@ -28,7 +30,7 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-接下来可以阅读[托管与生命周期](./hosting-lifecycle)，构建并启动 Host。
+接着按[托管与生命周期](./hosting-lifecycle)构建并启动 Host。
 
 ## 集成场景
 
@@ -43,6 +45,5 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 
 ## 相关文档
 
-- [Harness 总览](./)
-- [托管与生命周期](./hosting-lifecycle)
-- [配置与路径](./configuration-paths)
+- [托管与生命周期](./hosting-lifecycle)——安装之后如何构建、启动并停止 Host。
+- [配置与路径](./configuration-paths)——注册时必须给出的 `AppConfig` 与路径选项。

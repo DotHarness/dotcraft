@@ -20,7 +20,7 @@ Use a DotCraft SDK to connect an application to AppServer. Start with the high-l
 | **Wire** | Typed JSON-RPC, connection state, timeouts, and explicit raw extension calls. |
 | **Contracts** | Generated DTOs, method maps, registries, and protocol metadata without transport I/O. |
 
-Host adapters and Channel runtimes use these SDK layers to add environment-specific integration such as workspace routing, heartbeat, platform delivery, and UI interaction.
+Host adapters and Channel runtimes build on these layers and add environment-specific integration: workspace routing, heartbeat, platform delivery, and UI interaction.
 
 ## Packages
 
@@ -28,24 +28,23 @@ Host adapters and Channel runtimes use these SDK layers to add environment-speci
 | --- | --- | --- |
 | TypeScript | `@dotcraft/sdk` | Published on npm. |
 | .NET | `DotCraft.Sdk` | Published on NuGet. |
-| Python | `dotcraft` | Source preview; install from this repository. |
 
 The [Quickstart](./quickstart) is the single source for installation commands.
 
 ## Common capabilities
 
-| Task | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Connect to a workspace | `DotCraft.local()` | `ConnectLocalAsync()` | `connect_local()` |
-| Connect to default Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` | `connect_local_chat()` |
-| Connect remotely | `DotCraft.remote()` | `ConnectRemoteAsync()` | `connect_remote()` |
-| Run a turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `run()` / `run_streamed()` |
-| Read history pages | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` | `list_turns()` / `list_items()` |
-| List models | `models.list()` | `Models.GetCatalogAsync()` | `models.list()` |
-| Use MCP runtime | `mcpRuntime` | `McpRuntime` | `mcp_runtime` |
-| Use App Binding | `appBindings` | `AppBindings` | `app_bindings` |
+| Task | TypeScript | .NET |
+| --- | --- | --- |
+| Connect to a workspace | `DotCraft.local()` | `ConnectLocalAsync()` |
+| Connect to default Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` |
+| Connect remotely | `DotCraft.remote()` | `ConnectRemoteAsync()` |
+| Run a turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` |
+| Read history pages | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` |
+| List models | `models.list()` | `Models.GetCatalogAsync()` |
+| Use MCP runtime | `mcpRuntime` | `McpRuntime` |
+| Use App Binding | `appBindings` | `AppBindings` |
 
-TypeScript and Python also provide a Channel Adapter profile. .NET does not.
+TypeScript also provides a Channel Adapter profile. .NET does not.
 
 ## Connection ownership
 
@@ -57,12 +56,9 @@ Reconnect restores Wire transport and initialization. It does not replay in-flig
 
 - [TypeScript](./typescript)
 - [.NET](./dotnet)
-- [Python](./python)
 
 ## Related docs
 
-- [Hub lifecycle](../lifecycle/hub)
-- [AppServer mode](../lifecycle/appserver)
-- [AppServer Protocol](../protocols/appserver-protocol)
-- [MCP runtime](./mcp-runtime)
-- [DotCraft App](../integrations/app-binding)
+- [AppServer mode](../lifecycle/appserver) — how the AppServer an SDK connects to is started, secured, and exposed over WebSocket.
+- [AppServer Protocol](../protocols/appserver-protocol) — the methods and notifications these clients speak.
+- [DotCraft App](../integrations/app-binding) — App Binding, for applications that expose their own capabilities to a thread.

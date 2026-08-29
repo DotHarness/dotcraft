@@ -1,6 +1,6 @@
 # SDK quickstart
 
-Connect to a workspace and run a turn with TypeScript, .NET, or Python.
+Connect to a workspace and run a turn with TypeScript or .NET.
 
 ## Install
 
@@ -14,15 +14,7 @@ npm install @dotcraft/sdk
 dotnet add package DotCraft.Sdk
 ```
 
-```bash [Python]
-DOTCRAFT_RELEASE_TAG="replace-with-release-tag"
-git clone --branch "$DOTCRAFT_RELEASE_TAG" https://github.com/DotHarness/dotcraft.git
-python -m pip install -e /absolute/path/to/dotcraft/sdk/python
-```
-
 :::
-
-`@dotcraft/sdk` is published on npm and `DotCraft.Sdk` is published on NuGet. Python remains a source preview; use the release tag that matches these docs instead of following `main`.
 
 ## 1. Connect
 
@@ -44,18 +36,9 @@ var client = await DotCraftClient.ConnectLocalAsync(
     "/path/to/workspace",
     new DotCraftLocalOptions { ClientName = "my-app", ClientVersion = "dev" });
 ```
-
-```python [Python]
-from dotcraft import DotCraft, LocalOptions
-
-dotcraft = await DotCraft.connect_local(
-    LocalOptions(workspace_path="/path/to/workspace")
-)
-```
-
 :::
 
-Use `localChat` / `ConnectLocalChatAsync` / `connect_local_chat` when your application targets the default Chat workspace.
+Use `localChat` / `ConnectLocalChatAsync` when your application targets the default Chat workspace.
 
 ## 2. Start a thread
 
@@ -78,11 +61,6 @@ var thread = await client.Threads.StartAsync(
         },
     });
 ```
-
-```python [Python]
-thread = await dotcraft.threads.start(user_id="me")
-```
-
 :::
 
 ## 3. Run a turn
@@ -100,12 +78,6 @@ console.log(result.text);
 var result = await thread.RunAsync("Summarize this project.");
 Console.WriteLine(result.Text);
 ```
-
-```python [Python]
-result = await thread.run("Summarize this project.")
-print(result.text)
-```
-
 :::
 
 ## 4. Stream events
@@ -128,13 +100,6 @@ await foreach (var runEvent in thread.RunStreamedAsync("List the open questions.
         Console.Write(delta.Params.Delta);
 }
 ```
-
-```python [Python]
-async for event in thread.run_streamed("List the open questions."):
-    if event.type == "agent_message_delta":
-        print(event.params["delta"], end="", flush=True)
-```
-
 :::
 
 ## 5. Close the client
@@ -150,11 +115,6 @@ await dotcraft.close();
 ```csharp [.NET]
 await client.DisposeAsync();
 ```
-
-```python [Python]
-await dotcraft.close()
-```
-
 :::
 
 ## Connect remotely
@@ -178,17 +138,6 @@ var client = await DotCraftClient.ConnectRemoteAsync(
         Token = Environment.GetEnvironmentVariable("DOTCRAFT_TOKEN"),
     });
 ```
-
-```python [Python]
-import os
-from dotcraft import RemoteOptions
-
-dotcraft = await DotCraft.connect_remote(RemoteOptions(
-    url="wss://server.example/ws",
-    token=os.getenv("DOTCRAFT_TOKEN"),
-))
-```
-
 :::
 
 See [AppServer mode](../lifecycle/appserver) for server startup, `/ws`, TLS, and token requirements.
@@ -198,11 +147,9 @@ See [AppServer mode](../lifecycle/appserver) for server startup, `/ws`, TLS, and
 - [TypeScript application example](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
 - [.NET agent profile and thread sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/AgentProfileThreadSample)
 - [.NET interactive tool sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/InteractiveToolSample)
-- [Python Run-profile example](https://github.com/DotHarness/dotcraft/tree/main/sdk/python/examples)
 
 ## Related docs
 
-- [Threads & runs](./runs)
-- [Tools & approvals](./tools)
-- [Channel adapters](./channels)
-- Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
+- [Threads & runs](./runs) — thread management, input parts, streaming, and recovery after a disconnect.
+- [Tools & approvals](./tools) — expose your own tools to a run and answer its interactive callbacks.
+- Reference: [TypeScript](./typescript) · [.NET](./dotnet) — the complete client surface per language.

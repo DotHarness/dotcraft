@@ -1,10 +1,10 @@
 # 配置 Harness 路径
 
-Host 持有配置来源与存储位置。Harness 使用一份最终生效的 `AppConfig`，并将三个路径选项解析为一个经过验证的 `DotCraftPaths` 上下文。
+应用持有配置来源与存储位置。Harness 使用一份最终生效的 `AppConfig`，并把三个路径选项解析成一个经过验证的 `DotCraftPaths` 上下文。
 
 ## 在 Harness 外部准备配置
 
-`AddDotCraftHarness` 不读取配置文件、环境变量或用户目录。应用应在注册前加载并合并这些配置来源。
+`AddDotCraftHarness` 不读取配置文件、环境变量或用户目录。应用在注册前加载并合并这些配置来源。
 
 ```csharp
 AppConfig appConfig = configurationStore.Load();
@@ -15,15 +15,15 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-这个边界让桌面应用、服务和测试可以使用不同的配置系统，同时保持 Runtime 行为一致。
+这个边界让桌面应用、服务和测试使用各自的配置系统，而 Runtime 行为保持一致。
 
 ## 选择路径根目录
 
 | 选项 | 是否必填 | 默认值 | 用途 |
 | --- | --- | --- | --- |
 | `WorkspacePath` | 是 | 无 | 会话与工具使用的应用 workspace。 |
-| `DataPath` | 否 | `.craft` | Workspace 内的会话、恢复数据、工具结果与 Runtime 状态。 |
-| `UserDataPath` | 否 | `null` | 用户级 Skill、Command、Hook、身份验证、市场与 Provider 状态。 |
+| `DataPath` | 否 | `.craft` | Workspace 内的会话、Trace、工具结果与 Runtime 状态。 |
+| `UserDataPath` | 否 | `null` | 用户级 Skill、Command、Hook、插件、插件市场与 Provider 身份验证。 |
 
 设置一个直属子目录名即可使用不同的 workspace 数据目录：
 
@@ -38,11 +38,11 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 `DataPath` 也接受这个直属子目录的绝对路径。Harness 会拒绝嵌套相对路径、越过 workspace 的路径，以及指向 workspace 外部的现有文件系统链接。
 
 > [!TIP]
-> 将选定的数据目录视为 Harness 持有的状态目录。请在版本控制操作中排除它，也不要在其中存放应用文档。
+> 把选定的数据目录当作 Harness 持有的状态目录。在版本控制操作中排除它，也不要在其中存放应用文档。
 
 ## 显式启用用户级状态
 
-`UserDataPath` 默认禁用。只有当应用明确需要持有用户级发现与持久化状态时才设置它。
+`UserDataPath` 默认禁用。只有当应用确实要持有用户级发现与持久化状态时才设置它。
 
 ```csharp
 builder.Services.AddDotCraftHarness(appConfig, options =>
@@ -53,11 +53,11 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-当 `UserDataPath` 为 `null` 时，用户级发现返回空结果。必须持久化用户状态的操作会返回明确错误，而不会隐式选择某个用户目录。
+当 `UserDataPath` 为 `null` 时，用户级发现返回空结果。必须持久化用户状态的操作会抛出明确错误，而不会隐式选择某个用户目录。
 
 ## 在应用服务中解析路径
 
-Harness 会注册一个不可变的 `DotCraftPaths`。应用组件应通过依赖注入获取它，不要在各处重新实现路径规则。
+Harness 会注册一个不可变的 `DotCraftPaths`。应用组件通过依赖注入获取它，不要在各处重新实现路径规则。
 
 ```csharp
 using DotCraft.Workspaces;
@@ -80,11 +80,11 @@ var authFile = paths.UserData
     .Resolve("auth.json");
 ```
 
-`Resolve`、`ResolveOrNull` 与 `Require` 将路径可用性和边界检查统一保留在一个位置。
+`Resolve`、`ResolveOrNull` 与 `Require` 把路径可用性和边界检查集中在一处。
 
 ## 测试隔离的 Host
 
-测试应显式提供临时 workspace 与用户数据目录。验证不访问用户目录的嵌入式运行方式时，可以省略 `UserDataPath`。
+测试显式提供临时 workspace 与用户数据目录。验证不访问用户目录的嵌入式运行方式时，省略 `UserDataPath`。
 
 ```csharp
 builder.Services.AddDotCraftHarness(testConfig, options =>
@@ -97,6 +97,5 @@ builder.Services.AddDotCraftHarness(testConfig, options =>
 
 ## 相关文档
 
-- [Harness 总览](./)
-- [托管与生命周期](./hosting-lifecycle)
-- [模型 Provider](./model-providers)
+- [托管与生命周期](./hosting-lifecycle)——这些路径选项在 Host 生命周期中何时被校验与使用。
+- [模型 Provider](./model-providers)——`AppConfig` 中的 Provider 与模型字段，和这里的路径选项共同构成注册参数。

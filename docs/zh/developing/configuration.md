@@ -1,6 +1,6 @@
 # DotCraft 完整配置参考
 
-本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读[快速开始](../getting-started)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
+按子系统罗列配置字段、默认值和 JSON 示例。第一次配置请先读[快速开始](../getting-started)。想知道某个功能做什么、什么时候用它，先读对应的功能页，需要准确字段时再回到这里。
 
 DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位。变量不存在时保留原始占位符。
 
@@ -12,7 +12,7 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 | `ProviderPreferences` | 按 provider id 保存的完整 MainAgent 偏好。当前 provider 必须存在有效条目 | `{}` |
 | `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒。Provider 可单独覆盖 | `600` |
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
-| `SubagentMaxConcurrency` | 最大并发子 Agent 数量 | `3` |
+| `SubagentMaxConcurrency` | 最大并发 subagent 数量 | `3` |
 | `MaxSessionQueueSize` | 每个 Session 最大排队请求数，`0` 表示无限制 | `3` |
 | `ConsolidationModel` | 记忆整合专用模型，空值使用主模型 | 空 |
 | `DebugMode` | 控制台不截断工具调用参数输出 | `false` |
@@ -60,7 +60,7 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 }
 ```
 
-不同配置层级中的 `ProviderPreferences` 记录按整条覆盖。全局和工作区同时配置同一 provider id 时，工作区记录会完整替换全局记录。
+`ProviderPreferences` 按 provider id 整条合并，不做字段级合并。全局和工作区同时配置同一 provider id 时，工作区记录完整替换全局记录。
 
 | 偏好字段 | 可选值 | 说明 |
 |----------|--------|------|
@@ -78,11 +78,30 @@ Provider 对象字段：
 | `DisplayName` | 面向用户显示的 Provider 名称。为空时使用 provider id | 空 |
 | `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
 | `ApiKey` | Provider API Key。建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
+| `AuthMethod` | 认证方式。`apiKey` 使用静态 `ApiKey`，`chatgptOAuth` 以 ChatGPT 订阅账号认证（仅限 OpenAI 协议，见下文）。无法识别的取值回退为 `apiKey` | `apiKey` |
+| `ChatGptAccountId` | 由 Sign in with ChatGPT 流程写入的 ChatGPT 账号 id，不要手动编辑 | 空 |
+| `ChatGptPlanType` | 由 Sign in with ChatGPT 流程写入的 ChatGPT 订阅档位（`free`、`plus`、`pro`、`business`、`enterprise`、`edu`），不要手动编辑 | 空 |
 | `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
 | `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
 | `SupportsHostedImageGeneration` | 是否为该提供商启用 hosted image generation。省略时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理。OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理。 | 提供商默认值 |
+
+Sign in with ChatGPT 示例：
+
+```json
+{
+  "Providers": {
+    "openai": {
+      "DisplayName": "OpenAI (ChatGPT)",
+      "Protocol": "openai-responses",
+      "AuthMethod": "chatgptOAuth"
+    }
+  }
+}
+```
+
+`chatgptOAuth` Provider 以 ChatGPT 订阅账号认证，不使用 API key。运行 `dotcraft auth openai login` 完成登录：它会把 OAuth token 包保存为用户数据目录下的 `auth.json`，把上面的 Provider 条目写进全局配置，在尚未选择默认 Provider 时将其设为默认，并在该 Provider 没有模型偏好时补一条默认偏好。这种模式下 `ApiKey` 与 `EndPoint` 会被忽略，最终生效的协议始终是 `openai-responses`，完整解析规则见[配置模型 Provider](./harness/model-providers)。`dotcraft auth openai logout` 会删除 token 并把 Provider 还原为 `apiKey`。
 
 ## Workspace Memory 与 Skills
 
@@ -132,7 +151,7 @@ Skill 自学习示例：
 | `Compaction.AutoCompactBufferTokens` | 低于硬上限多少 Token 时触发自动压缩 | `13000` |
 | `Compaction.WarningBufferTokens` | 到达自动阈值前多少 Token 发出 warning | `20000` |
 | `Compaction.ErrorBufferTokens` | 到达自动阈值前多少 Token 发出 error | `10000` |
-| `Compaction.ManualCompactBufferTokens` | 低于硬上限多少 Token 时仍允许手动 `/compact` | `3000` |
+| `Compaction.ManualCompactBufferTokens` | 上报上下文压力上限时，预留在有效上下文窗口之下的余量 | `3000` |
 | `Compaction.KeepRecentMinTokens` | 局部摘要后尾部至少保留的 Token 数 | `10000` |
 | `Compaction.KeepRecentMinGroups` | 局部摘要后尾部至少保留的 API 轮次数 | `3` |
 | `Compaction.KeepRecentMaxTokens` | 局部摘要后尾部最多保留的 Token 数 | `40000` |
@@ -265,9 +284,9 @@ Deep-thinking adapter 文件：
 | `Tools.Sandbox.IdleTimeoutSeconds` | 空闲超时（秒） | `300` |
 | `Tools.Sandbox.SyncWorkspace` | 是否同步 workspace 到容器 | `true` |
 
-使用支持的 OpenAI Responses 提供商时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会向提供商请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
+使用支持的 OpenAI Responses 提供商时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
 
-`Tools.ImageGeneration.Enabled` 是图片生成全局开关，默认值为 `true`。提供商也必须将 `SupportsHostedImageGeneration` 设为 `true`，DotCraft 才会注入 hosted `image_generation` tool。省略该字段时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理。OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理，只有确认支持 hosted tool 时再开启。
+hosted `image_generation` tool 由两个开关共同决定，两者都为真才会注入：全局的 `Tools.ImageGeneration.Enabled`，以及提供商自己的 `SupportsHostedImageGeneration`。省略提供商字段时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 视为开启，OpenAI-compatible 自定义 Responses endpoint 视为关闭。自定义 endpoint 只有确认支持 hosted tool 时再开启。
 
 个人本地 hardening 示例：
 
@@ -421,7 +440,7 @@ Hook handler 字段：
 | `PostToolUse` | 工具调用成功后记录、格式化或通知 |
 | `PostToolUseFailure` | 工具调用失败后运行 |
 | `PreCompact` / `PostCompact` | 上下文压缩前后运行 |
-| `SubagentStart` / `SubagentStop` | 子 Agent 生命周期前后运行 |
+| `SubagentStart` / `SubagentStop` | subagent 生命周期前后运行 |
 | `Stop` | assistant 响应后运行，并可入队后续反馈 |
 | `StopFailure` | Stop hook 处理失败后运行 |
 
@@ -525,12 +544,12 @@ DotCraft 将工作区宿主的诊断信息写入 `<workspace>/.craft/logs`，将
 运行日志包含时间、级别、进程 ID、类别、消息、异常和当前诊断 scope。原始 ACP 流量与按需启用的
 session stream debug 记录使用独立文件，因为它们可能包含敏感内容或大量数据。
 
-## Entry Points and Services
+## Entry Points 与 Services
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `Acp.Enabled` | 是否启用 ACP 模式 | `false` |
-| `DashBoard.Enabled` | 是否启用 Dashboard | `false` |
+| `DashBoard.Enabled` | 是否启用 Dashboard | `true` |
 | `DashBoard.Host` | Dashboard 监听地址 | `127.0.0.1` |
 | `DashBoard.Port` | Dashboard 监听端口 | `8080` |
 | `AppServer.Mode` | AppServer transport mode，例如 stdio 或 WebSocket | 空 |
@@ -588,7 +607,7 @@ Desktop 托管的内置 TypeScript 渠道：
 }
 ```
 
-平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。TypeScript 渠道示例见 [渠道配置参考](./channels/reference)。
+平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。TypeScript 渠道示例见[渠道配置参考](../features/channels/reference)。
 
 ## Plugins MCP 与 LSP
 
@@ -657,20 +676,20 @@ MCP 示例：
 
 `Tools.DeferredLoading.Strategy = Auto` 时，所有模式都使用规范名称 `SearchTools`。OpenAI Responses 将它映射为 Provider 的 client-executed `tool_search` wire 类型，Anthropic 返回原生 tool reference，chat-completions 则在下一次模型请求中注入已发现的 schema。
 
-## SubAgent 与 External CLI Profiles
+## Subagent 与 External CLI Profiles
 
-入门说明见 [SubAgents](../features/agent-system/subagents)。
+概念和日常用法见 [Subagents](../features/agent-system/subagents)。
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `SubAgent.MaxDepth` | session-backed SubAgent 最大生成深度。第一级子代理深度为 `1` | `1` |
-| `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 SubAgent 偏好。缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
+| `SubAgent.MaxDepth` | session-backed subagent 的最大生成深度。第一级 subagent 深度为 `1` | `1` |
+| `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 subagent 偏好。缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最小值，单位毫秒 | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent` 调用未传 timeout 时使用的默认毫秒数 | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最大值，单位毫秒 | `3600000` |
 | `SubAgent.EnableExternalCliSessionResume` | 是否允许支持 resume 的 external CLI profile 复用已保存外部会话 | `false` |
-| `SubAgent.DisabledProfiles` | 当前工作区隐藏和禁用的 SubAgent profile 名称列表 | `[]` |
-| `SubAgent.Roles` | 工作区自定义 SubAgent role。同名条目覆盖内置 role | `[]` |
+| `SubAgent.DisabledProfiles` | 当前工作区隐藏和禁用的 subagent profile 名称列表 | `[]` |
+| `SubAgent.Roles` | 工作区自定义 subagent role。同名条目覆盖内置 role | `[]` |
 
 Role 示例：
 
@@ -703,7 +722,7 @@ Role 示例：
 | `ShellAccess` | 可达的 Shell 工具能走多远：`None` / `ReadOnly` / `Full`。与允许/拒绝列表叠加生效，而非取代。默认 `Full` |
 | `AgentControlToolAccess` | AgentTools 策略：`Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | `AgentControlToolAccess` 为 `AllowList` 时允许的 AgentTools 名称 |
-| `Instructions` | 作为 SubAgent 线程角色上下文消息送达的 role instructions |
+| `Instructions` | 作为 subagent 线程角色上下文消息送达的 role instructions |
 | `Mode` | 可选 mode 覆盖 |
 | `Model` | 可选 model 覆盖 |
 | `OverrideBasePrompt` | 是否用 `Instructions` 覆盖基础 prompt。默认追加而不是覆盖 |
@@ -765,10 +784,11 @@ Role 示例：
 
 ## 自定义命令
 
-`CustomCommands` 可把常用提示词或工作流保存为命令。命令内容通常放在工作区 `.craft/commands/` 或对应配置项中，供 CLI、Desktop 或其他入口复用。
+自定义命令是 Markdown 文件，不是 `config.json` 里的字段。DotCraft 从全局 `~/.craft/commands/` 目录和工作区 `.craft/commands/` 目录加载它们，同名时工作区文件优先。每个文件对应一条 `/name` 命令，可以在 CLI、Desktop 和其他入口使用。
 
-## 相关入口
+命令文件开头可以写 YAML frontmatter，发送前会被剥离。正文中 `$ARGUMENTS` 展开为完整参数串，`$1` 到 `$9` 展开为位置参数。
 
-- [快速开始](../getting-started) — 首次配置
-- [AppServer 模式](./lifecycle/appserver) — 结合场景理解 `AppServer.*` / `CLI.*` 字段
-- [设置生效层级](./lifecycle/settings-lifecycle) — 字段变更何时生效
+## 相关文档
+
+- [AppServer 模式](./lifecycle/appserver) — 在运行中的宿主里理解 `AppServer.*` 和 `CLI.*` 字段。
+- [设置生效层级](./lifecycle/settings-lifecycle) — 哪一层配置优先，以及字段变更何时生效。

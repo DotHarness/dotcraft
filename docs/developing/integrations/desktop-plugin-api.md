@@ -4,7 +4,7 @@ This page is the API reference for trusted Desktop Plugins. To create and build 
 
 ## Use the four kernel primitives
 
-The runtime has four primitives. Six contribution families provide concise shortcuts for common product integrations.
+The runtime has four kernel primitives. Six contribution families build on them with concise shortcuts for common product integrations.
 
 ### Own side effects
 
@@ -71,7 +71,7 @@ const board = host.services.use<BoardService>("acme-board.board");
 board?.openCard("DC-42");
 ```
 
-`use` returns a synchronous snapshot of the last active provider; disposing it reveals the previous provider. Desktop modules may activate concurrently, so resolve cross-plugin services when an interaction needs them and handle `undefined`. Manifest dependencies require .NET and do not make a Desktop provider activate first. Renderer services do not cross into .NET, CLI, remote clients, or AppServer automatically.
+`use` returns a synchronous snapshot of the last active provider. Disposing that provider takes `use` back to the previous one. Desktop modules may activate concurrently, so resolve cross-plugin services when an interaction needs them and handle `undefined`. Manifest dependencies order .NET generations and do not make a Desktop provider activate first. Renderer services do not cross into .NET, CLI, remote clients, or AppServer automatically.
 
 ### Publish events
 
@@ -85,7 +85,7 @@ host.events.on<{ cardId: string }>("acme-board.card-opened", ({ cardId }) => {
 host.events.emit("acme-board.card-opened", { cardId: "DC-42" });
 ```
 
-Event listeners are removed with their generation. Events are renderer-local and do not persist Session data or become AppServer notifications.
+Event listeners are removed with their generation. Events are renderer-local and never write Session data or become AppServer notifications.
 
 ## Target Core surfaces
 
@@ -94,7 +94,7 @@ DotCraft's formal surfaces cover the application and Composer. Composer surfaces
 | Surface | Placement |
 |---|---|
 | **`app`** | The complete rendered Desktop application. |
-| **`app.background`** | An empty decorative seat behind the application shell; Core's background remains inside `app`. |
+| **`app.background`** | An empty decorative seat behind the application shell. Core's own background remains inside `app`. |
 | **`composer`** | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. |
 | **`composer.mascot`** | The 58 × 58 logical-pixel visual stage for the Composer mascot. |
 | **`composer.before`** | Content immediately before the Composer body. |
@@ -116,7 +116,7 @@ Target these Core controls when a region is too broad:
 
 ![Composer public surface hierarchy](/desktop-plugin-composer-surfaces.svg)
 
-Core supplies the normal component as each surface's default content. `add` renders after that content. Use `wrap` to render before it while preserving its behavior, or `replace` to remove it and take ownership of the replacement behavior:
+Core supplies the normal component as each surface's default content. `add` renders after that content. To render before it while keeping its behavior, use `wrap`. To remove it and own the behavior yourself, use `replace`:
 
 ```tsx
 import { Button } from "@dotcraft/plugin";
@@ -142,7 +142,7 @@ host.ui.wrap("composer.toolbar.model", BeforeModel);
 host.ui.add("composer.status.subscription", SubscriptionStatus);
 ```
 
-The same names mount in thread, Welcome, approval, and user-input Composers. A surface stays available when its Core default is hidden by the current provider, compact mode, minimal chrome, or decision state. Inspect the shared Composer context before rendering plugin content. A surface name and typed context are public contracts; its generated DOM is not.
+The same names mount in thread, Welcome, approval, and user-input Composers. A surface stays available when its Core default is hidden by the current provider, compact mode, minimal chrome, or decision state. Inspect the shared Composer context before rendering plugin content. A surface name and its typed context are public contracts. The DOM the surface generates is not.
 
 Composer surface contexts have `threadId: null` whenever the Composer has not created or attached to a real Session thread, including welcome and detached embedded Composers. They carry the real thread id after attachment.
 
@@ -156,7 +156,7 @@ Composer surface contexts have `threadId: null` whenever the Composer has not cr
 | `variant` | `default` or an embedded Composer variant such as `agentBuilder`. |
 | `minimalChrome` | Core has hidden nonessential controls for an embedded Composer. |
 
-On the new-chat Welcome screen, `composer` covers the complete pre-thread composition experience: app selection, hero, input, workspace footer, and quick starts. Replacing it swaps that lifecycle as one unit.
+On the new-chat Welcome screen, `composer` covers the complete pre-thread composition experience: app selection, hero, input, workspace footer, and quick starts. Those elements share one draft and voice lifecycle, so replacing `composer` swaps them as a single unit.
 
 ### Replace the Composer mascot
 
@@ -217,7 +217,7 @@ function BoardCard() {
 }
 ```
 
-Add the custom name to `DesktopPluginSurfaceContextMap` to type both the owner and every consumer. Provider and consumer packages should import one shared declaration module when they exchange a surface contract. Without declaration merging, an unknown surface receives `unknown` context. Another enabled plugin can target `acme-board.card.footer` with `ui.add`, `ui.replace`, or `ui.wrap`; activation order does not matter. Plugin-qualified names are recommended but not enforced.
+Add the custom name to `DesktopPluginSurfaceContextMap` to type both the owner and every consumer. Provider and consumer packages should import one shared declaration module when they exchange a surface contract. Without declaration merging, an unknown surface receives `unknown` context. Another enabled plugin can target `acme-board.card.footer` with `ui.add`, `ui.replace`, or `ui.wrap`, and activation order does not matter. Plugin-qualified names are recommended but not enforced.
 
 The surface exists while its component is mounted. Registrations remain owned by their registering revisions and render whenever the surface is present.
 
@@ -234,9 +234,9 @@ Return `DesktopPluginActivation` when one of the standard product integrations a
 | **`toolRenderers`** | Renders an exact `presentationId` with Core and generic fallbacks. |
 | **`messageActions`** | Adds an action to the standard assistant-message action area. |
 
-These six fields are convenience APIs, not an allowlist or capability ceiling. Add Composer UI with `host.ui.add("composer.toolbar.leading", ...)`; use surfaces, services, events, and effects when your feature does not fit the convenience fields.
+These six fields are convenience APIs, not an allowlist or a capability ceiling. Add Composer UI with calls like `host.ui.add("composer.toolbar.leading", ...)`. When a feature does not fit the convenience fields, reach for surfaces, services, events, and effects directly.
 
-The returned activation may also provide `dispose()`. Contribution ids must be unique in that activation. Use `label.translations` for localized labels and `order` only where the convenience API defines ordered placement.
+The returned activation may also provide `dispose()`. Contribution ids must be unique within one activation. Put localized labels in `label.translations`, and set `order` only where the convenience API defines ordered placement.
 
 ## Use the Host API
 
@@ -244,20 +244,21 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 
 | Member | Use it for |
 |---|---|
-| `plugin`, `environment` | Plugin identity plus locale, theme, platform, and workspace context. |
-| `navigation` | Views, settings, threads, external URLs, and user notifications. |
+| `plugin`, `environment` | The plugin's id, version, and display name, plus the current locale and theme. |
+| `navigation` | Opening plugin views, Settings pages, and threads, and claiming custom-scheme links. |
+| `ui` | Toasts and confirmation dialogs, beside the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
 | `appBindings`, `appSurfaces` | Connected-app binding and app-provided UI surfaces. |
 | `workspaces` | Reading local workspace information. |
 | `oratorio` | Team runs, handoffs, and events. |
 
-Import shared UI components from `@dotcraft/plugin`; the official builder connects hooks and JSX to Desktop's React runtime.
+Import shared UI components from `@dotcraft/plugin`. The official builder connects hooks and JSX to Desktop's React runtime.
 
 The Host API is a compatibility contract, not an access-control boundary. Main-process URL, route, bearer, size, and timeout checks remain service invariants rather than plugin permissions.
 
 ## Use DOM and CSS deliberately
 
-Desktop Plugins may access the renderer DOM and load global CSS. DotCraft does not block those techniques, but its DOM structure, class names, private CSS variables, stores, and feature components are not public contracts. Prefer a public surface or service when one exists; direct DOM or CSS carries its own maintenance cost.
+Desktop Plugins may access the renderer DOM and load global CSS, and DotCraft does not block either. Its DOM structure, class names, private CSS variables, stores, and feature components are still not public contracts. Prefer a public surface or service when one exists, and expect to carry the maintenance cost of anything you reach through DOM or CSS instead.
 
 ## Keep UI and backend responsibilities separate
 
@@ -267,18 +268,10 @@ Add a [.NET plugin](./dotnet-plugins) or AppServer contract when the feature nee
 
 ## Generation and reload lifecycle
 
-See [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) for two runnable .NET and Desktop bundles. The Core plugin replaces the background, wraps the app, and owns a renderer service, event, and custom surface; the Consumer adds Composer controls and contributes UI to the Core-owned surface.
+Desktop activates the whole content revision as one generation and calls `activate` once for it. Refreshing an unchanged revision is a no-op. An updated revision disposes the previous generation before activating the new one. The build and refresh steps live in [Build a Desktop Plugin](./desktop-plugins).
 
-Build before DotCraft discovers or packages the plugin. Refresh the plugin list, then enable it. Desktop activates the whole content revision as one generation. An unchanged revision is a no-op; an updated revision disposes the previous generation and activates the new one.
-
-Disabling or replacing a revision withdraws Host-owned registrations immediately. Desktop does not wait for an unfinished plugin `activate()` or `dispose()` promise before continuing, and a late activation result cannot publish.
+Disabling or replacing a revision withdraws Host-owned registrations immediately. Desktop does not wait for an unfinished plugin `activate()` or `dispose()` promise before continuing, and a late activation result is stale and cannot publish.
 
 The revision is the development iteration unit. Desktop Plugins do not have a built-in file watcher, HMR, component-only reload, or partial-generation update. Rebuild, then refresh or re-enable the plugin.
 
 Desktop never loads executable plugin code from a remote AppServer. With a remote workspace, it activates only locally packaged code whose plugin id, version, and Desktop content revision match the remote snapshot.
-
-## Related docs
-
-- [Build a Desktop Plugin](./desktop-plugins)
-- [.NET Plugins](./dotnet-plugins)
-- [Plugins & Tools](../../features/agent-system/plugins-tools)

@@ -43,13 +43,13 @@ Declare one Desktop module inline in `.craft-plugin/plugin.json`:
 }
 ```
 
-`version` is required in canonical `MAJOR.MINOR.PATCH` form. Use the optional `description` to explain what the Desktop contribution does; plugin detail pages prefer it over the parent plugin description. `entry` must name an existing `.mjs` file under `./desktop/dist/`. Every optional `styles` entry must name an existing `.css` file in the same output tree. Imported chunks and assets must also stay in that tree.
+`version` is required in canonical `MAJOR.MINOR.PATCH` form. The optional `description` says what this Desktop module does, and plugin detail pages prefer it over the parent plugin description. `entry` must name an existing `.mjs` file under `./desktop/dist/`, and every optional `styles` entry must name an existing `.css` file in the same output directory. Imported chunks and assets must also stay in that directory.
 
-The Desktop module shares its parent plugin's identity, version, enabled state, and interface metadata. A bundle that also contains .NET may declare dependencies, but those order managed generations rather than Desktop activation. Manifest `capabilities` labels do not grant or restrict renderer access.
+The Desktop module shares its parent plugin's id, version, enabled state, and `interface` metadata. A bundle that also contains .NET may declare dependencies, but those order managed generations rather than Desktop activation. Manifest `capabilities` labels neither grant nor restrict renderer access.
 
 ## Activate the plugin
 
-Export a named `activate` function from `desktop/src/index.tsx`. It receives `DesktopPluginHost`. It may register runtime work and return nothing:
+Export a named `activate` function from `desktop/src/index.tsx`. It receives `DesktopPluginHost` and may register runtime work without returning anything:
 
 ```tsx
 import type { DesktopPluginActivate } from "@dotcraft/plugin";
@@ -69,7 +69,7 @@ export const activate: DesktopPluginActivate = (host) => {
 };
 ```
 
-Each call takes effect immediately and belongs to this plugin revision. If `activate` later fails, Desktop cleans up the registrations already made. `activate` may instead return a `DesktopPluginActivation` convenience object, or combine returned contributions with direct kernel registrations.
+Each call takes effect immediately and belongs to the current plugin revision. If `activate` later fails, Desktop withdraws the registrations already made. `activate` may instead return a `DesktopPluginActivation` convenience object, or combine returned contributions with direct kernel registrations.
 
 ## Build and reload
 
@@ -80,18 +80,15 @@ npm install
 npm run build
 ```
 
-The scaffold runs TypeScript checking followed by `dotcraft-plugin build`. The builder bundles `src/index.tsx`, imported CSS, chunks, and assets into `dist/`, while wiring React and shared components to the Desktop runtime.
-
-See [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) for two runnable .NET and Desktop bundles. The Core plugin replaces the background, wraps the app, and owns a renderer service, event, and custom surface; the Consumer adds Composer controls and contributes UI to the Core-owned surface.
+The build script type-checks the source, then runs `dotcraft-plugin build` to bundle `src/index.tsx`, imported CSS, chunks, and assets into `dist/`, wiring React and the shared components to Desktop's own React runtime.
 
 Build before DotCraft discovers or packages the plugin. Refresh the plugin list, then enable it. After a source change, rebuild and refresh or re-enable the plugin.
+
+See [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) for two runnable bundles that each ship .NET and Desktop modules. The Core plugin replaces the background, wraps the app, and owns a renderer service, an event, and a custom surface. The Consumer adds Composer controls and contributes UI to the Core-owned surface.
 
 For the complete surface catalog, contexts, composition semantics, Host API, and generation lifecycle, see [Desktop Plugin API](./desktop-plugin-api).
 
 ## Related docs
 
-- [Desktop Plugin API](./desktop-plugin-api)
-- [Plugin Market](./plugin-market)
-- [Build a .NET plugin](./dotnet-plugins)
-- [MCP Apps](./mcp-apps)
-- [Plugins & Tools](../../features/agent-system/plugins-tools)
+- [Build a .NET plugin](./dotnet-plugins) — add the managed half to the same bundle when the feature needs backend execution or Agent tools.
+- [Plugin Market](./plugin-market) — publish the built plugin so other people can install it.

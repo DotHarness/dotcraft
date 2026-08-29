@@ -1,26 +1,10 @@
-# Hub protocol
+# Hub Protocol
 
-Hub Protocol is the local protocol DotCraft clients use to discover and manage workspace AppServers. It is intended for Desktop, CLI, editor extensions, and other local clients. If you want to talk to the agent, normal session traffic still uses [AppServer Protocol](./appserver-protocol).
+Hub Protocol is the local protocol DotCraft clients use to discover and manage workspace AppServers, intended for Desktop, CLI, editor extensions, and other local clients. TypeScript and .NET applications use the [DotCraft SDK Hub API](../sdks/) instead — it already implements discovery, binary policy, structured errors, and AppServer bootstrap. Use this raw HTTP/SSE contract for a custom transport, an unsupported language, or protocol debugging.
 
-For TypeScript, .NET, or Python applications, prefer the [DotCraft SDK Hub API](../sdks/). It implements discovery, binary policy, structured errors, and AppServer bootstrap. Use this raw HTTP/SSE contract for a custom transport, an unsupported language, or protocol debugging.
+Hub only coordinates local runtimes: it manages workspace AppServers through an HTTP JSON API and broadcasts lifecycle events over Server-Sent Events. It is not a session proxy and exposes no AppServer JSON-RPC methods. After `appservers/ensure` returns an endpoint, clients connect directly to the AppServer WebSocket, and session traffic uses [AppServer Protocol](./appserver-protocol). Clients that connect to a remote AppServer, or manage the AppServer process themselves, do not need Hub.
 
-Hub coordinates local runtimes. It is not a session proxy:
-
-- Hub manages workspace AppServers through an HTTP JSON API.
-- Hub broadcasts lifecycle events through Server-Sent Events.
-- Hub does not expose AppServer JSON-RPC methods such as `thread/*`, `turn/*`, `approval/*`, or `mcp/*`.
-- After calling `appservers/ensure`, clients connect directly to the returned AppServer WebSocket endpoint.
-
-## When to use it
-
-Implement a Hub client when:
-
-- You are building the DotCraft app, a CLI integration, an IDE extension, or a local GUI.
-- You want multiple local clients to share one runtime per workspace.
-- You need to show local workspace status, tray menus, or system notifications.
-- You want to start AppServer on demand while avoiding duplicate AppServers for the same workspace.
-
-If your client connects to a remote AppServer, or if you manage the AppServer process yourself, you can skip Hub.
+![DotCraft Hub bootstrap flow](/hub-bootstrap-flow.svg)
 
 ## Protocol
 
@@ -48,19 +32,13 @@ Typical `hub.lock` content:
 }
 ```
 
-After reading the lock file, clients should verify:
+After reading the lock file, verify each of these:
 
 1. The recorded `pid` still points to a live process.
 2. `GET {apiBaseUrl}/v1/status` succeeds.
-3. The returned URL, version, capabilities, and optional `binaryPath` match what the client expects.
+3. The returned `apiBaseUrl`, version, capabilities, and optional `binaryPath` match what the client expects.
 
-If verification fails, stop trusting that lock file and start `dotcraft hub` if local auto-start is enabled.
-
-## Bootstrap flow
-
-![DotCraft Hub bootstrap flow](/hub-bootstrap-flow.svg)
-
-Once the client connects to AppServer, normal session traffic no longer goes through Hub.
+When any check fails, discard that lock file, start `dotcraft hub`, and run discovery again.
 
 ## Authentication
 
@@ -294,7 +272,7 @@ Known event kinds include:
 | `appserver.unhealthy` | A health check failed. |
 | `notification.requested` | A local notification is waiting for UI display. |
 
-Event payloads are extensible. Clients should render known fields by `kind` and ignore unknown fields.
+Event payloads are extensible. Render known fields by `kind` and ignore unknown ones.
 
 ## Connect to AppServer
 
@@ -375,7 +353,6 @@ Common error codes:
 
 ## Related docs
 
-- [SDK quickstart](../sdks/quickstart)
-- [AppServer Protocol](./appserver-protocol)
-- [Hub Local Coordination](../lifecycle/hub)
-- [AppServer Mode](../lifecycle/appserver)
+- [Hub local coordination](../lifecycle/hub) — the Hub process itself: lifecycle, state directory, and port allocation.
+- [AppServer mode](../lifecycle/appserver) — the process this API starts and manages.
+- [SDK quickstart](../sdks/quickstart) — a ready-made implementation of the discovery and bootstrap flow.

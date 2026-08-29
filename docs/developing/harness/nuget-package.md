@@ -11,7 +11,9 @@ dotnet add package DotCraft.Harness
 dotnet add package Microsoft.Extensions.Hosting
 ```
 
-The application must target .NET 10 or a compatible target framework.
+The application must target .NET 10 or later.
+
+The package ships the Runtime, Core, and built-in model provider assemblies, so `DotCraft.Harness` is the only DotCraft package an application references.
 
 ## Register Harness
 
@@ -43,6 +45,5 @@ In every host model, the application renders streaming events, collects approval
 
 ## Related docs
 
-- [Harness overview](./)
-- [Hosting and lifecycle](./hosting-lifecycle)
-- [Configuration and paths](./configuration-paths)
+- [Hosting and lifecycle](./hosting-lifecycle) — building, starting, and stopping the Host after installation.
+- [Configuration and paths](./configuration-paths) — the `AppConfig` and path options registration requires.

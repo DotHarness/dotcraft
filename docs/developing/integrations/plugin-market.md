@@ -67,7 +67,7 @@ The default catalog path is `.craft/plugins/marketplace.json`. Each listed plugi
 - `source.source` must be `local`.
 - `source.path` must start with `./`, stay inside the marketplace root, and point to a valid plugin directory.
 - `policy.installation` must be `AVAILABLE` for the plugin to appear as installable.
-- `policy.authentication` is `ON_INSTALL` in the current publication format. App and account setup behavior is defined by the plugin's app descriptors.
+- `policy.authentication` is `ON_INSTALL` in the current publication format. App and account setup behavior comes from the plugin's own [app descriptors](./app-binding).
 - Plugin capabilities and install-page metadata belong in `.craft-plugin/plugin.json`, not in the marketplace document.
 
 ## Marketplace sources
@@ -161,13 +161,9 @@ See [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces) fo
 - DotCraft does not store source credentials.
 - A plugin contributes runtime behavior only after it is installed and enabled in a workspace.
 - Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop Plugin executes its trusted renderer code and is the trust decision for that module.
-- Installing or enabling a .NET Plugin does not grant managed execution trust. Its accepted plugin id and fingerprint require an explicit grant before any managed code loads.
+- Installing or enabling a [.NET plugin](./dotnet-plugin-reference) does not grant it managed execution trust. Its accepted plugin id and fingerprint need an explicit grant before any managed code loads.
 
 ## Related docs
 
-- [Official DotCraft plugin marketplace](https://github.com/DotHarness/dotcraft-plugins)
-- [Plugin marketplaces](../../features/agent-system/plugin-marketplaces)
-- [Configuration](../configuration#plugins-mcp-and-lsp)
-- [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces)
-- [DotCraft App](./app-binding)
-- [Desktop Plugins](./desktop-plugins)
+- [Official DotCraft plugin marketplace](https://github.com/DotHarness/dotcraft-plugins) — a real marketplace repository to model yours on.
+- [Desktop Plugins](./desktop-plugins) — read this before publishing a plugin that ships a Desktop surface.

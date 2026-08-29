@@ -1,6 +1,6 @@
 # Threads and runs
 
-A thread is a durable conversation. A run starts one turn on that thread and either returns the final result or streams events as work progresses.
+A thread is a durable conversation. A run starts one turn on that thread and either returns the final result or streams events as work progresses. The examples below continue from a connected client — see the [SDK quickstart](./quickstart) for the connection step.
 
 ## Manage threads
 
@@ -23,16 +23,9 @@ var threads = await client.Threads.ListAsync(new ThreadListParams { Identity = i
 var snapshot = await client.Threads.ReadAsync(threadId);
 ```
 
-```python [Python]
-thread = await dotcraft.threads.start(user_id="me")
-resumed = await dotcraft.threads.resume(thread_id)
-threads = await dotcraft.threads.list(user_id="me")
-snapshot = await dotcraft.threads.read(thread_id)
-```
-
 :::
 
-TypeScript and Python also provide `getOrCreate` / `get_or_create`. It reuses an active or paused thread for the identity before starting a new one.
+TypeScript also provides `getOrCreate`. It returns the identity's first active or paused thread — resuming the paused one — and starts a new thread only when neither exists.
 
 `read` returns the current Thread header and runtime state without conversation history. Read history through bounded Turn and Item pages:
 
@@ -66,21 +59,9 @@ var items = await client.Threads.ListItemsAsync(new ThreadItemsListParams
 });
 ```
 
-```python [Python]
-turns = await dotcraft.threads.list_turns(
-    thread_id, limit=20, sort_direction="descending"
-)
-items = await dotcraft.threads.list_items(
-    thread_id,
-    turn_id=turns.data[0].id if turns.data else None,
-    limit=100,
-    sort_direction="ascending",
-)
-```
-
 :::
 
-Turn pages contain metadata without Items. Item pages include each Item's owning Turn ID and can span the whole Thread or one Turn. Follow `nextCursor` / `NextCursor` / `next_cursor` with the same Thread, scope, optional Turn, and direction to read another page. Treat cursors as opaque.
+Turn pages contain metadata without Items. Item pages include each Item's owning Turn ID and can span the whole Thread or one Turn. Follow `nextCursor` / `NextCursor` with the same Thread, scope, optional Turn, and direction to read another page. Treat cursors as opaque.
 
 ## Choose a model
 
@@ -101,16 +82,9 @@ foreach (var model in catalog.Models.Value ?? [])
 var currentConfiguration = await client.Threads.ReadModelConfigurationAsync(thread.Id);
 ```
 
-```python [Python]
-models = await dotcraft.models.list()
-for model in models:
-    print(model.id)
-configuration = (await dotcraft.threads.read(thread.id)).configuration
-```
-
 :::
 
-All three high-level clients return the current `ThreadConfiguration` through a thread read. The .NET client also provides a safe read-modify-write helper for model fields. It preserves unrelated and unknown thread configuration fields:
+Both high-level clients return the current `ThreadConfiguration` through a thread read. The .NET client adds a read-modify-write helper for the model fields that preserves unrelated and unknown configuration fields:
 
 ```csharp
 var configuration = await client.Threads.UpdateModelConfigurationAsync(
@@ -122,7 +96,7 @@ var configuration = await client.Threads.UpdateModelConfigurationAsync(
     contextWindow: null);
 ```
 
-TypeScript and Python currently expose model discovery at the high level but not this configuration helper. Applications using their typed Wire layer must update the complete `ThreadConfiguration` and preserve fields they do not own. Do not infer model IDs or reasoning options across providers; use the catalog returned by the connected AppServer.
+TypeScript exposes model discovery at the high level but not this configuration helper. Applications using the typed Wire layer must update the complete `ThreadConfiguration` and preserve fields they do not own. Do not infer model IDs or reasoning options across providers — use the catalog returned by the connected AppServer.
 
 ## Build input
 
@@ -148,25 +122,16 @@ var result = await thread.RunAsync([
 ]);
 ```
 
-```python [Python]
-from dotcraft import file_ref_part, text_part
-
-result = await thread.run([
-    text_part("Review this file."),
-    file_ref_part("src/app.py"),
-])
-```
-
 :::
 
-| Part | Purpose | TypeScript / Python helper |
+| Part | Purpose | TypeScript helper |
 | --- | --- | --- |
-| `text` | Literal user text | `textPart` / `text_part` |
-| `fileRef` | Workspace or local file reference | `fileRefPart` / `file_ref_part` |
-| `image` | Base64 `data:image/...` URL | `imageDataUrlPart` / `image_data_url_part` |
-| `localImage` | Image path readable by AppServer | `localImagePart` / `local_image_part` |
-| `skillRef` | Skill reference | `skillRefPart` / `skill_ref_part` |
-| `commandRef` | Custom command reference | `commandRefPart` / `command_ref_part` |
+| `text` | Literal user text | `textPart` |
+| `fileRef` | Workspace or local file reference | `fileRefPart` |
+| `image` | Base64 `data:image/...` URL | `imageDataUrlPart` |
+| `localImage` | Image path readable by AppServer | `localImagePart` |
+| `skillRef` | Skill reference | `skillRefPart` |
+| `commandRef` | Custom command reference | `commandRefPart` |
 
 .NET constructs the generated `InputPart` contract directly. High-level clients do not convert leading `/command`, `$skill`, or `@file` text into structured parts.
 
@@ -199,63 +164,54 @@ await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 }
 ```
 
-```python [Python]
-result = await thread.run("Run the tests and summarize failures.")
-print(result.text)
-
-async for event in thread.run_streamed("Now fix them."):
-    if event.type == "agent_message_delta":
-        print(event.params["delta"], end="", flush=True)
-```
-
 :::
 
 ## Read the result
 
-| Value | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Merged reply | `result.text` | `result.Text` | `result.text` |
-| Thread ID | `result.thread.id` | `result.ThreadId` | `result.thread_id` |
-| Turn ID | `result.turn?.id` | `result.TurnId` | `result.turn_id` |
-| Terminal turn | `result.turn` | `result.Turn` | `result.turn` |
-| Items and usage | `result.items`, `result.usage` | `result.Turn?.Items`, `result.Turn?.TokenUsage` | Read from `result.turn` |
-| Raw events | `result.rawEvents` | `result.RawEvents` | `result.raw_events` |
+| Value | TypeScript | .NET |
+| --- | --- | --- |
+| Merged reply | `result.text` | `result.Text` |
+| Thread ID | `result.thread.id` | `result.ThreadId` |
+| Turn ID | `result.turn?.id` | `result.TurnId` |
+| Terminal turn | `result.turn` | `result.Turn` |
+| Items and usage | `result.items`, `result.usage` | `result.Turn?.Items`, `result.Turn?.TokenUsage` |
+| Raw events | `result.rawEvents` | `result.RawEvents` |
 
-Raw events are collected only when the language-specific `collectRawEvents` / `CollectRawEvents` / `collect_raw_events` option is enabled.
+Raw events are collected only when the language-specific `collectRawEvents` / `CollectRawEvents` option is enabled.
 
 ## Run options
 
-| Behavior | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Sender context | `sender` | `RunOptions.Sender` | `sender` |
-| Queue when busy | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` | `enqueue_if_busy` |
-| Collect raw events | `collectRawEvents` | `RunOptions.CollectRawEvents` | `collect_raw_events` |
-| Return failed terminal turns | Not available | `RunOptions.ThrowOnFailure = false` | `throw_on_failure=False` |
-| Interrupt through cancellation | `AbortSignal` | `CancellationToken` | Call `interrupt()` explicitly |
+| Behavior | TypeScript | .NET |
+| --- | --- | --- |
+| Sender context | `sender` | `RunOptions.Sender` |
+| Queue when busy | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` |
+| Collect raw events | `collectRawEvents` | `RunOptions.CollectRawEvents` |
+| Return failed terminal turns | Not available | `RunOptions.ThrowOnFailure = false` |
+| Interrupt through cancellation | `AbortSignal` | `CancellationToken` |
 
 Without the busy option, starting a second turn raises `TurnInProgressError` or `TurnInProgressException`. With it, the SDK enqueues the input and returns a queued result without a turn ID.
 
 ## Control a thread
 
-| Task | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Latest snapshot | `snapshot()` | `Snapshot` | `snapshot` |
-| Re-read state | `refresh()` | `RefreshAsync()` | `refresh()` |
-| Subscribe | `subscribe()` | `SubscribeAsync()` | `subscribe()` |
-| Unsubscribe | `unsubscribe()` | `UnsubscribeAsync()` | `unsubscribe()` |
-| Enqueue input | `enqueue()` | `EnqueueAsync()` | `enqueue()` |
-| Interrupt a turn | `interrupt()` | `InterruptAsync()` | `interrupt()` |
-| Change mode | `setMode()` | `SetModeAsync()` | `set_mode()` |
-| Archive | `archive()` | `ArchiveAsync()` | `archive()` |
-| Delete | `delete()` | `DeleteAsync()` | `delete()` |
+| Task | TypeScript | .NET |
+| --- | --- | --- |
+| Latest snapshot | `snapshot()` | `Snapshot` |
+| Re-read state | `refresh()` | `RefreshAsync()` |
+| Subscribe | `subscribe()` | `SubscribeAsync()` |
+| Unsubscribe | `unsubscribe()` | `UnsubscribeAsync()` |
+| Enqueue input | `enqueue()` | `EnqueueAsync()` |
+| Interrupt a turn | `interrupt()` | `InterruptAsync()` |
+| Change mode | `setMode()` | `SetModeAsync()` |
+| Archive | `archive()` | `ArchiveAsync()` |
+| Delete | `delete()` | `DeleteAsync()` |
 
 `subscribe({ replayRecent: true })` and its language equivalents replay recent events, not a complete current-state snapshot. Call `refresh` or `read` for authoritative header state, and use the history page methods for persisted Turns and Items.
 
 ## Stream events
 
-TypeScript and Python normalize event names. .NET uses the Wire method name in `DotCraftRunEvent.Type` and exposes known parameters through `DotCraftRunEvent<TParams>.Params`.
+TypeScript normalizes event names. .NET uses the Wire method name in `DotCraftRunEvent.Type` and exposes known parameters through `DotCraftRunEvent<TParams>.Params`.
 
-| TypeScript / Python type | Wire method |
+| TypeScript type | Wire method |
 | --- | --- |
 | `turn_started` | `turn/started` |
 | `item_started` / `item_completed` | `item/started` / `item/completed` |
@@ -268,9 +224,9 @@ TypeScript and Python normalize event names. .NET uses the Wire method name in `
 | `completed` / `failed` / `cancelled` | `turn/completed` / `turn/failed` / `turn/cancelled` |
 | `raw` | Unknown subscribed notification |
 
-Every event preserves the original notification. Consume the stream promptly; AppServer may disconnect a subscriber that cannot keep up.
+Every event preserves the original notification. Consume the stream promptly: a client that falls behind is buffered only up to a limit, after which AppServer drops the connection.
 
-Stopping iteration does not reliably interrupt server work. TypeScript callers should abort the supplied `AbortSignal`; .NET callers should cancel the `CancellationToken`; Python callers should read the turn ID from the stream and call `interrupt()`.
+Stopping iteration does not reliably interrupt server work. To stop the turn, abort the supplied `AbortSignal` in TypeScript or cancel the `CancellationToken` in .NET.
 
 ## Recover after disconnect
 
@@ -288,18 +244,16 @@ An active .NET run fails with `RunDisconnectedException`. Do not assume a reques
 
 ## Handle run errors
 
-| Condition | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Turn failed | `TurnFailedError` | `TurnFailedException` | `TurnFailedError` |
-| Turn cancelled | `TurnCancelledError` | `TurnCancelledException` | `TurnCancelledError` |
-| Turn already running | `TurnInProgressError` | `TurnInProgressException` | `TurnInProgressError` |
+| Condition | TypeScript | .NET |
+| --- | --- | --- |
+| Turn failed | `TurnFailedError` | `TurnFailedException` |
+| Turn cancelled | `TurnCancelledError` | `TurnCancelledException` |
+| Turn already running | `TurnInProgressError` | `TurnInProgressException` |
 
 Branch on the error type or stable `code`. Treat the message as diagnostic text. See the language reference for initialization, transport, timeout, JSON-RPC, and protocol errors.
 
 ## Related docs
 
-- [SDK quickstart](./quickstart)
-- [Tools & approvals](./tools)
-- [MCP runtime](./mcp-runtime)
-- Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
-- [AppServer Protocol](../protocols/appserver-protocol)
+- [Tools & approvals](./tools) — runtime tools and the approval callbacks a run raises.
+- [AppServer Protocol](../protocols/appserver-protocol) — the wire methods and error codes behind these events.
+- Reference: [TypeScript](./typescript) · [.NET](./dotnet) — the complete client surface per language.

@@ -10,7 +10,7 @@
 | Target framework | `net10.0` |
 | Serialization | `System.Text.Json` with `DotCraftJson.Options` |
 
-Install only `DotCraft.Sdk`. The package includes `DotCraft.Sdk.dll` and `DotCraft.Protocol.dll`.
+`DotCraft.Sdk` is the only package to add: it ships both `DotCraft.Sdk.dll` and `DotCraft.Protocol.dll`.
 
 ## Namespaces
 
@@ -37,11 +37,12 @@ Contracts is a separate assembly and logical layer, not a separate NuGet package
 | Thread state | `Snapshot`, `RefreshAsync()`, `SubscribeAsync()`, `UnsubscribeAsync()`, `SetModeAsync()`, `ArchiveAsync()`, `DeleteAsync()` |
 | Providers and models | `Providers.ListAsync()`, `Models.GetCatalogAsync()` |
 | Model configuration | `Threads.ReadModelConfigurationAsync()`, `UpdateModelConfigurationAsync()` |
+| Agent Profiles | `AgentProfiles.ListAsync()`, `ReadAsync()`, `ValidateAsync()`, `UpsertAsync()`, `RemoveAsync()`, `RefreshThreadAsync()` |
 | MCP runtime | `McpRuntime.ListStatusAsync()`, `ReadResourceAsync()`, `CallToolAsync()`, `LoginOAuthAsync()`, `ReloadAsync()` |
 | App Binding | `AppBindings` |
 | Runtime tools | `OnToolCall()` or `RegisterDynamicToolHandler()` |
 
-Configure `ApprovalHandler` and `UserInputHandler` in connection options. See [Threads & runs](./runs) and [Tools & approvals](./tools) for task flows.
+Configure `ApprovalHandler` and `UserInputHandler` in connection options. Check `Capabilities.AgentProfileManagement` before exposing Agent Profile management. See [Threads & runs](./runs) and [Tools & approvals](./tools) for task flows.
 
 ## Connect
 
@@ -55,6 +56,8 @@ Configure `ApprovalHandler` and `UserInputHandler` in connection options. See [T
 `DotCraftClientOptions` controls client identity, capabilities, callbacks, streaming, config-change notifications, and reconnect behavior. `DotCraftLocalOptions` adds executable, Hub lock, user-profile, and startup-timeout settings.
 
 The shared option fields are `AutoReconnect`, `ClientName`, `ClientTitle`, `ClientVersion`, `ApprovalSupport`, `StreamingSupport`, `RequestUserInputSupport`, `ConfigChange`, `ExtraCapabilities`, `ApprovalHandler`, and `UserInputHandler`. `DotCraftRemoteOptions` adds `Token`.
+
+A remote URL points at the AppServer WebSocket endpoint, whose path ends in `/ws`. Pass the token in `Token` instead of embedding it in the URL, and keep both out of logs. See [AppServer mode](../lifecycle/appserver) for how the server listens.
 
 ## Threads and runs
 
@@ -144,6 +147,8 @@ Wire state is `Connecting`, `Initializing`, `Ready`, `Disconnected`, `Reconnecti
 - Handler registrations survive reconnect. Thread subscriptions and runtime tool resources do not.
 - An active run fails with `RunDisconnectedException`; `turn/start` is never replayed.
 
+Reconnect does not rebuild those resources for the application. Read or resume the thread, subscribe again, and re-register runtime tool handlers before continuing.
+
 Disposing a local high-level client closes its AppServer connection. It does not stop Hub or the Hub-managed AppServer.
 
 ## Errors
@@ -173,9 +178,5 @@ Do not log Hub tokens, App Binding credentials, or full token-bearing WebSocket 
 
 ## Related docs
 
-- [SDK quickstart](./quickstart)
-- [Threads & runs](./runs)
-- [Tools & approvals](./tools)
-- [MCP runtime](./mcp-runtime)
-- [DotCraft App](../integrations/app-binding)
-- [AppServer Protocol](../protocols/appserver-protocol)
+- [AppServer Protocol](../protocols/appserver-protocol) — the wire contract behind every method on this page.
+- [Hub lifecycle](../lifecycle/hub) — the Hub process model behind local connections.

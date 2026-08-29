@@ -1,6 +1,6 @@
 # SDK 快速开始
 
-使用 TypeScript、.NET 或 Python 连接工作区并运行一个 turn。
+使用 TypeScript 或 .NET 连接工作区并运行一个 turn。
 
 ## 安装
 
@@ -14,15 +14,7 @@ npm install @dotcraft/sdk
 dotnet add package DotCraft.Sdk
 ```
 
-```bash [Python]
-DOTCRAFT_RELEASE_TAG="replace-with-release-tag"
-git clone --branch "$DOTCRAFT_RELEASE_TAG" https://github.com/DotHarness/dotcraft.git
-python -m pip install -e /absolute/path/to/dotcraft/sdk/python
-```
-
 :::
-
-`@dotcraft/sdk` 已发布到 npm，`DotCraft.Sdk` 已发布到 NuGet。Python 仍是源码预览；源码安装应使用与本文档匹配的 release tag，不要跟随 `main`。
 
 ## 1. 连接
 
@@ -44,18 +36,9 @@ var client = await DotCraftClient.ConnectLocalAsync(
     "/path/to/workspace",
     new DotCraftLocalOptions { ClientName = "my-app", ClientVersion = "dev" });
 ```
-
-```python [Python]
-from dotcraft import DotCraft, LocalOptions
-
-dotcraft = await DotCraft.connect_local(
-    LocalOptions(workspace_path="/path/to/workspace")
-)
-```
-
 :::
 
-应用面向默认 Chat 工作区时，使用 `localChat` / `ConnectLocalChatAsync` / `connect_local_chat`。
+应用面向默认 Chat 工作区时，使用 `localChat` / `ConnectLocalChatAsync`。
 
 ## 2. 启动 thread
 
@@ -78,11 +61,6 @@ var thread = await client.Threads.StartAsync(
         },
     });
 ```
-
-```python [Python]
-thread = await dotcraft.threads.start(user_id="me")
-```
-
 :::
 
 ## 3. 运行 turn
@@ -100,12 +78,6 @@ console.log(result.text);
 var result = await thread.RunAsync("Summarize this project.");
 Console.WriteLine(result.Text);
 ```
-
-```python [Python]
-result = await thread.run("Summarize this project.")
-print(result.text)
-```
-
 :::
 
 ## 4. 流式读取事件
@@ -128,13 +100,6 @@ await foreach (var runEvent in thread.RunStreamedAsync("List the open questions.
         Console.Write(delta.Params.Delta);
 }
 ```
-
-```python [Python]
-async for event in thread.run_streamed("List the open questions."):
-    if event.type == "agent_message_delta":
-        print(event.params["delta"], end="", flush=True)
-```
-
 :::
 
 ## 5. 关闭 client
@@ -150,11 +115,6 @@ await dotcraft.close();
 ```csharp [.NET]
 await client.DisposeAsync();
 ```
-
-```python [Python]
-await dotcraft.close()
-```
-
 :::
 
 ## 连接远程 AppServer
@@ -178,17 +138,6 @@ var client = await DotCraftClient.ConnectRemoteAsync(
         Token = Environment.GetEnvironmentVariable("DOTCRAFT_TOKEN"),
     });
 ```
-
-```python [Python]
-import os
-from dotcraft import RemoteOptions
-
-dotcraft = await DotCraft.connect_remote(RemoteOptions(
-    url="wss://server.example/ws",
-    token=os.getenv("DOTCRAFT_TOKEN"),
-))
-```
-
 :::
 
 服务端启动、`/ws`、TLS 和 token 要求见 [AppServer 模式](../lifecycle/appserver)。
@@ -198,11 +147,9 @@ dotcraft = await DotCraft.connect_remote(RemoteOptions(
 - [TypeScript 应用示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
 - [.NET agent profile 与 thread 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/AgentProfileThreadSample)
 - [.NET interactive tool 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/InteractiveToolSample)
-- [Python Run-profile 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/python/examples)
 
 ## 相关文档
 
-- [线程与运行](./runs)
-- [工具与审批](./tools)
-- [渠道适配器](./channels)
-- 参考：[TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
+- [线程与运行](./runs)——thread 管理、input part、流式事件和断线恢复。
+- [工具与审批](./tools)——向 run 暴露自定义工具，并响应交互回调。
+- 参考：[TypeScript](./typescript) · [.NET](./dotnet)——各语言的完整 client 接口。

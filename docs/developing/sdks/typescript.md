@@ -10,7 +10,7 @@
 | Module format | ESM |
 | Runtime | Node.js 20+ |
 
-Install the package from npm. Runtime entry points belong in Node.js or Electron Main, not browser or Electron Renderer code.
+The package is published on npm. Runtime entry points belong in Node.js or Electron Main, not in browser or Electron Renderer code.
 
 ## Entry points
 
@@ -22,7 +22,7 @@ Install the package from npm. Runtime entry points belong in Node.js or Electron
 | `@dotcraft/sdk/hub` | Hub discovery, AppServer management, process policy, events, and structured errors. |
 | `@dotcraft/sdk/app-binding` | App Binding handoff and result helpers. |
 | `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helpers. |
-| `@dotcraft/sdk/testing` | Transport test helpers. |
+| `@dotcraft/sdk/testing` | Transport and protocol test surface. |
 | `@dotcraft/sdk/meta` | SDK, contract, protocol, and contract-hash metadata. |
 
 Contracts has no Node.js, WebSocket, or runtime I/O dependency, so Renderer code may import it for types.
@@ -59,9 +59,11 @@ All three option types accept client identity, approval and user-input handlers,
 | `DotCraftLocalChatOptions` | The local fields except `workspacePath`. |
 | `DotCraftRemoteOptions` | Required `url`; optional `token`, client identity, handlers, and `capabilities`. |
 
+A remote `url` points at the AppServer WebSocket endpoint, whose path ends in `/ws`. Pass the token in the `token` option instead of embedding it in the URL, and keep both out of logs. See [AppServer mode](../lifecycle/appserver) for how the server listens.
+
 ## Threads and runs
 
-`ThreadManager` has these exact high-level operations:
+`ThreadManager` exposes these high-level operations:
 
 ```ts
 getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
@@ -137,12 +139,15 @@ const dispose = wire.onRaw("ext/example/changed", console.log);
 
 Wire state is `connecting`, `initializing`, `ready`, `disconnected`, `reconnecting`, `reconnectError`, or `closed`.
 
+- Local and remote high-level connections reconnect automatically.
 - Raw Wire connections do not reconnect unless `autoReconnect` is enabled.
 - Ordinary requests default to a 30-second timeout.
 - Reconnect uses exponential backoff and queues at most 1024 new calls.
 - In-flight calls fail and are never replayed.
 - Initialization completes before queued calls are released.
 - Handler registrations survive reconnect. Thread subscriptions, active runs, and runtime tool resources do not.
+
+Reconnect does not rebuild those resources for the application. Read or resume the thread, subscribe again, and re-register runtime tool handlers before continuing.
 
 Closing a local high-level client closes its WebSocket connection. It does not stop Hub or the Hub-managed AppServer.
 
@@ -160,7 +165,7 @@ All SDK errors derive from `DotCraftError` and carry a stable `code`.
 | `ApprovalTimeoutError` | AppServer reports approval timeout. |
 | `ProtocolViolationError` | A known message does not match its contract. |
 
-The Wire entry point also exports `TransportError`, `TransportClosed`, `RequestTimeoutError`, and `ReconnectQueueFullError`.
+`JsonRpcError` and the transport-level errors `TransportError`, `TransportClosed`, `RequestTimeoutError`, and `ReconnectQueueFullError` are exported from the Wire entry point.
 
 ## Hub API
 
@@ -168,19 +173,8 @@ The Wire entry point also exports `TransportError`, `TransportClosed`, `RequestT
 
 Hub errors preserve `code`, `message`, and `details`. Do not log Hub tokens or full token-bearing WebSocket URLs.
 
-## Troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| Local connection requires a workspace | Pass `workspacePath`, or use `DotCraft.localChat()` for the default Chat workspace. |
-| Remote initialization fails | Verify the AppServer WebSocket URL ends in `/ws` and the token matches that AppServer. Do not print either value in logs. |
-| A run ends during reconnect | In-flight work is not replayed. Read or resume the thread, subscribe again, and re-register runtime tool handlers before continuing. |
-
 ## Related docs
 
-- [SDK quickstart](./quickstart)
-- [Threads & runs](./runs)
-- [Tools & approvals](./tools)
-- [MCP runtime](./mcp-runtime)
-- [Channel adapters](./channels)
-- [AppServer Protocol](../protocols/appserver-protocol)
+- [AppServer Protocol](../protocols/appserver-protocol) — the wire contract behind every method on this page.
+- [Hub lifecycle](../lifecycle/hub) — the Hub process model behind local connections.
+- [Channel adapters](./channels) — connect an external messaging platform on top of this SDK.

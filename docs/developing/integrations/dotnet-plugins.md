@@ -23,7 +23,7 @@ Ask `$plugin-creator` to create a .NET plugin in the current workspace. It creat
     └── lib/
 ```
 
-The project has no `.csproj` and does not restore NuGet packages. The agent edits `src/**/*.cs` and the manifest, uses `DotNetPlugin.Inspect` for exact API signatures and documentation, then calls `DotNetPlugin.Build`. The build compiles against the public plugin API and BCL shipped by the running host, runs metadata preflight, publishes the bundle atomically, and activates it without an external .NET SDK or network access.
+The project has no `.csproj` and does not restore NuGet packages. The agent edits `src/**/*.cs` and the manifest, uses `DotNetPlugin.Inspect` for exact API signatures and documentation, then calls `DotNetPlugin.Build`. The build compiles against the public plugin API and BCL shipped by the running host, runs metadata preflight, publishes the bundle atomically, and activates it. None of that needs an external .NET SDK or network access.
 
 A successful build qualifies the exact plugin id and fingerprint only in the current host process; it does not change `dotnet-plugin-trust.json`. Build the project again after restarting DotCraft. Rebuilding the active fingerprint from the same project is a no-op.
 
@@ -149,11 +149,11 @@ The activation context carries both directions of the plugin model:
 
 Treat `ContentRoot` as read-only and put mutable state under `DataRoot`.
 
-Make every `Contributions.Add` call inside `ActivateAsync`. The host seals the registrar when activation commits, so later calls from background work are rejected. To change a generation's contribution set, change its inputs and let runtime reconciliation restart the generation.
+Make every `Contributions.Add` call from inside `ActivateAsync`. The host seals the registrar when activation commits, so later calls from background work are rejected. To change a generation's contribution set, change its inputs and let runtime reconciliation restart the generation.
 
 ### Own resources through Lifetime, not through contributions
 
-Teardown revokes contribution handles, signals `Stopping`, drains admitted calls and tracked work, and only then disposes raw contribution targets. Register shared resources with `context.Lifetime.Own` or `OwnAsync`; those resources outlive contribution targets, and contributions can borrow them without owning them.
+Teardown revokes contribution handles, signals `Stopping`, drains admitted calls and tracked work, and only then disposes raw contribution targets. Register shared resources with `context.Lifetime.Own` or `OwnAsync`. They outlive contribution targets, so contributions can borrow them without owning them.
 
 Background work goes through `context.Lifetime.Run`. It starts after activation commits and is cancelled through `Lifetime.Stopping` when teardown begins. Raw threads, static event subscriptions, untracked tasks, and global caches can pin the collectible load context: routing still stops immediately, but memory is not reclaimed until the stray reference is released, often only at process restart.
 
@@ -168,13 +168,13 @@ var sessions = (ISessionService?)context.Services.GetService(typeof(ISessionServ
     ?? throw new InvalidOperationException("ISessionService is unavailable.");
 ```
 
-The provider is host-owned and read-only. A plugin cannot register, decorate, or replace container services. The view excludes the root provider, contribution registry, service-scope factories, host lifecycle, and plugin-runtime control plane. Never dispose a resolved service; dispose only what the plugin itself created, through `context.Lifetime`.
+The provider is host-owned and read-only. A plugin cannot register, decorate, or replace container services. The view excludes the root provider, contribution registry, service-scope factories, host lifecycle, and plugin-runtime control plane. Never dispose a resolved service. Only what the plugin itself created needs disposal, and that goes through `context.Lifetime`.
 
 Consumption carries the same version binding as the rest of the kernel surface: a service you resolve today is guaranteed by the host version you compiled against, not by an append-only promise. Release callbacks, event subscriptions, and other references to host services before the generation stops so the load context can unload.
 
 ### Read your own settings
 
-`context.Settings` is a snapshot of this plugin's effective `Plugins.Settings[id]` bag, captured when its generation activates. Its shape belongs to the plugin and the host does not validate it. A configuration edit becomes visible only after runtime reconciliation restarts the generation; it never mutates a captured activation context.
+`context.Settings` is a snapshot of this plugin's effective `Plugins.Settings[id]` bag, captured when its generation activates. Its shape belongs to the plugin and the host does not validate it. A configuration edit becomes visible only after runtime reconciliation restarts the generation, and it never mutates a captured activation context.
 
 ```csharp
 var limit = context.Settings.TryGetProperty("checklistLimit", out var value)
@@ -183,15 +183,9 @@ var limit = context.Settings.TryGetProperty("checklistLimit", out var value)
 
 Give every field a fallback because an unconfigured plugin reads an empty object. If you deserialize to plugin-defined types, keep serializer options and metadata plugin-owned so the generation can unload.
 
-For the complete contribution catalog, ordering, typed exports, trust, and lifecycle, see [.NET Plugin API and lifecycle](./dotnet-plugin-reference).
+For the complete contribution catalog, ordering, typed exports, trust, and generation lifecycle, see [.NET Plugin API and lifecycle](./dotnet-plugin-reference).
 
 ## Related docs
 
-- [.NET Plugin API and lifecycle](./dotnet-plugin-reference)
-- [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample)
-- [.NET Plugin architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)
-- [Plugins & Tools](../../features/agent-system/plugins-tools)
-- [Plugin Market](./plugin-market)
-- [Desktop Plugins](./desktop-plugins)
-- [AppServer protocol](../protocols/appserver-protocol)
-- [Security and sandbox](../../features/self-hosted/security)
+- [Desktop Plugins](./desktop-plugins) — add a Desktop surface to the same bundle.
+- [.NET Plugin architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source behind this page.

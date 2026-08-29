@@ -2,9 +2,9 @@
 
 MCP Apps 允许 MCP 工具附带交互式结果视图。MCP server 声明 `ui://` resource，DotCraft Desktop 通过标准 AppBridge contract 在沙箱中渲染它。其他客户端继续使用工具的文本 fallback。
 
-App Binding 不定义独立 UI 协议。App Binding 应用从 binding-scoped Streamable HTTP MCP server 提供工具和视图。
+[App Binding](./app-binding) 不定义独立 UI 协议。App Binding 应用从自己的 binding-scoped Streamable HTTP MCP server 提供工具和视图。
 
-![MCP server 随工具声明视图 resource，DotCraft Desktop 把它渲染进沙箱（opaque origin、只放行已声明的能力），视图发起的调用只回到同一个 server，非可视客户端保留文本结果](/mcp-apps-boundary.svg)
+![MCP server 随工具声明视图 resource，DotCraft Desktop 把它渲染进沙箱（opaque origin、只放行已声明的 CSP origin），视图发起的调用只回到同一个 server，非可视客户端保留文本结果](/mcp-apps-boundary.svg)
 
 ## 声明视图
 
@@ -23,7 +23,7 @@ App Binding 不定义独立 UI 协议。App Binding 应用从 binding-scoped Str
 }
 ```
 
-使用 `visibility` 将工具发布给模型、应用或两者。DotCraft 遇到无效 metadata 时会把能力视为不可用，不会扩大访问范围。
+使用 `visibility` 将工具发布给模型、应用或两者，省略时两者都发布。DotCraft 遇到无效 metadata 时会把能力视为不可用，不会扩大访问范围。
 
 ## 提供 resource
 
@@ -33,7 +33,9 @@ App Binding 不定义独立 UI 协议。App Binding 应用从 binding-scoped Str
 text/html;profile=mcp-app
 ```
 
-把脚本和样式随 server 一起打包。在 resource 的 `_meta.ui` 中声明 CSP domain 和浏览器 permission。Desktop 会拒绝 resource 未声明的能力。
+把脚本和样式随 server 一起打包。Desktop 会移除 HTML 里的 Content-Security-Policy meta 标签，换成自己的策略：从 `default-src 'none'` 起步，只放行 resource 在 `_meta.ui.csp` 中声明的 HTTPS origin。`_meta.ui` 里的浏览器 permission 与 `domain` 只作为能力元数据记录，Desktop 一律不授予，视图拿不到摄像头、麦克风、定位或剪贴板写入权限。
+
+Resource 正文和送进视图的每个结果都以 2 MB 为上限。
 
 ## 返回可用的 fallback
 
@@ -52,11 +54,7 @@ UI 通过官方 `@modelcontextprotocol/ext-apps` client 通信。使用 `tools/c
 ## 安全边界
 
 - iframe 使用 opaque origin，不能访问宿主 DOM 或 Node。
-- resource CSP 和 permission 是显式且经过 capability 检查的 metadata。
-- App 发起的工具调用始终受原 MCP server 和实时 authority 限制。
+- 宿主 CSP 从 `default-src 'none'` 起步，只按 resource 的声明放行指定 HTTPS origin。
+- 无论 resource 声明什么，浏览器 permission 都不会被授予。
+- App 发起的工具调用会重新对照当前 tool snapshot 校验：必须来自同一个 MCP server，并且仍然声明 app 可见性。
 - 撤销 App Binding 会立即关闭对应 MCP session 和视图。
-
-## 相关文档
-
-- [DotCraft App](./app-binding)
-- [AppServer 协议](../protocols/appserver-protocol)

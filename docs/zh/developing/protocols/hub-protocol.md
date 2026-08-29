@@ -1,26 +1,10 @@
-# Hub Protocol
+# Hub 协议
 
-Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议。它面向 Desktop、CLI、编辑器扩展和其他本地客户端。如果你只想和 Agent 对话，真正的会话流量仍然走 [AppServer Protocol](./appserver-protocol)。
+Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议，面向 Desktop、CLI、编辑器扩展和其他本地客户端。TypeScript 或 .NET 应用优先使用 [DotCraft SDK Hub API](../sdks/)，它已经实现发现、binary policy、结构化错误和 AppServer 启动流程。只有在实现自定义传输、使用不受支持的语言或调试协议时，才直接使用本页的 raw HTTP/SSE 契约。
 
-TypeScript、.NET 或 Python 应用应优先使用 [DotCraft SDK Hub API](../sdks/)。它已经实现发现、binary policy、结构化错误和 AppServer 启动流程。只有在实现自定义传输、不受支持的语言或调试协议时，才直接使用本页的 raw HTTP/SSE 契约。
+Hub 只做本地协调：通过 HTTP JSON API 管理本机工作区 AppServer，通过 SSE 广播生命周期事件。它不是会话代理，不暴露任何 AppServer JSON-RPC 方法。`appservers/ensure` 返回端点后，客户端直接连接 AppServer 的 WebSocket，会话流量走 [AppServer 协议](./appserver-protocol)。连接远程 AppServer 或自行管理 AppServer 进程的客户端不需要 Hub。
 
-Hub 的职责是本地协调，不是会话代理：
-
-- Hub 通过 HTTP JSON API 管理本机工作区 AppServer。
-- Hub 通过 SSE 广播生命周期事件。
-- Hub 不暴露 `thread/*`、`turn/*`、`approval/*`、`mcp/*` 等 AppServer JSON-RPC 方法。
-- 调用 `appservers/ensure` 后，客户端应直接连接返回的 AppServer WebSocket 端点。
-
-## 适用场景
-
-实现 Hub 客户端适合这些场景：
-
-- 你正在开发 DotCraft 应用、CLI 集成、IDE 扩展或本地 GUI。
-- 你希望多个本地客户端共享同一个工作区运行时。
-- 你需要显示本机工作区运行状态、托盘菜单或系统通知。
-- 你希望按需启动 AppServer，同时避免同一个工作区被重复启动。
-
-如果你的客户端连接的是远程 AppServer，或者你自己显式管理 AppServer 进程，可以跳过 Hub。
+![DotCraft Hub 启动流程](/hub-bootstrap-flow.svg)
 
 ## 协议
 
@@ -48,19 +32,13 @@ Hub Local API 在回环地址上使用 HTTP JSON。所有 JSON 字段使用 came
 }
 ```
 
-客户端读取锁文件后应同时验证：
+客户端读取锁文件后要逐项验证：
 
 1. `pid` 指向的进程仍然存活。
 2. `GET {apiBaseUrl}/v1/status` 可访问。
 3. 返回的 `apiBaseUrl`、版本、能力和可选 `binaryPath` 符合客户端预期。
 
-如果验证失败，客户端可以删除对该锁文件的信任，并按需启动 `dotcraft hub`。
-
-## 启动流程
-
-![DotCraft Hub bootstrap flow](/hub-bootstrap-flow.svg)
-
-客户端在连接到 AppServer 后，普通会话流量不再经过 Hub。
+任何一项不通过，就丢弃这份锁文件，启动 `dotcraft hub`，再重新走一遍发现流程。
 
 ## 认证
 
@@ -294,7 +272,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 | `appserver.unhealthy` | 健康检查失败。 |
 | `notification.requested` | 有本地通知请求等待 UI 展示。 |
 
-事件负载是扩展点。客户端应根据 `kind` 和已知字段渲染 UI，并忽略未知字段。
+事件负载可扩展。按 `kind` 渲染已知字段，忽略未知字段。
 
 ## 连接 AppServer
 
@@ -329,7 +307,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 }
 ```
 
-更多会话方法见 [AppServer Protocol](./appserver-protocol)。
+更多会话方法见 [AppServer 协议](./appserver-protocol)。
 
 ## 错误
 
@@ -375,7 +353,6 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 
 ## 相关文档
 
-- [SDK 快速开始](../sdks/quickstart)
-- [AppServer Protocol](./appserver-protocol)
-- [Hub Local Coordination](../lifecycle/hub)
-- [AppServer Mode](../lifecycle/appserver)
+- [Hub 本地协调](../lifecycle/hub)——Hub 进程本身的生命周期、状态目录和端口分配。
+- [AppServer 模式](../lifecycle/appserver)——本 API 所启动和管理的进程。
+- [SDK 快速开始](../sdks/quickstart)——发现与启动流程的现成实现。

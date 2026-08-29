@@ -6,7 +6,7 @@ DotCraft 的 Dashboard 是一个网页，用来看清 Agent 刚才到底做了�
 
 ## 打开 Dashboard
 
-先在工作区配置中启用 Dashboard，字段名和 JSON 示例见[入口与服务](../../developing/configuration#entry-points-and-services)。然后启动它：
+Dashboard 默认开启，相关字段名和 JSON 示例见[入口与服务](../../developing/configuration#entry-points-与-services)。启动它：
 
 ```bash
 dotcraft dashboard

@@ -67,7 +67,7 @@ marketplace-root/
 - `source.source` 必须为 `local`。
 - `source.path` 必须以 `./` 开头、保持在市场根目录内，并指向有效插件目录。
 - 只有 `policy.installation` 为 `AVAILABLE` 的插件才会显示为可安装。
-- 当前发布格式中的 `policy.authentication` 为 `ON_INSTALL`。App 和账号配置行为由插件的 App descriptors 定义。
+- 当前发布格式中的 `policy.authentication` 为 `ON_INSTALL`。App 与账号配置行为由插件自己的 [App descriptor](./app-binding) 定义。
 - 插件能力和安装页元数据属于 `.craft-plugin/plugin.json`，不应写入市场文档。
 
 ## 市场来源
@@ -161,13 +161,9 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 - DotCraft 不保存市场来源凭据。
 - 只有安装到工作区并启用后，插件才会贡献运行时能力。
 - Tools、apps 与 hooks 继续使用各自的运行时检查。启用 Desktop Plugin 会执行其可信 renderer 代码，这也是对该模块的信任决定。
-- 安装或启用 .NET Plugin 不会授予 managed execution trust；在任何 managed code 加载前，都必须明确授权已接受的 plugin id 与 fingerprint。
+- 安装或启用 [.NET 插件](./dotnet-plugin-reference)不会授予它执行托管代码的信任。任何托管代码加载之前，已接受的插件 id 与指纹都必须先获得显式授权。
 
 ## 相关文档
 
-- [DotCraft 官方插件市场](https://github.com/DotHarness/dotcraft-plugins)
-- [插件市场](../../features/agent-system/plugin-marketplaces)
-- [配置](../configuration#plugins-mcp-与-lsp)
-- [AppServer 协议](../protocols/appserver-protocol#插件市场)
-- [DotCraft App](./app-binding)
-- [Desktop Plugins](./desktop-plugins)
+- [DotCraft 官方插件市场](https://github.com/DotHarness/dotcraft-plugins)——可以直接参照的真实市场仓库。
+- [Desktop Plugins](./desktop-plugins)——发布带 Desktop 界面的插件时读它。

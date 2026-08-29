@@ -6,7 +6,7 @@ The DotCraft Dashboard is a web page for seeing what the agent actually did. Ses
 
 ## Open the Dashboard
 
-Enable Dashboard in your workspace configuration — field names and JSON examples live in [Entry Points and Services](../../developing/configuration#entry-points-and-services). Then start it:
+Dashboard is enabled by default — field names and JSON examples live in [Entry points and services](../../developing/configuration#entry-points-and-services). Start it:
 
 ```bash
 dotcraft dashboard

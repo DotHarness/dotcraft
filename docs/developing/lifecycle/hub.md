@@ -3,17 +3,17 @@
 This page targets integrators and contributors; most users never touch Hub directly. Hub is DotCraft's local runtime coordinator. It runs per OS user and discovers, starts, reuses, and stops the AppServer process for each workspace. Desktop and CLI use Hub by default.
 
 > [!NOTE]
-> Remote, CI, bots, or explicit AppServer protocol debugging go through [AppServer Mode](./appserver).
+> Remote, CI, bots, or explicit AppServer protocol debugging go through [AppServer mode](./appserver).
+
+![Hub local coordination topology: Desktop, CLI, and SDK clients pass through Hub only at bootstrap, then connect directly to each workspace's AppServer](/hub-coordination-topology.svg)
 
 ## Key properties
 
 - One Hub per OS user
 - One AppServer per workspace
 - Hub does not handle conversation traffic or proxy the AppServer protocol
-- A client only asks Hub during bootstrap: "make sure this workspace's AppServer is available"
+- A client only asks Hub during bootstrap: make sure this workspace's AppServer is available
 - After bootstrap, the client connects **directly** to the returned AppServer WebSocket URL
-
-![DotCraft Hub local coordination topology](/hub-coordination-topology.svg)
 
 ## When to start manually
 
@@ -29,7 +29,7 @@ Hub starts a loopback management API and writes discovery metadata to `~/.craft/
 
 ```text
 ~/.craft/hub/
-├── hub.lock          # current Hub discovery: API URL, PID, start time, local token, binary path
+├── hub.lock          # current Hub discovery: API URL, PID, start time, local token, version, binary path
 └── appservers.json   # Hub-tracked AppServer state (display & recovery)
 ```
 
@@ -45,7 +45,7 @@ When Hub or AppServer finds a stale `appserver.lock` left by a dead process, it 
 
 ## Desktop and the tray
 
-Desktop is the visual layer; Hub itself is a headless background coordinator. Desktop can:
+Hub itself is a headless background coordinator, and the Desktop tray is its visual layer:
 
 - Open or switch workspaces
 - See recent and running workspaces
@@ -53,7 +53,7 @@ Desktop is the visual layer; Hub itself is a headless background coordinator. De
 - Restart or stop Hub-managed workspace runtimes
 - Receive system notifications forwarded through Hub (task completion, approvals, runtime state)
 
-When the tray exits, Desktop can ask Hub to stop the workspace AppServers Hub manages.
+Exiting from the tray asks Hub to shut down, and Hub stops the workspace AppServers it manages.
 
 For Desktop to open a workspace, `dotcraft` / `dotcraft.exe` must be on `PATH`, or the AppServer executable path must be set in Desktop settings.
 
@@ -63,7 +63,5 @@ Use a [DotCraft SDK](../sdks/) for normal local clients. Its Hub API discovers o
 
 ## Related docs
 
-- [SDK quickstart](../sdks/quickstart) — the recommended client path
-- [AppServer mode](./appserver) — remote / multi-client / CI
-- [Hub Protocol](../protocols/hub-protocol) — client protocol overview
-- [Unified Session Core](../architecture/session-core) — where Hub and AppServer sit in the bigger picture
+- [SDK quickstart](../sdks/quickstart) — the recommended client path, with bootstrap already wrapped
+- [Unified Session Core](../architecture/session-core) — the Thread / Turn / Item model above Hub and AppServer

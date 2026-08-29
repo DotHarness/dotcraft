@@ -1,10 +1,10 @@
 # DotCraft App
 
-本页面面向 App 集成开发者和 client 开发者。DotCraft App 使用 App Binding 管理权限，并通过 binding-scoped Streamable HTTP MCP server 提供工具。
+本页面向 App 集成方和 client 开发者。DotCraft App 通过 App Binding 管理权限，并通过 binding-scoped Streamable HTTP MCP server 提供工具。
 
-Desktop 操作流程见 [Connected Apps](../../features/agent-system/connected-apps)。
+Desktop 上的操作流程见[应用连接](../../features/agent-system/connected-apps)。
 
-![App Binding 授权链路：可信 client 发起的连接请求本身不授予任何权限，App 用一次性凭据完成认证后成为工作区 App principal；随后十分钟有效的 binding 请求只能由这个已认证的 App 激活，DotCraft 读取工具后 thread binding 才就绪](/app-binding-flow.svg)
+![App Binding 授权链路：可信 client 发起的连接请求本身不授予任何权限，App 用一次性凭据完成认证后成为工作区 App principal。随后十分钟有效的 binding 请求只能由这个已认证的 App 激活，DotCraft 读取工具后 thread binding 才就绪](/app-binding-flow.svg)
 
 ## 连接与 binding
 
@@ -17,7 +17,7 @@ Desktop 操作流程见 [Connected Apps](../../features/agent-system/connected-a
 
 ## 在可信 client 中使用类型化 SDK
 
-可信 DotCraft client 可以通过高层 SDK 发现 App、启动连接 handoff、检查连接状态并管理 thread binding。不要在日志中记录 `requestToken`、principal credential 或 binding bearer。
+可信 DotCraft client 通过高层 SDK 发现 App、启动连接 handoff、查询连接状态并管理 thread binding。不要在日志中记录 `requestToken`、principal credential 或 binding bearer。
 
 ::: code-group
 
@@ -52,23 +52,9 @@ await client.AppBindings.RevokeThreadBindingAsync(new ThreadAppBindingRevokePara
 });
 ```
 
-```python [Python]
-apps = await dotcraft.app_bindings.list_apps(thread_id=thread.id)
-app = await dotcraft.app_bindings.view_app(app_id, thread_id=thread.id)
-handoff = await dotcraft.app_bindings.start_connection(app_id)
-
-# App principal 按下文流程完成 handoff。
-connection = await dotcraft.app_bindings.connection_status(app_id)
-enabled = await dotcraft.app_bindings.enable(thread.id, app_id)
-bindings = await dotcraft.app_bindings.list_thread_bindings(thread.id)
-await dotcraft.app_bindings.revoke_thread_binding(
-    thread.id, binding_id, "user disconnected app"
-)
-```
-
 :::
 
-启动连接请求并不会认证 App。App connection ready 后才能启用 thread binding。请在 UI 中使用返回的 handoff，不要把其中的 token 发送到 agent prompt。
+启动连接请求本身不认证 App。App connection ready 之后才能启用 thread binding。请在 UI 中使用返回的 handoff，不要把其中的 token 发送到 agent prompt。
 
 ## 连接 App principal
 
@@ -77,9 +63,9 @@ await dotcraft.app_bindings.revoke_thread_binding(
 3. App 调用 `app/connection/connect`。
 4. Server 只返回一次 principal credential。
 5. App 立即在已经 initialized 的 AppServer 连接上调用 `app/connection/authenticate`。
-6. 后续连接使用已保存的 credential 认证，并通过 `app/connection/refresh` 轮换 credential。
+6. 后续连接使用已保存的 credential 认证。
 
-Principal credential 会在 30 天后过期。轮换后，旧 credential 立即失效。
+Principal credential 会在 30 天后过期。`app/connection/refresh` 轮换它，轮换后旧 credential 立即失效。
 
 `app/connection/revoke` 会移除工作区连接，并撤销它拥有的全部 thread bindings。
 
@@ -104,7 +90,7 @@ App principal 在线时，会收到带 `bindingRequestId` 的 `app/binding/reque
 
 Endpoint 必须提供 Streamable HTTP MCP server。DotCraft 会创建 binding-scoped MCP session，并在 binding ready 前读取 tool snapshot。
 
-DotCraft 当前使用 `initialize` 和 `2025-06-18` 兼容基线启动 binding MCP session。App 应支持 initialize-era 协商；DotCraft 默认不会发送实验性的 `2026-07-28` `server/discover` 探测。
+DotCraft 以 `initialize` 和 `2025-06-18` 协议版本启动 binding MCP session，不会发送实验性的 `server/discover` 探测。按 initialize 协商实现即可。
 
 `thread/appBindings/revoke` 只移除一个 thread 的 binding，不会断开 App principal。
 
@@ -114,25 +100,20 @@ Client 可以在创建 thread 前暂存 App 选择。完成 `thread/start` 后�
 
 ## 能力变化
 
-第一个有效 tool snapshot 由最初的启用操作批准。
+第一份有效 tool snapshot 由最初的启用操作批准。此后只有能证明是收窄的能力才会自动接受，其余变化都要再次确认：
 
-- 收窄能力范围的变化会自动接受。
-- 扩大的 tool schema、可见性、风险、UI、CSP、domain 或 permission authority 需要再次确认。
-- 可信 client 通过 `thread/appBindings/confirmCapabilities` 保留之前批准的基线，或接受新增能力。
+- 新增工具，或输入 schema 无法证明是原 schema 的子集。
+- 工具可见性新增受众。
+- 风险标注放宽——移除 `requiresApproval`，或新增 `destructive`、`openWorld`。
+- UI resource 变更，或新增 CSP domain、浏览器 permission。
 
-接受扩展后，新能力会成为有效基线。保留原有基线会拒绝扩展、移除 live MCP session，并让 binding 保持 offline，直到 App 使用兼容的能力集重新 rebind。
+可信 client 通过 `thread/appBindings/confirmCapabilities` 接受新基线或保留原基线。接受后新能力立即成为有效基线。保留原基线会拒绝这次扩展、移除 live MCP session，并让 binding 保持 offline，直到 App 用兼容的能力集重新绑定。
 
 ## 离线与 rebind
 
 离线 binding 会保留稳定的 tool schemas，但调用会返回 `AppBindingOffline`。
 
-进程重启后，完成认证的 App 先调用 `app/bindings/list`，再通过 `app/binding/rebind` 提交：
-
-.NET SDK 通过 `client.AppBindings.ListBindingsAsync()` 提供这一权威列表步骤。
-
-- 当前 `authorityRevision`。
-- 可信 endpoint。
-- 新 bearer。
+进程重启后，完成认证的 App 先调用 `app/bindings/list`（.NET SDK 为 `client.AppBindings.ListBindingsAsync()`），再通过 `app/binding/rebind` 提交当前 `authorityRevision`、可信 endpoint 和新 bearer。
 
 每个 binding 都有自己的 MCP session 与 bearer。Live MCP clients 和 binding bearer 不会持久化。
 
@@ -158,7 +139,5 @@ DotCraft 会持久化加盐 credential verifiers 与不含敏感信息的规范�
 
 ## 相关文档
 
-- [Connected Apps](../../features/agent-system/connected-apps)
-- [MCP Apps](./mcp-apps)
-- [AppServer 协议](../protocols/appserver-protocol)
-- [安全与沙箱](../../features/self-hosted/security)
+- [MCP Apps](./mcp-apps)——为同一个 binding 提供的工具结果附加交互式视图。
+- [AppServer 协议](../protocols/appserver-protocol)——本页用到的 `app/*` 与 `thread/appBindings/*` 方法的线上定义。

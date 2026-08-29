@@ -10,7 +10,7 @@
 | 模块格式 | ESM |
 | 运行时 | Node.js 20+ |
 
-从 npm 安装该包。运行时入口应放在 Node.js 或 Electron Main，而不是浏览器或 Electron Renderer 中。
+该包发布在 npm。运行时入口位于 Node.js 或 Electron Main，不要放进浏览器或 Electron Renderer 代码。
 
 ## 入口点
 
@@ -22,7 +22,7 @@
 | `@dotcraft/sdk/hub` | Hub 发现、AppServer 管理、进程策略、事件和结构化错误。 |
 | `@dotcraft/sdk/app-binding` | App Binding handoff 和结果 helper。 |
 | `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helper。 |
-| `@dotcraft/sdk/testing` | Transport 测试 helper。 |
+| `@dotcraft/sdk/testing` | Transport 与协议测试接口。 |
 | `@dotcraft/sdk/meta` | SDK、contract、protocol 和 contract hash 元数据。 |
 
 Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代码可以导入它获取类型。
@@ -59,9 +59,11 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 | `DotCraftLocalChatOptions` | 除 `workspacePath` 外的本地字段。 |
 | `DotCraftRemoteOptions` | 必需 `url`，可选 `token`、client identity、handler 和 `capabilities`。 |
 
+远程 `url` 指向 AppServer 的 WebSocket 端点，路径以 `/ws` 结尾。token 单独放在 `token` 选项里，不要拼进 URL，也不要把两者写进日志。服务端监听方式见 [AppServer 模式](../lifecycle/appserver)。
+
 ## Thread 与 Run
 
-`ThreadManager` 的精确高层操作如下：
+`ThreadManager` 提供以下高层操作：
 
 ```ts
 getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
@@ -137,12 +139,15 @@ const dispose = wire.onRaw("ext/example/changed", console.log);
 
 Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`reconnecting`、`reconnectError` 和 `closed`。
 
+- 本地和远程高层连接自动重连。
 - Raw Wire 连接只有启用 `autoReconnect` 后才会重连。
 - 普通请求默认超时为 30 秒。
 - 重连使用指数退避，最多排队 1024 个新调用。
 - 进行中的调用会失败且绝不重放。
 - 初始化完成后才会释放排队调用。
 - Handler 注册会跨重连保留，但 thread subscription、活动 run 和运行时工具资源不会保留。
+
+重连不会替应用重建这些资源。继续工作前先读取或恢复 thread、重新订阅，并重新注册运行时工具 handler。
 
 关闭本地高层 client 只关闭其 WebSocket 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
 
@@ -160,7 +165,7 @@ Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`re
 | `ApprovalTimeoutError` | AppServer 报告审批超时。 |
 | `ProtocolViolationError` | 已知消息不符合其 contract。 |
 
-Wire 入口还导出 `TransportError`、`TransportClosed`、`RequestTimeoutError` 和 `ReconnectQueueFullError`。
+`JsonRpcError` 与 transport 层错误 `TransportError`、`TransportClosed`、`RequestTimeoutError`、`ReconnectQueueFullError` 由 Wire 入口导出。
 
 ## Hub API
 
@@ -168,19 +173,8 @@ Wire 入口还导出 `TransportError`、`TransportClosed`、`RequestTimeoutError
 
 Hub 错误会保留 `code`、`message` 和 `details`。不要记录 Hub token 或包含 token 的完整 WebSocket URL。
 
-## 故障排查
-
-| 现象 | 检查项 |
-| --- | --- |
-| 本地连接要求工作区 | 传入 `workspacePath`，或使用 `DotCraft.localChat()` 连接默认 Chat 工作区。 |
-| 远程初始化失败 | 确认 AppServer WebSocket URL 以 `/ws` 结尾，且 token 与该 AppServer 匹配。不要把任一值输出到日志。 |
-| Run 在重连期间结束 | 进行中的工作不会重放。继续前应读取或恢复 thread、重新订阅，并重新注册 runtime tool handler。 |
-
 ## 相关文档
 
-- [SDK 快速开始](./quickstart)
-- [线程与运行](./runs)
-- [工具与审批](./tools)
-- [MCP 运行时](./mcp-runtime)
-- [渠道适配器](./channels)
-- [AppServer 协议](../protocols/appserver-protocol)
+- [AppServer 协议](../protocols/appserver-protocol)——本页各方法对应的线路契约。
+- [Hub 生命周期](../lifecycle/hub)——本地连接背后的 Hub 进程模型。
+- [渠道适配器](./channels)——基于本 SDK 接入外部消息平台。

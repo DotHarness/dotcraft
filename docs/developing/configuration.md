@@ -1,10 +1,10 @@
-# DotCraft Full Configuration Reference
+# DotCraft full configuration reference
 
-This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Getting started](../getting-started). For product-level explanations, start from the matching Feature page and come back here for exact fields.
+Configuration fields, defaults, and JSON examples, grouped by subsystem. For first-time setup, read [Getting started](../getting-started). For what a feature does and when to reach for it, start from its feature page and come back here for the exact fields.
 
-DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.craft/config.json`; workspace fields win. String values support `$VAR` and `${VAR}` environment variable placeholders. If a variable is not set, the original placeholder is preserved.
+DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.craft/config.json`. Workspace fields win. String values support `$VAR` and `${VAR}` environment variable placeholders. An unset variable keeps its placeholder unchanged.
 
-## Basic Model and Provider
+## Basic model and provider
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -60,7 +60,7 @@ Workspace model selection example:
 }
 ```
 
-`ProviderPreferences` records are atomic across config scopes. If global and workspace config both define the same provider id, the workspace record replaces the complete global record.
+`ProviderPreferences` merges per provider id, never field by field. When global and workspace config both define the same provider id, the workspace record replaces the global one in full.
 
 | Preference field | Values | Description |
 |------------------|--------|-------------|
@@ -78,13 +78,32 @@ Provider object fields:
 | `DisplayName` | User-facing provider name; falls back to the provider id when empty | Empty |
 | `Protocol` | Provider protocol: `anthropic`, `openai-chat-completions`, or `openai-responses`. Empty values default to `openai-chat-completions`. | `openai-chat-completions` |
 | `ApiKey` | Provider API key; prefer `${ENV_NAME}` environment variable references | Empty |
+| `AuthMethod` | Authentication method: `apiKey` uses the static `ApiKey`; `chatgptOAuth` authenticates with a ChatGPT subscription account (OpenAI protocols only, see below). Unrecognized values fall back to `apiKey` | `apiKey` |
+| `ChatGptAccountId` | ChatGPT account id written by the Sign in with ChatGPT flow; do not edit manually | Empty |
+| `ChatGptPlanType` | ChatGPT plan tier written by the Sign in with ChatGPT flow (`free`, `plus`, `pro`, `business`, `enterprise`, `edu`); do not edit manually | Empty |
 | `EndPoint` | Provider base URL; empty values use the protocol default endpoint | OpenAI protocols: `https://api.openai.com/v1`; `anthropic`: `https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
 | `StreamIdleTimeoutMs` | Per-provider idle timeout for streaming responses, in milliseconds | `300000` |
 | `SupportsHostedImageGeneration` | Enables hosted image generation for this provider. When omitted, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false`. | Provider default |
 
-## Workspace Memory and Skills
+Sign in with ChatGPT example:
+
+```json
+{
+  "Providers": {
+    "openai": {
+      "DisplayName": "OpenAI (ChatGPT)",
+      "Protocol": "openai-responses",
+      "AuthMethod": "chatgptOAuth"
+    }
+  }
+}
+```
+
+A `chatgptOAuth` provider authenticates with a ChatGPT subscription instead of an API key. Run `dotcraft auth openai login` to sign in — it stores the OAuth token bundle as `auth.json` in the user data directory, writes the provider entry above into the global configuration, makes it the default provider when none is selected, and seeds a default model preference when the provider has none. In this mode `ApiKey` and `EndPoint` are ignored and the effective protocol is always `openai-responses`; the resolution rules live in [Configure model providers](./harness/model-providers). `dotcraft auth openai logout` deletes the tokens and reverts the provider to `apiKey`.
+
+## Workspace memory and skills
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -118,7 +137,7 @@ Self-learning example:
 | `write_file` | `name`, `filePath`, `fileContent` | Write a supporting file |
 | `remove_file` | `name`, `filePath` | Delete a supporting file |
 
-`create` triggers a `kind: skill` approval; destructive delete operations also require approval. Self-learning writes only the current workspace's skill directory. System and personal skills are read-only, supporting files may only live under `scripts/` or `assets/`, and absolute paths or `..` traversal are rejected.
+`create` triggers a `kind: skill` approval, and destructive deletes require approval too. Self-learning writes only to the current workspace's skill directory. System and personal skills are read-only, supporting files may only live under `scripts/` or `assets/`, and absolute paths or `..` traversal are rejected.
 
 ## Compaction
 
@@ -132,7 +151,7 @@ Self-learning example:
 | `Compaction.AutoCompactBufferTokens` | Token buffer below the hard limit that triggers auto compaction | `13000` |
 | `Compaction.WarningBufferTokens` | Token buffer before auto threshold that emits warning | `20000` |
 | `Compaction.ErrorBufferTokens` | Token buffer before auto threshold that emits error | `10000` |
-| `Compaction.ManualCompactBufferTokens` | Token buffer below the hard limit where manual `/compact` remains allowed | `3000` |
+| `Compaction.ManualCompactBufferTokens` | Headroom below the effective context window used for the reported context-pressure limit | `3000` |
 | `Compaction.KeepRecentMinTokens` | Minimum recent tail tokens after partial summary | `10000` |
 | `Compaction.KeepRecentMinGroups` | Minimum recent API groups after partial summary | `3` |
 | `Compaction.KeepRecentMaxTokens` | Maximum recent tail tokens after partial summary | `40000` |
@@ -175,7 +194,7 @@ independently for each model pattern. Set `fast` to `null` to disable an inherit
 Model patterns use case-insensitive longest-prefix matching and also match namespaced suffixes such
 as `provider/custom-fast-model`.
 
-## Reasoning and Prompt Caching
+## Reasoning and prompt caching
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -223,7 +242,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 }
 ```
 
-## Tools Security and Sandbox
+## Tools security and sandbox
 
 | Field | Description | Default |
 |---|---|---|
@@ -266,9 +285,9 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.Sandbox.IdleTimeoutSeconds` | Idle timeout in seconds | `300` |
 | `Tools.Sandbox.SyncWorkspace` | Sync workspace into container | `true` |
 
-With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output from the provider and shows the image inline in clients that support rich content.
+With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output and shows the image inline in clients that render rich content.
 
-`Tools.ImageGeneration.Enabled` is the global image generation switch and defaults to `true`. A provider must also have `SupportsHostedImageGeneration` set to `true` before DotCraft injects the hosted `image_generation` tool. When the provider field is omitted, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false` and should be enabled only when they support the hosted tool.
+Two switches gate the hosted `image_generation` tool, and both must be true: the global `Tools.ImageGeneration.Enabled`, and the provider's own `SupportsHostedImageGeneration`. Omitting the provider field leaves ChatGPT OAuth and the official OpenAI Responses API-key endpoint enabled, and custom OpenAI-compatible Responses endpoints disabled. Enable a custom endpoint only once you know it supports the hosted tool.
 
 Personal local hardening example:
 
@@ -316,7 +335,7 @@ OpenSandbox example:
 }
 ```
 
-## Automations Goals and Hooks
+## Automations goals and hooks
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -528,12 +547,12 @@ Operational logs contain timestamps, severity, process ID, category, messages, e
 active diagnostic scopes. Raw ACP traffic and opt-in session stream debug records use separate
 files because they can contain sensitive or high-volume payloads.
 
-## Entry Points and Services
+## Entry points and services
 
 | Field | Description | Default |
 |-------|-------------|---------|
 | `Acp.Enabled` | Enables ACP mode | `false` |
-| `DashBoard.Enabled` | Enables Dashboard | `false` |
+| `DashBoard.Enabled` | Enables Dashboard | `true` |
 | `DashBoard.Host` | Dashboard listen address | `127.0.0.1` |
 | `DashBoard.Port` | Dashboard listen port | `8080` |
 | `AppServer.Mode` | AppServer transport mode, such as stdio or WebSocket | Empty |
@@ -591,7 +610,7 @@ Standalone adapter:
 }
 ```
 
-Platform connections, allowlists, and approval timeouts live in adapter-specific files such as `.craft/qq.json` and `.craft/wecom.json`. See [Channel configuration reference](./channels/reference) for TypeScript channel examples.
+Platform connections, allowlists, and approval timeouts live in adapter-specific files such as `.craft/qq.json` and `.craft/wecom.json`. See [Channel configuration reference](../features/channels/reference) for TypeScript channel examples.
 
 ## Plugins MCP and LSP
 
@@ -660,20 +679,20 @@ MCP example:
 
 With `Tools.DeferredLoading.Strategy = Auto`, all modes use the canonical `SearchTools` operation. OpenAI Responses maps it to the provider's client-executed `tool_search` wire type, Anthropic returns native tool references, and chat-completions injects the discovered schemas on the next model request.
 
-## SubAgent and External CLI Profiles
+## Subagent and external CLI profiles
 
-For the beginner path, read [SubAgents](../features/agent-system/subagents).
+For the concept and everyday use, read [Subagents](../features/agent-system/subagents).
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `SubAgent.MaxDepth` | Maximum session-backed SubAgent spawn depth; the first child is depth `1` | `1` |
-| `SubAgent.ProviderPreferences` | Complete native SubAgent preferences keyed by the parent thread provider; a missing entry inherits that thread's complete MainAgent preference | `{}` |
+| `SubAgent.MaxDepth` | Maximum spawn depth for session-backed subagents. The first child is depth `1` | `1` |
+| `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | Minimum accepted `WaitAgent.timeoutMs` value in milliseconds | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent.timeoutMs` used when the tool call omits a timeout | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | Maximum accepted `WaitAgent.timeoutMs` value in milliseconds | `3600000` |
 | `SubAgent.EnableExternalCliSessionResume` | Allows external CLI profiles that support resume to reuse saved external sessions | `false` |
-| `SubAgent.DisabledProfiles` | SubAgent profile names hidden and disabled for this workspace | `[]` |
-| `SubAgent.Roles` | Workspace-defined SubAgent roles; entries with built-in names override built-in roles | `[]` |
+| `SubAgent.DisabledProfiles` | Subagent profile names hidden and disabled for this workspace | `[]` |
+| `SubAgent.Roles` | Workspace-defined subagent roles. Entries with built-in names override built-in roles | `[]` |
 
 Role example:
 
@@ -706,7 +725,7 @@ Fields inside each `SubAgent.Roles` entry:
 | `ShellAccess` | How far a reachable shell tool may go: `None` / `ReadOnly` / `Full`. Applied in addition to the allow/deny lists, not instead of them. Defaults to `Full` |
 | `AgentControlToolAccess` | AgentTools policy: `Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | AgentTools names allowed when `AgentControlToolAccess` is `AllowList` |
-| `Instructions` | Role instructions delivered as the SubAgent thread's role context message |
+| `Instructions` | Role instructions delivered as the subagent thread's role context message |
 | `Mode` | Optional mode override |
 | `Model` | Optional model override |
 | `OverrideBasePrompt` | Replaces the base prompt with `Instructions`; by default instructions are appended |
@@ -766,12 +785,13 @@ Vendor headless notes:
 | `cursor-cli` | DotCraft injects `-p --output-format json` and appends `--resume {sessionId}` when resuming |
 | `codex-cli` | DotCraft injects `exec` plus output-file arguments; resume becomes `exec resume {sessionId}` |
 
-## Custom Commands
+## Custom commands
 
-`CustomCommands` stores reusable prompts or workflows as commands. Command content usually lives under workspace `.craft/commands/` or the corresponding configuration entry, then can be reused from CLI, Desktop, and other entry points.
+Custom commands are Markdown files rather than a `config.json` field. DotCraft loads them from the global `~/.craft/commands/` directory and the workspace `.craft/commands/` directory, and a workspace file wins a name collision. Each file becomes a `/name` command usable from the CLI, Desktop, and other entry points.
+
+A command file may open with YAML frontmatter, which is stripped before the body is sent. Inside the body, `$ARGUMENTS` expands to the full argument string and `$1` through `$9` expand to positional arguments.
 
 ## Related docs
 
-- [Getting started](../getting-started) — first-time setup
-- [AppServer Mode](./lifecycle/appserver) — `AppServer.*` / `CLI.*` fields in context
-- [Settings Lifecycle](./lifecycle/settings-lifecycle) — when a changed field takes effect
+- [AppServer mode](./lifecycle/appserver) — the `AppServer.*` and `CLI.*` fields in a running host.
+- [Settings lifecycle](./lifecycle/settings-lifecycle) — which scope wins, and when a changed field takes effect.

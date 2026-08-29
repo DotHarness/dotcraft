@@ -10,7 +10,7 @@
 | 目标框架 | `net10.0` |
 | 序列化 | `System.Text.Json` 与 `DotCraftJson.Options` |
 
-只安装 `DotCraft.Sdk`。该包包含 `DotCraft.Sdk.dll` 和 `DotCraft.Protocol.dll`。
+只需添加 `DotCraft.Sdk` 一个包，它同时包含 `DotCraft.Sdk.dll` 和 `DotCraft.Protocol.dll`。
 
 ## 命名空间
 
@@ -37,11 +37,12 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 | Thread 状态 | `Snapshot`、`RefreshAsync()`、`SubscribeAsync()`、`UnsubscribeAsync()`、`SetModeAsync()`、`ArchiveAsync()`、`DeleteAsync()` |
 | Provider 和模型 | `Providers.ListAsync()`、`Models.GetCatalogAsync()` |
 | 模型配置 | `Threads.ReadModelConfigurationAsync()`、`UpdateModelConfigurationAsync()` |
+| Agent Profile | `AgentProfiles.ListAsync()`、`ReadAsync()`、`ValidateAsync()`、`UpsertAsync()`、`RemoveAsync()`、`RefreshThreadAsync()` |
 | MCP runtime | `McpRuntime.ListStatusAsync()`、`ReadResourceAsync()`、`CallToolAsync()`、`LoginOAuthAsync()`、`ReloadAsync()` |
 | App Binding | `AppBindings` |
 | 运行时工具 | `OnToolCall()` 或 `RegisterDynamicToolHandler()` |
 
-在连接选项中配置 `ApprovalHandler` 和 `UserInputHandler`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
+在连接选项中配置 `ApprovalHandler` 和 `UserInputHandler`。向用户暴露 Agent Profile 管理功能前，先检查 `Capabilities.AgentProfileManagement`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
 
 ## 连接
 
@@ -55,6 +56,8 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 `DotCraftClientOptions` 控制 client identity、capability、callback、streaming、配置变更通知和重连行为。`DotCraftLocalOptions` 另外包含可执行文件、Hub lock、user profile 和启动 timeout 设置。
 
 共享选项字段为 `AutoReconnect`、`ClientName`、`ClientTitle`、`ClientVersion`、`ApprovalSupport`、`StreamingSupport`、`RequestUserInputSupport`、`ConfigChange`、`ExtraCapabilities`、`ApprovalHandler` 和 `UserInputHandler`。`DotCraftRemoteOptions` 另外包含 `Token`。
+
+远程 URL 指向 AppServer 的 WebSocket 端点，路径以 `/ws` 结尾。token 单独放在 `Token` 里，不要拼进 URL，也不要把两者写进日志。服务端监听方式见 [AppServer 模式](../lifecycle/appserver)。
 
 ## Thread 与 Run
 
@@ -144,6 +147,8 @@ Wire 状态包括 `Connecting`、`Initializing`、`Ready`、`Disconnected`、`Re
 - Handler 注册会跨重连保留，但 thread subscription 和运行时工具资源不会保留。
 - 活动 run 会以 `RunDisconnectedException` 失败，`turn/start` 绝不重放。
 
+重连不会替应用重建这些资源。继续工作前先读取或恢复 thread、重新订阅，并重新注册运行时工具 handler。
+
 Dispose 本地高层 client 只关闭 AppServer 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
 
 ## 错误
@@ -173,9 +178,5 @@ SDK 异常派生自 `DotCraftException`，并带有稳定的 `Code`。
 
 ## 相关文档
 
-- [SDK 快速开始](./quickstart)
-- [线程与运行](./runs)
-- [工具与审批](./tools)
-- [MCP 运行时](./mcp-runtime)
-- [DotCraft App](../integrations/app-binding)
-- [AppServer 协议](../protocols/appserver-protocol)
+- [AppServer 协议](../protocols/appserver-protocol)——本页各方法对应的线路契约。
+- [Hub 生命周期](../lifecycle/hub)——本地连接背后的 Hub 进程模型。

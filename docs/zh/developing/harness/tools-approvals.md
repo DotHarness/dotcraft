@@ -1,6 +1,6 @@
 # 添加工具并处理审批
 
-Harness 可以将应用自有工具组合进 Agentic Loop。工具实现在应用进程内运行，并可使用与应用其他部分相同的依赖注入容器。
+Harness 把应用自有的工具组合进 Agentic Loop。工具实现留在应用进程内，和应用其余部分共用同一个依赖注入容器。
 
 ## 定义工具来源
 
@@ -25,7 +25,7 @@ public sealed class ClockToolSource : AIFunctionToolSource
 }
 ```
 
-`CreateFunctions` 会收到当前 Thread 与 Turn 的不可变规划上下文。当工具只应在特定 workspace、模式或 Provider 能力下可用时，可以使用这个上下文进行判断。
+`CreateFunctions` 收到当前 Thread 与 Turn 的不可变规划上下文。工具只在特定 workspace、模式或 Provider 能力下可用时，用它决定这次是否产出这个函数。
 
 ## 注册工具来源
 
@@ -39,14 +39,14 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-Harness 构建工具规划时会收集全部 `IToolSource` 注册。请保持来源 ID 稳定，并使用清晰的工具名称，因为它们会成为模型可见工具契约的一部分。
+Harness 构建工具规划时会收集全部 `IToolSource` 注册。保持来源 ID 稳定，工具名清晰。两者都会进入模型可见的工具契约。
 
 > [!TIP]
-> 通过工具来源的构造函数注入应用服务。这样可以避免将凭据、数据库与 UI 状态放进静态辅助方法，也便于测试工具。
+> 通过工具来源的构造函数注入应用服务。这样可以避免把凭据、数据库与 UI 状态塞进静态辅助方法，也便于测试工具。
 
 ## 处理工具事件
 
-`SessionEventHandler` 可以把会话事件流转换为职责明确的回调：
+`SessionEventHandler` 把[会话事件流](./threads-turns)转换为职责明确的回调：
 
 ```csharp
 var handler = new SessionEventHandler
@@ -73,25 +73,26 @@ await handler.ProcessAsync(
     cancellationToken);
 ```
 
-处理器会等待 `OnApprovalRequested` 返回，并将决策传回 Session Core，然后继续执行。
+处理器等待 `OnApprovalRequested` 返回，把决策传回 Session Core，然后恢复执行。
 
 ## 选择审批决策
 
 | 决策 | 效果 |
 | --- | --- |
-| `AcceptOnce` | 只允许当前请求。 |
-| `AcceptForSession` | 允许当前请求，并在当前 Thread 内记住它。 |
-| `AcceptAlways` | 允许请求，并为后续会话持久化审批。 |
-| `Reject` | 拒绝请求的操作。 |
+| `AcceptOnce` | 只允许当前这次请求。 |
+| `AcceptForSession` | 允许请求，并在当前 Thread 内记住它。 |
+| `AcceptAlways` | 允许请求，并把审批写入 workspace 审批状态。当前 Thread 与后续会话都不再询问。 |
+| `Reject` | 拒绝这次操作，Turn 继续执行。 |
 | `CancelTurn` | 拒绝操作并取消活动 Turn。 |
 
-只有应用明确允许 Harness 保存 workspace 审批状态，并且用户理解持久化范围时，才应提供永久审批。面对陌生或影响较大的操作时，优先使用 `AcceptOnce`。
+面对陌生或影响较大的操作，优先给出 `AcceptOnce`。只有在用户清楚永久审批的范围时，才把 `AcceptAlways` 摆到界面上。
+
+审批请求会超时。默认 5 分钟内没有决策就按 `Reject` 处理，Turn 随后继续。用 `ThreadConfiguration.ApprovalTimeoutSeconds` 可以按 Thread 调整这个窗口。
 
 > [!CAUTION]
 > 不要只根据工具展示名称自动批准操作。请向用户展示具体操作、参数、受影响资源与审批范围。
 
 ## 相关文档
 
-- [Harness 总览](./)
-- [线程与轮次](./threads-turns)
-- [配置与路径](./configuration-paths)
+- [配置与路径](./configuration-paths)——`AcceptAlways` 写入的审批状态落在 workspace 数据目录里。
+- [Session Core](../architecture/session-core)——同一个审批事件在不同入口如何呈现给用户。
