@@ -1,54 +1,37 @@
-# 长期记忆与 Dreams
+# 长期记忆与梦境
 
-DotCraft 可以把有用的项目背景带到后续会话中。需要长期保留的记忆会以明文 Markdown 存在工作区里，你可以随时阅读、编辑或删除。
+DotCraft 会把有用的项目背景带进后续会话：讨论过的决定、你的偏好、踩过的坑，下次对话它还记得。这些记忆以明文 Markdown 存在你的工作区里，随时可以阅读、编辑或删除。
 
 ![DotCraft 记忆使用流程](/memory-lifecycle-topology.svg)
 
-## DotCraft 记忆信息的三种方式
+## 三种记忆方式
 
-| 类型 | 主要用途 |
+| 方式 | 适合什么 |
 |---|---|
-| **会话历史** | 重新打开或继续之前会话中的工作 |
-| **已保存的记忆** | 复用稳定的项目背景、偏好、决策和反复出现的问题 |
-| **Dreams** | 保留关于近期重点、开放问题和低信号信息的暂定笔记 |
+| **会话历史** | 回到之前的会话，接着上次的进度继续 |
+| **已保存的记忆** | 沉淀稳定的项目背景、偏好和决策，每次会话自动带上 |
+| **梦境** | 记录近期重点和开放问题这类还没定型的线索 |
 
-会话历史保留每个会话中的工作。已保存的记忆记录跨会话仍有用的信息。Dreams 提供暂定的背景笔记，不会取代前两者。
+三者互不取代：会话历史保住每段工作本身，已保存的记忆保住跨会话仍然有用的结论，梦境补充暂定的背景。
 
-## MEMORY.md 与 HISTORY.md
+## 记忆存在哪里
 
-启用已保存的记忆后，DotCraft 会定期把有长期价值的信息更新到 `.craft/memory/MEMORY.md`，并在 `HISTORY.md` 中添加一条简短记录。具体触发频率和模型见[配置完整参考](../../developing/configuration#workspace-memory-与-skills)。
-
-你可以检查和编辑这两个文件。DotCraft 会在下次更新记忆前读取当前内容，因此你的修改会成为它后续使用的记忆的一部分。
+已保存的记忆就在工作区的 `.craft/memory/MEMORY.md` 里，每次更新还会在 `HISTORY.md` 里留一条简短记录。它们是普通的 Markdown 文件——你改过的内容，DotCraft 下次更新记忆时会一并读入。
 
 > [!TIP]
-> 想"重置项目记忆"时，Desktop 的 **设置 → 个性化 → 重置记忆** 会一次性清空 `MEMORY.md`、`HISTORY.md`、`.craft/dreams/` 和派生缓存，但不会删除会话、配置、技能或自动化任务。
+> 想重置项目记忆时，用 Desktop 的 **设置 → 个性化 → 重置记忆**。它清空记忆和梦境，但不动会话、配置、技能和自动化任务。
 
-## Dreams
+## 梦境
 
-Dreams 会在后台查看近期工作区活动，即使你当前没有在对话。它会整理出可供后续会话参考的暂定笔记，但不会把这些笔记当作指令或已经确认的事实。
+梦境功能在后台回顾近期的工作区活动，把值得留意的线索整理成暂定笔记——它不把这些笔记当作指令或既定事实，只作为后续会话的参考。
 
-Dreams 默认关闭。请在 Desktop 的 **设置 → 个性化 → Dreams** 中开启 **启用 Dreams**，主动为当前工作区启用该功能。启用后，成功的 Dreams 运行会等待你审阅，之后 DotCraft 才会使用结果。开启 **自动更新梦境** 后，未来成功的运行会跳过人工审阅并自动可用。之前已经处于 pending 的运行不会被自动应用。
+在 Desktop 的 **设置 → 个性化 → 梦境** 中开启。每次运行的结果会先等你审阅，应用后才会被后续会话用到。也可以打开自动更新，让成功的运行直接生效。
 
-![Dreams 审阅流程](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
+![梦境审阅流程](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 
-| 状态 | 含义 |
-|---|---|
-| **pending** | 等待审阅，尚未用于会话 |
-| **applied** | 审阅通过或由自动更新应用，可供后续会话使用 |
-| **discarded / archived** | 不再用于后续会话 |
-
-Desktop 的 **设置 → 个性化 → Dreams** 提供：
-
-- **启用 Dreams** — 为当前工作区开启后台 Dreams
-- **立即运行** — 立即开始一次 Dreams 更新
-- **自动更新梦境** — 让未来成功的运行跳过人工审阅并自动可用
-- **管理梦境** — 查看近期运行，并应用、丢弃、取消或归档
-
-Dreams 不会取代已保存的记忆。需要 DotCraft 可靠使用的事实和偏好应写入 `MEMORY.md`。Dreams 只是辅助笔记，仍可能需要更正或删除。
+需要 DotCraft 可靠记住的事实和偏好，请写进已保存的记忆。梦境只是辅助线索，随时可以更正或丢弃。
 
 ## 相关文档
 
-- [Skills 与自学习](./skills) — 把成功流程沉淀为可复用 skill
-- [Observability](../self-hosted/observability) — 在 Dashboard 审阅 Dreams、查看 Trace
-- [配置完整参考](../../developing/configuration) — `Memory.*` / `Compaction.*` 字段
-- [会话持久化](../../developing/architecture/session-persistence)
+- [技能与自学习](./skills) — 记忆沉淀事实，技能沉淀做法：让成功的流程下次直接复用
+- [可观测性](../self-hosted/observability) — 在 Dashboard 里回看梦境运行和会话轨迹

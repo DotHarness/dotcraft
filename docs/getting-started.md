@@ -1,6 +1,6 @@
-# Get started with DotCraft
+# Getting Started
 
-Install DotCraft Desktop, open a project, finish the setup wizard, and start your first conversation.
+Install DotCraft Desktop, open your project, finish the setup wizard, and send your first message. Four steps and DotCraft is working inside your project.
 
 ![Install DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/setup.gif)
 
@@ -8,30 +8,30 @@ Install DotCraft Desktop, open a project, finish the setup wizard, and start you
 
 Download the installer for your system from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases), run it, then open DotCraft.
 
-## 2. Open a project
+## 2. Open your project
 
-Select **Open Workspace** and choose the folder that contains your project. DotCraft will open the workspace setup wizard.
+Select **Open Workspace** and choose the folder that holds your project. DotCraft opens the workspace setup wizard.
 
-DotCraft can also import your existing Claude configuration during workspace setup.
+If this machine already has a Claude Code configuration, the wizard adds a step that imports it. Skip that step if you'd rather start clean.
 
 ## 3. Configure a model
 
-Choose a model provider and model in the setup wizard. Enter an API key when the provider requires one, or choose **Sign in with ChatGPT** and complete sign-in after setup.
+Choose a model provider and model in the wizard. Enter an API key when the provider requires one, or choose **Sign in with ChatGPT** and sign in after setup.
 
-Review your choices and select **Create workspace**.
+Check the summary on the last page, then select **Create Workspace**.
 
 ## 4. Start your first conversation
 
-Enter a small request in the conversation box and send it. For example:
+Type a small request in the conversation box and send it. For example:
 
 ```text
 Read this project's README and tell me how to start it.
 ```
 
-When DotCraft responds, the workspace is ready for your next task.
+Once DotCraft replies, the workspace is ready for real work.
 
 ## Related docs
 
-- [Desktop](./features/entry-points/desktop)
-- [Agent Profiles](./features/agent-system/agent-profiles)
-- [Plugins and tools](./features/agent-system/plugins-tools)
+- [Desktop](./features/entry-points/desktop) — find your way around threads, approvals, and workspace switching
+- [Plugins and tools](./features/agent-system/plugins-tools) — give the agent the abilities your tasks need
+- [Memory & Dreams](./features/agent-system/memory) — carry today's decisions into your next session

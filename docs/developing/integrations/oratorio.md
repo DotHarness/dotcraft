@@ -43,5 +43,5 @@ Keep Oratorio domain behavior in the Server. Desktop view models may format data
 - [Hub Protocol](../protocols/hub-protocol)
 - [Desktop Plugins](./desktop-plugins)
 - [DotCraft App](./app-binding)
-- [Deploy the DotCraft Stack](../../features/self-hosted/server-deployment)
+- [Server Deployment](../../features/self-hosted/server-deployment)
 - [Oratorio](../../features/oratorio)

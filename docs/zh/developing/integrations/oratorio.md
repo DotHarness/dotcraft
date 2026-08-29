@@ -43,5 +43,5 @@ Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式�
 - [Hub 协议](../protocols/hub-protocol)
 - [Desktop Plugins](./desktop-plugins)
 - [DotCraft App](./app-binding)
-- [部署 DotCraft Stack](../../features/self-hosted/server-deployment)
+- [服务器部署](../../features/self-hosted/server-deployment)
 - [Oratorio](../../features/oratorio)

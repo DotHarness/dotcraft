@@ -1,106 +1,45 @@
 # Desktop
 
-Desktop 是上手 DotCraft 最省事的方式。它把一切都放在一个窗口里——工作区、会话、Diff、计划、模型配置、自动化审核和运行状态——让你用图形界面驱动 Agent，而不用敲命令行。（它底层是个 AppServer 客户端，和其他入口共用同一个工作区。）
+Desktop 把工作区、会话、diff、计划、模型配置和运行状态放进同一个窗口，用图形界面驱动 Agent，不用记命令。第一次接触 DotCraft，从这里开始最省事。
 
-第一次使用先按 [快速开始](../../getting-started) 完成下载、选工作区和配模型。本页只讲 Desktop 自己的特有面板与设置。
+下载安装、选工作区、配模型这几步见[快速开始](../../getting-started)。本页讲装好之后 Desktop 能帮你做什么。
 
-## 安装
+## 看清 Agent 做了什么
 
-### 直接使用 Release
+Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它读了什么、改了什么，文件改动以 diff 呈现，写文件和执行命令前会停下来等你批准。[自动化与目标](../agent-system/automations)跑出的结果同样在这里等你过目。
 
-1. 从 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 下载安装包。
-2. 启动 DotCraft。
-3. 选择项目目录作为工作区。
+想追得更细，就打开 Trace 或 Dashboard，看这次任务调用了哪些工具、花了多少 token。
 
-### 从源码运行
+回复里标了 `mermaid` 的代码块会直接渲染成图，渲染不出来时回落显示源码。粘进对话的图片重启后仍然保留，重新打开会话，缩略图还在。
 
-```bash
-cd desktop
-npm install
-npm run dev
-```
+## 一个窗口里管多个项目
 
-从源码运行时，应用会在 `PATH` 中查找 `dotcraft`。如果找不到，请在设置中指定 AppServer / `dotcraft` 二进制路径。打包安装包可运行 `npm run dist`，产物位于 `desktop/dist/`。
+换一个工作区就换一个项目，配置、技能、记忆和自动化任务都跟着项目走，互不干扰。项目的记忆开关、梦境和一键重置记忆在**设置 → 个性化**里，它们各自管什么见[长期记忆与梦境](../agent-system/memory)。
 
-## 启动参数
+## 配好模型
 
-```bash
-DotCraft --app-server /path/to/dotcraft
-DotCraft --workspace /path/to/project
-```
+在**设置 → 模型提供商**里添加提供商、填凭据、挑模型。凭据和 endpoint 写进个人配置 `~/.craft/config.json`，不进工作区，把工作区配置分享给同事也不会带上密钥。保存前用**测试**确认凭据和模型列表可达。提供商不支持列出模型时，手填模型名照样能存。Desktop 目前支持 OpenAI 和 Anthropic。
 
-## Desktop 特有设置
+这里选的模型只决定新会话的默认值。已有会话保留自己创建时的设置，也可以在它自己的输入框里单独换。[Subagents](../agent-system/subagents) 默认沿用主 Agent 的模型，需要时可以给它指定一个更快或更便宜的。
 
-| 配置入口 | 说明 |
-|---|---|
-| **Settings → Profile** | 当前工作区的 Token 活动热力图、累计/峰值/连续天数统计，以及可选的 GitHub 身份 |
-| **Settings → General** | 当前 Workspace 路径、AppServer binary 路径、语言 |
-| **Settings → Personalization** | 长期记忆与 Dreams 的开关、立即运行、自动更新、重置记忆 |
-| **Settings → Model providers** | 个人 provider、凭证、Endpoint，以及各 provider 的 MainAgent/SubAgent 模型 |
-| **Settings → Subagents** | 复用外部 CLI 会话（详见 [SubAgents](../agent-system/subagents)） |
-| **Settings → Connection** | 本地 Hub vs 远程 AppServer 切换 |
+## 看 token 花在哪
 
-### Profile
+**设置 → 个人资料**里有一张 Token 活动图，像 GitHub 贡献图那样按天铺开当前工作区所有会话的用量，旁边是累计 Token、单日峰值和连续使用天数。需要先为这个工作区开启 tracing，这张图才有数据。
 
-- **Token 活动** — 类似 GitHub 贡献图的热力图，展示当前工作区所有会话的每日 Token 用量。可在**每日**、**每周**、**累计**三种着色方式间切换。
-- **统计** — 累计 Token、单日峰值、最长任务（最长的单次 Agent turn）、当前连续天数与最长连续天数。
-- **身份（可选）** — 关联一个 GitHub 用户名即可在头部显示其公开头像与 handle。未关联时显示首字母头像。检测到已登录的 ChatGPT provider 时，会以徽章显示其套餐（如 Pro）。
-- 需要为该工作区启用 tracing，否则活动视图不可用。
+## 连本地，也能连远程
 
-### Personalization → Dreams
+默认情况下 Desktop 在本机启动或接管当前工作区的 AppServer，其他入口共用同一个进程，不用你操心。在这里开的会话也不会被锁在 Desktop 里，换个[入口](./)可以接着聊。
 
-- **立即运行** — 强制触发一次后台 Dreams 整理。
-- **自动更新梦境** — 关闭时，新 Dreams 仅作为 pending。开启后，未来成功运行自动应用为 active Dream store。
-- **管理梦境** — 列出最近运行记录，每条记录可打开 Dashboard 完成 diff、trace、应用、丢弃、取消、归档。
-- **重置记忆** — 一次性清空 `MEMORY.md`、`HISTORY.md`、`.craft/dreams/` 与派生缓存，但不会删除会话、配置、技能或自动化任务。
+要连服务器上的 DotCraft，在**设置 → 连接**里填远程 AppServer 地址。保存前 Desktop 会先试连一次，连不上就不保存，下次启动也不会卡在一个坏地址上。整套服务端部署见[服务器部署](../self-hosted/server-deployment)。
 
-详见 [长期记忆与 Dreams](../agent-system/memory)。
+## 跟上新版本
 
-### Model providers
+启动时 DotCraft 会检查 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 有没有更新的版本。当前平台有安装包时，标题栏会出现下载按钮，点开可以看版本说明、下载并看到进度，下完 DotCraft 退出并打开安装包。
 
-- Provider 凭据与 endpoint 写入个人 `~/.craft/config.json`，**不**写入工作区。
-- 工作区保存 `ProviderId`、`ProviderPreferences` 与 `SubAgent.ProviderPreferences`，共享配置仍不会包含密钥。
-- Welcome、Workspace preferences 和 Setup 使用同一个 picker 配置模型、思考程度、速率与上下文窗口。
-- Welcome picker 只设置未来线程的默认值。已有线程保留创建时的完整偏好，也可以在自己的 composer 中独立切换。
-- 原生 SubAgent 默认继承父线程完整的 MainAgent 偏好。关闭 **Inherit MainAgent** 后，可为该 provider 保存独立的完整偏好。
-- Desktop 当前支持 OpenAI 与 Anthropic provider。
-- 用 **Test** 检查凭据和模型列表可达性。如果 provider 不支持列模型，仍可保存并手动输入模型名。
-
-### Connection（Local vs Remote）
-
-- **Local（默认）**：Desktop 通过 Hub 自动启动或发现工作区 AppServer，多入口共享同一个进程。
-- **Remote**：连接已有 WebSocket AppServer。Desktop 不重启远端进程，只测试连接 + 切换。
-- 远端 URL/token 切换前会先做草稿连接探测，失败时不会保存，避免下次启动卡在坏配置上。
-- 通过 `--remote` 启动时，Settings 中的持久化连接切换不可用。
-
-## What's New
-
-Desktop 升级后，会在进入可用工作区主界面时显示一次 **What's New**，介绍当前版本的新能力。动图预览会从 DotHarness resources 仓库下载、校验并缓存在本机。自动弹窗会等预览准备好再出现，手动打开则会先显示文字和占位预览。也可以随时通过 **Help → What's New** 或侧边栏底部的版本号重新打开。最新版本默认展开，历史版本会折叠在 **历史亮点** 按钮后，需要查阅时再展开即可。
-
-## 更新
-
-启动后，DotCraft 会从 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 检查是否存在更新的 release tag。如果当前平台有可用安装包，标题栏会出现高亮下载按钮。点击后可查看 release 信息、下载安装包并看到进度。下载完成后 DotCraft 会退出并打开下载好的安装包。
-
-## 使用示例
-
-| 场景 | Desktop 中的路径 |
-|---|---|
-| 第一次使用 | 选择工作区 → 配置模型 → 新建会话 |
-| 查看 Agent 做了什么 | 打开会话详情、Diff、Trace 或 Dashboard |
-| 审核自动化任务 | 打开 Automations 面板，查看待审核任务 |
-| 切换项目 | 选择另一个 workspace，让配置和任务跟随项目隔离 |
-| 收回 SubAgent 控制权 | 打开 Settings → Subagents，关闭复用外部 CLI 会话 |
-
-## 进阶
-
-- Desktop 是一个 AppServer 客户端，与 ACP、外部渠道共享同一个 [会话核心](../../developing/architecture/session-core)——在这里开的线程，可以在其他 AppServer 客户端中继续。
-- 图片附件在重启后仍然保留。重新打开会话，缩略图依旧在。
-- Markdown 内容区会把标记为 `mermaid` / `mmd` 的 fenced code block 渲染为 Mermaid 图。图表无法渲染时，Desktop 会回退显示源码块。
+升级后第一次进入工作区会弹出一次**最新功能**，用动图介绍这个版本新增的能力。之后从**帮助 → 最新功能**或侧边栏底部的版本号可以随时再打开。
 
 ## 相关文档
 
-- [快速开始](../../getting-started)
-- [Connected Apps](../agent-system/connected-apps)
-- [入口总览](./)
-- [可观测性](../self-hosted/observability)
-- [设置生效层级](../../developing/lifecycle/settings-lifecycle)
+- [入口总览](./) — 什么时候改用 CLI、编辑器或群聊入口
+- [应用连接](../agent-system/connected-apps) — 让会话直接用上你已经在用的产品和服务
+- [可观测性](../self-hosted/observability) — 打开 Dashboard 回看会话轨迹、diff 和 token 用量

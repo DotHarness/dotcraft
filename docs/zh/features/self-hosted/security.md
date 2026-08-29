@@ -1,71 +1,56 @@
 # 安全与沙箱
 
-DotCraft 把 Agent 关在你能掌控的护栏里，一共四层：**文件黑名单**、**工作区边界**、**工具能力开关**和**沙箱隔离**。大多数本地项目只需默认策略加上几条敏感路径。公开部署和外部渠道接入则应按严格部署清单逐项检查。
+DotCraft 用四层护栏约束 Agent 能碰到什么：文件黑名单、工作区边界、工具能力开关和沙箱隔离。本地个人项目用默认策略再补几条敏感路径就够了。要把 DotCraft 暴露给外部渠道或公网，照下面的严格部署清单逐项过一遍。
 
 ![DotCraft 安全护栏示意图](/security-guardrails-overview.svg)
 
 ## 默认安全基线
 
-创建工作区后：
+新建一个工作区，护栏是这样的：
 
 - 工作区外的文件和 Shell 操作需要审批。
-- 黑名单初始为空，需要按你的机器补充凭据和密钥目录。
-- 内置工具默认可用，除非你主动收紧工具表面积。
-- 沙箱隔离默认关闭，需要时再显式开启。
+- 黑名单是空的，你机器上的凭据和密钥目录得自己加。
+- 内置工具全部可用，除非你主动收紧。
+- 沙箱隔离关闭，需要时再开。
 
-准确字段名、默认值和 JSON 示例见 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
+这几项对应的字段名、默认值和 JSON 示例都在 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
 
-## 文件访问黑名单
+## 文件黑名单
 
-黑名单列出 Agent 绝不能访问的路径。它对 CLI、Desktop、外部渠道和自动化入口都生效。
+黑名单列出 Agent 绝不能碰的路径，对 CLI、Desktop、外部渠道和自动化任务一视同仁。
 
-黑名单行为：
-
-- 访问黑名单路径的文件读取、写入、编辑、搜索会被拒绝。
-- 引用黑名单路径的 Shell 命令会被拒绝。
-- 黑名单优先于工作区边界审批。
-- 支持绝对路径和用户主目录展开，也会检查子路径。
+读取、写入、编辑、搜索这些路径的操作会被拒绝，引用了它们的 Shell 命令同样被拒绝。黑名单的优先级高于工作区边界的审批，命中的路径不会走审批流程，直接拒绝。写绝对路径或以 `~` 开头的路径都可以，子路径一并覆盖。
 
 ## 工作区边界
 
-执行 Shell 命令前，DotCraft 会解析命令引用的每一个路径，包括以下形式：
+执行 Shell 命令前，DotCraft 会把命令里引用的路径全部展开再判断：Unix 绝对路径、`~` 开头的主目录路径、环境变量、Windows 盘符路径，以及 `\\server\share` 这样的 UNC 路径。
 
-- Unix 绝对路径
-- 用户主目录路径（`~`）
-- 环境变量
-- Windows 盘符路径
-- UNC 路径（`\\server\share`）
-
-如果命令解析到工作区外，DotCraft 会按工作区策略直接拒绝，或向当前交互源发起审批。文件工具使用同样的展开规则，保证文件和 Shell 行为一致。
+只要解析结果落在工作区外，DotCraft 就按工作区策略直接拒绝，或者向当前的交互入口发起审批。文件工具用的是同一套展开规则，所以文件操作和 Shell 命令的判断结果一致。
 
 ## 工具能力开关
 
-工具策略决定哪些内置工具可见、工作区外文件和 Shell 是否需要审批、文件/Web 响应上限是多少，以及是否启用 LSP 或沙箱。
-
-需要精确 allow-list、Web 搜索 provider、超时、输出上限或沙箱设置时，请查看 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
+工具策略决定哪些内置工具对 Agent 可见、工作区外的文件和 Shell 操作是否需要审批、文件和 Web 响应最多返回多少内容，以及是否启用 LSP 和沙箱工具。需要精确的 allow-list、Web 搜索 provider、超时或输出上限时，在 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox) 里查字段。
 
 ## Hooks
 
-Hooks 可以把安全检查变成生命周期 guardrail：命令运行前检查 Shell、工具调用后审阅改动，或在高风险操作前让 DotCraft 暂停并等待你的下一步批准。
+Hooks 把安全检查变成会话生命周期上的关卡：命令执行前先检查一遍、工具调用后审阅改动，或者在高风险操作前停下来等你点头。概念说明见[生命周期 Hooks](../agent-system/hooks)，事件、matcher 规则和退出码语义见[配置参考](../../developing/configuration#automations-goals-与-hooks)。
 
-面向用户的概念说明见 [生命周期 Hooks](../agent-system/hooks)。字段、事件、matcher 规则和退出码语义见 [配置完整参考](../../developing/configuration#automations-goals-与-hooks)。
+写 Hook 时：
 
-最佳实践：
-
-- Hook 脚本保持短小，复杂逻辑放到项目脚本里。
-- 阻塞型 Hook 要输出清晰错误信息。
-- 不要提交密钥，优先使用环境变量或全局配置。
-- 使用工作区相对命令路径，避免不同入口 cwd 不一致。
+- 脚本保持短小，复杂逻辑放进项目自己的脚本。
+- 阻塞型 Hook 一定要打印清楚的错误信息，否则你只会看到操作被挡下，不知道为什么。
+- 不要把密钥写进 Hook，用环境变量或全局配置。
+- 命令路径写成工作区相对路径，不同入口的 cwd 并不一致。
 
 ## 沙箱（OpenSandbox）
 
-[OpenSandbox](https://github.com/alibaba/OpenSandbox) 可以把 Shell 和 File 工具执行隔离在 Docker 容器中。工作区暴露给 bot、共享服务器或不可信任务队列时尤其有用。
+[OpenSandbox](https://github.com/alibaba/OpenSandbox) 把 Shell 和 File 工具的执行放进 Docker 容器。工作区要暴露给 bot、共享服务器或不可信的任务队列时，这一层最有用。
 
-OpenSandbox 服务前置条件和所有沙箱字段见 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
+它需要一个 OpenSandbox 服务，前置条件和全部沙箱字段见 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
 
 ## 严格部署清单
 
-当 DotCraft 暴露给外部渠道或公网时，建议同时启用这些策略：
+DotCraft 暴露给外部渠道或公网时，这些策略建议一起开：
 
 | 区域 | 建议 |
 |---|---|
@@ -74,7 +59,7 @@ OpenSandbox 服务前置条件和所有沙箱字段见 [Tools, Security 与 Sand
 | 工具表面积 | 只保留部署所需工具 |
 | AppServer | 远程访问使用强随机 WebSocket token |
 | 沙箱 | 需要进一步隔离时启用 OpenSandbox |
-| SubAgents | 除非明确需要，否则限制递归委派 |
+| Subagents | 除非明确需要，否则限制递归委派 |
 
 ## 使用场景
 
@@ -87,6 +72,5 @@ OpenSandbox 服务前置条件和所有沙箱字段见 [Tools, Security 与 Sand
 
 ## 相关文档
 
-- [可观测性](./observability) — 在 Dashboard 查看审批和拦截记录
-- [SubAgents](../agent-system/subagents) — 用 role 工具策略限制委派任务
-- [配置完整参考](../../developing/configuration) — 完整安全和工具字段
+- [可观测性](./observability) — 在 Dashboard 回看审批和拦截记录
+- [Subagents](../agent-system/subagents) — 用角色的工具策略约束委派出去的任务

@@ -1,20 +1,17 @@
 # Channels & Bots
 
-DotCraft can answer from the chat tools your team already uses: QQ, WeCom, Feishu / Lark, Telegram, and WeChat.
+Put DotCraft in the chat tools your team already uses, so a colleague can ask in the group chat instead of opening Desktop. QQ, WeCom, Feishu / Lark, Telegram, and WeChat all connect, and the resulting sessions and memory are shared with every other entry point in the workspace.
 
 ![Available channels in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog-light.png)
 
 ## Connect a channel
 
-1. Open a workspace in DotCraft Desktop.
-2. Open **Channels**.
-3. Select the platform you want to connect.
-4. Fill in the platform credentials shown on the form.
-5. Finish the matching setup in the platform console or bot tool.
-6. Turn the channel on.
-7. Send a test message to the bot.
+1. Open a workspace in DotCraft Desktop and go to **Channels**.
+2. Pick the platform you want, and fill in its credentials on the form.
+3. Finish the matching setup in the platform console or bot tool.
+4. Turn the channel on, and send the bot a test message.
 
-Desktop manages the bundled TypeScript channel process for you. Use the standalone adapter path only when you want to run the adapter yourself.
+Desktop hosts the channel process for you — nothing else to deploy. Which credentials each platform needs is on its setup page in the table below. Settings shared by every channel are in the [Channel configuration reference](../../developing/channels/reference).
 
 ## Built-in channels
 
@@ -25,52 +22,43 @@ Desktop manages the bundled TypeScript channel process for you. Use the standalo
 | **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional official CLI | [Feishu setup](../../developing/channels/feishu) |
 | **Telegram** | BotFather token and long polling | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](../../developing/channels/telegram) |
 | **WeChat / Weixin** | Tencent iLink QR login | Weixin chats, saved login session, plain-text replies, file and image delivery | [Weixin setup](../../developing/channels/weixin) |
-| **Telegram (Python)** | Python standalone adapter | Reference adapter for custom Python channel work | [Python Telegram setup](../../developing/channels/python-telegram) |
 
 ## How channel conversations work
 
 ![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
-- Messages sent to a connected bot become DotCraft conversation turns.
-- Replies are delivered back to the same chat automatically.
-- Approval and user-input requests appear in the chat when the platform supports them.
+- A message sent to the bot becomes a conversation turn, and the reply goes back to the same chat.
+- Approvals and follow-up questions appear in the chat where the platform supports them.
 - `/new` starts a fresh conversation in channels that support slash commands.
-- Desktop can stay open on the same workspace to inspect history or continue the conversation.
+- Open the same workspace in Desktop to read the history or keep the conversation going there.
 
-For the underlying model, see [Unified Session Core](../../developing/architecture/session-core).
+For the model underneath, see [Unified Session Core](../../developing/architecture/session-core).
 
-## Hand off a conversation
+## Continue a Desktop conversation in chat
 
 ![DotCraft channel handoff](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
 
-Bind an existing Desktop conversation to a connected social channel from the conversation's Apps menu. DotCraft shows a `/bind 123456` command; send that command in the target chat to continue the same conversation there.
+From a Desktop conversation's **Apps** menu, bind that conversation to a connected channel. DotCraft shows a `/bind 123456` command. Send it in the target chat to continue the same conversation there.
 
-The binding applies only to that chat. Other chats keep their normal channel conversation.
+The binding applies only to that chat. Other chats keep their own channel conversations.
 
-## Security checklist
+## Before you open a bot to a group
 
-Before exposing a bot to a group or public chat:
+Before putting a bot in a group or public chat:
 
 - Keep file and shell actions behind approval.
-- Limit the channel to trusted users, groups, or chats when the platform supports it.
-- Use a strong AppServer WebSocket token for standalone adapters.
-- Run production deployments behind HTTPS when the platform calls back to DotCraft.
-- Use [OpenSandbox](../self-hosted/security#sandbox-opensandbox) for stronger tool isolation when needed.
+- Limit the channel to trusted users, groups, or chats where the platform supports it.
+- Set a strong random AppServer WebSocket token when you run an adapter yourself.
+- Serve production deployments over HTTPS when the platform calls back into DotCraft.
+- Turn on [OpenSandbox](../self-hosted/security#sandbox-opensandbox) when you need stronger tool isolation.
 
-Full checklist and exact fields: [Security & Sandbox](../self-hosted/security) and [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
+The exact field names are in the [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
 
-## Build a custom channel
+## Connect your own platform
 
-Use the built-in channels first when they cover your platform. For a new platform or custom deployment:
-
-- Channel modules: [Channel Module integration](../../developing/integrations/typescript-module)
-- Channel adapter base class: [Channel adapters](../../developing/sdks/channels)
-- Python SDK: [Python SDK](../../developing/sdks/python)
-- Wire protocol: [AppServer Protocol](../../developing/protocols/appserver-protocol)
+When the built-in channels don't cover the platform you need, write an adapter. [Channel adapters](../../developing/sdks/channels) covers the base class and message flow, and [Channel Module integration](../../developing/integrations/typescript-module) covers wiring the finished module into DotCraft. To build in Python, start from the [Python SDK](../../developing/sdks/python). The [Python Telegram adapter](../../developing/channels/python-telegram) is a reference implementation you can adapt. The underlying message format is in the [AppServer Protocol](../../developing/protocols/appserver-protocol).
 
 ## Related docs
 
-- [Channel configuration reference](../../developing/channels/reference)
-- [Channel adapters](../../developing/sdks/channels)
-- [Security & Sandbox](../self-hosted/security)
-- [Server Deployment](../self-hosted/server-deployment)
+- [Security & Sandbox](../self-hosted/security) — tighten tool permissions and sandboxing before a bot faces a group chat
+- [Server Deployment](../self-hosted/server-deployment) — keep channels running on a server instead of your own machine

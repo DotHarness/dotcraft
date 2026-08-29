@@ -1,48 +1,44 @@
-# Follow the Oratorio workflow
+# Oratorio workflow
 
-Use the Board to move a task from intake through Agent work, review, and a recorded decision.
+Every task on the [Oratorio](../oratorio) Board follows the same path: intake, Agent work, review, and a recorded decision.
 
 ## Find work on the Board
 
 The **Active** view groups current tasks by lifecycle stage. Use **All**, **Cancelled**, and **Archived** for completed or inactive work.
 
-- Search titles and descriptions, or narrow results with `source:` and `label:` qualifiers.
+- Search titles and descriptions, or narrow the results with `source:` and `label:`.
 - Filter by repository or assignee.
 - Select **Sync sources** to request an immediate GitHub and GitLab update.
-- Select a card to open Quick View without losing the current Board filters.
+- Select a card to open Quick View without losing your current Board filters.
 
-Quick View shows the current status, recent activity, drafts, comments, and only the actions currently allowed by Oratorio.
+Quick View shows the task's status, recent activity, drafts, and comments, along with the actions allowed right now.
 
 ## Start and follow Agent work
 
-Open a discovered task and choose one of the offered run modes. The available choices depend on the task source and its current state.
+Open a pending task and pick one of the offered run modes. The choices depend on where the task came from and which stage it is in.
 
-Each run uses an Oratorio-managed worktree. Open the linked DotCraft thread when you need the full conversation, plan, tool activity, or file changes. Cancelling an active run requires confirmation.
+Every run happens in an Oratorio-managed worktree. Open the linked DotCraft thread for the full conversation, plan, tool activity, or file changes. Cancelling a run in progress asks for confirmation.
 
-## Review the task detail
+## The five stages of a task
 
-Task Detail keeps the workflow in five stages:
+Open a task's full detail and the workflow unfolds in five stages:
 
 1. **Intake** — problem statement, source metadata, labels, assignee, and base branch.
-2. **Analysis** — run attempts, live activity, timeline, diagnostics, and worktree information.
-3. **Review** — Agent drafts, findings, suggestions, comments, implementation delivery, and follow-up tasks.
-4. **Decision** — approve, request changes, or reject, plus the status of any provider write.
-5. **Closed** — the recorded outcome, history, archive, reopen, and re-review actions when available.
+2. **Analysis** — run attempts, live activity, timeline, and diagnostics.
+3. **Review** — Agent drafts, findings, and suggested changes.
+4. **Decision** — approve, request changes, or reject, plus the result of any provider write.
+5. **Closed** — the recorded outcome and history, with archive, reopen, and re-review available when they apply.
 
 ![Reviewing an Oratorio task in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/task-review-light.png)
 
 ## Deliver or continue the work
 
-Review drafts can contain inline findings and suggested replacements. Resolve or reopen findings before publishing when more discussion is needed.
+Review drafts carry inline findings and suggested replacements. Resolve or reopen a finding before publishing when a point still needs discussion.
 
-Implementation drafts can deliver a branch as a GitHub pull request or GitLab merge request when source writes are enabled. Follow-up drafts can be edited and turned into new local tasks. If a provider write fails, Oratorio keeps the recorded decision and offers a targeted retry.
-
-Oratorio refreshes the task and Board after successful commands. A reconnect refreshes state but does not repeat the original user action.
+With source writes enabled, an implementation draft delivers its branch as a GitHub pull request or a GitLab merge request. A follow-up draft can be edited and turned into a new local task. If a provider write fails, Oratorio keeps the recorded decision and offers a retry for that write.
 
 ## Related docs
 
-- [Oratorio](../oratorio)
-- [Connect GitHub](./github)
-- [Connect GitLab](./gitlab)
-- [Configure Oratorio](./settings)
-
+- [Connect GitHub](./github) — sync issues and pull requests onto the Board and write reviews back
+- [Connect GitLab](./gitlab) — connect issues and merge requests with a project-scoped token
+- [Configure Oratorio](./settings) — tune source sync, Agent execution, and delivery behavior

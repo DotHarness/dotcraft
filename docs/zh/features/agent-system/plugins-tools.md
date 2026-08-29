@@ -1,88 +1,79 @@
 # 插件与工具
 
-插件和工具让 DotCraft 可以编辑文件、运行命令、连接外部服务，并执行可复用的工作流。
+工具决定 Agent 能做什么：编辑文件、运行命令、访问网络、连接外部服务，以及执行可复用的工作流。插件和 MCP server 负责把这些能力加进来。
 
-![内置工具、插件和 MCP server 汇聚成 Agent 的一份能力清单；插件和 MCP server 需要先检查并信任](/capability-sources-overview.svg)
+![内置工具、插件和 MCP server 汇聚成 Agent 的一份能力清单，插件和 MCP server 需要先检查并信任](/capability-sources-overview.svg)
 
 ## 能力来自哪里
 
-| 来源 | 提供的能力 |
+| 来源 | 提供什么 |
 |---|---|
-| **内置工具** | 文件编辑、Shell、Web、搜索、规划等核心操作 |
-| **插件** | 打包分发的 skills、tools、workflows、apps、面板和生命周期 hooks |
-| **MCP servers** | 由本地进程或远程服务提供的 tools |
+| **内置工具** | 文件编辑、Shell、Web、搜索、规划这些核心操作 |
+| **插件** | 打包分发的技能、工具、工作流、App、面板和[生命周期 Hooks](./hooks) |
+| **MCP server** | 由本地进程或远程服务提供的工具 |
 
-Agent 调用 tool 时，DotCraft 仍会执行工作区边界、审批和安全设置。可执行的 Desktop 与 .NET 模块使用下面说明的另一套信任边界。
+不管能力从哪里来，Agent 调用工具时都要经过工作区边界、审批和安全设置。可执行的 Desktop 插件和 .NET 插件是例外，它们走另一套信任边界，下面单独说明。
 
 ## 安装插件
 
-1. 在 DotCraft Desktop 中打开 **Plugins / 插件**。
+1. 在 DotCraft Desktop 中打开**插件**页面。
 2. 搜索或浏览插件目录。
-3. 打开插件，检查发布者、能力和相关链接。
-4. 点击 **Install / 安装**。
-5. 检查确认信息，然后点击 **Add to DotCraft / 添加到 DotCraft**。
-6. 按安装对话框提示完成所需的 App 配置。
-7. 点击 **Try in chat / 在对话中试用**，或新建对话并描述你的任务。
+3. 打开一个插件，看清楚发布方、它提供的能力和相关链接。
+4. 点击**安装**。
+5. 确认信息后，点击**添加到 DotCraft**。
+6. 按安装对话框的提示完成需要的 App 配置。
+7. 点击**在对话中试用**，或者新建一段对话直接说明你要做的事。
 
-如需从其他目录安装插件，请阅读[插件市场](./plugin-marketplaces)。
+想从其他目录安装插件，见[插件市场](./plugin-marketplaces)。
 
-## 管理已安装插件
+## 管理已安装的插件
 
-打开 **Plugins / 插件**，然后点击 **Manage / 管理**。
+打开**插件**页面，点击**管理**。禁用一个插件会保留它的文件，但 Agent 不再使用其中的能力，需要时重新启用即可。要彻底移除，打开插件详情并点击**卸载**。
 
-- 禁用插件会保留安装文件，但 Agent 不再使用其中的能力。
-- 需要再次使用时，重新启用即可。
-- 打开插件并点击 **Uninstall / 卸载**，可以从当前工作区移除插件。
+带 App 的插件在**应用设置**里管理账号连接，对话里的 App 选择器决定这段会话能不能用它。详见[应用连接](./connected-apps)。
 
-如果插件带有 App，**App Settings / 应用设置** 管理账号连接，会话中的 App 选择器决定当前会话能否使用它。详见 [Connected Apps](./connected-apps)。
+## 从磁盘安装
 
-## 从本地安装
+自己开发插件，或者收到一个插件文件夹时，可以直接从磁盘装进来。这个入口只在本地工作区可用。
 
-开发插件或收到插件文件夹时，可以直接从磁盘安装：
-
-此选项仅适用于本地工作区。
-
-1. 打开 **Plugins / 插件**。
-2. 打开 **Create / 创建** 旁的菜单，然后选择 **Install from disk / 从磁盘安装**。
+1. 打开**插件**页面。
+2. 打开**创建**旁边的菜单，选择**从磁盘安装**。
 3. 选择插件文件夹。
-4. 检查插件，然后通过 **Try in chat / 在对话中试用** 完成验证。
+4. 检查插件，再用**在对话中试用**验证一遍。
 
-DotCraft 会把插件复制到当前工作区。卸载时会删除这份已安装副本。
+DotCraft 会把插件复制到当前工作区，卸载时删除的是这份副本。
 
 ## 创建插件
 
-从内置的 `$plugin-creator` skill 开始：
+从内置的 `$plugin-creator` 技能开始：
 
 ```text
 $plugin-creator 创建一个插件，用来打包我的项目审查工作流。
 ```
 
-这个 skill 会创建插件结构，并引导你完成本地测试。需要分发可复用能力时使用插件。只服务于一个项目的工作流，优先使用普通 skill。
+这个技能会搭好插件结构，并带你完成本地测试。需要把能力分发给别人时用插件，只服务于一个项目的工作流写成普通技能就够了。
 
-开发可执行模块请从[构建 Desktop Plugin](../../developing/integrations/desktop-plugins)或[构建 .NET 插件](../../developing/integrations/dotnet-plugins)开始。市场打包和分发方式见[插件市场](../../developing/integrations/plugin-market)。
+开发可执行模块请看[开发 Desktop Plugin](../../developing/integrations/desktop-plugins)或[开发 .NET 插件](../../developing/integrations/dotnet-plugins)，打包和分发方式见[插件市场打包指南](../../developing/integrations/plugin-market)。
 
 ## 连接 MCP server
 
-打开 **Settings → MCP Servers**，然后添加一种连接：
+打开 **设置 → MCP Servers**，添加一种连接：
 
-- **STDIO**：通过本地命令启动 server。
+- **STDIO**：由本地命令启动 server。
 - **Streamable HTTP**：连接远程 MCP endpoint。
 
-Token 和其他 secret 应通过环境变量提供。正式使用前，先点击 **Test connection** 检查连接。
+Token 和其他密钥用环境变量传入。正式在对话里用之前，先点**测试连接**确认能连上。完整字段见[配置完整参考](../../developing/configuration#plugins-mcp-与-lsp)。
 
-完整 MCP 字段见[配置](../../developing/configuration#plugins-mcp-与-lsp)。
+## 安装前先看清信任边界
 
-## 安装前检查信任边界
+只安装你信任的插件，只连接你信任的 server。安装前看清发布方、它声明的能力、来源链接和它要求的账号权限。插件清单里的能力标签只是说明，不构成权限限制。
 
-只安装你信任的插件，只连接你信任的 server。安装前检查发布者、描述的能力、来源链接和账号权限。Manifest capability label 用于说明插件，不会授予或限制可执行权限。
+Agent 的工具调用照常受工具策略和审批约束。可执行插件是另一回事。Desktop 插件的代码启用后在 Desktop 的界面进程里以可信代码运行。.NET 插件的代码运行在 DotCraft 主进程内，拥有该进程的文件、网络、凭据、native interop 和系统权限，需要你为具体的插件 id 和指纹明确授权，普通的工具沙箱约束不到它。需要进程隔离时，改用 MCP。
 
-Agent tool call 继续经过 tool policy 与审批。启用插件后，Desktop Plugin 代码会作为 renderer 中的可信代码执行。.NET Plugin 代码在 DotCraft host 进程内运行，拥有该进程的文件、网络、凭据、native interop 与 OS 权限；它需要对已接受的 plugin id 与 fingerprint 明确授权，不受普通 tool sandbox 约束。可执行代码需要进程边界时请使用 MCP。插件 hooks 在你通过 **Settings → Hooks** 检查并信任前不会运行。
+插件带来的 hooks 要先在 **设置 → Hooks** 里检查并信任，之后才会运行。
 
 ## 相关文档
 
-- [插件市场](./plugin-marketplaces)
-- [Dynamic Workflows](./dynamic-workflows)
-- [Connected Apps](./connected-apps)
-- [生命周期 Hooks](./hooks)
-- [安全与沙箱](../self-hosted/security)
-- [DotCraft App](../../developing/integrations/app-binding)
+- [插件市场](./plugin-marketplaces) — 添加你信任的插件目录，从中安装插件
+- [应用连接](./connected-apps) — 把插件自带的 App 接到你的账号上
+- [安全与沙箱](../self-hosted/security) — 用工作区边界和沙箱进一步约束工具

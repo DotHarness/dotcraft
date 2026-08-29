@@ -46,6 +46,6 @@ With both plugins enabled, DotCraft-specific rules come from `dotcraft`, while a
 
 - [Architecture](../architecture/overview) — the runtime the specs describe.
 - [Plugins & Tools](../../features/agent-system/plugins-tools) — installing and enabling `dotcraft` and `harness-workflow`.
-- [Workspace Handoff](./workspace-handoff) — exporting context for outside coding agents.
+- [Workspace Handoff](../../features/agent-system/workspace-handoff) — exporting context for outside coding agents.
 
 Further reading: [What is Spec-Driven Development? (IBM)](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development (Martin Fowler)](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

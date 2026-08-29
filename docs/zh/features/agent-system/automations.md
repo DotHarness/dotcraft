@@ -1,92 +1,49 @@
-# Automations 与 Goals
+# 自动化与目标
 
-DotCraft 给 Agent 两种"不用你一轮轮盯着也能干活"的方式：
+DotCraft 有两种方式让 Agent 在你不盯着的时候继续干活。自动化按计划或手动跑起一个任务，报告、巡检、清理这类例行活儿自己就完成了。目标为一段对话设定一个长期方向，每当这段对话空下来，DotCraft 就接着往前推进。
 
-- **Automations** — 让 Agent 定时或手动跑起来，报告、巡检、清理这类例行活儿自己就完成了。
-- **Goals** — 给一段对话钉一个长期目标，每当这段对话空下来，DotCraft 就接着往前推。
+![DotCraft 自动化与目标总览](/automations-goals-overview.svg)
 
-![DotCraft Automations and Goals overview](/automations-goals-overview.svg)
+![为一段对话设置目标](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
 
-![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+## 自动化
 
-## Automations
+自动化在你的工作区里运行本地任务，可以定时，也可以随时手动触发。它适合那些你本来要自己记着去做的例行活儿：周报、夜间巡检、清理。
 
-Automations 在你的工作区里运行本地任务——可以定时，也可以随时手动触发。它适合那些你本来要自己记着去做的例行活儿：周报、夜间巡检、清理。
+在 Desktop 的**自动化**面板里创建和管理任务。一个任务由两部分组成：一段简短的说明（做什么、什么时候做），和一段工作流提示词（怎么做）。任务保存在项目的 `.craft/tasks/` 下，跟着仓库走。常跑的任务可以存成模板，下次直接套用。
 
-### 创建任务
+任务可以绑定到一段已有对话，让后续每次运行都在那里继续。也可以指定用某个 [Agent 预设](./agent-profiles)运行，只使用该 Agent 的工具、技能和模型，不指定就用工作区默认的 Agent。每次跑完，Agent 会写一段简短的完成摘要。
 
-在 Desktop 的 Automations 面板里创建和管理任务。每个任务由一段简短的说明（做什么、什么时候做）和一段工作流提示词（怎么做）组成。任务随项目保存在 `.craft/tasks/` 下，会跟着仓库走。
+调度格式、工作流变量和完整的任务字段见[配置参考](../../developing/configuration#automations-goals-与-hooks)。
 
-### 任务能做什么
+## 审核任务产出
 
-| 能力 | 说明 |
-|---|---|
-| 手动运行 | 在 Desktop 中按需触发任务 |
-| 定时运行 | 给任务设置计划，让它自己跑 |
-| 线程绑定 | 把任务绑定到已有对话，后续运行继续在该对话进行 |
-| Agent Profile | 让任务以某个已保存的 Agent Profile 运行，只使用该 Agent 的工具、技能和模型（可选，默认用工作区 Agent） |
-| 模板 | 把任务保存为可复用模板 |
-| 完成摘要 | 工作完成后，Agent 写一段简短摘要 |
-| 删除 | 删除任务，可同时删除其关联对话 |
+没有绑定到已有对话的任务，在 Git 项目里会跑在一个受管的 Git worktree 中，改动不会直接落进你正在用的工作区。Desktop 的审核面板会显示它用的分支、是否有未提交的改动，以及是否有领先基础版本的提交。
 
-### 审核 worktree 输出
+在审核面板里可以打开这个任务的对话，把 worktree 交接回本地工作区，或者丢弃它。丢弃会一并移除该任务的 worktree 产出和受管分支，确认不再需要这些改动再动手。
 
-未绑定到现有 Thread 的自动化任务，在 Git 项目中会运行在受管 Git worktree 里。Desktop 的审核面板会显示分支、是否有未提交改动，以及是否有领先基础版本的提交。
+## 目标
 
-你可以在审核面板里打开任务 Thread、把 worktree 交接回本地 workspace，或丢弃任务 worktree。丢弃会移除该任务的 worktree 输出和受管分支。只有在确认不再需要这些改动时再使用。
+目标为一段对话设定一个长期方向。设置之后它就跟着这段对话走，每当对话空闲下来（并且开启了自动继续），DotCraft 就继续推进，直到完成、被你暂停或清除，或者 token 预算用尽停下来等你处理。
 
-调度格式、工作流变量和完整的任务字段见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
+需要多轮才推得动的重构、文档整理、迁移和排查最适合用目标。进度、耗时和完成状态都跟着这段对话一起留存，你随时可以暂停、恢复、替换或清除它。
 
----
-
-## Goals
-
-Goal 把一个长期目标钉在某一段对话上。设置之后，目标就跟着这段对话。每当这段对话空闲（且自动继续开启），DotCraft 就继续推进它——直到完成、暂停、清除，或被 token 预算叫停。
-
-### 适合的任务
-
-- 需要多轮推进的重构、文档整理、迁移或排查任务。
-- 需要你随时暂停、恢复、替换或清除目标的长期工作。
-- 需要把进度、耗时和完成状态跟对话一起留存的工作。
-
-### 生命周期
-
-| 状态 | 含义 |
-|---|---|
-| `active` | 正在生效，对话空闲时可自动继续 |
-| `paused` | 保留，但不自动继续 |
-| `budgetLimited` | token 预算用尽，等待你处理 |
-| `complete` | Agent 审核完工作并标记完成 |
-
-### 如何管理目标
-
-| 操作 | 在哪里 |
-|---|---|
-| 设置或替换目标 | Desktop 的 Goal 控件 |
-| 暂停或恢复目标 | Desktop 的 Goal 控件 |
-| 清除目标 | Desktop 的 Goal 控件 |
-| 查看目标状态 | 对话列表与详情视图 |
-
-目标字段以及这些控件背后的 AppServer 方法见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
-
-### Goals × Automations
-
-Automations 适合"按时间或手动触发一次任务"，Goals 适合"让同一个 Thread 持续朝一个长期目标推进"。两者可以组合：Automation 负责定时唤醒或提交检查任务，Goal 负责保存这条 Thread 的长期方向和完成状态。
+在 Desktop 的目标控件里设置、暂停和清除目标。对话列表和详情视图会显示它当前的状态：进行中、已暂停、预算已达上限或已完成。
 
 ## 常见场景
 
+自动化决定什么时候跑一次，目标决定往哪个方向持续推。两者可以配合：让定时任务在同一段对话里，沿着同一个目标继续往前。
+
 | 场景 | 推荐 |
 |---|---|
-| 周报、日报、定时巡检 | Automations 定时触发 |
-| 自动跑测试套件并把摘要写入对话 | Automations，带完成摘要 |
-| 持续推进一项重构或文档整理 | Goals |
-| 让定时任务沿着同一长期目标推进 | Automations + Goals |
-| 文件写入后自动 lint/format | [生命周期 Hooks](./hooks) `PostToolUse` |
-| 阻止危险 Shell 命令 | [生命周期 Hooks](./hooks) `PreToolUse` |
+| 周报、日报、定时巡检 | 自动化，设定计划 |
+| 跑一遍测试套件并把摘要写进对话 | 自动化，带完成摘要 |
+| 持续推进一项重构或文档整理 | 目标 |
+| 让定时任务沿着同一长期目标推进 | 自动化 + 目标 |
+| 文件写入后自动格式化或 lint | [生命周期 Hooks](./hooks)，工具完成后 |
+| 阻止危险的 Shell 命令 | [生命周期 Hooks](./hooks)，工具运行前 |
 
 ## 相关文档
 
-- [统一会话核心](../../developing/architecture/session-core) — Thread / Turn / Item 与目标状态的关系
-- [可观测性](../self-hosted/observability) — Dashboard 上的 Trace 和审批
-- [生命周期 Hooks](./hooks) — 在会话、prompt、工具和 turn 时机运行脚本
-- [配置完整参考](../../developing/configuration#automations-goals-与-hooks) — Automations、Goals 与 Hooks 字段
+- [生命周期 Hooks](./hooks) — 需要在工具或会话的某个时刻触发，而不是按计划触发时用它
+- [可观测性](../self-hosted/observability) — 在 Dashboard 上回看任务运行的轨迹和审批

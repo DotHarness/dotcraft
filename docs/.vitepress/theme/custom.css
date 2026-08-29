@@ -1,21 +1,9 @@
-/* =============================================================================
- * Palette — unified with DotCraft Desktop (specs/clients/desktop-visual-design.md
- * + desktop/src/renderer/styles/tokens.css).
- *
- * Neutral-first, exactly like the app: the same neutral surfaces/text/borders,
- * the same system font stack, and the same neutral *inverted* primary button.
- * The brand color is the vivid blue->periwinkle gradient + gold spark taken
- * straight from the product logo (desktop/resources/dotcraft.svg). It appears
- * only in brand moments — the hero wordmark, the logo-style glow, accent links,
- * focus rings, and small identity accents — never as a button fill or a wash.
- * ============================================================================= */
+/* Palette — unified with DotCraft Desktop (visual spec + tokens.css):
+ * neutral-first surfaces and text; brand blue + gold appear only in brand
+ * moments, never as a button fill or wash. */
 
-/* Brand display face — self-hosted Sora (Latin subset), used ONLY for the home
- * hero wordmark/tagline and the large marketing headings. Body/doc text stays
- * on the system stack (see --vp-font-family-base). Self-hosted rather than a
- * Google Fonts CDN link so it loads in regions where that CDN is blocked and to
- * keep the docs free of third-party requests. Files live next to this stylesheet
- * so Vite fingerprints them and applies the deploy base path automatically. */
+/* Brand display face — self-hosted Sora (Latin subset) for the home hero and
+ * large marketing headings only; body text stays on the system stack. */
 @font-face {
   font-family: "Sora";
   font-style: normal;
@@ -47,7 +35,7 @@
   --vp-c-bg-alt: #ffffff;
   --vp-c-bg-soft: #ffffff;
   --vp-c-bg-elv: #ffffff;
-  /* OpenHuman-style: sidebar shares the page background for a frameless look */
+  /* Sidebar shares the page background for a frameless look */
   --vp-sidebar-bg-color: var(--vp-c-bg);
   --vp-nav-bg-color: var(--vp-c-bg);
   /* Full-width canvas: rails pinned to the viewport edges up to 2560px wide.
@@ -147,6 +135,133 @@
   border-radius: var(--dc-media-radius);
 }
 
+/* Docs read without horizontal rules: drop the default H2 top border and let
+ * whitespace carry the section rhythm instead. */
+.vp-doc h2 {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 48px;
+}
+
+/* ─── Doc footer: quiet meta row + plain prev/next, no boxes ─── */
+.VPDoc:not(.has-sidebar) .content,
+.VPDoc .content {
+  padding-bottom: 0;
+}
+
+.VPDoc {
+  padding-bottom: 32px !important;
+}
+
+.VPDocFooter {
+  margin-top: 48px;
+}
+
+.VPDocFooter .edit-info {
+  padding-bottom: 14px;
+}
+
+.VPDocFooter .edit-link-button,
+.VPDocFooter .last-updated,
+.VPDocFooter .VPLastUpdated,
+.VPDocFooter .last-updated p {
+  font-size: 12px !important;
+  font-weight: 400;
+  color: var(--vp-c-text-3) !important;
+}
+
+.VPDocFooter .edit-link-button:hover {
+  color: var(--vp-c-text-1);
+}
+
+.VPDocFooter .prev-next {
+  border-top: none;
+  padding-top: 16px;
+  gap: 16px;
+}
+
+.VPDocFooter .pager-link {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.VPDocFooter .pager-link:hover {
+  background: transparent;
+}
+
+.VPDocFooter .pager-link .desc {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+}
+
+.VPDocFooter .pager-link .title {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  transition: color 0.2s ease;
+}
+
+.VPDocFooter .pager-link:hover .title {
+  color: var(--vp-c-text-1);
+}
+
+/* Arrow icons sit in a side gutter aligned with the title line; the label and
+ * title share one text edge. */
+.VPDocFooter .pager-link.prev {
+  position: relative;
+  padding-left: 28px;
+}
+
+.VPDocFooter .pager-link.next {
+  position: relative;
+  padding-right: 28px;
+  text-align: right;
+}
+
+.VPDocFooter .pager-link.prev::before,
+.VPDocFooter .pager-link.next::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--vp-c-text-2);
+  transition: background-color 0.2s ease;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 12px;
+  mask-size: 12px;
+}
+
+.VPDocFooter .pager-link.prev::before {
+  left: 0;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5'/%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5'/%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3C/svg%3E");
+}
+
+.VPDocFooter .pager-link.next::after {
+  right: 0;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
+}
+
+.VPDocFooter .pager-link:hover::before,
+.VPDocFooter .pager-link:hover::after {
+  background-color: var(--vp-c-text-1);
+}
+
+/* Sidebar entries carry inline icons; the pager reuses their HTML, where the
+ * icon wrapper would misalign the label and title text edges. */
+.VPDocFooter .pager-link .title .dc-side-icon,
+.VPDocFooter .pager-link .title svg,
+.VPDocFooter .pager-link .title img {
+  display: none;
+}
+
 .vp-doc img.dc-media-plain,
 .vp-doc .dc-media-plain img,
 .VPNavBarTitle .logo {
@@ -168,8 +283,33 @@
   backdrop-filter: blur(12px) saturate(1.05);
 }
 
-.VPNavBar .content-body {
-  border-bottom: 1px solid var(--vp-c-divider);
+/* One full-width hairline owns the navbar's bottom edge (VitePress splits its
+ * own divider around the sidebar; children paint over a plain border). */
+.VPNavBar {
+  position: relative;
+}
+
+.VPNavBar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--vp-c-divider);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.VPNavBar .divider-line,
+.VPNavBar .divider {
+  background-color: transparent !important;
+}
+
+.VPNavBar,
+.VPNavBar .content-body,
+.VPNavBarTitle .title {
+  border-bottom: none !important;
 }
 
 .VPNavBar.has-sidebar .content {
@@ -180,8 +320,7 @@
   display: none;
 }
 
-/* Keep the global footer to one compact copyright row. The license is already
- * stated in the homepage hero and remains available in the repository. */
+/* Keep the global footer to one compact copyright row. */
 .VPFooter {
   padding: 16px 24px !important;
 }
@@ -192,7 +331,6 @@
   }
 }
 
-/* Polished search button */
 .DocSearch-Button {
   border-radius: var(--dc-radius-md) !important;
   background: var(--vp-c-default-soft) !important;
@@ -208,31 +346,25 @@
   }
 }
 
-/* Keep the search box at the same x on the home (no-sidebar) navbar as on doc
-   pages, where the logo sits in a sidebar-width brand column. Reserving the
-   same column on the home navbar lands the search box in the same place, so it
-   no longer jumps when moving between Overview and the docs. */
+/* Reserve the sidebar-width brand column on the home navbar too, so the
+   search box sits at the same x as on doc pages. */
 @media (min-width: 960px) {
   .VPNavBar:not(.has-sidebar) .VPNavBarTitle {
-    /* sidebar-width minus the home navbar's container inset, so the search box
-       lands at the same x as on doc pages (where content is offset by the full
-       sidebar width). */
-    width: calc(var(--vp-sidebar-width) - 32px);
+        width: calc(var(--vp-sidebar-width) - 32px);
     flex-shrink: 0;
   }
 }
 
 .DocSearch-Button:hover,
 .DocSearch-Button:focus {
-  border-color: color-mix(in srgb, var(--dc-accent) 35%, transparent) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-accent) 16%, transparent) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
   background: var(--vp-c-bg-alt) !important;
 }
 
-/* On the desktop homepage, the hero owns the top-of-page canvas. The navbar
- * starts as transparent chrome over that field, then crossfades to one
- * near-solid theme surface after the user begins scrolling. Keep the surface
- * on `.VPNav` only so nested VitePress layers do not compound their opacity. */
+/* On the homepage the navbar starts as transparent chrome over the hero and
+ * crossfades to the solid theme surface on scroll. Keep the surface on .VPNav
+ * only so nested layers do not compound opacity. */
 @media (min-width: 960px) {
   html.dc-home-active .VPNav,
   html.dc-home-active .VPNavBar,
@@ -254,8 +386,8 @@
     backdrop-filter: none;
   }
 
-  html.dc-home-active .VPNavBar .content-body {
-    border-bottom-color: transparent;
+  html.dc-home-active .VPNavBar::after {
+    background: transparent;
   }
 
   html.dc-home-active.dc-home-nav-solid .VPNav {
@@ -264,8 +396,8 @@
     backdrop-filter: blur(10px) saturate(1.03);
   }
 
-  html.dc-home-active.dc-home-nav-solid .VPNavBar .content-body {
-    border-bottom-color: var(--vp-c-divider);
+  html.dc-home-active.dc-home-nav-solid .VPNavBar::after {
+    background: var(--vp-c-divider);
   }
 
   html.dc-home-active:not(.dc-home-nav-solid) .DocSearch-Button {
@@ -276,9 +408,9 @@
 
   html.dc-home-active:not(.dc-home-nav-solid) .DocSearch-Button:hover,
   html.dc-home-active:not(.dc-home-nav-solid) .DocSearch-Button:focus {
-    border-color: color-mix(in srgb, var(--dc-accent) 24%, transparent) !important;
+    border-color: transparent !important;
     background: color-mix(in srgb, var(--dc-surface) 68%, transparent) !important;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-accent) 12%, transparent) !important;
+    box-shadow: none !important;
   }
 
   html.dc-home-active:not(.dc-home-nav-solid) .VPSwitchAppearance {
@@ -307,7 +439,7 @@
   }
 }
 
-/* ─── Sidebar: OpenHuman-style icons + uppercase group labels ─── */
+/* ─── Sidebar: inline icons + uppercase group labels ─── */
 .dc-side-icon {
   display: inline-flex;
   align-items: center;
@@ -330,22 +462,22 @@
   white-space: normal;
 }
 
-/* Tighten horizontal gutters without touching the desktop nav-height clearance */
+/* Tighten horizontal gutters without touching the desktop nav-height clearance.
+ * Bottom padding stays small — the 24px viewport inset already provides the
+ * scroll-end breathing room. */
 @media (min-width: 960px) {
   .VPSidebar {
     padding-left: 16px !important;
     padding-right: 16px !important;
-    padding-bottom: 64px !important;
+    padding-bottom: 16px !important;
   }
   .VPSidebar .group {
     width: calc(var(--vp-sidebar-width) - 32px) !important;
   }
 }
 
-/* On wide screens VitePress fills the left margin by extending the sidebar with
-   a giant left padding, leaving a huge blank zone before the first item.
-   Anchor the sidebar to the centered-layout edge instead so its right edge
-   meets the content's left edge with no gap. */
+/* VitePress pads the sidebar left edge to fill wide-screen margins, stranding
+   the items. Anchor the sidebar to the centered-layout edge instead. */
 @media (min-width: 1440px) {
   .VPSidebar {
     /* Clamp the gutter to 0 so the sidebar never slides off-screen in the
@@ -364,24 +496,9 @@
 }
 
 /* =============================================================================
- * Wider doc canvas — full-width rails, centered reading column.
- *
- * VitePress caps the layout at 1440px and the prose/code column at 688px, so on
- * wide screens large empty gutters sit on both sides, the sidebar/aside float
- * inward, and code blocks scroll horizontally instead of fitting. We pin the
- * rails to the viewport edges and let the reading column breathe in between:
- *   1. Edge-pinned rails. With --vp-layout-max-width at 2560px the
- *      max(0px, (100vw − max)/2) gutter stays 0 up to 2560px, so the sidebar
- *      sits flush-left and the page runs edge-to-edge (re-centering only past
- *      2560px). The clamp also repairs the transition zone where the raw
- *      (100vw − max)/2 math would otherwise go negative and overlap content.
- *   2. Flush-right aside + centered column. With the container spanning the full
- *      width, VitePress's own .content (width:100%) fills the space left of the
- *      aside, so the "On this page" aside sits flush against the right edge; its
- *      .content-container { margin:0 auto } then centers the bounded column in
- *      that space, giving balanced breathing room on both sides.
- *   3. Wider column: 688px → 900px (only ≥1536px, where the wider column clears
- *      the flush-right aside without overflowing) so code and images breathe.
+ * Wider doc canvas — rails pinned to the viewport edges up to 2560px, aside
+ * flush right, reading column centered between them (688px, 900px at >=1536px).
+ * The max(0px, ...) clamp repairs the zone where (100vw - max)/2 goes negative.
  * ============================================================================= */
 @media (min-width: 1440px) {
   .VPContent.has-sidebar {
@@ -394,12 +511,9 @@
     padding-left: calc(max(0px, (100vw - var(--vp-layout-max-width)) / 2) + var(--vp-sidebar-width)) !important;
   }
 
-  /* Re-derive the navbar title (logo) box for the 2560px canvas. VitePress's
-     own ≥1440px formula assumes max-width ≈ 1440px, so with our wider canvas it
-     computes a negative width and the logo gets clipped (visible only when the
-     viewport is zoomed out past the max-width). Anchor it to the sidebar
-     instead: span the left gutter + sidebar width, with the logo aligned to the
-     sidebar's 16px left padding. */
+  /* VitePress's >=1440px title formula assumes a 1440px canvas and clips the
+     logo on ours. Span the left gutter + sidebar width instead, aligned to the
+     sidebar's 16px padding. */
   .VPNavBar.has-sidebar .title {
     padding-left: calc(max(0px, (100vw - var(--vp-layout-max-width)) / 2) + 16px) !important;
     width: calc(max(0px, (100vw - var(--vp-layout-max-width)) / 2) + var(--vp-sidebar-width)) !important;
@@ -414,10 +528,94 @@
   }
 }
 
-/* Subtler group separator */
+/* Sidebar groups separate by whitespace alone — no rules between sections. */
 .VPSidebar .group + .group {
-  border-top: 1px solid var(--vp-c-divider);
-  padding-top: 10px;
+  border-top: none;
+  padding-top: 6px;
+}
+
+/* The sidebar's visible region stops 24px short of the viewport edge, matching
+ * the content column's inset; the shared background keeps the notch seamless.
+ * Doubled class outranks the scoped [data-v-*] rule; mobile keeps its drawer. */
+@media (min-width: 960px) {
+  .VPSidebar.VPSidebar {
+    height: auto;
+    bottom: 24px;
+  }
+}
+
+/* Reserve the scrollbar gutter so scroll locks and short pages never shift the
+ * layout; overflow-x guards against 100vw elements on classic scrollbars. */
+html {
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
+/* Search stays neutral: no accent ring on the trigger, the input, or the
+ * selected result — the neutral surface shift is signal enough. */
+:root {
+  --vp-local-search-result-selected-border: var(--vp-c-divider);
+}
+
+.DocSearch-Button:hover,
+.DocSearch-Button:focus,
+.DocSearch-Button:focus-visible {
+  box-shadow: none;
+  outline: none;
+}
+
+.VPLocalSearchBox .search-bar,
+.VPLocalSearchBox .search-bar:hover,
+.VPLocalSearchBox .search-bar:focus-within {
+  border-color: var(--vp-c-divider);
+  outline: none;
+}
+
+.VPLocalSearchBox .search-bar:focus-within {
+  box-shadow: none;
+}
+
+/* Navbar order: links, then search, then the language / theme / repo cluster. */
+@media (min-width: 768px) {
+  .VPNavBar .content-body {
+    gap: 4px;
+  }
+
+  .VPNavBarMenu.menu {
+    order: 1;
+    margin-left: auto;
+  }
+
+  .VPNavBar .VPNavBarSearch {
+    order: 2;
+    flex-grow: 0;
+    padding-left: 16px;
+  }
+
+  .VPNavBar .VPNavBarTranslations {
+    order: 3;
+  }
+
+  .VPNavBar .VPNavBarAppearance {
+    order: 4;
+  }
+
+  .VPNavBar .VPNavBarSocialLinks {
+    order: 5;
+  }
+
+  .VPNavBar .VPNavBarExtra {
+    order: 6;
+  }
+}
+
+/* No vertical separators between navbar clusters — spacing carries it. */
+.VPNavBar :is(.translations, .appearance, .social-links)::before {
+  display: none;
+}
+
+.VPNavBar :is(.translations, .appearance, .social-links) {
+  margin-left: 6px;
 }
 
 /* Hidden-by-default scrollbar; fades in only when hovering the sidebar */
@@ -471,30 +669,22 @@
   color: var(--dc-accent);
 }
 
-/* Filled pill marks the actual current page only. VitePress renders childless
-   items as <div> and groups (items with children) as <section>, so scoping the
-   fill to <div> keeps exactly one "you are here" pill — a parent group never
-   gets its own pill, even when its own link equals the open page (its matching
-   leaf child carries the pill instead). */
+/* One "you are here" pill: childless items render as <div>, groups as
+   <section>, so scoping to div keeps a parent from double-pilling its child. */
 div.VPSidebarItem.is-active > .item {
   background: color-mix(in srgb, var(--dc-accent) 14%, transparent);
 }
 
-/* Accent the current page AND every ancestor group that contains it, so the
-   whole group lights up (label + icon turn blue) without a second pill.
-   `is-active` = the item's own link is open; `has-active` = it or a descendant
-   is open. Scope to nested groups (level-1+) so the uppercase level-0 section
-   labels never go permanently blue. */
+/* is-active = own link open, has-active = a descendant is. Light nested levels
+   only, so the uppercase level-0 section labels never go blue. */
 .VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5):is(.is-active, .has-active) > .item .dc-side-icon {
   color: var(--dc-accent);
 }
 
 .VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5):is(.is-active, .has-active) > .item .text,
 .VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5):is(.is-active, .has-active) > .item .link > .text {
-  /* Color only — no weight change. CJK system fonts (e.g. Microsoft YaHei)
-     ship only 400/700, so bumping the weight maps the glyphs to the 700 face
-     and the selected label reads as a different typeface. Keep the inactive
-     weight so selected/unselected render identically in every language. */
+  /* Color only — CJK system fonts ship 400/700 only, so a weight bump snaps
+   glyphs to 700 and shifts layout. */
   color: var(--dc-accent) !important;
 }
 
@@ -674,14 +864,8 @@ div.VPSidebarItem.is-active > .item {
 }
 
 /* =============================================================================
- * Homepage — banner-aligned "layered project field" design.
- *
- * The hero mirrors the README/GitHub banner: copy on the left (Sora display,
- * one accent word), the product card on the right with the banner's layered
- * shadow stack, over a pale blue field. Mascots are alive but anchored
- * (LiveMascot.vue / liveMascot.ts / mascot.css): expressions, eyes, and
- * in-place micro-gestures plus the CTA entrance ride — no wandering
- * locomotion, no speech bubbles. Page motion stays in motion.css.
+ * Homepage — banner-aligned layered project field: Sora copy left, product
+ * card right, mascots alive but anchored (LiveMascot.vue); motion in motion.css.
  * ============================================================================= */
 
 .dc-home {
@@ -909,12 +1093,8 @@ div.VPSidebarItem.is-active > .item {
   gap: 12px;
 }
 
-/* Buttons mirror Desktop's action hierarchy exactly:
- *   primary   = neutral INVERTED (bg: --dc-text, text: --dc-shell) — the same
- *               near-black-on-light / off-white-on-dark control the app ships.
- *   secondary = neutral bordered surface.
- * The brand blue is never a button fill — it lives in the accent word, links,
- * and focus ring. */
+/* Desktop's action hierarchy: primary = neutral inverted, secondary = neutral
+ * bordered surface. Brand blue is never a button fill. */
 .dc-button {
   display: inline-flex;
   align-items: center;
@@ -1641,11 +1821,8 @@ div.VPSidebarItem.is-active > .item {
 }
 
 /* =============================================================================
- * Content-page refinements — subtle gradient hints on prose.
- *
- * Blockquotes pick up a soft accent-tinted gradient without an accent rail.
- * Tables get a softer shell. Doc-page h1 headings get a subtle gradient text
- * fill toward the accent. Existing GitHub alerts already use gradients.
+ * Content-page refinements — soft accent-gradient hints on blockquotes,
+ * tables, and doc h1 headings.
  * ============================================================================= */
 
 .vp-doc blockquote {
@@ -1674,34 +1851,6 @@ div.VPSidebarItem.is-active > .item {
 
 .vp-doc blockquote p:first-child { margin-top: 0; }
 .vp-doc blockquote p:last-child { margin-bottom: 0; }
-
-/* Sidebar labels are reused by VitePress for the previous/next pager. Turn the
- * embedded sidebar icon into part of the title row, with its direction matching
- * the pager card, instead of leaving it on the text baseline. */
-.VPDocFooter .pager-link .title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.VPDocFooter .pager-link .dc-side-icon {
-  width: 16px;
-  height: 16px;
-  margin-right: 0;
-}
-
-.VPDocFooter .pager-link .dc-side-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.VPDocFooter .pager-link.next .title {
-  justify-content: flex-end;
-}
-
-.VPDocFooter .pager-link.next .dc-side-icon {
-  order: 1;
-}
 
 .vp-doc h1 {
   background: linear-gradient(
@@ -1739,12 +1888,8 @@ div.VPSidebarItem.is-active > .item {
 
 
 /* =============================================================================
- * Desktop web demo embed (hero)
- *
- * `.dc-demo` replaces the hero banner <img>'s frame: the poster renders
- * immediately, the simulator iframe fades in over it once loaded, and pointer
- * input stays disabled until the visitor explicitly activates the demo so the
- * page never loses scroll to the embed.
+ * Desktop web demo embed (hero) — poster first, iframe fades in when loaded,
+ * pointer input stays off until the visitor activates the demo.
  * ============================================================================= */
 
 /* The card wears the banner's layered shadow stack: two blue-gray drops plus

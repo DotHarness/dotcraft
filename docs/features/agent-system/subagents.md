@@ -1,98 +1,43 @@
-# SubAgents
+# Subagents
 
-A SubAgent lets the main agent hand off a self-contained task to a focused helper that works in its own context and reports the result back — so the main conversation stays clean. Two things shape a SubAgent:
+A subagent is how the main agent delegates. Hand it a self-contained task, it works in its own context, and only the result comes back to the main conversation. Give exploration and research — the work that produces a lot of intermediate output — to a subagent, and the main conversation stays readable.
 
-- `agentRole` — what it's allowed to do: its behavior, tool boundary, and prompt constraints.
-- `profile` — which runtime runs it: DotCraft native or an external CLI.
+![How DotCraft delegates a task to a subagent](/subagent-delegation-overview.svg)
 
-![DotCraft SubAgent delegation overview](/subagent-delegation-overview.svg)
+Two things define a subagent: the role decides what it can do, and the runtime decides where it runs. The defaults are safe to use as they are — the main agent can create one level of subagents, and a subagent does not spawn further ones. Full configuration fields are in the [Configuration Reference](../../developing/configuration#subagent-and-external-cli-profiles).
 
-If you only want safe one-level delegation, you usually do not need to change anything. The defaults allow the root agent to spawn a first-level SubAgent and prevent SubAgents from spawning further SubAgents.
+## The role decides what it can do
 
-## Quick Start
-
-The default behavior is intentionally conservative:
-
-- The root agent can call `SpawnAgent` to create a first-level SubAgent.
-- First-level SubAgents are already at the default depth limit and cannot spawn new ones.
-- `agentRole` defaults to `default` when omitted.
-- Native SubAgents run on the same generated prompt as their parent; role limits are enforced when a tool is called, not by trimming the prompt.
-
-Full role and profile configuration fields are in [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
-
-## Built-in Roles
-
-| Role | Best for | Tool policy |
+| Role | Best for | Permissions |
 |---|---|---|
-| `default` | General first-level collaboration, summary, local analysis | Disable AgentTools, conservative tool set |
-| `worker` | Implementation, validation, file changes | Allow read/write, shell, web; AgentTools still bound by depth |
-| `explorer` | Read-only code exploration, research | Read-only exploration, web, and observation commands like `git diff`; disables writes, Plan/Todo, SkillManage, AgentTools |
+| `explorer` | Read-only code exploration and research | Reads and searches files, runs observation commands such as `git diff`, cannot write |
+| `worker` | Implementation, verification, file changes | Reads and writes files, runs commands, accesses the network |
+| `default` | Summaries, analysis, general collaboration | A conservative tool set with no high-privilege tools |
 
-`worker` has the capability model for recursive delegation, but recursion remains an explicit opt-in through configuration.
+Role limits are enforced at the moment a tool is called. A subagent that calls a tool it is not allowed gets a clear reason and can take another route. You can also define your own roles in workspace configuration to fix the delegation patterns your team uses most.
 
-## Shell access
+## The runtime decides where it runs
 
-An `explorer` can run read-only commands such as `git diff`, `git log`, `ls`, and `rg`. Anything that would change the workspace is refused, and so is anything the refusal can't read plainly — the SubAgent is told what was turned down so it can quote the argument or try another route.
+The native runtime runs subagents inside DotCraft itself. Role tool limits apply in full, the subagent shares the same prompt prefix as the main conversation, and startup costs little.
 
-Roles you define yourself choose their own level: no shell, read-only, or unrestricted. See [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
+You can also use an external coding CLI as the runtime, with built-in support for Codex CLI and Cursor CLI. An external CLI runs a one-shot task in its own process and usually reports stage-level progress only. DotCraft passes the role instructions to it, but cannot constrain the tool calls it makes internally. When you need strong isolation, prefer the native runtime and pair it with [Security & Sandbox](../self-hosted/security).
 
-## The shared prompt
+## Approvals still apply
 
-A native SubAgent starts from the same generated prompt as its parent thread, down to the byte. Its role text arrives separately, as a message at the start of its conversation rather than a section of the system prompt.
+File and command operations from a native subagent go through the same approval flow as the current session, and every request is labeled with the subagent it came from. DotCraft cannot intercept an external CLI's internal operations one by one, but it passes the current approval mode along as far as the CLI allows.
 
-That is what lets a child reuse the prefix its parent already paid the provider to cache: the model sees an identical instruction block and tool list, so only the child's own task is new. Role limits still apply — a denied tool returns the reason when the SubAgent calls it.
-
-## Profile: Choosing a Runtime
-
-| Profile | Description |
-|---|---|
-| `native` | DotCraft native SubAgent with role-resolved tool filtering |
-| `codex-cli` | One-shot external SubAgent backed by Codex CLI |
-| `cursor-cli` | One-shot external SubAgent backed by Cursor CLI |
-| `custom-cli-oneshot` | Template profile for a configured external CLI |
-
-DotCraft passes role instructions to external CLIs but cannot enforce tool filtering inside the external CLI itself. For strong isolation, prefer `native` and combine it with role allow/deny lists and [Security & Sandbox](../self-hosted/security).
-
-## Using External CLIs as SubAgents
-
-External CLI SubAgents wrap an existing coding-agent CLI as a short-lived process. Compared with `native`, an external CLI usually gives stage-level progress, not per-tool-call detail.
-
-Built-in external profiles support Codex CLI and Cursor CLI. DotCraft can also reuse external CLI sessions when that setting is enabled and the profile supports resume. Matching is conservative: it prefers the same profile, label, and working directory rather than blindly resuming any saved external session.
-
-Custom external CLI profiles, resume extraction, permission forwarding, and vendor headless details are documented in [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
-
-## Approval & Permission Forwarding
-
-**Native SubAgents**
-
-- A native SubAgent's internal file and shell tool calls reuse the current session's approval service.
-- Approval requests are prefixed with the SubAgent label so users can see where they came from.
-
-**External CLI SubAgents**
-
-- DotCraft does not intercept the CLI's internal tool calls.
-- It translates the current approval mode into startup arguments when the profile defines a permission mapping.
-- The resume argument is inserted before approval arguments, but DotCraft still decides whether to resume.
-
-## When to Use Which
+## How to choose
 
 | Situation | Recommendation |
 |---|---|
-| Need bounded read-only exploration | `explorer` role on `native` |
-| Need implementation help inside the current workspace policy | `worker` role on `native` |
-| Need a specific external coding CLI workflow | External CLI profile |
-| Need strong tool isolation | Prefer `native` plus allow/deny lists and sandbox |
-| Need recurring team behavior | Define a workspace role in configuration |
+| Bounded read-only exploration | Native runtime with `explorer` |
+| Implementation inside the current workspace | Native runtime with `worker` |
+| Reusing a specific external coding CLI workflow | External CLI runtime |
+| The strongest tool isolation | Native runtime, a tightened tool list, and the sandbox |
 
-## Conversation lifecycle
-
-When a native SubAgent receives its own saved conversation, DotCraft keeps it as a child of the main conversation. Its parent relationship, role, runtime choice, and tool limits survive a restart.
-
-Archiving the main conversation also archives its saved SubAgent conversations. Restoring it brings back only child conversations that were still open; conversations you closed explicitly stay archived. Permanently deleting the main conversation also removes its saved child conversations. DotCraft then attempts to clean up their supporting files; any failed cleanup can be retried.
+A subagent's conversation is saved as a child of the main conversation. Archiving, restoring, or deleting the main conversation handles the child conversations with it, and role and tool limits survive a restart.
 
 ## Related docs
 
-- [Security & Sandbox](../self-hosted/security) — bound SubAgent behavior with workspace boundary and sandbox
-- [Observability](../self-hosted/observability) — view SubAgent calls and approvals in Dashboard
-- [Configuration Reference](../../developing/configuration#subagent-and-external-cli-profiles)
-- [Session persistence](../../developing/architecture/session-persistence)
+- [Security & Sandbox](../self-hosted/security) — tighten what a subagent can reach with workspace boundaries and the sandbox
+- [Observability](../self-hosted/observability) — view subagent calls and approvals in Dashboard

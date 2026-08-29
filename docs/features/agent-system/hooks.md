@@ -1,6 +1,6 @@
 # Lifecycle Hooks
 
-Lifecycle Hooks let DotCraft run your scripts at important moments in a session, a prompt, or a tool call. Use them when you want the agent to follow project routines automatically, such as checking a command before it runs, adding context when a session starts, or reviewing work after a tool finishes.
+Hooks let DotCraft run your scripts at key moments in a session, a prompt, or a tool call. The routines your project repeats every time — checking a command before it runs, adding context when a session starts, reviewing the result after a tool finishes — can happen on their own.
 
 ![A session timeline of four moments — session starts, before a tool runs, after a tool finishes, turn stops — with your hook scripts from user config, workspace, or a plugin attaching to the moments you pick](/lifecycle-hooks-overview.svg)
 
@@ -11,41 +11,33 @@ Hooks are best for small guardrails and repeatable checks that belong near the a
 | Use case | Good hook moment |
 |---|---|
 | Warn before risky shell commands | Before a tool runs |
-| Add project reminders to a new thread | When a session starts |
+| Add project reminders to a new conversation | When a session starts |
 | Format or lint after file edits | After a tool finishes |
 | Review a final diff or command output | When a turn stops |
 | Notify another system | After a tool or turn finishes |
 
-Keep the script focused. If the logic grows, call a project script from the hook instead of putting everything inline.
+Keep the script focused. Once the logic grows, move the complicated part into a project script and call that from the hook.
 
 ## Where hooks come from
 
-DotCraft can discover hooks from your personal config, the current workspace, and enabled plugins. That lets you keep private preferences for yourself, share team policy through the workspace, and install reusable hook bundles from plugins.
+DotCraft discovers hooks from your personal config, the current workspace, and enabled plugins. That way private preferences stay in your own config, team policy goes in the workspace, and reusable hooks arrive with a plugin.
 
-Hooks that run local commands need trust. A newly discovered hook starts untrusted, and a changed hook becomes modified until you trust it again. Plugin hooks are trusted as one plugin bundle, so you can review the plugin's hooks and allow the current set together.
+Hooks run local commands, so they need your trust first. A newly discovered hook starts untrusted, and a changed hook goes back to waiting for trust until you confirm it again. Plugin hooks are trusted as one bundle, so you can expand them to see what the plugin declares before you allow the set.
+
+The hook file shape, available events, and worked examples are in the [Configuration Reference](../../developing/configuration#automations-goals-and-hooks).
 
 ## Manage hooks in Desktop
 
-Open **Settings -> Hooks** to see every discovered hook grouped by source.
+Open **Settings → Hooks** to see every discovered hook grouped by source. Expand one to inspect its command, matcher, source file, and trust state. User and workspace hooks can be enabled, disabled, and trusted right here, without editing the source file.
 
-From this page you can:
-
-- See whether a hook came from user config, workspace config, or a plugin.
-- Expand a hook to inspect its command, matcher, source file, and trust state.
-- Enable or disable user and workspace hooks without editing the source file.
-- Trust a user or workspace hook after you add or change it.
-- Trust all current hooks from a plugin with one **Trust hooks** action.
-- Expand plugin hooks to inspect what the plugin declares before you trust it.
-
-Configuration files remain the source of truth for hook commands. Desktop manages only your personal enable and trust state.
+Configuration files remain the source of truth for hook commands. Desktop manages only your enable and trust state.
 
 ## Hook safety
 
-Hooks are powerful because they run local commands. Start with hooks that only observe and print context, then add blocking behavior once the output is clear. Keep secrets out of workspace files, use environment variables for credentials, and install plugin hooks only from sources you trust.
+Hooks are powerful because they run local commands, and that is where the risk sits too. Start with hooks that only observe and print context, confirm the output looks right, then add blocking behavior. Keep secrets out of workspace files, use environment variables for credentials, and install plugin hooks only from sources you trust.
 
 ## Related docs
 
-- [Configuration Reference](../../developing/configuration#automations-goals-and-hooks) — hook file shape, events, state, and examples
-- [Plugins & Tools](./plugins-tools) — plugins that can ship reusable hooks
+- [Automations & Goals](./automations) — for work that runs as a whole task on a schedule, rather than at one moment
+- [Plugins & Tools](./plugins-tools) — plugins that ship reusable hooks
 - [Security & Sandbox](../self-hosted/security) — guardrails for file, shell, and sandbox behavior
-- [Lifecycle Hooks Specification](https://github.com/DotHarness/dotcraft/blob/master/specs/features/lifecycle-hooks.md) — engineering contract for hook implementers

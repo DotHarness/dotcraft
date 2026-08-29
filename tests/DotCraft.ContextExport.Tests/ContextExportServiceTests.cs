@@ -91,8 +91,9 @@ public sealed class ContextExportServiceTests : IDisposable
     [Fact]
     public async Task ExportAsync_WithToolResultsNone_OmitsPersistedResultBody()
     {
+        const string resultBody = "tool-output-body-marker";
         var thread = CreateThread();
-        AddTurnWithToolResult(thread, "SECRET_TOOL_OUTPUT");
+        AddTurnWithToolResult(thread, resultBody);
         await _threadStore.SaveThreadAsync(thread);
 
         var result = await new ContextExportService().ExportAsync(new ContextExportOptions
@@ -102,7 +103,7 @@ public sealed class ContextExportServiceTests : IDisposable
             ToolResults = ContextExportToolResultMode.None
         });
 
-        Assert.DoesNotContain("SECRET_TOOL_OUTPUT", result.Markdown);
+        Assert.DoesNotContain(resultBody, result.Markdown);
         Assert.Contains("omitted by `--tool-results none`", result.Markdown);
     }
 
@@ -141,9 +142,9 @@ public sealed class ContextExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportAsync_WithToolResultsFull_PreservesPersistedResultBodies()
+    public async Task ExportAsync_WithToolResultsFull_PreservesPersistedResultBodiesVerbatim()
     {
-        const string exactResultBody = "{\"cookie\":\"EXACT_RESULT_SECRET\",\"safe\":\"exact-visible\"}";
+        const string exactResultBody = "{\"detail\":\"exact-body-marker\",\"status\":\"ok\"}";
         var thread = CreateThread();
         AddTurnWithResultBodies(thread);
         await _threadStore.SaveThreadAsync(thread);
@@ -161,30 +162,24 @@ public sealed class ContextExportServiceTests : IDisposable
             ToolResultPreviewChars = 10_000
         });
 
-        foreach (var secret in new[]
+        // Every persisted body shape reaches the document with its content unchanged.
+        foreach (var body in new[]
                  {
-                     "COMMAND_RESULT_SECRET",
-                     "EXECUTION_RESULT_SECRET",
-                     "TOOL_RESULT_SECRET",
-                     "DYNAMIC_RESULT_SECRET",
-                     "EXACT_RESULT_SECRET"
+                     "ordinary command output command-body-marker",
+                     "ordinary execution preview execution-body-marker",
+                     "{\"detail\":\"tool-body-marker\",\"status\":\"ok\"}",
+                     "dynamic-body-marker",
+                     exactResultBody
                  })
         {
-            Assert.Contains(secret, result.Markdown);
+            Assert.Contains(body, result.Markdown);
         }
-
-        Assert.Contains("command-visible", result.Markdown);
-        Assert.Contains("execution-visible", result.Markdown);
-        Assert.Contains("tool-visible", result.Markdown);
-        Assert.Contains("dynamic-visible", result.Markdown);
-        Assert.Contains("exact-visible", result.Markdown);
-        Assert.Contains(exactResultBody, result.Markdown);
     }
 
     [Fact]
-    public async Task ExportAsync_WithToolResultsSummary_TruncatesWithoutClassifyingContent()
+    public async Task ExportAsync_WithToolResultsSummary_TruncatesBodyWithoutRewritingThePrefix()
     {
-        const string resultBody = "token=SUMMARY_VALUE_tail-not-included";
+        const string resultBody = "ordinary result prefix tail-not-included";
         var thread = CreateThread();
         AddTurnWithToolResult(thread, resultBody);
         await _threadStore.SaveThreadAsync(thread);
@@ -194,10 +189,10 @@ public sealed class ContextExportServiceTests : IDisposable
             ThreadId = thread.Id,
             WorkspacePath = _workspace,
             ToolResults = ContextExportToolResultMode.Summary,
-            ToolResultPreviewChars = 19
+            ToolResultPreviewChars = 22
         });
 
-        Assert.Contains("token=SUMMARY_VALUE ...", result.Markdown);
+        Assert.Contains("ordinary result prefix ...", result.Markdown);
         Assert.DoesNotContain("tail-not-included", result.Markdown);
     }
 
@@ -270,8 +265,8 @@ public sealed class ContextExportServiceTests : IDisposable
                     {
                         Answers = new Dictionary<string, RequestUserInputAnswer>(StringComparer.Ordinal)
                         {
-                            ["one_time_code"] = new() { Answers = ["SESSION_SECRET_ANSWER"] },
-                            ["deployment_region"] = new() { Answers = ["SESSION_NORMAL_ANSWER"] }
+                            ["one_time_code"] = new() { Answers = ["session-masked-answer"] },
+                            ["deployment_region"] = new() { Answers = ["session-plain-answer"] }
                         }
                     }
                 }
@@ -289,7 +284,7 @@ public sealed class ContextExportServiceTests : IDisposable
                     CallId = "call_user_input",
                     ProviderFlatName = "RequestUserInput",
                     Success = true,
-                    Result = "{\"answers\":{\"one_time_code\":{\"answers\":[\"TOOL_SECRET_ANSWER\"]},\"deployment_region\":{\"answers\":[\"TOOL_NORMAL_ANSWER\"]}}}"
+                    Result = "{\"answers\":{\"one_time_code\":{\"answers\":[\"tool-masked-answer\"]},\"deployment_region\":{\"answers\":[\"tool-plain-answer\"]}}}"
                 }
             },
             new SessionItem
@@ -306,7 +301,7 @@ public sealed class ContextExportServiceTests : IDisposable
                     ProviderFlatName = "ReadFile",
                     ToolName = "ReadFile",
                     Success = true,
-                    Result = "conversation-unrelated-visible"
+                    Result = "conversation-unrelated-body"
                 }
             }
         ]);
@@ -323,8 +318,8 @@ public sealed class ContextExportServiceTests : IDisposable
                 [
                     new FunctionResultContent(
                         "call_exact_input",
-                        "{\"answers\":{\"one_time_code\":{\"answers\":[\"HISTORY_SECRET_ANSWER\"]},\"deployment_region\":{\"answers\":[\"HISTORY_NORMAL_ANSWER\"]}}}"),
-                    new FunctionResultContent("call_exact_unrelated", "history-unrelated-visible")
+                        "{\"answers\":{\"one_time_code\":{\"answers\":[\"history-masked-answer\"]},\"deployment_region\":{\"answers\":[\"history-plain-answer\"]}}}"),
+                    new FunctionResultContent("call_exact_unrelated", "history-unrelated-body")
                 ])
             ],
             turn.Id);
@@ -337,14 +332,15 @@ public sealed class ContextExportServiceTests : IDisposable
             ToolResultPreviewChars = 10_000
         });
 
+        // Answers to an `IsSecret` question follow the selected scope like any other body.
         foreach (var answer in new[]
                  {
-                     "SESSION_SECRET_ANSWER",
-                     "SESSION_NORMAL_ANSWER",
-                     "TOOL_SECRET_ANSWER",
-                     "TOOL_NORMAL_ANSWER",
-                     "HISTORY_SECRET_ANSWER",
-                     "HISTORY_NORMAL_ANSWER"
+                     "session-masked-answer",
+                     "session-plain-answer",
+                     "tool-masked-answer",
+                     "tool-plain-answer",
+                     "history-masked-answer",
+                     "history-plain-answer"
                  })
         {
             Assert.Contains(answer, result.Markdown);
@@ -353,29 +349,29 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("request_export_input", result.Markdown);
         Assert.Contains("Enter the one-time code", result.Markdown);
         Assert.Contains("Choose the deployment region", result.Markdown);
-        Assert.Contains("conversation-unrelated-visible", result.Markdown);
-        Assert.Contains("history-unrelated-visible", result.Markdown);
+        Assert.Contains("conversation-unrelated-body", result.Markdown);
+        Assert.Contains("history-unrelated-body", result.Markdown);
     }
 
     [Fact]
     public async Task ExportAsync_UsesCanonicalExactHistoryAndOmitsInternalModelMetadata()
     {
         const string exactText = "exact model-visible answer";
-        const string reasoningSecret = "internal reasoning secret";
-        const string protectedSecret = "protected replay secret";
-        const string extensionSecret = "provider extension secret";
+        const string reasoningText = "internal reasoning text";
+        const string protectedReplayData = "protected replay payload";
+        const string providerExtensionValue = "provider extension value";
         var thread = CreateThread();
         AddTurnWithMessages(thread, "visible request", "projected answer");
         await _threadStore.SaveThreadAsync(thread);
 
         var exactMessage = new ChatMessage(ChatRole.Assistant,
         [
-            new TextReasoningContent(reasoningSecret)
+            new TextReasoningContent(reasoningText)
             {
-                ProtectedData = protectedSecret,
+                ProtectedData = protectedReplayData,
                 AdditionalProperties = new AdditionalPropertiesDictionary
                 {
-                    ["providerSecret"] = extensionSecret
+                    ["providerDetail"] = providerExtensionValue
                 }
             },
             new TextContent(exactText)
@@ -383,7 +379,7 @@ public sealed class ContextExportServiceTests : IDisposable
         {
             AdditionalProperties = new AdditionalPropertiesDictionary
             {
-                ["messageSecret"] = extensionSecret
+                ["messageDetail"] = providerExtensionValue
             }
         };
         await _fixture.AppendModelHistoryAsync(thread.Id, [exactMessage], thread.Turns[0].Id);
@@ -394,26 +390,26 @@ public sealed class ContextExportServiceTests : IDisposable
             WorkspacePath = _workspace
         });
 
+        // Reasoning, protected replay data, and provider extensions sit outside the
+        // displayable projection, so the document carries only the model-visible text.
         Assert.Contains(exactText, result.Markdown);
         Assert.DoesNotContain("projected answer", result.Markdown.Split("## Conversation")[0]);
-        Assert.DoesNotContain(reasoningSecret, result.Markdown);
-        Assert.DoesNotContain(protectedSecret, result.Markdown);
-        Assert.DoesNotContain(extensionSecret, result.Markdown);
+        Assert.DoesNotContain(reasoningText, result.Markdown);
+        Assert.DoesNotContain(protectedReplayData, result.Markdown);
+        Assert.DoesNotContain(providerExtensionValue, result.Markdown);
         Assert.Contains("[reasoning omitted]", result.Markdown);
     }
 
     [Theory]
     [InlineData(ContextExportProfile.Handoff)]
     [InlineData(ContextExportProfile.Transcript)]
-    public async Task ExportAsync_OmitsFreeFormThreadMetadata(ContextExportProfile profile)
+    public async Task ExportAsync_RendersOnlyTheKnownThreadMetadataFields(ContextExportProfile profile)
     {
         var thread = CreateThread();
-        thread.Metadata["api_key"] = "METADATA_API_KEY_SECRET";
-        thread.Metadata["authorization"] = "Bearer METADATA_BEARER_SECRET";
-        thread.Metadata["nested"] = "{\"token\":\"METADATA_JSON_SECRET\"}";
-        thread.Metadata["dotcraft.externalCliSessions"] =
-            "[{\"sessionId\":\"METADATA_CLI_SESSION_SECRET\",\"workingDirectory\":\"C:/private\"}]";
         thread.Metadata["ordinary"] = "METADATA_ORDINARY_VALUE";
+        thread.Metadata["nested"] = "{\"detail\":\"METADATA_NESTED_VALUE\"}";
+        thread.Metadata["dotcraft.externalCliSessions"] =
+            "[{\"sessionId\":\"METADATA_CLI_SESSION_VALUE\",\"workingDirectory\":\"C:/workspaces/demo\"}]";
         AddTurnWithMessages(thread, "visible request", "visible answer");
         await _threadStore.SaveThreadAsync(thread);
 
@@ -424,7 +420,10 @@ public sealed class ContextExportServiceTests : IDisposable
             Profile = profile
         });
 
+        // The document has a fixed metadata field set; the free-form bag is not one of them.
         Assert.Contains("visible request", result.Markdown);
+        Assert.Contains("- Status:", result.Markdown);
+        Assert.Contains("- Origin Channel:", result.Markdown);
         Assert.DoesNotContain("METADATA_", result.Markdown);
         Assert.DoesNotContain("dotcraft.externalCliSessions", result.Markdown);
         Assert.DoesNotContain("- Metadata:", result.Markdown);
@@ -454,12 +453,12 @@ public sealed class ContextExportServiceTests : IDisposable
     [Fact]
     public async Task SearchAsync_RolloutSearch_UsesDeduplicatedDisplayableItemsAndSkipsInternalHistory()
     {
-        const string visibleText = "token=VISIBLE_ROLLOUT_MARKER";
-        const string nativePartSecret = "NATIVE_PART_SECRET";
-        const string argumentSecret = "RAW_ARGUMENT_SECRET";
-        const string modelHistorySecret = "MODEL_HISTORY_ONLY_SECRET";
-        const string protectedDataSecret = "PROTECTED_DATA_SECRET";
-        const string checkpointSecret = "COMPACTION_ONLY_SECRET";
+        const string visibleText = "rollout-visible-marker";
+        const string nativePartMarker = "NATIVE_PART_MARKER";
+        const string argumentMarker = "RAW_ARGUMENT_MARKER";
+        const string modelHistoryMarker = "MODEL_HISTORY_ONLY_MARKER";
+        const string protectedDataMarker = "PROTECTED_DATA_MARKER";
+        const string checkpointMarker = "COMPACTION_ONLY_MARKER";
 
         var thread = CreateThread();
         AddTurnWithMessages(thread, visibleText, "ordinary answer");
@@ -469,7 +468,7 @@ public sealed class ContextExportServiceTests : IDisposable
         {
             NativeInputParts =
             [
-                new SessionInputPart { Type = "text", Text = nativePartSecret }
+                new SessionInputPart { Type = "text", Text = nativePartMarker }
             ]
         };
         turn.Items.Add(new SessionItem
@@ -482,10 +481,10 @@ public sealed class ContextExportServiceTests : IDisposable
             CompletedAt = DateTimeOffset.UtcNow,
             Payload = new ToolCallPayload
             {
-                ToolName = "safe-search-tool",
-                ProviderFlatName = "safe-search-tool",
-                CallId = "call_safe_search",
-                Arguments = new JsonObject { ["password"] = argumentSecret }
+                ToolName = "demo-search-tool",
+                ProviderFlatName = "demo-search-tool",
+                CallId = "call_demo_search",
+                Arguments = new JsonObject { ["query"] = argumentMarker }
             }
         });
 
@@ -498,37 +497,41 @@ public sealed class ContextExportServiceTests : IDisposable
                 [
                     new TextReasoningContent("internal reasoning")
                     {
-                        ProtectedData = protectedDataSecret
+                        ProtectedData = protectedDataMarker
                     },
-                    new TextContent(modelHistorySecret)
+                    new TextContent(modelHistoryMarker)
                 ])
             ],
             turn.Id);
         await _fixture.Persistence.AppendCompactionCheckpointAsync(
             thread.Id,
             turn.Id,
-            [new ChatMessage(ChatRole.Assistant, checkpointSecret)],
+            [new ChatMessage(ChatRole.Assistant, checkpointMarker)],
             "manual",
             "partial",
             100,
             50);
 
+        // Evidence keeps the displayable item text intact.
         var visibleResult = await SearchAsync(visibleText);
         var visibleHit = Assert.Single(visibleResult.Hits);
         var rolloutEvidence = Assert.Single(visibleHit.Evidence, evidence => evidence.Source == "rollout");
         Assert.Contains(visibleText, rolloutEvidence.Preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(nativePartSecret, rolloutEvidence.Preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(argumentSecret, rolloutEvidence.Preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(nativePartMarker, rolloutEvidence.Preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(argumentMarker, rolloutEvidence.Preview, StringComparison.Ordinal);
 
-        var toolResult = await SearchAsync("safe-search-tool");
+        // One rollout line per displayable item, even after the turn is replayed.
+        var toolResult = await SearchAsync("demo-search-tool");
         Assert.Single(toolResult.Hits);
         Assert.Single(toolResult.Hits[0].Evidence, evidence => evidence.Source == "rollout");
 
-        Assert.Empty((await SearchAsync(nativePartSecret)).Hits);
-        Assert.Empty((await SearchAsync(argumentSecret)).Hits);
-        Assert.Empty((await SearchAsync(modelHistorySecret)).Hits);
-        Assert.Empty((await SearchAsync(protectedDataSecret)).Hits);
-        Assert.Empty((await SearchAsync(checkpointSecret)).Hits);
+        // Native input parts, raw call arguments, model history, and checkpoints are
+        // outside the displayable projection the index is built from.
+        Assert.Empty((await SearchAsync(nativePartMarker)).Hits);
+        Assert.Empty((await SearchAsync(argumentMarker)).Hits);
+        Assert.Empty((await SearchAsync(modelHistoryMarker)).Hits);
+        Assert.Empty((await SearchAsync(protectedDataMarker)).Hits);
+        Assert.Empty((await SearchAsync(checkpointMarker)).Hits);
 
         Task<ContextSearchResult> SearchAsync(string query) =>
             new ContextSearchService().SearchAsync(new ContextSearchOptions
@@ -628,7 +631,7 @@ public sealed class ContextExportServiceTests : IDisposable
                     Command = "demo",
                     WorkingDirectory = ".",
                     Status = "completed",
-                    AggregatedOutput = "command-visible password=COMMAND_RESULT_SECRET"
+                    AggregatedOutput = "ordinary command output command-body-marker"
                 }
             },
             new SessionItem
@@ -645,7 +648,7 @@ public sealed class ContextExportServiceTests : IDisposable
                     CallId = "call_execution",
                     Status = "completed",
                     Success = true,
-                    ResultPreview = "execution-visible Authorization: Bearer EXECUTION_RESULT_SECRET"
+                    ResultPreview = "ordinary execution preview execution-body-marker"
                 }
             },
             new SessionItem
@@ -660,7 +663,7 @@ public sealed class ContextExportServiceTests : IDisposable
                 {
                     CallId = "call_result",
                     Success = true,
-                    Result = "{\"token\":\"TOOL_RESULT_SECRET\",\"safe\":\"tool-visible\"}"
+                    Result = "{\"detail\":\"tool-body-marker\",\"status\":\"ok\"}"
                 }
             },
             new SessionItem
@@ -680,8 +683,8 @@ public sealed class ContextExportServiceTests : IDisposable
                     Success = true,
                     StructuredContent = new JsonObject
                     {
-                        ["cookie"] = "DYNAMIC_RESULT_SECRET",
-                        ["safe"] = "dynamic-visible"
+                        ["detail"] = "dynamic-body-marker",
+                        ["status"] = "ok"
                     }
                 }
             }

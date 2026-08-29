@@ -1,54 +1,37 @@
 # Memory & Dreams
 
-DotCraft can carry useful project context from one conversation to the next. The memory it saves for later is stored as plain Markdown in your workspace, so you can read, edit, or delete it at any time.
+DotCraft carries useful project context into later conversations: decisions you discussed, preferences you set, problems you already worked around. Memory is stored as plain Markdown in your workspace, so you can read, edit, or delete it at any time.
 
-![DotCraft memory lifecycle topology](/memory-lifecycle-topology.svg)
+![How DotCraft saves and reuses memory](/memory-lifecycle-topology.svg)
 
 ## Three ways DotCraft remembers
 
 | Type | What it helps with |
 |---|---|
-| **Conversation history** | Reopen or continue work from an earlier conversation |
-| **Saved memory** | Reuse stable project details, preferences, decisions, and recurring issues |
-| **Dreams** | Keep tentative notes about recent focus, open questions, and low-signal context |
+| **Conversation history** | Reopen an earlier conversation and pick up where you left off |
+| **Saved memory** | Keep stable project context, preferences, and decisions, carried into every conversation |
+| **Dreams** | Track recent focus and open questions that have not settled yet |
 
-Conversation history preserves the work in each conversation. Saved memory keeps information that should remain useful beyond one conversation. Dreams adds tentative background notes without replacing either one.
+None of the three replaces the others. Conversation history preserves each piece of work, saved memory keeps the conclusions that stay useful beyond one conversation, and Dreams fills in the tentative background.
 
-## MEMORY.md and HISTORY.md
+## Where memory lives
 
-When saved memory is enabled, DotCraft periodically updates `.craft/memory/MEMORY.md` with useful long-term information and adds a short record to `HISTORY.md`. The schedule and model are configurable in the [Configuration Reference](../../developing/configuration#workspace-memory-and-skills).
-
-You can review and edit both files. DotCraft reads the current files before the next memory update, so your changes become part of the memory it works from.
+Saved memory sits in your workspace at `.craft/memory/MEMORY.md`, and every update adds a short record to `HISTORY.md`. These are ordinary Markdown files — whatever you edit is read back in the next time DotCraft updates its memory.
 
 > [!TIP]
-> Desktop's **Settings → Personalization → Reset memory** clears `MEMORY.md`, `HISTORY.md`, `.craft/dreams/`, and derived caches in one click. It does not delete sessions, config, skills, or automation tasks.
+> To reset a project's memory, use Desktop's **Settings → Personalization → Reset memory**. It clears memory and Dreams, and leaves conversations, config, skills, and automation tasks untouched.
 
 ## Dreams
 
-Dreams reviews recent workspace activity in the background, even when you are not actively chatting. It prepares tentative notes that can help future conversations without treating them as instructions or established facts.
+Dreams reviews recent workspace activity in the background and turns what stands out into tentative notes. It does not treat those notes as instructions or established facts — they are only background for later conversations.
 
-Dreams is off by default. Turn on **Enable Dreams** in Desktop under **Settings → Personalization → Dreams** to opt in. After it is enabled, a successful Dreams run waits for your review before DotCraft uses it. If you turn on **Auto-update Dreams**, future successful runs become available automatically and skip manual review. Existing pending runs are not applied automatically.
+Turn it on in Desktop under **Settings → Personalization → Dreams**. Each run waits for your review, and later conversations use it only once you apply it. You can also turn on auto-update so successful runs take effect directly.
 
-![Dreams review flow](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
+![Reviewing a Dreams run](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 
-| State | Meaning |
-|---|---|
-| **pending** | Waiting for review and not used in conversations yet |
-| **applied** | Available to future conversations, either after review or through auto-update |
-| **discarded / archived** | Kept out of future conversations |
-
-Desktop's **Settings → Personalization → Dreams** offers:
-
-- **Enable Dreams** — Opt in to background Dreams for this workspace
-- **Run now** — Start a Dreams update immediately
-- **Auto-update Dreams** — Let future successful runs skip manual review and become available automatically
-- **Manage Dreams** — Review recent runs and apply, discard, cancel, or archive them
-
-Dreams does not replace saved memory. Use `MEMORY.md` for facts and preferences you want DotCraft to rely on. Treat Dreams as supporting notes that may still need correction or removal.
+Facts and preferences you need DotCraft to remember reliably belong in saved memory. Dreams is a supporting hint, and you can correct or discard it at any time.
 
 ## Related docs
 
-- [Skills & Self-Learning](./skills)
-- [Observability](../self-hosted/observability)
-- [Configuration Reference](../../developing/configuration) for `Memory.*` and `Compaction.*` fields
-- [Session persistence](../../developing/architecture/session-persistence)
+- [Skills & Self-Learning](./skills) — memory keeps facts, skills keep methods: a workflow that worked gets reused next time
+- [Observability](../self-hosted/observability) — review Dreams runs and session traces in Dashboard

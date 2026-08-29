@@ -1,48 +1,40 @@
 # 配置 Oratorio
 
-打开 Board 并选择 **Oratorio settings**，即可管理来源连接、项目路由、Agent 执行与自动化。
+打开 Board 并选择 **Oratorio settings**，在这里管理来源连接、项目路由、Agent 执行和自动化。
 
 ![DotCraft Desktop 中的 Oratorio 设置](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/settings-light.png)
 
-## Provider 与项目
+## 来源与项目
 
-在对应的 Provider 页面配置 GitHub 与 GitLab 凭据。分别添加每个仓库或项目，然后将其映射到包含匹配 checkout 的 DotCraft workspace。对于来源任务，Oratorio 不会猜测备用 workspace。
+GitHub 和 GitLab 的凭据分别在各自的提供商页面配置。仓库和项目要逐个添加，每个都映射到含有对应 checkout 的 DotCraft workspace。来源任务不会落到别的 workspace 上。
 
-如果已保存的 Workspace 已离线或不再注册于 DotCraft，它仍会显示为不可用绑定。将其重新绑定到已打开的本地 Workspace，或者移除该项目。移除项目会停止后续同步、自动化和派发，但保留已有任务历史。
+映射的 Workspace 离线或不再注册在 DotCraft 中时，绑定仍然显示，只是标记为不可用。把它重新绑定到一个已打开的本地 Workspace，或者移除这个项目。移除项目会停掉后续的同步、自动化和派发，已有的任务历史保留。不可用的绑定不会挡住其他设置的修改，Oratorio 会在报告状态或开始运行时重新检查。
 
-Provider 页面会显示 read、write 与 Webhook 健康状态。使用 **Sync now** 立即更新，或设置定时同步。只有来源需要完整重新对账时才使用 full repair。
+提供商页面会显示读取、写入和 Webhook 的状态。选择 **立即同步** 立即同步一次，也可以设定同步计划。
 
 ## Agent 执行与 Worktree
 
-根页面用于控制 approval policy、运行超时、托管 Worktree 的位置与分支命名、自动派发、审阅自动化和交付行为。运行时并发、重试、停滞和清理策略继续由 Server 管理，不在 Desktop 中暴露。
+Agent 怎么执行工作，从什么时候停下来等审批到最后怎么交付，都在 Oratorio 设置的主页面里配置。这些值在新运行开始时读取，所以改动只影响之后的运行。
 
-托管 Worktree 默认使用仓库内的目录：
+托管 Worktree 默认建在仓库内：
 
 ```text
 <repositoryWorkspace>/.craft/oratorio/worktrees
 ```
 
-托管分支使用 `oratorio/run/<work-item-key>`。应当由 Oratorio 清理自己的 Worktree。清理操作会检查持久化的运行占用关系，而不是仅按时间删除目录。
+对应的分支以 `oratorio/run/` 开头。这些 Worktree 交给 Oratorio 自己清理，它按运行的实际占用关系回收，不会只看目录存在了多久。
 
 ## 保存与 Secret
 
-设置会在短暂延迟后保存。字段会显示 pending 或失败状态，保存失败后可以重试。如果另一个编辑器修改了同一 revision，Desktop 会重新加载 Server 已确认的配置，而不会展示未经确认的本地成功状态。
+设置在你停下操作后自动保存。字段会显示保存中或失败的状态，失败可以重试。同一份配置在别处被改动过时，Desktop 会重新加载服务器上已确认的值，不会显示一个未经确认的成功状态。
 
-已保存但不可用的 Workspace 不会阻止其他 Settings 修改。Oratorio 会在报告健康状态或开始运行时重新检查 Workspace 可用性。
+已保存的 Secret 只写不读，保存后不再显示明文。要换成新值就选 **替换密钥**，要清空就选 **清除密钥**，不做任何操作则保留原值。
 
-已保存的 Secret 只可写入，无法读取明文。Secret 编辑器提供三个明确选择：
+部分运行时设置需要重启 Oratorio Server。保存之后，设置页会提示你。
 
-- **Keep**：保留当前值。
-- **Replace**：替换为新值。
-- **Clear**：清除当前值。
-
-部分运行时设置需要重启 Oratorio Server。配置保存后，Settings 会显示该状态。
-
-Desktop 连接远程 DotCraft Stack 时，管理设置为只读，但 Board 操作、来源同步与任务操作仍然可用。
+Desktop 连接远程 [DotCraft Stack](../self-hosted/server-deployment) 时，管理类设置是只读的。Board 操作、来源同步和任务操作照常可用。
 
 ## 相关文档
 
-- [Oratorio](../oratorio)
-- [接入 GitHub](./github)
-- [接入 GitLab](./gitlab)
-- [部署 DotCraft Stack](../self-hosted/server-deployment)
+- [接入 GitHub](./github) — 用 GitHub App 同步 issue 与 pull request
+- [接入 GitLab](./gitlab) — 用项目级 Token 同步 issue 与 merge request

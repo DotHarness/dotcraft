@@ -41,8 +41,9 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     items: [
       {
         text: withIcon('cpu', 'Agent System'),
-        link: '/features/agent-system/memory',
+        link: '/features/agent-system/',
         items: [
+          { text: withIcon('cpu', 'Overview'), link: '/features/agent-system/' },
           { text: withIcon('brain', 'Memory & Dreams'), link: '/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
@@ -52,8 +53,9 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('workflow', 'Dynamic Workflows'), link: '/features/agent-system/dynamic-workflows' },
           { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
-          { text: withIcon('users', 'SubAgents'), link: '/features/agent-system/subagents' },
+          { text: withIcon('users', 'Subagents'), link: '/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' },
+          { text: withIcon('share', 'Workspace Handoff'), link: '/features/agent-system/workspace-handoff' },
           { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
           { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
         ]
@@ -89,8 +91,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         text: withIcon('route', 'Workflow'),
         link: '/developing/workflow/spec-driven-development',
         items: [
-          { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/developing/workflow/spec-driven-development' },
-          { text: withIcon('share', 'Workspace Handoff'), link: '/developing/workflow/workspace-handoff' }
+          { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/developing/workflow/spec-driven-development' }
         ]
       },
       {
@@ -190,19 +191,21 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     items: [
       {
         text: withIcon('cpu', 'Agent 系统'),
-        link: '/zh/features/agent-system/memory',
+        link: '/zh/features/agent-system/',
         items: [
-          { text: withIcon('brain', '长期记忆与 Dreams'), link: '/zh/features/agent-system/memory' },
-          { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
+          { text: withIcon('cpu', '总览'), link: '/zh/features/agent-system/' },
+          { text: withIcon('brain', '长期记忆与梦境'), link: '/zh/features/agent-system/memory' },
+          { text: withIcon('sparkles', '技能与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
           { text: withIcon('package', '插件市场'), link: '/zh/features/agent-system/plugin-marketplaces' },
-          { text: withIcon('plug', 'Connected Apps'), link: '/zh/features/agent-system/connected-apps' },
-          { text: withIcon('automation', 'Automations 与 Goals'), link: '/zh/features/agent-system/automations' },
-          { text: withIcon('workflow', 'Dynamic Workflows'), link: '/zh/features/agent-system/dynamic-workflows' },
+          { text: withIcon('plug', '应用连接'), link: '/zh/features/agent-system/connected-apps' },
+          { text: withIcon('automation', '自动化与目标'), link: '/zh/features/agent-system/automations' },
+          { text: withIcon('workflow', '动态工作流'), link: '/zh/features/agent-system/dynamic-workflows' },
           { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/features/agent-system/hooks' },
-          { text: withIcon('bot', 'Agent Profiles'), link: '/zh/features/agent-system/agent-profiles' },
-          { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
-          { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' },
+          { text: withIcon('bot', 'Agent 预设'), link: '/zh/features/agent-system/agent-profiles' },
+          { text: withIcon('users', 'Subagents'), link: '/zh/features/agent-system/subagents' },
+          { text: withIcon('network', 'Agent 团队'), link: '/zh/features/agent-system/teams' },
+          { text: withIcon('share', '外部 Agent 协作'), link: '/zh/features/agent-system/workspace-handoff' },
           { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
           { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
         ]
@@ -239,7 +242,6 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         link: '/zh/developing/workflow/spec-driven-development',
         items: [
           { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/zh/developing/workflow/spec-driven-development' },
-          { text: withIcon('share', '外部 Agent 协作'), link: '/zh/developing/workflow/workspace-handoff' }
         ]
       },
       {
@@ -330,20 +332,20 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
 const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },
   { text: 'Getting Started', link: '/getting-started' },
-  { text: 'Features', link: '/features/agent-system/memory' },
+  { text: 'Features', link: '/features/agent-system/' },
   { text: 'Developing', link: '/developing/workflow/spec-driven-development' }
 ]
 
 const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
-  { text: '功能', link: '/zh/features/agent-system/memory' },
+  { text: '功能', link: '/zh/features/agent-system/' },
   { text: '开发', link: '/zh/developing/workflow/spec-driven-development' }
 ]
 
 const redirectMap: Record<string, string> = {
   'reference.md': 'developing/architecture/overview.md',
-  'features.md': 'features/agent-system/memory.md',
+  'features.md': 'features/agent-system/index.md',
   'getting-started.md': 'getting-started.md',
   'config_guide.md': 'developing/configuration.md',
   'desktop_guide.md': 'features/entry-points/desktop.md',
@@ -360,8 +362,9 @@ const redirectMap: Record<string, string> = {
   'hooks/reference.md': 'developing/configuration.md#automations-goals-and-hooks',
   'config/security.md': 'features/self-hosted/security.md',
   'settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
-  'features/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
-  'developing/context-export-cli.md': 'developing/workflow/workspace-handoff.md',
+  'features/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
+  'developing/context-export-cli.md': 'features/agent-system/workspace-handoff.md',
+  'developing/workflow/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
   'typescript-module-integration.md': 'developing/integrations/typescript-module.md',
   'reference/config.md': 'developing/configuration.md',
   'reference/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
@@ -394,7 +397,7 @@ const redirectMap: Record<string, string> = {
   'features/session-core.md': 'developing/architecture/session-core.md',
   'features/app.md': 'developing/integrations/app-binding.md',
   'developing/spec-driven-development.md': 'developing/workflow/spec-driven-development.md',
-  'developing/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
+  'developing/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
   'developing/architecture.md': 'developing/architecture/overview.md',
   'developing/configuration/reference.md': 'developing/configuration.md',
   'developing/settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',

@@ -64,6 +64,6 @@ This keeps integrations independent of internal record versions, compaction deta
 
 - [Unified Session Core](./session-core)
 - [Getting started](../../getting-started)
-- [Workspace handoff](../workflow/workspace-handoff)
+- [Workspace handoff](../../features/agent-system/workspace-handoff)
 - [AppServer protocol](../protocols/appserver-protocol)
 - [Configuration reference](../configuration)

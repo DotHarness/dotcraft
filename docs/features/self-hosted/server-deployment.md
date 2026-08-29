@@ -1,6 +1,6 @@
-# Deploy the DotCraft Stack
+# Server Deployment
 
-Run DotCraft AppServer and Oratorio together on a Linux server with the official Docker Compose stack. Both services share one workspace, so Oratorio can dispatch work and DotCraft can open the resulting threads and worktrees.
+Run DotCraft AppServer and [Oratorio](../oratorio) together on one Linux server with the official Docker Compose stack. Both services share the same workspace directory. Work that Oratorio dispatches opens in Desktop as an ordinary thread and worktree.
 
 ## Initialize the stack
 
@@ -10,9 +10,9 @@ Install the DotCraft CLI, then create a deployment directory:
 dotcraft stack init --dir /opt/dotcraft-stack --no-start
 ```
 
-The command creates the Compose files, independent AppServer and Oratorio service tokens, a writable Oratorio configuration, and local `workspace`, `state`, and `secrets` directories. Generated secrets appear once and remain in `/opt/dotcraft-stack/.env`. DotCraft marketplace configuration and cache data stay under `state/dotcraft`.
+The command generates the Compose files, separate credentials for each service, and the `workspace`, `state`, and `secrets` directories. Generated secrets are shown once and then live in `/opt/dotcraft-stack/.env`.
 
-Edit `.env` and set your model provider:
+Edit `.env` and fill in your model provider:
 
 ```dotenv
 DOTCRAFT_PROVIDER=openai
@@ -21,9 +21,9 @@ DOTCRAFT_API_KEY=your-api-key
 ```
 
 > [!CAUTION]
-> `.env` contains API keys and service credentials. Keep it private and never commit it.
+> `.env` holds API keys and service credentials. Keep it private and never commit it.
 
-Start the deployment:
+Start the deployment, then run a health check:
 
 ```bash
 cd /opt/dotcraft-stack
@@ -31,15 +31,9 @@ docker compose up -d
 dotcraft stack doctor --dir /opt/dotcraft-stack
 ```
 
-## Manage plugins
-
-Open **Plugins** after connecting from Desktop. The server image exposes every bundled plugin as an installable catalog entry and enables the official plugin marketplace by default. Installing a plugin copies only that plugin into the shared Workspace under `workspace/.craft/plugins`.
-
-User-added marketplace configuration and cached snapshots stay under `state/dotcraft`. Preserve both `state/dotcraft` and `workspace/.craft` when replacing or moving the deployment. To use another registry archive, set `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` in `.env` before restarting the DotCraft service.
-
 ## Add a project
 
-Clone each repository below the generated workspace directory. Then bind its source identity to the exact container path:
+Clone each repository below the `workspace` directory, then bind it to its exact path inside the container:
 
 ```bash
 git clone https://github.com/acme/example.git /opt/dotcraft-stack/workspace/example
@@ -51,21 +45,27 @@ dotcraft stack add-project \
 dotcraft stack restart --dir /opt/dotcraft-stack
 ```
 
-Use `--provider gitlab` for GitLab projects. Every dispatchable project needs an explicit `/workspace/...` mapping; the runtime does not guess a fallback workspace.
+Use `--provider gitlab` for GitLab projects. Every project that can receive dispatched work needs an explicit `/workspace/...` mapping — DotCraft never guesses one.
 
 ## Connect from Desktop
 
 ![Desktop server settings](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
 
-Desktop connects through the system SSH client and keeps AppServer, Oratorio, and Dashboard credentials in the main process.
+The services listen only on the server itself. Desktop reaches them through tunnels opened by your system SSH client, so no port has to face the public internet.
 
-1. Confirm that non-interactive SSH works: `ssh -o BatchMode=yes user@host "echo ok"`.
-2. Open **Settings -> Servers -> Add server**.
-3. Enter the SSH target and `/opt/dotcraft-stack` as the deployment folder.
-4. Keep the default ports: AppServer `9100`, Oratorio `5087`, Dashboard `8080`.
-5. Select **Open in Desktop**.
+First confirm that non-interactive SSH works:
 
-Desktop opens separate loopback SSH tunnels for AppServer and Oratorio. The Oratorio endpoint and bearer never enter the renderer.
+```bash
+ssh -o BatchMode=yes user@host "echo ok"
+```
+
+Then open **Settings → Servers → Add server**, enter the SSH target, set the deployment folder to `/opt/dotcraft-stack`, and keep the default ports (AppServer `9100`, Oratorio `5087`, Dashboard `8080`). Finish with **Open in Desktop**.
+
+## Manage plugins
+
+Open **Plugins** once you are connected. The server ships with the official plugin marketplace and every bundled plugin, and anything you install applies to that server's shared workspace only — your local workspaces are untouched.
+
+When you replace or move the deployment, carry `state/dotcraft` and `workspace/.craft` with it: plugins, marketplace sources, and caches all live in those two directories. To point the server at your own plugin registry, see the [configuration reference](../../developing/configuration#plugins-mcp-and-lsp).
 
 ## Operate the stack
 
@@ -76,11 +76,11 @@ dotcraft stack restart --dir /opt/dotcraft-stack
 dotcraft stack upgrade --dir /opt/dotcraft-stack
 ```
 
-Add `--dry-run` to mutating commands to inspect their effect without changing files or starting processes.
+Add `--dry-run` to any command that changes state to see exactly what it would do before running it for real.
 
-## Enable GitHub webhook ingress
+## Open the GitHub webhook endpoint
 
-Expose only the GitHub webhook endpoint through the optional Caddy gateway:
+To receive GitHub events, use the optional Caddy gateway to expose the webhook endpoint and nothing else:
 
 ```bash
 dotcraft stack webhook enable \
@@ -88,9 +88,9 @@ dotcraft stack webhook enable \
   --public-host hooks.example.com
 ```
 
-The gateway accepts only `POST /api/v1/sources/github/webhook`; AppServer, Dashboard, and the rest of the Oratorio API remain loopback-only. Configure the secret printed by the command in your GitHub App.
+The gateway accepts only `POST /api/v1/sources/github/webhook`. Everything else stays on the loopback interface. Put the secret the command prints into your GitHub App, then follow [Connect GitHub to Oratorio](../oratorio/github) for the rest of the setup.
 
-Disable the gateway without removing stack state or secrets:
+Disabling the gateway leaves stack state and secrets in place:
 
 ```bash
 dotcraft stack webhook disable --dir /opt/dotcraft-stack
@@ -98,8 +98,6 @@ dotcraft stack webhook disable --dir /opt/dotcraft-stack
 
 ## Related docs
 
-- [Oratorio](../oratorio)
-- [Configure Oratorio](../oratorio/settings)
-- [Connect GitHub to Oratorio](../oratorio/github)
-- [Security & Sandbox](./security)
-- [Observability](./observability)
+- [Oratorio](../oratorio) — dispatch and track work on this deployment
+- [Security & Sandbox](./security) — tighten what the agent can reach on the server
+- [Observability](./observability) — review runs and session traces in the Dashboard

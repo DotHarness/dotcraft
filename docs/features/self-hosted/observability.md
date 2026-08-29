@@ -1,109 +1,59 @@
 # Observability
 
-The DotCraft Dashboard is a web page for seeing what's going on — sessions, traces, tool calls, automation state, the merged config, and approval records. It's where you go to answer "what did the agent actually do?" and "why is the config behaving this way?"
+The DotCraft Dashboard is a web page for seeing what the agent actually did. Session traces, tool calls, merged configuration, and approval records all land there. When something goes wrong, you read a timeline instead of digging through logs.
 
 ![Sessions from every entry point emit trace events into the Dashboard window, where the Trace Timeline page lays out agent, tool, and error events in order, with Approvals and merged config alongside](/observability-trace-overview.svg)
 
-## Quick Start
+## Open the Dashboard
 
-### Enable
-
-Enable Dashboard in workspace configuration. Field names, defaults, and JSON examples live in [Entry Points and Services](../../developing/configuration#entry-points-and-services).
-
-### Start
+Enable Dashboard in your workspace configuration — field names and JSON examples live in [Entry Points and Services](../../developing/configuration#entry-points-and-services). Then start it:
 
 ```bash
 dotcraft dashboard
 ```
 
-### Open
+The default address is `http://127.0.0.1:8080/dashboard`. The landing page gives you a runtime summary, entry-point status, and recent activity. Send one conversation from the CLI, Desktop, or any other entry point and the data shows up.
 
-Default URL `http://127.0.0.1:8080/dashboard`. After a CLI, Desktop, or other entry point sends one conversation, the Dashboard shows sessions, tool calls, errors, and configuration state.
+`dotcraft dashboard` reads what has already been persisted. To watch automations and external channels live, let AppServer host the Dashboard.
 
-## Main Pages
-
-| Page | Purpose |
-|---|---|
-| Dashboard | Runtime summary, entry-point status, recent activity |
-| Sessions | Session list and details |
-| Trace Timeline | Time-ordered Agent, tool, and error events |
-| Settings | Configuration schema, global config, workspace config, merged result |
-| Automations | Local tasks, Cron, and activity when hosted by AppServer |
-| Dreams | Review, apply, discard background dreams |
-| Approvals | Historical approval records |
-
-## Three Typical Workflows
-
-### 1. First-time confirmation that the model works
-
-After triggering a session, open **Trace Timeline** and confirm:
-
-- **agent_message_chunk** is producing a token stream
-- **tool_call** / **tool_result** pair up successfully
-- **error** is not interrupting a specific tool call
-
-If the token stream is empty, provider credentials / endpoint usually do not match. Check the merged result in the **Settings** page under `Providers[id]`.
-
-Terminal and provider diagnostics are recorded separately from visible response text. Use the **Responses** filter to inspect `ResponseTerminal` events for empty or usage-only streams. Use the **Provider** filter to inspect `ProviderError` and `ProviderResponseDiagnostic` events.
-
-Use the **Provider** filter to inspect retry behavior. A `stream_attempt` diagnostic shows the
-attempt number, outcome, retry decision, duration, and whether visible output prevented a retry.
-For OpenAI Responses, it also shows the final HTTP status, upstream request ID, and abbreviated
-session, thread, and prompt-cache hashes. Compare those hashes across attempts to confirm that
-routing stayed stable without exposing the underlying identifiers.
-
-Use the **Instructions** filter to inspect the effective `AGENTS.md` snapshot for the session. It
-shows the source files, `user` role, fingerprint, and exact composed content captured by the thread.
-The snapshot updates when the thread refreshes its project instructions; it is not a live disk view.
-
-### 2. Diagnose a failed tool call
-
-Open the session detail:
-
-- Switch to the **Tools** / **Errors** filter
-- Click a tool call to see full args, result, latency, and stderr
-- If it is an approval failure, go to **Approvals** and check whether it was auto-rejected
-
-### 3. Inspect why config behaves this way
-
-The **Settings** page renders the global `~/.craft/config.json` and workspace `.craft/config.json` side by side:
-
-- Which layer defines each field
-- Which value wins after merge
-- Which fields are startup-level (require restart)
-
-> [!TIP]
-> If a change does not take effect, first identify in Settings whether it is in the immediate / subsystem-restart / AppServer-restart tier. See [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle).
-
-## Run Modes
-
-| Mode | Description |
-|---|---|
-| Read-only Dashboard | Inspect persisted state with `dotcraft dashboard` |
-| AppServer Dashboard | Live Automations and external-channel state |
-
-Setting `Host` to `0.0.0.0` exposes Dashboard to your network.
+Dashboard listens on localhost by default. Point it at an external address and anyone on the same network can open it.
 
 > [!CAUTION]
-> Dashboard can show prompts, project instructions and their source paths, tool arguments, and tool results. Confirm your network boundary and authentication before exposing it publicly.
+> Dashboard shows prompts, project instructions and their source paths, tool arguments, and tool results. Confirm your network boundary and authentication before exposing it publicly.
 
-## Approval Audit
+## What each page answers
 
-The Approvals page records every tool call that needed approval:
+### Confirm the model is responding
 
-- Who / which entry point initiated the request
-- Decision (approve / deny / auto-approve / auto-deny)
-- Reason (user, workspace policy, Hook, API AutoApprove)
-- Tool and arguments
+Trigger a session and open **Trace Timeline**. Events are laid out in order: model output, every tool call and its result, and any error along the way. One pass tells you where things stopped.
 
-Related: [Security & Sandbox](./security).
+If there is no model output at all, provider credentials or the endpoint usually don't match — check the merged provider configuration on the **Settings** page. The **Provider** filter also shows retry behavior: how many attempts were made, how each one ended, and why retrying stopped.
 
-## API & Trace Events
+### Diagnose a failed or blocked tool call
 
-To consume Trace events from your own dashboard, see the HTTP endpoints and event types in [Dashboard API](../../developing/protocols/dashboard-api). The events are the same data the AppServer protocol pushes over Wire Protocol — Dashboard just renders them as UI.
+Open the session detail under **Sessions**, switch to the **Tools** or **Errors** filter, and click a single call to see its arguments, result, latency, and stderr.
+
+If approval was the blocker, **Approvals** records every call that needed one: which entry point asked, whether it was approved or denied, and whether the decision came from you, a workspace policy, or a Hook. For the policies themselves, see [Security & Sandbox](./security).
+
+### See why a config value wins
+
+The **Settings** page renders the global `~/.craft/config.json` and the workspace `.craft/config.json` side by side: which layer defines each field, which value wins after the merge, and which fields need a restart.
+
+When a change doesn't take effect, check here first whether it applies immediately, needs a subsystem restart, or needs an AppServer restart, then read [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle).
+
+### Check the project instructions in effect
+
+The **Instructions** filter shows the `AGENTS.md` content the session actually carried and the files it came from. It is a snapshot captured by the thread and refreshed when the thread reloads project instructions, not a live view of the disk.
+
+### Check automation and dream runs
+
+**Automations** lists the local tasks and Cron entries AppServer hosts, along with their current activity. **Dreams** is where you review what the background pass produced and decide whether to apply or discard it.
+
+## Consume the events yourself
+
+To feed trace events into your own dashboard, the HTTP endpoints and event types are listed in [Dashboard API](../../developing/protocols/dashboard-api). Dashboard renders that same data, and the AppServer protocol pushes it over Wire Protocol.
 
 ## Related docs
 
-- [Security & Sandbox](./security)
-- [Dashboard API](../../developing/protocols/dashboard-api)
-- [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle)
+- [Security & Sandbox](./security) — which actions need approval, and where Dashboard's blocked records come from
+- [Server Deployment](./server-deployment) — run Dashboard and AppServer together on a server

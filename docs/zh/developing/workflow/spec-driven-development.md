@@ -46,6 +46,6 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 
 - [架构总览](../architecture/overview)——规范所描述的运行时。
 - [插件与工具](../../features/agent-system/plugins-tools)——安装与启用 `dotcraft` 和 `harness-workflow`。
-- [外部 Agent 协作](./workspace-handoff)——为外部编码 Agent 导出上下文。
+- [外部 Agent 协作](../../features/agent-system/workspace-handoff)——为外部 coding agent 导出上下文。
 
 延伸阅读：[What is Spec-Driven Development?（IBM）](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development（Martin Fowler）](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

@@ -33,7 +33,7 @@ Export a handoff Markdown file:
 dotcraft context export --thread thread_20260601_ab12cd --workspace "D:\path\to\workspace" --output ".\context-handoff.md"
 ```
 
-Export with stricter privacy:
+Export with a narrower output scope:
 
 ```powershell
 dotcraft context export --thread thread_20260601_ab12cd --tool-results none --history tail

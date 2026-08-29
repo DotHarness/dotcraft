@@ -1,124 +1,81 @@
 # Skills & Self-Learning
 
-Skills teach the agent how to do something once, so it doesn't have to work it out again next time. Each skill is a Markdown file with frontmatter that captures a procedure, and the agent loads it on demand when a matching situation comes up. Skills can be built in, written by hand, or saved by the agent itself after a job goes well — and if one breaks, you can always revert it to the original.
+A skill teaches the agent how to do something once, so the next time a similar job comes up it loads that write-up and follows it. Each skill is a Markdown file with frontmatter. Some ship with DotCraft, some you write yourself, and the agent can save its own after a job goes well.
 
 ![DotCraft skill sources overview](/skills-sources-overview.svg)
 
-## Skill Sources
+## Where skills come from
 
-| Source | Path | Description |
-|---|---|---|
-| **System** | Inside the DotCraft installation | Built-in skills, shared by all workspaces |
-| **Personal** | `~/.craft/skills/` | User-global skills, reused across workspaces |
-| **Workspace** | `.craft/skills/` | Project-specific skills, follow the repository |
-| **Plugin-bundled** | `.craft/plugins/<id>/skills/` or `~/.craft/plugins/<id>/skills/` | Skills shipped by a plugin, scoped to plugin lifecycle |
-| **Market-installed** | `.craft/skills/<id>/` (with `.dotcraft-market.json`) | Third-party skills from SkillHub / ClawHub |
+| Source | Description |
+|---|---|
+| **System** | Built-in skills that ship with DotCraft and are shared by every workspace |
+| **Personal** | General-purpose skills you write once and reuse across workspaces |
+| **Workspace** | Skills that belong to the current project and travel with the repository |
+| **Plugin-bundled** | Skills distributed by a plugin, installed and removed with it |
+| **Market-installed** | Third-party skills pulled in from SkillHub or ClawHub |
 
-Sources are not auto-enabled: enablement is controlled in the Skills management page. Market hits must be installed before they become local skills. Plugin-bundled skills follow the plugin wherever it is installed — workspace, user-global, or an extra root configured with `Plugins.PluginRoots` in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
+When you write a skill yourself, `~/.craft/skills/` makes it personal and the workspace's `.craft/skills/` makes it project-specific. Every source is switched on or off from the Skills page, and a skill you find in a marketplace has to be installed before it joins the local list.
 
-## Agent Skill Self-Learning
+## Let the agent save its own skills
 
-When skill self-learning is enabled, DotCraft exposes a managed skill-editing capability so the agent can create, patch, and maintain workspace skills after successful work. Creation and destructive changes go through approval, and full limits are listed in the [Configuration Reference](../../developing/configuration#workspace-memory-and-skills).
+Turn on **Settings → Personalization → Enable self-learning** in Desktop, and the agent can turn a procedure that worked into a workspace skill, or patch steps in an existing skill that turned out to be stale or wrong. Creating a skill and any destructive change ask you first.
 
-### Boundaries & Path Rules
+Self-learning writes only to the current workspace's skill directory. System and personal skills are read-only, so the agent copies one into the workspace before changing it. With self-learning on, the agent also gets a built-in authoring reference covering how a skill is structured, where supporting files go, and the usual pitfalls. Turn self-learning off and that reference goes away with it. The full set of switches and limits is in the [Configuration Reference](../../developing/configuration#workspace-memory-and-skills).
 
-- Self-learning writes only the current workspace's skill directory. **System and personal skills are read-only** — the agent must create a workspace copy to modify them.
-- Supporting files may only live under `scripts/` or `assets/`.
-- Absolute paths and `..` traversal are rejected.
+### What's worth saving as a skill
 
-### When to Save as a Skill
+- A reusable procedure that emerged from a complex task
+- A fix for a problem that will likely come back
+- A correction you made that settled into a stable way of working
+- An existing skill you found to be stale, incomplete, or wrong
 
-- Reusable procedure crystallized after a complex task
-- A tricky bug that may resurface
-- A user correction that became a stable step
-- An existing skill found to be outdated or buggy
+A one-off answer doesn't need a skill.
 
-Trivial one-shot answers do not deserve a skill.
+## Search and install
 
-## Search & Install in Desktop
-
-The Desktop Skills page searches local skills and external marketplaces side by side:
+The Desktop Skills page searches your installed skills and the SkillHub and ClawHub marketplaces at the same time. The source filter (All / System / Personal / Marketplace) changes what you browse, not what is enabled.
 
 ![Skills page](https://github.com/DotHarness/resources/raw/master/dotcraft/skills.png)
 
-The search box does two things at once:
+To install a skill from a marketplace:
 
-- Filter currently installed local skills
-- Query SkillHub and ClawHub when there is a search term
+1. Open it in the search results and read its README, description, and source links.
+2. Select **Install with DotCraft**.
+3. DotCraft starts an install agent that inspects your workspace, system, and available tools, and produces a version tuned to your environment when that helps.
 
-The source filter switches between `All / System / Personal / Market`. It only affects browsing, not enablement.
+![Skill marketplace results](https://github.com/DotHarness/resources/raw/master/dotcraft/skill-hub.png)
 
-### Install from the Marketplace
+<p class="caption">Installing a market skill through DotCraft and generating a local variant</p>
 
-1. Click a market hit in search results
-2. Read the README, description, and source links on the detail page
-3. Click **Install with DotCraft**
-4. DotCraft launches an install agent that inspects your workspace, system, and tools, and produces a local-environment optimized variant when differences are detected
-5. Refresh the local list when done
+Market skills land under the workspace's `.craft/skills/`. If a skill of the same name is already there, Desktop asks before overwriting it. System and plugin-bundled skills are trusted by default. SkillHub and ClawHub are external sources, so try anything you're unsure about on a branch or in a separate workspace first.
 
-![Skill market results](https://github.com/DotHarness/resources/raw/master/dotcraft/skill-hub.png)
+### Variants: keep the original, layer the optimization
 
-<p class="caption">Installing a market skill via Desktop and generating a local variant</p>
+A skill installed with **Install with DotCraft** is never rewritten in place. The agent keeps the original and generates a variant tuned to your environment, then prefers the active variant from then on. To go back to what the marketplace published, select **Restore original skill** on the skill's detail page.
 
-Market skills land at:
+![Skill variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.gif)
 
-```text
-.craft/skills/<skill-name>/
-.craft/skills/<skill-name>/.dotcraft-market.json
-```
+You keep what self-learning improved, with a clean way back if it goes wrong.
 
-`.dotcraft-market.json` records source, version, and update state. If the workspace already has a same-named skill, Desktop confirms before overwriting.
+## Enable and disable
 
-### Skill Variants: Keep Original, Layer Optimizations
+**Manage**, at the top right of the Skills page, is where you switch skills on and off in bulk. Search your installed skills there and use the toggle on each row. A disabled skill stays on disk but never enters the agent's context.
 
-When you install via **Install with DotCraft**, the agent keeps the original skill and produces an environment-tuned variant rather than overwriting. DotCraft prefers the active variant at runtime, but you can revert to the original from the Skills page any time.
+## Official workflow plugins
 
-That preserves the value of self-learning while keeping a clean rollback.
+The official development skills are split into two plugins by scope. `dotcraft` covers DotCraft-specific development, documentation, release, simplification, troubleshooting, context handoff, and issue reporting. `harness-workflow` covers shared feature planning and isolated UI prototyping that follow the current project's conventions. Enable either from the Plugins page as the work requires. Substantial DotCraft features usually call for both. For how the two divide product rules from shared workflows, see [Spec-Driven Development](../../developing/workflow/spec-driven-development).
 
-![Skill Variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.gif)
-
-## Enable / Disable Management
-
-The **Manage** button on the Skills page is the bulk on/off entry:
-
-1. Click **Manage**
-2. Search installed skills
-3. Toggle each row's switch
-
-The management page does not query SkillHub / ClawHub. Disabled skills do not enter the agent's context, but their files remain.
-
-## The Built-in `skill-authoring` Skill
-
-When self-learning is on, DotCraft gives the agent an on-demand `skill-authoring` reference: how to structure a skill's frontmatter, where supporting files may live, common pitfalls, and how to validate the result. Turn self-learning off and this reference goes away with it.
-
-## Official Development Workflow Plugins
-
-Official development skills are split by scope:
-
-| Plugin | Scope |
-|---|---|
-| `dotcraft` | DotCraft-specific development, documentation, release, simplification, troubleshooting, context handoff, and issue reporting workflows. |
-| `harness-workflow` | Shared feature planning and isolated UI prototyping workflows that follow the current project's conventions. |
-
-Enable either plugin from the Plugins catalog according to the work at hand. Contributors working on substantial DotCraft features will commonly enable both.
-
-## Safety & Trust
-
-- System and plugin-bundled skills are trusted by default.
-- SkillHub and ClawHub are external; read README and source links before install, and validate in a branch or sandbox workspace if unsure.
-- When the marketplace is unreachable, local skill search and management still work.
-
-## When to Use Which
+## Which one to use
 
 | Scenario | Recommendation |
 |---|---|
-| Project-fixed flow ("run lint+test before any PR") | Workspace skill (hand-authored or agent-created) |
-| Cross-project preference (your code style) | Personal skill |
-| Distributable capability bundle (skills + tools) | Build a [Plugin](./plugins-tools) |
-| Capture a freshly solved problem | Enable self-learning and let the agent save it |
-| Reuse a community solution | Skills page → market search → Install with DotCraft |
+| A fixed procedure in one project ("run lint and tests before any PR") | Workspace skill, hand-written or agent-created |
+| A preference that follows you everywhere (your code style) | Personal skill |
+| Tools plus several skills you want to distribute | Build a [plugin](./plugins-tools) |
+| Capturing a problem the agent just solved | Turn on self-learning |
+| Reusing something the community already built | Search the marketplace from the Skills page, then install with DotCraft |
 
 ## Related docs
 
-- [Plugins & Tools](./plugins-tools) — distributing skills + tools as plugins
-- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — how `dotcraft` and `harness-workflow` divide product rules from shared workflows
+- [Plugins & Tools](./plugins-tools) — package skills and tools into a plugin you can distribute
+- [Memory & Dreams](./memory) — memory keeps the facts, skills keep the procedures

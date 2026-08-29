@@ -64,6 +64,6 @@ Git 克隆只包含已经跟踪的文件。自动生成的 `.craft/.gitignore` �
 
 - [统一会话核心](./session-core)
 - [快速开始](../../getting-started)
-- [工作区交接](../workflow/workspace-handoff)
+- [外部 Agent 协作](../../features/agent-system/workspace-handoff)
 - [AppServer 协议](../protocols/appserver-protocol)
 - [配置参考](../configuration)

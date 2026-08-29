@@ -1,92 +1,49 @@
 # Automations & Goals
 
-DotCraft gives the agent two ways to keep working without you driving every turn:
+DotCraft has two ways to keep the agent working when you are not driving every turn. Automations run a task on a schedule or on demand, so routine work like reports, checks, and cleanups happens on its own. A Goal gives one conversation a long-running direction, and DotCraft keeps advancing it whenever that conversation goes idle.
 
-- **Automations** — run the agent on a schedule or on demand, so routine work like reports, checks, and cleanups happens on its own.
-- **Goals** — pin a long-running objective to a conversation, and DotCraft keeps pushing it forward whenever that conversation goes idle.
+![How DotCraft runs Automations and Goals](/automations-goals-overview.svg)
 
-![DotCraft Automations and Goals overview](/automations-goals-overview.svg)
-
-![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+![Setting a goal on a conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
 
 ## Automations
 
-Automations run local work in your workspace — on a schedule or whenever you trigger them. Use them for the routine jobs you'd otherwise remember to do yourself: a weekly report, a nightly check, a cleanup pass.
+Automations run local work in your workspace, on a schedule or whenever you trigger them. Use them for the routine jobs you would otherwise remember to do yourself: a weekly report, a nightly check, a cleanup pass.
 
-### Create a task
+Create and manage tasks from the Desktop **Automations** panel. A task has two parts: a short brief (what to do, and when) and a workflow prompt (how to do it). Tasks live with your project under `.craft/tasks/`, so they travel with the repository. A task you run often can be saved as a template to start from next time.
 
-Create and manage tasks from the Desktop Automations panel. Each task pairs a short brief (what to do, and when) with a workflow prompt that tells the agent how to do it. Tasks live with your project under `.craft/tasks/`, so they travel with the repository.
+A task can be bound to an existing conversation so every later run continues there. It can also run as a saved [Agent Profile](./agent-profiles), using just that agent's tools, skills, and model — without one, it runs as the workspace agent. When the work is done, the agent writes a short completion summary.
 
-### What you can do with a task
+Schedule formats, workflow variables, and the full set of task fields are in the [Configuration Reference](../../developing/configuration#automations-goals-and-hooks).
 
-| Capability | Description |
-|---|---|
-| Manual run | Trigger a task on demand from Desktop |
-| Scheduled run | Give the task a schedule so it runs on its own |
-| Thread binding | Bind a task to an existing conversation so future runs continue there |
-| Agent profile | Run the task as a saved Agent Profile, so it uses just that agent's tools, skills, and model (optional — defaults to the workspace agent) |
-| Templates | Save a task as a reusable template |
-| Completion summary | The agent writes a short summary when the work is done |
-| Delete | Remove the task, optionally with its linked conversation |
+## Review task output
 
-### Review worktree output
+A task that is not bound to an existing conversation runs in a managed Git worktree when the project is a Git repository, so its changes stay out of the workspace you are working in. The Desktop review panel shows the branch it used, whether the worktree has uncommitted changes, and whether it has commits ahead of the base.
 
-Unbound automation tasks run in a managed Git worktree when the project is a Git repository. The Desktop review panel shows the branch, whether the worktree has uncommitted changes, and whether it has commits ahead of the base.
-
-From the review panel you can open the task thread, hand the worktree back to your local workspace, or discard the task worktree. Discarding removes the task's worktree output and its managed branch, so use it only when you no longer need the changes.
-
-Schedule formats, workflow variables, and the full set of task fields are in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
-
----
+From the review panel you can open the task's conversation, hand the worktree back to your local workspace, or discard it. Discarding removes the task's worktree output along with its managed branch, so use it once you are sure you no longer need the changes.
 
 ## Goals
 
-A Goal pins a long-running objective to one conversation. Once you set it, the goal stays with that conversation, and whenever the conversation goes idle (with auto-continue on) DotCraft keeps advancing it — until it's complete, paused, cleared, or stopped by its token budget.
+A Goal gives one conversation a long-running direction. Once you set it, the goal stays with that conversation, and every time the conversation goes idle (with auto-continue on) DotCraft keeps advancing it — until it is complete, until you pause or clear it, or until the token budget runs out and it waits on you.
 
-### Good fits
+Goals suit the work that takes many turns to move: refactors, documentation passes, migrations, investigations. Progress, time spent, and completion state stay with the conversation, and you can pause, resume, replace, or clear the goal at any time.
 
-- Refactors, documentation passes, migrations, or investigations that span many turns.
-- Long-running work you may pause, resume, replace, or clear at any time.
-- Work whose progress, time spent, and completion state should stay with the conversation.
+Set, pause, and clear a goal from the Desktop goal control. The conversation list and detail view show its current state: active, paused, budget limited, or complete.
 
-### Lifecycle
+## Common scenarios
 
-| Status | Meaning |
-|---|---|
-| `active` | In effect; an idle conversation may auto-continue |
-| `paused` | Kept, but won't auto-continue |
-| `budgetLimited` | The token budget ran out; it's waiting on you |
-| `complete` | The agent reviewed the work and marked the goal done |
-
-### How to manage a goal
-
-| Action | Where |
-|---|---|
-| Set or replace a goal | Desktop Goal control |
-| Pause or resume a goal | Desktop Goal control |
-| Clear a goal | Desktop Goal control |
-| Check goal state | Conversation list and detail view |
-
-Goal fields and the AppServer methods behind these controls are listed in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
-
-### Goals × Automations
-
-Automations are best for "run this task on a schedule or on demand." Goals are best for "keep this Thread moving toward one long-running objective." They can be combined: an Automation wakes up or submits a check, while the Goal preserves the Thread's long-term direction and completion state.
-
-## Common Scenarios
+Automations decide when something runs once. Goals decide which direction the work keeps moving. The two combine: a scheduled task can run inside the same conversation and keep pushing the same goal forward.
 
 | Scenario | Recommendation |
 |---|---|
-| Weekly / daily reports, scheduled checks | Automations on a schedule |
+| Weekly or daily reports, scheduled checks | Automations on a schedule |
 | Run a test suite and write the summary to a conversation | Automations with a completion summary |
 | Keep advancing a refactor or documentation pass | Goals |
 | Make scheduled work follow the same long-running objective | Automations + Goals |
-| Auto-lint / format after file writes | [Lifecycle Hooks](./hooks) `PostToolUse` |
-| Block dangerous shell commands | [Lifecycle Hooks](./hooks) `PreToolUse` |
+| Format or lint after file writes | [Lifecycle Hooks](./hooks), after a tool finishes |
+| Block dangerous shell commands | [Lifecycle Hooks](./hooks), before a tool runs |
 
 ## Related docs
 
-- [Unified Session Core](../../developing/architecture/session-core) — how Thread / Turn / Item relate to goal state
-- [Observability](../self-hosted/observability) — Trace and approvals in Dashboard
-- [Lifecycle Hooks](./hooks) — scripts that run at session, prompt, tool, and turn moments
-- [Configuration Reference](../../developing/configuration#automations-goals-and-hooks) for Automations, Goals, and Hooks fields
+- [Lifecycle Hooks](./hooks) — for work that triggers at a moment in a tool call or session, rather than on a schedule
+- [Observability](../self-hosted/observability) — review task runs and approvals in Dashboard
