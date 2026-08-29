@@ -4,6 +4,7 @@ export const MESSAGES_EN = {
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': 'Back',
   'navigation.forward': 'Forward',
+  'debug.cdpEnabledTooltip': 'CDP debugging is enabled.',
 
   // Main menu (custom labels only)
   'menu.file': 'File',

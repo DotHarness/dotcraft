@@ -28,6 +28,7 @@ import {
 } from '../shared/desktopDeepLink'
 import { NO_WORKSPACE_ARG } from './workspaceArgs'
 import { applyNativeThemeSource } from './nativeThemeSource'
+import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
 
 interface TrayState {
   appServers: HubAppServerResponse[]
@@ -148,16 +149,18 @@ function stripArgPair(argv: string[], name: string): string[] {
 }
 
 function baseDesktopArgs(): string[] {
-  return stripArgPair(
+  return stripRemoteDebuggingPortArgs(
     stripArgPair(
-      process.argv.slice(1).filter((arg) => (
-        arg !== '--tray' &&
-        arg !== NO_WORKSPACE_ARG &&
-        !parseWorkspaceOpenDeepLink(arg)
-      )),
-      '--workspace'
-    ),
-    '--remote'
+      stripArgPair(
+        process.argv.slice(1).filter((arg) => (
+          arg !== '--tray' &&
+          arg !== NO_WORKSPACE_ARG &&
+          !parseWorkspaceOpenDeepLink(arg)
+        )),
+        '--workspace'
+      ),
+      '--remote'
+    )
   )
 }
 

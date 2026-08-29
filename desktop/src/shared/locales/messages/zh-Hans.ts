@@ -118,6 +118,7 @@ export const MESSAGES_ZH_HANS = {
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': '后退',
   'navigation.forward': '前进',
+  'debug.cdpEnabledTooltip': 'CDP 调试已启用。',
 
   'menu.file': '文件',
   'menu.edit': '编辑',

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Oratorio"
+  short_description: "Inspect and manage work on an Oratorio board."
+  icon_small: "../../assets/oratorio-small.svg"
+  icon_large: "../../assets/oratorio.svg"
+  default_prompt: "Use $oratorio to inspect or manage tasks on my Oratorio board."

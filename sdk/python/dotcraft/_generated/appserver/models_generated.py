@@ -2430,6 +2430,7 @@ class PluginDesktopInfo(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    description: str | None = None
     entry: str | None = None
     revision: str | None = None
     styles: List[str] | None = None

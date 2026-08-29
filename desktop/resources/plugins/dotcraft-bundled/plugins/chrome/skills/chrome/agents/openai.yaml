@@ -1,3 +1,6 @@
-icon_small: "./assets/chrome-small.svg"
-icon_large: "./assets/chrome.svg"
-default_prompt: "Use $chrome to inspect or automate a tab in my existing Chrome browser."
+interface:
+  display_name: "Chrome"
+  short_description: "Inspect or automate an existing Chrome tab with DotCraft."
+  icon_small: "../../assets/chrome-small.svg"
+  icon_large: "../../assets/chrome.svg"
+  default_prompt: "Use $chrome to inspect or automate a tab in my existing Chrome browser."

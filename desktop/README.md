@@ -20,13 +20,13 @@ npm run dev
 ```
 
 Pass a workspace with `--workspace` when needed. Development mode otherwise uses the current working directory.
+Use `npm run dev:debug` only when attaching Playwright to Desktop through CDP.
 
 ## Validate and package
 
 | Command | Purpose |
 |---|---|
 | `npm test` | Run the Vitest unit tests |
-| `npm run e2e` | Run the smoke end-to-end test |
 | `npm run build` | Build the production application |
 | `npm run pack` | Create an unpacked application |
 | `npm run dist` | Create platform installers and verify the package |

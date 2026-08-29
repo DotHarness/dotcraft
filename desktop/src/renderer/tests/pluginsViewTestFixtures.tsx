@@ -146,6 +146,7 @@ export const agentTeamsPlugin: PluginEntry = {
   mcpServers: [],
   lspServers: [],
   desktop: {
+    description: 'Adds the Team board to DotCraft Desktop.',
     entry: './desktop/dist/index.mjs',
     revision: 'a'.repeat(64),
     styles: []

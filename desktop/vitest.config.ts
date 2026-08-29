@@ -12,6 +12,7 @@ export default defineConfig({
           environment: 'node',
           include: [
             'src/main/**/*.test.ts',
+            'scripts/**/*.test.ts',
             'src/renderer/tests/*.test.ts',
             'src/renderer/**/*.test.ts',
             'src/bundled-plugins/**/*.test.ts',

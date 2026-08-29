@@ -5,6 +5,7 @@ export const MESSAGES_KO = {
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': '뒤로',
   'navigation.forward': '앞으로',
+  'debug.cdpEnabledTooltip': 'CDP 디버깅이 활성화되어 있습니다.',
 
   'menu.file': '파일',
   'menu.edit': '편집',

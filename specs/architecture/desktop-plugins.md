@@ -61,13 +61,14 @@ The plugin manifest declares the Desktop Plugin inline:
     "shortDescription": "Review tools and Desktop presentation."
   },
   "desktop": {
+    "description": "Adds review actions and result presentation to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
   }
 }
 ```
 
-The parent plugin `version` is required in canonical `MAJOR.MINOR.PATCH` form. `entry` and `styles` are manifest-relative paths inside `./desktop/dist/`. Runtime chunks and assets must also remain inside that output root.
+The parent plugin `version` is required in canonical `MAJOR.MINOR.PATCH` form. `description` is optional presentation metadata that describes the Desktop contribution rather than the parent plugin as a whole. `entry` and `styles` are manifest-relative paths inside `./desktop/dist/`. Runtime chunks and assets must also remain inside that output root.
 
 The inline `desktop` field is the sole declaration of executable Desktop code. The manifest's free-form `capabilities` labels neither restrict nor expand renderer access.
 
@@ -179,7 +180,7 @@ These six kinds are convenience APIs, not a closed set or authorization list. Th
 
 ## Runtime lifecycle
 
-`PluginInfo.desktop` reports the manifest-relative entry and style declarations plus a content revision over that normalized declaration and the complete `./desktop/dist/` tree. The revision identifies executable content for cache busting, generation replacement, and remote matching. It remains independent from the .NET execution fingerprint.
+`PluginInfo.desktop` reports the optional contribution description, manifest-relative entry and style declarations, plus a content revision over the normalized executable declaration and complete `./desktop/dist/` tree. The revision identifies executable content for cache busting, generation replacement, and remote matching. Presentation-only description changes do not alter it. It remains independent from the .NET execution fingerprint.
 
 For each installed and enabled plugin, Desktop authorizes its local root, loads its styles and revisioned module, opens a generation, and calls `activate` once. Kernel calls apply as they occur; any returned convenience activation is validated and registered afterward.
 

@@ -1,6 +1,8 @@
 interface:
   display_name: "DotCraft Simplify"
   short_description: "Find evidence-backed DotCraft simplifications"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-simplify to audit this DotCraft area for well-supported simplification candidates."
 policy:
   allow_implicit_invocation: false

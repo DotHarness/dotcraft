@@ -115,6 +115,8 @@ import type {
   WorkspaceStatusPayload
 } from '../shared/workspaceSetup'
 import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatus'
+import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
+import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
 import { applyWindowBackdropTheme, resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
 import { applyNativeThemeSource } from './nativeThemeSource'
@@ -1369,6 +1371,7 @@ function createWindow(
   const initialThemeMode = resolveThemeMode(sharedSettings.theme)
   const windowBackdrop = resolveWindowBackdropOptions(initialTheme)
   const initialLocale = normalizeLocale(sharedSettings.locale)
+  const cdpDebuggingEnabled = app.commandLine.hasSwitch('remote-debugging-port')
   const win = new BrowserWindow({
     width: 1400,
     height: 800,
@@ -1396,6 +1399,7 @@ function createWindow(
         `--dotcraft-initial-theme=${initialThemeMode}`,
         `--dotcraft-applied-theme=${initialTheme}`,
         `--dotcraft-initial-locale=${initialLocale}`,
+        ...(cdpDebuggingEnabled ? [INITIAL_CDP_DEBUGGING_ARG] : []),
         encodeInitialWorkspaceStatusArg(initialWorkspaceStatus)
       ],
       sandbox: false,
@@ -1530,7 +1534,7 @@ function createWindow(
 // same workspace simultaneously.
 
 function openNewProcess(): void {
-  const filteredArgs = stripWorkspaceArgs(process.argv.slice(1))
+  const filteredArgs = stripRemoteDebuggingPortArgs(stripWorkspaceArgs(process.argv.slice(1)))
   filteredArgs.push(NO_WORKSPACE_ARG)
   const child = spawn(process.execPath, filteredArgs, {
     detached: true,

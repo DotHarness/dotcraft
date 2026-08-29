@@ -36,13 +36,14 @@ Declare one Desktop module inline in `.craft-plugin/plugin.json`:
   "version": "1.0.0",
   "displayName": "Acme Board",
   "desktop": {
+    "description": "Adds a project board to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
   }
 }
 ```
 
-`version` is required in canonical `MAJOR.MINOR.PATCH` form. `entry` must name an existing `.mjs` file under `./desktop/dist/`. Every optional `styles` entry must name an existing `.css` file in the same output tree. Imported chunks and assets must also stay in that tree.
+`version` is required in canonical `MAJOR.MINOR.PATCH` form. Use the optional `description` to explain what the Desktop contribution does; plugin detail pages prefer it over the parent plugin description. `entry` must name an existing `.mjs` file under `./desktop/dist/`. Every optional `styles` entry must name an existing `.css` file in the same output tree. Imported chunks and assets must also stay in that tree.
 
 The Desktop module shares its parent plugin's identity, version, enabled state, and interface metadata. A bundle that also contains .NET may declare dependencies, but those order managed generations rather than Desktop activation. Manifest `capabilities` labels do not grant or restrict renderer access.
 

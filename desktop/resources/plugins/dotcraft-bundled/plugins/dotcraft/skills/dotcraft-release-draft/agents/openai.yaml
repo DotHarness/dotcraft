@@ -1,4 +1,6 @@
 interface:
   display_name: "DotCraft Release Draft"
   short_description: "Draft DotCraft release notes from repo evidence"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-release-draft to draft English GitHub Release notes for a DotCraft version."

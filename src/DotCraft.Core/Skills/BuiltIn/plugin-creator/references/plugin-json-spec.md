@@ -168,6 +168,7 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
   "description": "Adds a Desktop board surface.",
   "capabilities": ["desktop"],
   "desktop": {
+    "description": "Adds a project board to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
   },
@@ -194,6 +195,7 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 - Plugin hooks use the same schema as workspace `.craft/hooks.json`.
 - If `hooks` is omitted, DotCraft looks for `hooks/hooks.json` in the plugin root.
 - Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root.
+- `desktop.description` optionally describes the Desktop contribution shown in plugin content lists.
 - `desktop.entry` must name an `.mjs` file inside `./desktop/dist/`; each `desktop.styles` entry must name a `.css` file in the same output tree.
 - Desktop Plugin bundles are trusted local modules loaded after the plugin is installed and enabled.
 - `tools`, `functions`, and `processes` are unsupported manifest fields. Managed plugins contribute native Tools from their C# implementation.

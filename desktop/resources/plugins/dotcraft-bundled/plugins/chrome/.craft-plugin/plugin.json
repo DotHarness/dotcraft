@@ -26,8 +26,8 @@
     "capabilities": ["Interactive", "Read", "Write", "Browser"],
     "defaultPrompt": "Please inspect the signed-in page I already have open in Chrome.",
     "brandColor": "#FFFFFF",
-    "composerIcon": "./skills/chrome/assets/chrome-small.svg",
-    "logo": "./skills/chrome/assets/chrome.svg",
+    "composerIcon": "./assets/chrome-small.svg",
+    "logo": "./assets/chrome.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",
     "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
     "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"

@@ -5,6 +5,7 @@ export const MESSAGES_FR = {
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': 'Précédent',
   'navigation.forward': 'Suivant',
+  'debug.cdpEnabledTooltip': 'Le débogage CDP est activé.',
 
   'menu.file': 'Fichier',
   'menu.edit': 'Modifier',

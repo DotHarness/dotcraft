@@ -72,6 +72,9 @@ internal sealed partial class PluginRequestHandler
             Desktop = manifest.Desktop is { } desktop
                 ? Protocol.Optional<Contract.PluginDesktopInfo?>.FromValue(new Contract.PluginDesktopInfo
                 {
+                    Description = desktop.Description is { } description
+                        ? Protocol.Optional<string>.FromValue(description)
+                        : default,
                     Entry = desktop.Entry,
                     Styles = desktop.Styles.ToArray(),
                     Revision = desktop.Revision
@@ -265,7 +268,7 @@ internal sealed partial class PluginRequestHandler
                 var skillFile = Path.Combine(dir, "SKILL.md");
                 var skill = allSkills.FirstOrDefault(candidate =>
                     string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
-                var interfaceInfo = SkillsLoader.GetSkillInterfaceFromFile(skillFile)
+                var interfaceInfo = SkillsLoader.GetPluginSkillInterfaceFromFile(skillFile, manifest.RootPath)
                                     ?? skillsLoader?.GetSkillInterface(name);
                 return new Contract.PluginSkillInfo
                 {

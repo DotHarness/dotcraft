@@ -6,7 +6,7 @@
       "developerName": "DotHarness",
       "description": "Manage Oratorio board items and review rounds from selected DotCraft threads.",
       "category": "Productivity",
-      "icon": "./skills/oratorio/assets/oratorio.svg",
+      "icon": "./assets/oratorio.svg",
       "originChannel": "oratorio",
       "releasePage": "https://github.com/DotHarness/dotcraft/releases",
       "nativeApplication": {

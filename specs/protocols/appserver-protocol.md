@@ -4287,8 +4287,8 @@ All skills methods that return skill data use the following `SkillInfo` wire obj
 | `enabled` | boolean | `true` if the skill is active and will be included in agent context. `false` if the user has disabled it via `skills/setEnabled`. |
 | `path` | string | Absolute filesystem path to the source `SKILL.md` file. |
 | `hasVariant` | boolean? | Present and `true` when the current runtime resolves this skill through a current workspace variant. Omitted or `false` means the effective skill currently falls back to source. |
-| `iconSmallDataUrl` | string? | Optional small icon as a data URL. Resolved only from safe relative paths inside the skill directory. |
-| `iconLargeDataUrl` | string? | Optional large icon as a data URL. Resolved only from safe relative paths inside the skill directory. |
+| `iconSmallDataUrl` | string? | Optional small icon as a data URL. Resolved from the skill's own `assets/`, or for plugin skills from the owning plugin's shared `assets/`. |
+| `iconLargeDataUrl` | string? | Optional large icon as a data URL. Resolved from the skill's own `assets/`, or for plugin skills from the owning plugin's shared `assets/`. |
 | `defaultPrompt` | string? | Optional default starter prompt from `agents/openai.yaml` `interface.default_prompt`. |
 | `metadata` | object | Key-value pairs from the YAML frontmatter of `SKILL.md`. Common keys: `description`, `name`, `bins`, `env`, `always`. |
 
@@ -4303,7 +4303,7 @@ interface:
   default_prompt: "Use $browser to inspect a local browser target."
 ```
 
-Icon paths MUST be relative to the skill directory, MUST remain inside that directory after normalization, and SHOULD be ignored if missing, too large, or not an allowed image type.
+Icon paths MUST be relative. Paths without parent traversal MUST resolve inside the skill's own `assets/` directory. A plugin skill MAY use parent traversal only when the lexically normalized target remains inside the owning plugin's root `assets/` directory; other skills MUST reject parent traversal. Absolute paths, other plugin directories, paths outside the plugin root, missing or empty files, files larger than 512 KiB, and unsupported image types are ignored without discarding other valid interface metadata.
 
 ### 18.3 `skills/list`
 
@@ -4748,6 +4748,7 @@ Returns one plugin by id.
 | `skills` | `PluginSkillInfo[]` | required | Plugin-contained skills declared by the bundle. |
 | `workflows` | `PluginWorkflowInfo[]` | required | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
 | `apps` | `PluginAppInfo[]` | required | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
+| `desktop` | `PluginDesktopInfo` | conditional | Validated Desktop module metadata. When present, it contains the optional contribution-specific `description`, manifest-relative `entry` and `styles`, and executable content `revision`. |
 | `hooks` | `PluginHookInfo[]` | required | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
 | `mcpServers` | `PluginMcpServerInfo[]` | required | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
 | `diagnostics` | `PluginDiagnostic[]` | required | Safe discovery, admission, and preflight diagnostics attributed to this plugin; empty when none exist. |

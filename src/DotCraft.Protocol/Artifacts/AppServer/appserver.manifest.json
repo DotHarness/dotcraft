@@ -11682,6 +11682,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "entry",
           "type": "string",
           "required": false,

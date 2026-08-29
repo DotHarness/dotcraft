@@ -36,13 +36,14 @@ Scaffold 会把 `@dotcraft/plugin` 固定为创建它的 DotCraft 版本。请�
   "version": "1.0.0",
   "displayName": "Acme Board",
   "desktop": {
+    "description": "Adds a project board to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
   }
 }
 ```
 
-`version` 必须存在，并使用规范的 `MAJOR.MINOR.PATCH` 格式。`entry` 必须指向 `./desktop/dist/` 下已经存在的 `.mjs` 文件。可选 `styles` 中的每一项都必须指向同一输出树下已经存在的 `.css` 文件。导入的 chunks 与 assets 也必须留在该树中。
+`version` 必须存在，并使用规范的 `MAJOR.MINOR.PATCH` 格式。使用可选的 `description` 说明 Desktop contribution 的作用；插件详情页会优先显示它，而不是父插件的描述。`entry` 必须指向 `./desktop/dist/` 下已经存在的 `.mjs` 文件。可选 `styles` 中的每一项都必须指向同一输出树下已经存在的 `.css` 文件。导入的 chunks 与 assets 也必须留在该树中。
 
 Desktop 模块共享父插件的 identity、version、enabled state 与 interface metadata。同时包含 .NET 的 bundle 可以声明 dependencies，但它们只负责 managed generation 的顺序，不负责 Desktop activation 的顺序。Manifest 中的 `capabilities` labels 不会授予或限制 renderer access。
 

@@ -6,13 +6,12 @@ import { applyTheme, resolveTheme } from './utils/theme'
 import { applyAppearanceDom } from './utils/appearance'
 import { resolveAppearanceSettings } from '../shared/appearance'
 import { useUIStore } from './stores/uiStore'
-import { installAutomationBridge } from './e2e/automationBridge'
 import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
 import { DesktopPluginSurface } from './components/desktopPlugins/DesktopPluginSurface'
 import { HighlightProvider } from './highlight/react/HighlightProvider'
+import { CdpDebugIndicator } from './components/layout/CdpDebugIndicator'
 import './styles/index.css'
 
-installAutomationBridge()
 const stopDesktopPluginRuntime = startDesktopPluginRuntime()
 window.addEventListener('beforeunload', stopDesktopPluginRuntime, { once: true })
 
@@ -48,6 +47,7 @@ createRoot(rootElement).render(
         <DesktopPluginSurface name="app" context={appSurfaceContext}>
           <App />
         </DesktopPluginSurface>
+        <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
       </HighlightProvider>
     </LocaleProvider>
   </StrictMode>

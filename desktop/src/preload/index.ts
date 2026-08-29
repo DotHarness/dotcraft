@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
+import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
 import type { ProviderPreferences } from '../shared/modelPreference'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
 import type {
@@ -144,6 +145,7 @@ function readInitialLocale(): AppLocale {
 const initialTheme = readInitialTheme()
 const initialAppliedTheme = readAppliedTheme()
 const initialLocale = readInitialLocale()
+const initialCdpDebuggingEnabled = process.argv.includes(INITIAL_CDP_DEBUGGING_ARG)
 const initialWorkspaceStatus = readInitialWorkspaceStatusFromArgv(process.argv) as WorkspaceStatusPayload
 
 function applyInitialDocumentState(): void {
@@ -365,6 +367,8 @@ const api = {
   initialTheme,
 
   initialLocale,
+
+  initialCdpDebuggingEnabled,
 
   initialWorkspaceStatus,
 
