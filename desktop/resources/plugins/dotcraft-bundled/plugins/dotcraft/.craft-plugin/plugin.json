@@ -7,7 +7,7 @@
   "capabilities": ["skill", "desktop"],
   "skills": "./skills/",
   "desktop": {
-    "description": "Exposes a small automation driver so Playwright can find DotCraft and wait until the Desktop is ready.",
+    "description": "Playwright driver for DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs"
   },
   "interface": {

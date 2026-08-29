@@ -129,9 +129,7 @@ This ownership rule also prevents a short-lived automation client from becoming 
 
 ## Repository policy
 
-The repository keeps the debug startup contract, official CLI dependency, driver contract, and operational skill, not scenario-specific smoke scripts. Routine investigations use the CLI directly and do not create source files.
-
-The bundled DotCraft plugin provides the `dotcraft-desktop-debugging` skill as the operational guide for this workflow. It directs agents to a named CLI session, keeps generated screenshots and traces under the current workspace `.craft/attachments/`, and preserves the attach-only lifecycle boundary. The skill does not add another driver, transport, or permanent test suite.
+The repository keeps the debug startup contract, official CLI dependency, and driver contract, not scenario-specific smoke scripts. Routine investigations use the CLI directly and do not create source files.
 
 Renderer store layouts and private preload APIs are not automation contracts.
 

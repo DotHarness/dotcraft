@@ -1,13 +1,11 @@
 ---
 name: dotcraft-desktop-debugging
-description: Inspect and exercise a running debug-enabled DotCraft Desktop through a persistent Playwright CLI session. Use for Desktop UI reproduction, interaction checks, screenshots, console or network inspection, and local smoke investigations; not for ordinary websites or Chrome automation.
+description: Use Playwright CLI to inspect and interact with a running CDP-enabled DotCraft Desktop.
 ---
 
 # DotCraft Desktop Debugging
 
 Attach the official Playwright CLI to an existing DotCraft Desktop process without owning its lifecycle. Reuse one named session throughout the investigation; do not generate a TypeScript script for routine interaction.
-
-If the request changes the debugging infrastructure rather than using it, read `specs/architecture/desktop-e2e-debugging.md` first and preserve its ownership and security boundaries.
 
 ## Choose The Right Surface
 
@@ -37,9 +35,9 @@ For a packaged build, start it explicitly with:
 DotCraft.exe --remote-debugging-port=9222
 ```
 
-Do not start Electron from Playwright CLI. `dev:debug` intentionally fails when port 9222 is already in use instead of choosing another instance or port.
+CDP is a startup capability: restart an instance that was opened without the flag. A debug-enabled window shows the CDP status indicator in its lower-right corner; if the indicator is absent, do not try to attach. Do not start Electron from Playwright CLI. `dev:debug` intentionally fails when port 9222 is already in use instead of choosing another instance or port.
 
-Use the repository-local `playwright-cli` binary pinned in `desktop/package.json`. Run it with the stable session name `dotcraft` and the explicit loopback endpoint:
+From a DotCraft source checkout, use the repository-local `playwright-cli` binary. Run it with the stable session name `dotcraft` and the explicit loopback endpoint:
 
 ```powershell
 cd desktop
@@ -79,13 +77,4 @@ When interrupted, detach the named session if it remains available and leave Des
 
 Do not create a scenario file merely to click, type, inspect, or take a screenshot. A Playwright file is appropriate only when the user asks for a repeatable test or the observed failure should become a maintained regression case. That is a separate implementation task with its own ownership and test review.
 
-## Verify The Debugging Layer
-
-When changing the CLI workflow or debug-port guard, run from `desktop/`:
-
-```powershell
-npx vitest run scripts/check-debug-port.test.ts
-npm run typecheck
-```
-
-For an integration check, start one debug-enabled Desktop, attach once, run multiple CLI interactions, and detach. Reattach to the same instance to prove reuse. Each detach must leave the same Desktop and AppServer alive without an `EPIPE` error. Keep scenario-specific smoke scripts out of the repository.
+To verify the workflow itself, start one debug-enabled Desktop, attach once, run multiple CLI interactions, and detach. Reattach to the same instance to prove reuse. Each detach must leave the same Desktop and AppServer alive without an `EPIPE` error. Keep scenario-specific smoke scripts out of the repository.
