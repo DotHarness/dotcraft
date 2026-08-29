@@ -14,7 +14,6 @@ Prerequisite: .NET 10 SDK (preview).
 
 - Build: `dotnet build dotcraft.sln`
 - Package (Windows): `build.bat`
-- Package (Linux/macOS): `bash build_linux.bat`
 - Run: `dotnet run --project src/DotCraft.App/DotCraft.App.csproj`
 - Test: `dotnet test`
 - Single test: `dotnet test --filter "FullyQualifiedName~TestClassName.TestMethodName"`

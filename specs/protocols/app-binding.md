@@ -244,5 +244,4 @@ Security invariants:
 - Origin-channel execution remains independent.
 - App Surface publication is app-authenticated, loopback-only, memory-only, and expires exactly 120 seconds after the latest publish.
 - Surface resolution is trusted-client-only and returns `AppSurfaceUnavailable` for missing or expired leases.
-- Version 1 execution, private UI, scopes, catalogs, attachments, and context blocks are absent.
 - Core, Desktop, .NET, and TypeScript agree on the version 1 wire contract.

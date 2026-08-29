@@ -97,7 +97,7 @@ public static partial class AppBindingCatalog
                 CommentHandling = JsonCommentHandling.Skip,
                 AllowTrailingCommas = true
             });
-            if (ContainsV1ExecutionFields(raw.RootElement))
+            if (ContainsLegacyExecutionFields(raw.RootElement))
             {
                 diagnostics.Add(PluginDiagnostic.Error(
                     "AppBindingUpgradeRequired",
@@ -142,7 +142,7 @@ public static partial class AppBindingCatalog
         }
     }
 
-    private static bool ContainsV1ExecutionFields(JsonElement root)
+    private static bool ContainsLegacyExecutionFields(JsonElement root)
     {
         if (!root.TryGetProperty("apps", out var apps) || apps.ValueKind != JsonValueKind.Array)
             return false;
