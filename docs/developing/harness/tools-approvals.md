@@ -1,6 +1,6 @@
 # Add tools and handle approvals
 
-Harness can compose application-owned tools into the Agentic Loop. Tool implementations stay in your process and can use the same dependency injection container as the rest of the application.
+Harness composes application-owned tools into the Agentic Loop. Tool implementations stay in your process and share the same dependency injection container as the rest of the application.
 
 ## Define a tool source
 
@@ -25,7 +25,7 @@ public sealed class ClockToolSource : AIFunctionToolSource
 }
 ```
 
-`CreateFunctions` receives immutable planning context for the current Thread and Turn. Use it when a tool should only be available for a particular workspace, mode, or provider capability.
+`CreateFunctions` receives immutable planning context for the current Thread and Turn. Use it to decide whether to emit a function that belongs only to a particular workspace, mode, or provider capability.
 
 ## Register the source
 
@@ -39,14 +39,14 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-Harness collects all `IToolSource` registrations when it builds the tool plan. Keep source IDs stable and tool names descriptive because they become part of the model-visible tool contract.
+Harness collects all `IToolSource` registrations when it builds the tool plan. Keep source IDs stable and tool names descriptive. Both become part of the model-visible tool contract.
 
 > [!TIP]
 > Inject application services into the tool source constructor. This keeps credentials, databases, and UI state out of static helpers and makes tools straightforward to test.
 
 ## Process tool events
 
-`SessionEventHandler` converts the session event stream into focused callbacks:
+`SessionEventHandler` converts the [session event stream](./threads-turns) into focused callbacks:
 
 ```csharp
 var handler = new SessionEventHandler
@@ -81,17 +81,18 @@ The handler waits for `OnApprovalRequested` and sends its decision back to Sessi
 | --- | --- |
 | `AcceptOnce` | Allow this request only. |
 | `AcceptForSession` | Allow the request and remember it for the current Thread. |
-| `AcceptAlways` | Allow and persist the approval for future sessions. |
-| `Reject` | Reject the requested operation. |
+| `AcceptAlways` | Allow the request and write the approval into workspace approval state. Neither the current Thread nor later sessions ask again. |
+| `Reject` | Reject the operation and let the Turn continue. |
 | `CancelTurn` | Reject the operation and cancel the active Turn. |
 
-Only offer persistent approval when the application intentionally allows Harness to store workspace approval state and the user understands the scope. Prefer `AcceptOnce` for unfamiliar or high-impact operations.
+Prefer `AcceptOnce` for unfamiliar or high-impact operations. Offer `AcceptAlways` only where the user understands the scope of a permanent approval.
+
+Approval requests expire. Without a decision within five minutes, Session Core resolves the request as `Reject` and the Turn continues. Adjust the window per Thread with `ThreadConfiguration.ApprovalTimeoutSeconds`.
 
 > [!CAUTION]
 > Do not approve tools automatically based only on their display name. Present the operation, arguments, affected resources, and approval scope to the user.
 
 ## Related docs
 
-- [Harness overview](./)
-- [Threads and Turns](./threads-turns)
-- [Configuration and paths](./configuration-paths)
+- [Configuration and paths](./configuration-paths) — the workspace data directory where `AcceptAlways` state is written.
+- [Session Core](../architecture/session-core) — how one approval event is presented across entry points.

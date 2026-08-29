@@ -12,4 +12,3 @@ src/DotCraft.Protocol/Artifacts/AppServer/schemas/** text eol=lf linguist-genera
 # GitHub Linguist language stats
 desktop/src/shared/locales/messages/*.ts text eol=lf linguist-generated=true
 sdk/typescript/src/generated/appserver/** text eol=lf linguist-generated=true
-sdk/python/dotcraft/_generated/appserver/** text eol=lf linguist-generated=true

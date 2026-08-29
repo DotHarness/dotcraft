@@ -56,6 +56,9 @@ public sealed record PluginManifest
 /// <summary>Validated Desktop module declaration and its content revision.</summary>
 public sealed record PluginDesktopManifest
 {
+    /// <summary>User-facing description of the Desktop contribution.</summary>
+    public string? Description { get; init; }
+
     /// <summary>Manifest-relative module entry inside <c>./desktop/dist/</c>.</summary>
     public required string Entry { get; init; }
 
@@ -651,6 +654,7 @@ public static partial class PluginManifestParser
         {
             return new PluginDesktopManifest
             {
+                Description = NormalizeOptional(raw.Description),
                 Entry = entry,
                 Styles = styles,
                 Revision = PluginDesktopRevision.Compute(pluginRoot, entry, styles)
@@ -867,6 +871,8 @@ public static partial class PluginManifestParser
 
     private sealed class RawPluginDesktop
     {
+        public string? Description { get; set; }
+
         public string? Entry { get; set; }
 
         public List<string?>? Styles { get; set; }

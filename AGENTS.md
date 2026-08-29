@@ -14,7 +14,6 @@ Prerequisite: .NET 10 SDK (preview).
 
 - Build: `dotnet build dotcraft.sln`
 - Package (Windows): `build.bat`
-- Package (Linux/macOS): `bash build_linux.bat`
 - Run: `dotnet run --project src/DotCraft.App/DotCraft.App.csproj`
 - Test: `dotnet test`
 - Single test: `dotnet test --filter "FullyQualifiedName~TestClassName.TestMethodName"`
@@ -35,7 +34,7 @@ Prerequisite: .NET 10 SDK (preview).
 - **AppServer**: defined in `specs/protocols/appserver-protocol.md`.
   It is an optional JSON-RPC 2.0 boundary over stdio/WebSocket, projecting the host-owned
   `ISessionService` to out-of-process clients without creating a second session kernel.
-  Used by Desktop, CLI, ACP, and external channel adapters (see `sdk/python/`).
+  Used by Desktop, CLI, ACP, and external channel adapters.
 - **Config**: the official `DotCraft.App` host layers global `~/.craft/config.json` and workspace
   `.craft/config.json`. Modules define their own config sections via `[ConfigSection("Key")]` in
   each module assembly.

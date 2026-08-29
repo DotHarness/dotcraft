@@ -4,7 +4,7 @@ DotCraft Harness 遵循标准的 .NET Generic Host 生命周期。应用负责�
 
 ## 构建 Host
 
-在配置服务集合时注册 Harness。传入的 `AppConfig` 必须已经是这个 Host 最终应使用的配置。
+在配置服务集合时注册 Harness。传入的 `AppConfig` 必须已经是这个 Host 最终使用的配置。
 
 ```csharp
 using DotCraft.Configuration;
@@ -22,11 +22,11 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 using var host = builder.Build();
 ```
 
-构建 Host 会验证组合并创建服务容器。Runtime 持有的 workspace 状态会在 Host 启动时初始化。
+`AddDotCraftHarness` 在注册阶段就解析并校验路径选项，workspace 或数据目录不合法会立即抛出异常。构建 Host 创建服务容器，Runtime 持有的 workspace 状态则在 Host 启动时初始化。
 
 ## 启动与停止
 
-先启动 Host，再解析依赖已初始化 Runtime 的服务。应用资源释放前应先停止 Host。
+先启动 Host，再解析依赖已初始化 Runtime 的服务。Host 启动之前解析 `ISessionService` 会抛出异常。应用资源释放前应先停止 Host。
 
 ```csharp
 await host.StartAsync(cancellationToken);
@@ -44,7 +44,7 @@ await host.RunAsync(cancellationToken);
 ```
 
 > [!CAUTION]
-> 不要在注册期间构建临时服务容器来解析 Harness 服务。请在最终 Host 构建完成后从 `host.Services` 解析服务。
+> 不要在注册期间构建临时服务容器来解析 Harness 服务。请在最终 Host 构建完成后从 `host.Services` 解析。
 
 ## 集成桌面应用生命周期
 
@@ -69,7 +69,7 @@ public sealed class AgentHost : IDisposable
 }
 ```
 
-请从 UI framework 提供的启动与退出 Hook 调用这些方法。
+从 UI 框架提供的启动与退出 Hook 调用这些方法。
 
 ## 选择服务生命周期
 
@@ -84,7 +84,7 @@ public sealed class AgentHost : IDisposable
 
 ## 处理启动失败
 
-将 Host 启动视为应用初始化步骤。在开始接收用户任务前，应暴露路径无效、依赖缺失与配置错误。
+把 Host 启动视为应用的初始化步骤。在开始接收用户任务前，先暴露依赖缺失与配置错误。
 
 ```csharp
 try
@@ -100,6 +100,5 @@ catch (Exception ex)
 
 ## 相关文档
 
-- [Harness 总览](./)
-- [配置与路径](./configuration-paths)
-- [线程与轮次](./threads-turns)
+- [配置与路径](./configuration-paths)——`WorkspacePath`、`DataPath`、`UserDataPath` 的语义与校验规则。
+- [线程与轮次](./threads-turns)——Host 启动之后如何创建对话并消费流式事件。

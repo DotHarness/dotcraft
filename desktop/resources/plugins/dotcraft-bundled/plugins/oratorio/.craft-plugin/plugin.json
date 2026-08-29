@@ -20,8 +20,8 @@
     "capabilities": ["App", "Skill", "Read", "Write"],
     "defaultPrompt": "Please help me inspect and manage tasks on my Oratorio board.",
     "brandColor": "#5B6FF0",
-    "composerIcon": "./skills/oratorio/assets/oratorio-small.svg",
-    "logo": "./skills/oratorio/assets/oratorio.svg",
+    "composerIcon": "./assets/oratorio-small.svg",
+    "logo": "./assets/oratorio.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",
     "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
     "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"

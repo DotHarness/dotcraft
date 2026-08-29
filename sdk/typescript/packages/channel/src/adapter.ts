@@ -407,7 +407,7 @@ export abstract class ChannelAdapter {
 
   /**
    * Schedule a message for serial processing (one turn at a time per identity).
-   * Does not wait for the turn to complete (matches Python asyncio.Queue.put).
+   * Does not wait for the turn to complete.
    */
   protected enqueueMessage(opts: ChannelAdapterMessageOpts): void {
     const channelContext = opts.channelContext ?? "";

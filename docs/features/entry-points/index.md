@@ -1,47 +1,26 @@
-# Entry Points Overview
+# Entry points overview
 
-There's more than one way to open a DotCraft workspace. Whichever you choose, you're working with the same agent: it reads the same `.craft/` and shares the same [session core](../../developing/architecture/session-core) and long-term memory. The only thing that changes is **the surface you talk to it through**.
+One workspace opens from several surfaces: the desktop app, a terminal, your editor, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same threads and the same long-term memory. All that changes is the surface you talk to it through.
 
-![DotCraft entry points topology](/entry-points-topology.svg)
+![Desktop, CLI, editors, and chat bots all connecting to one AppServer and a shared session core](/entry-points-topology.svg)
 
-## Surface Shapes
+## Four ways in
 
 | Entry | Surface | Best for |
 |---|---|---|
-| [Desktop](./desktop) | Graphical desktop app | First-time use / long-running collaboration / complex diffs & approvals |
+| [Desktop](./desktop) | Graphical desktop app | First-time use, long-running collaboration, reviewing diffs and approvals one by one |
 | [CLI](../../getting-started) | One-shot command | Scripts, SSH, CI, lightweight tasks |
-| [IDE / Editor (ACP)](./editors) | Inside JetBrains / Obsidian / Unity / etc. | Read unsaved buffers, run via editor-managed terminal |
-| [Channels / Bots](./channels) | QQ / WeCom / Feishu / Telegram / WeChat | Group chats, knowledge bots, support bots |
+| [IDE / Editors (ACP)](./editors) | Inside JetBrains, Obsidian, Unity, and other editors | Letting the agent read unsaved edits, using the editor's own terminal and diff view |
+| [Channels & Bots](../channels/) | QQ, WeCom, Feishu, Telegram, WeChat | Group chats, knowledge bots, support bots |
 
-## Decision Matrix
+## Picking one
 
-| I want to… | Recommended |
-|---|---|
-| Start using DotCraft for the first time | [Desktop](./desktop) |
-| Work over SSH on a remote server | [`dotcraft exec`](../../getting-started) or [AppServer + remote client](../../developing/lifecycle/appserver) |
-| Let the IDE feed unsaved buffers to the agent | [ACP](./editors) |
-| Bring an agent assistant into a Discord / QQ group | [Channels](./channels) |
-| Share one workspace across multiple clients | [AppServer Mode](../../developing/lifecycle/appserver) + any of the above |
-| Build a bot or custom client | [SDK overview](../../developing/sdks/python) + [AppServer Protocol](../../developing/protocols/appserver-protocol) |
-| Run scheduled / CI automations | [Automations](../agent-system/automations) + any entry to handle approvals |
+Start with Desktop the first time. Follow [Getting started](../../getting-started) to install it, choose a workspace, and run your first conversation, then add a second entry when a real need shows up.
 
-## Cross-Entry Sharing Principles
+On a remote server, in CI, or when you just want one command to return a result, reach for a [command-line task](../../developing/lifecycle/appserver) like `dotcraft exec`. To let the agent see edits you haven't saved yet and approve each change in the editor's own diff view, use ACP. To let a group ask about the project any time, connect a channel bot. To build your own client, write it against the [SDKs](../../developing/sdks/) — it connects to the same workspace.
 
-- **One AppServer per workspace**: locally coordinated by [Hub](../../developing/lifecycle/hub); you do not manage it by hand.
-- **Threads resume across entries**: a Thread opened in Desktop can continue in ACP or another AppServer client; approvals render natively per platform.
-- **Single source of truth for config**: model, security, automations all in `.craft/config.json` and `~/.craft/config.json`; every entry reads the same file.
-- **Entry switches are independent**: ACP, Dashboard, Automations, and external channels are enabled per workspace.
+## Switch surfaces, keep your work
 
-## First-Time Picking
+A thread doesn't belong to the surface that created it. Start a conversation in Desktop and pick it up in your editor or another client, with approvals rendered the way each platform does them natively. The same [session core](../../developing/architecture/session-core) sits behind all of them.
 
-If you have not started yet:
-
-1. Follow [Getting Started](../../getting-started) to install Desktop.
-2. Walk through "select workspace + configure a model + first chat" inside Desktop.
-3. Add a second entry (CLI / ACP / Channels) only when a real need shows up.
-
-## Related docs
-
-- [Unified Session Core](../../developing/architecture/session-core) — the Thread / Turn / Item model behind cross-entry sharing
-- [AppServer Mode](../../developing/lifecycle/appserver) — remote, multi-client, custom integrations
-- [Hub Local Coordination](../../developing/lifecycle/hub) — why "open and it just works" works
+There's also only one configuration. Model, security, and automation settings live in the workspace's `.craft/config.json` and your personal `~/.craft/config.json`, and every entry reads the same files. A workspace only ever runs one AppServer, coordinated locally by [Hub](../../developing/lifecycle/hub) without your help. ACP, Dashboard, automations, and external channels are enabled per workspace, so you turn on the ones you need.

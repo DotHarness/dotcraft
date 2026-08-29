@@ -1,0 +1,6 @@
+interface:
+  display_name: "DotCraft Desktop Debugging"
+  short_description: "Control DotCraft Desktop with Playwright CLI"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
+  default_prompt: "Use $dotcraft-desktop-debugging to inspect and test this DotCraft Desktop behavior."

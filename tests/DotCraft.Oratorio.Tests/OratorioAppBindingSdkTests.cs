@@ -563,7 +563,7 @@ public sealed partial class OratorioAppBindingSdkTests
                 result = new
                 {
                     serverInfo = new { name = "dotcraft", version = "1", protocolVersion = "1" },
-                    capabilities = new { appBinding = true, appBindingVersion = 2 }
+                    capabilities = new { appBinding = true, appBindingVersion = 1 }
                 }
             });
         }

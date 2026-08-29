@@ -1,10 +1,10 @@
 # Connect GitLab to Oratorio
 
-Connect a GitLab project to synchronize issues and merge requests, publish feedback, and deliver implementation work.
+Once GitLab is connected, its issues and merge requests sync into the Oratorio board, and the Agent's review notes and implementation branches can be written back. A project-scoped token carries the connection.
 
 ## Create a project token
 
-Prefer a Project Access Token so its authority stays limited to one project. Grant only the access required for the operations you enable:
+Prefer a Project Access Token so its authority stays inside one project. Grant the access your enabled operations need, and nothing more:
 
 | Operation | GitLab access |
 | --- | --- |
@@ -13,36 +13,33 @@ Prefer a Project Access Token so its authority stays limited to one project. Gra
 | **Publish notes and review status** | API access |
 | **Deliver a merge request** | Repository write and API access |
 
-Each configured project has its own profile and token.
+Each connected project uses its own profile and token.
 
-## Configure the provider
+## Configure the GitLab connection
 
 1. Open the Oratorio Board, select **Oratorio settings**, then choose **GitLab**.
-2. Enable source reads. Keep the GitLab.com endpoint, or enter the root address of a self-managed GitLab instance.
-3. Add a project profile with its instance and full `group/project` path. Subgroups are supported.
+2. Enable source reads. Keep the default endpoint for GitLab.com, or enter the root address of a self-managed instance.
+3. Add a project profile with its instance and full `group/project` path. Subgroups work too.
 4. Add the project token to that profile.
-5. Return to Oratorio settings and add the project with its matching DotCraft workspace.
+5. Return to Oratorio settings, add the project, and pick the matching DotCraft workspace for it.
 6. Enable **Source writes** only when Oratorio should publish notes, status, branches, or merge requests.
 7. Select **Sync now** and confirm that the project reports read access.
 
-Private projects need no further setup. Oratorio fetches review targets into the mapped checkout with the project profile token, so the checkout itself does not need stored Git credentials.
+Private projects need no extra setup. Oratorio fetches review targets into the mapped checkout with the project profile token, so that checkout doesn't need stored Git credentials of its own.
 
 ## Enable webhook delivery
 
-Webhooks are optional and reduce the delay before source changes appear. Configure the project webhook URL as:
+Webhooks are optional, but they make source changes appear on the board sooner. Set the project webhook URL to:
 
 ```text
 https://your-oratorio-host/api/v1/sources/gitlab/webhook
 ```
 
-Save the same webhook secret or signing token in the GitLab project profile, then enable issue, merge request, and note events. Keep the endpoint private unless your deployment provides an authenticated ingress boundary.
+Save the same webhook secret or signing token in the GitLab project profile, then enable issue, merge request, and note events. Keep the endpoint private unless your [deployment](../self-hosted/server-deployment) provides an authenticated ingress boundary.
 
-A local-only Desktop session normally cannot receive GitLab cloud webhooks. Use manual or scheduled sync when no reachable endpoint is available.
+A local-only Desktop normally can't receive GitLab cloud webhooks. Use manual or scheduled sync when no reachable endpoint exists.
 
 ## Related docs
 
-- [Oratorio](../oratorio)
-- [Follow the Oratorio workflow](./workflow)
-- [Configure Oratorio](./settings)
-- [Deploy the DotCraft Stack](../self-hosted/server-deployment)
-
+- [Follow the Oratorio workflow](./workflow) — how synced work moves through the Board
+- [Configure Oratorio](./settings) — tune review automation, worktrees, and delivery

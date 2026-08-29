@@ -40,9 +40,6 @@ public sealed class ProtocolArtifactTests
         Assert.Contains("sdk/typescript/src/generated/appserver/models.generated.ts", first.Keys);
         Assert.Contains("sdk/typescript/src/generated/appserver/item-payloads.generated.ts", first.Keys);
         Assert.Contains("sdk/typescript/src/generated/appserver/client-requests.generated.ts", first.Keys);
-        Assert.Contains("sdk/python/dotcraft/_generated/appserver/models_generated.py", first.Keys);
-        Assert.Contains("sdk/python/dotcraft/_generated/appserver/item_payloads_generated.py", first.Keys);
-        Assert.Contains("sdk/python/dotcraft/_generated/appserver/client_methods_generated.py", first.Keys);
         Assert.All(first, pair =>
         {
             Assert.Equal(pair.Value, second[pair.Key]);
@@ -239,14 +236,10 @@ public sealed class ProtocolArtifactTests
     public void Validate_And_Check_Do_Not_Write_Tracked_Artifacts()
     {
         var temporaryRoot = CreateTemporaryRepository();
-        var previousPython = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON");
-        var pythonForTests = ResolvePythonForTests();
         try
         {
-            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", Path.Combine(temporaryRoot, "missing-python"));
             ProtocolArtifactGenerator.Validate(temporaryRoot);
 
-            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", pythonForTests);
             var packageRoot = Path.Combine(
                 temporaryRoot,
                 ProtocolArtifactGenerator.PackageRelativePath.Replace('/', Path.DirectorySeparatorChar));
@@ -279,7 +272,6 @@ public sealed class ProtocolArtifactTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", previousPython);
             Directory.Delete(temporaryRoot, recursive: true);
         }
     }
@@ -450,19 +442,5 @@ public sealed class ProtocolArtifactTests
             directory = directory.Parent;
         }
         throw new InvalidOperationException("Could not locate repository root.");
-    }
-
-    private static string ResolvePythonForTests()
-    {
-        var configured = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON");
-        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
-            return configured;
-
-        var relative = OperatingSystem.IsWindows()
-            ? Path.Combine("sdk", "python", ".venv", "Scripts", "python.exe")
-            : Path.Combine("sdk", "python", ".venv", "bin", "python");
-        var local = Path.Combine(RepositoryRoot, relative);
-        Assert.True(File.Exists(local), $"Protocol generator tests require DOTCRAFT_PYTHON or '{relative}'.");
-        return local;
     }
 }

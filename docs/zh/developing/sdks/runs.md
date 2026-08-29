@@ -1,6 +1,6 @@
 # 线程与运行
 
-Thread 是持久化的对话。Run 在该 thread 上启动一个 turn，并返回最终结果或持续输出执行事件。
+Thread 是持久化的对话。Run 在该 thread 上启动一个 turn，并返回最终结果或持续输出执行事件。下面的示例都从一个已连接的 client 继续，连接步骤见 [SDK 快速开始](./quickstart)。
 
 ## 管理 thread
 
@@ -23,16 +23,9 @@ var threads = await client.Threads.ListAsync(new ThreadListParams { Identity = i
 var snapshot = await client.Threads.ReadAsync(threadId);
 ```
 
-```python [Python]
-thread = await dotcraft.threads.start(user_id="me")
-resumed = await dotcraft.threads.resume(thread_id)
-threads = await dotcraft.threads.list(user_id="me")
-snapshot = await dotcraft.threads.read(thread_id)
-```
-
 :::
 
-TypeScript 和 Python 还提供 `getOrCreate` / `get_or_create`。它会先复用该 identity 下 active 或 paused 的 thread，再决定是否启动新 thread。
+TypeScript 还提供 `getOrCreate`。它返回该 identity 下第一个 active 或 paused 的 thread（paused 的会先恢复），两者都不存在时才启动新 thread。
 
 `read` 返回当前 Thread 头部和 runtime 状态，不包含对话历史。通过有界的 Turn 和 Item 分页读取历史：
 
@@ -66,21 +59,9 @@ var items = await client.Threads.ListItemsAsync(new ThreadItemsListParams
 });
 ```
 
-```python [Python]
-turns = await dotcraft.threads.list_turns(
-    thread_id, limit=20, sort_direction="descending"
-)
-items = await dotcraft.threads.list_items(
-    thread_id,
-    turn_id=turns.data[0].id if turns.data else None,
-    limit=100,
-    sort_direction="ascending",
-)
-```
-
 :::
 
-Turn 页只包含元数据，不包含 Item。Item 页会带上每个 Item 所属的 Turn ID，并可跨整个 Thread 或限定到一个 Turn。使用相同的 Thread、scope、可选 Turn 和方向继续传入 `nextCursor` / `NextCursor` / `next_cursor` 读取下一页。请把 cursor 视为 opaque token。
+Turn 页只包含元数据，不包含 Item。Item 页会带上每个 Item 所属的 Turn ID，并可跨整个 Thread 或限定到一个 Turn。使用相同的 Thread、scope、可选 Turn 和方向继续传入 `nextCursor` / `NextCursor` 读取下一页。请把 cursor 视为 opaque token。
 
 ## 选择模型
 
@@ -101,16 +82,9 @@ foreach (var model in catalog.Models.Value ?? [])
 var currentConfiguration = await client.Threads.ReadModelConfigurationAsync(thread.Id);
 ```
 
-```python [Python]
-models = await dotcraft.models.list()
-for model in models:
-    print(model.id)
-configuration = (await dotcraft.threads.read(thread.id)).configuration
-```
-
 :::
 
-三种高层 client 都会通过 thread read 返回当前 `ThreadConfiguration`。.NET client 还提供安全的模型字段 read-modify-write helper。它会保留无关和未知的 thread 配置字段：
+两种高层 client 都会通过 thread read 返回当前 `ThreadConfiguration`。.NET client 另外提供针对模型字段的 read-modify-write helper，它会保留无关和未知的配置字段：
 
 ```csharp
 var configuration = await client.Threads.UpdateModelConfigurationAsync(
@@ -122,7 +96,7 @@ var configuration = await client.Threads.UpdateModelConfigurationAsync(
     contextWindow: null);
 ```
 
-TypeScript 和 Python 当前在高层接口提供模型发现，但没有这个配置 helper。使用类型化 Wire 层的应用必须更新完整 `ThreadConfiguration`，并保留不归自己所有的字段。不要跨 provider 推断模型 ID 或 reasoning 选项。请使用所连接 AppServer 返回的目录。
+TypeScript 在高层接口提供模型发现，但没有这个配置 helper。使用类型化 Wire 层的应用必须更新完整 `ThreadConfiguration`，并保留不归自己所有的字段。不要跨 provider 推断模型 ID 或 reasoning 选项，只使用所连接 AppServer 返回的目录。
 
 ## 构造输入
 
@@ -148,25 +122,16 @@ var result = await thread.RunAsync([
 ]);
 ```
 
-```python [Python]
-from dotcraft import file_ref_part, text_part
-
-result = await thread.run([
-    text_part("Review this file."),
-    file_ref_part("src/app.py"),
-])
-```
-
 :::
 
-| Part | 用途 | TypeScript / Python helper |
+| Part | 用途 | TypeScript helper |
 | --- | --- | --- |
-| `text` | 原样用户文本 | `textPart` / `text_part` |
-| `fileRef` | 工作区或本地文件引用 | `fileRefPart` / `file_ref_part` |
-| `image` | Base64 `data:image/...` URL | `imageDataUrlPart` / `image_data_url_part` |
-| `localImage` | AppServer 可读取的图片路径 | `localImagePart` / `local_image_part` |
-| `skillRef` | Skill 引用 | `skillRefPart` / `skill_ref_part` |
-| `commandRef` | 自定义 Command 引用 | `commandRefPart` / `command_ref_part` |
+| `text` | 原样用户文本 | `textPart` |
+| `fileRef` | 工作区或本地文件引用 | `fileRefPart` |
+| `image` | Base64 `data:image/...` URL | `imageDataUrlPart` |
+| `localImage` | AppServer 可读取的图片路径 | `localImagePart` |
+| `skillRef` | Skill 引用 | `skillRefPart` |
+| `commandRef` | 自定义 Command 引用 | `commandRefPart` |
 
 .NET 直接构造生成的 `InputPart` contract。高层 client 不会把以 `/command`、`$skill` 或 `@file` 开头的文本自动转换为结构化 part。
 
@@ -199,63 +164,54 @@ await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 }
 ```
 
-```python [Python]
-result = await thread.run("Run the tests and summarize failures.")
-print(result.text)
-
-async for event in thread.run_streamed("Now fix them."):
-    if event.type == "agent_message_delta":
-        print(event.params["delta"], end="", flush=True)
-```
-
 :::
 
 ## 读取结果
 
-| 值 | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| 合并回复 | `result.text` | `result.Text` | `result.text` |
-| Thread ID | `result.thread.id` | `result.ThreadId` | `result.thread_id` |
-| Turn ID | `result.turn?.id` | `result.TurnId` | `result.turn_id` |
-| 终止 turn | `result.turn` | `result.Turn` | `result.turn` |
-| Item 和 usage | `result.items`、`result.usage` | `result.Turn?.Items`、`result.Turn?.TokenUsage` | 从 `result.turn` 读取 |
-| Raw event | `result.rawEvents` | `result.RawEvents` | `result.raw_events` |
+| 值 | TypeScript | .NET |
+| --- | --- | --- |
+| 合并回复 | `result.text` | `result.Text` |
+| Thread ID | `result.thread.id` | `result.ThreadId` |
+| Turn ID | `result.turn?.id` | `result.TurnId` |
+| 终止 turn | `result.turn` | `result.Turn` |
+| Item 和 usage | `result.items`、`result.usage` | `result.Turn?.Items`、`result.Turn?.TokenUsage` |
+| Raw event | `result.rawEvents` | `result.RawEvents` |
 
-只有启用各语言的 `collectRawEvents` / `CollectRawEvents` / `collect_raw_events` 选项时，SDK 才收集 raw event。
+只有启用各语言的 `collectRawEvents` / `CollectRawEvents` 选项时，SDK 才收集 raw event。
 
 ## Run 选项
 
-| 行为 | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Sender context | `sender` | `RunOptions.Sender` | `sender` |
-| Busy 时排队 | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` | `enqueue_if_busy` |
-| 收集 raw event | `collectRawEvents` | `RunOptions.CollectRawEvents` | `collect_raw_events` |
-| 返回失败终态 | 不支持 | `RunOptions.ThrowOnFailure = false` | `throw_on_failure=False` |
-| 通过取消中断 | `AbortSignal` | `CancellationToken` | 显式调用 `interrupt()` |
+| 行为 | TypeScript | .NET |
+| --- | --- | --- |
+| Sender context | `sender` | `RunOptions.Sender` |
+| Busy 时排队 | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` |
+| 收集 raw event | `collectRawEvents` | `RunOptions.CollectRawEvents` |
+| 返回失败终态 | 不支持 | `RunOptions.ThrowOnFailure = false` |
+| 通过取消中断 | `AbortSignal` | `CancellationToken` |
 
 未启用 busy 选项时，启动第二个 turn 会抛出 `TurnInProgressError` 或 `TurnInProgressException`。启用后，SDK 会把输入排队，并返回不含 turn ID 的 queued result。
 
 ## 控制 thread
 
-| 任务 | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| 最新 snapshot | `snapshot()` | `Snapshot` | `snapshot` |
-| 重新读取状态 | `refresh()` | `RefreshAsync()` | `refresh()` |
-| 订阅 | `subscribe()` | `SubscribeAsync()` | `subscribe()` |
-| 取消订阅 | `unsubscribe()` | `UnsubscribeAsync()` | `unsubscribe()` |
-| 排队输入 | `enqueue()` | `EnqueueAsync()` | `enqueue()` |
-| 中断 turn | `interrupt()` | `InterruptAsync()` | `interrupt()` |
-| 切换模式 | `setMode()` | `SetModeAsync()` | `set_mode()` |
-| 归档 | `archive()` | `ArchiveAsync()` | `archive()` |
-| 删除 | `delete()` | `DeleteAsync()` | `delete()` |
+| 任务 | TypeScript | .NET |
+| --- | --- | --- |
+| 最新 snapshot | `snapshot()` | `Snapshot` |
+| 重新读取状态 | `refresh()` | `RefreshAsync()` |
+| 订阅 | `subscribe()` | `SubscribeAsync()` |
+| 取消订阅 | `unsubscribe()` | `UnsubscribeAsync()` |
+| 排队输入 | `enqueue()` | `EnqueueAsync()` |
+| 中断 turn | `interrupt()` | `InterruptAsync()` |
+| 切换模式 | `setMode()` | `SetModeAsync()` |
+| 归档 | `archive()` | `ArchiveAsync()` |
+| 删除 | `delete()` | `DeleteAsync()` |
 
 `subscribe({ replayRecent: true })` 及各语言对应形式只回放近期事件，不返回完整的当前状态。调用 `refresh` 或 `read` 获取权威头部状态，通过历史分页方法获取持久化的 Turn 和 Item。
 
 ## 读取流式事件
 
-TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type` 中使用 Wire 方法名，并通过 `DotCraftRunEvent<TParams>.Params` 暴露已知参数。
+TypeScript 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type` 中使用 Wire 方法名，并通过 `DotCraftRunEvent<TParams>.Params` 暴露已知参数。
 
-| TypeScript / Python 类型 | Wire 方法 |
+| TypeScript 类型 | Wire 方法 |
 | --- | --- |
 | `turn_started` | `turn/started` |
 | `item_started` / `item_completed` | `item/started` / `item/completed` |
@@ -268,9 +224,9 @@ TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type
 | `completed` / `failed` / `cancelled` | `turn/completed` / `turn/failed` / `turn/cancelled` |
 | `raw` | 未知的已订阅通知 |
 
-每个事件都保留原始通知。请及时消费事件流。订阅方长期跟不上时，AppServer 可能断开连接。
+每个事件都保留原始通知。请及时消费事件流：client 跟不上时缓冲只到一个上限，超出后 AppServer 会断开连接。
 
-停止迭代不一定会中断服务端工作。TypeScript 调用方应中止传入的 `AbortSignal`。.NET 调用方应取消 `CancellationToken`。Python 调用方应从事件流读取 turn ID，再调用 `interrupt()`。
+停止迭代不一定会中断服务端工作。要真正停下这个 turn，TypeScript 中止传入的 `AbortSignal`，.NET 取消 `CancellationToken`。
 
 ## 断线后恢复
 
@@ -288,18 +244,16 @@ TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type
 
 ## 处理 Run 错误
 
-| 情形 | TypeScript | .NET | Python |
-| --- | --- | --- | --- |
-| Turn 失败 | `TurnFailedError` | `TurnFailedException` | `TurnFailedError` |
-| Turn 取消 | `TurnCancelledError` | `TurnCancelledException` | `TurnCancelledError` |
-| 已有 turn 在运行 | `TurnInProgressError` | `TurnInProgressException` | `TurnInProgressError` |
+| 情形 | TypeScript | .NET |
+| --- | --- | --- |
+| Turn 失败 | `TurnFailedError` | `TurnFailedException` |
+| Turn 取消 | `TurnCancelledError` | `TurnCancelledException` |
+| 已有 turn 在运行 | `TurnInProgressError` | `TurnInProgressException` |
 
 按错误类型或稳定的 `code` 分支，message 只用于诊断。初始化、transport、timeout、JSON-RPC 和协议错误见各语言参考。
 
 ## 相关文档
 
-- [SDK 快速开始](./quickstart)
-- [工具与审批](./tools)
-- [MCP 运行时](./mcp-runtime)
-- 参考：[TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
-- [AppServer 协议](../protocols/appserver-protocol)
+- [工具与审批](./tools)——运行时工具，以及 run 触发的审批回调。
+- [AppServer 协议](../protocols/appserver-protocol)——这些事件与错误码背后的 wire 方法。
+- 参考：[TypeScript](./typescript) · [.NET](./dotnet)——各语言的完整 client 接口。

@@ -17,13 +17,18 @@ public sealed class PluginDesktopManifestTests : IDisposable
         var pluginRoot = PluginRoot("valid");
         WriteOutput(pluginRoot, "index.mjs", "export function activate() { return {}; }");
         WriteOutput(pluginRoot, "theme.css", ":root { color: red; }");
-        WriteManifest(pluginRoot, "./desktop/dist/index.mjs", "[\"./desktop/dist/theme.css\"]");
+        WriteManifest(
+            pluginRoot,
+            "./desktop/dist/index.mjs",
+            "[\"./desktop/dist/theme.css\"]",
+            description: "Adds review presentation.");
 
         var result = PluginManifestParser.Load(pluginRoot);
 
         Assert.DoesNotContain(result.Diagnostics, static diagnostic =>
             diagnostic.Severity == PluginDiagnosticSeverity.Error);
         var desktop = Assert.IsType<PluginDesktopManifest>(result.Manifest?.Desktop);
+        Assert.Equal("Adds review presentation.", desktop.Description);
         Assert.Equal("./desktop/dist/index.mjs", desktop.Entry);
         Assert.Equal(["./desktop/dist/theme.css"], desktop.Styles);
         Assert.Matches("^[0-9a-f]{64}$", desktop.Revision);
@@ -243,10 +248,14 @@ public sealed class PluginDesktopManifestTests : IDisposable
         string pluginRoot,
         string entry,
         string? stylesJson = null,
-        string? versionJson = "\"1.0.0\"")
+        string? versionJson = "\"1.0.0\"",
+        string? description = null)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         var styles = stylesJson == null ? string.Empty : $",\n    \"styles\": {stylesJson}";
+        var desktopDescription = description == null
+            ? string.Empty
+            : $",\n    \"description\": {JsonSerializer.Serialize(description)}";
         var version = versionJson == null ? string.Empty : $"\n  \"version\": {versionJson},";
         var entryJson = JsonSerializer.Serialize(entry);
         File.WriteAllText(
@@ -257,7 +266,7 @@ public sealed class PluginDesktopManifestTests : IDisposable
   "id": "desktop.fixture",{{version}}
   "displayName": "Desktop Fixture",
   "desktop": {
-    "entry": {{entryJson}}{{styles}}
+    "entry": {{entryJson}}{{styles}}{{desktopDescription}}
   }
 }
 """);

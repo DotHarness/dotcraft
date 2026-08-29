@@ -293,6 +293,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
   "description": "Test agent teams plugin.",
   "capabilities": ["metadata", "desktop"],
   "desktop": {
+    "description": "Adds the Team board to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs"
   },
   "interface": {
@@ -445,10 +446,19 @@ interface:
     private static void WriteSkillOnlyPlugin(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "demo-skill"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "assets"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "demo-skill", "agents"));
+        File.WriteAllText(Path.Combine(pluginRoot, "assets", "shared.svg"), "<svg />");
         File.WriteAllText(
             Path.Combine(pluginRoot, "skills", "demo-skill", "SKILL.md"),
             "---\nname: demo-skill\ndescription: Demo skill\n---\n# Demo");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "skills", "demo-skill", "agents", "openai.yaml"),
+            """
+interface:
+  display_name: "Demo Skill"
+  icon_small: "../../assets/shared.svg"
+""");
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             """

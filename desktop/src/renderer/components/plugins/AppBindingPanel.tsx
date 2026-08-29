@@ -17,7 +17,7 @@ interface AppBindingPanelProps {
 export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element | null {
   const t = useT()
   const confirm = useConfirmDialog()
-  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBindingVersion === 2)
+  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBindingVersion === 1)
   const {
     apps,
     appsLoading,

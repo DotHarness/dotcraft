@@ -24,7 +24,7 @@ public class ExternalChannelConfigTests
               "enabled": true,
               "transport": "subprocess",
               "command": "python",
-              "args": ["-m", "dotcraft_telegram"],
+              "args": ["-m", "sample_adapter"],
               "workingDirectory": "./adapters/telegram",
               "env": {
                 "TELEGRAM_BOT_TOKEN": "secret"
@@ -52,7 +52,7 @@ public class ExternalChannelConfigTests
         Assert.True(telegram.Enabled);
         Assert.Equal(ExternalChannelTransport.Subprocess, telegram.Transport);
         Assert.Equal("python", telegram.Command);
-        Assert.Equal(["-m", "dotcraft_telegram"], telegram.Args);
+        Assert.Equal(["-m", "sample_adapter"], telegram.Args);
         Assert.Equal("./adapters/telegram", telegram.WorkingDirectory);
         Assert.Equal("secret", telegram.Env!["TELEGRAM_BOT_TOKEN"]);
 
@@ -78,7 +78,7 @@ public class ExternalChannelConfigTests
                     Enabled = true,
                     Transport = ExternalChannelTransport.Subprocess,
                     Command = "python",
-                    Args = ["-m", "dotcraft_telegram"],
+                    Args = ["-m", "sample_adapter"],
                     WorkingDirectory = "./adapters/telegram",
                     Env = new Dictionary<string, string> { ["TELEGRAM_BOT_TOKEN"] = "secret" }
                 },

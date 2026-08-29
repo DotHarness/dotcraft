@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="498" viewBox="0 0 800 498" role="img" aria-label="DotCraft SubAgent delegation overview: the main agent spawns a SubAgent that works in its own context on a native or external CLI runtime and reports the result back to the main conversation. Its role decides which tools it may use: the explorer, worker, and default role robots each carry their own tool.">
-  <title>SubAgent Delegation</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="506" viewBox="0 0 800 506" role="img" aria-label="DotCraft subagent delegation overview: the main agent delegates to a subagent that works in its own context on a native or external CLI runtime and reports the result back to the main conversation. Its role decides which tools it may use: the explorer, worker, and default role robots each carry their own tool.">
+  <title>Subagent delegation</title>
   <defs>
     <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
     <marker id="b" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#a9abb0"/></marker>
@@ -31,8 +31,8 @@
       .cap{font-family:"Sora",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px;font-weight:600;fill:#1a1c1f}
     </style>
   </defs>
-  <rect width="800" height="498" fill="#f9f9f9"/>
-  <text x="36" y="40" class="dtitle">SubAgent Delegation</text>
+  <rect width="800" height="506" fill="#f9f9f9"/>
+  <text x="36" y="40" class="dtitle">Subagent delegation</text>
   <svg x="734" y="14" width="30" height="30" viewBox="0 0 1024 1024" fill="none">
     <defs>
       <linearGradient id="lb_subag" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
@@ -132,10 +132,10 @@
   <text x="70" y="200" class="body">stays clean while helpers work</text>
   <rect x="444" y="150" width="280" height="64" rx="10" class="accent"/>
   <g transform="translate(462,161) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="7.5" width="15" height="12" rx="3"/><path d="M12,7.5 V4.9"/><circle cx="12" cy="3.9" r="1.1" fill="#1d3fbf" stroke="none"/><path d="M8.6,11.4 l2.3,2.1 -2.3,2.1 M13.4,15.6 h2.6"/></g>
-  <text x="490" y="176" class="title">SubAgent</text>
+  <text x="490" y="176" class="title">Subagent</text>
   <text x="462" y="196" class="body">native or external CLI runtime</text>
   <path d="M302 187 H442" class="link" marker-end="url(#a)"/>
-  <text x="372" y="177" class="eyebrow" text-anchor="middle">SPAWNAGENT</text>
+  <text x="372" y="177" class="eyebrow" text-anchor="middle">DELEGATES</text>
   <path d="M724 190 H736 V385 H177 V226" class="link" marker-end="url(#a)"/>
   <text x="456" y="377" class="eyebrow" text-anchor="middle">RESULT REPORTS BACK</text>
   <g transform="translate(115.0,150.0) scale(0.09648) translate(-512,-1004)">

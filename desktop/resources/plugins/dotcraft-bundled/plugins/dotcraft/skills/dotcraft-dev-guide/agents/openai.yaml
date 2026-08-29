@@ -1,4 +1,6 @@
 interface:
   display_name: "DotCraft Dev Guide"
   short_description: "Development workflow and project-specific norms for DotCraft"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-dev-guide for DotCraft development workflow and repository guidance."

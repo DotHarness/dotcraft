@@ -4,7 +4,7 @@ DotCraft Harness participates in the standard .NET Generic Host lifecycle. The a
 
 ## Build the Host
 
-Register Harness while configuring the service collection. `AppConfig` must already represent the configuration that should be effective for this Host.
+Register Harness while configuring the service collection. `AppConfig` must already be the effective configuration for this Host.
 
 ```csharp
 using DotCraft.Configuration;
@@ -22,11 +22,11 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 using var host = builder.Build();
 ```
 
-Building the Host validates composition and creates the service provider. Runtime-owned workspace state is initialized when the Host starts.
+`AddDotCraftHarness` resolves and validates the path options during registration, so an invalid workspace or data directory throws there. Building the Host creates the service provider, and Runtime-owned workspace state is initialized when the Host starts.
 
 ## Start and stop
 
-Start the Host before resolving services that depend on an initialized Runtime. Stop it before disposing application resources.
+Start the Host before resolving services that depend on an initialized Runtime. Resolving `ISessionService` before the Host starts throws. Stop the Host before disposing application resources.
 
 ```csharp
 await host.StartAsync(cancellationToken);
@@ -37,7 +37,7 @@ var sessions = host.Services.GetRequiredService<ISessionService>();
 await host.StopAsync(cancellationToken);
 ```
 
-For Console applications, `RunAsync` can own the complete wait-and-shutdown loop when no application-specific loop is required:
+In a Console application with no loop of its own, `RunAsync` owns the complete wait-and-shutdown sequence:
 
 ```csharp
 await host.RunAsync(cancellationToken);
@@ -69,7 +69,7 @@ public sealed class AgentHost : IDisposable
 }
 ```
 
-Call these methods from the startup and exit hooks provided by the UI framework.
+Call these methods from the startup and exit hooks the UI framework provides.
 
 ## Choose service lifetimes
 
@@ -84,7 +84,7 @@ Create separate Hosts when an application needs independently configured Runtime
 
 ## Handle startup failure
 
-Treat Host startup as an application initialization step. Surface invalid paths, missing dependencies, and configuration failures before accepting user work.
+Treat Host startup as an application initialization step. Surface missing dependencies and configuration failures before accepting user work.
 
 ```csharp
 try
@@ -100,6 +100,5 @@ catch (Exception ex)
 
 ## Related docs
 
-- [Harness overview](./)
-- [Configuration and paths](./configuration-paths)
-- [Threads and Turns](./threads-turns)
+- [Configuration and paths](./configuration-paths) — what `WorkspacePath`, `DataPath`, and `UserDataPath` mean and how they are validated.
+- [Threads and Turns](./threads-turns) — creating conversations and consuming streaming events once the Host runs.

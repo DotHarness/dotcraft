@@ -1,108 +1,59 @@
 # 可观测性
 
-DotCraft 的 Dashboard 是一个网页，让你看清正在发生什么——会话、Trace、工具调用、自动化状态、配置合并结果和审批记录。想弄明白"Agent 到底做了什么""配置为什么这样生效"，就到这儿查。
+DotCraft 的 Dashboard 是一个网页，用来看清 Agent 刚才到底做了什么。会话轨迹、工具调用、配置合并结果和审批记录都留在这里。出了问题不用翻日志，打开页面对着时间线一步步看就行。
 
 ![所有入口的会话都会把 trace 事件送进 Dashboard 窗口：Trace Timeline 页面按时序排列 Agent、工具与错误事件，下方是审批记录和配置合并结果](/observability-trace-overview.svg)
 
-## 快速开始
+## 打开 Dashboard
 
-### 启用
-
-在工作区配置中启用 Dashboard。字段名、默认值和 JSON 示例见 [入口与服务](../../developing/configuration#entry-points-and-services)。
-
-### 启动
+Dashboard 默认开启，相关字段名和 JSON 示例见[入口与服务](../../developing/configuration#entry-points-与-services)。启动它：
 
 ```bash
 dotcraft dashboard
 ```
 
-### 打开
+默认地址是 `http://127.0.0.1:8080/dashboard`。首页给出运行摘要、各入口状态和近期活动。从 CLI、Desktop 或任何一个入口发起一次对话，数据随即出现。
 
-默认地址 `http://127.0.0.1:8080/dashboard`。从 CLI、Desktop 或其他入口发起一次对话后，Dashboard 即可看到会话、工具调用、错误和配置状态。
+`dotcraft dashboard` 读的是已经落盘的记录。想看正在运行的自动化和外部渠道状态，就让 AppServer 托管 Dashboard。
 
-## 主要页面
-
-| 页面 | 用途 |
-|---|---|
-| Dashboard | 运行摘要、入口状态、近期活动 |
-| Sessions | 会话列表与详情 |
-| Trace Timeline | 按时间线检查 Agent、工具和错误事件 |
-| Settings | 查看配置 schema、全局配置、工作区配置和合并结果 |
-| Automations | 查看由 AppServer 托管的本地任务、Cron 和活动状态 |
-| Dreams | 审阅、应用、丢弃后台生成的 Dreams |
-| Approvals | 历史审批记录 |
-
-## 三种典型用法
-
-### 1. 第一次确认模型可用
-
-触发一次会话后，打开 **Trace Timeline**，逐项确认：
-
-- **agent_message_chunk** 是否产生 token 流
-- **tool_call** / **tool_result** 是否成功配对
-- **error** 是否在某次工具调用上中断
-
-如果 token 流为空，多半是 Provider 凭据 / Endpoint 不匹配。可在 **Settings** 页面的 `Providers[id]` 部分查看合并结果。
-
-终止诊断和 provider 诊断会与可见响应文本分开记录。使用 **Responses** 过滤器检查空文本或 usage-only stream 的 `ResponseTerminal` 事件。使用 **Provider** 过滤器检查 `ProviderError` 和 `ProviderResponseDiagnostic` 事件。
-
-使用 **Provider** 过滤器检查重试行为。`stream_attempt` 诊断会显示 attempt 编号、结果、
-重试决策、耗时，以及是否因为已产生可见输出而停止重试。对于 OpenAI Responses，它还会
-显示最终 HTTP status、上游 request ID，以及缩写后的 session、thread 和 prompt-cache
-哈希。对比不同 attempt 的哈希即可确认路由是否稳定，同时不会暴露原始 identity。
-
-使用 **Instructions** 过滤器检查会话实际生效的 `AGENTS.md` 快照。这里会显示来源文件、
-`user` role、fingerprint 和线程捕获的完整合成内容。快照会在线程刷新项目指令时更新，
-并不是磁盘文件的实时预览。
-
-### 2. 排查工具调用失败
-
-打开会话详情：
-
-- 切换到 **Tools** / **Errors** 过滤器
-- 点击具体 tool call 看完整参数、结果、耗时、stderr
-- 如果是审批失败，跳到 **Approvals** 页确认是否被自动拒绝
-
-### 3. 检查配置为什么这样生效
-
-**Settings** 页面会把全局 `~/.craft/config.json` 与工作区 `.craft/config.json` 的差异并排展示：
-
-- 字段在哪一层定义
-- 合并后哪个值生效
-- 哪些字段属于启动级（修改后需要重启）
-
-> [!TIP]
-> 如果某个修改没生效，先在 Settings 页面确认它属于即时 / 子系统重启 / AppServer 重启 中的哪一类。详见 [设置生效层级](../../developing/lifecycle/settings-lifecycle)。
-
-## 运行模式
-
-| 模式 | 说明 |
-|---|---|
-| 只读 Dashboard | 使用 `dotcraft dashboard` 检查持久化状态 |
-| AppServer Dashboard | 查看实时 Automations 和外部渠道状态 |
-
-将 `Host` 设为 `0.0.0.0` 会允许外部网络访问 Dashboard。
+Dashboard 默认只监听本机。改成监听外部地址后，同一网络里的人都能打开它。
 
 > [!CAUTION]
-> Dashboard 可能展示 prompt、项目指令及其来源路径、工具参数和工具结果。把它暴露到公网前，请先确认网络边界与认证策略。
+> Dashboard 会展示 prompt、项目指令及其来源路径、工具参数和工具结果。暴露到公网前，请先确认网络边界与认证策略。
 
-## 审批审计
+## 每一页回答什么问题
 
-Dashboard 的 Approvals 页面记录每一次需要审批的工具调用：
+### 模型有没有正常输出
 
-- 谁/哪个入口发起的请求
-- 决策结果（approve / deny / auto-approve / auto-deny）
-- 决策依据（用户、工作区策略、Hook、API AutoApprove）
-- 触发的工具与参数
+触发一次会话，打开 **Trace Timeline**。事件按时间排开：模型的输出、每一次工具调用和它的返回、以及中途报的错。看一遍就知道卡在哪一步。
 
-相关安全配置见 [安全与沙箱](./security)。
+如果模型完全没有输出，多半是 Provider 凭据或 Endpoint 不匹配，去 **Settings** 页面对照合并后的 Provider 配置。**Provider** 过滤器还会显示重试过程——试了几次、每次什么结果、为什么停下来。
 
-## API 与 Trace 事件
+### 工具调用为什么失败或被拦下
 
-如果你想自己消费 Trace 事件或自定义 dashboard，使用 [Dashboard API](../../developing/protocols/dashboard-api) 列出的 HTTP 端点和事件类型。这些事件也是 AppServer 协议在 Wire Protocol 上推送的同一份数据，区别只是 Dashboard 把它们渲染成 UI。
+在 **Sessions** 里打开会话详情，切到 **Tools** 或 **Errors** 过滤器，点开具体一次调用，参数、返回、耗时和 stderr 都在里面。
+
+如果是审批没通过，**Approvals** 页面记着每一次需要审批的调用：哪个入口发起的、批了还是拒了、依据是你的决定还是工作区策略或 Hook。策略本身怎么配见[安全与沙箱](./security)。
+
+### 配置为什么是这个值
+
+**Settings** 页面把全局 `~/.craft/config.json` 和工作区 `.craft/config.json` 并排展开，告诉你字段在哪一层定义、合并后哪个值生效、哪些字段改完需要重启。
+
+改了配置没生效时，先在这里确认它属于即时生效、子系统重启还是 AppServer 重启，再看[设置生效层级](../../developing/lifecycle/settings-lifecycle)。
+
+### Agent 用的是哪份项目指令
+
+**Instructions** 过滤器显示这次会话实际带上的 `AGENTS.md` 内容和它的来源文件。它是线程捕获的快照，线程重新加载项目指令时才更新，不是磁盘文件的实时预览。
+
+### 自动化和梦境跑得怎么样
+
+**Automations** 页面列出由 AppServer 托管的本地任务和 Cron，以及它们当前的活动状态。**Dreams** 页面用来审阅后台生成的梦境，决定应用还是丢弃。
+
+## 自己消费这些事件
+
+想把 Trace 事件接进自己的面板，[Dashboard API](../../developing/protocols/dashboard-api) 列出了 HTTP 端点和事件类型。Dashboard 渲染的就是这份数据，AppServer 协议在 Wire Protocol 上推送的也是同一份。
 
 ## 相关文档
 
-- [安全与沙箱](./security)
-- [Dashboard API](../../developing/protocols/dashboard-api)
-- [设置生效层级](../../developing/lifecycle/settings-lifecycle)
+- [安全与沙箱](./security) — 哪些操作需要审批，Dashboard 里的拦截记录从哪来
+- [服务器部署](./server-deployment) — 把 Dashboard 和 AppServer 一起部署到服务器上

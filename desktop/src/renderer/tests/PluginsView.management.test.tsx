@@ -27,7 +27,7 @@ describe('PluginsView management', () => {
       status: 'connected',
       capabilities: {
         pluginManagement: true,
-        appBindingVersion: 2
+        appBindingVersion: 1
       }
     })
     useAppBindingStore.setState({
@@ -59,7 +59,7 @@ describe('PluginsView management', () => {
       status: 'connected',
       capabilities: {
         pluginManagement: true,
-        appBindingVersion: 2
+        appBindingVersion: 1
       }
     })
     useThreadStore.getState().setActiveThreadId('thread-1')

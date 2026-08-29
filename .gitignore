@@ -39,8 +39,8 @@ tmp
 # left the tracked manifests useless on their own and free to drift.
 desktop/resources/modules/
 
-# E2E test artifacts
-desktop/e2e/screenshots/
+# Local Playwright CLI state
+desktop/.playwright-cli/
 /sdk/typescript/packages/channel-weixin/data
 /sdk/typescript/packages/channel-feishu/vendor
 

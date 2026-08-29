@@ -1,106 +1,45 @@
 # Desktop
 
-Desktop is the recommended way to start with DotCraft. It puts everything in one window — workspaces, sessions, diffs, plans, model configuration, automation review, and live status — so you can drive the agent visually instead of from the command line. (Under the hood it's an AppServer client, sharing the same workspace as every other entry point.)
+Desktop puts the workspace, threads, diffs, plans, model configuration, and live status in one window, so you drive the agent visually instead of remembering commands. It's the easiest place to meet DotCraft for the first time.
 
-For first-time setup, follow [Getting Started](../../getting-started) for download, workspace selection, and model configuration. This page focuses on Desktop-specific panels and settings.
+For download, workspace selection, and model setup, follow [Getting started](../../getting-started). This page covers what Desktop does for you once it's installed.
 
-## Installation
+## See what the agent did
 
-### Use a Release
+Every step the agent takes is laid out in the window. Open a thread to walk through what it read and what it changed, review file edits as diffs, and approve writes and commands before they run. Results from [automations and goals](../agent-system/automations) wait here for your review too.
 
-1. Download an installer from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases).
-2. Start DotCraft.
-3. Choose a project folder as the workspace.
+For a closer look, open Trace or Dashboard to see which tools a task called and how many tokens it spent.
 
-### Run from Source
+Fenced `mermaid` blocks in a reply render as diagrams, falling back to the source block when a diagram can't be drawn. Images you paste into a conversation survive a restart — reopen the thread and the thumbnails are still there.
 
-```bash
-cd desktop
-npm install
-npm run dev
-```
+## Keep several projects in one window
 
-When running from source, Desktop looks for `dotcraft` on `PATH`. If it cannot find it, set the AppServer / `dotcraft` binary path in settings. Build installer artifacts with `npm run dist`; outputs land in `desktop/dist/`.
+Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switches, Dreams, and one-click memory reset live under **Settings → Personalization**, and [Memory and Dreams](../agent-system/memory) explains what each one covers.
 
-## Startup Arguments
+## Set up a model
 
-```bash
-DotCraft --app-server /path/to/dotcraft
-DotCraft --workspace /path/to/project
-```
+Add providers, enter credentials, and pick models under **Settings → Model providers**. Credentials and endpoints go into your personal `~/.craft/config.json` rather than the workspace, so sharing workspace config with a teammate never shares a key. Use **Test** before saving to confirm the credentials and the model list are reachable. If a provider can't list models, type the model name by hand and save anyway. Desktop currently supports OpenAI and Anthropic.
 
-## Desktop-Specific Settings
+The model you pick here only sets the default for new threads. An existing thread keeps the settings it was created with and can switch on its own from its composer. [Subagents](../agent-system/subagents) follow the main agent's model by default, and you can point them at a faster or cheaper one when it helps.
 
-| Section | Purpose |
-|---|---|
-| **Settings → Profile** | Token-activity heatmap for this workspace, lifetime/peak/streak stats, optional GitHub identity |
-| **Settings → General** | Current workspace path, AppServer binary path, language |
-| **Settings → Personalization** | Long-term memory / Dreams switches, run-now, auto-update, reset memory |
-| **Settings → Model providers** | Personal providers, credentials, endpoints, and provider-specific MainAgent/SubAgent models |
-| **Settings → Subagents** | Reuse external CLI sessions (see [SubAgents](../agent-system/subagents)) |
-| **Settings → Connection** | Switch between local Hub and remote AppServer |
+## See where your tokens go
 
-### Profile
+**Settings → Profile** shows a token activity chart that spreads daily usage across every thread in the current workspace, GitHub-contribution style, alongside lifetime tokens, single-day peak, and usage streaks. Enable tracing for the workspace first, or the chart has nothing to plot.
 
-- **Token activity** — a GitHub-contribution-style heatmap of daily token usage across all traced sessions in the current workspace. Switch between **Daily**, **Weekly**, and **Cumulative** colorings.
-- **Stats** — lifetime tokens, single-day peak, longest task (the longest single agent turn), current streak, and longest streak.
-- **Identity (optional)** — link a GitHub username to show its public avatar and handle in the header; otherwise an initials avatar is shown. When a signed-in ChatGPT provider is detected, its plan (e.g. Pro) appears as a badge.
-- Requires tracing to be enabled for the workspace; otherwise the activity view is unavailable.
+## Run locally or connect to a server
 
-### Personalization → Dreams
+By default Desktop starts or takes over the AppServer for the current workspace on this machine, and other entries share that same process without any work from you. Threads you start here aren't locked to Desktop either — pick one up from another [entry point](./).
 
-- **Run now** — trigger a Dreams consolidation immediately.
-- **Auto-update Dreams** — off: new Dreams stay pending; on: future successful runs auto-apply as active.
-- **Manage Dreams** — list of recent runs; each opens Dashboard for diff, trace, apply, discard, cancel, archive.
-- **Reset memory** — clear `MEMORY.md`, `HISTORY.md`, `.craft/dreams/`, and derived caches in one click. It does not delete sessions, config, skills, or automations.
+To reach a DotCraft running on a server, enter the remote AppServer address under **Settings → Connections**. Desktop probes the connection before saving it, so a bad address is never stored and never traps you on the next start. For the full server-side setup, see [Server Deployment](../self-hosted/server-deployment).
 
-See [Memory & Dreams](../agent-system/memory) for the full picture.
+## Stay on the latest version
 
-### Model providers
+On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) for a newer version. When an installer exists for your platform, a download button appears in the title bar: open it to read the release notes and download the installer with progress, then DotCraft quits and opens it for you.
 
-- Provider credentials and endpoints are written to personal `~/.craft/config.json`, **not** the workspace.
-- The workspace stores `ProviderId`, `ProviderPreferences`, and `SubAgent.ProviderPreferences`; shared workspace config never holds secrets.
-- The same picker configures model, reasoning, speed, and context window in Welcome, Workspace preferences, and Setup.
-- The Welcome picker sets defaults for future threads. Each existing thread keeps its captured preference and may switch independently from its composer.
-- A native SubAgent inherits its parent MainAgent preference by default. Turn off **Inherit MainAgent** to save a complete SubAgent preference for that provider.
-- Desktop currently supports OpenAI and Anthropic providers.
-- Use **Test** to check credential and model-list reachability. If a provider cannot list models, save it and type the model name manually.
-
-### Connection (Local vs Remote)
-
-- **Local (default)**: Desktop launches or discovers a workspace AppServer through Hub; multiple entries share the same process.
-- **Remote**: connect to an existing WebSocket AppServer. Desktop does not restart the remote process, only tests and switches.
-- Remote URL/token changes are first probed against a draft connection. Failures are not saved, so a bad URL never traps you on the next start.
-- When Desktop is launched with `--remote`, the persistent connection switch in Settings is disabled.
-
-## What's New
-
-After Desktop is upgraded, **What's New** appears once when you enter a ready workspace UI and highlights the current version's new capabilities. Animated previews are downloaded from the DotHarness resources repo, verified, and cached locally; the automatic prompt waits for previews, while manual reopen shows text and placeholders immediately. Reopen any time via **Help → What's New** or the version label at the bottom of the sidebar. The newest release is shown expanded; older releases are collapsed behind a **Past releases** toggle so you can review earlier highlights when you want them.
-
-## Updates
-
-On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) for a newer release tag. When a platform installer is available, a highlighted download button appears in the title bar. Select it to review the release, download the installer with progress, then DotCraft quits and opens the downloaded installer.
-
-## Usage Examples
-
-| Scenario | Desktop path |
-|---|---|
-| First-time setup | Choose workspace → configure model → create session |
-| Inspect agent work | Open session detail, diff, trace, or Dashboard |
-| Review automation tasks | Open Automations and inspect pending review items |
-| Switch projects | Choose another workspace so config and tasks stay project-scoped |
-| Take back SubAgent control | Settings → Subagents → disable reuse external CLI sessions |
-
-## Advanced
-
-- Desktop is an AppServer client, so it shares the same [session core](../../developing/architecture/session-core) with ACP and external channels — a thread you start here can continue in another AppServer client.
-- Image attachments survive a restart; reopen a session and its thumbnails are still there.
-- Markdown surfaces render fenced `mermaid` / `mmd` code blocks as Mermaid diagrams. If a diagram cannot be rendered, Desktop falls back to the source block.
+After an upgrade, **What's New** appears once when you enter a workspace and walks through the version's new capabilities with animated previews. Reopen it any time from **Help → What's New** or the version label at the bottom of the sidebar.
 
 ## Related docs
 
-- [Getting Started](../../getting-started)
-- [Connected Apps](../agent-system/connected-apps)
-- [Entry Points Overview](./)
-- [Observability](../self-hosted/observability)
-- [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle)
+- [Entry points overview](./) — when to switch to the CLI, an editor, or a group chat
+- [Connected Apps](../agent-system/connected-apps) — let a thread reach the products and services you already use
+- [Observability](../self-hosted/observability) — open Dashboard to review traces, diffs, and token usage

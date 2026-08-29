@@ -28,7 +28,7 @@ import {
 import type { DotCraftWireClient, ServerRequestHandler } from "./client.js";
 
 const appBindingFixture = JSON.parse(readFileSync(
-  new URL("../../../specs/protocols/fixtures/app-binding-v2.json", import.meta.url),
+  new URL("../../../specs/protocols/fixtures/app-binding.json", import.meta.url),
   "utf8",
 )) as { version: number; states: string[]; socialMethods: string[]; errors: Record<string, string> };
 
@@ -39,7 +39,7 @@ test("imageDataUrlPart creates inline image input without the removed remote URL
 });
 
 test("App Binding canonical fixture is stable", () => {
-  assert.equal(appBindingFixture.version, 2);
+  assert.equal(appBindingFixture.version, 1);
   assert.deepEqual(appBindingFixture.states, [
     "connecting", "syncing", "active", "offline", "needsConfirmation", "revoked", "failed", "cancelled",
   ]);

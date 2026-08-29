@@ -208,6 +208,7 @@ public sealed partial class AppServerPluginManagementTests
         var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
         var teams = Assert.Single(plugins, item => item.GetProperty("id").GetString() == PluginIds.AgentTeams);
         var desktop = teams.GetProperty("desktop");
+        Assert.Equal("Adds the Team board to DotCraft Desktop.", desktop.GetProperty("description").GetString());
         Assert.Equal("./desktop/dist/index.mjs", desktop.GetProperty("entry").GetString());
         Assert.Empty(desktop.GetProperty("styles").EnumerateArray());
         Assert.Matches("^[0-9a-f]{64}$", desktop.GetProperty("revision").GetString());
@@ -233,6 +234,30 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Contains(
             plugin.GetProperty("skills").EnumerateArray(),
             item => item.GetProperty("name").GetString() == "demo-skill");
+    }
+
+    [Fact]
+    public async Task SkillsList_ResolvesSharedIconFromDiscoveredPluginRoot()
+    {
+        WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList,
+            new { includeUnavailable = true });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var skill = Assert.Single(
+            response.RootElement.GetProperty("result").GetProperty("skills").EnumerateArray(),
+            item => item.GetProperty("name").GetString() == "demo-skill");
+        Assert.Equal("plugin", skill.GetProperty("source").GetString());
+        Assert.Equal("demo-plugin", skill.GetProperty("pluginId").GetString());
+        Assert.StartsWith(
+            "data:image/svg+xml;base64,",
+            skill.GetProperty("iconSmallDataUrl").GetString());
     }
 
     [Fact]

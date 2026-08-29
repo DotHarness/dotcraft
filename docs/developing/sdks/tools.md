@@ -1,6 +1,6 @@
 # Tools & approvals
 
-Add application-owned tools to a thread, then handle approval and user-input requests from AppServer.
+Add application-owned tools to a thread, then handle the approval and user-input requests AppServer sends back.
 
 ## Runtime dynamic tools
 
@@ -90,30 +90,11 @@ using var registration = thread.OnToolCall("myapp", "GetIssue", async (call, ct)
 });
 ```
 
-```python [Python]
-tools = [
-    {
-        "namespace": "myapp",
-        "name": "GetIssue",
-        "description": "Read an issue from MyApp.",
-        "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
-    }
-]
-
-thread = await dotcraft.threads.start(user_id="me", dynamic_tools=tools)
-
-thread.on_tool_call("myapp", "GetIssue", lambda call: {
-    "success": True,
-    "contentItems": [{"type": "text", "text": "Issue loaded."}],
-    "structuredContent": get_issue(call["arguments"]["id"]),
-})
-```
-
 :::
 
 A handler returns either:
 
-- Success: `success: true`, useful `contentItems`, and optional client-only `structuredContent`.
+- Success: `success: true` plus non-empty `contentItems` — that is what the model sees. `structuredContent` is optional, client-only, and never enters the model context.
 - Failure: `success: false`, `errorCode`, and `errorMessage`.
 
 If no handler matches, the SDK returns `UnsupportedTool`. If the handler throws, it returns `AdapterToolCallFailed`. The .NET registry generates closed JSON Schemas from typed arguments and rejects undeclared properties.
@@ -121,10 +102,9 @@ If no handler matches, the SDK returns `UnsupportedTool`. If the handler throws,
 > [!CAUTION]
 > Runtime Dynamic Tool handlers are not sandboxed. They run with your application's permissions. Validate arguments and enforce application-level authorization in every handler.
 
-Pass the same declarations when you resume a thread. After reconnect, refresh or resume the thread and rebind its runtime tools before relying on them again.
+Pass the same declarations when you resume a thread. A Wire reconnect replays initialization but does not restore thread, run, or dynamic-tool state, so refresh or resume the thread and rebind its runtime tools before relying on them again.
 
-> [!TIP]
-> App Binding tools use their binding-scoped MCP session and App Binding error helpers. See [DotCraft App](../integrations/app-binding).
+App Binding tools take a different path. They use their binding-scoped MCP session and App Binding error helpers — see [DotCraft App](../integrations/app-binding).
 
 ## Approvals
 
@@ -152,20 +132,13 @@ await using var client = await DotCraftClient.ConnectLocalAsync(
     });
 ```
 
-```python [Python]
-dotcraft = await DotCraft.connect_local(LocalOptions(
-    workspace_path="/path/to/workspace",
-    approval_handler=lambda request: "accept" if confirm_with_user(request) else "decline",
-))
-```
-
 :::
 
-Production clients should always provide an explicit approval handler. A high-level client cannot advertise approval support without one; initialization fails instead of inventing a decision.
+Register an approval handler in every production client. A high-level client advertises approval support only when a handler is registered, and asking for `approvalSupport` in `capabilities` without one fails initialization instead of inventing a decision.
 
 ## User input
 
-Plan Mode and some tools ask structured questions. Provide a user-input handler that returns the answers. A high-level client advertises this capability only when the handler is registered.
+Plan Mode and some tools ask structured questions. Register a user-input handler that returns the answers. The rule matches approvals: the capability is advertised only when the handler is registered, and asking for `requestUserInputSupport` alone fails initialization.
 
 ::: code-group
 
@@ -184,18 +157,10 @@ var options = new DotCraftLocalOptions
 };
 ```
 
-```python [Python]
-dotcraft = await DotCraft.connect_local(LocalOptions(
-    workspace_path="/path/to/workspace",
-    user_input_handler=lambda request: ask_user(request),  # returns an answers dict
-))
-```
-
 :::
 
 ## Related docs
 
 - [Threads & runs](./runs) — the run loop these callbacks fire during.
-- [MCP runtime](./mcp-runtime) — inspect and control configured MCP servers.
-- [DotCraft App](../integrations/app-binding) — App Binding tools from an external native app.
-- Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python).
+- [MCP runtime](./mcp-runtime) — the other tool path: inspect and directly control configured MCP servers.
+- Full signatures per language: [TypeScript](./typescript) · [.NET](./dotnet).

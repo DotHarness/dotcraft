@@ -1,14 +1,12 @@
 # IDE / Editors (ACP)
 
-DotCraft can run right inside your editor as a coding assistant — JetBrains, Obsidian, Unity, and more — with no cloud subscription, no proprietary plugin, and no vendor lock-in. It does this by speaking [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard for connecting coding agents to editors (think LSP, but for AI agents). Any ACP-compatible editor can talk to any ACP-compatible agent, and DotCraft speaks ACP natively.
+DotCraft runs as a coding assistant right inside your editor — JetBrains, Obsidian, Unity — with no cloud subscription and no proprietary plugin. It speaks [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard for connecting coding agents to editors, much like LSP for language servers. Any ACP-capable editor can talk to DotCraft.
 
-The editor launches DotCraft and talks to it; DotCraft bridges that conversation to its [AppServer](../../developing/lifecycle/appserver), which runs the agent. So an ACP session shares the same workspace, sessions, memory, and tools as Desktop and channels — the editor is just another window onto the same agent. By default DotCraft starts a local AppServer for you; point it at a remote one when you need to.
+The editor launches DotCraft, and DotCraft bridges that conversation to its [AppServer](../../developing/lifecycle/appserver), which runs the agent. So a session in your editor uses the same workspace, the same session history, and the same memory as Desktop and channels. The editor is just another window onto the same agent.
 
-![DotCraft running inside an editor window — JetBrains, Obsidian, or Unity — connected over ACP to one AppServer that also backs Desktop and chat channels, sharing the same sessions and memory](/editor-acp-overview.svg)
+![DotCraft running inside an editor window — JetBrains, Obsidian, Unity — connected over ACP to one AppServer that also backs Desktop and chat channels, sharing the same sessions and memory](/editor-acp-overview.svg)
 
-## Supported Editors
-
-ACP is an open standard with a growing ecosystem. DotCraft runs in:
+## Supported editors
 
 | Editor | Plugin / integration |
 |---|---|
@@ -16,48 +14,44 @@ ACP is an open standard with a growing ecosystem. DotCraft runs in:
 | **Obsidian** | [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) |
 | **Unity Editor** | [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) |
 
-Any other ACP-capable editor can connect with the same configuration shape.
+ACP is an open standard with a growing ecosystem. Any other ACP-capable editor connects with the same configuration shape.
 
-## Quick Start
+## Connect your editor
 
-### 1. Initialize a DotCraft Workspace
+### 1. Initialize a DotCraft workspace
 
-Before wiring up the editor, run a one-time non-interactive setup in your project directory:
+Run a one-time setup in your project directory:
 
 ```bash
 cd <your project directory>
 dotcraft setup
 ```
 
-Follow the prompts for provider / model / api-key. See [Configuration Reference](../../developing/configuration) for full fields, or run `dotcraft setup --help` for supported options.
+Follow the prompts for provider, model, and api-key. Run `dotcraft setup --help` for the supported options, or see the [Configuration Reference](../../developing/configuration) for the full field list. Once setup finishes, the workspace is ready for ACP, Desktop, and automation entry points alike.
 
-Once setup completes, the workspace is ready for ACP, Desktop, or automation entries.
+### 2. Configure ACP in the editor
 
-### 2. Configure ACP in the Editor
-
-In the editor's agent configuration:
+Fill in three fields in the editor's agent configuration:
 
 - **Command**: `dotcraft`
 - **Arguments**: `-acp`
 - **Working directory**: the project root from step 1
 
-DotCraft activates ACP mode automatically when launched with `-acp` — no config-file changes required.
+Launched with `-acp`, DotCraft enters ACP mode automatically — no config-file changes required.
 
-### 3. Remote Workspace (optional)
+### 3. Connect to a remote AppServer (optional)
 
-If a DotCraft AppServer is already running (via `dotcraft app-server` or the desktop app), point the ACP bridge at it instead of starting a new one:
+If an AppServer is already running (started by `dotcraft app-server` or the desktop app), point the editor at it instead of starting a second one:
 
 ```text
 dotcraft -acp --remote ws://<host>:<port>/ws
 ```
 
-The AppServer listens on a bare `ws://host:port` address; clients always append the `/ws` path, as shown above. Add `--token <token>` if the AppServer requires authentication. With a remote AppServer, sessions you create in the editor are visible in real time to every connected client.
-
----
+The AppServer listens on a bare `ws://host:port` address, and clients always append the `/ws` path. Add `--token <token>` if the AppServer requires authentication. Once connected, sessions you create in the editor are visible in real time to every connected client.
 
 ## JetBrains IDEs
 
-JetBrains IDEs with the AI Assistant plugin can register an ACP agent directly. Open **AI Chat → Add Custom Agents** and create:
+A JetBrains IDE with the AI Assistant plugin can register an ACP agent directly. Open **AI Chat → Add Custom Agents** and enter:
 
 ```json
 {
@@ -70,11 +64,11 @@ JetBrains IDEs with the AI Assistant plugin can register an ACP agent directly. 
 }
 ```
 
-Save and pick DotCraft in the AI chat panel's agent selector. The IDE owns process lifecycle: DotCraft starts when you open a session and exits when you close it.
+Save, then pick DotCraft in the AI chat panel's agent selector. The IDE owns the process: DotCraft starts when you open a session and exits when you close it.
 
 ## Obsidian
 
-Install [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) (via BRAT or manually), then add a Custom agent in plugin settings:
+Install [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) (via BRAT or manually), then add a Custom agent in the plugin settings:
 
 | Field | Value |
 |---|---|
@@ -83,51 +77,35 @@ Install [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client
 | **Path** | `dotcraft.exe` |
 | **Arguments** | `-acp` |
 
-Once configured, DotCraft appears in the plugin's chat UI. It can answer questions and read/write notes directly — one agent, both coding assistant and knowledge-base assistant.
+DotCraft then appears in the plugin's chat UI. It answers questions and reads and writes notes directly — one agent, both coding assistant and knowledge-base assistant.
 
 ## Unity Editor
 
-The Unity editor client lives in a separate repository: [DotHarness/dotcraft-unity](https://github.com/DotHarness/dotcraft-unity).
-
-DotCraft itself is the agent harness Unity launches via ACP. Install and configure DotCraft from this repo first, then add `dotcraft-unity` to your Unity project:
+The Unity client lives in a separate repository: [DotHarness/dotcraft-unity](https://github.com/DotHarness/dotcraft-unity). Unity launches DotCraft itself over ACP, so install and initialize DotCraft with the steps above first, then add `dotcraft-unity` to your Unity project:
 
 ```text
 https://github.com/DotHarness/dotcraft-unity.git
 ```
 
-Once connected, the agent can query the Unity scene, the selected object, the console, and project info — those tools are provided and maintained by the `dotcraft-unity` plugin.
+Once connected, the agent can query the scene, the current selection, the Console, and project info. Those tools are provided and maintained by the `dotcraft-unity` plugin.
 
-## What you get in the editor
+## What the editor adds
 
-Running inside the editor gives DotCraft abilities a plain CLI agent cannot offer:
+- **Unsaved buffers** — the agent sees what you're editing, not just what's on disk.
+- **Diffs before applying** — review and approve each change in the editor's own diff view.
+- **Editor-managed terminal** — commands run in the editor's terminal, with its working directory and environment.
+- **Native approvals** — before a file write or a shell command, the editor shows an approve/deny prompt.
+- **Slash commands and model switching** — your `.craft/commands/` show up in the editor's command picker, and you can switch model in place.
 
-- **Read unsaved buffers** — the agent sees your current edits, not just what's on disk.
-- **Inline diffs before applying** — review and approve each change in the editor's own diff view.
-- **Editor-managed terminal** — commands run in a terminal the editor owns, with its working directory and environment.
-- **Native approvals** — before a file write or shell command, the editor shows an approve/deny prompt.
-- **Slash commands and model switching** — your `.craft/commands/` show up in the editor's command picker, and you can switch model right from the editor.
-
-Because the agent runs in AppServer, your work outlives the editor: sessions persist, and another client can pick up the same thread after you close the editor.
-
-For the full list of ACP methods DotCraft implements and how the bridge maps them to AppServer, see the [AppServer Protocol](../../developing/protocols/appserver-protocol).
+The agent runs in AppServer, so your work outlives the editor. For the full list of ACP methods DotCraft implements and how the bridge maps them to AppServer, see the [AppServer Protocol](../../developing/protocols/appserver-protocol).
 
 ## Sessions shared across clients
 
-An ACP session is a full workspace session — it lives in the same store as your Desktop and bot sessions, and they all share the same long-term memory. Knowledge captured in an ACP session is available in a Desktop or QQ bot session in the same workspace, and vice versa.
+An ACP session is a full workspace session. It lives in the same store as your Desktop and bot sessions and shares the same long-term memory. What you work out in the editor is available in a Desktop or QQ bot session in the same workspace, and the other way around.
 
-With `--remote`, several clients connect to one AppServer at once. A session you open in Obsidian is visible and continuable in the desktop app in real time. See [Unified Session Core](../../developing/architecture/session-core) for the model behind this.
-
-## Usage Examples
-
-| Scenario | Approach |
-|---|---|
-| Local IDE | Configure the editor to launch `dotcraft -acp` |
-| Remote workspace | Start AppServer WebSocket first, then add `--remote` to the ACP arguments |
-| Share sessions with Desktop | Point at the same workspace / AppServer |
-| Let the editor own file and terminal access | Use an ACP client that handles file and terminal requests natively |
+With `--remote`, several clients stay connected to one AppServer at once. A session you open in Obsidian is visible and continuable in the desktop app in real time. For the model behind this, see [Unified Session Core](../../developing/architecture/session-core).
 
 ## Related docs
 
-- [Desktop](./desktop) — GUI client over the same backend
-- [AppServer Mode](../../developing/lifecycle/appserver) — remote or multi-client
-- [Unified Session Core](../../developing/architecture/session-core) — Thread / Turn / Item model and ACP bridging
+- [Desktop](./desktop) — the graphical entry point to the same agent, best for diffs, approvals, and history
+- [Channels & Bots](../channels/) — reach the same workspace from QQ, Feishu, and other chat tools

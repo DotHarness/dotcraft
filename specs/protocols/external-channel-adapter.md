@@ -508,8 +508,8 @@ External channels are declared in `config.json` under the `"ExternalChannels"` k
     "telegram": {
       "enabled": true,
       "transport": "subprocess",
-      "command": "python",
-      "args": ["-m", "dotcraft_telegram"],
+      "command": "node",
+      "args": ["./adapters/telegram/index.js"],
       "workingDirectory": ".",
       "env": {
         "TELEGRAM_BOT_TOKEN": "your-token-here"
@@ -702,7 +702,7 @@ Security is provided by OS process isolation. Communication is over anonymous pi
 
 ## 13. Reference: Telegram Adapter
 
-This section describes the design intent of the reference Telegram adapter (`sdk/python/examples/telegram/`). It is provided as guidance for adapter authors, not as a normative specification.
+This section describes the design intent of the reference Telegram adapter (`sdk/typescript/packages/channel-telegram/`). It is provided as guidance for adapter authors, not as a normative specification.
 
 ### 13.1 Design Goals
 

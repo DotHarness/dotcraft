@@ -23,6 +23,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 - **Imperative for instructions:** "Open Settings," "Run the command." Cut "you can" and "there is/are" — start statements with a verb.
 - **User-facing pages** read like a helpful colleague: encouraging, plain, outcome-first. **Developer pages** are technical, neutral, and exact; link to the normative specification when contract detail matters. The product is one; the register changes with the audience.
 - Contractions are fine and preferred in user docs ("it's," "you'll") — they read naturally. Developer reference can be more formal but needn't be stiff.
+- **Metaphor is seasoning, not structure.** Liveliness comes from concrete, specific statements ("decisions you discussed, preferences you set"), not from imagery ("give it arms," "pin a goal," "potholes you hit"). One light touch per page at most; a stack of metaphors reads as unserious.
 
 ## 2. Sentences and word choice
 
@@ -59,7 +60,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 - Documentation-site links are **relative** and omit the file extension and locale prefix (the generator handles routing — see profile). Repository READMEs use ordinary relative file links.
 - Link the first mention of another doc's concept to that doc — treat every page as a possible entry point ("every page is page one"). A developer reference should link the first occurrence of a term to its concept page.
-- End ordinary documentation-site content pages with a **Related docs** section containing concise links to natural next steps or authoritative sources. Custom landing pages and repository READMEs follow their own convention.
+- A **Related docs** footer is kept only when it earns its place: same-audience pages that are the natural next read, curated to 2–3 entries with a short reason each. A user page never lists config references or architecture pages in its footer — those links live inline, at the sentence that needs them. When nothing qualifies, omit the section; an inline link mid-prose is a better onward path than a token footer.
 - External links: full URLs.
 
 ## 7. Admonitions — when each one fits
@@ -75,9 +76,25 @@ If a page has more than two or three callouts per screen, fold most back into pr
 ## 8. Images and diagrams
 
 - Store diagrams where the generator serves static assets and reference them with meaningful alt text — it's both the accessible and the search-indexed description (location + naming: profile).
+- **Placement:** the page's primary figure sits directly after the intro block, above the first `##` heading — site-wide convention. A figure that explains one mid-page section follows that section's heading instead.
 - Reuse an existing diagram before commissioning a new one.
 - Prefer a short embedded GIF/video over a wall of screenshots for interaction-heavy flows.
 - Alt text and any in-image captions must exist in every applicable language version when localized mirrors exist.
+- Never draw structure with `---` horizontal rules; the site style intentionally has no rules between sections (headings + whitespace carry the rhythm).
+
+## 8a. Localized prose specifics
+
+Generic localization principles first; per-locale rules follow.
+
+- **Never coin a term.** When a proper noun or feature name needs a localized form, the ground-truth order is: the product's own UI copy in that locale → the prevailing name across established products and the surrounding ecosystem in that language → keep the source-language term. Survey real usage before deciding; a made-up translation is worse than an untranslated one.
+- **One term, one state.** A given term is either translated everywhere or kept in the source language everywhere. Mixed states of the same word across pages (or within one page) are never acceptable; record settled decisions in the profile's terminology table.
+
+Chinese (zh):
+
+- **Almost never use the Chinese semicolon "；".** Split into separate sentences ending in "。". Keep colons and em-dashes restrained too — when a sentence can simply end, end it.
+- Declarative sentences carry zh pages the same as en. Avoid stacked four-character flourishes and translated-sounding constructions; read each paragraph aloud.
+- Follow the zh terminology rules in the profile; current feature names come from the product UI locale and the live sidebar labels, not from any list.
+- zh is the polish source for user pages: settle the zh wording first, then align the en mirror to the same structure and meaning.
 
 ## 9. Documentation-site multi-language sync
 
@@ -158,7 +175,8 @@ Read every paragraph aloud. Noun piles, hidden actors, and 30-word sentences are
 
 ### Also still watch for
 
-- **Dead-end documentation-site pages** — no "Related docs" footer. Add onward links.
+- **Dead-end documentation-site pages** — no onward path at all. Add inline links where concepts are mentioned, or a curated footer when genuine next steps exist.
+- **Settings-inventory dumps** — a bullet list reciting every control on a settings page ("the page offers: Enable X, Run now, Auto-update, Manage…"). Give the UI path once; the screenshot or GIF shows the controls.
 - **Callout overuse** — stacked notes that should be prose. Thin them.
 - **Table-vs-prose mismatch** — steps in a table, or options in paragraphs. Match form to content.
 - **Out-of-sync translations** — one language edited, the others left stale. Update them in the same change.

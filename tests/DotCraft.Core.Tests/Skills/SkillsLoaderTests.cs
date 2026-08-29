@@ -9,24 +9,25 @@ public sealed class SkillsLoaderTests : IDisposable
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "dotcraft-skillsloader-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void GetSkillInterface_ReadsOpenAiManifestAndRejectsEscapingIcons()
+    public void GetSkillInterface_LocalOnlyReadsOwnAssetsAndRejectsOtherDirectories()
     {
         Directory.CreateDirectory(_tempRoot);
         var loader = new SkillsLoader(_tempRoot);
         var skillDir = Path.Combine(loader.WorkspaceSkillsPath, "demo-skill");
         Directory.CreateDirectory(Path.Combine(skillDir, "agents"));
         Directory.CreateDirectory(Path.Combine(skillDir, "assets"));
+        Directory.CreateDirectory(Path.Combine(skillDir, "other"));
         File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "---\nname: demo-skill\ndescription: Demo\n---\n# Demo");
         File.WriteAllText(Path.Combine(skillDir, "agents", "openai.yaml"), """
             interface:
               display_name: "Demo Skill"
               short_description: "Short demo"
               icon_small: "./assets/demo.svg"
-              icon_large: "../secret.svg"
+              icon_large: "./other/secret.svg"
               default_prompt: "Use $demo-skill."
             """);
         File.WriteAllText(Path.Combine(skillDir, "assets", "demo.svg"), "<svg xmlns=\"http://www.w3.org/2000/svg\" />");
-        File.WriteAllText(Path.Combine(loader.WorkspaceSkillsPath, "secret.svg"), "<svg />");
+        File.WriteAllText(Path.Combine(skillDir, "other", "secret.svg"), "<svg />");
 
         var info = loader.GetSkillInterface("demo-skill");
 
@@ -36,6 +37,86 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.StartsWith("data:image/svg+xml;base64,", info.IconSmallDataUrl);
         Assert.Null(info.IconLargeDataUrl);
         Assert.Equal("Use $demo-skill.", info.DefaultPrompt);
+    }
+
+    [Fact]
+    public void GetSkillInterface_LocalOnlyRejectsParentAndAbsolutePaths()
+    {
+        var loader = new SkillsLoader(_tempRoot);
+        var skillDir = WriteSkill(loader.WorkspaceSkillsPath, "demo-skill");
+        var sharedAssets = Path.Combine(_tempRoot, "assets");
+        Directory.CreateDirectory(sharedAssets);
+        var sharedIcon = Path.Combine(sharedAssets, "shared.svg");
+        File.WriteAllText(sharedIcon, "<svg />");
+
+        foreach (var iconPath in new[] { "../../assets/shared.svg", sharedIcon.Replace('\\', '/') })
+        {
+            WriteInterface(skillDir, iconPath);
+
+            var info = loader.GetSkillInterface("demo-skill");
+
+            Assert.NotNull(info);
+            Assert.Equal("Demo Skill", info.DisplayName);
+            Assert.Null(info.IconSmallDataUrl);
+        }
+    }
+
+    [Fact]
+    public void GetSkillInterface_PluginSharedReadsLocalAndPluginAssets()
+    {
+        var loader = new SkillsLoader(_tempRoot);
+        var pluginRoot = Path.Combine(_tempRoot, "plugin");
+        var skillsPath = Path.Combine(pluginRoot, "skills");
+        var skillDir = WriteSkill(skillsPath, "demo-skill");
+        Directory.CreateDirectory(Path.Combine(skillDir, "assets"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "assets"));
+        File.WriteAllText(Path.Combine(skillDir, "assets", "local.svg"), "<svg />");
+        File.WriteAllText(Path.Combine(pluginRoot, "assets", "shared.svg"), "<svg />");
+        File.WriteAllText(Path.Combine(skillDir, "agents", "openai.yaml"), """
+            interface:
+              display_name: "Demo Skill"
+              icon_small: "./assets/local.svg"
+              icon_large: "../../assets/shared.svg"
+            """);
+        loader.SetPluginSkillSources([
+            new SkillsLoader.PluginSkillSource("demo-plugin", "Demo Plugin", skillsPath, pluginRoot)
+        ]);
+
+        var info = loader.GetSkillInterface("demo-skill");
+
+        Assert.NotNull(info);
+        Assert.StartsWith("data:image/svg+xml;base64,", info.IconSmallDataUrl);
+        Assert.StartsWith("data:image/svg+xml;base64,", info.IconLargeDataUrl);
+    }
+
+    [Fact]
+    public void GetPluginSkillInterfaceFromFile_RejectsPathsOutsideSharedAssets()
+    {
+        var pluginRoot = Path.Combine(_tempRoot, "plugin");
+        var skillDir = WriteSkill(Path.Combine(pluginRoot, "skills"), "demo-skill");
+        var otherDir = Path.Combine(pluginRoot, "other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(Path.Combine(otherDir, "other.svg"), "<svg />");
+        var outsideIcon = Path.Combine(_tempRoot, "outside.svg");
+        File.WriteAllText(outsideIcon, "<svg />");
+
+        foreach (var iconPath in new[]
+                 {
+                     "../../other/other.svg",
+                     "../../../outside.svg",
+                     outsideIcon.Replace('\\', '/')
+                 })
+        {
+            WriteInterface(skillDir, iconPath);
+
+            var info = SkillsLoader.GetPluginSkillInterfaceFromFile(
+                Path.Combine(skillDir, "SKILL.md"),
+                pluginRoot);
+
+            Assert.NotNull(info);
+            Assert.Equal("Demo Skill", info.DisplayName);
+            Assert.Null(info.IconSmallDataUrl);
+        }
     }
 
     [Fact]
@@ -81,5 +162,24 @@ public sealed class SkillsLoaderTests : IDisposable
         {
             // Best-effort cleanup for temp test directories.
         }
+    }
+
+    private static string WriteSkill(string skillsPath, string name)
+    {
+        var skillDir = Path.Combine(skillsPath, name);
+        Directory.CreateDirectory(Path.Combine(skillDir, "agents"));
+        File.WriteAllText(
+            Path.Combine(skillDir, "SKILL.md"),
+            $"---\nname: {name}\ndescription: Demo\n---\n# Demo");
+        return skillDir;
+    }
+
+    private static void WriteInterface(string skillDir, string iconPath)
+    {
+        File.WriteAllText(Path.Combine(skillDir, "agents", "openai.yaml"), $$"""
+            interface:
+              display_name: "Demo Skill"
+              icon_small: "{{iconPath}}"
+            """);
     }
 }

@@ -9,7 +9,7 @@
 
 App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Social-channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
 
-The canonical cross-SDK method, state, and stable-error fixture is [`fixtures/app-binding-v2.json`](./fixtures/app-binding-v2.json). .NET, TypeScript, and Python SDK tests MUST consume this same fixture.
+The canonical cross-SDK method, state, and stable-error fixture is [`fixtures/app-binding.json`](./fixtures/app-binding.json). .NET and TypeScript SDK tests MUST consume this same fixture.
 
 ## 1. Boundary
 
@@ -34,7 +34,7 @@ An app descriptor contains product identity, installation and connection UX, bra
 
 ## 2. Capability negotiation
 
-AppServer advertises `appBindingVersion: 2`. A client that requires App Binding MUST declare version 2. A mismatched declared version returns `AppBindingUpgradeRequired` with `requiredVersion: 2`; undeclared methods return the standard `MethodNotFound` error.
+AppServer advertises `appBindingVersion: 1`. A client that requires App Binding MUST declare version 1. A mismatched declared version returns `AppBindingUpgradeRequired` with `requiredVersion: 1`; undeclared methods return the standard `MethodNotFound` error.
 
 ## 3. App-principal connection
 
@@ -217,7 +217,7 @@ Notifications are `app/connection/changed`, `app/binding/requested`, and `thread
 
 ## 9. Persistence, audit, and security
 
-The version 2 store is workspace scoped and uses atomic replacement. Corruption preserves a diagnostic copy and cannot silently overwrite the file with empty state.
+The version 1 store is workspace scoped and uses atomic replacement. Corruption preserves a diagnostic copy and cannot silently overwrite the file with empty state.
 
 Audit records identify actor/principal, app, thread, binding, old/new state, authority and capability revisions, decision, stable reason, and timestamp. They contain no bearer, raw credential, resource body, or tool arguments.
 
@@ -244,5 +244,4 @@ Security invariants:
 - Origin-channel execution remains independent.
 - App Surface publication is app-authenticated, loopback-only, memory-only, and expires exactly 120 seconds after the latest publish.
 - Surface resolution is trusted-client-only and returns `AppSurfaceUnavailable` for missing or expired leases.
-- Version 1 execution, private UI, scopes, catalogs, attachments, and context blocks are absent.
-- Core, Desktop, .NET, TypeScript, and Python agree on the version 2 wire contract.
+- Core, Desktop, .NET, and TypeScript agree on the version 1 wire contract.

@@ -1,19 +1,19 @@
 # Hub 本地协调
 
-本页面面向集成方与贡献者，大多数用户不需要直接接触 Hub。Hub 是 DotCraft 的本地运行时协调器。它在你的电脑上按用户运行，负责发现、启动、复用和停止每个工作区对应的 AppServer。Desktop 与 CLI 默认通过 Hub 工作。
+本页面向集成方与贡献者，大多数用户不需要直接接触 Hub。Hub 是 DotCraft 的本地运行时协调器，在你的电脑上按用户运行，负责发现、启动、复用和停止每个工作区对应的 AppServer。Desktop 与 CLI 默认通过 Hub 工作。
 
 > [!NOTE]
 > 远程、CI、机器人或显式调试 AppServer 的场景请走 [AppServer 模式](./appserver)。
 
+![Hub 本地协调拓扑：Desktop、CLI 与 SDK 客户端只在 bootstrap 阶段经过 Hub，随后直连各自工作区的 AppServer](/hub-coordination-topology.svg)
+
 ## 关键属性
 
-- 每个 OS 用户通常只有一个 Hub
+- 每个 OS 用户只有一个 Hub
 - 每个工作区仍然只有一个 AppServer
 - Hub 不处理普通对话流量，也不代理 AppServer 协议
-- 客户端只在启动阶段询问 Hub："请确保这个工作区的 AppServer 可用"
+- 客户端只在启动阶段询问 Hub：请确保这个工作区的 AppServer 可用
 - 启动完成后，客户端**直接**连接返回的 AppServer WebSocket 地址
-
-![DotCraft Hub local coordination topology](/hub-coordination-topology.svg)
 
 ## 何时手动启动
 
@@ -29,7 +29,7 @@ dotcraft hub
 
 ```text
 ~/.craft/hub/
-├── hub.lock          # 当前 Hub 发现信息：API 地址、PID、启动时间、本地 token、binary 路径
+├── hub.lock          # 当前 Hub 发现信息：API 地址、PID、启动时间、本地 token、版本、binary 路径
 └── appservers.json   # Hub 记录的工作区 AppServer 状态（用于展示和恢复）
 ```
 
@@ -45,7 +45,7 @@ dotcraft hub
 
 ## Desktop 与托盘
 
-Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。Desktop 可以提供：
+Hub 自身是无界面的后台协调器，可视化层由 Desktop 托盘提供：
 
 - 打开或切换工作区
 - 查看最近和正在运行的工作区
@@ -53,7 +53,7 @@ Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。
 - 重启或停止 Hub 托管的工作区运行时
 - 接收 Hub 转发的系统通知（任务完成、需要审批、运行时状态变化）
 
-托盘退出时，Desktop 可以请求 Hub 停止它托管的工作区 AppServer。
+从托盘退出会请求 Hub 关闭，Hub 随之停止它托管的工作区 AppServer。
 
 要让 Desktop 能打开工作区，`dotcraft` / `dotcraft.exe` 必须在 `PATH` 中，或在 Desktop 设置里配置 AppServer 可执行文件路径。
 
@@ -63,7 +63,5 @@ Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。
 
 ## 相关文档
 
-- [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径
-- [AppServer 模式](./appserver) — 远程 / 多客户端 / CI
-- [Hub 协议](../protocols/hub-protocol) — 客户端协议概览
-- [统一会话核心](../architecture/session-core) — Hub 与 AppServer 在整体架构中的位置
+- [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径，bootstrap 已经封装好
+- [统一会话核心](../architecture/session-core) — Hub 与 AppServer 之上的 Thread / Turn / Item 模型

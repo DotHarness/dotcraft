@@ -254,11 +254,20 @@ export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
     set({ status: 'loading', requestedProviderId: normalizedProviderId })
     inFlightLoad = (async () => {
       try {
-        const result = await window.api.appServer.sendRequest(
-          'model/list',
-          normalizedProviderId ? { providerId: normalizedProviderId } : {},
-          20_000
-        )
+        const result = await window.api.appServer.listModels(normalizedProviderId)
+        if (result == null) {
+          set({
+            models: [],
+            modelOptions: [],
+            status: 'idle',
+            providerId: normalizedProviderId,
+            requestedProviderId: normalizedProviderId,
+            modelListUnsupportedEndpoint: false,
+            errorCode: null,
+            errorMessage: null
+          })
+          return
+        }
         const effectiveProviderId = parseEffectiveProviderId(result, normalizedProviderId)
         const error = parseModelListError(result)
         if (error.code || error.message) {

@@ -1,18 +1,10 @@
 # AppServer 模式
 
-本页面面向直接管理 AppServer 的集成方与贡献者。AppServer 是建立在宿主所拥有 Session Core 之上的可选协议与传输边界。它通过 JSON-RPC 将宿主唯一的 `ISessionService` 投影给外部客户端，而不会创建第二套会话内核。Desktop、ACP、`dotcraft exec`、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
+本页面向直接管理 AppServer 的集成方与贡献者，日常 Desktop 与 `dotcraft exec` 走 [Hub 本地协调](./hub)。AppServer 是建立在宿主所拥有的 [Session Core](../architecture/session-core) 之上的可选协议与传输边界：它通过 JSON-RPC 将宿主唯一的 `ISessionService` 投影给外部客户端，而不会创建第二套会话内核。一个 AppServer 进程持有一份 Session Core，stdio 与 WebSocket 两种传输可以同时开着，Desktop、ACP、`dotcraft exec`、外部渠道适配器和自定义集成连上来共享同一份会话状态。
 
-适用场景：
+客户端库 API 见 [DotCraft SDK](../sdks/)，wire message 定义见 [AppServer 协议](../protocols/appserver-protocol)。
 
-- 自定义 IDE / 编辑器集成
-- 远程开发（客户端连接远端 AppServer）
-- 多客户端共享同一个工作区
-- 构建非 C# 客户端（任何支持 WebSocket / stdio 的语言）
-
-> [!NOTE]
-> 日常 Desktop 与 `dotcraft exec` 走 [Hub 本地协调](./hub)，本页只在你需要手动管理 AppServer 时使用。
-
-本页介绍 AppServer 进程的启动、传输模式、配置、生命周期和安全边界。客户端库 API 见 [DotCraft SDK](../sdks/)，wire message 定义见 [AppServer Protocol](../protocols/appserver-protocol)。
+![DotCraft AppServer 模式拓扑：一个宿主进程同时提供 stdio 与 WebSocket 传输，外部客户端共享同一份 Session Core](/appserver-mode-topology.svg)
 
 ## 启动
 
@@ -27,7 +19,9 @@ dotcraft app-server --listen ws://127.0.0.1:9100
 dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 ```
 
-服务端监听的是不带路径的 `ws://host:port`（或 `wss://host:port`）地址。客户端连接时需要追加 `/ws` 路径，例如 `ws://host:port/ws`。下面的示例都遵循这条规则。
+服务端监听不带路径的 `ws://host:port` 地址，客户端连接时追加 `/ws`，例如 `ws://host:port/ws`。下面的示例都遵循这条规则。
+
+内置监听器不做 TLS 终止，`--listen wss://…` 会被直接拒绝。需要 TLS 时在 AppServer 前面放一层反向代理由它终止，客户端再连 `wss://host/ws`。
 
 ## 命令行连接远程 AppServer
 
@@ -58,7 +52,6 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "总结当前工作
 |---|---|---|---|
 | `stdio://` | 纯 stdio（默认） | 保留给 JSON-RPC | `--listen stdio://` |
 | `ws://host:port` | 纯 WebSocket | 正常控制台输出 | `--listen ws://127.0.0.1:9100` |
-| `wss://host:port` | 纯 WebSocket (TLS) | 正常控制台输出 | `--listen wss://0.0.0.0:9100` |
 | `ws+stdio://host:port` | stdio + WebSocket | 保留给 JSON-RPC | `--listen ws+stdio://127.0.0.1:9100` |
 
 ## Transport 模式
@@ -103,7 +96,7 @@ dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 
 ## 安全认证
 
-AppServer 监听非回环地址（非 `127.0.0.1` / `::1`）时，**强烈建议**设置 Token 认证。
+监听非回环地址（不是 `127.0.0.1` / `::1`）时必须配置 Token。没有 Token 时 AppServer 拒绝启动，不会留下一个无认证的开放端口。
 
 ### 服务端
 
@@ -117,10 +110,7 @@ dotcraft app-server --listen ws://0.0.0.0:9100 --token my-secret
 dotcraft exec --remote ws://server:9100/ws --token my-secret "检查状态"
 ```
 
-Token 通过 WebSocket 连接 URL 的查询参数传递：`ws://host:port/ws?token=<value>`。服务端一旦设置 `--token`，所有客户端——Desktop、ACP、`dotcraft exec` 和自定义客户端——都必须携带同一个 Token，空 Token 会被拒绝。
-
-> [!CAUTION]
-> 绑定到 `0.0.0.0` 时不设置 Token 等于把 AppServer 完全开放。
+Token 通过 WebSocket 连接 URL 的查询参数传递：`ws://host:port/ws?token=<value>`。服务端一旦设置 `--token`，所有客户端——Desktop、ACP、`dotcraft exec` 和自定义客户端——都必须携带同一个 Token，缺失或不匹配的 Token 会在 WebSocket 握手完成前被 HTTP `401` 拒绝。Token 取值需要是 URL 安全字符（字母数字加 `-`、`_`、`.`），否则客户端要自行做百分号编码。
 
 ## 配置方式
 
@@ -177,9 +167,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 }
 ```
 
-## 工作原理
-
-![DotCraft AppServer mode topology](/appserver-mode-topology.svg)
+## 常见场景
 
 | 场景 | 做法 |
 |---|---|
@@ -190,9 +178,6 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 ## 相关文档
 
-- [架构总览](../architecture/overview) — 程序集职责与依赖边界
-- [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径
-- [配置参考](../configuration) — `AppServer.*` / `CLI.*` 字段
-- [AppServer 协议](../protocols/appserver-protocol) — raw client 协议
-- [Hub 本地协调](./hub) — 日常 Desktop 与 CLI 走的路径
-- [统一会话核心](../architecture/session-core) — Thread / Turn / Item 模型
+- [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径，不必自己实现协议
+- [配置参考](../configuration) — `AppServer.*` / `CLI.*` 字段的完整说明
+- [架构总览](../architecture/overview) — AppServer 在程序集职责与依赖边界中的位置

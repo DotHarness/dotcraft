@@ -6,7 +6,7 @@ namespace DotCraft.Core.Tests.AppBinding;
 
 public sealed class AppBindingServiceTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"dotcraft-appbinding-v2-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Combine(Path.GetTempPath(), $"dotcraft-appbinding-{Guid.NewGuid():N}");
     private string CraftPath => Path.Combine(_root, ".craft");
 
     [Fact]

@@ -1,4 +1,6 @@
 interface:
   display_name: "DotCraft Report Issue"
   short_description: "Draft a public-safe GitHub issue from sanitized evidence"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-report-issue to draft a public-safe GitHub issue from a DotCraft diagnosis or bug report."

@@ -2369,6 +2369,7 @@ export interface PluginDependencyInfo {
 }
 
 export interface PluginDesktopInfo {
+  description?: string;
   entry?: string;
   revision?: string;
   styles?: string[];

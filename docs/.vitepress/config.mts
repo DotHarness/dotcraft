@@ -41,8 +41,9 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     items: [
       {
         text: withIcon('cpu', 'Agent System'),
-        link: '/features/agent-system/memory',
+        link: '/features/agent-system/',
         items: [
+          { text: withIcon('cpu', 'Overview'), link: '/features/agent-system/' },
           { text: withIcon('brain', 'Memory & Dreams'), link: '/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
@@ -52,8 +53,9 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('workflow', 'Dynamic Workflows'), link: '/features/agent-system/dynamic-workflows' },
           { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
-          { text: withIcon('users', 'SubAgents'), link: '/features/agent-system/subagents' },
+          { text: withIcon('users', 'Subagents'), link: '/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' },
+          { text: withIcon('share', 'Workspace Handoff'), link: '/features/agent-system/workspace-handoff' },
           { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
           { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
         ]
@@ -65,8 +67,20 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / Editors (ACP)'), link: '/features/entry-points/editors' },
-          { text: withIcon('bot', 'Channels & Bots'), link: '/features/entry-points/channels' },
           { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' }
+        ]
+      },
+      {
+        text: withIcon('bot', 'Channels & Bots'),
+        link: '/features/channels/',
+        items: [
+          { text: withIcon('globe', 'Overview'), link: '/features/channels/' },
+          { text: withIcon('qq', 'QQ'), link: '/features/channels/qq' },
+          { text: withIcon('wecom', 'WeCom'), link: '/features/channels/wecom' },
+          { text: withIcon('feishu', 'Feishu'), link: '/features/channels/feishu' },
+          { text: withIcon('telegram', 'Telegram'), link: '/features/channels/telegram' },
+          { text: withIcon('weixin', 'Weixin'), link: '/features/channels/weixin' },
+          { text: withIcon('fileJson', 'Configuration Reference'), link: '/features/channels/reference' }
         ]
       },
       {
@@ -85,14 +99,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: 'Developing',
     items: [
-      {
-        text: withIcon('route', 'Workflow'),
-        link: '/developing/workflow/spec-driven-development',
-        items: [
-          { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/developing/workflow/spec-driven-development' },
-          { text: withIcon('share', 'Workspace Handoff'), link: '/developing/workflow/workspace-handoff' }
-        ]
-      },
+      { text: withIcon('route', 'SDD Workflow'), link: '/developing/workflow/spec-driven-development' },
       {
         text: withIcon('waypoints', 'Architecture'),
         link: '/developing/architecture/overview',
@@ -145,8 +152,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('mcp', 'MCP Runtime'), link: '/developing/sdks/mcp-runtime' },
           { text: withIcon('satelliteDish', 'Channel Adapters'), link: '/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdks/typescript' },
-          { text: withIcon('dotnet', '.NET'), link: '/developing/sdks/dotnet' },
-          { text: withIcon('python', 'Python'), link: '/developing/sdks/python' }
+          { text: withIcon('dotnet', '.NET'), link: '/developing/sdks/dotnet' }
         ]
       },
       {
@@ -162,16 +168,6 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('code', 'Desktop Plugin API'), link: '/developing/integrations/desktop-plugin-api' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/developing/integrations/oratorio' },
           { text: withIcon('blocks', 'Channel Module'), link: '/developing/integrations/typescript-module' }
-        ]
-      },
-      {
-        text: withIcon('satelliteDish', 'Channels'),
-        items: [
-          { text: withIcon('qq', 'QQ'), link: '/developing/channels/qq' },
-          { text: withIcon('wecom', 'WeCom'), link: '/developing/channels/wecom' },
-          { text: withIcon('feishu', 'Feishu'), link: '/developing/channels/feishu' },
-          { text: withIcon('telegram', 'Telegram'), link: '/developing/channels/telegram' },
-          { text: withIcon('weixin', 'Weixin'), link: '/developing/channels/weixin' }
         ]
       }
     ]
@@ -190,19 +186,21 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     items: [
       {
         text: withIcon('cpu', 'Agent 系统'),
-        link: '/zh/features/agent-system/memory',
+        link: '/zh/features/agent-system/',
         items: [
-          { text: withIcon('brain', '长期记忆与 Dreams'), link: '/zh/features/agent-system/memory' },
-          { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
+          { text: withIcon('cpu', '总览'), link: '/zh/features/agent-system/' },
+          { text: withIcon('brain', '长期记忆与梦境'), link: '/zh/features/agent-system/memory' },
+          { text: withIcon('sparkles', '技能与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
           { text: withIcon('package', '插件市场'), link: '/zh/features/agent-system/plugin-marketplaces' },
-          { text: withIcon('plug', 'Connected Apps'), link: '/zh/features/agent-system/connected-apps' },
-          { text: withIcon('automation', 'Automations 与 Goals'), link: '/zh/features/agent-system/automations' },
-          { text: withIcon('workflow', 'Dynamic Workflows'), link: '/zh/features/agent-system/dynamic-workflows' },
+          { text: withIcon('plug', '应用连接'), link: '/zh/features/agent-system/connected-apps' },
+          { text: withIcon('automation', '自动化与目标'), link: '/zh/features/agent-system/automations' },
+          { text: withIcon('workflow', '动态工作流'), link: '/zh/features/agent-system/dynamic-workflows' },
           { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/features/agent-system/hooks' },
-          { text: withIcon('bot', 'Agent Profiles'), link: '/zh/features/agent-system/agent-profiles' },
-          { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
-          { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' },
+          { text: withIcon('bot', 'Agent 预设'), link: '/zh/features/agent-system/agent-profiles' },
+          { text: withIcon('users', 'Subagents'), link: '/zh/features/agent-system/subagents' },
+          { text: withIcon('network', 'Agent 团队'), link: '/zh/features/agent-system/teams' },
+          { text: withIcon('share', '外部 Agent 协作'), link: '/zh/features/agent-system/workspace-handoff' },
           { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
           { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
         ]
@@ -214,8 +212,20 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / 编辑器（ACP）'), link: '/zh/features/entry-points/editors' },
-          { text: withIcon('bot', 'Channels 与 Bots'), link: '/zh/features/entry-points/channels' },
           { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' }
+        ]
+      },
+      {
+        text: withIcon('bot', '社交渠道'),
+        link: '/zh/features/channels/',
+        items: [
+          { text: withIcon('globe', '总览'), link: '/zh/features/channels/' },
+          { text: withIcon('qq', 'QQ'), link: '/zh/features/channels/qq' },
+          { text: withIcon('wecom', '企业微信'), link: '/zh/features/channels/wecom' },
+          { text: withIcon('feishu', '飞书'), link: '/zh/features/channels/feishu' },
+          { text: withIcon('telegram', 'Telegram'), link: '/zh/features/channels/telegram' },
+          { text: withIcon('weixin', '微信'), link: '/zh/features/channels/weixin' },
+          { text: withIcon('fileJson', '配置参考'), link: '/zh/features/channels/reference' }
         ]
       },
       {
@@ -234,14 +244,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: '开发',
     items: [
-      {
-        text: withIcon('route', '工作流'),
-        link: '/zh/developing/workflow/spec-driven-development',
-        items: [
-          { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/zh/developing/workflow/spec-driven-development' },
-          { text: withIcon('share', '外部 Agent 协作'), link: '/zh/developing/workflow/workspace-handoff' }
-        ]
-      },
+      { text: withIcon('route', 'SDD 工作流'), link: '/zh/developing/workflow/spec-driven-development' },
       {
         text: withIcon('waypoints', '架构'),
         link: '/zh/developing/architecture/overview',
@@ -294,8 +297,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('mcp', 'MCP 运行时'), link: '/zh/developing/sdks/mcp-runtime' },
           { text: withIcon('satelliteDish', '渠道适配器'), link: '/zh/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdks/typescript' },
-          { text: withIcon('dotnet', '.NET'), link: '/zh/developing/sdks/dotnet' },
-          { text: withIcon('python', 'Python'), link: '/zh/developing/sdks/python' }
+          { text: withIcon('dotnet', '.NET'), link: '/zh/developing/sdks/dotnet' }
         ]
       },
       {
@@ -310,17 +312,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('dashboard', 'Desktop Plugins'), link: '/zh/developing/integrations/desktop-plugins' },
           { text: withIcon('code', 'Desktop Plugin API'), link: '/zh/developing/integrations/desktop-plugin-api' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/zh/developing/integrations/oratorio' },
-          { text: withIcon('blocks', 'Channel Module'), link: '/zh/developing/integrations/typescript-module' }
-        ]
-      },
-      {
-        text: withIcon('satelliteDish', 'Channels'),
-        items: [
-          { text: withIcon('qq', 'QQ'), link: '/zh/developing/channels/qq' },
-          { text: withIcon('wecom', '企业微信'), link: '/zh/developing/channels/wecom' },
-          { text: withIcon('feishu', '飞书'), link: '/zh/developing/channels/feishu' },
-          { text: withIcon('telegram', 'Telegram'), link: '/zh/developing/channels/telegram' },
-          { text: withIcon('weixin', '微信'), link: '/zh/developing/channels/weixin' }
+          { text: withIcon('blocks', '渠道模块'), link: '/zh/developing/integrations/typescript-module' }
         ]
       }
     ]
@@ -330,20 +322,20 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
 const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },
   { text: 'Getting Started', link: '/getting-started' },
-  { text: 'Features', link: '/features/agent-system/memory' },
+  { text: 'Features', link: '/features/agent-system/' },
   { text: 'Developing', link: '/developing/workflow/spec-driven-development' }
 ]
 
 const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
-  { text: '功能', link: '/zh/features/agent-system/memory' },
+  { text: '功能', link: '/zh/features/agent-system/' },
   { text: '开发', link: '/zh/developing/workflow/spec-driven-development' }
 ]
 
 const redirectMap: Record<string, string> = {
   'reference.md': 'developing/architecture/overview.md',
-  'features.md': 'features/agent-system/memory.md',
+  'features.md': 'features/agent-system/index.md',
   'getting-started.md': 'getting-started.md',
   'config_guide.md': 'developing/configuration.md',
   'desktop_guide.md': 'features/entry-points/desktop.md',
@@ -360,23 +352,31 @@ const redirectMap: Record<string, string> = {
   'hooks/reference.md': 'developing/configuration.md#automations-goals-and-hooks',
   'config/security.md': 'features/self-hosted/security.md',
   'settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
-  'features/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
-  'developing/context-export-cli.md': 'developing/workflow/workspace-handoff.md',
+  'features/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
+  'developing/context-export-cli.md': 'features/agent-system/workspace-handoff.md',
+  'developing/workflow/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
   'typescript-module-integration.md': 'developing/integrations/typescript-module.md',
   'reference/config.md': 'developing/configuration.md',
   'reference/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
   'reference/hub-protocol.md': 'developing/protocols/hub-protocol.md',
   'reference/dashboard-api.md': 'developing/protocols/dashboard-api.md',
   'sdk/index.md': 'developing/sdks/index.md',
-  'sdk/python.md': 'developing/sdks/python.md',
+  'sdk/python.md': 'developing/sdks/index.md',
   'sdk/typescript.md': 'developing/sdks/typescript.md',
   'sdk/dotnet.md': 'developing/sdks/dotnet.md',
-  'sdk/python-telegram.md': 'developing/channels/python-telegram.md',
-  'sdk/typescript-feishu.md': 'developing/channels/feishu.md',
-  'sdk/typescript-telegram.md': 'developing/channels/telegram.md',
-  'sdk/typescript-weixin.md': 'developing/channels/weixin.md',
-  'sdk/typescript-qq.md': 'developing/channels/qq.md',
-  'sdk/typescript-wecom.md': 'developing/channels/wecom.md',
+  'sdk/python-telegram.md': 'developing/sdks/channels.md',
+  'sdk/typescript-feishu.md': 'features/channels/feishu.md',
+  'sdk/typescript-telegram.md': 'features/channels/telegram.md',
+  'sdk/typescript-weixin.md': 'features/channels/weixin.md',
+  'sdk/typescript-qq.md': 'features/channels/qq.md',
+  'sdk/typescript-wecom.md': 'features/channels/wecom.md',
+  'developing/channels/qq.md': 'features/channels/qq.md',
+  'developing/channels/wecom.md': 'features/channels/wecom.md',
+  'developing/channels/feishu.md': 'features/channels/feishu.md',
+  'developing/channels/telegram.md': 'features/channels/telegram.md',
+  'developing/channels/weixin.md': 'features/channels/weixin.md',
+  'developing/channels/reference.md': 'features/channels/reference.md',
+  'features/entry-points/channels.md': 'features/channels/index.md',
   'skills/agent-self-learning.md': 'features/agent-system/skills.md',
   'skills/marketplace.md': 'features/agent-system/skills.md',
   'plugins/install.md': 'features/agent-system/plugins-tools.md',
@@ -394,7 +394,7 @@ const redirectMap: Record<string, string> = {
   'features/session-core.md': 'developing/architecture/session-core.md',
   'features/app.md': 'developing/integrations/app-binding.md',
   'developing/spec-driven-development.md': 'developing/workflow/spec-driven-development.md',
-  'developing/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
+  'developing/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
   'developing/architecture.md': 'developing/architecture/overview.md',
   'developing/configuration/reference.md': 'developing/configuration.md',
   'developing/settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
@@ -408,7 +408,7 @@ const redirectMap: Record<string, string> = {
   'developing/sdk.md': 'developing/sdks/index.md',
   'developing/sdk-typescript.md': 'developing/sdks/typescript.md',
   'developing/sdk-dotnet.md': 'developing/sdks/dotnet.md',
-  'developing/sdk-python.md': 'developing/sdks/python.md',
+  'developing/sdk-python.md': 'developing/sdks/index.md',
   'developing/app-binding.md': 'developing/integrations/app-binding.md',
   'developing/typescript-module.md': 'developing/integrations/typescript-module.md'
 }

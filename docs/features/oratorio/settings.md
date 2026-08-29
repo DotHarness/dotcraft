@@ -4,45 +4,37 @@ Open the Board and select **Oratorio settings** to manage source connections, pr
 
 ![Oratorio settings in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/settings-light.png)
 
-## Providers and projects
+## Sources and projects
 
-Configure GitHub and GitLab credentials on their provider pages. Add each repository or project separately, then map it to the DotCraft workspace that contains the matching checkout. Oratorio does not guess a fallback workspace for source-backed work.
+GitHub and GitLab credentials live on their own provider pages. Add each repository and project separately, and map each one to the DotCraft workspace that holds the matching checkout. Source-backed work never falls through to another workspace.
 
-If a saved Workspace is offline or no longer registered in DotCraft, its binding remains visible as unavailable. Rebind it to an open local Workspace or remove the project. Removing a project stops future sync, automation, and dispatch for that project while retaining existing task history.
+When a mapped Workspace goes offline or is no longer registered in DotCraft, the binding stays visible, marked unavailable. Rebind it to an open local Workspace, or remove the project. Removing a project stops future sync, automation, and dispatch, and keeps the existing task history. An unavailable binding doesn't block other settings changes — Oratorio checks again when it reports status or starts a run.
 
-Provider pages show read, write, and webhook health. Use **Sync now** for an immediate update or set a schedule for periodic synchronization. Use a full repair only when the source needs a complete reconciliation.
+Provider pages show read, write, and webhook status. Select **Sync now** for one immediate sync, or set a sync schedule.
 
 ## Agent execution and worktrees
 
-The root page controls approval policy, run timeout, managed Worktree location and branch naming, automatic dispatch, review automation, and delivery behavior. Runtime concurrency, retry, stall, and cleanup policies remain Server-managed and are not exposed in Desktop.
+How the Agent runs, from when it pauses for approval to how finished work is delivered, is set on the main Oratorio settings page. These values are read when a new run starts, so a change only affects later runs.
 
-Managed worktrees use the repository-local default root:
+Managed worktrees are created inside the repository by default:
 
 ```text
 <repositoryWorkspace>/.craft/oratorio/worktrees
 ```
 
-Managed branches use `oratorio/run/<work-item-key>`. Let Oratorio clean up its own worktrees; cleanup observes persisted run ownership rather than deleting directories by age alone.
+Their branches start with `oratorio/run/`. Let Oratorio clean these worktrees up itself — it reclaims them by what a run actually holds, not by how long a directory has been there.
 
 ## Saving and secrets
 
-Settings save after a short delay. A field shows its pending or failed state, and a failed save can be retried. If another editor changes the same revision, Desktop reloads the confirmed server configuration instead of presenting an unconfirmed local success.
+Settings save on their own once you stop editing. A field shows its saving or failed state, and a failed save can be retried. If the same configuration changed elsewhere, Desktop reloads the values the server confirmed instead of showing an unconfirmed success.
 
-An unavailable saved Workspace does not block other Settings changes. Oratorio checks Workspace availability again when it reports health or starts a run.
+Saved secrets are write-only and never shown again in plain text. Choose **Replace secret** to store a new value, or **Clear secret** to empty it. Doing nothing keeps what's already there.
 
-Saved secrets are write-only. The secret editor provides three explicit choices:
+Some runtime settings need an Oratorio Server restart. Settings tells you once the configuration is saved.
 
-- **Keep** the stored value.
-- **Replace** it with a new value.
-- **Clear** the stored value.
-
-Some runtime settings require an Oratorio Server restart. Settings reports that state after the configuration is saved.
-
-When Desktop is connected to a remote DotCraft Stack, administrative settings are read-only. Board operations, source sync, and task actions remain available.
+When Desktop is connected to a remote [DotCraft Stack](../self-hosted/server-deployment), administrative settings are read-only. Board operations, source sync, and task actions still work.
 
 ## Related docs
 
-- [Oratorio](../oratorio)
-- [Connect GitHub](./github)
-- [Connect GitLab](./gitlab)
-- [Deploy the DotCraft Stack](../self-hosted/server-deployment)
+- [Connect GitHub](./github) — sync issues and pull requests with a GitHub App
+- [Connect GitLab](./gitlab) — sync issues and merge requests with a project token

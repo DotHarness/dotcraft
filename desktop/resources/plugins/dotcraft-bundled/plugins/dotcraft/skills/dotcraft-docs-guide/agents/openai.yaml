@@ -1,4 +1,6 @@
 interface:
   display_name: "DotCraft Docs Guide"
   short_description: "Write DotCraft docs and repository READMEs"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-docs-guide to write, revise, and validate current DotCraft documentation, applying site, localization, and README rules by artifact type."

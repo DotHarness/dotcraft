@@ -12,7 +12,7 @@ The catalog of contribution points is the whole contribution surface. Each one d
 |---|---|
 | **A — Contribute** | Add an item alongside the existing ones, ordered by ascending `Order` with registration order breaking ties. |
 | **B — Replace** | Shadow a *named* default with `ReplaceTarget`. The default returns as soon as the replacement's handle is disposed. |
-| **C — Take over** | Terminal authority over a contribution point's assembled output. Realized through the Tier-B mechanism, on a contract that takes the assembled result. |
+| **C — Take over** | Terminal authority over a contribution point's assembled output, through a contract that receives that assembled result. |
 
 | Contribution point | Contract | Tiers |
 |---|---|---|
@@ -30,11 +30,11 @@ The catalog of contribution points is the whole contribution surface. Each one d
 | **Tool restriction** | `IToolRestriction` | A |
 | **Compaction summary** | `ICompactionSummarizer` | B |
 | **Compactable tool** | `ICompactableToolPolicy` | A, B |
-| **SubAgent runtime** | `ISubAgentRuntimeSource` | A |
+| **Subagent runtime** | `ISubAgentRuntimeSource` | A |
 | **Trace sink** | `ITraceSink` | A |
 | **Auxiliary generators** | `ICommitMessageSuggester`, `IWelcomeSuggester` | B |
 
-Failure handling is specific to each contribution point. Observation and fan-out contributions normally log and skip a failing contributor; authoritative transforms such as result normalization or compaction can fail the owning operation. Return expected failures through the contract's result type instead of throwing.
+Failure handling is specific to each contribution point. Observation and fan-out contributions normally log and skip a failing contributor. Authoritative transforms such as result normalization or compaction can fail the owning operation. Return expected failures through the contract's result type instead of throwing.
 
 ### Tier A — add a tool
 
@@ -93,7 +93,7 @@ internal sealed class SummaryTool(ReviewJournal journal) : IToolSource, IToolRun
 }
 ```
 
-`GetRegistrationsAsync` runs once per planning pass, so keep it cheap and free of side effects and return the tools valid for the `ToolPlanningContext` it receives. One source may declare several tools; a duplicate tool id within one plugin is reported as a diagnostic and skipped rather than failing activation.
+`GetRegistrationsAsync` runs once per planning pass, so keep it cheap and side-effect free, and return the tools valid for the `ToolPlanningContext` it receives. One source may declare several tools. A duplicate tool id within one plugin is reported as a diagnostic and skipped rather than failing activation.
 
 Report expected failures with `ToolExecutionResult.Failed` and a `ToolError`, whose code stays stable. A thrown exception's text is discarded and reaches the model only as an unspecified tool failure. The boundary is JSON-only in both directions: the host copies the arguments in, and copies the text, the structured content, and the error out.
 
@@ -129,7 +129,7 @@ context.Contributions.Add<ISystemPromptSection>(
     new ContributionOptions(ReplaceTarget: SystemPromptSectionNames.ResponseStyle));
 ```
 
-The agent's built-in memory provider registers on the same terms, under `AgentContextSourceNames.Memory`; replacing it takes over the whole system prompt, and `AgentContextRequest.PromptInputs` carries the build-time values the built-in would have used — tool names, deferred MCP servers, the SubAgent profile section, the skill-variant target. It is the one target where returning `null` **declines instead of suppressing**: the built-in composes in its place, so no agent runs without a prompt.
+The agent's built-in memory provider registers on the same terms, under `AgentContextSourceNames.Memory`; replacing it takes over the whole system prompt, and `AgentContextRequest.PromptInputs` carries the build-time values the built-in would have used — tool names, deferred MCP servers, the subagent profile section, the skill-variant target. It is the one target where returning `null` **declines instead of suppressing**: the built-in composes in its place, so no agent runs without a prompt.
 
 Suppression is a replacement that produces nothing: a section returning `null` removes the built-in outright, and there is no separate remove verb. When two replacements target the same name, a thread-scoped one beats a workspace-scoped one and the later registration wins within a scope; `Order` only orders the resolved list and never decides a replacement. The loser is recorded as a `ReplaceConflict` diagnostic rather than failing the contribution point.
 
@@ -167,13 +167,13 @@ Keep exported signatures to plugin-owned exported types and host assemblies both
 
 Dependency versions are minimums within one compatibility line. `"acme.review-core": "1.2.0"` accepts `1.2.0` and later `1.x` versions, but not `2.0.0`. For `0.x`, both major and minor must match: `0.2.1` accepts later `0.2.x` versions, not `0.3.0`. A provider below the minimum or outside the line leaves the consumer `blocked` with `PluginDependencyUnsatisfied`.
 
-Within a compatibility line, a provider must keep each exported API assembly's identity unchanged: simple name, `AssemblyVersion`, culture, and public-key token. A breaking API change starts a new compatibility line and should normally use a new plugin id and API assembly identity. Declare the lowest compatible version that provides the API you use.
+Within a compatibility line, a provider must keep each exported API assembly's identity unchanged: simple name, `AssemblyVersion`, culture, and public-key token. A breaking API change starts a new compatibility line, and normally takes a new plugin id and API assembly identity with it. Declare the lowest compatible version that provides the API you use.
 
 ## Trust
 
-Installing or enabling a `dotnet` plugin never grants trust. An installed plugin runs only when enabled and its current .NET execution fingerprint already has an explicit grant in the machine-local authority; otherwise it remains blocked.
+Installing or enabling a `dotnet` plugin never grants trust. An installed plugin runs only when two things hold at once: it is enabled, and its current .NET execution fingerprint already has an explicit grant in the machine-local authority. Otherwise it stays blocked.
 
-- **Grants bind an exact id and fingerprint.** The client asks for trust by plugin id; the server binds the grant to the bytes it has actually accepted. Several fingerprints of the same plugin id may remain granted. Changed bytes are `modified` only when their fingerprint has no matching grant.
+- **Grants bind an exact id and fingerprint.** The client asks for trust by plugin id, and the server binds the grant to the bytes it has actually accepted. Several fingerprints of the same plugin id may remain granted. Changed bytes are `modified` only when their fingerprint has no matching grant.
 - **Managed paths and contract data are part of the fingerprint.** DotCraft hashes the normalized .NET declaration, plugin version and dependencies, and the non-Desktop bundle tree. Moving those bytes between files changes identity. The raw manifest bytes, deployment-only `.builtin` marker, and `desktop/` tree are excluded, so changing only a Desktop module does not invalidate .NET trust.
 - **The authority is separate from configuration.** Grants live in `dotnet-plugin-trust.json` next to global configuration. The file is not merged configuration, and workspace config cannot grant trust.
 - **Installed plugins have no implicit trust tier.** Every installed `dotnet` plugin needs an explicit grant, host-shipped bundles included.
@@ -195,11 +195,11 @@ Each activation gets its own collectible load context and an opaque generation i
 | **`faulted`** | Attempted, and here is how it broke: construction, activation, or registered background work failed. |
 | **`reclaiming`** | Functionally stopped and routing nothing; its memory has not come back yet. |
 
-`blocked` is non-terminal and re-evaluated whenever its cause can have changed — a host upgrade, a dependency activating, a trust grant, a reinstall. Retry an installed `faulted` plugin by disabling and re-enabling it. For an authoring project, fix the source and run `DotNetPlugin.Build` again.
+`blocked` is non-terminal and re-evaluated whenever its cause may have changed — a host upgrade, a dependency activating, a trust grant, a reinstall. Retry an installed `faulted` plugin by disabling and re-enabling it. For an authoring project, fix the source and run `DotNetPlugin.Build` again.
 
 ### Revocation is guaranteed, reclaim is not
 
-Deactivation revokes every contribution handle first, so no new call reaches that generation; an older tool snapshot receives `tool_unavailable`. For an ordinary mutation, the runtime waits up to its cleanup timeout. If plugin work ignores cancellation, functional teardown remains pending: the plugin cannot reactivate and its dependency providers cannot stop until that work actually settles.
+Deactivation revokes every contribution handle first, so no new call reaches that generation. An older tool snapshot receives `tool_unavailable`. For an ordinary mutation, the runtime waits up to its cleanup timeout. If plugin work ignores cancellation, functional teardown remains pending: the plugin cannot reactivate and its dependency providers cannot stop until that work actually settles.
 
 Host shutdown waits for actual functional teardown before disposing providers and the host root, even when that exceeds the cleanup timeout. A service manager or other outer process owns any hard shutdown deadline. Once functional teardown is complete, assembly-memory reclaim is best-effort and blocks neither replacement, dependency teardown, nor shutdown. `leakedGenerations` and `restartRecommended` expose generations whose load contexts remain pinned; only a process restart releases their memory.
 
@@ -207,19 +207,16 @@ Host shutdown waits for actual functional teardown before disposing providers an
 
 Update a bundle managed through the plugin installation flow by disabling the plugin, replacing its files, and enabling it again. `DotNetPlugin.Build` performs publication and generation replacement for projects under `.craft/plugin-projects`; it does not use this client-operation cycle.
 
-Disabling revokes the .NET generation and its consumers, consumers first. A filesystem mutation also asks root-backed declarative contributions to stop; if that step fails, the mutation returns `notApplied` with `PluginContributionQuiesceFailed` and leaves the bundle directory unchanged. Re-enabling re-admits the current bytes.
+Disabling revokes the .NET generation and its consumers, consumers first. A filesystem mutation also asks root-backed declarative contributions to stop. If that step fails, the mutation returns `notApplied` with `PluginContributionQuiesceFailed` and leaves the bundle directory unchanged. Re-enabling re-admits the current bytes.
 
 The new bytes are a new bundle with a new fingerprint. They activate only if that exact fingerprint was already granted; otherwise trust becomes `modified` until the user confirms it. A content change that keeps the same version still produces a new generation. DotCraft does not roll back to the previous bundle if the new one ends `blocked` or `faulted`.
 
 ### Client operations
 
-Installation, enablement, trust, and removal are separate AppServer operations. Installing never grants .NET trust, and an applied mutation may still leave a plugin `blocked`. Use the [AppServer protocol](../protocols/appserver-protocol#plugin-and-skill-management) for methods, wire results, blockers, and remediation data.
+Installation, enablement, trust, and removal are separate AppServer operations. Installing never grants .NET trust, and an applied mutation may still leave a plugin `blocked`. See the [AppServer protocol](../protocols/appserver-protocol#plugin-and-skill-management) for methods, wire results, blockers, and remediation data.
 
 ## Related docs
 
-- [Build a .NET plugin](./dotnet-plugins)
-- [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample)
-- [.NET Plugin architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)
-- [Desktop Plugins](./desktop-plugins)
-- [AppServer protocol](../protocols/appserver-protocol)
-- [Plugins & Tools](../../features/agent-system/plugins-tools)
+- [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) — a runnable bundle that exercises every contribution point on this page.
+- [.NET Plugin architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source for these contracts.
+- [Desktop Plugins](./desktop-plugins) — the UI half of a bundle that also ships .NET code.

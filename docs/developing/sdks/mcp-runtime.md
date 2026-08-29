@@ -38,20 +38,9 @@ foreach (var server in status.Data.Value ?? [])
     Console.WriteLine($"{server.Name.Value} {server.Origin.Value?.Kind.Value} {server.StartupState.Value}");
 ```
 
-```python [Python]
-status = await dotcraft.mcp_runtime.list_status(
-    thread_id=thread.id,
-    detail="full",
-)
-
-for server in status.data or []:
-    origin = server.origin.kind if server.origin else None
-    print(server.name, origin, server.startup_state, server.auth_status)
-```
-
 :::
 
-Use `nextCursor` / `next_cursor` with the next request when the result is paginated.
+When the result is paginated, pass `nextCursor` back as `cursor` on the next request.
 
 ## Read a resource
 
@@ -78,20 +67,11 @@ var resource = await client.McpRuntime.ReadResourceAsync(new McpServerResourceRe
 Console.WriteLine(resource.Contents.Value);
 ```
 
-```python [Python]
-resource = await dotcraft.mcp_runtime.read_resource(
-    "docs",
-    "docs://getting-started",
-    thread_id=thread.id,
-)
-print(resource.contents)
-```
-
 :::
 
 ## Call a tool
 
-Call tools only after checking that the server is enabled, started, and exposes the requested tool. Tool arguments are validated by the MCP server.
+Check that the server is enabled, started, and exposes the requested tool before calling it. The call runs through the same dispatcher as a model call, so authority checks, schema validation, approval policy, and result limits all still apply. `threadId` is required — it selects the effective server snapshot.
 
 ::: code-group
 
@@ -123,25 +103,13 @@ var result = await client.McpRuntime.CallToolAsync(new McpServerToolCallParams
 Console.WriteLine(result.StructuredContent.Value ?? result.Content.Value);
 ```
 
-```python [Python]
-result = await dotcraft.mcp_runtime.call_tool(
-    thread.id,
-    "docs",
-    "search",
-    {"query": "thread lifecycle"},
-)
-if result.is_error:
-    raise RuntimeError("MCP tool call failed")
-print(result.structured_content or result.content)
-```
-
 :::
 
-This control call executes immediately. To let an agent choose and invoke an MCP tool during a run, configure the MCP server for the thread and start the run normally.
+This control call executes immediately and never reaches the model. To let an agent choose and invoke an MCP tool during a run, configure the MCP server for the thread and start the run normally.
 
 ## Authenticate and reload
 
-When status reports that OAuth is required, start login for that runtime name. Open the returned authorization URL in the user's browser and keep consuming connection notifications until login completes or fails.
+Login is accepted only while a server reports `authStatus: "notLoggedIn"`, and any other state rejects the request. Start login for that runtime name, open the returned authorization URL in the user's browser, then wait for the `mcpServer/oauthLogin/completed` notification to report success or failure.
 
 ::: code-group
 
@@ -170,21 +138,9 @@ Console.WriteLine(login.AuthorizationUrl.Value);
 await client.McpRuntime.ReloadAsync();
 ```
 
-```python [Python]
-login = await dotcraft.mcp_runtime.login_oauth(
-    name="docs",
-    thread_id=thread.id,
-    scopes=["read"],
-    timeout_secs=60,
-)
-print(login.authorization_url)
-
-await dotcraft.mcp_runtime.reload()
-```
-
 :::
 
-Reload re-reads MCP configuration. It does not create a server definition and should not be used as a retry loop for a failing server. Inspect `failureReason` / `failure_reason` and `lastError` / `last_error` first.
+Reload re-reads MCP configuration and reconnects the effective runtime. It does not create a server definition, and it is not a retry loop for a failing server. When a server will not start, read `failureReason` and `lastError` from its status first.
 
 ## Choose the right tool surface
 
@@ -196,7 +152,5 @@ Reload re-reads MCP configuration. It does not create a server definition and sh
 
 ## Related docs
 
-- [Threads & runs](./runs)
-- [Tools & approvals](./tools)
-- [DotCraft App](../integrations/app-binding)
-- [AppServer Protocol](../protocols/appserver-protocol)
+- [Threads & runs](./runs) — the thread lifecycle these control calls hang off.
+- [AppServer Protocol](../protocols/appserver-protocol) — the JSON-RPC method groups and capability negotiation these calls sit inside.

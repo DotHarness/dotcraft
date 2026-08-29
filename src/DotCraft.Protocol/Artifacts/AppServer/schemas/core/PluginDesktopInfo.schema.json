@@ -4,6 +4,9 @@
   "title": "PluginDesktopInfo",
   "type": "object",
   "properties": {
+    "description": {
+      "type": "string"
+    },
     "entry": {
       "type": "string"
     },

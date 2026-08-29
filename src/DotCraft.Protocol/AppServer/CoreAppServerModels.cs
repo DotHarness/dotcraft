@@ -3071,6 +3071,10 @@ public sealed class PluginAppNativeApplication : ExtensibleJsonObject
 /// <summary>Local Desktop module declaration and content revision for one plugin.</summary>
 public sealed class PluginDesktopInfo : ExtensibleJsonObject
 {
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Description { get; init; }
+
     [JsonPropertyName("entry")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Entry { get; init; }

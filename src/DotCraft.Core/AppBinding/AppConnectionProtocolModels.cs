@@ -5,7 +5,7 @@ namespace DotCraft.AppBinding;
 /// <summary>App Binding protocol and persistence constants.</summary>
 public static class AppBindingContract
 {
-    public const int Version = 2;
+    public const int Version = 1;
     public static readonly TimeSpan HandoffLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan PrincipalCredentialLifetime = TimeSpan.FromDays(30);
 }

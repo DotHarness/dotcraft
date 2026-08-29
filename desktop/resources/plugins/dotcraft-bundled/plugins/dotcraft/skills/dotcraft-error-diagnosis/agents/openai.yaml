@@ -1,4 +1,6 @@
 interface:
   display_name: "DotCraft Error Diagnosis"
   short_description: "Diagnose DotCraft failures from logs and workspace evidence"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-error-diagnosis to inspect operational logs and workspace evidence for a DotCraft failure."

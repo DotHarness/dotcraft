@@ -1,6 +1,6 @@
 # Architecture overview
 
-DotCraft is a .NET 10 / C# Agent Harness. Its assemblies separate the provider-neutral agent foundation, product kernel, reusable hosting, external protocol, and official application composition. This page defines those boundaries for integrators and contributors.
+DotCraft is a .NET 10 / C# Agent Harness. Its assemblies split the work into the provider-neutral agent foundation, the product kernel, reusable hosting, the external protocol, and the official application's composition root. This page defines those boundaries for integrators and contributors.
 
 ![DotCraft runtime architecture topology](/runtime-architecture-topology.svg)
 
@@ -30,7 +30,7 @@ DotCraft.App (official composition root)
 | **`DotCraft.App`** | Official composition root for process entry points, providers, optional features, logging, and process policy |
 | **Feature assemblies** | Automations, Teams, Dynamic Workflows, channels, and other feature-owned behavior built on Core contracts |
 
-Core builds on the provider-neutral Agents foundation. Runtime and feature assemblies build on Core. AppServer adapts Core domain capabilities to Protocol contracts. The official App selects these components and connects feature-specific protocol adapters at the composition boundary. Runtime and AppServer operate on the same host-owned `ISessionService`.
+Core builds on the provider-neutral Agents foundation. Runtime and feature assemblies build on Core. AppServer adapts Core domain capabilities to Protocol contracts. The official App picks these components and connects feature-specific protocol adapters at the composition boundary. Runtime and AppServer share the same host-owned `ISessionService`.
 
 ## Module discovery and capability facets
 
@@ -42,7 +42,7 @@ Core builds on the provider-neutral Agents foundation. Runtime and feature assem
 | **`IChannelServiceModule`** | A managed channel service |
 | **`ISessionChannelModule`** | Session origins exposed by a channel |
 
-`DotCraft.App` owns host selection and process composition. Its host factories use `IModuleHostComposition` to select the compiled modules included in each official host service graph.
+`DotCraft.App` owns host selection and process composition. Its host factories use `IModuleHostComposition` to decide which compiled modules each official host's service graph contains.
 
 ## Session Core
 
@@ -52,9 +52,9 @@ CLI, ACP, Automations, and channel adapters use the same Session Core and persis
 
 ## AppServer
 
-AppServer is the optional protocol and transport boundary over the host-owned Session Core. It projects `ISessionService` through JSON-RPC 2.0 over stdio and WebSocket, maps Core domain models to `DotCraft.Protocol` contracts, and manages connection-scoped resources.
+AppServer is the optional protocol and transport boundary over Session Core, and the host owns it. It projects `ISessionService` through JSON-RPC 2.0 over stdio and WebSocket, maps Core domain models to `DotCraft.Protocol` contracts, and manages connection-scoped resources.
 
-Desktop, CLI, ACP, external channel adapters, and SDK clients can use this out-of-process boundary. See [AppServer Protocol](../protocols/appserver-protocol) and [AppServer mode](../lifecycle/appserver).
+Desktop, CLI, ACP, external channel adapters, and [SDK](../sdks/) clients all use this out-of-process boundary. See [AppServer Protocol](../protocols/appserver-protocol) and [AppServer mode](../lifecycle/appserver).
 
 ## Hub
 
@@ -69,14 +69,6 @@ The official `DotCraft.App` host loads the following default configuration layer
 | **Global** | `~/.craft/config.json` | Provider credentials, endpoints, and personal preferences |
 | **Workspace** | `<workspace>/.craft/config.json` | Model selection, entry switches, automations, and security policy |
 
-Configuration policy belongs to the host. `DotCraft.App` merges the global and workspace layers, then supplies the effective `AppConfig` when it composes Runtime. Core and Runtime consume that effective configuration. Modules declare their config sections with `[ConfigSection("Key")]`, and the source generator includes those sections in the merged schema.
+Configuration policy belongs to the host. `DotCraft.App` merges the two layers and supplies the effective `AppConfig` when it composes Runtime, and both Core and Runtime consume that configuration. Modules declare their config sections with `[ConfigSection("Key")]`, and the source generator includes those sections in the merged schema.
 
 See [Configuration reference](../configuration) for fields and [Settings lifecycle](../lifecycle/settings-lifecycle) for when changes take effect.
-
-## Related docs
-
-- [Unified Session Core](./session-core)
-- [Configuration reference](../configuration)
-- [AppServer mode](../lifecycle/appserver)
-- [Hub local coordination](../lifecycle/hub)
-- [SDK overview](../sdks/)

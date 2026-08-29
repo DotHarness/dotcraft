@@ -52,7 +52,8 @@ public static class PluginRuntimeConfigurator
             .Select(plugin => new SkillsLoader.PluginSkillSource(
                 plugin.Manifest.Id,
                 plugin.Manifest.Interface?.DisplayName ?? plugin.Manifest.DisplayName,
-                plugin.Manifest.SkillsPath!))
+                plugin.Manifest.SkillsPath!,
+                plugin.Manifest.RootPath))
             .ToArray();
         var disabledSkillNames = ResolveDisabledPluginSkillNames(config, discovery.Plugins);
         skillsLoader.SetPluginSkillSources(sources, disabledSkillNames);

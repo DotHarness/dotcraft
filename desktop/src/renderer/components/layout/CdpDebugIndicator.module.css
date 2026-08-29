@@ -1,0 +1,62 @@
+.anchor {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: calc(var(--z-tooltip) - 1);
+}
+
+.indicator {
+  --cdp-deep: var(--info);
+  --cdp-bright: color-mix(in srgb, var(--info) 24%, white);
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  outline: none;
+}
+
+.indicator:focus-visible {
+  outline: 2px solid var(--text-secondary);
+  outline-offset: 1px;
+}
+
+.signal {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  width: 12px;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 18%, transparent);
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--cdp-deep), var(--cdp-bright));
+}
+
+.signal::before {
+  position: absolute;
+  inset: -64% -34%;
+  border-radius: 42% 58% 52% 48% / 62% 40% 60% 38%;
+  background: linear-gradient(
+    118deg,
+    transparent 22%,
+    color-mix(in srgb, white 72%, transparent) 44%,
+    color-mix(in srgb, var(--cdp-bright) 30%, white) 58%,
+    transparent 76%
+  );
+  filter: blur(0.8px);
+  animation: cdp-liquid-lens 5.2s ease-in-out infinite alternate;
+  content: '';
+  pointer-events: none;
+}
+
+@keyframes cdp-liquid-lens {
+  from {
+    border-radius: 42% 58% 52% 48% / 62% 40% 60% 38%;
+    transform: translate3d(-18%, -12%, 0) rotate(-14deg);
+  }
+  to {
+    border-radius: 58% 42% 38% 62% / 40% 62% 38% 60%;
+    transform: translate3d(20%, 16%, 0) rotate(18deg);
+  }
+}

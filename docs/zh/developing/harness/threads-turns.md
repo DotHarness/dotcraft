@@ -1,12 +1,12 @@
 # 使用 Thread 与 Turn
 
-Thread 是持久化对话。提交输入会启动一个 Turn，并返回事件流。事件流描述文本生成、工具活动、审批、完成与失败状态。
+Thread 是持久化对话。提交输入会启动一个 Turn，并返回一条事件流，其中包含文本生成、工具活动、审批请求，以及 Turn 的最终结果。
 
-![Thread 与 Turn 生命周期：Thread 由身份创建后进入活动状态，可以暂停后恢复、归档后取消归档；活动期间每次提交输入运行一个 Turn，Turn 的事件流承载每个 Item 的开始、增量与完成，审批请求会阻塞 Turn 直到应用作出决策，Turn 以完成或失败结束，而 Thread 保持活动。](/thread-turn-lifecycle.svg)
+![Thread 与 Turn 生命周期：Thread 由身份创建后进入活动状态，可以暂停后恢复，也可以归档后取消归档。活动期间每次提交输入运行一个 Turn，Turn 的事件流承载每个 Item 的开始、增量与完成，审批请求会阻塞 Turn 直到应用作出决策，Turn 以完成或失败结束，而 Thread 保持活动。](/thread-turn-lifecycle.svg)
 
 ## 解析会话服务
 
-Host 启动后，解析由 Host 持有的 `ISessionService`：
+[Host](./hosting-lifecycle) 启动后，解析由它持有的 `ISessionService`：
 
 ```csharp
 using DotCraft.Sessions;
@@ -47,7 +47,7 @@ var recentThreads = await sessions.FindThreadsAsync(
 
 ## 提交输入
 
-文本输入可以使用字符串重载。读取返回的事件流，直到 Turn 到达终止状态。
+文本输入使用字符串重载。读取返回的事件流，直到 Turn 结束。
 
 ```csharp
 await foreach (var sessionEvent in sessions.SubmitInputAsync(
@@ -60,7 +60,11 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 }
 ```
 
-图片或其他富输入可以使用 `Microsoft.Extensions.AI` 提供的 `IList<AIContent>` 重载。
+图片等富输入改用 `Microsoft.Extensions.AI` 提供的 `IList<AIContent>` 重载。
+
+一个 Thread 同时只运行一个 Turn。上一个 Turn 结束前再次调用 `SubmitInputAsync` 会失败，改用 `EnqueueTurnInputAsync` 可以让输入排队，等当前 Turn 成功结束后自动开始下一个。
+
+事件的 `EventType` 取自 `SessionEventType`，其中应用最常处理的是这几个：
 
 | 事件 | 含义 |
 | --- | --- |
@@ -76,7 +80,7 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 
 ## 恢复与暂停
 
-继续一个当前不在内存中的已知对话前，先恢复对应 Thread：
+继续一个不在内存中的已知对话前，先恢复对应 Thread。恢复会从持久化历史重建 Agent 会话，并把 Thread 转回活动状态：
 
 ```csharp
 var resumed = await sessions.ResumeThreadAsync(threadId, cancellationToken);
@@ -90,7 +94,7 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 }
 ```
 
-如果应用希望释放活动 Runtime 状态，同时保留持久化对话，可以暂停 Thread：
+暂停会把 Thread 转为 Paused。对话仍然完整持久化，但在恢复之前不能开始新的 Turn：
 
 ```csharp
 await sessions.PauseThreadAsync(threadId, cancellationToken);
@@ -105,11 +109,9 @@ await sessions.ArchiveThreadAsync(threadId, cancellationToken);
 await sessions.UnarchiveThreadAsync(threadId, cancellationToken);
 ```
 
-当应用需要为现有身份创建全新对话时，可以使用 `ResetConversationAsync`。
+`ResetConversationAsync` 归档该身份下可复用的 Thread，并创建一个全新的 Thread。
 
 ## 相关文档
 
-- [Harness 总览](./)
-- [托管与生命周期](./hosting-lifecycle)
-- [工具与审批](./tools-approvals)
-- [Session Core](../architecture/session-core)
+- [工具与审批](./tools-approvals)——处理这条事件流里的审批请求，并把应用自有工具接进来。
+- [Session Core](../architecture/session-core)——Thread、Turn、Item 这套模型在引擎侧的样子。

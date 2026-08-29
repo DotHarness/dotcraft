@@ -285,7 +285,7 @@ export function appBindingUnavailableError(
   );
 }
 
-/** A parsed App Binding deep-link handoff. Parallel to the .NET and Python SDK helpers. */
+/** A parsed App Binding deep-link handoff. Parallel to the .NET SDK helpers. */
 export interface ParsedAppBindingHandoff {
   scheme: string;
   operation: string;

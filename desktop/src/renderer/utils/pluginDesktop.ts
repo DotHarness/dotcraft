@@ -18,6 +18,6 @@ export function getPluginDesktopContent(
     key: 'desktop-plugin',
     title: plugin.interface?.displayName || plugin.displayName,
     kind: t('plugins.content.desktopPlugin'),
-    description: plugin.interface?.shortDescription || plugin.description || ''
+    description: plugin.desktop.description || plugin.interface?.shortDescription || plugin.description || ''
   }]
 }

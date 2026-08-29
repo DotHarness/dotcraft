@@ -66,7 +66,8 @@ public sealed class SkillsLoader
     {
         _pluginSkillSources = (sources ?? [])
             .Where(source => !string.IsNullOrWhiteSpace(source.PluginId)
-                             && !string.IsNullOrWhiteSpace(source.SkillsPath))
+                             && !string.IsNullOrWhiteSpace(source.SkillsPath)
+                             && !string.IsNullOrWhiteSpace(source.PluginRoot))
             .ToArray();
         _disabledPluginSkillNames = new HashSet<string>(
             disabledPluginSkillNames ?? [],
@@ -228,7 +229,7 @@ public sealed class SkillsLoader
     /// </summary>
     public string? LoadSkill(string name)
     {
-        var skillFile = ResolveSkillFileDirect(name);
+        var skillFile = ResolveSkillFileDirect(name, out _);
         return skillFile == null ? null : File.ReadAllText(skillFile, Encoding.UTF8);
     }
 
@@ -296,18 +297,30 @@ public sealed class SkillsLoader
     /// </summary>
     public SkillInterfaceInfo? GetSkillInterface(string name)
     {
-        var skillFile = ResolveSkillFileDirect(name);
+        var skillFile = ResolveSkillFileDirect(name, out var pluginRoot);
         if (skillFile == null)
             return null;
 
-        return GetSkillInterfaceFromFile(skillFile);
+        return pluginRoot == null
+            ? GetSkillInterfaceFromFile(skillFile)
+            : GetPluginSkillInterfaceFromFile(skillFile, pluginRoot);
     }
 
     /// <summary>
     /// Reads optional display metadata from <c>agents/openai.yaml</c> beside a specific skill file.
     /// Missing or invalid interface metadata is treated as absent.
     /// </summary>
-    public static SkillInterfaceInfo? GetSkillInterfaceFromFile(string skillFile)
+    public static SkillInterfaceInfo? GetSkillInterfaceFromFile(string skillFile) =>
+        ReadSkillInterfaceFromFile(skillFile, pluginRoot: null);
+
+    /// <summary>
+    /// Reads optional display metadata beside a plugin-contained skill file and permits icons from
+    /// the owning plugin's shared <c>assets/</c> directory.
+    /// </summary>
+    public static SkillInterfaceInfo? GetPluginSkillInterfaceFromFile(string skillFile, string pluginRoot) =>
+        ReadSkillInterfaceFromFile(skillFile, pluginRoot);
+
+    private static SkillInterfaceInfo? ReadSkillInterfaceFromFile(string skillFile, string? pluginRoot)
     {
         var skillDir = Path.GetDirectoryName(skillFile);
         if (string.IsNullOrEmpty(skillDir))
@@ -341,8 +354,8 @@ public sealed class SkillsLoader
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName,
             ShortDescription = string.IsNullOrWhiteSpace(shortDescription) ? null : shortDescription,
             DefaultPrompt = string.IsNullOrWhiteSpace(defaultPrompt) ? null : defaultPrompt,
-            IconSmallDataUrl = TryReadIconDataUrl(skillDir, iconSmall),
-            IconLargeDataUrl = TryReadIconDataUrl(skillDir, iconLarge)
+            IconSmallDataUrl = TryReadIconDataUrl(skillDir, iconSmall, pluginRoot),
+            IconLargeDataUrl = TryReadIconDataUrl(skillDir, iconLarge, pluginRoot)
         };
     }
 
@@ -608,7 +621,7 @@ public sealed class SkillsLoader
     /// </summary>
     public Dictionary<string, string>? GetSkillMetadata(string name)
     {
-        var skillFile = ResolveSkillFileDirect(name);
+        var skillFile = ResolveSkillFileDirect(name, out _);
         if (skillFile == null)
             return null;
 
@@ -646,8 +659,9 @@ public sealed class SkillsLoader
         return metadata;
     }
 
-    private string? ResolveSkillFileDirect(string name)
+    private string? ResolveSkillFileDirect(string name, out string? pluginRoot)
     {
+        pluginRoot = null;
         var workspaceSkill = Path.Combine(WorkspaceSkillsPath, name, "SKILL.md");
         if (File.Exists(workspaceSkill) && !File.Exists(Path.Combine(WorkspaceSkillsPath, name, ".builtin")))
             return workspaceSkill;
@@ -656,7 +670,10 @@ public sealed class SkillsLoader
         {
             var pluginSkill = Path.Combine(source.SkillsPath, name, "SKILL.md");
             if (File.Exists(pluginSkill))
+            {
+                pluginRoot = source.PluginRoot;
                 return pluginSkill;
+            }
         }
 
         if (File.Exists(workspaceSkill) && !_disabledPluginSkillNames.Contains(name))
@@ -714,18 +731,31 @@ public sealed class SkillsLoader
         return metadata;
     }
 
-    private static string? TryReadIconDataUrl(string skillDir, string? relativePath)
+    private static string? TryReadIconDataUrl(string skillDir, string? relativePath, string? pluginRoot)
     {
-        if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
+        if (string.IsNullOrWhiteSpace(relativePath))
             return null;
 
         try
         {
-            var fullPath = Path.GetFullPath(Path.Combine(skillDir, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-            var root = Path.GetFullPath(skillDir);
-            if (fullPath != root && !fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            var normalizedRelativePath = relativePath
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+            if (Path.IsPathRooted(normalizedRelativePath))
                 return null;
 
+            var hasParentTraversal = normalizedRelativePath
+                .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)
+                .Any(segment => segment == "..");
+            var allowedRoot = hasParentTraversal
+                ? pluginRoot == null ? null : Path.Combine(pluginRoot, "assets")
+                : Path.Combine(skillDir, "assets");
+            if (allowedRoot == null)
+                return null;
+
+            var fullPath = Path.GetFullPath(Path.Combine(skillDir, normalizedRelativePath));
+            if (!IsPathInsideDirectory(fullPath, allowedRoot))
+                return null;
             if (!File.Exists(fullPath))
                 return null;
 
@@ -751,6 +781,17 @@ public sealed class SkillsLoader
         {
             return null;
         }
+    }
+
+    private static bool IsPathInsideDirectory(string path, string directory)
+    {
+        var normalizedPath = Path.GetFullPath(path);
+        var normalizedDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return normalizedPath.Equals(normalizedDirectory, comparison)
+            || normalizedPath.StartsWith(normalizedDirectory + Path.DirectorySeparatorChar, comparison);
     }
 
     private static string? ReadFrontmatterValue(string content, string key)
@@ -844,10 +885,16 @@ public sealed class SkillsLoader
         public bool Enabled { get; set; } = true;
     }
 
+    /// <summary>Identifies a plugin-contained skill directory and its owning plugin root.</summary>
+    /// <param name="PluginId">Canonical plugin id.</param>
+    /// <param name="PluginDisplayName">User-facing plugin name.</param>
+    /// <param name="SkillsPath">Validated plugin skill directory.</param>
+    /// <param name="PluginRoot">Validated owning plugin root.</param>
     public sealed record PluginSkillSource(
         string PluginId,
         string PluginDisplayName,
-        string SkillsPath);
+        string SkillsPath,
+        string PluginRoot);
 
     public sealed class SkillInterfaceInfo
     {

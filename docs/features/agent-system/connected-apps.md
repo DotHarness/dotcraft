@@ -1,10 +1,10 @@
 # Connected Apps
 
-Connected Apps let a conversation use tools from products you already work with.
+Connected apps let a conversation work directly with products and services you already use. When the agent needs to read or change something outside the repository, connect the app it needs.
 
 ![Connect an app once for the workspace, then choose it for each conversation](/connected-apps-flow.svg)
 
-First connect the app to the current workspace. Then choose which conversations may use it.
+An app is connected to the workspace once. Each conversation then decides whether to use it.
 
 ## Connect an app
 
@@ -15,51 +15,39 @@ First connect the app to the current workspace. Then choose which conversations 
 5. Select **Connect**.
 6. Complete the confirmation in the app, then return to DotCraft.
 
-When setup is complete, the plugin shows the app under **App Settings**. Return there whenever you need to reconnect or disconnect it.
+Once connected, the app appears under the plugin's **App Settings**. Go there whenever you need to reconnect or disconnect it.
 
-## Use apps in a new conversation
+## Use apps in a conversation
 
-1. Open a new conversation.
+1. Start a new conversation.
 2. Select **Apps**.
-3. Turn on the apps you want this conversation to use.
+3. Turn on the apps this conversation needs.
 4. Send your first message.
 
-DotCraft prepares the selected apps before it sends the first message.
+DotCraft prepares the selected apps before it sends the first message. To change the selection later, open **Apps** in the conversation header. That affects only the current conversation and never disconnects the app from the workspace.
 
 > [!NOTE]
-> Connected apps may already be selected in a new conversation. Review the list and turn off anything you do not want to use before sending your first message.
+> A new conversation may already have connected apps selected. Check the list and turn off whatever you don't need before sending your first message.
 
-## Change apps in a conversation
+## Review new capabilities
 
-Open **Apps** in the conversation header, then turn apps on or off.
+When an app asks for expanded capabilities, **Review** appears beside it.
 
-This changes only the current conversation. It does not disconnect the app from the workspace or affect other conversations.
+- **Keep previous capabilities** declines the new access and stays on the approved baseline. The app may be unavailable until it reconnects with that access.
+- **Accept capabilities** lets the conversation use the expanded set.
 
-## Review additional access
+If the change adds write actions or access to more data, read it closely before accepting.
 
-If an app adds new capabilities, **Review** appears beside it.
+## Reconnect or disconnect
 
-- Select **Keep previous capabilities** to decline the additional access and retain the previously approved baseline. The app may be unavailable until it reconnects with that access.
-- Select **Accept capabilities** to let the conversation use the expanded capability set.
-
-Review the change before accepting it, especially when it adds write actions or access to more data.
-
-## Reconnect or disconnect an app
-
-Open the plugin, then open **App Settings**.
-
-- Select **Reconnect** when the connection has expired or the app asks you to sign in again.
-- Open **Connected**, then select **Disconnect** to remove the workspace connection.
+Open the plugin, then open **App Settings**. Select **Reconnect** when the connection has expired or the app asks you to sign in again. To remove the workspace connection, open **Connected**, then select **Disconnect**.
 
 > [!CAUTION]
-> Turning an app off removes it from one conversation. Disconnecting it in **App Settings** affects every conversation in the current workspace.
+> Turning an app off in a conversation affects only that conversation. Disconnecting it in **App Settings** affects every conversation in the current workspace.
 
-For apps used through social channels, follow the channel's binding flow. See [Channels & Bots](../entry-points/channels).
+For apps used through social channels, follow the channel's binding flow. See [Channels & Bots](../channels/).
 
 ## Related docs
 
-- [Plugins & Tools](./plugins-tools)
-- [Plugin marketplaces](./plugin-marketplaces)
-- [Channels & Bots](../entry-points/channels)
-- [Security & Sandbox](../self-hosted/security)
-- [DotCraft App](../../developing/integrations/app-binding)
+- [Plugins and tools](./plugins-tools) — apps come from plugins, so start here for installing and managing them
+- [Security & Sandbox](../self-hosted/security) — the trust boundaries to weigh before accepting an app's capabilities

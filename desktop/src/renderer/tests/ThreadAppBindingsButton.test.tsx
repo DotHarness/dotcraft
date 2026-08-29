@@ -112,7 +112,7 @@ describe('ThreadAppBindingsButton', () => {
     useToastStore.setState({ toasts: [] })
     useConnectionStore.getState().setStatus({
       status: 'connected',
-      capabilities: { appBindingVersion: 2 }
+      capabilities: { appBindingVersion: 1 }
     })
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'active', attachedToolCount: 4 }] }

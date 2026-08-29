@@ -4,7 +4,7 @@ This page targets app integrators and client authors. A DotCraft App uses App Bi
 
 For the Desktop workflow, see [Connected Apps](../../features/agent-system/connected-apps).
 
-![App Binding authority chain: a trusted client raises a connection request that grants nothing, the app authenticates with a one-time credential and becomes the workspace app principal, and a ten-minute binding request is activated by that same authenticated app before DotCraft checks its tools and the thread binding is ready](/app-binding-flow.svg)
+![App Binding authority chain: a trusted client raises a connection request that grants nothing, and the app authenticates with a one-time credential to become the workspace app principal. A ten-minute binding request is then activated by that same authenticated app, and DotCraft checks its tools before the thread binding is ready](/app-binding-flow.svg)
 
 ## Connection and binding
 
@@ -17,7 +17,7 @@ An app can have one workspace connection and multiple thread bindings. Turning t
 
 ## Use the typed SDK from a trusted client
 
-A trusted DotCraft client can discover an app, start its connection handoff, inspect connection state, and manage thread bindings through the high-level SDK. Keep `requestToken`, principal credentials, and binding bearers out of logs.
+A trusted DotCraft client discovers an app, starts its connection handoff, inspects connection state, and manages thread bindings through the high-level SDK. Keep `requestToken`, principal credentials, and binding bearers out of logs.
 
 ::: code-group
 
@@ -52,20 +52,6 @@ await client.AppBindings.RevokeThreadBindingAsync(new ThreadAppBindingRevokePara
 });
 ```
 
-```python [Python]
-apps = await dotcraft.app_bindings.list_apps(thread_id=thread.id)
-app = await dotcraft.app_bindings.view_app(app_id, thread_id=thread.id)
-handoff = await dotcraft.app_bindings.start_connection(app_id)
-
-# The app principal completes the handoff described below.
-connection = await dotcraft.app_bindings.connection_status(app_id)
-enabled = await dotcraft.app_bindings.enable(thread.id, app_id)
-bindings = await dotcraft.app_bindings.list_thread_bindings(thread.id)
-await dotcraft.app_bindings.revoke_thread_binding(
-    thread.id, binding_id, "user disconnected app"
-)
-```
-
 :::
 
 Starting the connection request does not authenticate the app. Enable a thread binding only after the app connection is ready. Use the returned handoff in your UI; do not send its token through an agent prompt.
@@ -77,9 +63,9 @@ Starting the connection request does not authenticate the app. Enable a thread b
 3. The app calls `app/connection/connect`.
 4. The server returns the principal credential once.
 5. The app immediately calls `app/connection/authenticate` on its initialized AppServer connection.
-6. Later connections authenticate with the stored credential; `app/connection/refresh` rotates it.
+6. Later connections authenticate with the stored credential.
 
-The principal credential expires after 30 days. Rotation invalidates the previous credential immediately.
+The principal credential expires after 30 days. `app/connection/refresh` rotates it, and rotation invalidates the previous credential immediately.
 
 `app/connection/revoke` removes the workspace connection and revokes all of its thread bindings.
 
@@ -104,7 +90,7 @@ An online app principal receives `app/binding/requested` with the `bindingReques
 
 The endpoint must expose a Streamable HTTP MCP server. DotCraft creates a binding-scoped MCP session and reads its tool snapshot before the binding becomes ready.
 
-DotCraft currently starts binding MCP sessions with `initialize` and the `2025-06-18` compatibility baseline. Apps should support initialize-era negotiation; DotCraft does not send the experimental `2026-07-28` `server/discover` probe by default.
+DotCraft starts binding MCP sessions with `initialize` at protocol version `2025-06-18` and never sends the experimental `server/discover` probe. Implement initialize-era negotiation.
 
 `thread/appBindings/revoke` removes the binding from one thread without disconnecting the app principal.
 
@@ -114,25 +100,20 @@ A client may stage app selections before creating a thread. After `thread/start`
 
 ## Capability changes
 
-The first valid tool snapshot is approved by the original enable action.
+The first valid tool snapshot is approved by the original enable action. After that, only a provably narrower capability set is accepted automatically. Everything below requires confirmation:
 
-- Narrower capability changes are accepted automatically.
-- Expanded tool schema, visibility, risk, UI, CSP, domain, or permission authority requires confirmation.
-- A trusted client calls `thread/appBindings/confirmCapabilities` to retain the previous approved baseline or accept the new one.
+- a new tool, or an input schema that cannot be proven to be a subset of the approved one
+- a tool visibility audience that was not approved before
+- relaxed risk annotations — `requiresApproval` removed, or `destructive` or `openWorld` added
+- a changed UI resource, an added CSP domain, or an added browser permission
 
-Accepting the expansion makes the new baseline active. Retaining the previous baseline rejects the expansion, removes the live MCP session, and leaves the binding offline until the app rebinds with a compatible capability set.
+A trusted client calls `thread/appBindings/confirmCapabilities` to accept the new baseline or retain the previous one. Accepting makes the new baseline active. Retaining the previous baseline rejects the expansion, removes the live MCP session, and leaves the binding offline until the app rebinds with a compatible capability set.
 
 ## Offline and rebind behavior
 
 An offline binding retains stable tool schemas, but tool calls fail with `AppBindingOffline`.
 
-After a process restart, the authenticated app calls `app/bindings/list`, then `app/binding/rebind` with:
-
-The .NET SDK exposes the authoritative first step as `client.AppBindings.ListBindingsAsync()`.
-
-- the current `authorityRevision`;
-- a trusted endpoint;
-- a new bearer.
+After a process restart, the authenticated app calls `app/bindings/list` — `client.AppBindings.ListBindingsAsync()` in the .NET SDK — then `app/binding/rebind` with the current `authorityRevision`, a trusted endpoint, and a new bearer.
 
 Each binding keeps its own MCP session and bearer. Live MCP clients and binding bearer values are not persisted.
 
@@ -158,7 +139,5 @@ DotCraft persists salted credential verifiers and normalized non-sensitive capab
 
 ## Related docs
 
-- [Connected Apps](../../features/agent-system/connected-apps)
-- [MCP Apps](./mcp-apps)
-- [AppServer Protocol](../protocols/appserver-protocol)
-- [Security & Sandbox](../../features/self-hosted/security)
+- [MCP Apps](./mcp-apps) — attach an interactive view to a tool result served from the same binding.
+- [AppServer protocol](../protocols/appserver-protocol) — wire definitions for the `app/*` and `thread/appBindings/*` methods used here.

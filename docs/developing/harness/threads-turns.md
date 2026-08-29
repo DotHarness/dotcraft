@@ -1,12 +1,12 @@
 # Work with Threads and Turns
 
-A Thread is a durable conversation. Submitting input starts a Turn and returns a stream of events that describes text generation, tool activity, approvals, completion, and failure.
+A Thread is a durable conversation. Submitting input starts a Turn and returns an event stream carrying text generation, tool activity, approval requests, and the Turn's final outcome.
 
 ![Thread and Turn lifecycle: a Thread is created from an identity and becomes active, and from active it can be paused and resumed or archived and restored. While it is active, submitting input runs one Turn whose event stream carries every Item from start to completion, an approval request blocks the Turn until the application answers, and the Turn ends completed or failed while the Thread stays active.](/thread-turn-lifecycle.svg)
 
 ## Resolve the session service
 
-Resolve the host-owned `ISessionService` after the Host has started:
+Resolve the host-owned `ISessionService` after the [Host](./hosting-lifecycle) has started:
 
 ```csharp
 using DotCraft.Sessions;
@@ -47,7 +47,7 @@ var recentThreads = await sessions.FindThreadsAsync(
 
 ## Submit input
 
-Use the string overload for text input. Read the returned event stream until the Turn reaches a terminal event.
+Use the string overload for text input. Read the returned event stream until the Turn ends.
 
 ```csharp
 await foreach (var sessionEvent in sessions.SubmitInputAsync(
@@ -60,7 +60,11 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 }
 ```
 
-For images or other rich input, call the `IList<AIContent>` overload from `Microsoft.Extensions.AI`.
+For images and other rich input, call the `IList<AIContent>` overload from `Microsoft.Extensions.AI`.
+
+A Thread runs one Turn at a time. Calling `SubmitInputAsync` again before the previous Turn ends fails. Pass the input to `EnqueueTurnInputAsync` instead to queue it and start it automatically once the active Turn completes successfully.
+
+Each event carries an `EventType` from `SessionEventType`. These are the ones applications handle most:
 
 | Event | Meaning |
 | --- | --- |
@@ -76,7 +80,7 @@ For images or other rich input, call the `IList<AIContent>` overload from `Micro
 
 ## Resume and pause
 
-Resume a known Thread before continuing a conversation that is not active in memory:
+Resume a known Thread before continuing a conversation that is not active in memory. Resuming rebuilds the agent session from persisted history and returns the Thread to Active:
 
 ```csharp
 var resumed = await sessions.ResumeThreadAsync(threadId, cancellationToken);
@@ -90,7 +94,7 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 }
 ```
 
-Pause a Thread when the application wants to release its active Runtime state while keeping the conversation durable:
+Pausing moves a Thread to Paused. The conversation stays fully durable, but no new Turn can start until it is resumed:
 
 ```csharp
 await sessions.PauseThreadAsync(threadId, cancellationToken);
@@ -105,11 +109,9 @@ await sessions.ArchiveThreadAsync(threadId, cancellationToken);
 await sessions.UnarchiveThreadAsync(threadId, cancellationToken);
 ```
 
-Use `ResetConversationAsync` when the application needs fresh-conversation semantics for an existing identity.
+`ResetConversationAsync` archives the reusable Threads of an identity and creates a fresh one.
 
 ## Related docs
 
-- [Harness overview](./)
-- [Hosting and lifecycle](./hosting-lifecycle)
-- [Tools and approvals](./tools-approvals)
-- [Session Core](../architecture/session-core)
+- [Tools and approvals](./tools-approvals) — answer the approval requests in this event stream and add application-owned tools.
+- [Session Core](../architecture/session-core) — how the Thread, Turn, and Item model looks from the engine side.

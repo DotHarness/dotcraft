@@ -1,8 +1,10 @@
 # Channel Module integration
 
-This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/channel` module contract. Channel authoring packages are repository-local: build `sdk/typescript` and install the required local package directories before following this guide. See the [TypeScript SDK setup](../sdks/typescript) for the published client package.
+This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/channel` module contract. Channel authoring packages are repository-local. Build `sdk/typescript` first, then install the required local package directories. See the [TypeScript SDK setup](../sdks/typescript) for the published client package.
 
-## 1. Overview
+![The eight lifecycle statuses a host observes: starting leads to ready and then to stopped, while configMissing, configInvalid, authRequired, authExpired, and degraded branch off that path](/typescript-module-lifecycle.svg)
+
+## Overview
 
 The module contract gives hosts a stable boundary:
 
@@ -14,9 +16,9 @@ The module contract gives hosts a stable boundary:
 
 Import only from the package root. Don't import package-internal files or infer behavior from the source layout.
 
-## 2. Loading a module
+## Loading a module
 
-Import from the package root only.
+A host reads the manifest and factory from the package root:
 
 ```typescript
 import { configDescriptors, configGroups, createModule, manifest } from "@dotcraft/channel-feishu";
@@ -30,7 +32,7 @@ console.log(configGroups.length);
 console.log(configDescriptors.length);
 ```
 
-## 3. Discovering modules
+## Discovering modules
 
 A host can maintain a registry from an allowlist of package roots or `moduleId` mappings.
 
@@ -43,7 +45,7 @@ Recommended model:
 
 The selection key is `moduleId`. Runtime channel identity remains `channelName`.
 
-## 4. Creating and starting a module instance
+## Creating and starting a module instance
 
 Create `WorkspaceContext` explicitly and pass it to the module factory.
 
@@ -64,9 +66,7 @@ await instance.start();
 
 The host controls startup inputs. Pass the workspace context explicitly — a module does not rely on the current working directory to locate the workspace.
 
-## 5. Observing lifecycle
-
-![The eight lifecycle statuses a host observes: starting leads to ready and then to stopped, while configMissing, configInvalid, authRequired, authExpired, and degraded branch off that path](/typescript-module-lifecycle.svg)
+## Observing lifecycle
 
 Register status handlers before calling `start()` so no early transition is missed.
 
@@ -102,9 +102,9 @@ function observeLifecycle(instance: ModuleInstance): void {
 }
 ```
 
-The host can query immediate state through `instance.getStatus()` and last error through `instance.getError()`.
+The host can query immediate state through `instance.getStatus()` and the last structured error through `instance.getError()`.
 
-## 6. Rendering config UI
+## Rendering config UI
 
 If exported, `configGroups` and `configDescriptors` drive host config forms without package-internal schema parsing. Render non-empty groups in exported order and keep them expanded.
 
@@ -130,16 +130,16 @@ Have the host UI respect:
 - unique, non-empty group ids and valid `ConfigDescriptor.group` references
 - `required` for validation
 - `masked` and `dataKind: "secret"` for protected input display
-- descriptor labels/descriptions as user-facing guidance
+- `displayLabel` and `description` as user-facing guidance
 - structured `options` for localized enum labels and previews; prefer them over `enumValues`
 - `allowCustomValue` for a preset-plus-custom enum control
 - `defaultValue` as the effective display value when the stored field is absent
 
 Showing `defaultValue` must not initialize or save the field. Persist it only after the user edits the control.
 
-Fields without `group` appear in an implicit `Configuration` group. For older manifests, `advanced: true` without `group` appears in an implicit `Advanced` group. New modules should declare every group and field assignment explicitly.
+Fields without `group` appear in an implicit `Configuration` group. A field with `advanced: true` and no `group` appears in an implicit `Advanced` group. New modules should declare every group and field assignment explicitly.
 
-## 7. Interactive setup
+## Interactive setup
 
 Interactive setup is signaled by lifecycle status, not host-specific UI assumptions.
 
@@ -165,17 +165,17 @@ function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
 
 The host decides the UI (Desktop panel, CLI prompt, dashboard notification). The contract only requires structured state signaling.
 
-## 8. Stopping a module
+## Stopping a module
 
 Stop with `await instance.stop()` and treat `stopped` as terminal for that runtime instance.
 
 Recommended host behavior:
 
-1. Disable send/tool actions for this module instance.
+1. Disable send and tool actions for this module instance.
 2. Mark connection as offline.
-3. Keep last structured error for diagnostics.
+3. Keep the last structured error for diagnostics.
 
-## 9. Variant substitution
+## Variant substitution
 
 Variant substitution lets hosts swap module implementations while preserving logical channel identity.
 
@@ -192,7 +192,7 @@ Example:
 
 A host can switch variants by changing the selected `moduleId` without changing the host-facing integration model.
 
-## 10. Adding new modules
+## Adding new modules
 
 A third-party package is loadable by the same model when it exports from package root:
 
@@ -214,5 +214,4 @@ This keeps first-party, enterprise, and partner modules interchangeable at the h
 ## Related docs
 
 - [Channel adapters](../sdks/channels) — the adapter base class the modules build on.
-- [TypeScript SDK](../sdks/typescript) — the `@dotcraft/sdk` client used inside a module.
-- [Feishu Channel Adapter](../channels/feishu) — a complete module that implements this contract.
+- [Connect DotCraft to Feishu](../../features/channels/feishu) — a complete module that implements this contract.

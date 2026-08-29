@@ -107,8 +107,6 @@ public static class ProtocolArtifactGenerator
             var expectedUnderRoot = expected.Keys.Where(path => path.StartsWith(generatedRoot + "/", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
             foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             {
-                if (IsIgnoredGeneratedFile(path))
-                    continue;
                 var relative = Path.GetRelativePath(repositoryRoot, path).Replace('\\', '/');
                 if (!expectedUnderRoot.Contains(relative))
                     drift.Add($"extra: {relative}");
@@ -411,8 +409,6 @@ public static class ProtocolArtifactGenerator
                 continue;
             foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             {
-                if (IsIgnoredGeneratedFile(path))
-                    continue;
                 var relative = Path.GetRelativePath(repositoryRoot, path).Replace('\\', '/');
                 if (!expected.Contains(relative))
                     File.Delete(path);
@@ -423,14 +419,8 @@ public static class ProtocolArtifactGenerator
     private static IReadOnlyList<string> GeneratedRoots() =>
     [
         PackageRelativePath,
-        SdkBindingArtifactGenerator.TypeScriptRoot,
-        SdkBindingArtifactGenerator.PythonRoot
+        SdkBindingArtifactGenerator.TypeScriptRoot
     ];
-
-    private static bool IsIgnoredGeneratedFile(string path) =>
-        path.EndsWith(".pyc", StringComparison.OrdinalIgnoreCase) ||
-        path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .Contains("__pycache__", StringComparer.OrdinalIgnoreCase);
 
     private static string RefFor(string typeId, bool aggregate)
     {

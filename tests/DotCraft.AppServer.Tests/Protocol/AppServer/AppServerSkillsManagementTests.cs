@@ -227,7 +227,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         var pluginSkillsPath = Path.Combine(_tempRoot, "plugin", "skills");
         WriteSkillAtRoot(pluginSkillsPath, "plugin-skill", "Plugin body.");
         loader.SetPluginSkillSources([
-            new SkillsLoader.PluginSkillSource("demo-plugin", "Demo Plugin", pluginSkillsPath)
+            new SkillsLoader.PluginSkillSource("demo-plugin", "Demo Plugin", pluginSkillsPath, Path.GetDirectoryName(pluginSkillsPath)!)
         ]);
 
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);

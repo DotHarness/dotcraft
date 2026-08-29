@@ -1,8 +1,10 @@
-# DotCraft Dashboard API
+# Dashboard API
 
-Dashboard API is intended for the debugging UI and internal tools. Most users should use the Dashboard pages directly; use this page when building integrations or debugging the frontend.
+Dashboard API is intended for the debugging UI and internal tools. For everyday troubleshooting the Dashboard pages are enough — see [Observability](../../features/self-hosted/observability). This page is for building an integration or debugging the frontend.
 
-## Standalone Read-Only Viewer
+Every route lives under `/dashboard/`, and the page itself is `GET /dashboard/`.
+
+## Standalone read-only viewer
 
 Use Dashboard without starting AppServer, Desktop, channels, Dreams, Automations, MCP, or LSP:
 
@@ -15,7 +17,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 
 Read-only mode only exposes trace, session listing, token usage, tools, runtime metadata, and event stream endpoints. It does not register Settings write endpoints, Dreams endpoints, Automations endpoints, or session/thread deletion endpoints, and it opens existing `state.db` data without creating or migrating workspace state. The command exits with an error when `.craft/state.db` does not exist.
 
-## Trace Event Types
+## Trace event types
 
 | Type | Description |
 |------|-------------|
@@ -37,7 +39,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `PromptCachePoint` | Prompt cache breakpoint summary |
 | `PromptCacheDiagnostic` | Prompt cache hit/break diagnostic |
 | `PromptCacheRequestShape` | OpenAI Responses request shape hashes for prompt-cache prefix diagnostics |
-| `SubAgentPrefixDiagnostic` | One-time comparison between a native SubAgent's first Responses request and its direct parent's fork anchor |
+| `SubAgentPrefixDiagnostic` | One-time comparison between a native subagent's first Responses request and its direct parent's fork anchor |
 | `MaintenanceForkRequest` | Maintenance fork request |
 | `MaintenanceForkResponse` | Maintenance fork response |
 
@@ -47,9 +49,7 @@ Dashboard records `Thinking` and `Response` trace events by contiguous streaming
 
 The **Responses** filter includes `Response` and `ResponseTerminal`. The **Provider** filter includes `ProviderError` and `ProviderResponseDiagnostic`.
 
-The **Instructions** filter includes `AgentInstructions`. Its `content` field contains the exact
-rendered instruction text, including an empty string when no instructions are loaded. Its
-`metadataJson` has this shape:
+The **Instructions** filter includes `AgentInstructions`. Its `content` field contains the exact rendered instruction text, including an empty string when no instructions are loaded. Its `metadataJson` has this shape:
 
 ```json
 {
@@ -61,16 +61,9 @@ rendered instruction text, including an empty string when no instructions are lo
 }
 ```
 
-The fingerprint covers both content and ordered sources. Equivalent snapshots are de-duplicated.
-This diagnostic is not a system prompt, ordinary request, or model-history item. Dashboard reads
-the persisted snapshot in live and standalone read-only modes instead of loading instruction files.
+The fingerprint covers both content and ordered sources. Equivalent snapshots are de-duplicated. This diagnostic is not a system prompt, ordinary request, or model-history item. Dashboard reads the persisted snapshot in live and standalone read-only modes instead of loading instruction files.
 
-Each completed provider stream attempt emits a `ProviderResponseDiagnostic` with
-`eventType=stream_attempt`. Its metadata includes `requestIndex`, `attemptNumber`, `retryLimit`,
-`outcome`, `retryDecision`, `failureKind`, `durationMs`, and `visibleOutputEmitted`. OpenAI
-Responses diagnostics also include the final HTTP status, upstream request ID, and SHA-256 hashes
-of the effective session, thread, and prompt-cache identities. Raw routing identities, credentials,
-request bodies, and response bodies are excluded.
+Each completed provider stream attempt emits a `ProviderResponseDiagnostic` with `eventType=stream_attempt`. Its metadata includes `requestIndex`, `attemptNumber`, `retryLimit`, `outcome`, `retryDecision`, `failureKind`, `durationMs`, and `visibleOutputEmitted`. OpenAI Responses diagnostics also include the final HTTP status, upstream request ID, and SHA-256 hashes of the effective session, thread, and prompt-cache identities. Raw routing identities, credentials, request bodies, and response bodies are excluded.
 
 Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 
@@ -78,23 +71,23 @@ Maintenance requests such as context compaction and memory consolidation also re
 
 `PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability. It also records sanitized effective option flags such as requested max output tokens, whether OAuth rewriting removes them before transport, reasoning effort, tool-choice kind, tool count, and streaming mode.
 
-`SubAgentPrefixDiagnostic` compares a native SubAgent's first OpenAI Responses request with the direct parent's request captured at fork time. Its `status` is `compatible`, `diverged`, or `unavailable`. `compatible` requires equal cache identity and leading request components plus at least one retained parent input item; a later fork-specific suffix is expected. Metadata contains component hashes, request and attempt indexes, input counts, the matched prefix length, `exactParentInputPrefix`, the first zero-based divergence index, and `changedFields`; it contains no prompt text, tool schema, or input item content. Chat Completions and Anthropic sessions expose their parent relationship without inferring prefix equality.
+`SubAgentPrefixDiagnostic` compares a native subagent's first OpenAI Responses request with the direct parent's request captured at fork time. Its `status` is `compatible`, `staticShared`, `diverged`, or `unavailable`. `compatible` requires equal cache identity and leading request components plus at least one retained parent input item; a later fork-specific suffix is expected. `staticShared` means the static prefix matched but no input item was retained. Metadata contains component hashes, request and attempt indexes, input counts, the matched prefix length, `exactParentInputPrefix`, the first zero-based divergence index, and `changedFields`; it contains no prompt text, tool schema, or input item content. Chat Completions and Anthropic sessions expose their parent relationship without inferring prefix equality.
 
 ## Endpoints
 
-### `GET /DashBoard`
+### `GET /dashboard/`
 
 Returns the Dashboard page.
 
-### `GET /DashBoard/api/summary`
+### `GET /dashboard/api/summary`
 
 Returns runtime summary, including session count, recent events, and module state.
 
-### `GET /DashBoard/api/sessions`
+### `GET /dashboard/api/sessions`
 
 Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `exactParentInputPrefix`, `expectedSharedPrefix`, cache/static compatibility flags, `divergenceIndex`, and `changedFields`. `status` is `compatible` when the static prefix matches and an ordered input prefix was retained, `staticShared` when the static prefix matches but no input item was retained, `diverged` when a leading request component changed, or `unavailable` when the parent shape was missing. `expectedSharedPrefix` is true only when the child inherited parent turns, so a `staticShared` child that was spawned fresh is not a defect. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
 
-### `GET /DashBoard/api/sessions/{sessionKey}/events`
+### `GET /dashboard/api/sessions/{sessionKey}/events`
 
 Returns trace events for one session.
 
@@ -120,7 +113,7 @@ Returns current workspace Dreams config, run status, active store, and latest ru
 
 ### `GET /dashboard/api/dreams/runs`
 
-Returns all Dreams run records, including archived runs. Archive changes review state and does not physically delete run artifacts.
+Returns Dreams run records. Archived runs are excluded unless the request passes `?includeArchived=true`. Archive changes review state and does not physically delete run artifacts.
 
 ### `GET /dashboard/api/dreams/runs/{runId}`
 
@@ -146,59 +139,45 @@ Returns `404 Not Found` when the run does not exist. Returns `409 Conflict` with
 
 Permanently deletes all Dreams runs. The request includes archived runs and uses the same cleanup rules as single-run deletion. If any run is running, the endpoint returns `409 Conflict` before deleting anything.
 
-After either endpoint succeeds, Dashboard rebuilds the latest Dreams state from the newest remaining run or clears it when no runs remain.
+After either endpoint succeeds, the latest Dreams state is rebuilt from the newest remaining run, or cleared when no run remains.
 
-A successful deletion returns:
+A successful single-run deletion returns:
 
 ```json
 {
-  "deletedRunIds": ["dream_20260511000000_abc123"],
-  "deletedCount": 1,
-  "activeDreamStoreId": "store_20260510000000_active",
+  "deleted": true,
+  "runId": "dream_20260511000000_abc123",
+  "outputStoreDeleted": true,
+  "activeStorePreserved": false,
+  "traceDeleted": true,
   "partial": false,
-  "traceCleanupFailures": []
+  "cleanupWarnings": []
 }
 ```
 
-Run/input and eligible output-store deletion is authoritative. Internal thread and trace cleanup is best-effort. If that cleanup fails after the Dreams artifacts are deleted, the endpoint still succeeds with `partial: true` and identifies each failure:
+Run/input and eligible output-store deletion is authoritative. Internal thread and trace cleanup is best effort. When that cleanup fails after the Dreams artifacts are deleted, the endpoint still succeeds, sets `partial: true`, and lists each failure in `cleanupWarnings`.
 
-```json
-{
-  "deletedRunIds": ["dream_20260511000000_abc123"],
-  "deletedCount": 1,
-  "activeDreamStoreId": "store_20260510000000_active",
-  "partial": true,
-  "traceCleanupFailures": [
-    {
-      "runId": "dream_20260511000000_abc123",
-      "threadId": "thread_20260511_abcd",
-      "error": "Internal thread cleanup failed."
-    }
-  ]
-}
-```
+Bulk deletion returns `deletedCount` and `traceDeletedCount` in place of `runId`, `outputStoreDeleted`, and `traceDeleted`. The remaining fields are the same.
 
-### `DELETE /api/sessions/{sessionKey}`
+### `DELETE /dashboard/api/sessions/{sessionKey}`
 
 Deletes one Dashboard session record.
 
-### `DELETE /api/sessions`
+### `DELETE /dashboard/api/sessions`
 
 Clears Dashboard session records.
 
-### `GET /api/events/stream`
+### `GET /dashboard/api/events/stream`
 
 Returns the event stream used by Dashboard.
 
-## Usage Notes
+## Usage notes
 
-- API path casing follows the existing Dashboard routes.
 - In standalone read-only mode, disabled feature and mutation endpoints return 404 or 405 because those routes are not registered.
 - Prefer binding to `127.0.0.1` for local debugging.
 - Do not expose an unprotected Dashboard in production or shared networks.
 
 ## Related docs
 
-- [Observability](../../features/self-hosted/observability)
-- [AppServer Protocol](./appserver-protocol)
-- [Hub Protocol](./hub-protocol)
+- [AppServer Protocol](./appserver-protocol) — the JSON-RPC surface that produces these traces.
+- [Hub Protocol](./hub-protocol) — where the local Dashboard URL is returned alongside the AppServer endpoint.

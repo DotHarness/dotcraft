@@ -38,20 +38,9 @@ foreach (var server in status.Data.Value ?? [])
     Console.WriteLine($"{server.Name.Value} {server.Origin.Value?.Kind.Value} {server.StartupState.Value}");
 ```
 
-```python [Python]
-status = await dotcraft.mcp_runtime.list_status(
-    thread_id=thread.id,
-    detail="full",
-)
-
-for server in status.data or []:
-    origin = server.origin.kind if server.origin else None
-    print(server.name, origin, server.startup_state, server.auth_status)
-```
-
 :::
 
-结果分页时，在下一次请求中使用 `nextCursor` / `next_cursor`。
+结果分页时，把 `nextCursor` 作为下一次请求的 `cursor` 传回去。
 
 ## 读取 resource
 
@@ -78,20 +67,11 @@ var resource = await client.McpRuntime.ReadResourceAsync(new McpServerResourceRe
 Console.WriteLine(resource.Contents.Value);
 ```
 
-```python [Python]
-resource = await dotcraft.mcp_runtime.read_resource(
-    "docs",
-    "docs://getting-started",
-    thread_id=thread.id,
-)
-print(resource.contents)
-```
-
 :::
 
 ## 调用 tool
 
-只有在确认 server 已启用、已启动并公开目标 tool 后才调用。Tool 参数由 MCP server 验证。
+先确认 server 已启用、已启动并公开了目标 tool，再发起调用。调用走的是与模型调用相同的 dispatcher，权限检查、schema 校验、审批策略和结果长度限制都照常生效。`threadId` 是必填项，它决定了生效的 server 快照。
 
 ::: code-group
 
@@ -123,25 +103,13 @@ var result = await client.McpRuntime.CallToolAsync(new McpServerToolCallParams
 Console.WriteLine(result.StructuredContent.Value ?? result.Content.Value);
 ```
 
-```python [Python]
-result = await dotcraft.mcp_runtime.call_tool(
-    thread.id,
-    "docs",
-    "search",
-    {"query": "thread lifecycle"},
-)
-if result.is_error:
-    raise RuntimeError("MCP tool call failed")
-print(result.structured_content or result.content)
-```
-
 :::
 
-这个控制调用会立即执行。若要让 agent 在 run 中选择并调用 MCP tool，请为 thread 配置 MCP server，再正常启动 run。
+这个控制调用会立刻执行，不经过模型。若要让 agent 自己在 run 中挑选并调用 MCP tool，为 thread 配置好 MCP server，正常启动 run 即可。
 
 ## 认证与重新加载
 
-当状态表明需要 OAuth 时，使用运行时名称启动登录。在用户浏览器中打开返回的授权 URL，并持续消费连接通知，直到登录完成或失败。
+只有 `authStatus` 为 `notLoggedIn` 的 server 才接受登录，其他状态下登录请求会被拒绝。用运行时名称发起登录，在用户浏览器中打开返回的授权 URL，然后等待 `mcpServer/oauthLogin/completed` 通知报告成功或失败。
 
 ::: code-group
 
@@ -170,21 +138,9 @@ Console.WriteLine(login.AuthorizationUrl.Value);
 await client.McpRuntime.ReloadAsync();
 ```
 
-```python [Python]
-login = await dotcraft.mcp_runtime.login_oauth(
-    name="docs",
-    thread_id=thread.id,
-    scopes=["read"],
-    timeout_secs=60,
-)
-print(login.authorization_url)
-
-await dotcraft.mcp_runtime.reload()
-```
-
 :::
 
-Reload 会重新读取 MCP 配置。它不会创建 server 定义，也不应该被当作失败 server 的重试循环。应先检查 `failureReason` / `failure_reason` 和 `lastError` / `last_error`。
+Reload 会重新读取 MCP 配置并重连生效的运行时。它不会创建 server 定义，也不是失败 server 的重试循环。server 起不来时，先看状态里的 `failureReason` 和 `lastError`。
 
 ## 选择正确的工具接口
 
@@ -196,7 +152,5 @@ Reload 会重新读取 MCP 配置。它不会创建 server 定义，也不应该
 
 ## 相关文档
 
-- [线程与运行](./runs)
-- [工具与审批](./tools)
-- [DotCraft App](../integrations/app-binding)
-- [AppServer 协议](../protocols/appserver-protocol)
+- [线程与运行](./runs)——这些控制调用所依附的 thread 生命周期。
+- [AppServer 协议](../protocols/appserver-protocol)——这些调用所属的 JSON-RPC 方法分组与能力协商。

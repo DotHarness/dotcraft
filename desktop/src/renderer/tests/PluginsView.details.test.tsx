@@ -128,6 +128,7 @@ describe('PluginsView details', () => {
     fireEvent.click(await screen.findByText('Agent Teams'))
 
     expect(await screen.findByText('Desktop Plugin')).toBeInTheDocument()
+    expect(screen.getByText('Adds the Team board to DotCraft Desktop.')).toBeInTheDocument()
   })
 
   it('enables LSP explicitly from plugin details', async () => {

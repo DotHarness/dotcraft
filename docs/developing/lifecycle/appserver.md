@@ -1,18 +1,10 @@
 # AppServer mode
 
-This page targets integrators and contributors who manage AppServer directly. AppServer is an optional protocol and transport boundary over the host-owned Session Core. It projects the host's single `ISessionService` to external clients through JSON-RPC rather than creating a second session kernel. Desktop, ACP, `dotcraft exec`, external channel adapters, and custom integrations can all connect to the same AppServer.
+This page targets integrators and contributors who manage AppServer directly; day-to-day Desktop and `dotcraft exec` go through [Hub local coordination](./hub). AppServer is an optional protocol and transport boundary over the host-owned [Session Core](../architecture/session-core): it projects the host's single `ISessionService` to external clients through JSON-RPC rather than creating a second session kernel. One AppServer process owns one Session Core, the stdio and WebSocket transports can be open at once, and Desktop, ACP, `dotcraft exec`, external channel adapters, and custom integrations all share the same session state when connected.
 
-Use cases:
+See [DotCraft SDKs](../sdks/) for client library APIs and [AppServer Protocol](../protocols/appserver-protocol) for wire messages.
 
-- Custom IDE / editor integrations
-- Remote development (clients connecting to a remote AppServer)
-- Multiple clients sharing the same workspace
-- Building non-C# clients (any language with WebSocket / stdio support)
-
-> [!NOTE]
-> Day-to-day Desktop and `dotcraft exec` go through [Hub local coordination](./hub). This page is for manual AppServer management.
-
-This page covers AppServer process startup, transport modes, configuration, lifecycle, and security. See [DotCraft SDKs](../sdks/) for client library APIs and [AppServer Protocol](../protocols/appserver-protocol) for wire messages.
+![DotCraft AppServer mode topology: one host process serves stdio and WebSocket at the same time, and external clients share a single Session Core](/appserver-mode-topology.svg)
 
 ## Starting AppServer
 
@@ -27,7 +19,9 @@ dotcraft app-server --listen ws://127.0.0.1:9100
 dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 ```
 
-The server listens on the bare `ws://host:port` (or `wss://host:port`) address; clients append the `/ws` path to connect, for example `ws://host:port/ws`. The examples below follow this rule.
+The server listens on the bare `ws://host:port` address, and clients append the `/ws` path to connect, for example `ws://host:port/ws`. The examples below follow this rule.
+
+The built-in listener does not terminate TLS, and `--listen wss://…` is rejected. For TLS, put a reverse proxy in front of AppServer to terminate it, and point clients at `wss://host/ws`.
 
 ## Connecting from the command line
 
@@ -58,7 +52,6 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this wor
 |---|---|---|---|
 | `stdio://` | Pure stdio (default) | Reserved for JSON-RPC | `--listen stdio://` |
 | `ws://host:port` | Pure WebSocket | Normal console output | `--listen ws://127.0.0.1:9100` |
-| `wss://host:port` | Pure WebSocket (TLS) | Normal console output | `--listen wss://0.0.0.0:9100` |
 | `ws+stdio://host:port` | stdio + WebSocket | Reserved for JSON-RPC | `--listen ws+stdio://127.0.0.1:9100` |
 
 ## Transport modes
@@ -103,7 +96,7 @@ For deployments that need both subprocess and remote connections.
 
 ## Security authentication
 
-When AppServer listens on a non-loopback address (not `127.0.0.1` / `::1`), **strongly** set up token authentication.
+A token is required when AppServer listens on a non-loopback address (not `127.0.0.1` / `::1`). Without one, AppServer refuses to start rather than leaving an unauthenticated open port.
 
 ### Server
 
@@ -117,10 +110,7 @@ dotcraft app-server --listen ws://0.0.0.0:9100 --token my-secret
 dotcraft exec --remote ws://server:9100/ws --token my-secret "Check status"
 ```
 
-The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`. Once the server sets `--token`, every client — Desktop, ACP, `dotcraft exec`, and custom clients — must send the same token; an empty token is rejected.
-
-> [!CAUTION]
-> Binding to `0.0.0.0` without a token leaves AppServer fully open.
+The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`. Once the server sets `--token`, every client — Desktop, ACP, `dotcraft exec`, and custom clients — must send the same token, and a missing or mismatched token is rejected with HTTP `401` before the WebSocket handshake completes. Token values must be URL-safe (alphanumeric plus `-`, `_`, `.`); otherwise the client percent-encodes them.
 
 ## Configuration
 
@@ -177,9 +167,7 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 }
 ```
 
-## How it works
-
-![DotCraft AppServer mode topology](/appserver-mode-topology.svg)
+## Common scenarios
 
 | Scenario | Approach |
 |---|---|
@@ -190,9 +178,6 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 
 ## Related docs
 
-- [Architecture overview](../architecture/overview) — assembly ownership and dependency boundaries
-- [SDK quickstart](../sdks/quickstart) — the recommended client path
-- [Configuration reference](../configuration) — `AppServer.*` / `CLI.*` fields
-- [AppServer Protocol](../protocols/appserver-protocol) — raw client protocol
-- [Hub local coordination](./hub) — the path Desktop and CLI take by default
-- [Unified Session Core](../architecture/session-core) — Thread / Turn / Item model
+- [SDK quickstart](../sdks/quickstart) — the recommended client path, without implementing the protocol yourself
+- [Configuration reference](../configuration) — full descriptions of the `AppServer.*` / `CLI.*` fields
+- [Architecture overview](../architecture/overview) — where AppServer sits among assembly ownership and dependency boundaries

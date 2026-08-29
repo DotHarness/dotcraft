@@ -117,6 +117,13 @@ Example MCP plugin:
 
 `skills` points to a plugin-contained skill directory, for example `"./skills/"`. Each child directory can contain a DotCraft-compatible `SKILL.md`. Skills contributed by enabled plugins are available in `skills/list` with source `plugin` and include `pluginId` / `pluginDisplayName` attribution. Disabling the plugin removes its contributed skills from agent context and hides compatibility built-in copies owned by that plugin.
 
+Skill interface icons without parent traversal resolve only from the child skill's own `assets/`
+directory. A plugin-contained skill may instead use a parent-relative path when its lexically
+normalized target is inside the owning plugin's root `assets/` directory. For the standard
+`skills/<skill-id>/` layout, `../../assets/icon.svg` reuses a plugin asset. Paths into any other
+plugin directory or outside the plugin root are ignored. Non-plugin skills never receive this
+shared-assets policy.
+
 `workflows` is an optional manifest-relative path to a plugin-contained workflow directory, for example
 `"./workflows/"`. If omitted and the root `./workflows/` directory exists, DotCraft discovers it by
 default. Enabled and installed plugins contribute its top-level `*.js` definitions under the stable
@@ -131,13 +138,14 @@ their parsing, approval, execution, and command registration follow
 ```json
 {
   "desktop": {
+    "description": "Adds review actions and result presentation to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
   }
 }
 ```
 
-The entry must be an ESM `.mjs` file, and every style must be `.css`. All paths are manifest-relative and confined to `./desktop/dist/`. The complete `desktop` declaration and output tree produce the revision projected through `plugin/list` and `plugin/view`.
+`description` is optional presentation metadata for clients listing the Desktop contribution. When it is absent, clients may fall back to the parent plugin description. The entry must be an ESM `.mjs` file, and every style must be `.css`. All paths are manifest-relative and confined to `./desktop/dist/`. The executable `entry` / `styles` declaration and output tree produce the revision projected through `plugin/list` and `plugin/view`; changing only `description` does not change that revision.
 
 The module exports one activation function. Activation may register renderer effects, UI surfaces, services, and events directly, and may return convenience contributions for main views, settings pages, conversation views, commands, tool renderers, and message actions. Desktop publishes and withdraws all registrations as one generation. The public Host API, lifecycle, trust boundary, and contribution contracts are defined by [Desktop Plugins](desktop-plugins.md).
 

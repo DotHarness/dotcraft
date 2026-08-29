@@ -2,7 +2,7 @@
 
 DotCraft Harness embeds DotCraft's agent runtime in your .NET process. Your application owns the host, configuration, workspace, lifecycle, and user experience while Harness provides the Agentic Loop, durable sessions, tools, approvals, and model integrations.
 
-Use Harness when a Console application, desktop application, service, or test environment needs to run an agent directly instead of delegating that responsibility to another process.
+Use Harness when a Console application, desktop application, service, or test environment runs an agent directly instead of delegating that responsibility to another process.
 
 ![DotCraft Harness in-process topology](/harness-runtime-topology.svg)
 
@@ -44,31 +44,31 @@ await host.StartAsync();
 await host.StopAsync();
 ```
 
-`AddDotCraftHarness` registers Runtime, the built-in configuration schema, OpenAI and Anthropic model providers, one validated `DotCraftPaths`, and one host-owned `ISessionService`.
+`AddDotCraftHarness` registers Runtime, the built-in configuration schema, OpenAI and Anthropic model providers, one validated `DotCraftPaths`, and one host-owned `ISessionService`. Runtime joins the Host lifecycle through an `IHostedService` and initializes when the Host starts.
 
 > [!TIP]
 > Keep composition at the application boundary. Domain services should depend on focused services such as `ISessionService` or `DotCraftPaths`, not on the Host itself.
 
 ## Explore the Harness
 
-### See a vertical desktop integration
-
-The repository includes **DotCraft Trace Viewer**, a WinUI 3 sample that embeds `DotCraft.Harness` to review persisted Agent traces. It combines a chronological Timeline with evidence-linked Findings while keeping the inspected workspace read-only.
-
-Select **Analyze trace** to review the session. Each Finding links to the relevant events in Timeline.
-
-Choose System, Light, or Dark from the workspace action area.
-
-DotCraft Trace Viewer is an integration sample, not a supported DotCraft client product. Run it from source with `dotnet run --project src/DotCraft.TraceViewer/DotCraft.TraceViewer.csproj`.
-
 - [Hosting and lifecycle](./hosting-lifecycle) explains Generic Host ownership and desktop application integration.
 - [Configuration and paths](./configuration-paths) defines configuration ownership, `.craft`, custom data directories, and user-data isolation.
 - [Threads and Turns](./threads-turns) shows how to create durable conversations and process streaming events.
 - [Tools and approvals](./tools-approvals) covers application-owned tools and approval handling.
 - [Model providers](./model-providers) configures OpenAI, Anthropic, and compatible endpoints.
-- [NuGet package](./nuget-package) installs Harness and describes the package contents.
+- [NuGet package](./nuget-package) covers installation and the assemblies the package ships.
+
+## See a desktop integration sample
+
+The repository includes **DotCraft Trace Viewer**, a WinUI 3 sample that embeds `DotCraft.Harness` to review persisted Agent traces. It presents execution as a chronological Timeline, links evidence through Findings, and keeps the inspected workspace read-only.
+
+Trace Viewer is an integration sample, not a supported DotCraft client product. Run it from source:
+
+```bash
+dotnet run --project src/DotCraft.TraceViewer/DotCraft.TraceViewer.csproj
+```
 
 ## Related docs
 
-- [Runtime architecture](../architecture/overview)
-- [Session Core](../architecture/session-core)
+- [Runtime architecture](../architecture/overview) — the assembly layering and boundaries Harness embeds.
+- [Session Core](../architecture/session-core) — the Thread, Turn, and Item model behind `ISessionService`.

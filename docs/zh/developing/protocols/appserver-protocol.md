@@ -1,10 +1,10 @@
-# AppServer Protocol
-
-> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist，包括连接认证、刷新、状态和撤销，binding 请求、激活、rebind 和列表，`app/surface/publish`，以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`。未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../integrations/app-binding)。
+# AppServer 协议
 
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 
-本页定义 AppServer JSON-RPC wire contract，包括初始化、消息方向、方法分组、传输、错误、顺序和兼容性。[DotCraft SDK](../sdks/) 页面介绍客户端库 API，[Hub Protocol](./hub-protocol)介绍本地 AppServer 的发现与启动。
+本页定义 AppServer JSON-RPC wire contract：初始化、消息方向、方法分组、传输、错误处理和客户端兼容性要求。[DotCraft SDK](../sdks/) 页面介绍各语言客户端库的 API，[Hub 协议](./hub-protocol)介绍本地 AppServer 的发现与启动。
+
+![DotCraft AppServer 协议流程](/appserver-protocol-flow.svg)
 
 ## 协议
 
@@ -67,8 +67,6 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
 ## 初始化
 
 每个连接的第一条 request 必须是 `initialize`。成功后，client 必须发送 `initialized` notification。
-
-![DotCraft AppServer protocol flow](/appserver-protocol-flow.svg)
 
 初始化 request:
 
@@ -141,7 +139,7 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
 |-----------|------|
 | Thread | 一个可恢复的会话，包含工作区、来源 channel、配置和 turns。 |
 | Turn | 一次用户输入及其触发的 agent 执行。 |
-| Item | turn 内的输入或输出单元，例如用户消息、agent 消息、命令执行、文件变更、工具调用、计划和 reasoning。 |
+| Item | turn 内的输入或输出单元，例如用户消息、agent 消息、命令执行、工具调用、工具结果和 reasoning。 |
 
 常见流程：
 
@@ -207,9 +205,9 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/unsubscribe` | 取消订阅线程事件。 |
 | `thread/rename` | 更新显示名称。 |
 | `thread/pause` | 暂停活跃线程，直到再次恢复。 |
-| `thread/archive` | 阻止新 Turn，停止或失效活跃后台终端，并归档线程及其 SubAgent 子树。 |
-| `thread/unarchive` | 恢复已归档线程，以及 SubAgent edge 仍为 open 的后代。显式关闭的后代保持归档。 |
-| `thread/delete` | 从持久化状态中永久删除线程及其 SubAgent 子树。线程专属文件采用 best effort 清理，失败后可以重试。 |
+| `thread/archive` | 阻止新 Turn，停止或失效活跃后台终端，并归档线程及其 subagent 子树。 |
+| `thread/unarchive` | 恢复已归档线程，以及 subagent edge 仍为 open 的后代。显式关闭的后代保持归档。 |
+| `thread/delete` | 从持久化状态中永久删除线程及其 subagent 子树。线程专属文件采用 best effort 清理，失败后可以重试。 |
 | `thread/config/update` | 更新线程配置。 |
 | `thread/mode/set` | 切换 agent mode，例如 `plan` 或 `agent`。 |
 
@@ -217,7 +215,7 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 
 `thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条，Item 页默认 100 条、最多 500 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
 
-归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 SubAgent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据。线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`。删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
+归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 subagent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据。线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`。删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
 
 ### Runtime Dynamic Tools 与 App Context
 
@@ -326,7 +324,7 @@ ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Run
 
 ## 事件
 
-AppServer 通过 notification 推送线程、turn 和 item 状态。Client 应持续读取传输流，并把 `item/completed` 视为该 item 的最终状态。
+AppServer 通过 notification 推送线程、turn 和 item 状态。持续读取传输流，并把 `item/completed` 视为该 item 的最终状态。
 
 常见 notification：
 
@@ -341,7 +339,6 @@ AppServer 通过 notification 推送线程、turn 和 item 状态。Client 应�
 | `turn/completed` | turn 成功完成。 |
 | `turn/failed` | turn 失败。 |
 | `turn/cancelled` | turn 被取消。 |
-| `turn/diff/updated` | 文件变更 diff 更新。 |
 | `plan/updated` | plan 更新，payload 包含来源 `threadId` 和完整 plan/todo 快照。 |
 | `item/started` | item 开始。 |
 | `item/completed` | item 完成，包含最终状态。 |
@@ -412,20 +409,23 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | 插件市场 | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | 用户管理的插件目录来源。 |
 | Commands | `command/list`, `command/execute` | 自定义命令发现和执行。 |
 | Models | `model/list` | 模型目录。 |
-| MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/status/list`, `mcp/test` | MCP 配置和状态。 |
+| MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP 配置和状态。 |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | 外部 channel 配置。 |
-| SubAgents | `subagent/profiles/list`, `subagent/profiles/upsert` | 子代理 profile 管理。 |
+| Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | subagent profile 管理。 |
 | Automations | `automation/task/list`, `automation/task/create`, `automation/task/discardWorktree` | 本地任务生命周期、绑定和受管 worktree 清理。 |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | 受管 Git worktree 状态和交接。 |
 | Workspace config | `workspace/config/update` | 工作区配置更新。 |
+| App Binding | `app/connection/authenticate`、`app/binding/activate`、`app/threadInput/enqueue` | 面向外部应用的扩展模块，由 `capabilities.appBindingVersion` 门控。 |
 
-Client 应根据 `initialize` 响应中的 `capabilities` 决定是否展示对应 UI。
+展示功能相关的 UI 之前，先读 `initialize` 响应中的 `capabilities`。
 
 `skills/list` 返回的 Skill 条目可能包含 `hasVariant: true`，表示当前运行环境下该技能会通过工作区适配内容执行。`skills/read` 仍读取源 `SKILL.md`。需要展示或执行有效内容时使用 `skills/view`。
 
+App Binding 客户端通过 `capabilities.appBindingVersion: 1` 协商版本。完成认证的 App principal 连接只能调用 app-role allowlist：连接认证、刷新、状态与撤销，binding 请求、激活、rebind 与列表，`app/surface/publish`，以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`，未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../integrations/app-binding)。
+
 ### Automation 和 worktree 状态
 
-Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`。Worktree 模式任务在受管 worktree 尚未创建、server 回退到任务 workspace、或 worktree 被丢弃后，会返回 `worktree: null`。
+Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`。Worktree 模式任务在三种情况下返回 `worktree: null`：受管 worktree 尚未创建、server 回退到任务 workspace、worktree 已被丢弃。
 
 渲染自动化审核 UI 的 client 可以对任务 Thread 调用 `worktree/status`。`ThreadWorktreeStatus` 包含 `hasUncommittedChanges`、`hasCommitsAheadOfBase` 和 `aheadCount`，足够用于紧凑状态提示以及删除/丢弃前的警告。
 
@@ -433,7 +433,7 @@ Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`
 
 ### Plugins 和 Skills 管理
 
-Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调用 `plugin/*` 前应检查 `capabilities.pluginManagement`，调用 `marketplace/*` 前应检查 `capabilities.pluginMarketplaces`。
+调用 `skills/*` 前检查 `capabilities.skillsManagement`，调用 `plugin/*` 前检查 `capabilities.pluginManagement`，调用 `marketplace/*` 前检查 `capabilities.pluginMarketplaces`。
 
 `skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载。plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `workspace/configChanged`，`regions: ["skills"]`。
 
@@ -449,7 +449,7 @@ Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调�
 
 ### 插件市场
 
-Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件。client 通过 `plugin/install` 把目录项安装到当前工作区。
+Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件。Client 通过 `plugin/install` 把目录项安装到当前工作区。
 
 #### `marketplace/add`
 
@@ -582,7 +582,7 @@ send(
 );
 ```
 
-生产 client 还应处理 process exit、JSON parse 错误、request timeout、approval requests、turn cancellation 和 reconnect。
+生产 client 还要处理 process exit、JSON parse 错误、request timeout、approval request、turn cancellation 和 reconnect。
 
 ## 错误与背压
 
@@ -620,8 +620,6 @@ JSON-RPC 错误响应使用标准 `error` 字段：
 
 ## 相关文档
 
-- [SDK 快速开始](../sdks/quickstart)
-- [Hub Protocol](./hub-protocol)
-- [Dashboard API](./dashboard-api)
-- [AppServer Mode](../lifecycle/appserver)
-- [插件与工具](../../features/agent-system/plugins-tools)
+- [SDK 快速开始](../sdks/quickstart)——不想手写本页契约时，用官方客户端库跑通同一条流程。
+- [AppServer 模式](../lifecycle/appserver)——本协议背后的进程如何启动、监听和退出。
+- [Dashboard API](./dashboard-api)——排查 trace 和会话记录用的另一套 HTTP 接口。

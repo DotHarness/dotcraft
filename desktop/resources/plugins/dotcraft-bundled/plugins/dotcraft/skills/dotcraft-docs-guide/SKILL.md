@@ -31,17 +31,23 @@ Write current, task-focused documentation and keep applicable localized mirrors 
    - Run targeted SDK/type checks when examples describe a current API surface.
    - Search for stale names, invalid install commands, old option names, and superseded guidance.
    - Compare locale page shapes mechanically when several mirrored pages changed.
+   - For zh pages, check punctuation (no "；") and the terminology rules in the profile.
+   - When polishing rewrites a page's behavioral claims, spot-check the strongest ones against the owning code or spec — a faithful rewrite of a stale claim is still wrong.
+   - When a change touches the theme's style layer, verify in a live browser against computed styles per the profile's "Site style layer" notes — never by reading CSS alone.
 
 ## Editing rules
 
 - Give each artifact one job. Link across tutorial, explanation, and reference layers instead of mixing them.
 - Lead user pages with the outcome. Keep developer pages neutral, exact, and organized around the contract.
+- User pages answer three questions only: what the feature is for, when to reach for it, and how to turn it on or use it. Defaults, config keys, internal state names, tool identifiers, and edge-case caveats belong in the developing references — link once inline where the need arises. Never inventory a settings page's controls as bullets; give the UI path once and let a screenshot or GIF show the rest.
+- Liveliness comes from concreteness and directness, not metaphor. Declarative sentences carry the page; at most an occasional light touch of humor. The target register: a capable colleague stating what the product does and when to reach for it — plain verbs, short sentences, zero marketing flourish.
 - Describe current behavior only. Keep migration rationale, compatibility history, and maintainer requirements in specs or issues.
 - State load-bearing rules in prose; never make an example the only place a requirement appears.
 - Keep examples minimal and executable. Verify API choices against the current implementation and owning specification instead of inferring them from this skill.
 - Use one H1 on ordinary content pages, sentence-case headings, tagged code fences, relative internal links, and accessible image alt text. Follow the existing structure for custom landing pages.
-- End documentation-site content pages with a localized `Related docs` footer. Do not impose that footer on repository READMEs unless their local convention uses it.
-- Preserve established product names, commands, identifiers, JSON fields, and code in every locale.
+- Place a page's primary figure directly after the intro block, above the first `##` heading; only a figure that explains one mid-page section follows that section's heading instead. Never use `---` horizontal rules — headings and whitespace carry the structure.
+- A localized `Related docs` footer is optional, not standard. Keep it only when the page has genuine same-audience next steps (curated, usually 2–3); drop the section entirely when nothing qualifies. Developer references and architecture pages never appear in a user page's footer — link those inline at the sentence that needs them.
+- Preserve established product names, commands, identifiers, JSON fields, and code in every locale. For Chinese pages, follow the terminology and punctuation rules in `references/project-profile.md`.
 
 ## Completion check
 

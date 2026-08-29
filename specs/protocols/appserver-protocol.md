@@ -365,7 +365,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "skillVariants": true,
     "runtimeAdditionalContext": true,
     "gitWorktrees": true,
-    "appBindingVersion": 2,
+    "appBindingVersion": 1,
     "commandManagement": true,
     "modelCatalogManagement": true,
     "workspaceConfigManagement": true,
@@ -397,7 +397,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
 | `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`). |
-| `capabilities.appBindingVersion` | number | App Binding control-plane version. Servers advertise `2`; clients requiring App Binding declare version `2` during initialize. |
+| `capabilities.appBindingVersion` | number | App Binding control-plane version. Servers advertise `1`; clients requiring App Binding declare version `1` during initialize. |
 | `capabilities.appThreadInputEnqueue` | boolean | Server supports App Binding-safe app-triggered queued input via `app/threadInput/enqueue`. |
 | `capabilities.approvalFlow` | boolean | Server may send approval requests. |
 | `capabilities.requestUserInput` | boolean | Server may expose the root-thread `RequestUserInput` tool and send `item/tool/requestUserInput` requests to capable clients. |
@@ -3567,7 +3567,7 @@ not mutate the run or emit an invalidation notification.
 
 ### 12.2 Compatibility rules
 
-Core, Desktop, ACP, and the .NET, TypeScript, and Python SDK protocol layers use canonical Runtime Dynamic declarations and results. Unknown methods return `-32601`, and clients ignore unrelated unknown optional fields.
+Core, Desktop, ACP, and the .NET and TypeScript SDK protocol layers use canonical Runtime Dynamic declarations and results. Unknown methods return `-32601`, and clients ignore unrelated unknown optional fields.
 
 Session tool payloads use canonical `namespace`/`toolName` plus `providerFlatName`. MCP Apps use the `mcpApps` capability and `mcpApp/view/*` contract.
 
@@ -4287,8 +4287,8 @@ All skills methods that return skill data use the following `SkillInfo` wire obj
 | `enabled` | boolean | `true` if the skill is active and will be included in agent context. `false` if the user has disabled it via `skills/setEnabled`. |
 | `path` | string | Absolute filesystem path to the source `SKILL.md` file. |
 | `hasVariant` | boolean? | Present and `true` when the current runtime resolves this skill through a current workspace variant. Omitted or `false` means the effective skill currently falls back to source. |
-| `iconSmallDataUrl` | string? | Optional small icon as a data URL. Resolved only from safe relative paths inside the skill directory. |
-| `iconLargeDataUrl` | string? | Optional large icon as a data URL. Resolved only from safe relative paths inside the skill directory. |
+| `iconSmallDataUrl` | string? | Optional small icon as a data URL. Resolved from the skill's own `assets/`, or for plugin skills from the owning plugin's shared `assets/`. |
+| `iconLargeDataUrl` | string? | Optional large icon as a data URL. Resolved from the skill's own `assets/`, or for plugin skills from the owning plugin's shared `assets/`. |
 | `defaultPrompt` | string? | Optional default starter prompt from `agents/openai.yaml` `interface.default_prompt`. |
 | `metadata` | object | Key-value pairs from the YAML frontmatter of `SKILL.md`. Common keys: `description`, `name`, `bins`, `env`, `always`. |
 
@@ -4303,7 +4303,7 @@ interface:
   default_prompt: "Use $browser to inspect a local browser target."
 ```
 
-Icon paths MUST be relative to the skill directory, MUST remain inside that directory after normalization, and SHOULD be ignored if missing, too large, or not an allowed image type.
+Icon paths MUST be relative. Paths without parent traversal MUST resolve inside the skill's own `assets/` directory. A plugin skill MAY use parent traversal only when the lexically normalized target remains inside the owning plugin's root `assets/` directory; other skills MUST reject parent traversal. Absolute paths, other plugin directories, paths outside the plugin root, missing or empty files, files larger than 512 KiB, and unsupported image types are ignored without discarding other valid interface metadata.
 
 ### 18.3 `skills/list`
 
@@ -4748,6 +4748,7 @@ Returns one plugin by id.
 | `skills` | `PluginSkillInfo[]` | required | Plugin-contained skills declared by the bundle. |
 | `workflows` | `PluginWorkflowInfo[]` | required | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
 | `apps` | `PluginAppInfo[]` | required | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
+| `desktop` | `PluginDesktopInfo` | conditional | Validated Desktop module metadata. When present, it contains the optional contribution-specific `description`, manifest-relative `entry` and `styles`, and executable content `revision`. |
 | `hooks` | `PluginHookInfo[]` | required | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
 | `mcpServers` | `PluginMcpServerInfo[]` | required | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
 | `diagnostics` | `PluginDiagnostic[]` | required | Safe discovery, admission, and preflight diagnostics attributed to this plugin; empty when none exist. |
@@ -6404,8 +6405,8 @@ Clients must check `capabilities.externalChannelManagement` before calling `exte
   "name": "telegram",
   "enabled": true,
   "transport": "subprocess",
-  "command": "python",
-  "args": ["-m", "dotcraft_telegram"],
+  "command": "node",
+  "args": ["index.js"],
   "workingDirectory": "./adapters/telegram",
   "env": { "TELEGRAM_BOT_TOKEN": "..." }
 }
@@ -6445,8 +6446,8 @@ Returns all configured external channels for the current workspace.
       "name": "telegram",
       "enabled": true,
       "transport": "subprocess",
-      "command": "python",
-      "args": ["-m", "dotcraft_telegram"]
+      "command": "node",
+      "args": ["./adapters/telegram/index.js"]
     }
   ]
 }
@@ -8063,7 +8064,7 @@ their own terms in this document.
 The executable representation is owned by `DotCraft.Protocol`: named
 wire DTOs and the typed RPC catalog bind every bundled method to its direction,
 params, result, module, capability, errors, and specification anchor. The
-checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript/Python
+checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript
 low-level bindings are deterministic projections governed by
 [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md).
 Runtime domain projections and high-level SDK models are not independent

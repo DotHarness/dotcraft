@@ -1,4 +1,6 @@
 interface:
   display_name: "DotCraft Context Handoff"
   short_description: "Find failed sessions and export a clean Markdown handoff"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
   default_prompt: "Use $dotcraft-context-handoff to find the relevant DotCraft session and export a clean Markdown handoff."

@@ -50,7 +50,7 @@ DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, l
 - Skill-only plugins are valid when `skills` points to a plugin-contained skills directory.
 - MCP-only plugins are valid when `mcpServers` points to a plugin-bundled MCP config or a root `.mcp.json` exists.
 - Hooks-only plugins are valid when `hooks` points to plugin hook files or a root `hooks/hooks.json` exists.
-- Desktop Plugins declare one inline `desktop` entry and optional styles inside `./desktop/dist/`.
+- Desktop Plugins declare one inline `desktop` entry, an optional contribution description, and optional styles inside `./desktop/dist/`.
 - Interface-only plugins are valid for catalog or UI metadata.
 - Managed plugins declare `dotnet` metadata and contribute native Tools from their C# implementation.
 - Manifest fields `tools`, `functions`, and `processes` are unsupported and must not be generated.
