@@ -2263,14 +2263,12 @@ function WelcomeAppBindingsButton({
     <AppBindingsPicker
       open={open}
       onOpenChange={setOpen}
-      activeCount={selectedAppIds.length}
       disabled={disabled}
       loading={loading}
       error={error}
       empty={apps.length === 0}
       emptyLabel={t('appBinding.welcomeEmpty')}
       onRetry={() => { void onRetry() }}
-      placement="welcome"
     >
       {apps.map((app) => {
         const selected = selectedAppIds.includes(app.appId)

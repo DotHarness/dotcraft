@@ -15,7 +15,6 @@ export function isAppReadyForBindingPicker(app: AppInfo): boolean {
 interface AppBindingsPickerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  activeCount: number
   disabled?: boolean
   loading?: boolean
   error?: string | null
@@ -23,7 +22,6 @@ interface AppBindingsPickerProps {
   emptyLabel: string
   onRetry?: () => void
   onOpen?: () => void
-  placement?: 'thread' | 'welcome'
   children: ReactNode
 }
 
@@ -31,7 +29,6 @@ interface AppBindingsPickerProps {
 export function AppBindingsPicker({
   open,
   onOpenChange,
-  activeCount,
   disabled = false,
   loading = false,
   error,
@@ -39,7 +36,6 @@ export function AppBindingsPicker({
   emptyLabel,
   onRetry,
   onOpen,
-  placement = 'thread',
   children
 }: AppBindingsPickerProps): JSX.Element {
   const t = useT()
@@ -72,29 +68,20 @@ export function AppBindingsPicker({
   }
 
   return (
-    <div ref={rootRef} className="dc-app-bindings-picker" data-placement={placement}>
+    <div ref={rootRef} className="dc-app-bindings-picker">
       <IconButton
-          ref={triggerRef}
-          className="dc-app-bindings-picker__trigger"
-          label={t('appBinding.title')}
-          tooltipLabel={t('appBinding.title')}
-          tooltipPlacement="bottom"
-          size={placement === 'welcome' ? 30 : 28}
-          bordered={placement === 'welcome'}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          disabled={disabled}
-          onClick={toggle}
-          style={placement === 'welcome' ? { width: 'auto', padding: '0 8px' } : undefined}
-          icon={(
-            <>
-              <Link2 size={15} aria-hidden />
-              {placement === 'welcome' && activeCount > 0 && (
-                <span className="dc-app-bindings-picker__count">{activeCount}</span>
-              )}
-            </>
-          )}
-        />
+        ref={triggerRef}
+        className="dc-app-bindings-picker__trigger"
+        label={t('appBinding.title')}
+        tooltipLabel={t('appBinding.title')}
+        tooltipPlacement="bottom"
+        size={28}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={toggle}
+        icon={<Link2 size={15} aria-hidden />}
+      />
       {open && (
         <div className="dc-app-bindings-picker__popover" role="dialog" aria-label={t('appBinding.title')}>
           <strong className="dc-app-bindings-picker__title">{t('appBinding.title')}</strong>

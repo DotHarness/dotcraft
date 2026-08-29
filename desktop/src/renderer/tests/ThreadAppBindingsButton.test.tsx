@@ -159,7 +159,6 @@ describe('ThreadAppBindingsButton', () => {
     expect(screen.queryByText('board.read, board.manage')).toBeNull()
     expect(container.querySelector('img[src^="data:image/svg+xml"]')).not.toBeNull()
     expect(button).not.toHaveAttribute('data-bordered')
-    expect(container.querySelector('.dc-app-bindings-picker__count')).toBeNull()
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('app/list', expect.objectContaining({
         threadId: 'thread-1',

@@ -121,10 +121,6 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     })
   }, [pendingSocialHandoffs, threadApps, threadBindings])
 
-  const activeBindingCount = useMemo(
-    () => rows.filter((row) => row.binding != null && row.binding.state !== 'revoked' && row.binding.state !== 'cancelled').length,
-    [rows]
-  )
   const pickerLoading = loading || appsLoading
 
   if (!canUseAppBinding) return null
@@ -215,7 +211,6 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     <AppBindingsPicker
       open={open}
       onOpenChange={setOpen}
-      activeCount={activeBindingCount}
       loading={pickerLoading || busyKey === 'retry'}
       error={error || appsError}
       empty={rows.length === 0}
