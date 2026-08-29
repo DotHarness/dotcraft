@@ -1210,7 +1210,7 @@ describe('ConversationWelcome composer', () => {
       capabilities: {
         commandManagement: true,
         skillsManagement: true,
-        appBindingVersion: 2,
+        appBindingVersion: 1,
         extensions: { welcomeSuggestions: true }
       }
     })
@@ -1271,7 +1271,7 @@ describe('ConversationWelcome composer', () => {
       capabilities: {
         commandManagement: true,
         skillsManagement: true,
-        appBindingVersion: 2,
+        appBindingVersion: 1,
         extensions: { welcomeSuggestions: true }
       }
     })
@@ -1803,7 +1803,7 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
-        appBindingVersion: 2,
+        appBindingVersion: 1,
         commandManagement: true,
         skillsManagement: true,
         modelCatalogManagement: true,
@@ -1922,7 +1922,7 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
-        appBindingVersion: 2,
+        appBindingVersion: 1,
         commandManagement: true,
         skillsManagement: true,
         modelCatalogManagement: true,

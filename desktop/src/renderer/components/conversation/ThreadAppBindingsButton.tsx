@@ -40,7 +40,7 @@ interface PendingSocialHandoff {
 
 export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonProps): JSX.Element | null {
   const t = useT()
-  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBindingVersion === 2)
+  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBindingVersion === 1)
   const bindings = useAppBindingStore((s) => s.bindingsByThread[threadId] ?? EMPTY_THREAD_APP_BINDINGS)
   const loading = useAppBindingStore((s) => s.bindingsLoadingByThread[threadId] === true)
   const error = useAppBindingStore((s) => s.bindingsErrorByThread[threadId] ?? null)

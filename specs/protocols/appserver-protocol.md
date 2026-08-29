@@ -365,7 +365,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "skillVariants": true,
     "runtimeAdditionalContext": true,
     "gitWorktrees": true,
-    "appBindingVersion": 2,
+    "appBindingVersion": 1,
     "commandManagement": true,
     "modelCatalogManagement": true,
     "workspaceConfigManagement": true,
@@ -397,7 +397,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
 | `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`). |
-| `capabilities.appBindingVersion` | number | App Binding control-plane version. Servers advertise `2`; clients requiring App Binding declare version `2` during initialize. |
+| `capabilities.appBindingVersion` | number | App Binding control-plane version. Servers advertise `1`; clients requiring App Binding declare version `1` during initialize. |
 | `capabilities.appThreadInputEnqueue` | boolean | Server supports App Binding-safe app-triggered queued input via `app/threadInput/enqueue`. |
 | `capabilities.approvalFlow` | boolean | Server may send approval requests. |
 | `capabilities.requestUserInput` | boolean | Server may expose the root-thread `RequestUserInput` tool and send `item/tool/requestUserInput` requests to capable clients. |
@@ -3567,7 +3567,7 @@ not mutate the run or emit an invalidation notification.
 
 ### 12.2 Compatibility rules
 
-Core, Desktop, ACP, and the .NET, TypeScript, and Python SDK protocol layers use canonical Runtime Dynamic declarations and results. Unknown methods return `-32601`, and clients ignore unrelated unknown optional fields.
+Core, Desktop, ACP, and the .NET and TypeScript SDK protocol layers use canonical Runtime Dynamic declarations and results. Unknown methods return `-32601`, and clients ignore unrelated unknown optional fields.
 
 Session tool payloads use canonical `namespace`/`toolName` plus `providerFlatName`. MCP Apps use the `mcpApps` capability and `mcpApp/view/*` contract.
 
@@ -6405,8 +6405,8 @@ Clients must check `capabilities.externalChannelManagement` before calling `exte
   "name": "telegram",
   "enabled": true,
   "transport": "subprocess",
-  "command": "python",
-  "args": ["-m", "dotcraft_telegram"],
+  "command": "node",
+  "args": ["index.js"],
   "workingDirectory": "./adapters/telegram",
   "env": { "TELEGRAM_BOT_TOKEN": "..." }
 }
@@ -6446,8 +6446,8 @@ Returns all configured external channels for the current workspace.
       "name": "telegram",
       "enabled": true,
       "transport": "subprocess",
-      "command": "python",
-      "args": ["-m", "dotcraft_telegram"]
+      "command": "node",
+      "args": ["./adapters/telegram/index.js"]
     }
   ]
 }
@@ -8064,7 +8064,7 @@ their own terms in this document.
 The executable representation is owned by `DotCraft.Protocol`: named
 wire DTOs and the typed RPC catalog bind every bundled method to its direction,
 params, result, module, capability, errors, and specification anchor. The
-checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript/Python
+checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript
 low-level bindings are deterministic projections governed by
 [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md).
 Runtime domain projections and high-level SDK models are not independent

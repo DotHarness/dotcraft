@@ -150,7 +150,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             RequestUserInputSupport = options.RequestUserInputSupport,
             StreamingSupport = options.StreamingSupport,
             ConfigChange = options.ConfigChange,
-            AppBindingVersion = 2,
+            AppBindingVersion = 1,
             ExtensionData = options.ExtraCapabilities?.ToDictionary(
                 pair => pair.Key,
                 pair => JsonSerializer.SerializeToElement(pair.Value, DotCraftJson.Options))

@@ -284,8 +284,8 @@ public static class AppServerErrors
             AppBindingUpgradeRequiredCode,
             "AppBindingUpgradeRequired",
             "errors.appBindingUpgradeRequired",
-            "App Binding version 2 is required",
-            new AppBindingVersionErrorParams(2));
+            "App Binding version 1 is required",
+            new AppBindingVersionErrorParams(1));
 
     public static AppServerException AppPrincipalUnauthorized(string detail) =>
         Create(

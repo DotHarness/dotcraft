@@ -25389,7 +25389,7 @@
       "paramsType": "app-binding.AppBindingActivateParams",
       "resultType": "app-binding.AppBinding",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25409,7 +25409,7 @@
       "paramsType": "app-binding.AppBindingRebindParams",
       "resultType": "app-binding.AppBinding",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25429,7 +25429,7 @@
       "paramsType": "app-binding.AppBindingRequestGetParams",
       "resultType": "app-binding.AppBindingRequestGetResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25449,7 +25449,7 @@
       "paramsType": "app-binding.AppBindingRequestedNotification",
       "resultType": "core.RpcEmpty",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [],
@@ -25465,7 +25465,7 @@
       "paramsType": "core.RpcEmpty",
       "resultType": "app-binding.AppBindingsListResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25485,7 +25485,7 @@
       "paramsType": "app-binding.AppConnectionAuthenticateParams",
       "resultType": "app-binding.AppConnectionAuthenticateResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25505,7 +25505,7 @@
       "paramsType": "app-binding.AppConnectionChangedNotification",
       "resultType": "core.RpcEmpty",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [],
@@ -25521,7 +25521,7 @@
       "paramsType": "app-binding.AppConnectionConnectParams",
       "resultType": "app-binding.AppConnectionConnectResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25541,7 +25541,7 @@
       "paramsType": "core.RpcEmpty",
       "resultType": "app-binding.AppConnectionRefreshResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25561,7 +25561,7 @@
       "paramsType": "app-binding.AppConnectionRequestGetParams",
       "resultType": "app-binding.AppConnectionRequestGetResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25581,7 +25581,7 @@
       "paramsType": "app-binding.AppConnectionRevokeParams",
       "resultType": "app-binding.AppConnectionRevokeResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25601,7 +25601,7 @@
       "paramsType": "app-binding.AppConnectionStartParams",
       "resultType": "app-binding.AppConnectionStartResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25621,7 +25621,7 @@
       "paramsType": "app-binding.AppConnectionStatusParams",
       "resultType": "app-binding.AppConnectionStatusResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25641,7 +25641,7 @@
       "paramsType": "app-binding.AppListParams",
       "resultType": "app-binding.AppListResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25661,7 +25661,7 @@
       "paramsType": "app-binding.AppListUpdatedNotification",
       "resultType": "core.RpcEmpty",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [],
@@ -25677,7 +25677,7 @@
       "paramsType": "app-binding.SocialBindingAcceptParams",
       "resultType": "app-binding.AppBinding",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25697,7 +25697,7 @@
       "paramsType": "app-binding.SocialBindingRebindParams",
       "resultType": "app-binding.AppBinding",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25717,7 +25717,7 @@
       "paramsType": "app-binding.SocialBindingRequestGetParams",
       "resultType": "app-binding.AppBindingRequest",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25737,7 +25737,7 @@
       "paramsType": "app-binding.AppSocialBindingResolveParams",
       "resultType": "app-binding.AppSocialBindingResolveResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25757,7 +25757,7 @@
       "paramsType": "app-binding.AppSurfacePublishParams",
       "resultType": "app-binding.AppSurface",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25777,7 +25777,7 @@
       "paramsType": "app-binding.AppSurfaceResolveParams",
       "resultType": "app-binding.AppSurface",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25797,7 +25797,7 @@
       "paramsType": "app-binding.AppThreadInputEnqueueParams",
       "resultType": "app-binding.AppThreadInputEnqueueResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -25817,7 +25817,7 @@
       "paramsType": "app-binding.AppViewParams",
       "resultType": "app-binding.AppViewResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -28861,7 +28861,7 @@
       "paramsType": "app-binding.ThreadAppBindingsChangedNotification",
       "resultType": "core.RpcEmpty",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "thread",
       "notificationOptOut": false,
       "errors": [],
@@ -28877,7 +28877,7 @@
       "paramsType": "app-binding.ThreadAppBindingConfirmCapabilitiesParams",
       "resultType": "app-binding.AppBinding",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "thread",
       "notificationOptOut": false,
       "errors": [
@@ -28897,7 +28897,7 @@
       "paramsType": "app-binding.ThreadAppBindingEnableParams",
       "resultType": "app-binding.ThreadAppBindingEnableResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "thread",
       "notificationOptOut": false,
       "errors": [
@@ -28917,7 +28917,7 @@
       "paramsType": "app-binding.ThreadAppBindingsListParams",
       "resultType": "app-binding.ThreadAppBindingsListResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "thread",
       "notificationOptOut": false,
       "errors": [
@@ -28937,7 +28937,7 @@
       "paramsType": "app-binding.ThreadAppBindingRevokeParams",
       "resultType": "app-binding.AppBinding",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "thread",
       "notificationOptOut": false,
       "errors": [
@@ -29481,7 +29481,7 @@
       "paramsType": "app-binding.ThreadSocialBindingRequestCreateParams",
       "resultType": "app-binding.ThreadSocialBindingRequestCreateResult",
       "module": "app-binding",
-      "capability": "appBindingVersion:2",
+      "capability": "appBindingVersion:1",
       "scope": "thread",
       "notificationOptOut": false,
       "errors": [

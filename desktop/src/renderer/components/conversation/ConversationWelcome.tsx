@@ -350,7 +350,7 @@ function ConversationWelcomeCore({
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
   const canUseThreadGoals = capabilities?.threadGoals === true
-  const canUseAppBinding = capabilities?.appBindingVersion === 2
+  const canUseAppBinding = capabilities?.appBindingVersion === 1
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
   // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)

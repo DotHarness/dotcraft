@@ -7,16 +7,16 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class AppBindingProtocolTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"appbinding-v2-wire-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Combine(Path.GetTempPath(), $"appbinding-wire-{Guid.NewGuid():N}");
     private string DataPath => Path.Combine(_root, ".agents");
 
     [Fact]
-    public async Task Initialize_ReportsOnlyAppBindingVersion2()
+    public async Task Initialize_ReportsOnlyAppBindingVersion1()
     {
         using var harness = CreateHarness();
         using var initialized = await harness.InitializeAsync();
         var capabilities = initialized.RootElement.GetProperty("result").GetProperty("capabilities");
-        Assert.Equal(2, capabilities.GetProperty("appBindingVersion").GetInt32());
+        Assert.Equal(1, capabilities.GetProperty("appBindingVersion").GetInt32());
         Assert.False(capabilities.TryGetProperty("appBinding", out _));
         Assert.False(capabilities.TryGetProperty("appContextBlocks", out _));
     }
