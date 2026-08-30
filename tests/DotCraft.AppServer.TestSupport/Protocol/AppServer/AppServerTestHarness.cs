@@ -89,7 +89,8 @@ public sealed class AppServerTestHarness : IDisposable
         AppServerPluginManagementState? pluginManagementState = null,
         Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
             broadcastPluginSnapshotUpdated = null,
-        LspServerManager? lspServerManager = null)
+        LspServerManager? lspServerManager = null,
+        PluginConfigStore? pluginConfigStore = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -154,6 +155,7 @@ public sealed class AppServerTestHarness : IDisposable
                 SubAgentCoordinatorFactory = subAgentCoordinatorFactory,
                 HookRunner = hookRunner,
                 PluginDotnetRuntimeCoordinator = pluginDotnetRuntimeCoordinator,
+                PluginConfigStore = pluginConfigStore,
                 PluginManagementState = pluginManagementState ?? new AppServerPluginManagementState(),
                 BroadcastPluginSnapshotUpdated = broadcastPluginSnapshotUpdated,
                 Contributions = contributions,

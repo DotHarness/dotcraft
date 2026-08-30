@@ -102,9 +102,8 @@
 }
 
 .dc-icon-button:disabled {
-  color: var(--text-dimmed);
+  color: var(--text-disabled);
   cursor: default;
-  opacity: 0.65;
 }
 
 /* High-contrast neutral close affordance over attachment media thumbnails. */

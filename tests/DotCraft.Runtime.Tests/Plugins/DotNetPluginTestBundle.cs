@@ -135,7 +135,8 @@ internal static class DotNetPluginTestBundle
         string version = "1.0.0",
         IReadOnlyDictionary<string, string>? dependencies = null,
         IReadOnlyList<string>? exportedApiAssemblies = null,
-        IReadOnlyList<string>? runtimeReferences = null)
+        IReadOnlyList<string>? runtimeReferences = null,
+        string? settings = null)
     {
         var dotnetRoot = Path.Combine(pluginRoot, "dotnet");
         Directory.CreateDirectory(dotnetRoot);
@@ -155,6 +156,9 @@ internal static class DotNetPluginTestBundle
             : string.Empty;
         var exportsJson = string.Join(", ", (exportedApiAssemblies ?? [])
             .Select(static path => $"\"{path}\""));
+        var settingsJson = string.IsNullOrWhiteSpace(settings)
+            ? string.Empty
+            : $",\n  \"settings\": \"{settings}\"";
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             $$"""
@@ -169,7 +173,7 @@ internal static class DotNetPluginTestBundle
                 "entryAssembly": "./dotnet/Plugin.dll",
                 "entryType": "{{entryType}}",
                 "exportedApiAssemblies": [{{exportsJson}}]
-              }{{dependencyJson}}
+              }{{settingsJson}}{{dependencyJson}}
             }
             """);
     }

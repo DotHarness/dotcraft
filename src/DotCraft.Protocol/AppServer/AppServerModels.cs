@@ -311,6 +311,10 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginManagement { get; init; }
 
+    [JsonPropertyName("pluginConfiguration")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PluginConfiguration { get; init; }
+
     [JsonPropertyName("pluginMarketplaces")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginMarketplaces { get; init; }

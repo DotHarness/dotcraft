@@ -596,6 +596,7 @@ function WindowFrame({
   return (
     <div
       className="dotcraft-window-frame"
+      data-plain-surface={plainSurface ? 'true' : undefined}
       style={{
         position: 'relative',
         display: 'flex',
@@ -605,7 +606,6 @@ function WindowFrame({
         overflow: 'hidden',
         isolation: 'isolate',
         borderRadius: useRendererRadius && !maximized ? 'var(--shell-window-radius)' : 0,
-        background: plainSurface ? 'var(--welcome-surface)' : 'var(--chrome-glass)',
         boxShadow: 'inset 0 0 0 1px var(--shell-chrome-border)'
       }}
     >

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grok preview</title>
+    <link rel="stylesheet" href="./index.css" />
+    <style>
+      :root {
+        --bg-primary: #141515;
+        --bg-secondary: #202020;
+        --text-primary: #eeeeec;
+        --text-secondary: #a9a9a6;
+        --border-default: rgba(238, 238, 236, 0.1);
+        --border-active: rgba(238, 238, 236, 0.18);
+        --accent: #4566cc;
+        --success: #22c55e;
+        --error: #ef4444;
+      }
+      body {
+        margin: 0;
+        padding: 24px 28px 60px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font: 13px/1.5 system-ui, sans-serif;
+      }
+      body.light {
+        --bg-primary: #f9f9f9;
+        --bg-secondary: #ffffff;
+        --text-primary: #1a1c1f;
+        --text-secondary: #5b5f66;
+        --border-default: rgba(26, 28, 31, 0.1);
+        --border-active: rgba(26, 28, 31, 0.18);
+        --accent: #4f6cce;
+        --success: #16a34a;
+        --error: #dc2626;
+      }
+      h2 {
+        margin: 26px 0 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        letter-spacing: 0.02em;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        align-items: flex-end;
+      }
+      .cell {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+        margin: 0;
+        padding: 14px 10px 8px;
+        border: 1px solid var(--border-default);
+        border-radius: 12px;
+        background: var(--bg-secondary);
+      }
+      figcaption {
+        font-size: 11px;
+        color: var(--text-secondary);
+      }
+      #theme {
+        position: fixed;
+        top: 12px;
+        right: 16px;
+        padding: 6px 12px;
+        border: 1px solid var(--border-active);
+        border-radius: 999px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="theme" type="button">Toggle theme</button>
+    <div id="root"></div>
+    <script src="./preview.js"></script>
+    <script>
+      document.getElementById('theme').addEventListener('click', () => {
+        document.body.classList.toggle('light')
+      })
+    </script>
+  </body>
+</html>

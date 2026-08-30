@@ -10,6 +10,7 @@ import { openAppHandoff } from './AppBindingPanel'
 import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { IdentityMark } from '../ui/IdentityMark'
 
 type NativeStatus = 'installed' | 'missing' | 'unknown'
 type SetupStage = 'pluginInstall' | 'trustRequired' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
@@ -197,16 +198,15 @@ export function PluginInstallDialog({
       <div style={dialogCard} onMouseDown={(event) => event.stopPropagation()}>
         <IconButton label={t('common.close')} onClick={onClose} style={closeButton} icon={<X size={16} aria-hidden />} />
         <div style={logoRow}>
-          <span style={brandLogo}><img src={dotharLogoUrl} alt="" style={logoImg} /></span>
+          <IdentityMark role="hero" size={56} src={dotharLogoUrl} fallback="D" />
           <span style={dotTrail}>•••</span>
-          <PluginIcon plugin={plugin} size={56} />
+          <PluginIcon plugin={plugin} role="hero" size={56} />
         </div>
         <h2 id="plugin-install-title" style={titleStyle}>{dialogTitle}</h2>
         <div style={subtitleStyle}>{t('plugins.developedBy', { developer: plugin.interface?.developerName || 'DotHarness' })}</div>
         <div style={infoCard}>
           <div style={cardTitleLine}>
             <strong>{title}</strong>
-            <span style={badge}>{plugin.source || 'builtin'}</span>
           </div>
           <div style={muted}>{t('plugins.providedBy', { developer: plugin.interface?.developerName || 'DotHarness' })}</div>
           <div style={muted}>{t('plugins.detail.category')}: {plugin.interface?.category || 'Coding'}</div>
@@ -472,11 +472,14 @@ function AppSetupRow({
 }
 
 function AppSetupIcon({ app }: { app: PluginAppInfo }): JSX.Element {
-  if (app.icon) return <img src={app.icon} alt="" style={appSetupIconImg} />
   return (
-    <span style={appSetupIconFallback} aria-hidden>
-      <Link2 size={15} />
-    </span>
+    <IdentityMark
+      role="list"
+      size={36}
+      src={app.icon}
+      fallback={<Link2 size={15} />}
+      framed={!app.icon}
+    />
   )
 }
 
@@ -540,14 +543,11 @@ const closeButton: CSSProperties = {
   cursor: 'pointer'
 }
 const logoRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }
-const brandLogo: CSSProperties = { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', display: 'inline-flex' }
-const logoImg: CSSProperties = { width: '100%', height: '100%' }
 const dotTrail: CSSProperties = { color: 'var(--text-dimmed)', letterSpacing: 2 }
 const titleStyle: CSSProperties = { margin: '18px 0 4px', textAlign: 'center', fontSize: 22, fontWeight: 700 }
 const subtitleStyle: CSSProperties = { textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginBottom: 24 }
 const infoCard: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 12, padding: 16, marginBottom: 18 }
-const cardTitleLine: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }
-const badge: CSSProperties = { padding: '2px 7px', borderRadius: 999, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11 }
+const cardTitleLine: CSSProperties = { fontSize: 14 }
 const muted: CSSProperties = { marginTop: 8, color: 'var(--text-secondary)', fontSize: 12 }
 const divider: CSSProperties = { height: 1, backgroundColor: 'var(--border-subtle)', margin: '16px 0' }
 const sectionTitle: CSSProperties = { fontSize: 13, fontWeight: 700, marginBottom: 8 }
@@ -590,7 +590,5 @@ const appSetupList: CSSProperties = { display: 'flex', flexDirection: 'column', 
 const appSetupRow: CSSProperties = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, width: '100%' }
 const appSetupBody: CSSProperties = { display: 'flex', flexDirection: 'column', flex: '1 1 180px', minWidth: 0 }
 const appSetupActions: CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, flex: '0 1 auto' }
-const appSetupIconImg: CSSProperties = { width: 36, height: 36, borderRadius: 8, objectFit: 'contain', flex: '0 0 auto' }
-const appSetupIconFallback: CSSProperties = { width: 36, height: 36, borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }
 const primaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 999, backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px' }
 const secondaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 650, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px' }

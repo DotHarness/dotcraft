@@ -9333,6 +9333,133 @@
       },
       "additionalProperties": true
     },
+    "PluginConfigField": {
+      "title": "PluginConfigField",
+      "type": "object",
+      "properties": {
+        "defaultValue": {},
+        "key": {
+          "type": "string"
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "key",
+        "type"
+      ]
+    },
+    "PluginConfigGetParams": {
+      "title": "PluginConfigGetParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id"
+      ]
+    },
+    "PluginConfigMutateParams": {
+      "title": "PluginConfigMutateParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginConfigMutationOperation"
+          }
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "operations",
+        "scope"
+      ]
+    },
+    "PluginConfigMutationOperation": {
+      "title": "PluginConfigMutationOperation",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "key",
+        "op"
+      ]
+    },
+    "PluginConfigSchema": {
+      "title": "PluginConfigSchema",
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginConfigField"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "fields"
+      ]
+    },
+    "PluginConfigSnapshot": {
+      "title": "PluginConfigSnapshot",
+      "type": "object",
+      "properties": {
+        "personal": {},
+        "schema": {
+          "$ref": "#/$defs/PluginConfigSchema"
+        },
+        "value": {},
+        "workspace": {},
+        "writableScopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "personal",
+        "schema",
+        "value",
+        "workspace",
+        "writableScopes"
+      ]
+    },
     "PluginDependencyInfo": {
       "title": "PluginDependencyInfo",
       "type": "object",
@@ -11195,6 +11322,9 @@
           "type": "boolean"
         },
         "modelCatalogManagement": {
+          "type": "boolean"
+        },
+        "pluginConfiguration": {
           "type": "boolean"
         },
         "pluginManagement": {

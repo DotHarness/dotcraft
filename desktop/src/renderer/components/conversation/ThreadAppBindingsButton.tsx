@@ -13,6 +13,7 @@ import { addToast } from '../../stores/toastStore'
 import { Button } from '../ui/Button'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { PillSwitch } from '../ui/PillSwitch'
+import { IdentityMark } from '../ui/IdentityMark'
 import { openAppHandoff } from '../plugins/AppBindingPanel'
 import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
 
@@ -346,15 +347,13 @@ function AppIcon({
   label?: string
 }): JSX.Element {
   if (icon) {
-    return <img src={icon} alt="" style={bindingIconImg} />
+    return <IdentityMark role="list" size={30} src={icon} fallback={<Link2 size={15} />} />
   }
   if (channelName) {
     return <ChannelIconBadge channelName={channelName} tooltip={label || channelName} size={30} />
   }
   return (
-    <span style={bindingIconFallback} aria-hidden>
-      <Link2 size={15} />
-    </span>
+    <IdentityMark role="list" size={30} fallback={<Link2 size={15} />} framed />
   )
 }
 
@@ -440,7 +439,5 @@ function formatSocialTarget(target: NonNullable<ThreadBindingLike['socialTarget'
 
 const bindingSubtitle: CSSProperties = { marginTop: 3, color: 'var(--text-secondary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const bindingInstruction: CSSProperties = { marginTop: 4, color: 'var(--text-primary)', fontSize: 11, lineHeight: 1.35, overflowWrap: 'anywhere' }
-const bindingIconImg: CSSProperties = { width: 30, height: 30, display: 'block', flex: '0 0 auto', objectFit: 'contain' }
-const bindingIconFallback: CSSProperties = { width: 30, height: 30, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }
 const capabilityReview: CSSProperties = { gridColumn: '2 / -1', paddingTop: 4 }
 const reviewActions: CSSProperties = { display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }

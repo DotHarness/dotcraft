@@ -28,6 +28,7 @@ internal sealed partial class PluginRequestHandler(
     HookRunner? hookRunner,
     IPluginWorkflowSummaryProvider? workflowSummaryProvider,
     IPluginDotnetRuntimeCoordinator? dotnetRuntime,
+    PluginConfigStore? pluginConfigStore,
     Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
         broadcastPluginSnapshotUpdated,
     AppServerPluginManagementState managementState,
@@ -37,11 +38,13 @@ internal sealed partial class PluginRequestHandler(
     {
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginConfigGet, HandlePluginConfigGetAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginRemove, HandlePluginRemoveAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginSetEnabled, HandlePluginSetEnabledAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginSetTrusted, HandlePluginSetTrustedAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.PluginConfigMutate, HandlePluginConfigMutateAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceAdd, HandleMarketplaceAddAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceRemove, HandleMarketplaceRemoveAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
@@ -58,6 +61,7 @@ internal sealed partial class PluginRequestHandler(
         var p = request.Params;
         var discovery = RefreshPluginRuntime();
         var diagnostics = discovery.Diagnostics.ToList();
+        AppendPluginConfigDiagnostics(discovery, diagnostics);
         // The .NET runtime's own findings, such as a failed activation, have no other way to a client.
         diagnostics.AddRange(dotnetRuntime?.Snapshot.Diagnostics ?? []);
         var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
@@ -94,6 +98,7 @@ internal sealed partial class PluginRequestHandler(
 
         var discovery = RefreshPluginRuntime();
         var diagnostics = discovery.Diagnostics.ToList();
+        AppendPluginConfigDiagnostics(discovery, diagnostics);
         var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);

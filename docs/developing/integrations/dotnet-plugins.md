@@ -147,7 +147,7 @@ The activation context carries both directions of the plugin model:
 | **`ContentRoot` / `DataRoot` / `WorkspaceRoot`** | The generation's read-only shadow copy, the plugin's mutable data directory, and the workspace. |
 | **`Settings`** | This plugin's effective settings, snapshotted for the activation generation. |
 
-Treat `ContentRoot` as read-only and put mutable state under `DataRoot`.
+Treat `ContentRoot` as read-only and put mutable state under `DataRoot`. The host resolves `DataRoot` to `<UserDataPath>/plugins/<id>/data` when `UserDataPath` is configured, and to `<DataPath>/plugin-data/<id>` otherwise. Hooks and LSP processes from the same plugin receive the same directory through `DOTCRAFT_PLUGIN_DATA`.
 
 Make every `Contributions.Add` call from inside `ActivateAsync`. The host seals the registrar when activation commits, so later calls from background work are rejected. To change a generation's contribution set, change its inputs and let runtime reconciliation restart the generation.
 
@@ -174,14 +174,14 @@ Consumption carries the same version binding as the rest of the kernel surface: 
 
 ### Read your own settings
 
-`context.Settings` is a snapshot of this plugin's effective `Plugins.Settings[id]` bag, captured when its generation activates. Its shape belongs to the plugin and the host does not validate it. A configuration edit becomes visible only after runtime reconciliation restarts the generation, and it never mutates a captured activation context.
+`context.Settings` is a snapshot of this plugin's effective schema-backed settings, captured when its generation activates. Declare `"settings": "./settings.schema.json"` in the manifest. The host validates schema defaults and both stored layers, then resolves defaults, personal settings, and workspace settings in that order. Objects merge recursively; arrays and scalars replace lower layers.
 
 ```csharp
 var limit = context.Settings.TryGetProperty("checklistLimit", out var value)
     && value.TryGetInt32(out var parsed) ? parsed : 3;
 ```
 
-Give every field a fallback because an unconfigured plugin reads an empty object. If you deserialize to plugin-defined types, keep serializer options and metadata plugin-owned so the generation can unload.
+Use schema defaults for every field the plugin expects. A configuration mutation quiesces the current generation before writing and automatically reconciles the plugin and its required dependency closure afterward. A failed quiesce leaves the file unchanged; a failed write restores the original generation. A captured activation context is never mutated in place. If you deserialize to plugin-defined types, keep serializer options and metadata plugin-owned so the generation can unload.
 
 For the complete contribution catalog, ordering, typed exports, trust, and generation lifecycle, see [.NET Plugin API and lifecycle](./dotnet-plugin-reference).
 

@@ -82,7 +82,7 @@ function NoticeDivider({ ariaLabel, icon, title, detail }: NoticeDividerProps): 
         style={{
           flex: 1,
           height: 1,
-          background: 'var(--border-color, rgba(127,127,127,0.25))'
+          background: 'var(--border-default)'
         }}
       />
       <span
@@ -92,7 +92,7 @@ function NoticeDivider({ ariaLabel, icon, title, detail }: NoticeDividerProps): 
           gap: 6,
           padding: '2px 8px',
           borderRadius: 999,
-          background: 'var(--bg-subtle, rgba(127,127,127,0.08))'
+          background: 'var(--bg-tertiary)'
         }}
       >
         {icon}
@@ -106,7 +106,7 @@ function NoticeDivider({ ariaLabel, icon, title, detail }: NoticeDividerProps): 
         style={{
           flex: 1,
           height: 1,
-          background: 'var(--border-color, rgba(127,127,127,0.25))'
+          background: 'var(--border-default)'
         }}
       />
     </div>

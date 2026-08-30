@@ -5,6 +5,7 @@ using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Skills;
 using DotCraft.AppServer;
+using DotCraft.Workspaces;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using Xunit;
@@ -53,6 +54,10 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
             appConfigMonitor: new AppConfigMonitor(config),
             mcpClientManager: mcpClientManager,
             pluginDotnetRuntimeCoordinator: pluginDotnetRuntimeCoordinator,
+            pluginConfigStore: new PluginConfigStore(new DotCraftPaths(
+                _tempRoot,
+                _workspaceCraftPath,
+                Path.Combine(_tempRoot, "user-data"))),
             builtInPluginSourceRoots: includeBundledRoots ? [_bundledPluginSourceRoot] : []);
     }
 

@@ -1,8 +1,7 @@
 .anchor {
-  position: fixed;
-  right: 14px;
-  bottom: 14px;
-  z-index: calc(var(--z-tooltip) - 1);
+  display: inline-flex;
+  flex: 0 0 auto;
+  pointer-events: auto;
 }
 
 .indicator {

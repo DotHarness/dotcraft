@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000">
+  <defs>
+    <linearGradient id="dawn" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#ffe6ef"/>
+      <stop offset="0.5" stop-color="#ffd0e0"/>
+      <stop offset="1" stop-color="#f7c7d8"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.24" cy="0.2" r="0.4">
+      <stop offset="0" stop-color="#fff3c4" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff3c4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#dawn)"/>
+  <rect width="1600" height="1000" fill="url(#sun)"/>
+  <g fill="#ff9fbe" opacity="0.5">
+    <ellipse cx="240" cy="300" rx="16" ry="9" transform="rotate(-24 240 300)"/>
+    <ellipse cx="620" cy="180" rx="13" ry="7" transform="rotate(18 620 180)"/>
+    <ellipse cx="1020" cy="420" rx="18" ry="10" transform="rotate(-12 1020 420)"/>
+    <ellipse cx="1340" cy="240" rx="14" ry="8" transform="rotate(32 1340 240)"/>
+    <ellipse cx="820" cy="720" rx="15" ry="8" transform="rotate(-30 820 720)"/>
+    <ellipse cx="380" cy="820" rx="12" ry="7" transform="rotate(10 380 820)"/>
+  </g>
+</svg>

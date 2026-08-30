@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.15.0 |
+| **Version** | 0.16.0 |
 | **Status** | Living |
-| **Date** | 2026-08-25 |
+| **Date** | 2026-08-29 |
 | **Related specs** | [Plugin Architecture](plugin-architecture.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Session Core](session-core.md), [Tool Architecture](tools-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 This specification defines trusted, in-process .NET plugins. The shared plugin manifest,
@@ -246,14 +246,22 @@ completes.
 `Services` is a filtered, host-owned view of public application services. It does not expose the
 root provider, contribution registry, service-scope factories, host lifecycle, or plugin-runtime
 control plane. Plugins
-must not dispose resolved services. `Settings` is a host-owned snapshot of the plugin's effective
-`Plugins.Settings[id]` bag captured for the activation generation and is an empty object when
-absent. Configuration changes require runtime reconciliation and a generation restart; they never
+must not dispose resolved services. `Settings` is a host-owned snapshot resolved from the plugin's
+schema defaults, personal `plugin-config.json`, and workspace `plugin-config.json` when the
+activation generation starts. It is an empty object when the manifest declares no settings schema.
+Configuration changes require runtime reconciliation and a generation restart; they never
 mutate an already activated context.
 
 Resources and background work belong to `IPluginLifetime`. Contribution instances may borrow
 those resources; they must not dispose them. Raw threads, static subscriptions, native callbacks,
 and untracked tasks can pin a generation and are plugin defects.
+
+`DataRoot` uses the canonical host-side plugin data directory: `<UserDataPath>/plugins/<id>/data`
+when `UserDataPath` is configured, otherwise `<DataPath>/plugin-data/<id>`. It is independent from
+both plugin configuration documents. A settings mutation that affects a .NET plugin follows the
+normal quiesce, write, and reconcile lifecycle. Quiesce failure writes nothing. Write failure
+restores the old generation. A successful write restarts the plugin and every required dependent
+generation so each activation receives a coherent new snapshot.
 
 ### 6.1 Manifest
 

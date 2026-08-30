@@ -179,7 +179,7 @@ const bodyFrame: React.CSSProperties = {
   overflow: 'auto',
   padding: '16px 18px',
   borderRadius: 12,
-  border: '1px solid var(--border-secondary)',
+  border: '1px solid var(--border-default)',
   background: 'var(--bg-primary)',
 }
 

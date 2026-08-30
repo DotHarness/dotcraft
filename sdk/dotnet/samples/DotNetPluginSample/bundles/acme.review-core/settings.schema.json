@@ -1,0 +1,12 @@
+{
+  "fields": [
+    { "key": "checklistLimit", "type": "number", "defaultValue": 3, "min": 1, "max": 10 },
+    {
+      "key": "tone",
+      "type": "select",
+      "defaultValue": "coaching",
+      "options": ["coaching", "direct", "concise"]
+    },
+    { "key": "maxInputLength", "type": "number", "defaultValue": 32, "min": 1, "max": 10000 }
+  ]
+}

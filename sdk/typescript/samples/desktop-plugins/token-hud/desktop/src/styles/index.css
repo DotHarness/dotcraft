@@ -1,0 +1,76 @@
+.token-hud {
+  display: inline-flex;
+  min-height: 24px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--border-active);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  opacity: var(--token-hud-opacity, 0.8);
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+
+.token-hud-cell {
+  display: inline-flex;
+  min-width: 0;
+  gap: 3px;
+  align-items: baseline;
+}
+
+.token-hud-cell + .token-hud-cell {
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+}
+
+.token-hud-cell[data-metric='speed'] {
+  min-width: 7ch;
+}
+
+.token-hud-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.token-hud-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-dimmed);
+}
+
+.token-hud[data-busy='true'] {
+  opacity: 1;
+}
+
+.token-hud[data-busy='true'] .token-hud-dot {
+  background: var(--accent);
+  animation: token-hud-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes token-hud-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .token-hud,
+  .token-hud[data-busy='true'] .token-hud-dot {
+    transition: none;
+    animation: none;
+  }
+}

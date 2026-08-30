@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.0 |
+| Version | 1.1 |
 | Status | Accepted |
 | Date | 2026-08-09 |
 | Parent Spec | `specs/architecture/DESIGN.md` |
@@ -84,6 +84,55 @@ Features do not set `scrollbar-width`. Current Chromium gives that property
 precedence over the `::-webkit-scrollbar` pseudo-elements, so an element
 declaring it drops the shared geometry and its own webkit thumb rules become
 dead code. The one sanctioned use is `none`, to hide a scrollbar deliberately.
+
+## Design tokens
+
+Color is derived rather than enumerated. Three layers own it, and each reads only
+the layer above it.
+
+| Layer | Where | Written by |
+| --- | --- | --- |
+| Seed | inline on the document element | `shared/themeDerive.ts` |
+| Semantic | `foundations/tokens.css`, `foundations/themes.css` | authored CSS, `color-mix` off the seed |
+| Component | the same two files | authored CSS, resolving from the semantic layer |
+
+The seed is four values per variant — `--seed-surface`, `--seed-ink`,
+`--seed-accent`, and a 0-100 `--seed-contrast` — plus `--contrast-k`, the
+normalized multiplier the ramps read. `surface` is the base plane: the page in
+dark, the card in light, so both variants move away from it the same way, by
+mixing in ink. Every ramp percentage is `base% + var(--contrast-k) * slope%`,
+with each base solved so the authored value reproduces at that variant's default
+contrast.
+
+`themeDerive.ts` writes only what CSS cannot compute: the three seed colors, the
+contrast multiplier, and `--on-accent`, whose choice needs relative luminance. A
+field left at its variant default is removed rather than restated, so an
+uncustomized app resolves entirely from the stylesheet. The ink is not a separate
+control; it follows the surface, so a chosen background cannot leave text
+unreadable.
+
+Three rules keep the layers honest:
+
+- The color axes are closed. Surfaces are `--bg-*`, text is `--text-*`, borders
+  are `--border-*`. A new color belongs on an existing axis or is not a token.
+- A component token resolves from the semantic layer, never from a literal. A
+  literal there is a value no seed can reach.
+- Component qualifiers name first-class surfaces only, such as `--composer-*`,
+  `--sidebar-*`, `--shell-*`, `--main-surface-*`, and `--glass-*`. A one-off does
+  not earn a prefix.
+
+Some families stay literal on purpose. The sixteen `--ansi-*` are a protocol
+palette, `--code-block-bg` matches the bundled syntax theme's own background, and
+the status hues along with `--brand-blue-*` and `--find-match` are identities
+rather than derivations. `--bg-inverse` and `--text-on-inverse` are the opposite
+variant's tones, which one variant's seed cannot state.
+
+`shared/titleBarOverlay.ts` applies the same chrome mix to the native caption bar
+and the pre-paint window background, so the seed reaches outside the renderer.
+
+The subset a plugin may read is published in
+`docs/developing/integrations/desktop-plugin-api.md`. Every other custom property
+moves with Desktop's own layout work.
 
 ## Workflow and lifecycle
 

@@ -21,6 +21,9 @@ out
 .vscode
 .claude
 .craft
+!sdk/typescript/samples/desktop-plugins/.craft/
+!sdk/typescript/samples/desktop-plugins/.craft/plugins/
+!sdk/typescript/samples/desktop-plugins/.craft/plugins/marketplace.json
 .cursor/*
 .ai
 /references

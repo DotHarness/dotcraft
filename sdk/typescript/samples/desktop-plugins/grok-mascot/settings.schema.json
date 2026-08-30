@@ -1,0 +1,17 @@
+{
+  "fields": [
+    {
+      "key": "color",
+      "type": "select",
+      "defaultValue": "auto",
+      "options": ["auto", "black", "brown", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta", "gray"]
+    },
+    {
+      "key": "shape",
+      "type": "select",
+      "defaultValue": "auto",
+      "options": ["auto", "blob", "pebble", "squircle", "tablet", "wedge", "hex", "cloud", "teardrop"]
+    },
+    { "key": "statusRing", "type": "bool", "defaultValue": true }
+  ]
+}

@@ -189,7 +189,7 @@ const imageStyle: CSSProperties = {
 const closeButtonStyle: CSSProperties = {
   borderRadius: '50%',
   color: 'var(--text-primary)',
-  boxShadow: 'var(--shadow-overlay)'
+  boxShadow: 'var(--shadow-level-3)'
 }
 
 const closeButtonWrapperStyle: CSSProperties = {
@@ -213,7 +213,7 @@ const zoomControlsStyle: CSSProperties = {
   border: '1px solid var(--glass-border)',
   background: 'var(--bg-elevated)',
   color: 'var(--text-primary)',
-  boxShadow: 'var(--shadow-overlay)',
+  boxShadow: 'var(--shadow-level-3)',
   zIndex: 2,
   cursor: 'default'
 }

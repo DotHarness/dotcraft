@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/PluginConfigMutationOperation.schema.json",
+  "title": "PluginConfigMutationOperation",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string"
+    },
+    "op": {
+      "type": "string"
+    },
+    "value": {}
+  },
+  "additionalProperties": true,
+  "required": [
+    "key",
+    "op"
+  ]
+}

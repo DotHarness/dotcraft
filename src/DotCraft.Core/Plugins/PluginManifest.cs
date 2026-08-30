@@ -36,6 +36,8 @@ public sealed record PluginManifest
 
     public string? AppsPath { get; init; }
 
+    public PluginSettingsSchema? Settings { get; init; }
+
     public PluginDesktopManifest? Desktop { get; init; }
 
     public string? WorkflowsPath { get; init; }
@@ -229,6 +231,12 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
+        var settings = ParseSettings(
+            pluginRoot,
+            raw.Settings,
+            raw.Id,
+            manifestPath,
+            diagnostics);
         var desktop = ParseDesktop(
             pluginRoot,
             raw.Desktop,
@@ -316,6 +324,7 @@ public static partial class PluginManifestParser
             McpServersPath = mcpServersPath,
             LspServersPath = lspServersPath,
             AppsPath = appsPath,
+            Settings = settings,
             Desktop = desktop,
             WorkflowsPath = workflowsPath,
             Hooks = hooks,
@@ -848,6 +857,8 @@ public static partial class PluginManifestParser
         public string? LspServers { get; set; }
 
         public string? Apps { get; set; }
+
+        public string? Settings { get; set; }
 
         public RawPluginDesktop? Desktop { get; set; }
 

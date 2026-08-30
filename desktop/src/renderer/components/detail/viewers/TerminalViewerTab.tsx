@@ -5,7 +5,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { useConversationStore } from '../../../stores/conversationStore'
-import { createTerminalThemeFromDocument, useDocumentThemeMode } from './viewerTheme'
+import { createTerminalThemeFromDocument } from './viewerTheme'
+import { useDocumentThemeMode } from '../../../utils/theme'
 
 interface TerminalViewerTabProps {
   tabId: string

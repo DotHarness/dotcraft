@@ -7,6 +7,7 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Trash2 } from 'lucide-react'
+import { IdentityMark } from '../ui/IdentityMark'
 
 interface WeComConfigFormProps {
   value: WeComChannelConfig
@@ -32,13 +33,7 @@ export function WeComConfigForm({
   return (
     <div>
       <div style={formStyles.header}>
-        <img
-          src={logoPath}
-          alt={t('channels.channel.wecom')}
-          width={32}
-          height={32}
-          style={formStyles.headerLogo}
-        />
+        <IdentityMark role="list" size={32} src={logoPath} fallback="W" />
         <div>
           <div style={formStyles.headerTitle}>{t('channels.wecom.title')}</div>
           <StatusPill status={status} label={statusLabel} />

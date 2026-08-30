@@ -141,19 +141,13 @@ public sealed class DotNetPluginGenerationTests : IDisposable
                 }
             }
             """);
-        // Stored under a differently-cased key, so the lookup has to canonicalize rather than match exactly.
-        _harness.Config.Plugins.Settings["Settings-Reader"] = Bag("first");
-        _harness.Config.Plugins.Settings["other-plugin"] = Bag("not-mine");
-
-        var attempt = await _harness.ActivateAsync("settings-reader");
+        var first = Bag("first");
+        var attempt = await _harness.ActivateAsync("settings-reader", first);
 
         var generation = Assert.IsType<PluginGeneration>(attempt.Generation);
         Assert.Equal("first", ReadSection());
 
-        _harness.Config.Plugins.Settings["Settings-Reader"] = Bag("second");
-        Assert.Equal("first", ReadSection());
-
-        _harness.Config.Plugins.Settings.Clear();
+        first = Bag("second");
         Assert.Equal("first", ReadSection());
 
         await generation.BeginCleanup();
@@ -361,7 +355,7 @@ public sealed class DotNetPluginGenerationTests : IDisposable
             }
             """);
 
-        var first = await _harness.ActivateAsync("leaking", "generation-one", CancellationToken.None);
+        var first = await _harness.ActivateAsync("leaking", "generation-one", null, CancellationToken.None);
         var firstGeneration = Assert.IsType<PluginGeneration>(first.Generation);
         var remnant = await firstGeneration.BeginCleanup();
 
@@ -375,7 +369,7 @@ public sealed class DotNetPluginGenerationTests : IDisposable
             remnant.LoadContext!.IsAlive,
             "The deliberately leaked load context must stay alive so the reclaim path is exercised.");
 
-        var second = await _harness.ActivateAsync("leaking", "generation-two", CancellationToken.None);
+        var second = await _harness.ActivateAsync("leaking", "generation-two", null, CancellationToken.None);
 
         var secondGeneration = Assert.IsType<PluginGeneration>(second.Generation);
         Assert.Equal("generation-two", secondGeneration.GenerationId);

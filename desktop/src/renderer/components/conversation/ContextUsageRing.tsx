@@ -112,7 +112,7 @@ export function ContextUsageRing(): JSX.Element | null {
             borderRadius: 6,
             background: 'var(--bg-elevated, #1f2228)',
             color: 'var(--text-primary, #f5f5f5)',
-            border: '1px solid var(--border-color, rgba(127,127,127,0.35))',
+            border: '1px solid var(--border-default)',
             boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
             fontSize: 11,
             lineHeight: 1.5,

@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using DotCraft.Configuration;
+using System.Text.Json;
 using DotCraft.Contributions;
 using DotCraft.Plugins;
 
@@ -10,8 +10,7 @@ namespace DotCraft.Runtime;
 internal sealed record PluginGenerationHost(
     IServiceProvider Services,
     IContributionRegistry Contributions,
-    PluginCallGateRegistry CallGates,
-    AppConfig Config);
+    PluginCallGateRegistry CallGates);
 
 /// <summary>What a torn-down generation leaves behind for the reclaim poller.</summary>
 /// <param name="LoadContext">Weak by construction: a poller able to keep the context alive could never observe its collection.</param>
@@ -118,6 +117,7 @@ internal sealed class PluginGeneration
         string shadowRoot,
         string dataRoot,
         string workspaceRoot,
+        JsonElement settings,
         PluginGenerationHost host,
         IReadOnlyDictionary<string, PluginGeneration> directProviders,
         PluginActivationCommitGate commitGate,
@@ -165,7 +165,7 @@ internal sealed class PluginGeneration
                 shadowRoot,
                 dataRoot,
                 workspaceRoot,
-                host.Config,
+                settings,
                 new PluginVisibleServiceProvider(host.Services),
                 registrar,
                 lifetime,

@@ -19,9 +19,9 @@ Follow the [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart)
 - [Tools and approvals](https://www.dotcraft.net/developing/sdks/tools)
 - [Channel adapters](https://www.dotcraft.net/developing/sdks/channels)
 
-## Examples
+## Samples
 
-- [TypeScript SDK examples](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
+- [TypeScript SDK samples](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/samples)
 
 ## Links
 

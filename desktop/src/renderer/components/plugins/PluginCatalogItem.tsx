@@ -4,6 +4,7 @@ import type { PluginEntry } from '../../stores/pluginStore'
 import { styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PluginInstallButton } from './PluginInstallButton'
+import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 
 export function PluginCatalogItem({
   plugin,
@@ -47,7 +48,7 @@ export function PluginCatalogItem({
         ...style
       }}
     >
-      <PluginIcon plugin={plugin} size={40} />
+      <PluginIcon plugin={plugin} role="list" />
       <span style={pluginText}>
         <strong style={catalogStyles.rowTitle}>{pluginTitle(plugin)}</strong>
         <span style={catalogStyles.rowDesc}>{pluginSubtitle(plugin)}</span>
@@ -90,12 +91,27 @@ export function PluginCatalogItem({
   )
 }
 
-export function PluginIcon({ plugin, size }: { plugin: PluginEntry; size: number }): JSX.Element {
+export function PluginIcon({
+  plugin,
+  role,
+  size,
+}: {
+  plugin: PluginEntry
+  role: IdentityMarkRole
+  size?: number
+}): JSX.Element {
   const icon = plugin.interface?.composerIconDataUrl || plugin.interface?.logoDataUrl
   return (
-    <span style={{ ...iconShell, width: size, height: size, backgroundColor: plugin.interface?.brandColor || '#0B63CE' }}>
-      {icon ? <img src={icon} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : pluginTitle(plugin).slice(0, 1)}
-    </span>
+    <IdentityMark
+      role={role}
+      size={size}
+      src={icon}
+      fallback={pluginTitle(plugin).slice(0, 1)}
+      style={{
+        '--identity-mark-fallback-background': plugin.interface?.brandColor || '#0B63CE',
+        '--identity-mark-fallback-color': '#fff',
+      } as CSSProperties}
+    />
   )
 }
 
@@ -112,17 +128,6 @@ export function pluginSourceLabel(plugin: PluginEntry): string {
 }
 
 const pluginText: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }
-const iconShell: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 8,
-  overflow: 'hidden',
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 700,
-  flex: '0 0 auto'
-}
 function actionBackground(rowActive: boolean): string {
   return rowActive
     ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'

@@ -36,9 +36,21 @@ internal sealed class PluginRuntimeHarness : IDisposable
     public string PluginRoot(string pluginId) => Path.Combine(Workspace, ".craft", "plugins", pluginId);
 
     public string DataPath(string pluginId, string fileName) =>
-        Path.Combine(Root, "user-data", "plugins", pluginId, fileName);
+        Path.Combine(Root, "user-data", "plugins", pluginId, "data", fileName);
 
     public string GenerationsRoot => Path.Combine(Workspace, ".craft", "runtime");
+
+    public PluginConfigStore CreatePluginConfigStore()
+    {
+        var options = new DotCraftRuntimeOptions
+        {
+            Config = Config,
+            WorkspacePath = Workspace,
+            DataPath = ".craft",
+            UserDataPath = Path.Combine(Root, "user-data")
+        };
+        return new PluginConfigStore(DotCraftPathResolver.Resolve(options));
+    }
 
     /// <summary>Trusts every installed bundle. Grants are fingerprint-bound, so rewriting a bundle
     /// afterwards invalidates its grant.</summary>

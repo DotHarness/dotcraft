@@ -44,7 +44,10 @@ public static class PluginLspServerLoader
         var discovery = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
         var servers = discovery.Plugins
-            .SelectMany(plugin => LoadPluginServers(plugin, allDiagnostics, paths.UserData.RootPath))
+            .SelectMany(plugin => LoadPluginServers(
+                plugin,
+                allDiagnostics,
+                PluginDataPaths.Resolve(paths, plugin.Manifest.Id)))
             .ToList();
         diagnostics = allDiagnostics;
         return servers;
@@ -53,7 +56,7 @@ public static class PluginLspServerLoader
     public static IReadOnlyList<LspServerConfig> LoadPluginServers(
         DiscoveredPlugin plugin,
         List<PluginDiagnostic> diagnostics,
-        string? userDataPath = null)
+        string? pluginDataPath = null)
     {
         var manifest = plugin.Manifest;
         var path = manifest.LspServersPath;
@@ -147,7 +150,7 @@ public static class PluginLspServerLoader
             }
 
             var clone = server.Clone();
-            var pluginDataPath = GetPluginDataPath(manifest.Id, userDataPath);
+            pluginDataPath ??= string.Empty;
             clone.Name = $"{manifest.Id}:{declaredName}";
             clone.Transport = clone.NormalizedTransport;
             clone.Origin = LspServerOrigin.Plugin(
@@ -261,11 +264,6 @@ public static class PluginLspServerLoader
         server.EnvironmentVariables["DOTCRAFT_PLUGIN_ROOT"] = pluginRoot;
         server.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"] = pluginDataPath;
     }
-
-    private static string GetPluginDataPath(string pluginId, string? userDataPath) =>
-        string.IsNullOrWhiteSpace(userDataPath)
-            ? string.Empty
-            : Path.Combine(userDataPath, "plugins", pluginId, "data");
 
     private static bool TryGetObjectProperty(JsonElement element, string name, out JsonElement value)
     {

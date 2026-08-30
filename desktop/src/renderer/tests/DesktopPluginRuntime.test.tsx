@@ -1,9 +1,15 @@
-import type { DesktopPluginActivation, DesktopPluginHost } from '@dotcraft/plugin'
+import type {
+  DesktopPluginActivation,
+  DesktopPluginEnvironmentSnapshot,
+  DesktopPluginHost
+} from '@dotcraft/plugin'
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { THEME_CHANGED_EVENT } from '../../shared/theme'
 import {
   clearDesktopPluginRegistry,
+  resolveDesktopPluginLabel,
   useDesktopPluginRegistry
 } from '../plugins/desktopPluginRegistry'
 import {
@@ -14,7 +20,10 @@ import { openDesktopPluginUrl } from '../plugins/desktopPluginOpenUrl'
 import { clearDesktopPluginKernel } from '../plugins/desktopPluginKernel'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useToastStore } from '../stores/toastStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { DEFAULT_SEEDS } from '../../shared/themeSeed'
+import { reapplyThemeSeed } from '../utils/appearance'
 
 const revisionA = 'a'.repeat(64)
 const revisionB = 'b'.repeat(64)
@@ -62,6 +71,12 @@ function namedPlugin(id: string, revision = revisionA, enabled = true): PluginEn
     mcpServers: [],
     lspServers: []
   }
+}
+
+function applyTheme(theme: 'light' | 'dark'): void {
+  document.documentElement.dataset.theme = theme
+  reapplyThemeSeed()
+  window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail: { mode: theme } }))
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
@@ -361,12 +376,25 @@ describe('DesktopPluginRuntime', () => {
     const unsubscribe = vi.fn()
     installDesktopApiMock({
       initialTheme: 'light',
-      appServer: { onNotificationRaw: vi.fn(() => unsubscribe) }
+      appServer: {
+        onNotificationRaw: vi.fn(() => unsubscribe),
+        sendRequestRaw: vi.fn(async () => ({
+          schema: { fields: [] },
+          personal: {},
+          workspace: {},
+          value: {},
+          writableScopes: []
+        }))
+      }
     })
     const dispose = vi.fn()
+    const settingsChange = vi.fn()
+    const sessionChange = vi.fn()
     const deps = dependencies((value) => {
       const host = value as DesktopPluginHost
       host.appServer.onNotification('plugin/snapshot/updated', () => {})
+      host.settings.onChange(settingsChange)
+      host.session.onChange(sessionChange)
       host.ui.showToast({ message: 'Owned toast' })
       return { mainViews: [], settingsPages: [], dispose }
     })
@@ -378,12 +406,16 @@ describe('DesktopPluginRuntime', () => {
 
     runtime.reconcile([plugin(revisionA, false)])
     await waitFor(() => expect(dispose).toHaveBeenCalledOnce())
-    expect(unsubscribe).toHaveBeenCalledOnce()
+    // The plugin's own subscription plus the Host's shared settings watcher.
+    expect(unsubscribe).toHaveBeenCalledTimes(2)
+    expect(settingsChange).not.toHaveBeenCalled()
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: 'X:\\workspaces\\after-dispose' })
+    expect(sessionChange).not.toHaveBeenCalled()
     expect(useToastStore.getState().toasts).toHaveLength(0)
 
     await runtime.stop()
     expect(dispose).toHaveBeenCalledOnce()
-    expect(unsubscribe).toHaveBeenCalledOnce()
+    expect(unsubscribe).toHaveBeenCalledTimes(2)
   })
 
   it('owns effects, services, and events even when activate returns nothing', async () => {
@@ -411,6 +443,179 @@ describe('DesktopPluginRuntime', () => {
     expect(host.services.use('fixture.review')).toBeUndefined()
     host.events.emit('fixture.ready', 'inactive')
     expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('notifies environment listeners on theme and locale changes until the generation is disposed', async () => {
+    document.documentElement.lang = 'en'
+    applyTheme('light')
+    const changes: DesktopPluginEnvironmentSnapshot[] = []
+    const deps = dependencies((value) => {
+      (value as DesktopPluginHost).environment.onChange((environment) => changes.push(environment))
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+
+    applyTheme('dark')
+    expect(changes).toEqual([{ locale: 'en', theme: 'dark', themeSeed: DEFAULT_SEEDS.dark }])
+
+    applyTheme('dark')
+    expect(changes).toHaveLength(1)
+
+    document.documentElement.lang = 'zh-Hans'
+    await waitFor(() => expect(changes).toEqual([
+      { locale: 'en', theme: 'dark', themeSeed: DEFAULT_SEEDS.dark },
+      { locale: 'zh-Hans', theme: 'dark', themeSeed: DEFAULT_SEEDS.dark }
+    ]))
+
+    runtime.reconcile([plugin(revisionA, false)])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(0))
+
+    applyTheme('light')
+    document.documentElement.lang = 'ja'
+    await waitFor(() => expect(document.documentElement.lang).toBe('ja'))
+    expect(changes).toHaveLength(2)
+  })
+
+  it('hands plugins an app locale, so a zh-CN document resolves a zh-Hans label', async () => {
+    document.documentElement.lang = 'zh-CN'
+    let host: DesktopPluginHost | null = null
+    const deps = dependencies((value) => {
+      host = value as DesktopPluginHost
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+
+    const locale = host!.environment.locale
+    expect(locale).toBe('zh-Hans')
+    expect(resolveDesktopPluginLabel(
+      { default: 'Board', translations: { 'zh-Hans': '看板' } },
+      locale
+    )).toBe('看板')
+
+    document.documentElement.lang = 'en'
+  })
+
+  it('cancels an owned color picker when its generation is disabled', async () => {
+    let result!: Promise<Awaited<ReturnType<DesktopPluginHost['ui']['pickColor']>>>
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      result = host.ui.pickColor({
+        title: 'Choose accent',
+        initialColor: '#4566cc',
+        allowReset: true,
+        defaultColor: '#4566cc'
+      })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+    runtime.reconcile([plugin(revisionA, false)])
+
+    await expect(result).resolves.toEqual({ kind: 'cancel' })
+  })
+
+  it('rejects invalid color picker options as a development error', async () => {
+    let result!: Promise<unknown>
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      result = host.ui.pickColor({ title: 'Choose accent', initialColor: 'invalid' })
+      void result.catch(() => {})
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(result).toBeDefined())
+    await expect(result).rejects.toBeInstanceOf(TypeError)
+  })
+
+  it('layers plugin theme seeds by activation order and restores the layer below on disposal', async () => {
+    applyTheme('dark')
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      host.appearance.setThemeSeedOverride({
+        dark: { surface: host.plugin.id === 'second.plugin' ? '#334455' : '#112233' },
+        light: { surface: host.plugin.id === 'second.plugin' ? '#ddeeff' : '#f4f5f6' }
+      })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([namedPlugin('first.plugin')])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#112233'))
+
+    runtime.reconcile([namedPlugin('first.plugin'), namedPlugin('second.plugin')])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#334455'))
+
+    applyTheme('light')
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#ddeeff'))
+    applyTheme('dark')
+
+    runtime.reconcile([namedPlugin('first.plugin')])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#112233'))
+
+    runtime.reconcile([])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe(''))
+  })
+
+  it('does not publish a duplicate theme event for the same appearance value', async () => {
+    applyTheme('dark')
+    const onThemeChanged = vi.fn()
+    window.addEventListener(THEME_CHANGED_EVENT, onThemeChanged)
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      const override = { dark: { accent: '#4455aa' } }
+      host.appearance.setThemeSeedOverride(override)
+      host.appearance.setThemeSeedOverride(override)
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-accent')).toBe('#4455aa'))
+    expect(onThemeChanged).toHaveBeenCalledTimes(1)
+    window.removeEventListener(THEME_CHANGED_EVENT, onThemeChanged)
+  })
+
+  it('owns and clamps backdrop presentation for the active generation', async () => {
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      host.appearance.setBackdropPresentation({ surfaceOpacity: 1.4 })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBe('true'))
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('100%')
+
+    runtime.reconcile([plugin(revisionA, false)])
+    await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBeUndefined())
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('')
+  })
+
+  it('does not republish an unchanged backdrop contribution', async () => {
+    const setProperty = vi.spyOn(document.documentElement.style, 'setProperty')
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      const presentation = { surfaceOpacity: 0.3 }
+      host.appearance.setBackdropPresentation(presentation)
+      host.appearance.setBackdropPresentation(presentation)
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBe('true'))
+    expect(setProperty.mock.calls.filter(([name]) => name === '--desktop-plugin-backdrop-surface-opacity')).toHaveLength(1)
   })
 
   it('withdraws pending activation resources immediately on disable and revision replacement', async () => {

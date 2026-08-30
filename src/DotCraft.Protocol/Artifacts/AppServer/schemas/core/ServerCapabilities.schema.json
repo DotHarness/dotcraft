@@ -104,6 +104,9 @@
     "modelCatalogManagement": {
       "type": "boolean"
     },
+    "pluginConfiguration": {
+      "type": "boolean"
+    },
     "pluginManagement": {
       "type": "boolean"
     },

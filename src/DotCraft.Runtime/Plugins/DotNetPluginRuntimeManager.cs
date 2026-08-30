@@ -17,6 +17,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
     private readonly PluginDiscoveryService _discovery;
     private readonly AppConfig _config;
     private readonly DotCraftPaths _paths;
+    private readonly PluginConfigStore _pluginConfigStore;
     private readonly IServiceProvider _services;
     private readonly ContributionRegistry _contributions;
     private readonly DotNetPluginRuntimeOptions _options;
@@ -44,11 +45,13 @@ internal sealed partial class DotNetPluginRuntimeManager :
         ContributionRegistry contributions,
         DotNetPluginRuntimeOptions? options = null,
         ILogger<DotNetPluginRuntimeManager>? logger = null,
-        IPluginDotnetTrustStore? trustStore = null)
+        IPluginDotnetTrustStore? trustStore = null,
+        PluginConfigStore? pluginConfigStore = null)
     {
         _discovery = discovery;
         _config = config;
         _paths = paths;
+        _pluginConfigStore = pluginConfigStore ?? new PluginConfigStore(paths);
         _services = services;
         _contributions = contributions;
         _options = options ?? new DotNetPluginRuntimeOptions();

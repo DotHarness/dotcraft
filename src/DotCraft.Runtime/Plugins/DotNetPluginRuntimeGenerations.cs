@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Plugins;
 using Microsoft.Extensions.Logging;
 
@@ -62,16 +63,41 @@ internal sealed partial class DotNetPluginRuntimeManager
 
         using var activationCts = new CancellationTokenSource();
         var commitGate = new PluginActivationCommitGate();
-        var dataRoot = _paths.UserData.ResolveOrNull("plugins", node.Snapshot.Manifest.Id)
-                       ?? _paths.Data.Resolve("plugin-data", node.Snapshot.Manifest.Id);
+        var dataRoot = PluginDataPaths.Resolve(_paths, node.Snapshot.Manifest.Id);
         Directory.CreateDirectory(dataRoot);
+        JsonElement settings;
+        try
+        {
+            settings = node.Snapshot.Manifest.Settings == null
+                ? JsonSerializer.Deserialize<JsonElement>("{}"u8)
+                : _pluginConfigStore.Get(node.Snapshot.Manifest).Value;
+        }
+        catch (PluginConfigException exception)
+        {
+            node.GenerationId = null;
+            node.State = PluginDotnetRuntimeState.Blocked;
+            node.Blockers =
+            [
+                PluginActivationBlockers.Create(
+                    exception.Code,
+                    exception.Message,
+                    new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        ["phase"] = "configuration"
+                    })
+            ];
+            ReportFailedActivation(node, generationId);
+            PublishSnapshot();
+            return;
+        }
         var activation = Task.Run(() => PluginGeneration.CreateAsync(
             node.Snapshot,
             generationId,
             shadowRoot,
             dataRoot,
             node.WorkspaceRoot,
-            new PluginGenerationHost(_services, _contributions, CallGates, _config),
+            settings,
+            new PluginGenerationHost(_services, _contributions, CallGates),
             GetDirectProviderGenerations(node),
             commitGate,
             TrustCommitBlocker,

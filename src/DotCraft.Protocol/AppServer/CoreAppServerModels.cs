@@ -3361,6 +3361,92 @@ public sealed class PluginInstallParams : ExtensibleJsonObject
 
 }
 
+/// <summary>Params for reading one plugin's layered configuration.</summary>
+public sealed class PluginConfigGetParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+}
+
+/// <summary>One schema-backed plugin configuration field.</summary>
+public sealed class PluginConfigField : ExtensibleJsonObject
+{
+    [JsonPropertyName("key")]
+    public required string Key { get; init; }
+
+    [JsonPropertyName("type")]
+    public required string Type { get; init; }
+
+    [JsonPropertyName("defaultValue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement> DefaultValue { get; init; }
+
+    [JsonPropertyName("options")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Options { get; init; }
+
+    [JsonPropertyName("min")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double> Min { get; init; }
+
+    [JsonPropertyName("max")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double> Max { get; init; }
+}
+
+/// <summary>Validated plugin configuration schema.</summary>
+public sealed class PluginConfigSchema : ExtensibleJsonObject
+{
+    [JsonPropertyName("fields")]
+    public required IReadOnlyList<PluginConfigField> Fields { get; init; }
+}
+
+/// <summary>One set or unset operation for a plugin configuration namespace.</summary>
+public sealed class PluginConfigMutationOperation : ExtensibleJsonObject
+{
+    [JsonPropertyName("op")]
+    public required string Op { get; init; }
+
+    [JsonPropertyName("key")]
+    public required string Key { get; init; }
+
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement> Value { get; init; }
+}
+
+/// <summary>Params for atomically mutating one plugin configuration scope.</summary>
+public sealed class PluginConfigMutateParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("scope")]
+    public required string Scope { get; init; }
+
+    [JsonPropertyName("operations")]
+    public required IReadOnlyList<PluginConfigMutationOperation> Operations { get; init; }
+}
+
+/// <summary>Fresh personal, workspace, and effective plugin configuration.</summary>
+public sealed class PluginConfigSnapshot : ExtensibleJsonObject
+{
+    [JsonPropertyName("schema")]
+    public required PluginConfigSchema Schema { get; init; }
+
+    [JsonPropertyName("personal")]
+    public required JsonElement Personal { get; init; }
+
+    [JsonPropertyName("workspace")]
+    public required JsonElement Workspace { get; init; }
+
+    [JsonPropertyName("value")]
+    public required JsonElement Value { get; init; }
+
+    [JsonPropertyName("writableScopes")]
+    public required IReadOnlyList<string> WritableScopes { get; init; }
+}
+
 /// <summary>Executable wire contract for PluginInterface.</summary>
 public sealed class PluginInterface : ExtensibleJsonObject
 {

@@ -977,27 +977,6 @@ public sealed class AppConfig
         [ConfigField(Hint = "When true, DotCraft ignores the default official plugin registry URL supplied by the host.")]
         public bool DisableDefaultPluginRegistry { get; set; }
 
-        /// <summary>Per-plugin settings bags, keyed by canonical plugin id.</summary>
-        /// <remarks>Each bag is plugin-defined, so it has no compile-time schema and is excluded from the Host config schema projection.</remarks>
-        [ConfigField(Ignore = true)]
-        public Dictionary<string, JsonElement> Settings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>An unconfigured plugin still reads an object, so a reader never tests the value kind first.</summary>
-        private static readonly JsonElement EmptyPluginSettings = JsonSerializer.Deserialize<JsonElement>("{}"u8);
-
-        /// <summary>Returns one plugin's settings bag, empty when it has none.</summary>
-        public JsonElement GetPluginSettings(string pluginId)
-        {
-            var canonicalPluginId = PluginIds.Canonicalize(pluginId);
-            foreach (var entry in Settings)
-            {
-                if (PluginIds.EqualsCanonical(entry.Key, canonicalPluginId))
-                    return entry.Value;
-            }
-
-            return EmptyPluginSettings;
-        }
-
         public bool IsPluginEnabled(string pluginId, bool defaultEnabled)
         {
             var canonicalPluginId = PluginIds.Canonicalize(pluginId);

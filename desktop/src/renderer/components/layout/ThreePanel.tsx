@@ -177,17 +177,18 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
 
   return (
     <div
+      className="dotcraft-shell-panels"
       style={{
         position: 'relative',
         display: 'flex',
         flexDirection: 'row',
         height: '100%',
         width: '100%',
-        overflow: 'hidden',
-        background: 'transparent'
+        overflow: 'hidden'
       }}
     >
       <div
+        className="dotcraft-shell-sidebar"
         style={{
           width: `${effectiveSidebarWidth}px`,
           minWidth: `${effectiveSidebarWidth}px`,
@@ -196,7 +197,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           position: 'relative',
           transition:
             resizingEdge === 'sidebar' ? 'none' : 'width 200ms ease-out, min-width 200ms ease-out',
-          background: 'transparent',
           display: 'flex',
           flexDirection: 'column',
           boxSizing: 'border-box'
@@ -238,6 +238,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           left corners keep the sidebar as the app chrome behind it. */}
       <div
         ref={mainSurfaceRef}
+        className="dotcraft-shell-main"
         style={{
           flex: 1,
           minWidth: 0,
@@ -245,7 +246,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'row',
-          background: 'var(--main-surface)',
           borderRadius: '14px 0 0 14px',
           boxShadow: 'var(--main-surface-frame-shadow)'
         }}

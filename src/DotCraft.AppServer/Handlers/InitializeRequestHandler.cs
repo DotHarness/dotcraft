@@ -53,6 +53,7 @@ internal sealed class InitializeRequestHandler(
             HeartbeatManagement = services.HeartbeatService != null,
             SkillsManagement = services.SkillsLoader != null,
             PluginManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
+            PluginConfiguration = services.PluginConfigStore != null,
             PluginMarketplaces = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             SkillVariants = services.SkillsLoader != null && skillVariants.IsVariantModeEnabled(),
             CommandManagement = true,

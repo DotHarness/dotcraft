@@ -20,23 +20,6 @@
   background: var(--bg-tertiary);
 }
 
-.dc-channel-catalog-item__icon {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-}
-
-.dc-channel-catalog-item__icon--fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  font-size: var(--type-heading-size);
-  font-weight: 700;
-}
-
 .dc-channel-catalog-item__copy {
   display: flex;
   min-width: 0;

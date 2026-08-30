@@ -6,6 +6,17 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const assetLoaders = {
+  ".gif": "file",
+  ".jpg": "file",
+  ".jpeg": "file",
+  ".png": "file",
+  ".svg": "file",
+  ".webp": "file",
+};
+const assetFilter = new RegExp(`(?:${Object.keys(assetLoaders).map(escapeRegExp).join("|")})$`, "i");
+const assetNamespace = "dotcraft-plugin-asset";
+const assetImportKinds = new Set(["import-statement", "dynamic-import", "require-call"]);
 const proxyEntries = new Map([
   ["@dotcraft/plugin", join(packageRoot, "dist", "index.js")],
   ["react", join(packageRoot, "dist", "react.js")],
@@ -45,15 +56,8 @@ async function buildDesktopPlugin(projectRoot = process.cwd()) {
       minify: true,
       metafile: true,
       logLevel: "silent",
-      loader: {
-        ".gif": "file",
-        ".jpg": "file",
-        ".jpeg": "file",
-        ".png": "file",
-        ".svg": "file",
-        ".webp": "file",
-      },
-      plugins: [runtimeProxyPlugin()],
+      loader: assetLoaders,
+      plugins: [runtimeProxyPlugin(), assetUrlPlugin()],
     });
 
     const bundledReact = Object.keys(result.metafile.inputs).find((input) =>
@@ -87,6 +91,38 @@ function runtimeProxyPlugin() {
       }
       buildContext.onResolve({ filter: /^react(?:\/.*)?$|^react-dom(?:\/.*)?$/ }, (args) => ({
         errors: [{ text: `Unsupported React entry point '${args.path}' in a Desktop Plugin.` }],
+      }));
+    },
+  };
+}
+
+/**
+ * Turns an asset import into the absolute URL of the emitted file. Desktop serves a plugin from
+ * `dotcraft-plugin://<id>/<revision>/`, which is not knowable at build time, so the bundle resolves
+ * the emitted path against its own module URL instead of a static `publicPath`. CSS `url()` tokens
+ * are left alone: a stylesheet already resolves them against its own address.
+ */
+function assetUrlPlugin() {
+  return {
+    name: "dotcraft-plugin-asset-url",
+    setup(buildContext) {
+      buildContext.onResolve({ filter: assetFilter }, async (args) => {
+        if (args.namespace === assetNamespace || !assetImportKinds.has(args.kind)) return null;
+        const resolved = await buildContext.resolve(args.path, {
+          importer: args.importer,
+          kind: args.kind,
+          resolveDir: args.resolveDir,
+          namespace: assetNamespace,
+        });
+        if (resolved.errors.length > 0 || resolved.external) return null;
+        return { path: resolved.path, namespace: assetNamespace };
+      });
+
+      buildContext.onLoad({ filter: /.*/, namespace: assetNamespace }, (args) => ({
+        contents: `import assetPath from ${JSON.stringify(args.path)};\n`
+          + "export default new URL(assetPath, import.meta.url).href;\n",
+        resolveDir: dirname(args.path),
+        loader: "js",
       }));
     },
   };

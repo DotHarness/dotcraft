@@ -15,6 +15,17 @@ public static partial class AppServerRpc
         "ThreadRecoveryWorkspaceMismatch",
         "ThreadRecoveryTargetExists"
     ];
+    /// <summary>The error.data.code values plugin/config/* returns alongside -32099.</summary>
+    private static readonly string[] PluginConfigErrors =
+    [
+        .. CommonErrors,
+        "PluginConfigurationNotDeclared",
+        "PluginConfigurationScopeUnavailable",
+        "PluginConfigurationDocumentInvalid",
+        "PluginConfigurationNamespaceInvalid",
+        "PluginConfigurationMutationInvalid",
+        "PluginConfigurationWriteFailed"
+    ];
 
     /// <summary>initialize request.</summary>
     public static readonly RpcRequest<InitializeParams, InitializeResult> Initialize =

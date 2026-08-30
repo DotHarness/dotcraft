@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 2.0.0 |
+| **Version** | 2.1.0 |
 | **Status** | Living |
-| **Date** | 2026-07-05 |
+| **Date** | 2026-08-29 |
 | **Related Specs** | [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define DotCraft lifecycle hooks as a durable runtime contract. Hooks let
@@ -258,14 +258,16 @@ Plugin hook commands may use:
 | Variable | Description |
 |----------|-------------|
 | `${DOTCRAFT_PLUGIN_ROOT}` | Absolute plugin root. |
-| `${DOTCRAFT_PLUGIN_DATA}` | User-local plugin data directory. |
+| `${DOTCRAFT_PLUGIN_DATA}` | Canonical host-side plugin data directory. |
 
 DotCraft injects the same names as environment variables. Compatibility aliases
 may be injected for imported plugin ecosystems, but DotCraft-authored examples
 must use `DOTCRAFT_*` names.
 
-Plugin data paths are user-local and must not be committed into workspace config.
-Hook examples must not contain real machine paths.
+When `UserDataPath` is configured, the plugin data directory is
+`<UserDataPath>/plugins/<id>/data`; otherwise it is `<DataPath>/plugin-data/<id>`.
+Hooks, LSP servers, and .NET activation use the same resolved directory. Plugin data paths
+must not be committed into workspace config, and hook examples must not contain real machine paths.
 
 ---
 

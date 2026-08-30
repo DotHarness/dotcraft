@@ -4493,7 +4493,7 @@ export function SettingsView({
                       <div
                         style={{
                           border: '1px solid var(--border-default)',
-                          borderLeft: '3px solid var(--accent-blue)',
+                          borderLeft: '3px solid var(--accent)',
                           borderRadius: '8px',
                           background: 'var(--bg-secondary)',
                           color: 'var(--text-secondary)',
@@ -4822,7 +4822,7 @@ export function SettingsView({
                       {pluginManagementEnabled && chromePlugin?.installed && (
                         <SettingsRow>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-                            <PluginIcon plugin={chromePlugin} size={38} />
+                            <PluginIcon plugin={chromePlugin} role="list" size={38} />
                             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                               <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>
                                 {pluginTitle(chromePlugin)}
@@ -4871,7 +4871,7 @@ export function SettingsView({
                         }}
                       >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 260px', minWidth: 0 }}>
-                        {chromePlugin && <PluginIcon plugin={chromePlugin} size={38} />}
+                        {chromePlugin && <PluginIcon plugin={chromePlugin} role="list" size={38} />}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div>
                             <ChromeStatusPill label={chromeSetup.label} tone={chromeSetup.tone} />

@@ -149,8 +149,8 @@ const truncatedStyle: CSSProperties = {
   flexShrink: 0,
   padding: '4px 12px',
   borderBottom: '1px solid var(--border-default)',
-  color: 'var(--text-warning, #e8c000)',
-  backgroundColor: 'var(--bg-warning, rgba(255,200,0,0.12))',
+  color: 'var(--warning)',
+  backgroundColor: 'var(--warning-bg)',
   fontSize: '12px'
 }
 

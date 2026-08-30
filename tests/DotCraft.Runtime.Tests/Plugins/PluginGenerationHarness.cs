@@ -1,4 +1,4 @@
-using DotCraft.Configuration;
+using System.Text.Json;
 using DotCraft.Contributions;
 using DotCraft.Plugins;
 using DotCraft.Runtime;
@@ -24,8 +24,6 @@ internal sealed class PluginGenerationHarness : IDisposable
 
     public PluginCallGateRegistry CallGates { get; } = new();
 
-    public AppConfig Config { get; } = new();
-
     public IServiceProvider Services { get; set; } = DotNetPluginTestBundle.EmptyServices;
 
     public string PluginRoot(string pluginId) => Path.Combine(Root, "plugins", pluginId);
@@ -36,12 +34,14 @@ internal sealed class PluginGenerationHarness : IDisposable
 
     public Task<PluginActivationAttempt> ActivateAsync(
         string pluginId,
+        JsonElement? settings = null,
         CancellationToken cancellationToken = default) =>
-        ActivateAsync(pluginId, Guid.NewGuid().ToString("N"), cancellationToken);
+        ActivateAsync(pluginId, Guid.NewGuid().ToString("N"), settings, cancellationToken);
 
     public async Task<PluginActivationAttempt> ActivateAsync(
         string pluginId,
         string generationId,
+        JsonElement? settings,
         CancellationToken cancellationToken)
     {
         var parsed = PluginManifestParser.Load(PluginRoot(pluginId));
@@ -65,7 +65,8 @@ internal sealed class PluginGenerationHarness : IDisposable
             shadowRoot,
             DataRoot(pluginId),
             WorkspaceRoot,
-            new PluginGenerationHost(Services, Registry, CallGates, Config),
+            settings ?? JsonSerializer.Deserialize<JsonElement>("{}"u8),
+            new PluginGenerationHost(Services, Registry, CallGates),
             new Dictionary<string, PluginGeneration>(StringComparer.Ordinal),
             new PluginActivationCommitGate(),
             static (_, _) => null,

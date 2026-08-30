@@ -144,7 +144,7 @@ var client = await DotCraftClient.ConnectRemoteAsync(
 
 ## 运行完整示例
 
-- [TypeScript 应用示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
+- [TypeScript 应用示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/samples/applications)
 - [.NET agent profile 与 thread 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/AgentProfileThreadSample)
 - [.NET interactive tool 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/InteractiveToolSample)
 

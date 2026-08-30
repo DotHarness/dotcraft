@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,7 +14,10 @@ try {
     import { useState } from "react";
     import { Button } from "@dotcraft/plugin";
     import type { DesktopPluginActivate } from "@dotcraft/plugin";
+    import logo from "./logo.svg";
     import "./style.css";
+
+    export const logoUrl: string = logo;
 
     function View() {
       const [count, setCount] = useState(0);
@@ -29,7 +32,14 @@ try {
       }],
     });
   `);
-  writeFileSync(join(project, "src", "style.css"), ".sample { color: var(--text-primary); }\n");
+  writeFileSync(
+    join(project, "src", "style.css"),
+    ".sample { color: var(--text-primary); background-image: url(\"./logo.svg\"); }\n",
+  );
+  writeFileSync(
+    join(project, "src", "logo.svg"),
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\"><rect width=\"8\" height=\"8\" /></svg>\n",
+  );
 
   const successfulBuild = spawnSync(
     process.execPath,
@@ -42,7 +52,13 @@ try {
   assert.doesNotMatch(output, /["']react(?:-dom)?(?:\/[^"']*)?["']/);
   assert.doesNotMatch(output, /__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE/);
   assert.match(output, /dotcraft\.desktop-plugin\.runtime/);
-  assert.match(readFileSync(join(project, "dist", "index.css"), "utf8"), /--text-primary/);
+  assert.match(output, /"\.\/assets\/logo-[A-Z0-9]+\.svg"/);
+  assert.match(output, /new URL\((?:"\.\/assets\/logo-[A-Z0-9]+\.svg"|[$\w]+),\s*import\.meta\.url\)\.href/);
+
+  const styles = readFileSync(join(project, "dist", "index.css"), "utf8");
+  assert.match(styles, /--text-primary/);
+  // A stylesheet already resolves url() against its own address, so it keeps the plain path.
+  assert.match(styles, /url\("?\.\/assets\/logo-[A-Z0-9]+\.svg"?\)/);
 
   const runtimeModule = await import(pathToFileURL(join(packageRoot, "dist", "runtime.js")));
   runtimeModule.installDesktopPluginRuntime({
@@ -68,6 +84,10 @@ try {
   const plugin = await import(`${pathToFileURL(join(project, "dist", "index.mjs"))}?test=1`);
   const activation = plugin.activate({});
   assert.equal(activation.mainViews[0].id, "sample");
+
+  // An asset import must already be the URL of the emitted file, resolved against the bundle.
+  assert.match(plugin.logoUrl, /^file:\/\/.*\/assets\/logo-[A-Z0-9]+\.svg$/);
+  assert.equal(existsSync(fileURLToPath(plugin.logoUrl)), true);
 
   writeFileSync(join(project, "src", "index.tsx"), "export const activate = (");
   const failedBuild = spawnSync(

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Living |
-| **Date** | 2026-05-18 |
+| **Date** | 2026-08-29 |
 | **Related Specs** | [Plugin Architecture](plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the interim design for plugin-bundled Language Server Protocol (LSP) configuration. This file is the working spec for implementation discussion. After the feature is complete and verified, the accepted content should be merged into [Plugin Architecture](plugin-architecture.md) and any AppServer/Desktop protocol sections that become normative.
@@ -227,7 +227,8 @@ Resolution rules:
 - Plugin-origin `command` values that start with `./` or `.\` resolve relative to the plugin root and must stay inside that root. On Windows, DotCraft may probe `.exe`, `.cmd`, and `.bat` suffixes for plugin-relative commands.
 - DotCraft adds plugin variables before starting plugin-origin LSP servers:
   - `DOTCRAFT_PLUGIN_ROOT`: absolute plugin root path.
-  - `DOTCRAFT_PLUGIN_DATA`: plugin-scoped data directory under DotCraft-managed state.
+  - `DOTCRAFT_PLUGIN_DATA`: `<UserDataPath>/plugins/<id>/data` when `UserDataPath` is configured,
+    otherwise `<DataPath>/plugin-data/<id>`. Hooks and .NET activation use the same directory.
 - Plugin-origin LSP supports string substitution for `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in `command`, `arguments`, and `environmentVariables`.
 
 These substitutions are plugin LSP behavior only. Workspace `LspServers` continue to use the existing workspace configuration semantics and do not gain plugin-relative command resolution.

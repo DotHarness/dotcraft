@@ -12,6 +12,16 @@ export const DEFAULT_THEME: ResolvedTheme = 'light'
 
 export const THEME_CHANGED_EVENT = 'dotcraft:theme-changed'
 
+/**
+ * Detail of {@link THEME_CHANGED_EVENT}. `seedRevision` moves whenever the palette is
+ * rewritten, which the mode alone cannot express: recoloring without switching theme
+ * leaves `mode` identical, and consumers that cache computed tokens would never re-read.
+ */
+export interface ThemeChangedDetail {
+  readonly mode: ResolvedTheme
+  readonly seedRevision: number
+}
+
 export function resolveThemeMode(raw: unknown): ThemeMode {
   return raw === 'dark'
     ? 'dark'

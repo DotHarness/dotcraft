@@ -655,6 +655,30 @@ Desktop 托管的内置 TypeScript 渠道：
 
 来源格式、市场文档和生命周期见[插件市场](./integrations/plugin-market)。
 
+### 插件设置文件
+
+插件自定义设置不放在主 `config.json` 的 `Plugins` 下。插件在 `.craft-plugin/plugin.json` 中声明 `"settings": "./settings.schema.json"`，宿主读取两个独立文件：
+
+| 作用域 | 路径 |
+|---|---|
+| 个人 | `<UserDataPath>/plugin-config.json`，官方应用使用 `~/.craft/plugin-config.json` |
+| 工作区 | `<DataPath>/plugin-config.json`，默认是 `<workspace>/.craft/plugin-config.json` |
+
+根对象直接以 canonical plugin id 为键：
+
+```json
+{
+  "acme.review-core": {
+    "checklistLimit": 5,
+    "tone": "concise"
+  }
+}
+```
+
+有效设置依次解析 schema 默认值、个人值和工作区值。对象递归合并，数组与标量整体替换。namespace 一旦包含未声明字段或非法值，就会整体失效。移除工作区值后，会重新显露下层的个人值或 schema 默认值。
+
+这些文件只用于小型 JSON 配置，不能存放 blob、数据库或缓存。插件数据单独保存在：配置了 `UserDataPath` 时使用 `<UserDataPath>/plugins/<id>/data`，否则使用 `<DataPath>/plugin-data/<id>`。禁用、移除或重装插件都不会删除其配置 namespace 或数据目录。
+
 本地插件开发覆盖示例：
 
 ```json

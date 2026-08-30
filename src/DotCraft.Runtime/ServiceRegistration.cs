@@ -90,6 +90,7 @@ public static class ServiceRegistration
         services.AddSingleton(sp => new ChatClientRegistry(sp.GetRequiredService<ModelProviderRegistry>()));
         services.AddSingleton(paths);
         services.TryAddSingleton(_ => new PluginDiscoveryService(paths));
+        services.TryAddSingleton<PluginConfigStore>();
         services.AddSingleton(_ => new WorkspaceStateDatabase(dataPath));
         services.AddSingleton(new PathBlacklist(config.Security.BlacklistedPaths));
         services.AddSingleton<IBackgroundTerminalService>(sp =>
@@ -211,7 +212,8 @@ public static class ServiceRegistration
             sp,
             sp.GetRequiredService<ContributionRegistry>(),
             sp.GetRequiredService<DotNetPluginRuntimeOptions>(),
-            sp.GetService<ILogger<DotNetPluginRuntimeManager>>()));
+            sp.GetService<ILogger<DotNetPluginRuntimeManager>>(),
+            pluginConfigStore: sp.GetRequiredService<PluginConfigStore>()));
         services.AddSingleton<IPluginDotnetRuntimeCoordinator>(sp =>
             sp.GetRequiredService<DotNetPluginRuntimeManager>());
         services.AddSingleton<IToolSource>(sp =>

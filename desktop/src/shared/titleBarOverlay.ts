@@ -4,17 +4,31 @@
  * Colors are native titlebar/caption fallbacks; renderer chrome uses translucent shell tokens.
  */
 
+import { inkForSurface, mixHex } from './themeDerive'
+import { DEFAULT_SEEDS, type ThemeVariant } from './themeSeed'
+
 export const TITLE_BAR_OVERLAY_HEIGHT = 36
 
 /** Horizontal space reserved in CustomMenuBar so menu labels do not overlap caption buttons. */
 export const TITLE_BAR_OVERLAY_RIGHT_RESERVE = 138
 
-export type TitleBarOverlayTheme = 'dark' | 'light'
+export type TitleBarOverlayTheme = ThemeVariant
 
-export const TITLE_BAR_OVERLAY_BY_THEME: Record<
-  TitleBarOverlayTheme,
-  { color: string; symbolColor: string }
-> = {
-  dark: { color: '#202020', symbolColor: '#eeeeec' },
-  light: { color: '#f3f3ee', symbolColor: '#1a1c1f' }
+/** Matches `--shell-chrome-tone`: the caption bar sits on the same tone as the window chrome. */
+const CHROME_MIX = 0.052
+
+export interface TitleBarOverlayColors {
+  color: string
+  symbolColor: string
+}
+
+/** Both variants derive the same way, so a custom background recolors the native chrome too. */
+export function titleBarOverlayForSurface(surface: string): TitleBarOverlayColors {
+  const ink = inkForSurface(surface)
+  return { color: mixHex(surface, ink, CHROME_MIX), symbolColor: ink }
+}
+
+export const TITLE_BAR_OVERLAY_BY_THEME: Record<TitleBarOverlayTheme, TitleBarOverlayColors> = {
+  dark: titleBarOverlayForSurface(DEFAULT_SEEDS.dark.surface),
+  light: titleBarOverlayForSurface(DEFAULT_SEEDS.light.surface)
 }

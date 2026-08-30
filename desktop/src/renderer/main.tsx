@@ -3,13 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { LocaleProvider } from './contexts/LocaleContext'
 import { applyTheme, resolveTheme } from './utils/theme'
-import { applyAppearanceDom } from './utils/appearance'
+import { applyAppearanceDom, applyThemeSeeds } from './utils/appearance'
 import { resolveAppearanceSettings } from '../shared/appearance'
 import { useUIStore } from './stores/uiStore'
 import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
 import { DesktopPluginSurface } from './components/desktopPlugins/DesktopPluginSurface'
 import { HighlightProvider } from './highlight/react/HighlightProvider'
 import { CdpDebugIndicator } from './components/layout/CdpDebugIndicator'
+import { ColorPickerDialogHost } from './components/ui/ColorPickerDialog'
 import './styles/index.css'
 
 const stopDesktopPluginRuntime = startDesktopPluginRuntime()
@@ -17,6 +18,10 @@ window.addEventListener('beforeunload', stopDesktopPluginRuntime, { once: true }
 
 const params = new URLSearchParams(window.location.search)
 const initialTheme = resolveTheme(params.get('theme') ?? window.api?.initialTheme)
+// Adopt what preload already painted before applying the theme: applyTheme re-derives the
+// seed, and with nothing stored yet that re-derive would clear it until settings load.
+const initialAppearance = window.api?.initialAppearance
+applyThemeSeeds(initialAppearance?.accent ?? null, initialAppearance?.themeSeeds)
 applyTheme(initialTheme)
 
 // Apply the remaining (non-theme) appearance preferences once settings load. Defaults are
@@ -43,11 +48,22 @@ createRoot(rootElement).render(
   <StrictMode>
     <LocaleProvider>
       <HighlightProvider>
-        <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
-        <DesktopPluginSurface name="app" context={appSurfaceContext}>
-          <App />
-        </DesktopPluginSurface>
-        <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
+        <div className="dotcraft-plugin-background-seat">
+          <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
+        </div>
+        <div className="dotcraft-plugin-app-seat">
+          <DesktopPluginSurface name="app" context={appSurfaceContext}>
+            <App />
+          </DesktopPluginSurface>
+        </div>
+        <div className="dotcraft-plugin-overlay-seat">
+          <DesktopPluginSurface name="app.overlay" context={appSurfaceContext} />
+        </div>
+        <div className="dotcraft-plugin-status-seat">
+          <DesktopPluginSurface name="app.status" context={appSurfaceContext} />
+          <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
+        </div>
+        <ColorPickerDialogHost />
       </HighlightProvider>
     </LocaleProvider>
   </StrictMode>

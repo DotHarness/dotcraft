@@ -4,32 +4,84 @@ import {
   type AppearanceSettings,
   type ReduceMotionMode
 } from '../../shared/appearance'
+import { THEME_CHANGED_EVENT, type ThemeChangedDetail } from '../../shared/theme'
+import { deriveThemeProperties } from '../../shared/themeDerive'
+import {
+  EMPTY_THEME_SEEDS,
+  type ThemeSeed,
+  type ThemeSeedOverrides,
+  type ThemeVariant
+} from '../../shared/themeSeed'
 
-const ACCENT_VAR = '--accent'
-const ACCENT_HOVER_VAR = '--accent-hover'
 const CODE_SIZE_VAR = '--text-code-size'
 
-/** Lighten a `#rrggbb` hex toward white by `amt` (0..1) to derive the hover accent. */
-function lighten(hex: string, amt: number): string {
-  const n = hex.replace('#', '')
-  const r = parseInt(n.slice(0, 2), 16)
-  const g = parseInt(n.slice(2, 4), 16)
-  const b = parseInt(n.slice(4, 6), 16)
-  const channel = (v: number): string =>
-    Math.round(v + (255 - v) * amt).toString(16).padStart(2, '0')
-  return `#${channel(r)}${channel(g)}${channel(b)}`
+let accentOverride: string | null = null
+let seedsByVariant: Record<ThemeVariant, ThemeSeedOverrides> = EMPTY_THEME_SEEDS
+let desktopPluginSeeds: Partial<Record<ThemeVariant, Partial<ThemeSeed>>> = {}
+let seedRevision = 0
+
+/** Rises with every applied seed change; rides {@link THEME_CHANGED_EVENT}. */
+export function themeSeedRevision(): number {
+  return seedRevision
 }
 
-/** Override the accent CSS vars, or clear the override to fall back to the per-theme tokens. */
-export function applyAccent(hex: string | null): void {
-  const root = document.documentElement
-  if (hex) {
-    root.style.setProperty(ACCENT_VAR, hex)
-    root.style.setProperty(ACCENT_HOVER_VAR, lighten(hex, 0.14))
-  } else {
-    root.style.removeProperty(ACCENT_VAR)
-    root.style.removeProperty(ACCENT_HOVER_VAR)
+function currentVariant(): ThemeVariant {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
+}
+
+function writeThemeSeed(): boolean {
+  const style = document.documentElement.style
+  let changed = false
+  const variant = currentVariant()
+  const overrides = {
+    accent: accentOverride ?? undefined,
+    ...seedsByVariant[variant],
+    ...desktopPluginSeeds[variant]
   }
+  for (const [name, value] of Object.entries(deriveThemeProperties(overrides, variant))) {
+    if (value == null) {
+      if (!style.getPropertyValue(name)) continue
+      style.removeProperty(name)
+    } else if (style.getPropertyValue(name) !== value) {
+      style.setProperty(name, value)
+    } else {
+      continue
+    }
+    changed = true
+  }
+  if (changed) seedRevision += 1
+  return changed
+}
+
+/**
+ * Override the theme seed: one accent across both variants, plus per-variant background and
+ * contrast. A field left out falls back to the variant's authored value, and a field equal to
+ * its default is removed rather than restated, so tokens.css keeps answering for a default app.
+ */
+export function applyThemeSeeds(
+  accent: string | null,
+  seeds: Record<ThemeVariant, ThemeSeedOverrides> = EMPTY_THEME_SEEDS
+): void {
+  accentOverride = accent
+  seedsByVariant = seeds
+  if (!writeThemeSeed()) return
+  const detail: ThemeChangedDetail = { mode: currentVariant(), seedRevision }
+  window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail }))
+}
+
+/** Apply the winning Desktop Plugin theme layer over the user's Appearance seed. */
+export function applyDesktopPluginThemeSeedOverride(
+  seeds: Partial<Record<ThemeVariant, Partial<ThemeSeed>>> | null
+): void {
+  desktopPluginSeeds = seeds ?? {}
+  if (!writeThemeSeed()) return
+  const detail: ThemeChangedDetail = { mode: currentVariant(), seedRevision }
+  window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail }))
+}
+
+/** Repaint the stored seed against a newly resolved variant. applyTheme announces it. */
+export function reapplyThemeSeed(): void {
+  writeThemeSeed()
 }
 
 /** Override the code font-size token, or clear it to fall back to the token default. */
@@ -67,7 +119,7 @@ export function applyTranslucentSidebar(on: boolean): void {
  * zoom factor, so none of those are handled here.
  */
 export function applyAppearanceDom(appearance: AppearanceSettings): void {
-  applyAccent(appearance.accent)
+  applyThemeSeeds(appearance.accent, appearance.themeSeeds)
   applyCodeFontSize(appearance.codeFontSize)
   applyReduceMotion(appearance.reduceMotion)
   applyPointerCursors(appearance.pointerCursors)

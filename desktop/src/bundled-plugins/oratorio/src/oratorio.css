@@ -226,7 +226,7 @@
 .ora-inline-diff figcaption { padding: 7px 10px; border-bottom: 1px solid var(--border-default); color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; }
 .ora-inline-diff pre { margin: 0; padding: 8px 0; overflow: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; }
 .ora-inline-diff pre span { display: block; padding: 0 10px; }
-.ora-inline-diff pre span[data-kind='remove'] { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.ora-inline-diff pre span[data-kind='remove'] { background: color-mix(in srgb, var(--error) 12%, transparent); }
 .ora-inline-diff pre span[data-kind='add'] { background: color-mix(in srgb, var(--success) 12%, transparent); }
 .ora-count { display: inline-grid; min-width: 24px; height: 24px; place-items: center; border-radius: 999px; background: var(--bg-tertiary); }
 .ora-discussion { display: grid; gap: 14px; }
@@ -293,7 +293,7 @@
 .ora-field-control__input { display: inline-flex; align-items: center; min-width: 0; }
 .ora-number-stepper { display: grid; grid-template-columns: 68px 20px; height: 32px; overflow: hidden; border: 1px solid var(--border-default); border-radius: 8px; background: var(--bg-primary); }
 .ora-number-stepper-wrap { display: grid; gap: 4px; }
-.ora-number-stepper__error { color: var(--danger); font-size: 11px; line-height: 1.25; }
+.ora-number-stepper__error { color: var(--error); font-size: 11px; line-height: 1.25; }
 .ora-number-stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .ora-number-stepper .dc-field[data-bare] { width: 68px; height: 30px; min-height: 0; padding: 0 8px 0 10px; border: 0; border-radius: 0; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
 .ora-number-stepper .dc-field:focus, .ora-number-stepper .dc-field:focus-visible { border: 0 !important; outline: 0 !important; box-shadow: none !important; }
@@ -429,8 +429,8 @@
   gap: 8px;
   min-height: 34px;
   padding: 6px 12px;
-  color: var(--color-status-error-foreground, #f48771);
-  background: var(--color-status-error-background, rgb(244 135 113 / 10%));
+  color: var(--error);
+  background: var(--error-bg);
 }
 
 .oratorio-service-alert button {

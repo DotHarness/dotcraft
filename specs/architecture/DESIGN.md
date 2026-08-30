@@ -1,5 +1,5 @@
 ---
-version: "0.8.3"
+version: "0.9.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -21,6 +21,9 @@ colors:
   warning: "var(--warning)"
   error: "var(--error)"
   info: "var(--info)"
+  success-bg: "var(--success-bg)"
+  warning-bg: "var(--warning-bg)"
+  error-bg: "var(--error-bg)"
   ref-skill: "var(--ref-skill)"
   permission-full-access: "var(--permission-full-access)"
   glass-surface-strong: "var(--glass-surface-strong)"
@@ -62,6 +65,12 @@ typography:
     fontWeight: 600
     lineHeight: "var(--type-page-title-line-height)"
     letterSpacing: "0"
+  detail-heading:
+    fontFamily: "var(--font-ui)"
+    fontSize: "var(--type-detail-title-size)"
+    fontWeight: 500
+    lineHeight: "var(--type-detail-title-line-height)"
+    letterSpacing: "0"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -74,6 +83,7 @@ rounded:
   sm: "6px"
   md: "8px"
   lg: "10px"
+  identity-hero: "16px"
   full: "999px"
 components:
   primary-action:
@@ -160,6 +170,12 @@ Semantic colors communicate state, not decoration:
 Semantic colors should normally appear in icons, compact badges, borders, small
 text, or alert surfaces. They should not take over an entire view.
 
+`--success-bg`, `--warning-bg`, and `--error-bg` are the tinted surfaces for
+those hues. Each is mixed off its hue token, so both themes follow one value.
+Use them behind status badges and notice strips, with the hue itself as the
+foreground; reach for a local `color-mix` only where a surface needs a different
+strength than the shared step.
+
 One inverse surface exists. `--bg-inverse` is the opposite theme's tertiary tone
 — light in dark mode, dark in light mode — with `--text-on-inverse`,
 `--text-on-inverse-muted`, `--border-on-inverse`, and `--fill-on-inverse` on top
@@ -214,6 +230,7 @@ literal is a new tier nobody agreed to.
 | Token | Size / leading | Use |
 | --- | --- | --- |
 | `--type-title` | 28 / 34 | entry surfaces only |
+| `--type-detail-title` | 20 / 27 | the named subject in an identity-led detail header |
 | `--type-page-title` | 18 / 23 | panel page heading |
 | `--type-heading` | 15 / 20 | card and group heading |
 | `--type-body` | 14 / 21 | conversation and document body |
@@ -253,6 +270,8 @@ Desktop surfaces should favor dense but organized operational layouts.
   (tabs or breadcrumb) stays left, page-level management actions stay right, and
   both sides share the same vertical center. Do not position catalog actions in
   the hero/header below this band or compensate with negative offsets.
+  Plugin detail is the narrow exception: item-scoped actions may sit beside the
+  title block.
 - Catalog browse and manage pages separate their controls and groups with space
   and heading weight, not with rules: no rule under the hero/search header or
   manage toolbar, and none above a group. A rule above the first group is a frame
@@ -338,6 +357,40 @@ component family uses another token.
 
 Keep shape language restrained. Large rounded rectangles should not be used as
 decoration.
+
+### Identity marks
+
+Product, plugin, skill, channel, provider, and connected-app artwork uses one
+identity-mark family. Avatars, status dots, thumbnails, favicons, action glyphs,
+and illustrations keep their own shape rules. Choose a role instead of deriving
+corner geometry from an arbitrary size:
+
+| Role | Standard size / radius | Use |
+| --- | --- | --- |
+| Compact | `24px / 6px` | Dense metadata, prompt prefixes, and connection rows. Inline marks may reduce to `18px` while retaining the compact radius. |
+| List | `40px / 8px` | Catalog, management, dialog-header, and repeated identity rows. Local layouts may use `30–40px` without creating another radius tier. |
+| Hero | `60px / 16px` | One prominent product or plugin identity at the start of a detail or setup surface. Hero use is intentionally rare. |
+
+Use `object-fit: contain`; cropping belongs to thumbnails. Existing artwork sits
+on a transparent shell, while generated letter or glyph fallbacks may use a
+restrained brand or neutral fill. Hero shells use only the near-invisible `1px`
+`--identity-mark-hero-border` hairline (about 8% ink); compact and list shells
+remain unframed unless interaction requires a boundary. Reserve circles for
+people, presence/status, toggles, and circular actions.
+
+Identity marks use the renderer's supported squircle treatment. Their documented
+`6px`, `8px`, and `16px` radii are the base geometry; on engines that support
+`corner-shape: superellipse(1.5)`, the shared `1.25` radius compensation keeps
+the perceived corner equivalent while producing the flatter, continuous curve.
+Do not apply the compensated radius without the matching corner shape.
+
+Hero-led detail headers place the identity row `16px` below the mark. The subject
+uses `--type-detail-title` (`20px / 27px`, weight `500`); the subtitle uses
+`--type-body` in `--text-secondary`, with `6px` between them. Actions align to
+the row's top. Plugins and channels share this rhythm.
+
+Use the shared `IdentityMark` primitive and semantic radius tokens. Apply optical
+padding to the artwork, not the shell.
 
 ## Components
 
@@ -699,10 +752,9 @@ Desktop-owned text fields use the shared `Input` and `Textarea` components rathe
 than a locally styled native element, so height, radius, placeholder, hover,
 focus, invalid, and disabled treatments stay identical. The components own their
 own height and never set `flex`; callers place them in a row or column layout and
-pass only their genuine deltas. Three cases stay native: a visually hidden control
-that supplies semantics, one that opens a platform picker such as the system color
-chooser, and an inline editor embedded in a canvas surface whose own class already
-follows the focus rule above.
+pass only their genuine deltas. Two cases stay native: a visually hidden control
+that supplies semantics, and an inline editor embedded in a canvas surface whose
+own class already follows the focus rule above.
 
 Validation combines copy, border/icon treatment, and semantic tokens. Error or
 warning color identifies the issue without taking over the form.
@@ -710,9 +762,15 @@ warning color identifies the issue without taking over the form.
 Visible select controls, checkboxes, and editable suggestion fields in Desktop-owned
 UI use the shared `Select`, `Checkbox`, and `Combobox` components so their menus,
 focus treatment, disabled state, and keyboard behavior remain consistent. A native
-form control may remain only when it is visually hidden and supplies semantics, or
-when it deliberately opens a platform picker such as the system color chooser.
+form control may remain only when it is visually hidden and supplies semantics.
 Third-party content rendered in sandboxed views is outside this rule.
+
+Desktop-owned opaque RGB color choices use the shared `ColorPickerDialog`, not
+`input[type="color"]`. The compact Host-owned dialog contains a Hex field, saturation/value
+plane, Hue control, and explicit Done/Reset actions. Edits preview inside the dialog; Done
+commits, Reset clears the semantic override immediately, and every close path cancels. A hidden
+native file input may still open the system file chooser because file access remains a platform
+capability rather than a Desktop-owned visual editor.
 
 ### Inline Reference Chips
 
@@ -829,9 +887,11 @@ bordered table inside a bordered section doubles the frame.
 groups. `--border-default` draws a control's own edge and is not used to divide a
 page into regions.
 
-A detail page presents its subject; it is not where the subject's state is
-changed. Enable switches and similar controls stay in the manage surface that
-owns them, for the same reason a dialog does not carry them (see Dialog Headers).
+A detail page presents its subject; standing state controls stay in the manage
+surface that owns them, for the same reason a dialog does not carry them (see
+Dialog Headers). Plugin detail uses one task-oriented primary CTA slot rather
+than a standing management switch: Install and Enable show in-control progress,
+then the same slot becomes Try in chat when the plugin is ready.
 
 ### Interactive Tool UI
 
@@ -891,21 +951,30 @@ animation; the pulse itself is the running signal.
   streaming caret — do not add a second spinner beside it. Remove the redundant
   indicator, along with any elapsed-time counter that rides with it.
 - Mark loading regions `aria-busy`; give content-free skeletons `role="status"`
-  with an `aria-label` so the loading state a removed spinner used to convey is
-  still announced. Skeleton blocks themselves stay `aria-hidden`.
+  with an `aria-label` so the loading state is announced. Skeleton blocks
+  themselves stay `aria-hidden`.
 - Skeleton animation honors `data-reduce-motion` via the global reduced-motion
   rule; never gate the *meaning* of a loading state on motion — under reduced
   motion the skeleton still reads as a placeholder.
 
 ## Appearance Preferences
 
+The palette is stated as a per-variant seed — `--seed-surface`, `--seed-ink`, `--seed-accent`,
+and a 0-100 contrast — and `foundations/tokens.css` derives the surface, text, and border ramps
+from it with `color-mix`. `surface` is the base plane: the page in dark, the card in light, so
+both variants move away from it by mixing in ink. `shared/themeDerive.ts` writes only what CSS
+cannot compute (the seed colors, the normalized contrast multiplier `--contrast-k`, and
+`--on-accent`), and writes nothing at all for a default seed. The layering rules and the
+formulas live in `specs/architecture/desktop-styles.md`.
+
 Desktop exposes an Appearance settings tab backed by `settings.json` and applied to the
 renderer root element:
 
 - Theme mode `system | light | dark` via `data-theme` (`system` resolves from the OS).
-- A custom accent overrides `--accent` / `--accent-hover`; unset falls back to the per-theme
-  token defaults. A custom accent stays restrained per the Colors rules — it is not promoted
-  to a primary-action fill.
+- A custom accent sets `--seed-accent`, from which `--accent`, `--accent-hover`, and the
+  foreground `--on-accent` derive; unset writes nothing and the per-theme token defaults
+  answer. A custom accent stays restrained per the Colors rules — it is not promoted to a
+  primary-action fill.
 - Code font size overrides `--text-code-size`.
 - Diff markers (`color` vs `+/-`) change how `InlineDiffView` / `DiffViewer` present changes.
 - `data-reduce-motion` (`system | on | off`) gates animations; `data-pointer-cursors`
@@ -913,6 +982,46 @@ renderer root element:
 
 When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
 than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
+
+### Desktop Plugin settings and appearance
+
+Desktop Plugin settings pages use the same `SettingsPanelShell`, `SettingsGroup`, and
+`SettingsRow` grammar as built-in settings. Put switches, selects, sliders, and other ordinary
+controls in the row's control slot. Put previews, media pickers, theme choices, and other wide
+visual choices in a block row or a flush group so they do not create a decorative card inside a
+settings card. Plugin-specific artwork may carry its own colors, but the surrounding controls use
+the shared neutral borders, radii, spacing, focus, and selection states.
+
+The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of
+restyling native selects, segmented controls, switches, or ranges. A hidden native file input may
+still invoke the platform file picker when the visible trigger is a Host control. Opaque color
+choices use Core's shared picker; plugins request it through `host.ui.pickColor` and never own its
+portal, focus lifecycle, validation, or localization.
+
+Continuous controls preview locally and persist when the interaction commits. `Slider`
+`onValueChange` tracks the pointer or keyboard value, while `onValueCommit` reports the final value
+once at the end of the gesture. Do not send each intermediate delta through AppServer or write it to
+configuration storage.
+
+Global appearance is a Host-owned composition. A plugin may contribute a theme-seed override or
+request backdrop presentation through `host.appearance`; it must not write Desktop's private CSS
+custom properties. Core Appearance preferences remain the base layer. Each plugin generation owns
+one theme override and one backdrop contribution, and Desktop removes both when that generation is
+disabled, reloaded, or disposed.
+
+An `app.background` surface renders media only. When it also requests backdrop presentation, the
+window frame becomes transparent. The menu bar, panel body, and welcome surface each composite one
+Host-owned neutral layer over the media. The panel body is shared by sidebar and main so the main
+surface's rounded corner reveals the same neutral layer instead of raw media. Do not place a second
+translucent sidebar or main layer over that body: compounded alpha makes the same opacity setting
+mean different things across the shell.
+
+Persistent window telemetry belongs in the Host-owned `app.status` rail, not in a freely positioned
+`app.overlay`. The rail sits at the trailing bottom edge, keeps compact readouts and Core indicators
+on one 24px alignment line, and owns their spacing and window inset. Contributions do not position
+themselves against the viewport. Use tabular numerals for changing measurements, omit unavailable
+facts instead of presenting false zeroes, and keep passive readouts click-through. `app.overlay`
+remains the surface for decorative or independently positioned content.
 
 ## Do's and Don'ts
 
@@ -931,6 +1040,10 @@ Do:
   control styling.
 - Update `desktop/src/renderer/styles/foundations/tokens.css` and this file together when adding a
   reusable token.
+- Remove a token the same way: confirm zero `var(--x)` consumers across
+  `desktop/src`, then delete the declaration from both theme blocks and the
+  front-matter `colors:` map in one change. A token that survives with no
+  readers is a phantom the next author will copy.
 
 Don't:
 
