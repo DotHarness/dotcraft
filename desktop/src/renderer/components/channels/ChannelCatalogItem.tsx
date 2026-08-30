@@ -4,6 +4,7 @@ import { PluginInstallButton } from '../plugins/PluginInstallButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import type { ChannelConnectionState } from './ChannelCard'
+import { IdentityMark } from '../ui/IdentityMark'
 
 interface ChannelCatalogItemProps {
   logoPath?: string
@@ -83,12 +84,11 @@ export function ChannelCatalogItem({
 }
 
 export function ChannelIcon({ logoPath, title }: { logoPath?: string; title: string }): JSX.Element {
-  if (logoPath) {
-    return <img className="dc-channel-catalog-item__icon" src={logoPath} alt="" width={40} height={40} />
-  }
   return (
-    <span className="dc-channel-catalog-item__icon dc-channel-catalog-item__icon--fallback" aria-hidden>
-      {title.slice(0, 1).toUpperCase()}
-    </span>
+    <IdentityMark
+      role="list"
+      src={logoPath}
+      fallback={title.slice(0, 1).toUpperCase()}
+    />
   )
 }

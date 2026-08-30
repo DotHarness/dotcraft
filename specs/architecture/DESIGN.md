@@ -65,6 +65,12 @@ typography:
     fontWeight: 600
     lineHeight: "var(--type-page-title-line-height)"
     letterSpacing: "0"
+  detail-heading:
+    fontFamily: "var(--font-ui)"
+    fontSize: "var(--type-detail-title-size)"
+    fontWeight: 500
+    lineHeight: "var(--type-detail-title-line-height)"
+    letterSpacing: "0"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -77,6 +83,7 @@ rounded:
   sm: "6px"
   md: "8px"
   lg: "10px"
+  identity-hero: "16px"
   full: "999px"
 components:
   primary-action:
@@ -223,6 +230,7 @@ literal is a new tier nobody agreed to.
 | Token | Size / leading | Use |
 | --- | --- | --- |
 | `--type-title` | 28 / 34 | entry surfaces only |
+| `--type-detail-title` | 20 / 27 | the named subject in an identity-led detail header |
 | `--type-page-title` | 18 / 23 | panel page heading |
 | `--type-heading` | 15 / 20 | card and group heading |
 | `--type-body` | 14 / 21 | conversation and document body |
@@ -262,6 +270,8 @@ Desktop surfaces should favor dense but organized operational layouts.
   (tabs or breadcrumb) stays left, page-level management actions stay right, and
   both sides share the same vertical center. Do not position catalog actions in
   the hero/header below this band or compensate with negative offsets.
+  Plugin detail is the narrow exception: item-scoped actions may sit beside the
+  title block.
 - Catalog browse and manage pages separate their controls and groups with space
   and heading weight, not with rules: no rule under the hero/search header or
   manage toolbar, and none above a group. A rule above the first group is a frame
@@ -347,6 +357,40 @@ component family uses another token.
 
 Keep shape language restrained. Large rounded rectangles should not be used as
 decoration.
+
+### Identity marks
+
+Product, plugin, skill, channel, provider, and connected-app artwork uses one
+identity-mark family. Avatars, status dots, thumbnails, favicons, action glyphs,
+and illustrations keep their own shape rules. Choose a role instead of deriving
+corner geometry from an arbitrary size:
+
+| Role | Standard size / radius | Use |
+| --- | --- | --- |
+| Compact | `24px / 6px` | Dense metadata, prompt prefixes, and connection rows. Inline marks may reduce to `18px` while retaining the compact radius. |
+| List | `40px / 8px` | Catalog, management, dialog-header, and repeated identity rows. Local layouts may use `30–40px` without creating another radius tier. |
+| Hero | `60px / 16px` | One prominent product or plugin identity at the start of a detail or setup surface. Hero use is intentionally rare. |
+
+Use `object-fit: contain`; cropping belongs to thumbnails. Existing artwork sits
+on a transparent shell, while generated letter or glyph fallbacks may use a
+restrained brand or neutral fill. Hero shells use only the near-invisible `1px`
+`--identity-mark-hero-border` hairline (about 8% ink); compact and list shells
+remain unframed unless interaction requires a boundary. Reserve circles for
+people, presence/status, toggles, and circular actions.
+
+Identity marks use the renderer's supported squircle treatment. Their documented
+`6px`, `8px`, and `16px` radii are the base geometry; on engines that support
+`corner-shape: superellipse(1.5)`, the shared `1.25` radius compensation keeps
+the perceived corner equivalent while producing the flatter, continuous curve.
+Do not apply the compensated radius without the matching corner shape.
+
+Hero-led detail headers place the identity row `16px` below the mark. The subject
+uses `--type-detail-title` (`20px / 27px`, weight `500`); the subtitle uses
+`--type-body` in `--text-secondary`, with `6px` between them. Actions align to
+the row's top. Plugins and channels share this rhythm.
+
+Use the shared `IdentityMark` primitive and semantic radius tokens. Apply optical
+padding to the artwork, not the shell.
 
 ## Components
 
@@ -838,9 +882,11 @@ bordered table inside a bordered section doubles the frame.
 groups. `--border-default` draws a control's own edge and is not used to divide a
 page into regions.
 
-A detail page presents its subject; it is not where the subject's state is
-changed. Enable switches and similar controls stay in the manage surface that
-owns them, for the same reason a dialog does not carry them (see Dialog Headers).
+A detail page presents its subject; standing state controls stay in the manage
+surface that owns them, for the same reason a dialog does not carry them (see
+Dialog Headers). Plugin detail uses one task-oriented primary CTA slot rather
+than a standing management switch: Install and Enable show in-control progress,
+then the same slot becomes Try in chat when the plugin is ready.
 
 ### Interactive Tool UI
 

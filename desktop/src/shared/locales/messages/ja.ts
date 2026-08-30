@@ -847,6 +847,8 @@ export const MESSAGES_JA = {
   'plugins.installSuccess': 'プラグインがインストールされています',
   'plugins.installFailed': 'プラグインのインストールに失敗しました',
   'plugins.tryInChat': 'チャットで試してみる',
+  'plugins.enable': '有効にする',
+  'plugins.enabling': '有効にしています…',
   'composer.modelListError': 'モデルリストの読み込みに失敗しました。',
   'composer.modelListRetry': '再試行',
   'settings.group.application': '応用',

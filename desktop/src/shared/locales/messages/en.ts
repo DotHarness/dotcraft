@@ -1495,6 +1495,8 @@ export const MESSAGES_EN = {
   'plugins.manage.count.skills': 'Skills {{count}}',
   'plugins.source.plugin': 'Plugin',
   'plugins.tryInChat': 'Try in chat',
+  'plugins.enable': 'Enable',
+  'plugins.enabling': 'Enabling…',
   'plugins.enabled': 'Enabled',
   'plugins.disabled': 'Disabled',
   'plugins.defaultPromptFallback': 'Use this plugin in the current conversation',

@@ -17,6 +17,65 @@ import {
 describe('PluginsView installation', () => {
   beforeEach(setupPluginsViewTest)
 
+  it('keeps detail Install busy in place, triggers once, then shows Try in chat', async () => {
+    let finishInstall: ((value: unknown) => void) | undefined
+    const installResult = new Promise((resolve) => { finishInstall = resolve })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: browserUsePlugin, snapshotRevision: 1 }
+      if (method === 'plugin/install') return installResult
+      if (method === 'skills/list') return { skills: [] }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Browser'))
+    await screen.findByRole('heading', { name: 'Browser' })
+
+    const installButton = screen.getByRole('button', { name: 'Install' })
+    fireEvent.click(installButton)
+
+    await waitFor(() => {
+      expect(installButton).toBeDisabled()
+      expect(installButton).toHaveAttribute('aria-busy', 'true')
+      expect(screen.getByRole('button', { name: 'Installing…' })).toBe(installButton)
+    })
+    fireEvent.click(installButton)
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'plugin/install')).toHaveLength(1)
+
+    finishInstall?.({
+      outcome: 'applied',
+      plugin: { ...browserUsePlugin, installed: true, enabled: true, installable: false },
+      affectedPlugins: [],
+      snapshotRevision: 2
+    })
+
+    expect(await screen.findByRole('button', { name: 'Try in chat' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('moves a detail install into authorization without granting trust', async () => {
+    const installedUntrusted = { ...dotnetPlugin, installed: true, enabled: false, installable: false }
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [dotnetPlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: dotnetPlugin, snapshotRevision: 1 }
+      if (method === 'plugin/install') {
+        return { outcome: 'applied', plugin: installedUntrusted, affectedPlugins: [], snapshotRevision: 2 }
+      }
+      if (method === 'skills/list') return { skills: [] }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Review Core'))
+    await screen.findByRole('heading', { name: 'Review Core' })
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }))
+
+    expect(await screen.findByText('Security authorization')).toBeInTheDocument()
+    expect(appServerSendRequest).toHaveBeenCalledWith('plugin/install', { id: 'acme.review-core' })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/setTrusted', expect.anything())
+  })
+
   it('shows ordinary plugin install first for app plugins', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [], snapshotRevision: 1 }
@@ -30,10 +89,11 @@ describe('PluginsView installation', () => {
     expect(installButton).toHaveClass('dc-plugin-install-button')
     fireEvent.click(installButton)
 
-    expect(await screen.findByRole('heading', { name: 'Install Workflow App' })).toBeInTheDocument()
+    const dialog = (await screen.findByRole('heading', { name: 'Install Workflow App' })).closest('[role="dialog"]')
+    expect(dialog).not.toBeNull()
     expect((await screen.findAllByText('Workflow App')).length).toBeGreaterThan(0)
     expect(screen.getByText('App')).toBeInTheDocument()
-    expect(screen.getByText('workflow')).toBeInTheDocument()
+    expect(within(dialog as HTMLElement).getByText('Workflow App', { selector: 'strong' }).parentElement).toHaveTextContent(/^Workflow App$/)
     expect(screen.getByRole('button', { name: 'Add to DotCraft' })).toBeInTheDocument()
     expect(screen.queryByText('Install or open Workflow App')).not.toBeInTheDocument()
     expect(screen.queryByText('Connect Workflow App')).not.toBeInTheDocument()
@@ -178,6 +238,7 @@ describe('PluginsView installation', () => {
     const addButton = screen.getByRole('button', { name: 'Add to DotCraft' })
     expect(addButton).toBeInTheDocument()
     expect(addButton.style.width).toBe('100%')
+    expect(screen.queryByText('builtin')).not.toBeInTheDocument()
     expect(screen.queryByText('Required app')).not.toBeInTheDocument()
   })
 

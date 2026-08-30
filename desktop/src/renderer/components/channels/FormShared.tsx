@@ -14,12 +14,6 @@ export const formStyles = {
     marginBottom: '20px'
   } as React.CSSProperties,
 
-  headerLogo: {
-    borderRadius: '8px',
-    flexShrink: 0,
-    backgroundColor: 'var(--bg-secondary)'
-  } as React.CSSProperties,
-
   headerTitle: {
     fontSize: '16px',
     fontWeight: 700,

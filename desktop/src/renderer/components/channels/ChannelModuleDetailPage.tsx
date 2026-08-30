@@ -4,6 +4,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { CatalogBreadcrumb, CatalogTopBar } from '../catalog/CatalogSurface'
 import { IconButton } from '../ui/IconButton'
 import { PluginInstallButton } from '../plugins/PluginInstallButton'
+import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 import { ChannelFormPage } from './ChannelFormPage'
 import styles from './ChannelModuleDetailPage.module.css'
 
@@ -78,7 +79,13 @@ export function ChannelModuleDetailPage({
         <div className={styles.content}>
           <header className={styles.header}>
             <div className={styles.iconRow}>
-              <ChannelDetailIcon logoPath={logoPath} title={title} className={styles.heroIcon} />
+              <ChannelDetailIcon logoPath={logoPath} title={title} role="hero" />
+            </div>
+            <div className={styles.identityRow}>
+              <div className={styles.identity}>
+                <h1>{title}</h1>
+                <p>{subtitle}</p>
+              </div>
               <div className={styles.actions}>
                 <IconButton
                   icon={<Settings size={16} aria-hidden />}
@@ -96,14 +103,12 @@ export function ChannelModuleDetailPage({
                 </PluginInstallButton>
               </div>
             </div>
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
           </header>
 
           <div className={styles.preview} aria-label={t('channels.detail.preview')}>
             <div className={styles.prompt}>
               <span className={styles.promptPrefix}>
-                <ChannelDetailIcon logoPath={logoPath} title={title} className={styles.promptIcon} />
+                <ChannelDetailIcon logoPath={logoPath} title={title} role="compact" size={18} />
                 <strong>{title}</strong>
               </span>
               <span className={styles.promptText}>{previewPrompt}</span>
@@ -132,15 +137,20 @@ export function ChannelModuleDetailPage({
 function ChannelDetailIcon({
   logoPath,
   title,
-  className,
+  role,
+  size,
 }: {
   logoPath?: string
   title: string
-  className: string
+  role: IdentityMarkRole
+  size?: number
 }): JSX.Element {
   return (
-    <span className={className} aria-hidden>
-      {logoPath ? <img src={logoPath} alt="" /> : title.slice(0, 1).toUpperCase()}
-    </span>
+    <IdentityMark
+      role={role}
+      size={size}
+      src={logoPath}
+      fallback={title.slice(0, 1).toUpperCase()}
+    />
   )
 }

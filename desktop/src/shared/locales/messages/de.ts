@@ -847,6 +847,8 @@ export const MESSAGES_DE = {
   'plugins.installSuccess': 'Plugin installiert',
   'plugins.installFailed': 'Plugin konnte nicht installiert werden',
   'plugins.tryInChat': 'Versuchen Sie es im Chat',
+  'plugins.enable': 'Aktivieren',
+  'plugins.enabling': 'Wird aktiviert…',
   'composer.modelListError': 'Modellliste konnte nicht geladen werden.',
   'composer.modelListRetry': 'Erneut versuchen',
   'settings.group.application': 'Anwendung',

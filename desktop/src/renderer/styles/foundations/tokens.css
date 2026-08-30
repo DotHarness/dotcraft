@@ -199,6 +199,13 @@
   --corner-radius-scale: 1;
   --control-radius-md-base: 0.5rem;
   --control-radius-md: calc(var(--control-radius-md-base) * var(--corner-radius-scale));
+  --identity-mark-radius-compact-base: 0.375rem;
+  --identity-mark-radius-list-base: 0.5rem;
+  --identity-mark-radius-hero-base: 1rem;
+  --identity-mark-radius-compact: calc(var(--identity-mark-radius-compact-base) * var(--corner-radius-scale));
+  --identity-mark-radius-list: calc(var(--identity-mark-radius-list-base) * var(--corner-radius-scale));
+  --identity-mark-radius-hero: calc(var(--identity-mark-radius-hero-base) * var(--corner-radius-scale));
+  --identity-mark-hero-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-radius: var(--control-radius-md);
   --sidebar-row-radius: 10px;
   --sidebar-icon-control-radius: var(--control-radius-md);
@@ -241,6 +248,9 @@
   --type-heading-size: 15px;
   --type-heading-line-height: 20px;
   --type-heading-weight: 600;
+  --type-detail-title-size: 20px;
+  --type-detail-title-line-height: 27px;
+  --type-detail-title-weight: 500;
   --type-page-title-size: 18px;
   --type-page-title-line-height: 23px;
   --type-page-title-weight: 600;

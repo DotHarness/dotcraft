@@ -43,6 +43,7 @@ import { FileSearchPopover } from './FileSearchPopover'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { SparkIcon } from '../ui/AppIcons'
+import { IdentityMark } from '../ui/IdentityMark'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import { ChatGptUsageBadge } from './ChatGptUsageBadge'
@@ -2294,17 +2295,18 @@ function WelcomeAppBindingsButton({
 }
 
 function AppLogo({ app }: { app: AppInfo }): JSX.Element {
-  if (app.icon) return <img src={app.icon} alt="" style={welcomeAppLogoImg} />
   return (
-    <span style={welcomeAppLogoFallback} aria-hidden>
-      <Link2 size={15} />
-    </span>
+    <IdentityMark
+      role="list"
+      size={30}
+      src={app.icon}
+      fallback={<Link2 size={15} />}
+      framed={!app.icon}
+    />
   )
 }
 
 const welcomeAppButtonSlot: CSSProperties = { position: 'absolute', top: 12, right: 16, zIndex: 8 }
-const welcomeAppLogoImg: CSSProperties = { width: 30, height: 30, display: 'block', flex: '0 0 auto', objectFit: 'contain' }
-const welcomeAppLogoFallback: CSSProperties = { width: 30, height: 30, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }
 
 function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' } | null {
   const trimmed = text.trim().toLowerCase()

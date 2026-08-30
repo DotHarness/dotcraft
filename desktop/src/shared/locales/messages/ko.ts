@@ -851,6 +851,8 @@ export const MESSAGES_KO = {
   'plugins.installSuccess': '플러그인이 설치됨',
   'plugins.installFailed': '플러그인을 설치하지 못했습니다.',
   'plugins.tryInChat': '채팅으로 시도해 보세요',
+  'plugins.enable': '활성화',
+  'plugins.enabling': '활성화하는 중…',
   'composer.modelListError': '모델 목록을 로드하지 못했습니다.',
   'composer.modelListRetry': '다시 시도',
   'settings.group.application': '애플리케이션',

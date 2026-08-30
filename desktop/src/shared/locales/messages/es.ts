@@ -847,6 +847,8 @@ export const MESSAGES_ES = {
   'plugins.installSuccess': 'Complemento instalado',
   'plugins.installFailed': 'No se pudo instalar el complemento',
   'plugins.tryInChat': 'Prueba en el chat',
+  'plugins.enable': 'Habilitar',
+  'plugins.enabling': 'Habilitando…',
   'composer.modelListError': 'No se pudo cargar la lista de modelos.',
   'composer.modelListRetry': 'Reintentar',
   'settings.group.application': 'Solicitud',

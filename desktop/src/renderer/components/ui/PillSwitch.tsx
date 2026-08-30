@@ -7,6 +7,7 @@ interface PillSwitchProps {
   onChange: (checked: boolean) => void
   size?: PillSwitchSize
   disabled?: boolean
+  'aria-busy'?: boolean
   'aria-label'?: string
   'aria-labelledby'?: string
 }
@@ -25,6 +26,7 @@ export function PillSwitch({
   onChange,
   size = 'md',
   disabled = false,
+  'aria-busy': ariaBusy,
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledby
 }: PillSwitchProps): JSX.Element {
@@ -37,6 +39,7 @@ export function PillSwitch({
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-busy={ariaBusy}
       aria-label={ariaLabel}
       aria-labelledby={ariaLabelledby}
       disabled={disabled}

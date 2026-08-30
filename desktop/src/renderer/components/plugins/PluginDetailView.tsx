@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { Anchor, Box, Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
@@ -18,6 +18,7 @@ import { AppBindingPanel } from './AppBindingPanel'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginInstallButton } from './PluginInstallButton'
 import { displayCategory } from './pluginCatalogModel'
+import styles from './PluginDetailView.module.css'
 
 const DOTCRAFT_PLUGIN_FALLBACK_URL = 'https://github.com/DotHarness/dotcraft'
 
@@ -27,7 +28,10 @@ export function PluginDetailView({
   onBack,
   onManage,
   onInstall,
+  installing,
   onRemove,
+  enabling,
+  onEnable,
   enablingLsp,
   onEnableLsp,
   onTryInChat,
@@ -38,7 +42,10 @@ export function PluginDetailView({
   onBack: () => void
   onManage: () => void
   onInstall: () => void
+  installing: boolean
   onRemove: () => void
+  enabling: boolean
+  onEnable: () => void
   enablingLsp: boolean
   onEnableLsp: () => void
   onTryInChat: () => void
@@ -64,49 +71,54 @@ export function PluginDetailView({
       />
       <header style={detailHeader}>
         <div style={detailIconRow}>
-          <PluginIcon plugin={plugin} size={64} />
-          <div style={{ flex: 1 }} />
-          <ActionTooltip label={t('plugins.detail.website')}>
-            <a
-              href={resolvePluginExternalUrl(info?.websiteUrl) ?? DOTCRAFT_PLUGIN_FALLBACK_URL}
-              style={detailIconButton}
-              aria-label={t('plugins.detail.website')}
-              onClick={(event) => handlePluginExternalLinkClick(event, info?.websiteUrl)}
-            >
-              <Link size={15} aria-hidden />
-            </a>
-          </ActionTooltip>
-          {plugin.installed && (
-            <IconButton
-              icon={<Ellipsis size={16} aria-hidden />}
-              label={t('plugins.moreActions')}
-              onClick={(event) => {
-                event.stopPropagation()
-                const rect = event.currentTarget.getBoundingClientRect()
-                setDetailMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
-              }}
-            />
-          )}
-          {plugin.installed ? (
-            <PluginInstallButton variant="primary" disabled={!plugin.enabled} onClick={onTryInChat} iconLeft={<MessageCircle size={14} />}>
-              {t('plugins.tryInChat')}
-            </PluginInstallButton>
-          ) : (
-            <PluginInstallButton variant="primary" onClick={onInstall} iconLeft={<Plus size={14} />}>
-              {t('plugins.install')}
-            </PluginInstallButton>
-          )}
+          <PluginIcon plugin={plugin} role="hero" />
         </div>
-        <h1 style={detailTitle}>{pluginTitle(plugin)}</h1>
-        <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
+        <div style={detailIdentityRow}>
+          <div style={detailIdentity}>
+            <h1 style={detailTitle}>{pluginTitle(plugin)}</h1>
+            <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
+          </div>
+          <div style={detailActions}>
+            <ActionTooltip label={t('plugins.detail.website')}>
+              <a
+                href={resolvePluginExternalUrl(info?.websiteUrl) ?? DOTCRAFT_PLUGIN_FALLBACK_URL}
+                style={detailIconButton}
+                aria-label={t('plugins.detail.website')}
+                onClick={(event) => handlePluginExternalLinkClick(event, info?.websiteUrl)}
+              >
+                <Link size={15} aria-hidden />
+              </a>
+            </ActionTooltip>
+            {plugin.installed && (
+              <IconButton
+                icon={<Ellipsis size={16} aria-hidden />}
+                label={t('plugins.moreActions')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  setDetailMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+                }}
+              />
+            )}
+            <PluginPrimaryAction
+              installed={plugin.installed}
+              enabled={plugin.enabled}
+              installing={installing}
+              enabling={enabling}
+              onInstall={onInstall}
+              onEnable={onEnable}
+              onTryInChat={onTryInChat}
+            />
+          </div>
+        </div>
       </header>
       <main className="dc-scrollbar-stable" style={detailMain}>
         <div style={detailContent}>
           {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
-          <div style={promptPreview}>
-            <span style={promptBubble}>
+          <div className={styles.promptPreview} style={promptPreview} data-plugin-prompt-preview>
+            <span className={styles.promptBubble} style={promptBubble}>
               <span style={promptBubblePrefix}>
-                <PluginIcon plugin={plugin} size={18} />
+                <PluginIcon plugin={plugin} role="compact" size={18} />
                 <strong style={promptBubbleTitle}>{pluginTitle(plugin)}</strong>
               </span>
               <span style={promptBubbleText}>{info?.defaultPrompt || t('plugins.defaultPromptFallback')}</span>
@@ -200,6 +212,83 @@ export function PluginDetailView({
   )
 }
 
+function PluginPrimaryAction({
+  installed,
+  enabled,
+  installing,
+  enabling,
+  onInstall,
+  onEnable,
+  onTryInChat
+}: {
+  installed: boolean
+  enabled: boolean
+  installing: boolean
+  enabling: boolean
+  onInstall: () => void
+  onEnable: () => void
+  onTryInChat: () => void
+}): JSX.Element {
+  const t = useT()
+  const pending = installing || enabling
+  const label = installing
+    ? t('plugins.installing')
+    : enabling
+      ? t('plugins.enabling')
+      : !installed
+        ? t('plugins.install')
+        : enabled
+          ? t('plugins.tryInChat')
+          : t('plugins.enable')
+  const showInstallIcon = !installed && !pending
+  const showTryIcon = installed && enabled && !pending
+  const measureRef = useRef<HTMLSpanElement>(null)
+  const [width, setWidth] = useState<number | null>(null)
+  const [transitionReady, setTransitionReady] = useState(false)
+
+  useLayoutEffect(() => {
+    const nextWidth = measureRef.current?.getBoundingClientRect().width
+    if (nextWidth == null || nextWidth === 0) return
+    setWidth(nextWidth)
+    if (!transitionReady) {
+      const frame = window.requestAnimationFrame(() => setTransitionReady(true))
+      return () => window.cancelAnimationFrame(frame)
+    }
+  }, [enabled, installed, label, pending, transitionReady])
+
+  return (
+    <>
+      <span ref={measureRef} className={styles.primaryMeasure} aria-hidden="true">
+        <PluginInstallButton
+          variant="primary"
+          loading={pending}
+          disabled
+          tabIndex={-1}
+          iconLeft={showInstallIcon ? <Plus size={14} /> : showTryIcon ? <MessageCircle size={14} /> : undefined}
+        >
+          {label}
+        </PluginInstallButton>
+      </span>
+      <span
+        className={styles.primarySlot}
+        data-transition-ready={transitionReady ? 'true' : 'false'}
+        style={width == null ? undefined : { width }}
+      >
+        <PluginInstallButton
+          variant="primary"
+          loading={pending}
+          aria-busy={pending}
+          onClick={!installed ? onInstall : enabled ? onTryInChat : onEnable}
+          iconLeft={showInstallIcon ? <Plus size={14} /> : showTryIcon ? <MessageCircle size={14} /> : undefined}
+          className={styles.primaryButton}
+        >
+          {label}
+        </PluginInstallButton>
+      </span>
+    </>
+  )
+}
+
 function InfoRow({ label, value }: { label: string; value?: string | null }): JSX.Element {
   return (
     <div style={infoRow}>
@@ -268,12 +357,15 @@ const pluginText: CSSProperties = { display: 'flex', flexDirection: 'column', mi
 const detailMain: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', width: '100%' }
 const detailContent: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '0 auto', padding: '0 0 48px' }
 const detailHeader: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '22px auto 28px' }
-const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 12 }
-const detailTitle: CSSProperties = { margin: '20px 0 6px', fontSize: 28, fontWeight: 600 }
-const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 15 }
+const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'flex-start' }
+const detailIdentityRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px 20px', marginTop: 16 }
+const detailIdentity: CSSProperties = { display: 'flex', minWidth: 'min(100%, 280px)', flex: '1 1 360px', flexDirection: 'column', gap: 6 }
+const detailActions: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12 }
+const detailTitle: CSSProperties = { margin: 0, fontSize: 'var(--type-detail-title-size)', fontWeight: 'var(--type-detail-title-weight)', lineHeight: 'var(--type-detail-title-line-height)' }
+const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 'var(--type-body-size)', lineHeight: 'var(--type-body-line-height)' }
 const detailIconButton: CSSProperties = { width: 32, height: 32, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textDecoration: 'none' }
-const promptPreview: CSSProperties = { minHeight: 132, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(120deg, #b6cdf5, #d9cef7 58%, #f3f0fb)', padding: '18px 24px', boxSizing: 'border-box' }
-const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 7, rowGap: 4, maxWidth: '80%', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 13, background: 'rgba(255,255,255,0.82)', color: '#111', padding: '8px 12px', fontSize: 13, lineHeight: 1.35 }
+const promptPreview: CSSProperties = { minHeight: 132, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px 24px', boxSizing: 'border-box' }
+const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 7, rowGap: 4, maxWidth: '80%', borderRadius: 13, padding: '8px 12px', fontSize: 13, lineHeight: 1.35 }
 const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, flex: '0 1 auto', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap' }
 const promptBubbleTitle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const promptBubbleText: CSSProperties = { flex: '1 1 180px', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }

@@ -208,7 +208,7 @@ export function HooksPanel(): JSX.Element {
               <SourceRow
                 key={summary.key}
                 summary={summary}
-                icon={plugin ? <PluginIcon plugin={plugin} size={30} /> : <Anchor size={17} aria-hidden />}
+                icon={plugin ? <PluginIcon plugin={plugin} role="list" size={30} /> : <Anchor size={17} aria-hidden />}
                 onOpen={() => setSelectedSourceKey(summary.key)}
               />
             )

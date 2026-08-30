@@ -28,6 +28,7 @@ export function PluginManageSurface({
   error,
   diagnostics,
   plugins,
+  pendingPluginIds,
   pluginCount,
   pluginQuery,
   skills,
@@ -50,6 +51,7 @@ export function PluginManageSurface({
   error: string | null
   diagnostics: PluginDiagnosticEntry[]
   plugins: PluginEntry[]
+  pendingPluginIds: ReadonlySet<string>
   pluginCount: number
   pluginQuery: string
   skills: SkillEntry[]
@@ -96,6 +98,7 @@ export function PluginManageSurface({
           error={error}
           diagnostics={diagnostics}
           plugins={plugins}
+          pendingPluginIds={pendingPluginIds}
           onOpen={onOpenPlugin}
           onInstall={onInstallPlugin}
           onToggle={onTogglePlugin}
@@ -207,6 +210,7 @@ function PluginsManageList({
   error,
   diagnostics,
   plugins,
+  pendingPluginIds,
   onOpen,
   onInstall,
   onToggle
@@ -216,6 +220,7 @@ function PluginsManageList({
   error: string | null
   diagnostics: PluginDiagnosticEntry[]
   plugins: PluginEntry[]
+  pendingPluginIds: ReadonlySet<string>
   onOpen: (plugin: PluginEntry) => void
   onInstall: (plugin: PluginEntry) => void
   onToggle: (plugin: PluginEntry, enabled: boolean) => void
@@ -239,6 +244,7 @@ function PluginsManageList({
         <PluginManageItem
           key={plugin.id}
           plugin={plugin}
+          pending={pendingPluginIds.has(plugin.id)}
           onOpen={() => onOpen(plugin)}
           onInstall={() => onInstall(plugin)}
           onToggle={(enabled) => onToggle(plugin, enabled)}
@@ -250,11 +256,13 @@ function PluginsManageList({
 
 function PluginManageItem({
   plugin,
+  pending,
   onOpen,
   onInstall,
   onToggle
 }: {
   plugin: PluginEntry
+  pending: boolean
   onOpen: () => void
   onInstall: () => void
   onToggle: (enabled: boolean) => void
@@ -270,7 +278,7 @@ function PluginManageItem({
       onBlur={() => setActive(false)}
     >
       <button type="button" onClick={onOpen} style={manageItemMain}>
-        <PluginIcon plugin={plugin} size={38} />
+        <PluginIcon plugin={plugin} role="list" size={38} />
         <span style={pluginText}>
           <strong style={rowTitle}>{pluginTitle(plugin)}</strong>
           <span style={rowDesc}>{pluginSubtitle(plugin)}</span>
@@ -281,7 +289,14 @@ function PluginManageItem({
       </span>
       <span style={manageActionSlot}>
         {plugin.installed ? (
-          <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
+          <PillSwitch
+            checked={plugin.enabled}
+            disabled={pending}
+            aria-busy={pending}
+            onChange={onToggle}
+            size="sm"
+            aria-label={`${pluginTitle(plugin)} enabled`}
+          />
         ) : (
           <PluginInstallButton onClick={onInstall}>{t('plugins.install')}</PluginInstallButton>
         )}

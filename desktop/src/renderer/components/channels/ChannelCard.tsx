@@ -1,3 +1,5 @@
+import { IdentityMark } from '../ui/IdentityMark'
+
 export type ChannelConnectionState =
   | 'connected'
   | 'enabledNotConnected'
@@ -51,34 +53,11 @@ export function ChannelCard({
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-        {logoPath ? (
-          <img
-            src={logoPath}
-            alt={label}
-            width={24}
-            height={24}
-            style={{ borderRadius: '6px', flexShrink: 0, backgroundColor: 'var(--bg-secondary)' }}
-          />
-        ) : (
-          <div
-            aria-hidden
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '6px',
-              flexShrink: 0,
-              backgroundColor: 'var(--bg-secondary)',
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '11px',
-              fontWeight: 700
-            }}
-          >
-            {label.slice(0, 1).toUpperCase()}
-          </div>
-        )}
+        <IdentityMark
+          role="compact"
+          src={logoPath}
+          fallback={label.slice(0, 1).toUpperCase()}
+        />
           <span
             style={{
               color: 'var(--text-primary)',

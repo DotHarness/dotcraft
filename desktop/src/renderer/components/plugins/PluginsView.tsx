@@ -84,6 +84,8 @@ export function PluginsView(): JSX.Element {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [installTarget, setInstallTarget] = useState<PluginEntry | null>(null)
   const [installingId, setInstallingId] = useState<string | null>(null)
+  const [togglingPluginIds, setTogglingPluginIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [enablingPluginId, setEnablingPluginId] = useState<string | null>(null)
   const [enablingLspId, setEnablingLspId] = useState<string | null>(null)
   const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false)
 
@@ -114,6 +116,7 @@ export function PluginsView(): JSX.Element {
     [skills, skillManageQuery]
   )
   const visibleDiagnostics = useMemo(() => filterVisibleDiagnostics(diagnostics), [diagnostics])
+  const initialPluginLoading = loading && plugins.length === 0
   const selectedSkill = selectedSkillName
     ? skills.find((skill) => skill.name === selectedSkillName) ?? null
     : null
@@ -268,11 +271,63 @@ export function PluginsView(): JSX.Element {
       setInstallTarget(plugin)
       return
     }
+    if (togglingPluginIds.has(plugin.id)) return
+    setTogglingPluginIds((current) => new Set(current).add(plugin.id))
     try {
       await togglePluginEnabled(plugin.id, enabled)
       await fetchSkills()
     } catch {
       addToast(t('plugins.updateFailed'), 'error')
+    } finally {
+      setTogglingPluginIds((current) => {
+        const next = new Set(current)
+        next.delete(plugin.id)
+        return next
+      })
+    }
+  }
+
+  async function handleInstallFromDetail(plugin: PluginEntry): Promise<void> {
+    if (installingId === plugin.id) return
+    try {
+      setInstallingId(plugin.id)
+      const result = await installPlugin(plugin.id)
+      if (result.outcome === 'notApplied') {
+        addToast(operationFailureMessage(result) ?? t('plugins.installFailed'), 'error')
+        return
+      }
+      await fetchSkills()
+      const installed = usePluginStore.getState().plugins.find((entry) => entry.id === plugin.id)
+      if (!installed?.installed) {
+        addToast(t('plugins.installFailed'), 'error')
+        return
+      }
+      addToast(t('plugins.installSuccess'), 'success')
+      if ((installed.apps ?? []).length > 0 || installed.dotnet != null) setInstallTarget(installed)
+    } catch {
+      addToast(t('plugins.installFailed'), 'error')
+    } finally {
+      setInstallingId((current) => current === plugin.id ? null : current)
+    }
+  }
+
+  async function handleEnablePlugin(plugin: PluginEntry): Promise<void> {
+    if (plugin.dotnet && plugin.dotnetRuntime?.trustStatus !== 'trusted') {
+      setInstallTarget(plugin)
+      return
+    }
+    try {
+      setEnablingPluginId(plugin.id)
+      const result = await togglePluginEnabled(plugin.id, true)
+      if (result.outcome === 'notApplied') {
+        addToast(operationFailureMessage(result) ?? t('plugins.updateFailed'), 'error')
+        return
+      }
+      await fetchSkills()
+    } catch {
+      addToast(t('plugins.updateFailed'), 'error')
+    } finally {
+      setEnablingPluginId((current) => current === plugin.id ? null : current)
     }
   }
 
@@ -324,7 +379,8 @@ export function PluginsView(): JSX.Element {
             setMode('manage')
             clearSelection()
           }}
-          onInstall={() => setInstallTarget(selectedPlugin)}
+          onInstall={() => void handleInstallFromDetail(selectedPlugin)}
+          installing={installingId === selectedPlugin.id}
           onRemove={async () => {
             const pluginName = pluginTitle(selectedPlugin)
             const ok = await confirm({
@@ -352,6 +408,8 @@ export function PluginsView(): JSX.Element {
               addToast(t('plugins.uninstallFailed'), 'error')
             }
           }}
+          enabling={enablingPluginId === selectedPlugin.id}
+          onEnable={() => void handleEnablePlugin(selectedPlugin)}
           enablingLsp={enablingLspId === selectedPlugin.id}
           onEnableLsp={async () => {
             try {
@@ -392,10 +450,11 @@ export function PluginsView(): JSX.Element {
         <PluginManageSurface
           surface={surface}
           pluginManagement={pluginManagement}
-          loading={loading}
+          loading={initialPluginLoading}
           error={error}
           diagnostics={visibleDiagnostics}
           plugins={managePlugins}
+          pendingPluginIds={togglingPluginIds}
           pluginCount={plugins.length}
           pluginQuery={managePluginQuery}
           skills={manageSkills}
@@ -429,7 +488,7 @@ export function PluginsView(): JSX.Element {
       pluginManagement={pluginManagement}
       pluginMarketplaces={pluginMarketplaces}
       remoteWorkspaceActive={remoteWorkspaceActive}
-      loading={loading}
+      loading={initialPluginLoading}
       error={error}
       diagnostics={visibleDiagnostics}
       plugins={browsePlugins}

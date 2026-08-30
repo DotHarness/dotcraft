@@ -1449,6 +1449,8 @@ export const MESSAGES_ZH_HANS = {
   'plugins.manage.count.skills': '技能 {{count}}',
   'plugins.source.plugin': '插件',
   'plugins.tryInChat': '在对话中试用',
+  'plugins.enable': '启用',
+  'plugins.enabling': '正在启用…',
   'plugins.enabled': '已启用',
   'plugins.disabled': '已禁用',
   'plugins.defaultPromptFallback': '在当前对话中使用这个插件',

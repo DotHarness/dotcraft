@@ -17,6 +17,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { Select } from '../ui/Select'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
+import { IdentityMark } from '../ui/IdentityMark'
 import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
@@ -473,32 +474,11 @@ export function ModuleConfigForm({
     <div className={`${styles.form} ${SETTINGS_SURFACE_CLASS}`}>
       {!hideHeader && (
         <div style={formStyles.header}>
-          {logoPath ? (
-            <img
-              src={logoPath}
-              alt={moduleDisplayName}
-              width={44}
-              height={44}
-              style={formStyles.headerLogo}
-            />
-          ) : (
-            <div
-              aria-hidden
-              style={{
-                ...formStyles.headerLogo,
-                width: 44,
-                height: 44,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-secondary)',
-                fontSize: '18px',
-                fontWeight: 700
-              }}
-            >
-              {moduleDisplayName.slice(0, 1).toUpperCase()}
-            </div>
-          )}
+          <IdentityMark
+            role="list"
+            src={logoPath}
+            fallback={moduleDisplayName.slice(0, 1).toUpperCase()}
+          />
 
           <div style={{ minWidth: 0 }}>
             <div style={formStyles.headerTitle}>{moduleDisplayName}</div>

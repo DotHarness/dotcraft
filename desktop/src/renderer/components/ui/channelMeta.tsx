@@ -127,7 +127,7 @@ export function ChannelIconBadge({
       style={{
         width: `${size}px`,
         height: `${size}px`,
-        borderRadius: '10px',
+        borderRadius: 'var(--identity-mark-radius-list)',
         border: framed
           ? active
             ? '1px solid color-mix(in srgb, var(--accent) 55%, transparent)'
@@ -154,7 +154,7 @@ export function ChannelIconBadge({
             style={{
               width: `${brandMaskSize}px`,
               height: `${brandMaskSize}px`,
-              borderRadius: `${Math.max(7, Math.round(brandMaskSize * 0.34))}px`,
+              borderRadius: 'var(--identity-mark-radius-compact)',
               background: active
                 ? 'color-mix(in srgb, white 88%, var(--accent) 12%)'
                 : 'color-mix(in srgb, white 78%, var(--bg-tertiary) 22%)',

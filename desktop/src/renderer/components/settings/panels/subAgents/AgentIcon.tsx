@@ -62,7 +62,7 @@ function frameStyle(size: number): CSSProperties {
     justifyContent: 'center',
     width: size + 12,
     height: size + 12,
-    borderRadius: '10px',
+    borderRadius: 'var(--identity-mark-radius-list)',
     background: 'var(--bg-tertiary)',
     border: '1px solid var(--border-default)',
     color: 'var(--text-primary)',
