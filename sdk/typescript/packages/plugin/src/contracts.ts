@@ -14,9 +14,48 @@ export interface DesktopPluginMetadata {
   readonly displayName: string;
 }
 
-export interface DesktopPluginEnvironment {
-  readonly locale: string;
+/** The app locales Desktop resolves to. A browser tag such as `zh-CN` normalizes into this set. */
+export type DesktopPluginLocale = "en" | "zh-Hans" | "ja" | "ko" | "es" | "fr" | "de";
+
+/** The four values Desktop derives its palette from; see the theme token contract. */
+export interface DesktopPluginThemeSeed {
+  /** The base plane: the page in dark, the card in light. */
+  readonly surface: string;
+  readonly ink: string;
+  readonly accent: string;
+  /** 0-100. */
+  readonly contrast: number;
+}
+
+export interface DesktopPluginEnvironmentSnapshot {
+  readonly locale: DesktopPluginLocale;
   readonly theme: "light" | "dark";
+  readonly themeSeed: DesktopPluginThemeSeed;
+}
+
+export interface DesktopPluginEnvironment extends DesktopPluginEnvironmentSnapshot {
+  /**
+   * Notifies when the applied theme, its seed, or the UI locale changes, with a complete
+   * snapshot. A recolor that leaves the theme name alone still fires.
+   * The subscription is generation-owned, like every other Host registration.
+   */
+  onChange(listener: (environment: DesktopPluginEnvironmentSnapshot) => void): DesktopPluginDispose;
+}
+
+export interface DesktopPluginSessionSnapshot {
+  /** The foreground workspace, not the active thread's; a Composer surface context reports that one. */
+  readonly workspacePath: string | null;
+  readonly threadId: string | null;
+  readonly mode: "agent" | "plan";
+  readonly busy: boolean;
+}
+
+export interface DesktopPluginSession extends DesktopPluginSessionSnapshot {
+  /**
+   * Notifies when the foreground workspace, active thread, mode, or busy state changes, with a
+   * complete snapshot. The subscription is generation-owned, like every other Host registration.
+   */
+  onChange(listener: (session: DesktopPluginSessionSnapshot) => void): DesktopPluginDispose;
 }
 
 export interface DesktopPluginAppSurfaceContext {
@@ -62,6 +101,7 @@ export interface DesktopPluginComposerMascotSurfaceContext
 export interface DesktopPluginSurfaceContextMap {
   readonly app: DesktopPluginAppSurfaceContext;
   readonly "app.background": DesktopPluginAppSurfaceContext;
+  readonly "app.overlay": DesktopPluginAppSurfaceContext;
   readonly composer: DesktopPluginComposerSurfaceContext;
   readonly "composer.mascot": DesktopPluginComposerMascotSurfaceContext;
   readonly "composer.before": DesktopPluginComposerSurfaceContext;
@@ -135,12 +175,18 @@ export interface DesktopPluginToastOptions {
   };
 }
 
+export interface DesktopPluginAddOptions {
+  /** Ascending; defaults to 100. Additions sharing an order keep registration order. */
+  readonly order?: number;
+}
+
 export interface DesktopPluginUi {
   showToast(options: DesktopPluginToastOptions): DesktopPluginDispose;
   confirm(options: DesktopPluginConfirmOptions): Promise<boolean>;
   add<Surface extends string>(
     surface: Surface,
     component: DesktopPluginSurfaceComponent<Surface>,
+    options?: DesktopPluginAddOptions,
   ): DesktopPluginDispose;
   replace<Surface extends string>(
     surface: Surface,
@@ -170,6 +216,61 @@ export interface DesktopPluginAppServer {
   onNotification<M extends keyof ServerNotificationMethods>(
     method: M,
     listener: (params: ServerNotificationMethods[M]["params"]) => void,
+  ): DesktopPluginDispose;
+}
+
+export type DesktopPluginSettingType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "bool"
+  | "select"
+  | "stringList"
+  | "keyValueMap"
+  | "json";
+
+export interface DesktopPluginSettingField {
+  readonly key: string;
+  readonly type: DesktopPluginSettingType;
+  readonly defaultValue?: unknown;
+  readonly options?: readonly string[];
+  readonly min?: number;
+  readonly max?: number;
+}
+
+export interface DesktopPluginSettingsSchema {
+  readonly fields: readonly DesktopPluginSettingField[];
+}
+
+export type DesktopPluginSettingsScope = "personal" | "workspace";
+
+export type DesktopPluginSettingsMutation =
+  | Readonly<{ op: "set"; key: string; value: unknown }>
+  | Readonly<{ op: "unset"; key: string }>;
+
+export interface DesktopPluginSettingsSnapshot<TValue = Record<string, unknown>> {
+  readonly schema: DesktopPluginSettingsSchema;
+  readonly personal: Partial<TValue>;
+  readonly workspace: Partial<TValue>;
+  readonly value: TValue;
+  readonly writableScopes: readonly DesktopPluginSettingsScope[];
+}
+
+export interface DesktopPluginSettings {
+  get<TValue = Record<string, unknown>>(): Promise<DesktopPluginSettingsSnapshot<TValue>>;
+  mutate<TValue = Record<string, unknown>>(
+    scope: DesktopPluginSettingsScope,
+    operations: readonly DesktopPluginSettingsMutation[]
+  ): Promise<DesktopPluginSettingsSnapshot<TValue>>;
+  /**
+   * Notifies once per change to the stored configuration, whether this plugin wrote it or another
+   * client did. A rejected `mutate` leaves the file untouched, so it rethrows without notifying.
+   * Repeats are not events: a snapshot equal to the last delivered one is dropped, and so is a read
+   * that resolves after a newer one was issued. Never fires on subscribe. The subscription is
+   * generation-owned, like every other Host registration.
+   */
+  onChange<TValue = Record<string, unknown>>(
+    listener: (settings: DesktopPluginSettingsSnapshot<TValue>) => void,
   ): DesktopPluginDispose;
 }
 
@@ -256,12 +357,14 @@ export interface DesktopPluginOratorio {
 export interface DesktopPluginHost {
   readonly plugin: DesktopPluginMetadata;
   readonly environment: DesktopPluginEnvironment;
+  readonly session: DesktopPluginSession;
   effect(setup: DesktopPluginEffectSetup): DesktopPluginDispose;
   readonly services: DesktopPluginServices;
   readonly events: DesktopPluginEvents;
   readonly navigation: DesktopPluginNavigation;
   readonly ui: DesktopPluginUi;
   readonly appServer: DesktopPluginAppServer;
+  readonly settings: DesktopPluginSettings;
   readonly appBindings: DesktopPluginAppBindings;
   readonly appSurfaces: DesktopPluginAppSurfaces;
   readonly workspaces: DesktopPluginWorkspaceReader;
@@ -283,7 +386,8 @@ export interface DesktopPluginIconProps {
 export type DesktopPluginIconComponent =
   | ComponentType<DesktopPluginIconProps>
   | ExoticComponent<DesktopPluginIconProps>;
-export type DesktopPluginContributionIcon = string | DesktopPluginIconComponent;
+
+export type DesktopPluginContributionIcon = DesktopPluginIconComponent;
 
 export interface DesktopPluginViewProps {
   readonly host: DesktopPluginHost;

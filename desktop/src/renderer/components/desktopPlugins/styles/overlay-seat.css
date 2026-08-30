@@ -1,0 +1,8 @@
+/* The seat is click-through so a decorative overlay cannot swallow the shell underneath
+   it; plugin content opts back in with `pointer-events: auto` on its own element. */
+.dotcraft-plugin-overlay-seat {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}

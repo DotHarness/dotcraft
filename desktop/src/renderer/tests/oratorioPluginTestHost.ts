@@ -8,7 +8,8 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
     plugin: { id: 'oratorio', version: '0.5.9', displayName: 'Oratorio' },
     environment: {
       get locale() { return document.documentElement.lang || 'en' },
-      theme: 'light'
+      theme: 'light',
+      onChange() { return () => undefined }
     },
     navigation: {
       openMainView() {},

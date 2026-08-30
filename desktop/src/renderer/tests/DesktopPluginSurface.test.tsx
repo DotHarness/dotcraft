@@ -154,4 +154,25 @@ describe('DesktopPluginSurface', () => {
     expect(consoleError).toHaveBeenCalled()
     consoleError.mockRestore()
   })
+  it('renders additions by order, then by registration order within one order', () => {
+    registerDesktopPluginSurface(
+      'late', host('late'), 'test.surface', 'add', component('late'), { order: 300 }
+    )
+    registerDesktopPluginSurface(
+      'default-first', host('default-first'), 'test.surface', 'add', component('default-first')
+    )
+    registerDesktopPluginSurface(
+      'early', host('early'), 'test.surface', 'add', component('early'), { order: 10 }
+    )
+    registerDesktopPluginSurface(
+      'default-second', host('default-second'), 'test.surface', 'add', component('default-second')
+    )
+
+    const { container } = render(
+      <DesktopPluginSurface name="test.surface" context={{ label: 'context' }} />
+    )
+
+    const rendered = [...container.querySelectorAll('[data-testid]')].map((node) => node.getAttribute('data-testid'))
+    expect(rendered).toEqual(['early', 'default-first', 'default-second', 'late'])
+  })
 })

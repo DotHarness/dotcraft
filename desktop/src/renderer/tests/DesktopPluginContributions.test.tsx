@@ -15,6 +15,7 @@ import {
   executeDesktopPluginCommand,
   findSelectedDesktopPluginConversationView,
   publishDesktopPluginGeneration,
+  resolveDesktopPluginLabel,
   resolveDesktopPluginToolRenderer,
   selectDesktopPluginConversationView,
   useDesktopPluginRegistry,
@@ -135,6 +136,16 @@ describe('Desktop Plugin contribution registry', () => {
 
     withdrawDesktopPluginGeneration('a.plugin')
     expect(resolveDesktopPluginToolRenderer('core.read-file')?.pluginId).toBe('z.plugin')
+  })
+
+  it('resolves labels by app locale whichever tag the plugin used as a key', () => {
+    const label = { default: 'Board', translations: { 'zh-CN': '看板', 'pt-BR': 'Quadro' } }
+
+    expect(resolveDesktopPluginLabel(label, 'zh-Hans')).toBe('看板')
+    expect(resolveDesktopPluginLabel(label, 'zh-CN')).toBe('看板')
+    expect(resolveDesktopPluginLabel(label, 'en')).toBe('Board')
+    expect(resolveDesktopPluginLabel({ default: 'Board', translations: { ja: '掲示板' } }, 'ko'))
+      .toBe('Board')
   })
 
   it('keeps exact plugin-rendered tools out of Core aggregation', () => {

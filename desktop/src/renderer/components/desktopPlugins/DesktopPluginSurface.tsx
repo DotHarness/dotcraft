@@ -6,6 +6,7 @@ import type {
 import { Fragment, type ReactNode } from 'react'
 
 import {
+  compareDesktopPluginAddition,
   useDesktopPluginRegistry,
   type ActiveDesktopPluginSurface
 } from '../../plugins/desktopPluginRegistry'
@@ -31,7 +32,9 @@ export function DesktopPluginSurface<S extends string>({
     ? renderComponent(replacement, context, children)
     : children
 
-  const additions = surfaces.filter((registration) => registration.kind === 'add')
+  const additions = surfaces
+    .filter((registration) => registration.kind === 'add')
+    .sort(compareDesktopPluginAddition)
   if (additions.length > 0) {
     content = (
       <Fragment>

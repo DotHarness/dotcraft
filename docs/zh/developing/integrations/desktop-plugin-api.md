@@ -30,7 +30,7 @@ Effect、Host 持有的订阅，以及通过其他原语创建的注册，都属
 
 | 操作 | 组合规则 |
 |---|---|
-| **`add`** | 保留全部 active registration，由 surface 把它们一起渲染。 |
+| **`add`** | 保留全部 active registration，由 surface 按 `order` 一起渲染。 |
 | **`replace`** | 使用最后一个 active registration。Dispose 后恢复前一个 replacement 或 Core default。 |
 | **`wrap`** | 包装当前 surface。后注册的 wrapper 位于早期 wrapper 外层。 |
 
@@ -39,6 +39,14 @@ Effect、Host 持有的订阅，以及通过其他原语创建的注册，都属
 Replacement 生效时，被替换的 default component tree 不会挂载。Dispose replacement 会重新挂载当前 fallback，而不是显露一个一直在后台运行的隐藏实现。
 
 “最后”和“后注册”都按实际注册顺序判断，包括来自不同插件的 registration。
+
+当排列顺序有意义时，给 `add` 传一个 `order`。Addition 按 `order` 升序渲染，`order` 相同的（包括所有省略它、默认为 100 的）则在彼此之间保持注册顺序：
+
+```ts
+host.ui.add("composer.status", ReviewStatus, { order: 50 });
+```
+
+`replace` 和 `wrap` 仍然只按注册顺序。它们的堆叠是一份 dispose 契约而非排列，引入 `order` 会让先注册的项永久压过后注册的项。
 
 如果需要保留当前实现，只在外层添加行为或布局，请使用 `wrap`：
 
@@ -95,6 +103,7 @@ DotCraft 的正式 surface 覆盖 application 与 Composer。Composer surface �
 |---|---|
 | **`app`** | 完整渲染出的 Desktop application。 |
 | **`app.background`** | application shell 后方的空装饰位，Core 自己的背景仍在 `app` 内。 |
+| **`app.overlay`** | application shell 前方的空位，默认穿透点击。 |
 | **`composer`** | 完整的已挂载 Composer，包括新聊天 welcome、创建 thread 前的 embedded Composer 与 active thread 状态。 |
 | **`composer.mascot`** | Composer mascot 的 58×58 逻辑像素 visual stage。 |
 | **`composer.before`** | Composer body 之前的内容。 |
@@ -143,6 +152,8 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 ```
 
 同一组名称会挂载在 thread、Welcome、approval 与 user-input Composer 中。即使当前 provider、compact mode、minimal chrome 或 decision state 隐藏了 Core default，surface 仍然可用。渲染插件内容前应检查共享的 Composer context。Surface 名称与它的 typed context 属于公共契约，surface 生成的 DOM 不属于。
+
+上面列出的 Core 名称就是全部。如果在 `app` 或 `composer` 下注册了 Core 并未定义的名称，Desktop 会保留这次注册，同时在控制台写一条点名该 surface 的警告——出现在这两个根下面时，它基本上就是拼写错误。这两个根之外的名称属于插件，因此不做检查：把内容注册到另一个插件尚未挂载的 surface 上很正常，那个 surface 一出现，你的组件就会渲染。
 
 只要 Composer 尚未创建或挂接到真实 Session thread，surface context 的 `threadId` 就是 `null`，welcome 与 detached embedded Composer 都是如此。挂接之后它是真实 thread id。
 
@@ -236,7 +247,34 @@ Surface 只在它所在的组件 mounted 时存在。Registration 仍由注册�
 
 这六个字段是 convenience API，不是 allowlist，也不是能力上限。Composer UI 用 `host.ui.add("composer.toolbar.leading", ...)` 这类调用添加。功能不适合这些便捷字段时，直接使用 surface、service、event 与 effect。
 
-返回的 activation 还可以提供 `dispose()`。Contribution id 在同一个 activation 内必须唯一。本地化标签放进 `label.translations`，`order` 只在 convenience API 定义了排序位置时才需要设置。
+返回的 activation 还可以提供 `dispose()`。Contribution id 在同一个 activation 内必须唯一。本地化标签放进 `label.translations`，按应用 locale 作键：Desktop 会对查找的两侧都做归一化，所以 `zh-CN` 这个键同样能被 `zh-Hans` 的读者命中，而七个 locale 之外的键会回退到 `label.default`。`order` 只在 convenience API 定义了排序位置时才需要设置。
+
+### 给 contribution 配图标
+
+`mainViews`、`settingsPages`、`conversationViews`、`commands` 与 `messageActions` 都接受可选的 `icon`。插件特有的图形请传组件，它会收到 `size`、`strokeWidth`、`aria-hidden` 与 `style`，并通过 `currentColor` 继承周围的文字颜色：
+
+```tsx
+import type { DesktopPluginIconProps } from "@dotcraft/plugin";
+
+function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      {...rest}
+    >
+      <path d="M4 6h16M4 12h10M4 18h7" />
+    </svg>
+  );
+}
+```
+
+`icon` 只接受组件这一种形式。如果并不在意具体图形，就不要写 `icon`，Desktop 会画上自带的回落图形，那一行不会空着。
 
 ## 使用 Host API
 
@@ -244,17 +282,236 @@ Surface 只在它所在的组件 mounted 时存在。Registration 仍由注册�
 
 | 成员 | 用途 |
 |---|---|
-| `plugin`、`environment` | 插件的 id、版本与显示名，以及当前 locale 和 theme。 |
+| `plugin`、`environment` | 插件的 id、版本与显示名，以及当前 locale、theme、theme 种子与变更订阅。 |
+| `session` | 前台 workspace、当前 thread、mode 与忙碌状态，以及变更订阅。 |
 | `navigation` | 打开插件 view、Settings 页与 thread，并接管自定义 scheme 的链接。 |
 | `ui` | 除三个 surface 操作外，还提供 toast 与确认对话框。 |
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
+| `settings` | 读取、修改并跟随本插件由 schema 约束的设置。 |
 | `appBindings`、`appSurfaces` | Connected App binding 与 app 提供的 UI surface。 |
 | `workspaces` | 读取本地 workspace 信息。 |
 | `oratorio` | Team run、handoff 与 event。 |
 
-共享 UI 组件从 `@dotcraft/plugin` 导入。官方 builder 会把 hooks 与 JSX 接到 Desktop 的 React runtime 上。
-
 Host API 是兼容性契约，不是 access-control boundary。主进程的 URL、route、bearer、size 与 timeout checks 是 service invariants，而不是插件权限。
+
+### 读取与修改插件设置
+
+在 manifest 旁声明 schema，并通过 `settings` 指向它：
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "acme.wallpaper",
+  "settings": "./settings.schema.json"
+}
+```
+
+schema 使用 `fields` 数组。支持的类型是 `text`、`textarea`、`number`、`bool`、`select`、`stringList`、`keyValueMap` 和 `json`。字段 key 不区分大小写且必须唯一，`defaultValue` 必须通过与存储值相同的校验。
+
+```json
+{
+  "fields": [
+    { "key": "fit", "type": "select", "defaultValue": "cover", "options": ["cover", "contain"] },
+    { "key": "dim", "type": "number", "defaultValue": 20, "min": 0, "max": 80 }
+  ]
+}
+```
+
+激活时读取一次完整快照，之后只写入有变化的字段。`unset` 会移除所选作用域的覆盖值，并显露下一层值：
+
+```ts
+const snapshot = await host.settings.get();
+const current = snapshot.value as { fit: string; dim: number };
+
+await host.settings.mutate("personal", [
+  { op: "set", key: "fit", value: "contain" },
+  { op: "unset", key: "dim" },
+]);
+```
+
+快照包含 schema、个人层、工作区层、有效值和可写作用域。版本 1 不提供冲突 token，也不提供宿主生成的设置页面。设置文件只能存放小型 JSON 值。图片、SQLite 文件和缓存应由插件后端处理，renderer 插件既拿不到宿主数据目录路径，也没有通用文件 API。
+
+### 跟随设置变化
+
+本插件存储的设置一旦发生变化，`host.settings.onChange` 就会送来一份完整快照：
+
+```ts
+host.settings.onChange((snapshot) => {
+  applySettings(snapshot.value as WallpaperSettings);
+});
+```
+
+每发生一次变化它就触发一次，无论是你的插件写的还是别的客户端写的。重复不算变化：与上一次送出的相同的快照会被丢掉，所以你自己那次写入不会再以回声的形式回来一遍。`mutate` 被拒绝时文件没有被改动，因此什么都不会发布，只有那个 reject 会传到你手里——乐观更新的值保留到 promise 结束为止即可。
+
+订阅时它不会触发。激活时用 `get()` 读一次并保存下来，之后交给 `onChange` 更新：
+
+```ts
+let settings = normalize((await host.settings.get()).value);
+
+host.settings.onChange((snapshot) => {
+  settings = normalize(snapshot.value);
+  repaint(settings);
+});
+```
+
+底层监听由 Desktop 负责：无论一个插件注册了多少个 listener，每次变化只会重新读取一次该插件的配置，所以在多个地方订阅不会有额外开销。只有最新发起的那次读取有资格发布，所以连续快速写入——比如拖动滑块——即使较早的读取最后才返回，也不会把旧值再塞给 listener。不经过这套 API 的写入——例如 Desktop 运行期间手工改 `plugin-config.json`——不会被观察到。
+
+### 响应 theme 与 locale 变化
+
+`host.environment` 读取当前生效的 theme、它的种子与 UI locale。当 React 之外的东西需要跟随它们时——canvas、动态生成的样式表，或者被缓存下来的值——用 `onChange` 订阅：
+
+```ts
+host.environment.onChange(({ locale, theme, themeSeed }) => {
+  repaintScene(theme, themeSeed.accent);
+  relabelScene(locale);
+});
+```
+
+每次回调都带完整快照，并且只在值真的发生变化时触发。订阅由 generation 持有，会随插件一起被回收。
+
+`themeSeed` 带的是 Desktop 用来派生整套配色的四个值：`surface`、`ink`、`accent`，以及 0-100 的 `contrast`。当你要绘制 CSS 够不到的东西（比如 canvas）时才需要盯着它：用户只换主题色时 `theme` 仍然是 `dark`，光看主题名不足以知道该重绘。凡是能用 CSS 表达的，直接读 token，不要自己再推一遍 ramp。
+
+`locale` 一定是 Desktop 的七个应用 locale 之一——`en`、`zh-Hans`、`ja`、`ko`、`es`、`fr`、`de`，类型是 `DesktopPluginLocale`。Desktop 会先把浏览器语言标签归一化，所以使用 `zh-CN` 或 `en-US` 的用户传到插件里时已经是 `zh-Hans` 或 `en`。文案表按应用 locale 建索引、直接读 `host.environment.locale` 即可，不必自己再写一层按语言回退的逻辑。
+
+底层的监听由 Desktop 负责。插件不需要自己监视 `document.documentElement` 的 `data-theme` 或 `lang`，Desktop 如何感知变化也不属于这份契约。
+
+在 React 树里，用同一个订阅把快照放进 state：
+
+```tsx
+import { useEffect, useState } from "react";
+import type { DesktopPluginViewProps } from "@dotcraft/plugin";
+
+function useTheme(host: DesktopPluginViewProps["host"]) {
+  const [theme, setTheme] = useState(host.environment.theme);
+  useEffect(() => {
+    setTheme(host.environment.theme);
+    return host.environment.onChange((environment) => setTheme(environment.theme));
+  }, [host]);
+  return theme;
+}
+```
+
+### 读取当前 session
+
+`host.session` 告诉你 Desktop 此刻在做什么，`onChange` 则跟随它的变化：
+
+```ts
+host.session.onChange((session) => {
+  repaint(session.busy);
+});
+```
+
+| 字段 | 含义 |
+|---|---|
+| `workspacePath` | 前台的 workspace，没有打开任何 workspace 时为 `null`。 |
+| `threadId` | 当前 thread，欢迎页上为 `null`。 |
+| `mode` | `agent` 或 `plan`。 |
+| `busy` | 有一轮正在运行，或正在等待用户输入。 |
+
+`workspacePath` 是前台 workspace，不是当前 thread 的 workspace。正因如此，它在 Settings 页、main view，乃至完全没有组件挂载的 effect 里都能读到——也就是会话面板并不存在的那些地方。它与 `host.workspaces.listLocalProjects()` 里 `active` 的那一项一致。在 Composer surface 内部，`context.workspacePath` 仍然报告该 thread 自己的 workspace，两者可能不同。
+
+审批状态、Composer variant 与 minimal chrome 不在这里。它们描述的是 Composer 如何呈现自己，所以留在 Composer surface context 上。
+
+这四个字段是实时读取的，所以组件应把需要的字段放进 state，而不是持有这个对象：
+
+```tsx
+const [busy, setBusy] = useState(host.session.busy);
+useEffect(() => {
+  setBusy(host.session.busy);
+  return host.session.onChange((session) => setBusy(session.busy));
+}, [host]);
+```
+
+## 使用 UI kit
+
+共享 UI 组件从 `@dotcraft/plugin` 导入，插件页面不必复制 Core 的样式就能和 Desktop 其他部分保持一致。官方 builder 会把 hooks 与 JSX 接到 Desktop 的 React runtime 上。
+
+| 分组 | 组件 |
+|---|---|
+| **控件** | `Button`、`IconButton`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch` |
+| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff` |
+| **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
+
+报告所选值的控件——`Select`、`Combobox`、`SegmentedControl`——回调名为 `onValueChange`，无障碍名称来自 `ariaLabel`。布尔开关——`Checkbox`、`PillSwitch`——回调名为 `onChange`。
+
+几个互斥选项能放进一行时用 `SegmentedControl`。选项较多，或者每个选项需要描述与图标时用 `Select`：
+
+```tsx
+import { SegmentedControl, SettingsGroup, SettingsRow } from "@dotcraft/plugin";
+
+function DensityRow({
+  density,
+  onDensityChange,
+}: {
+  density: "cozy" | "compact";
+  onDensityChange: (density: "cozy" | "compact") => void;
+}) {
+  return (
+    <SettingsGroup title="Board">
+      <SettingsRow
+        label="Density"
+        control={
+          <SegmentedControl
+            value={density}
+            options={[
+              { value: "cozy", label: "Cozy" },
+              { value: "compact", label: "Compact" },
+            ]}
+            onValueChange={onDensityChange}
+            ariaLabel="Board density"
+          />
+        }
+      />
+    </SettingsGroup>
+  );
+}
+```
+
+## 使用打包的静态资源
+
+在插件源码里 import 一张图片，拿到的值可以直接使用。Builder 会把它解析成产物文件的 URL，因此在模块顶层、入口 bundle 里、拆分出的 chunk 里都已经是正确的：
+
+```tsx
+import scene from "./assets/aurora.svg";
+
+function Background() {
+  return <div style={{ backgroundImage: `url("${scene}")` }} />;
+}
+```
+
+Desktop 通过 `dotcraft-plugin://<id>/<revision>/` 提供插件文件，这个地址在构建时无从得知，所以也没有需要手工修补的地方。再用 `new URL(asset, import.meta.url)` 包一层现在只是多余，而不是错误：仍然这么写的插件重新构建后照常工作，因为被包住的值本身已经是绝对 URL。
+
+Builder 会把 `.gif`、`.jpg`、`.jpeg`、`.png`、`.svg`、`.webp` 打包进 `dist/assets/`。在 CSS 里保持普通的相对写法——`url("./assets/aurora.svg")`——样式表会基于自身地址解析它，而那个地址已经在插件路由之下。
+
+## 使用主题 token
+
+Desktop 的整套配色都由四个种子值派生，下表是插件可以读的那一部分。用它们写样式，你的 UI 就会跟着用户的主题、主题色、背景与对比度走，不需要监听任何东西：
+
+```css
+.my-plugin-card {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--control-radius-md);
+  box-shadow: var(--shadow-level-2);
+}
+```
+
+| 类别 | Token |
+|---|---|
+| 表面 | `--bg-primary`、`--bg-secondary`、`--bg-tertiary`、`--bg-active`、`--bg-hover`、`--bg-elevated` |
+| 文字 | `--text-primary`、`--text-secondary`、`--text-dimmed`、`--text-tertiary`、`--text-disabled` |
+| 边框 | `--border-subtle`、`--border-default`、`--border-active` |
+| 主题色 | `--accent`、`--accent-hover`、`--on-accent` |
+| 状态 | `--success`、`--warning`、`--error`、`--info`、`--success-bg`、`--warning-bg`、`--error-bg` |
+| 层级 | `--shadow-level-1`、`--shadow-level-2`、`--shadow-level-3` |
+| 字体 | `--font-ui`、`--font-body`、`--font-mono`、`--type-body-size`、`--type-ui-size`、`--type-secondary-size`、`--type-hint-size`、`--type-heading-size` |
+| 形状 | `--control-radius-md`、`--button-height`、`--button-height-sm` |
+| 种子 | `--seed-surface`、`--seed-ink`、`--seed-accent`、`--seed-contrast` |
+
+`--on-accent` 是在主题色上仍然清晰的前景色，往主题色填充上放文字请用它，不要自己写白色。`--seed-*` 这四个与 `host.environment.themeSeed` 报的是同一批值，只有在 CSS 之外绘制时才需要读。
+
+其余所有自定义属性都是私有的，包括 `--composer-*`、`--sidebar-*`、`--shell-*`、`--main-surface-*`、`--glass-*`、`--tooltip-*`、`--scrollbar-*`、`--shimmer-*`、`--diff-*` 与 `--ansi-*`。它们会随 Desktop 自身的布局工作变动。
 
 ## 有意识地使用 DOM 与 CSS
 

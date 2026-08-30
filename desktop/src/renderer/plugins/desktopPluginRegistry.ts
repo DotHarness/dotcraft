@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import type {
   DesktopLocalizedText,
+  DesktopPluginAddOptions,
   DesktopPluginCommandContribution,
   DesktopPluginCommandContext,
   DesktopPluginConversationViewContribution,
@@ -11,9 +12,11 @@ import type {
   DesktopPluginMessageActionContribution,
   DesktopPluginSettingsPageContribution,
   DesktopPluginSurfaceComponent,
+  DesktopPluginSurfaceContextMap,
   DesktopPluginSurfaceWrapper,
   DesktopPluginToolRendererContribution
 } from '@dotcraft/plugin'
+import { normalizeLocale, type AppLocale } from '../../shared/locales'
 import type { DesktopPluginMainView } from '../stores/uiStore'
 import type { DesktopPluginSettingsTab } from '../types/settings'
 
@@ -31,6 +34,7 @@ export interface ActiveDesktopPluginSurface {
   registrationId: number
   surface: string
   kind: DesktopPluginSurfaceKind
+  order?: number
   component: DesktopPluginSurfaceComponent<any> | DesktopPluginSurfaceWrapper<any>
 }
 
@@ -110,11 +114,47 @@ export function clearDesktopPluginRegistry(): void {
   useDesktopPluginRegistry.setState(registryState(new Map(), new Map(), []))
 }
 
+/** Core's own surface names. Typed against the SDK map so a typo in this list is a compile error. */
+const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceContextMap>([
+  'app',
+  'app.background',
+  'app.overlay',
+  'composer',
+  'composer.mascot',
+  'composer.before',
+  'composer.after',
+  'composer.input',
+  'composer.input.attachments',
+  'composer.input.editor',
+  'composer.toolbar',
+  'composer.toolbar.leading',
+  'composer.toolbar.trailing',
+  'composer.toolbar.commands',
+  'composer.toolbar.permissions',
+  'composer.toolbar.mode',
+  'composer.toolbar.goal',
+  'composer.toolbar.context-usage',
+  'composer.toolbar.model',
+  'composer.toolbar.voice',
+  'composer.toolbar.submit',
+  'composer.status',
+  'composer.status.workspace',
+  'composer.status.subscription'
+])
+
 export function registerDesktopPluginSurface<S extends string>(
   pluginId: string,
   host: DesktopPluginHost,
   surface: S,
-  kind: 'add' | 'replace',
+  kind: 'add',
+  component: DesktopPluginSurfaceComponent<S>,
+  options?: DesktopPluginAddOptions
+): DesktopPluginDispose
+export function registerDesktopPluginSurface<S extends string>(
+  pluginId: string,
+  host: DesktopPluginHost,
+  surface: S,
+  kind: 'replace',
   component: DesktopPluginSurfaceComponent<S>
 ): DesktopPluginDispose
 export function registerDesktopPluginSurface<S extends string>(
@@ -129,13 +169,16 @@ export function registerDesktopPluginSurface<S extends string>(
   host: DesktopPluginHost,
   surface: S,
   kind: DesktopPluginSurfaceKind,
-  component: DesktopPluginSurfaceComponent<S> | DesktopPluginSurfaceWrapper<S>
+  component: DesktopPluginSurfaceComponent<S> | DesktopPluginSurfaceWrapper<S>,
+  options?: DesktopPluginAddOptions
 ): DesktopPluginDispose {
+  reportUnknownCoreSurface(pluginId, surface)
   const registration: ActiveDesktopPluginSurface = {
     pluginId,
     host,
     surface,
     kind,
+    order: options?.order,
     component,
     registrationId: nextDesktopPluginSurfaceRegistrationId++
   }
@@ -149,6 +192,25 @@ export function registerDesktopPluginSurface<S extends string>(
       return { surfaces: state.surfaces.filter((candidate) => candidate !== registration) }
     })
   }
+}
+
+/** Only the `app` and `composer` roots are Core's to close; a plugin-declared name may legally be unmounted. */
+function reportUnknownCoreSurface(pluginId: string, surface: string): void {
+  const root = surface.split('.')[0]
+  if (root !== 'app' && root !== 'composer') return
+  if (CORE_SURFACES.has(surface)) return
+  console.warn(
+    `Desktop Plugin '${pluginId}' registered into '${surface}', which Core does not define. `
+      + 'Check the spelling; the registration stays and renders only if a surface with that name is mounted.'
+  )
+}
+
+export function compareDesktopPluginAddition(
+  left: ActiveDesktopPluginSurface,
+  right: ActiveDesktopPluginSurface
+): number {
+  return (left.order ?? 100) - (right.order ?? 100)
+    || left.registrationId - right.registrationId
 }
 
 export function buildDesktopPluginContributionKey(pluginId: string, contributionId: string): string {
@@ -228,7 +290,19 @@ export function isDesktopPluginSettingsTab(tab: string): tab is DesktopPluginSet
 }
 
 export function resolveDesktopPluginLabel(label: DesktopLocalizedText, locale: string): string {
-  return label.translations?.[locale]?.trim() || label.default
+  const translations = label.translations
+  if (!translations) return label.default
+  const appLocale = normalizeLocale(locale)
+  return translations[appLocale]?.trim()
+    || Object.entries(translations)
+      .find(([key, text]) => sameLocale(key, appLocale) && text.trim())?.[1].trim()
+    || label.default
+}
+
+function sameLocale(key: string, appLocale: AppLocale): boolean {
+  if (normalizeLocale(key) !== appLocale) return false
+  // `normalizeLocale` falls back to English, so an unsupported tag must not claim the English entry.
+  return key.split('-')[0].toLowerCase() === appLocale.split('-')[0].toLowerCase()
 }
 
 function registryState(

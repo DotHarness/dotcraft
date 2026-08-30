@@ -2,6 +2,7 @@ export type {
   DesktopLocalizedText,
   DesktopPluginActivate,
   DesktopPluginActivation,
+  DesktopPluginAddOptions,
   DesktopPluginAppBindings,
   DesktopPluginAppServer,
   DesktopPluginAppSurfaces,
@@ -13,12 +14,15 @@ export type {
   DesktopPluginConversationViewProps,
   DesktopPluginDispose,
   DesktopPluginEnvironment,
+  DesktopPluginEnvironmentSnapshot,
+  DesktopPluginThemeSeed,
   DesktopPluginEffectSetup,
   DesktopPluginEvents,
   DesktopPluginHost,
   DesktopPluginContributionIcon,
   DesktopPluginIconComponent,
   DesktopPluginIconProps,
+  DesktopPluginLocale,
   DesktopPluginLocalProject,
   DesktopPluginMetadata,
   DesktopPluginMainViewContribution,
@@ -30,7 +34,16 @@ export type {
   DesktopPluginOratorioHandoffRequest,
   DesktopPluginOratorioRequest,
   DesktopPluginOratorioResponse,
+  DesktopPluginSession,
+  DesktopPluginSessionSnapshot,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginSettingField,
+  DesktopPluginSettingType,
+  DesktopPluginSettings,
+  DesktopPluginSettingsMutation,
+  DesktopPluginSettingsSchema,
+  DesktopPluginSettingsScope,
+  DesktopPluginSettingsSnapshot,
   DesktopPluginServices,
   DesktopPluginAppSurfaceContext,
   DesktopPluginComposerMascotSurfaceContext,
@@ -60,6 +73,7 @@ export type {
   ComboboxOption,
   ComboboxProps,
   DesktopPluginUiComponents,
+  DesktopSegmentedControlComponent,
   DesktopSelectComponent,
   FieldSize,
   IconButtonProps,
@@ -69,6 +83,8 @@ export type {
   PillSwitchProps,
   PluginSurfaceComponent,
   PluginSurfaceProps,
+  SegmentedControlOption,
+  SegmentedControlProps,
   SelectOption,
   SelectProps,
   SkeletonProps,
@@ -90,6 +106,7 @@ export const IconButton = ui.IconButton;
 export const Input = ui.Input;
 export const Textarea = ui.Textarea;
 export const Select = ui.Select;
+export const SegmentedControl = ui.SegmentedControl;
 export const Checkbox = ui.Checkbox;
 export const Spinner = ui.Spinner;
 export const Skeleton = ui.Skeleton;

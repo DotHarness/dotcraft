@@ -20,6 +20,7 @@ import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
+import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 
 // jsdom has no ResizeObserver, but components construct one unconditionally because
 // the renderer is always Chromium. A no-op stand-in keeps them mountable here.
@@ -43,6 +44,7 @@ installDesktopPluginRuntime({
     Textarea,
     Spinner: RunningSpinner,
     Select,
+    SegmentedControl: DesktopPluginSegmentedControl,
     Skeleton,
     ActionTooltip,
     Combobox,

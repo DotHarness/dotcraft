@@ -7,6 +7,9 @@ import type {
   DesktopPluginMainViewContribution,
   DesktopPluginMessageActionContribution,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginSettingsMutation,
+  DesktopPluginSettingsScope,
+  DesktopPluginSettingsSnapshot,
   DesktopPluginToolRendererContribution
 } from '@dotcraft/plugin'
 import { installDesktopPluginRuntime as installAuthoringRuntime } from '@dotcraft/plugin/runtime'
@@ -36,6 +39,7 @@ import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
+import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
 import type { PluginEntry } from '../stores/pluginStore'
 import { usePluginStore } from '../stores/pluginStore'
@@ -59,7 +63,20 @@ import {
   type ActiveDesktopPluginToolRenderer,
   type DesktopPluginGeneration
 } from './desktopPluginRegistry'
+import {
+  onDesktopPluginEnvironmentChange,
+  readDesktopPluginEnvironment
+} from './desktopPluginEnvironment'
 import { registerDesktopPluginOpenUrlListener } from './desktopPluginOpenUrl'
+import {
+  onDesktopPluginSessionChange,
+  readDesktopPluginSession
+} from './desktopPluginSession'
+import {
+  mutateDesktopPluginSettings,
+  onDesktopPluginSettingsChange,
+  readDesktopPluginSettings
+} from './desktopPluginSettings'
 import {
   emitDesktopPluginEvent,
   onDesktopPluginEvent,
@@ -313,6 +330,7 @@ export function startDesktopPluginRuntime(): () => void {
       Input,
       Textarea,
       Select,
+      SegmentedControl: DesktopPluginSegmentedControl,
       Checkbox,
       Spinner: RunningSpinner,
       Skeleton,
@@ -374,10 +392,33 @@ function createDesktopPluginHost(
     },
     environment: {
       get locale() {
-        return document.documentElement.lang || navigator.language
+        return readDesktopPluginEnvironment().locale
       },
       get theme() {
-        return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+        return readDesktopPluginEnvironment().theme
+      },
+      get themeSeed() {
+        return readDesktopPluginEnvironment().themeSeed
+      },
+      onChange(listener) {
+        return own(cleanups, onDesktopPluginEnvironmentChange(listener))
+      }
+    },
+    session: {
+      get workspacePath() {
+        return readDesktopPluginSession().workspacePath
+      },
+      get threadId() {
+        return readDesktopPluginSession().threadId
+      },
+      get mode() {
+        return readDesktopPluginSession().mode
+      },
+      get busy() {
+        return readDesktopPluginSession().busy
+      },
+      onChange(listener) {
+        return own(cleanups, onDesktopPluginSessionChange(listener))
       }
     },
     navigation: {
@@ -430,13 +471,14 @@ function createDesktopPluginHost(
         const dismiss = own(cleanups, request.dismiss)
         return request.result.finally(dismiss)
       },
-      add(surface, component) {
+      add(surface, component, options) {
         return own(cleanups, registerDesktopPluginSurface(
           pluginId,
           host,
           surface,
           'add',
-          component
+          component,
+          options
         ))
       },
       replace(surface, component) {
@@ -497,6 +539,26 @@ function createDesktopPluginHost(
             listener(notification.params as ServerNotificationMethods[M]['params'])
           }
         }))
+      }
+    },
+    settings: {
+      get<TValue = Record<string, unknown>>() {
+        return readDesktopPluginSettings(pluginId) as Promise<DesktopPluginSettingsSnapshot<TValue>>
+      },
+      mutate<TValue = Record<string, unknown>>(
+        scope: DesktopPluginSettingsScope,
+        operations: readonly DesktopPluginSettingsMutation[]
+      ) {
+        return mutateDesktopPluginSettings(pluginId, scope, operations) as
+          Promise<DesktopPluginSettingsSnapshot<TValue>>
+      },
+      onChange<TValue = Record<string, unknown>>(
+        listener: (settings: DesktopPluginSettingsSnapshot<TValue>) => void
+      ) {
+        return own(cleanups, onDesktopPluginSettingsChange(
+          pluginId,
+          listener as (settings: DesktopPluginSettingsSnapshot<Record<string, unknown>>) => void
+        ))
       }
     },
     appBindings: {

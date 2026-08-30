@@ -62,6 +62,19 @@ export interface SelectProps<T extends string = string> {
   readonly adaptiveWidth?: boolean;
 }
 
+export interface SegmentedControlOption<T extends string = string> {
+  readonly value: T;
+  readonly label: string;
+}
+
+export interface SegmentedControlProps<T extends string = string> {
+  readonly value: T;
+  readonly options: readonly SegmentedControlOption<T>[];
+  readonly onValueChange: (value: T) => void;
+  readonly ariaLabel: string;
+  readonly disabled?: boolean;
+}
+
 export interface CheckboxProps {
   readonly id?: string;
   readonly checked: boolean;
@@ -171,6 +184,10 @@ export interface DesktopSelectComponent {
   <T extends string = string>(props: SelectProps<T>): ReactNode;
 }
 
+export interface DesktopSegmentedControlComponent {
+  <T extends string = string>(props: SegmentedControlProps<T>): ReactNode;
+}
+
 export interface DesktopPluginUiComponents {
   readonly PluginSurface: PluginSurfaceComponent;
   readonly Button: ComponentType<ButtonProps>;
@@ -178,6 +195,7 @@ export interface DesktopPluginUiComponents {
   readonly Input: ComponentType<InputProps>;
   readonly Textarea: ComponentType<TextareaProps>;
   readonly Select: DesktopSelectComponent;
+  readonly SegmentedControl: DesktopSegmentedControlComponent;
   readonly Checkbox: ComponentType<CheckboxProps>;
   readonly Spinner: ComponentType<SpinnerProps>;
   readonly Skeleton: ComponentType<SkeletonProps>;

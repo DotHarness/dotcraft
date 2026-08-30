@@ -30,7 +30,7 @@ Use the three `host.ui` operations according to the change you need:
 
 | Operation | Composition rule |
 |---|---|
-| **`add`** | Keeps every active registration. The surface renders them together. |
+| **`add`** | Keeps every active registration. The surface renders them together, in `order`. |
 | **`replace`** | Uses the last active registration. Disposing it restores the previous replacement or Core default. |
 | **`wrap`** | Wraps the current surface. A later wrapper is outside earlier wrappers. |
 
@@ -39,6 +39,18 @@ Every call returns a disposable registration and is also generation-owned. Dispo
 An active replacement does not mount the replaced default component tree. Disposing it remounts the current fallback instead of revealing a hidden, still-running implementation.
 
 “Last” and “later” mean actual registration order, including registrations from different plugins.
+
+Give `add` an `order` when the arrangement matters. Additions render in ascending `order`, and those
+sharing one — including every addition that omits it, which defaults to 100 — keep registration order
+among themselves:
+
+```ts
+host.ui.add("composer.status", ReviewStatus, { order: 50 });
+```
+
+`replace` and `wrap` stay ordered by registration alone. Their stacking is a disposal contract rather
+than an arrangement, so an `order` there would let an early registration outrank a later one
+permanently.
 
 Use `wrap` when you need to preserve the current implementation while adding behavior or layout around it:
 
@@ -95,6 +107,7 @@ DotCraft's formal surfaces cover the application and Composer. Composer surfaces
 |---|---|
 | **`app`** | The complete rendered Desktop application. |
 | **`app.background`** | An empty decorative seat behind the application shell. Core's own background remains inside `app`. |
+| **`app.overlay`** | An empty seat in front of the application shell, click-through by default. |
 | **`composer`** | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. |
 | **`composer.mascot`** | The 58 × 58 logical-pixel visual stage for the Composer mascot. |
 | **`composer.before`** | Content immediately before the Composer body. |
@@ -143,6 +156,8 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 ```
 
 The same names mount in thread, Welcome, approval, and user-input Composers. A surface stays available when its Core default is hidden by the current provider, compact mode, minimal chrome, or decision state. Inspect the shared Composer context before rendering plugin content. A surface name and its typed context are public contracts. The DOM the surface generates is not.
+
+The Core names listed above are the complete set. Register under `app` or `composer` with a name Core does not define and Desktop keeps the registration but writes a console warning naming it, because at that point it is almost always a typo. Names outside those two roots belong to plugins and are never checked: targeting a surface another plugin has not mounted yet is normal, and your component renders as soon as that surface appears.
 
 Composer surface contexts have `threadId: null` whenever the Composer has not created or attached to a real Session thread, including welcome and detached embedded Composers. They carry the real thread id after attachment.
 
@@ -236,7 +251,34 @@ Return `DesktopPluginActivation` when one of the standard product integrations a
 
 These six fields are convenience APIs, not an allowlist or a capability ceiling. Add Composer UI with calls like `host.ui.add("composer.toolbar.leading", ...)`. When a feature does not fit the convenience fields, reach for surfaces, services, events, and effects directly.
 
-The returned activation may also provide `dispose()`. Contribution ids must be unique within one activation. Put localized labels in `label.translations`, and set `order` only where the convenience API defines ordered placement.
+The returned activation may also provide `dispose()`. Contribution ids must be unique within one activation. Put localized labels in `label.translations`, keyed by app locale. Desktop normalizes both sides of that lookup, so a `zh-CN` key still reaches a `zh-Hans` reader, while a key outside the seven locales falls back to `label.default`. Set `order` only where the convenience API defines ordered placement.
+
+### Give a contribution an icon
+
+`mainViews`, `settingsPages`, `conversationViews`, `commands`, and `messageActions` take an optional `icon`. Pass a component for anything specific to the plugin. It receives `size`, `strokeWidth`, `aria-hidden`, and `style`, and inherits the surrounding text color through `currentColor`:
+
+```tsx
+import type { DesktopPluginIconProps } from "@dotcraft/plugin";
+
+function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      {...rest}
+    >
+      <path d="M4 6h16M4 12h10M4 18h7" />
+    </svg>
+  );
+}
+```
+
+A component is the only thing `icon` accepts. Leave `icon` off when the artwork does not matter to you, and Desktop draws its own fallback glyph so the row never appears blank.
 
 ## Use the Host API
 
@@ -244,17 +286,236 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 
 | Member | Use it for |
 |---|---|
-| `plugin`, `environment` | The plugin's id, version, and display name, plus the current locale and theme. |
+| `plugin`, `environment` | The plugin's id, version, and display name, plus the current locale, theme, and theme seed, and a change subscription. |
+| `session` | The foreground workspace, active thread, mode, and busy state, plus a change subscription. |
 | `navigation` | Opening plugin views, Settings pages, and threads, and claiming custom-scheme links. |
 | `ui` | Toasts and confirmation dialogs, beside the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
+| `settings` | Reading, mutating, and following this plugin's schema-backed settings. |
 | `appBindings`, `appSurfaces` | Connected-app binding and app-provided UI surfaces. |
 | `workspaces` | Reading local workspace information. |
 | `oratorio` | Team runs, handoffs, and events. |
 
-Import shared UI components from `@dotcraft/plugin`. The official builder connects hooks and JSX to Desktop's React runtime.
-
 The Host API is a compatibility contract, not an access-control boundary. Main-process URL, route, bearer, size, and timeout checks remain service invariants rather than plugin permissions.
+
+### Read and mutate plugin settings
+
+Declare a schema beside the manifest and point to it with `settings`:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "acme.wallpaper",
+  "settings": "./settings.schema.json"
+}
+```
+
+The schema uses a `fields` array. Supported types are `text`, `textarea`, `number`, `bool`, `select`, `stringList`, `keyValueMap`, and `json`. Field keys are case-insensitive and unique; `defaultValue` must satisfy the same validation as a stored value.
+
+```json
+{
+  "fields": [
+    { "key": "fit", "type": "select", "defaultValue": "cover", "options": ["cover", "contain"] },
+    { "key": "dim", "type": "number", "defaultValue": 20, "min": 0, "max": 80 }
+  ]
+}
+```
+
+Read one complete snapshot during activation, then write only the changed fields. `unset` removes the selected scope's override and reveals the next lower layer:
+
+```ts
+const snapshot = await host.settings.get();
+const current = snapshot.value as { fit: string; dim: number };
+
+await host.settings.mutate("personal", [
+  { op: "set", key: "fit", value: "contain" },
+  { op: "unset", key: "dim" },
+]);
+```
+
+The snapshot contains the schema, personal and workspace layers, the effective value, and writable scopes. Version 1 has no conflict token and no host-generated settings page. Use the settings file only for small JSON values. Keep images, SQLite files, and caches in a plugin backend instead; renderer plugins receive neither a host data-directory path nor a general file API.
+
+### Follow settings changes
+
+`host.settings.onChange` delivers a complete snapshot whenever this plugin's stored settings move:
+
+```ts
+host.settings.onChange((snapshot) => {
+  applySettings(snapshot.value as WallpaperSettings);
+});
+```
+
+It fires once per change, whether your plugin wrote it or another client did. A repeat is not a change: a snapshot equal to the last one delivered is dropped, so your own write never comes back a second time as an echo. A rejected `mutate` leaves the file untouched, so nothing is published and the rejection alone reaches you — keep the optimistic value only until the promise settles.
+
+It never fires on subscribe. Read the value once during activation, keep it, and let `onChange` replace it from then on:
+
+```ts
+let settings = normalize((await host.settings.get()).value);
+
+host.settings.onChange((snapshot) => {
+  settings = normalize(snapshot.value);
+  repaint(settings);
+});
+```
+
+Desktop owns the observation and re-reads a plugin's configuration once per change, however many listeners that plugin registered, so subscribing from several places costs nothing extra. Only the newest read is allowed to publish, so writes in quick succession — dragging a slider — never hand a listener the older value even when an earlier read resolves last. Writes that do not go through this API — a hand edit of `plugin-config.json` while Desktop is running — are not observed.
+
+### React to theme and locale changes
+
+`host.environment` reads the applied theme, its seed, and the UI locale. Subscribe with `onChange` when something outside React has to follow them — a canvas, a generated stylesheet, or a cached value:
+
+```ts
+host.environment.onChange(({ locale, theme, themeSeed }) => {
+  repaintScene(theme, themeSeed.accent);
+  relabelScene(locale);
+});
+```
+
+Every call delivers a complete snapshot, and a call happens only when a value actually changed. The subscription is generation-owned, so it goes away with the plugin.
+
+`themeSeed` carries the four values Desktop derives its palette from — `surface`, `ink`, `accent`, and a 0-100 `contrast`. Watch it when you paint something CSS cannot reach, such as a canvas: a user changing the accent leaves `theme` at `dark`, so the theme name alone would not tell you to repaint. For anything you can style in CSS, read the tokens instead of re-deriving the ramp.
+
+`locale` is one of Desktop's seven app locales — `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de` — typed as `DesktopPluginLocale`. Desktop normalizes the browser tag first, so a user on `zh-CN` or `en-US` reaches your plugin as `zh-Hans` or `en`. Key a string catalog by app locale and read `host.environment.locale` directly; no base-language fallback of your own is needed.
+
+Desktop owns the underlying observation. A plugin does not watch `document.documentElement` for `data-theme` or `lang`, and how Desktop notices a change is not part of the contract.
+
+Inside a React tree, hold the snapshot in state from the same subscription:
+
+```tsx
+import { useEffect, useState } from "react";
+import type { DesktopPluginViewProps } from "@dotcraft/plugin";
+
+function useTheme(host: DesktopPluginViewProps["host"]) {
+  const [theme, setTheme] = useState(host.environment.theme);
+  useEffect(() => {
+    setTheme(host.environment.theme);
+    return host.environment.onChange((environment) => setTheme(environment.theme));
+  }, [host]);
+  return theme;
+}
+```
+
+### Read the current session
+
+`host.session` reports what Desktop is working on, and `onChange` follows it:
+
+```ts
+host.session.onChange((session) => {
+  repaint(session.busy);
+});
+```
+
+| Field | Meaning |
+|---|---|
+| `workspacePath` | The workspace in the foreground, or `null` when none is open. |
+| `threadId` | The active thread, or `null` on the welcome screen. |
+| `mode` | `agent` or `plan`. |
+| `busy` | A turn is running or waiting for the user's input. |
+
+`workspacePath` is the foreground workspace, not the active thread's. That is what makes it readable from a Settings page, a main view, or an effect with no component mounted anywhere — the places where the conversation panel does not exist. It matches the `active` entry of `host.workspaces.listLocalProjects()`. Inside a Composer surface, `context.workspacePath` still reports the thread's own workspace, which can differ from the foreground one.
+
+Approval state, Composer variant, and minimal chrome are not here. They describe how the Composer presents itself, so they stay on the Composer surface context.
+
+The four fields read live, so a component keeps what it needs in state rather than holding the object:
+
+```tsx
+const [busy, setBusy] = useState(host.session.busy);
+useEffect(() => {
+  setBusy(host.session.busy);
+  return host.session.onChange((session) => setBusy(session.busy));
+}, [host]);
+```
+
+## Use the UI kit
+
+Import shared UI components from `@dotcraft/plugin` so a plugin page looks like the rest of Desktop without copying Core styles. The official builder connects hooks and JSX to Desktop's React runtime.
+
+| Group | Components |
+|---|---|
+| **Controls** | `Button`, `IconButton`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch` |
+| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff` |
+| **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
+
+A control that reports a chosen value — `Select`, `Combobox`, `SegmentedControl` — calls `onValueChange` and takes its accessible name from `ariaLabel`. A boolean toggle — `Checkbox`, `PillSwitch` — calls `onChange`.
+
+Reach for `SegmentedControl` when a few mutually exclusive choices fit on one row, and for `Select` when the list is longer or each option needs a description or icon:
+
+```tsx
+import { SegmentedControl, SettingsGroup, SettingsRow } from "@dotcraft/plugin";
+
+function DensityRow({
+  density,
+  onDensityChange,
+}: {
+  density: "cozy" | "compact";
+  onDensityChange: (density: "cozy" | "compact") => void;
+}) {
+  return (
+    <SettingsGroup title="Board">
+      <SettingsRow
+        label="Density"
+        control={
+          <SegmentedControl
+            value={density}
+            options={[
+              { value: "cozy", label: "Cozy" },
+              { value: "compact", label: "Compact" },
+            ]}
+            onValueChange={onDensityChange}
+            ariaLabel="Board density"
+          />
+        }
+      />
+    </SettingsGroup>
+  );
+}
+```
+
+## Use bundled assets
+
+Import an image from plugin source and use the value as it comes. The builder resolves it to the URL of the emitted file, so it is already correct at module scope, from the entry bundle, and from a split chunk:
+
+```tsx
+import scene from "./assets/aurora.svg";
+
+function Background() {
+  return <div style={{ backgroundImage: `url("${scene}")` }} />;
+}
+```
+
+Desktop serves a plugin from `dotcraft-plugin://<id>/<revision>/`, an address that no build can know in advance, so there is nothing to repair by hand. Wrapping the import in `new URL(asset, import.meta.url)` is now redundant rather than wrong: a plugin that still does it keeps working after a rebuild, because the value it wraps is already absolute.
+
+The builder bundles `.gif`, `.jpg`, `.jpeg`, `.png`, `.svg`, and `.webp` into `dist/assets/`. In CSS, keep the ordinary relative form — `url("./assets/aurora.svg")` — because a stylesheet resolves it against its own address, which is already under the plugin route.
+
+## Use the theme tokens
+
+Desktop derives its whole palette from a four-value seed, and the tokens below are the part a plugin may read. Style with them and your UI follows the user's theme, accent, background, and contrast without watching anything:
+
+```css
+.my-plugin-card {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--control-radius-md);
+  box-shadow: var(--shadow-level-2);
+}
+```
+
+| Family | Tokens |
+|---|---|
+| Surfaces | `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--bg-active`, `--bg-hover`, `--bg-elevated` |
+| Text | `--text-primary`, `--text-secondary`, `--text-dimmed`, `--text-tertiary`, `--text-disabled` |
+| Borders | `--border-subtle`, `--border-default`, `--border-active` |
+| Accent | `--accent`, `--accent-hover`, `--on-accent` |
+| Status | `--success`, `--warning`, `--error`, `--info`, `--success-bg`, `--warning-bg`, `--error-bg` |
+| Elevation | `--shadow-level-1`, `--shadow-level-2`, `--shadow-level-3` |
+| Type | `--font-ui`, `--font-body`, `--font-mono`, `--type-body-size`, `--type-ui-size`, `--type-secondary-size`, `--type-hint-size`, `--type-heading-size` |
+| Shape | `--control-radius-md`, `--button-height`, `--button-height-sm` |
+| Seed | `--seed-surface`, `--seed-ink`, `--seed-accent`, `--seed-contrast` |
+
+`--on-accent` is the foreground that stays legible on the accent, so put text on an accent fill with it rather than picking white yourself. The `--seed-*` four are the same values `host.environment.themeSeed` reports; read them only when you paint outside CSS.
+
+Every other custom property is private, including `--composer-*`, `--sidebar-*`, `--shell-*`, `--main-surface-*`, `--glass-*`, `--tooltip-*`, `--scrollbar-*`, `--shimmer-*`, `--diff-*`, and `--ansi-*`. They move with Desktop's own layout work.
 
 ## Use DOM and CSS deliberately
 

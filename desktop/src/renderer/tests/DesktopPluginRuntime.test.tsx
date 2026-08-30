@@ -1,9 +1,15 @@
-import type { DesktopPluginActivation, DesktopPluginHost } from '@dotcraft/plugin'
+import type {
+  DesktopPluginActivation,
+  DesktopPluginEnvironmentSnapshot,
+  DesktopPluginHost
+} from '@dotcraft/plugin'
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { THEME_CHANGED_EVENT } from '../../shared/theme'
 import {
   clearDesktopPluginRegistry,
+  resolveDesktopPluginLabel,
   useDesktopPluginRegistry
 } from '../plugins/desktopPluginRegistry'
 import {
@@ -14,7 +20,9 @@ import { openDesktopPluginUrl } from '../plugins/desktopPluginOpenUrl'
 import { clearDesktopPluginKernel } from '../plugins/desktopPluginKernel'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useToastStore } from '../stores/toastStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { DEFAULT_SEEDS } from '../../shared/themeSeed'
 
 const revisionA = 'a'.repeat(64)
 const revisionB = 'b'.repeat(64)
@@ -62,6 +70,12 @@ function namedPlugin(id: string, revision = revisionA, enabled = true): PluginEn
     mcpServers: [],
     lspServers: []
   }
+}
+
+/** Mirrors what `applyTheme` does in the renderer: write the attribute, then announce it. */
+function applyTheme(theme: 'light' | 'dark'): void {
+  document.documentElement.dataset.theme = theme
+  window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail: { mode: theme } }))
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
@@ -361,12 +375,25 @@ describe('DesktopPluginRuntime', () => {
     const unsubscribe = vi.fn()
     installDesktopApiMock({
       initialTheme: 'light',
-      appServer: { onNotificationRaw: vi.fn(() => unsubscribe) }
+      appServer: {
+        onNotificationRaw: vi.fn(() => unsubscribe),
+        sendRequestRaw: vi.fn(async () => ({
+          schema: { fields: [] },
+          personal: {},
+          workspace: {},
+          value: {},
+          writableScopes: []
+        }))
+      }
     })
     const dispose = vi.fn()
+    const settingsChange = vi.fn()
+    const sessionChange = vi.fn()
     const deps = dependencies((value) => {
       const host = value as DesktopPluginHost
       host.appServer.onNotification('plugin/snapshot/updated', () => {})
+      host.settings.onChange(settingsChange)
+      host.session.onChange(sessionChange)
       host.ui.showToast({ message: 'Owned toast' })
       return { mainViews: [], settingsPages: [], dispose }
     })
@@ -378,12 +405,16 @@ describe('DesktopPluginRuntime', () => {
 
     runtime.reconcile([plugin(revisionA, false)])
     await waitFor(() => expect(dispose).toHaveBeenCalledOnce())
-    expect(unsubscribe).toHaveBeenCalledOnce()
+    // The plugin's own subscription plus the Host's shared settings watcher.
+    expect(unsubscribe).toHaveBeenCalledTimes(2)
+    expect(settingsChange).not.toHaveBeenCalled()
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: 'X:\\workspaces\\after-dispose' })
+    expect(sessionChange).not.toHaveBeenCalled()
     expect(useToastStore.getState().toasts).toHaveLength(0)
 
     await runtime.stop()
     expect(dispose).toHaveBeenCalledOnce()
-    expect(unsubscribe).toHaveBeenCalledOnce()
+    expect(unsubscribe).toHaveBeenCalledTimes(2)
   })
 
   it('owns effects, services, and events even when activate returns nothing', async () => {
@@ -411,6 +442,62 @@ describe('DesktopPluginRuntime', () => {
     expect(host.services.use('fixture.review')).toBeUndefined()
     host.events.emit('fixture.ready', 'inactive')
     expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('notifies environment listeners on theme and locale changes until the generation is disposed', async () => {
+    document.documentElement.lang = 'en'
+    applyTheme('light')
+    const changes: DesktopPluginEnvironmentSnapshot[] = []
+    const deps = dependencies((value) => {
+      (value as DesktopPluginHost).environment.onChange((environment) => changes.push(environment))
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+
+    applyTheme('dark')
+    expect(changes).toEqual([{ locale: 'en', theme: 'dark', themeSeed: DEFAULT_SEEDS.dark }])
+
+    applyTheme('dark')
+    expect(changes).toHaveLength(1)
+
+    document.documentElement.lang = 'zh-Hans'
+    await waitFor(() => expect(changes).toEqual([
+      { locale: 'en', theme: 'dark', themeSeed: DEFAULT_SEEDS.dark },
+      { locale: 'zh-Hans', theme: 'dark', themeSeed: DEFAULT_SEEDS.dark }
+    ]))
+
+    runtime.reconcile([plugin(revisionA, false)])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(0))
+
+    applyTheme('light')
+    document.documentElement.lang = 'ja'
+    await waitFor(() => expect(document.documentElement.lang).toBe('ja'))
+    expect(changes).toHaveLength(2)
+  })
+
+  it('hands plugins an app locale, so a zh-CN document resolves a zh-Hans label', async () => {
+    document.documentElement.lang = 'zh-CN'
+    let host: DesktopPluginHost | null = null
+    const deps = dependencies((value) => {
+      host = value as DesktopPluginHost
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+
+    const locale = host!.environment.locale
+    expect(locale).toBe('zh-Hans')
+    expect(resolveDesktopPluginLabel(
+      { default: 'Board', translations: { 'zh-Hans': '看板' } },
+      locale
+    )).toBe('看板')
+
+    document.documentElement.lang = 'en'
   })
 
   it('withdraws pending activation resources immediately on disable and revision replacement', async () => {
