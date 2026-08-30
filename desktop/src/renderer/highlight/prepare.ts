@@ -2,7 +2,13 @@
  * Grammars resolve on the renderer thread and the registrations are posted to
  * the worker; a catalogue reachable from both bundles would be emitted twice.
  */
-import { isPlainLanguage, languageFromPath, loadLanguage, resolveLanguage } from './languages'
+import {
+  BOOT_LANGUAGES,
+  isPlainLanguage,
+  languageFromPath,
+  loadLanguage,
+  resolveLanguage
+} from './languages'
 import type { DiffHighlightRequest, FileHighlightRequest } from './types'
 import type { LanguageRegistration } from 'shiki/core'
 
@@ -72,7 +78,7 @@ export async function prepareDiff(request: DiffHighlightRequest): Promise<Prepar
   }
 }
 
-export async function bootGrammars(langs: readonly string[]): Promise<Grammar[]> {
+export async function bootGrammars(langs: readonly string[] = BOOT_LANGUAGES): Promise<Grammar[]> {
   const loaded = await Promise.all(langs.map((lang) => grammarFor(lang)))
   return loaded.filter((grammar): grammar is Grammar => grammar !== undefined)
 }

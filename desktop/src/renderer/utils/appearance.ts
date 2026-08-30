@@ -8,6 +8,7 @@ import { THEME_CHANGED_EVENT, type ThemeChangedDetail } from '../../shared/theme
 import { deriveThemeProperties } from '../../shared/themeDerive'
 import {
   EMPTY_THEME_SEEDS,
+  type ThemeSeed,
   type ThemeSeedOverrides,
   type ThemeVariant
 } from '../../shared/themeSeed'
@@ -16,6 +17,7 @@ const CODE_SIZE_VAR = '--text-code-size'
 
 let accentOverride: string | null = null
 let seedsByVariant: Record<ThemeVariant, ThemeSeedOverrides> = EMPTY_THEME_SEEDS
+let desktopPluginSeeds: Partial<Record<ThemeVariant, Partial<ThemeSeed>>> = {}
 let seedRevision = 0
 
 /** Rises with every applied seed change; rides {@link THEME_CHANGED_EVENT}. */
@@ -31,7 +33,11 @@ function writeThemeSeed(): boolean {
   const style = document.documentElement.style
   let changed = false
   const variant = currentVariant()
-  const overrides = { accent: accentOverride ?? undefined, ...seedsByVariant[variant] }
+  const overrides = {
+    accent: accentOverride ?? undefined,
+    ...seedsByVariant[variant],
+    ...desktopPluginSeeds[variant]
+  }
   for (const [name, value] of Object.entries(deriveThemeProperties(overrides, variant))) {
     if (value == null) {
       if (!style.getPropertyValue(name)) continue
@@ -58,6 +64,16 @@ export function applyThemeSeeds(
 ): void {
   accentOverride = accent
   seedsByVariant = seeds
+  if (!writeThemeSeed()) return
+  const detail: ThemeChangedDetail = { mode: currentVariant(), seedRevision }
+  window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail }))
+}
+
+/** Apply the winning Desktop Plugin theme layer over the user's Appearance seed. */
+export function applyDesktopPluginThemeSeedOverride(
+  seeds: Partial<Record<ThemeVariant, Partial<ThemeSeed>>> | null
+): void {
+  desktopPluginSeeds = seeds ?? {}
   if (!writeThemeSeed()) return
   const detail: ThemeChangedDetail = { mode: currentVariant(), seedRevision }
   window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail }))

@@ -106,8 +106,9 @@ DotCraft's formal surfaces cover the application and Composer. Composer surfaces
 | Surface | Placement |
 |---|---|
 | **`app`** | The complete rendered Desktop application. |
-| **`app.background`** | An empty decorative seat behind the application shell. Core's own background remains inside `app`. |
+| **`app.background`** | A Host-owned decorative seat behind the application shell. Render background media here; use `host.appearance` to control how the shell composes over it. |
 | **`app.overlay`** | An empty seat in front of the application shell, click-through by default. |
+| **`app.status`** | The Host-owned bottom-right status rail for compact persistent diagnostics. The Host owns placement and spacing alongside Core indicators. |
 | **`composer`** | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. |
 | **`composer.mascot`** | The 58 × 58 logical-pixel visual stage for the Composer mascot. |
 | **`composer.before`** | Content immediately before the Composer body. |
@@ -154,6 +155,8 @@ function SubscriptionStatus(_: DesktopPluginSurfaceProps<"composer.status.subscr
 host.ui.wrap("composer.toolbar.model", BeforeModel);
 host.ui.add("composer.status.subscription", SubscriptionStatus);
 ```
+
+Use `app.status` for a passive status readout that should coexist with DotCraft's own window indicators. Do not position an `app.status` contribution against the viewport. Use `app.overlay` for decorative or independently positioned content instead.
 
 The same names mount in thread, Welcome, approval, and user-input Composers. A surface stays available when its Core default is hidden by the current provider, compact mode, minimal chrome, or decision state. Inspect the shared Composer context before rendering plugin content. A surface name and its typed context are public contracts. The DOM the surface generates is not.
 
@@ -287,9 +290,10 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | Member | Use it for |
 |---|---|
 | `plugin`, `environment` | The plugin's id, version, and display name, plus the current locale, theme, and theme seed, and a change subscription. |
+| `appearance` | Generation-owned theme-seed and backdrop-presentation contributions. |
 | `session` | The foreground workspace, active thread, mode, and busy state, plus a change subscription. |
 | `navigation` | Opening plugin views, Settings pages, and threads, and claiming custom-scheme links. |
-| `ui` | Toasts and confirmation dialogs, beside the three surface operations. |
+| `ui` | Toasts, Host-owned confirmation and color dialogs, and the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
 | `settings` | Reading, mutating, and following this plugin's schema-backed settings. |
 | `appBindings`, `appSurfaces` | Connected-app binding and app-provided UI surfaces. |
@@ -395,6 +399,34 @@ function useTheme(host: DesktopPluginViewProps["host"]) {
 }
 ```
 
+### Contribute a theme or backdrop presentation
+
+Application-wide appearance goes through `host.appearance`. A theme plugin can override only the
+seed fields it owns for either variant; Core Appearance settings remain the base layer:
+
+```ts
+host.appearance.setThemeSeedOverride({
+  light: { surface: "#f7f2e8", ink: "#2d2924", accent: "#b64b3a" },
+  dark: { surface: "#171413", ink: "#f3ece7", accent: "#e26a55" },
+});
+```
+
+A wallpaper plugin renders its media in `app.background`, then asks the Host to compose each shell
+region once over that media:
+
+```ts
+host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
+```
+
+Each plugin generation owns one slot of each kind. A later activation has priority without
+discarding the earlier contribution; passing `null`, disabling, uninstalling, reloading, or failing
+activation reveals the previous layer. Repeating the same value does not publish another theme
+change. Desktop validates seed colours and constrains contrast and opacity.
+
+These calls do not persist plugin choices. Store the chosen pack or opacity with `host.settings`,
+reapply it during activation, and pass `null` when the effect is off. Do not set Desktop's private
+CSS variables or wrap `app` to create a global appearance effect.
+
 ### Read the current session
 
 `host.session` reports what Desktop is working on, and `onChange` follows it:
@@ -432,11 +464,19 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 
 | Group | Components |
 |---|---|
-| **Controls** | `Button`, `IconButton`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch` |
+| **Controls** | `Button`, `IconButton`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
 | **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 
 A control that reports a chosen value — `Select`, `Combobox`, `SegmentedControl` — calls `onValueChange` and takes its accessible name from `ariaLabel`. A boolean toggle — `Checkbox`, `PillSwitch` — calls `onChange`.
+
+`Slider` calls `onValueChange` while its value moves and calls the optional `onValueCommit` once
+when the pointer or keyboard interaction ends. Preview from `onValueChange`; persist from
+`onValueCommit` when saving each intermediate value would perform I/O. Provide `valueText` when the
+number needs a unit. Use `SettingsRow` with `orientation="block"` for controls that need the row width. For a custom visual
+picker, use a block row or `SettingsGroup flush` so it keeps the standard Settings spacing and
+border while owning its internal layout. `htmlFor` connects a row label to a native control, and
+`align="flex-start"` aligns multiline inline rows at the top.
 
 Reach for `SegmentedControl` when a few mutually exclusive choices fit on one row, and for `Select` when the list is longer or each option needs a description or icon:
 
@@ -470,6 +510,30 @@ function DensityRow({
   );
 }
 ```
+
+### Request a color
+
+Use `host.ui.pickColor` for an opaque RGB choice. Desktop owns the compact dialog, portal, focus
+trap, localization, Hex validation, and keyboard controls. It accepts three- or six-digit Hex
+input and returns a normalized lowercase `#rrggbb`. Changes preview inside the dialog only.
+
+```ts
+const result = await host.ui.pickColor({
+  title: "Choose workspace color",
+  description: "Used wherever this workspace appears.",
+  initialColor: "#8b5cf6",
+  allowReset: true,
+  defaultColor: "#4566cc",
+});
+
+if (result.kind === "select") await save(result.color);
+if (result.kind === "reset") await clearOverride();
+```
+
+Done returns `select`. Reset returns `reset` and closes immediately. Escape, the close button,
+the backdrop, a competing picker request, or plugin disposal return `cancel`. Invalid Host
+arguments reject with `TypeError`. Do not render a native `input[type="color"]` or implement a
+plugin-owned color dialog.
 
 ## Use bundled assets
 

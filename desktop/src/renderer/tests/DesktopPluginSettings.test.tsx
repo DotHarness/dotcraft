@@ -60,7 +60,6 @@ function snapshotOf(value: Record<string, unknown>): DesktopPluginSettingsSnapsh
   }
 }
 
-/** Drains the microtask chain a settled request unwinds through: request, read, publish, listener. */
 async function flush(): Promise<void> {
   for (let tick = 0; tick < 8; tick += 1) await Promise.resolve()
 }
@@ -74,7 +73,6 @@ function installSettingsApi() {
     readFailure: null as Error | null,
     hold: new Set<string>()
   }
-  // The server writes and broadcasts before it replies, so a held request has already taken effect.
   function apply(method: string, params: unknown): () => DesktopPluginSettingsSnapshot {
     if (method === 'plugin/config/get') {
       const { readFailure, stored } = state
@@ -255,7 +253,6 @@ describe('host.settings.onChange', () => {
     await expect(host.settings.mutate('personal', [{ op: 'set', key: 'accent', value: 'gold' }]))
       .rejects.toThrow('PluginConfigurationWriteFailed')
 
-    // The write never reached the file, so there is nothing to publish and nothing to re-read.
     expect(listener).not.toHaveBeenCalled()
     expect(api.reads()).toBe(1)
   })

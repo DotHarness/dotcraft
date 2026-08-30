@@ -183,9 +183,7 @@ Every public UI insertion point is a named surface. `ui.add`, `ui.replace`, and 
 - `replace` selects the last active registration. Disposing it restores the previous replacement, or the surface's default content when none remains.
 - `wrap` composes around the current surface. A later registration is the outer wrapper. Disposing any wrapper recomposes the remaining chain without it.
 
-`add` takes an optional `order`. Additions render in ascending `order`, and registrations sharing one — including all that omit it, which default to 100 — keep registration order among themselves. The default matches the convenience contributions' ordering default so that one number means the same thing across the API. Without it the arrangement of a shared surface depended on plugin activation order, which no plugin can predict or observe.
-
-`replace` and `wrap` stay ordered by registration alone. Their stacking is a disposal contract rather than an arrangement: disposing a replacement reveals the one registered before it, and disposing a wrapper recomposes the remaining chain. An `order` there would let an early registration outrank every later one permanently, including a user's later choice, and only `add` composes several registrations into one visible result. This is a deliberate omission, not a gap to fill later.
+`add` takes an optional `order`, defaulting to 100. Additions render by ascending order and then registration order. `replace` and `wrap` use registration order only, preserving their disposal stack.
 
 While a replacement is active, the replaced default component tree is not mounted. Disposing the replacement remounts the current fallback rather than revealing a hidden, still-running implementation.
 
@@ -212,6 +210,7 @@ The formal Core surfaces are:
 | `app` | The complete rendered Desktop application. Core supplies the default app tree. |
 | `app.background` | An empty decorative seat behind the application shell. Core's normal background remains inside `app`. |
 | `app.overlay` | An empty seat in front of the application shell, click-through by default. |
+| `app.status` | The Host-owned trailing status rail at the bottom-right of the window. Empty by default and click-through outside interactive contributions. |
 | `composer` | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. Core supplies the normal implementation. |
 | `composer.mascot` | The Composer mascot's 58 × 58 logical-pixel visual stage. Core supplies the DotCraft robot and keeps ownership of placement, interaction, bubbles, menus, and outer motion. |
 | `composer.before` | Additive content immediately before the Composer body. Empty by default. |
@@ -234,7 +233,9 @@ The formal Core surfaces are:
 | `composer.status.workspace` | The workspace, project, branch, worktree, or changelist controls. |
 | `composer.status.subscription` | The ChatGPT subscription indicator when applicable. |
 
-`app.background` and `app.overlay` are the two empty seats around the application tree and share its context. The overlay mounts after the application, so its content paints over the shell without a plugin having to consume the single `app` wrapper. The seat sets `pointer-events: none`, and the property inherits, so a floating readout stays click-through by default and a plugin that wants clicks opts back in with `pointer-events: auto` on its own element. That default keeps a decorative overlay from swallowing the interface underneath it, which is the failure a plugin cannot recover from once shipped.
+`app.background`, `app.overlay`, and `app.status` share the application context. The overlay mounts after the application, so its content paints over the shell without a plugin having to consume the single `app` wrapper. The seat sets `pointer-events: none`, and the property inherits, so a floating readout stays click-through by default and a plugin that wants clicks opts back in with `pointer-events: auto` on its own element. That default keeps a decorative overlay from swallowing the interface underneath it, which is the failure a plugin cannot recover from once shipped.
+
+`app.status` is for compact, persistent diagnostics and status readouts rather than freely positioned overlays. The Host owns its bottom-right inset, horizontal ordering, spacing, and coexistence with Core indicators. Contributions render before the trailing Core indicator and must not position themselves against the viewport. A contribution may opt back into pointer events for a real control, but passive telemetry remains click-through.
 
 Composer surface contexts use `threadId: null` whenever the Composer has not created or attached to a real Session thread, including welcome and detached embedded Composers. They carry the real thread id after attachment.
 
@@ -248,7 +249,7 @@ On the new-chat Welcome screen, `composer` deliberately covers the complete pre-
 
 These are the first stable surfaces, not a capability ceiling. The SDK's `PluginSurface` component declares and renders a plugin-owned surface from its `name` and typed `context`. Plugin-qualified names are recommended but not enforced. Core or another plugin may target it with `add`, `replace`, or `wrap`, regardless of activation order. It exists while mounted; registrations targeting it remain generation-owned and render whenever it is present.
 
-The Core surface names above are a closed set, so a registration rooted at `app` or `composer` that Core does not define is a mistake — most often a typo — and the Host reports it on the console. The check is scoped to those two roots because a registration against a plugin-declared surface is legal even when nothing has mounted it yet, and warning on that would fire on every ordinary cross-plugin registration. Reporting never changes behavior: the registration is stored and renders if the name ever appears. The reverse direction is unchecked by design — a Core surface added to the map but missed in the Host's list costs one spurious warning, not a broken surface.
+The Core surface names above are closed. The Host warns about unknown names rooted at `app` or `composer` but still stores the registration. Plugin-owned names remain open because their surface may mount later.
 
 ## Convenience contributions
 
@@ -271,9 +272,7 @@ A contribution label carries a `default` string and an optional `translations` m
 
 ### Contribution icons
 
-A contribution supplies its own React icon component or supplies nothing. A contribution without an icon renders a Host fallback glyph, so a row is never iconless.
-
-The component is the only form. Core does not also publish a vocabulary of glyph names: a name vocabulary sits on the compatibility contract and has to grow and stay drawn forever, while the component form already covers every icon a plugin could want and keeps the artwork owned by the plugin that ships it.
+A contribution may supply a React icon component; otherwise the Host renders a fallback glyph. Core does not publish a separate glyph-name vocabulary.
 
 ## Runtime lifecycle
 
@@ -303,7 +302,7 @@ Every Desktop Plugin receives the same Host contract: the four primitives plus s
 
 The Host owns the observation. A plugin does not watch `documentElement` for the theme attribute or the language attribute, and how Core announces a change is an implementation detail of the runtime rather than part of this contract.
 
-`environment.locale` is always one of DotCraft's app locales — `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de`. The Host normalizes the document language before any plugin or snapshot sees it, so a browser tag such as `zh-CN` or `en-US` never reaches a plugin and a plugin needs no base-language resolver of its own. The SDK types the field as that union rather than `string`. It restates the seven values instead of importing Desktop's locale module, because the SDK is published on its own and must not depend on renderer internals; Desktop's normalizer feeds the field, so adding a locale to Desktop without adding it to the SDK is a compile error.
+`environment.locale` is one of `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, or `de`. The Host normalizes browser tags such as `zh-CN` and `en-US` before publishing the typed SDK value.
 
 ### Session state
 
@@ -320,20 +319,13 @@ interface DesktopPluginSessionSnapshot {
 }
 ```
 
-`session.workspacePath` is the foreground workspace, not the active thread's; a plugin that wants the
-thread's own workspace still reads `context.workspacePath` from a Composer surface context. Three
-reasons keep it that way. It is defined outside the Composer, which is the point: `composer.status`
-mounts only inside the Composer, and Settings and every plugin main view unmount the conversation
-panel, so a probe there reports nothing exactly where a per-workspace setting is edited. It agrees
-with the `active` flag of `workspaces.listLocalProjects()`, and two Host readers must not disagree
-about which workspace is in front. And a plugin whose work lives in `effect`, with no component
-mounted anywhere, can read it at all.
+`session.workspacePath` is the foreground workspace and matches the `active` entry from
+`workspaces.listLocalProjects()`. A Composer surface reads its thread's workspace from
+`context.workspacePath`, which may differ.
 
-`busy` means a turn is running or waiting on user input, copied from Core's own Composer assembly
-rather than re-derived. Approval state, Composer variant, and minimal chrome stay on the Composer
-surface context: they describe how the Composer presents itself, not what the session is. The reader
-publishes no per-thread running set, no workspace list, and no workspace switch — `workspaces` owns
-the list, and switching is a user action.
+`busy` means a turn is running or waiting on user input. Approval state, Composer variant, and
+minimal chrome remain on the Composer surface context; `workspaces` owns workspace lists and
+switching.
 
 ### AppServer notifications
 
@@ -351,7 +343,7 @@ Pure UI stays in the Desktop Plugin; Core does not mirror surfaces, renderer ser
 
 - `effect`, UI composition, services, and events are sufficient to build higher-level plugin APIs.
 - `add`, `replace`, and `wrap` follow the defined composition and disposal semantics.
-- `app`, `app.background`, `app.overlay`, and the documented outer, region, and control-level Composer names are stable Core surfaces.
+- `app`, `app.background`, `app.overlay`, `app.status`, and the documented outer, region, and control-level Composer names are stable Core surfaces.
 - Additions render in `order` and then registration order, while `replace` and `wrap` stay last-registration-wins.
 - `composer.mascot` replacements receive typed semantic state while Core retains the mascot controller and outer motion.
 - `PluginSurface` enables a plugin to expose a surface that another plugin can extend.

@@ -34,12 +34,24 @@ export interface DesktopPluginEnvironmentSnapshot {
 }
 
 export interface DesktopPluginEnvironment extends DesktopPluginEnvironmentSnapshot {
-  /**
-   * Notifies when the applied theme, its seed, or the UI locale changes, with a complete
-   * snapshot. A recolor that leaves the theme name alone still fires.
-   * The subscription is generation-owned, like every other Host registration.
-   */
+  /** Notifies when the applied theme, seed, or locale changes; disposed with the plugin generation. */
   onChange(listener: (environment: DesktopPluginEnvironmentSnapshot) => void): DesktopPluginDispose;
+}
+
+export type DesktopPluginThemeSeedOverrides = Partial<
+  Record<"light" | "dark", Partial<DesktopPluginThemeSeed>>
+>;
+
+export interface DesktopPluginBackdropPresentation {
+  /** Opacity of each Host-owned shell surface, from 0 (clear) to 1 (opaque). */
+  readonly surfaceOpacity: number;
+}
+
+export interface DesktopPluginAppearance {
+  /** Replaces this plugin generation's theme layer. Pass null to reveal the layer below it. */
+  setThemeSeedOverride(value: DesktopPluginThemeSeedOverrides | null): void;
+  /** Replaces this plugin generation's backdrop presentation. Pass null when no media is active. */
+  setBackdropPresentation(value: DesktopPluginBackdropPresentation | null): void;
 }
 
 export interface DesktopPluginSessionSnapshot {
@@ -51,10 +63,7 @@ export interface DesktopPluginSessionSnapshot {
 }
 
 export interface DesktopPluginSession extends DesktopPluginSessionSnapshot {
-  /**
-   * Notifies when the foreground workspace, active thread, mode, or busy state changes, with a
-   * complete snapshot. The subscription is generation-owned, like every other Host registration.
-   */
+  /** Notifies when workspace, thread, mode, or busy state changes; disposed with the plugin generation. */
   onChange(listener: (session: DesktopPluginSessionSnapshot) => void): DesktopPluginDispose;
 }
 
@@ -102,6 +111,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly app: DesktopPluginAppSurfaceContext;
   readonly "app.background": DesktopPluginAppSurfaceContext;
   readonly "app.overlay": DesktopPluginAppSurfaceContext;
+  readonly "app.status": DesktopPluginAppSurfaceContext;
   readonly composer: DesktopPluginComposerSurfaceContext;
   readonly "composer.mascot": DesktopPluginComposerMascotSurfaceContext;
   readonly "composer.before": DesktopPluginComposerSurfaceContext;
@@ -180,9 +190,31 @@ export interface DesktopPluginAddOptions {
   readonly order?: number;
 }
 
+export interface DesktopPluginColorPickerBaseOptions {
+  readonly title: string;
+  readonly description?: string;
+  readonly initialColor: string;
+}
+
+export type DesktopPluginColorPickerOptions =
+  | (DesktopPluginColorPickerBaseOptions & {
+      readonly allowReset: true;
+      readonly defaultColor: string;
+    })
+  | (DesktopPluginColorPickerBaseOptions & {
+      readonly allowReset?: false;
+      readonly defaultColor?: never;
+    });
+
+export type DesktopPluginColorPickerResult =
+  | { readonly kind: "select"; readonly color: string }
+  | { readonly kind: "reset" }
+  | { readonly kind: "cancel" };
+
 export interface DesktopPluginUi {
   showToast(options: DesktopPluginToastOptions): DesktopPluginDispose;
   confirm(options: DesktopPluginConfirmOptions): Promise<boolean>;
+  pickColor(options: DesktopPluginColorPickerOptions): Promise<DesktopPluginColorPickerResult>;
   add<Surface extends string>(
     surface: Surface,
     component: DesktopPluginSurfaceComponent<Surface>,
@@ -262,13 +294,7 @@ export interface DesktopPluginSettings {
     scope: DesktopPluginSettingsScope,
     operations: readonly DesktopPluginSettingsMutation[]
   ): Promise<DesktopPluginSettingsSnapshot<TValue>>;
-  /**
-   * Notifies once per change to the stored configuration, whether this plugin wrote it or another
-   * client did. A rejected `mutate` leaves the file untouched, so it rethrows without notifying.
-   * Repeats are not events: a snapshot equal to the last delivered one is dropped, and so is a read
-   * that resolves after a newer one was issued. Never fires on subscribe. The subscription is
-   * generation-owned, like every other Host registration.
-   */
+  /** Notifies on new stored snapshots; skips repeats and stale reads, and never fires on subscribe. */
   onChange<TValue = Record<string, unknown>>(
     listener: (settings: DesktopPluginSettingsSnapshot<TValue>) => void,
   ): DesktopPluginDispose;
@@ -357,6 +383,7 @@ export interface DesktopPluginOratorio {
 export interface DesktopPluginHost {
   readonly plugin: DesktopPluginMetadata;
   readonly environment: DesktopPluginEnvironment;
+  readonly appearance: DesktopPluginAppearance;
   readonly session: DesktopPluginSession;
   effect(setup: DesktopPluginEffectSetup): DesktopPluginDispose;
   readonly services: DesktopPluginServices;

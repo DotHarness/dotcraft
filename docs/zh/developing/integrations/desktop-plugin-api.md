@@ -102,8 +102,9 @@ DotCraft 的正式 surface 覆盖 application 与 Composer。Composer surface �
 | Surface | 位置 |
 |---|---|
 | **`app`** | 完整渲染出的 Desktop application。 |
-| **`app.background`** | application shell 后方的空装饰位，Core 自己的背景仍在 `app` 内。 |
+| **`app.background`** | application shell 后方由 Host 持有的装饰位。背景媒体在这里渲染；shell 如何叠加在其上由 `host.appearance` 控制。 |
 | **`app.overlay`** | application shell 前方的空位，默认穿透点击。 |
+| **`app.status`** | 由 Host 持有的右下角状态轨道，用于紧凑、持续的诊断信息。它与 Core 指示器的位置和间距由 Host 管理。 |
 | **`composer`** | 完整的已挂载 Composer，包括新聊天 welcome、创建 thread 前的 embedded Composer 与 active thread 状态。 |
 | **`composer.mascot`** | Composer mascot 的 58×58 逻辑像素 visual stage。 |
 | **`composer.before`** | Composer body 之前的内容。 |
@@ -150,6 +151,8 @@ function SubscriptionStatus(_: DesktopPluginSurfaceProps<"composer.status.subscr
 host.ui.wrap("composer.toolbar.model", BeforeModel);
 host.ui.add("composer.status.subscription", SubscriptionStatus);
 ```
+
+需要让只读状态与 DotCraft 的窗口指示器共存时，请使用 `app.status`。`app.status` 贡献不要自行相对 viewport 定位。装饰内容或需要独立定位的内容继续使用 `app.overlay`。
 
 同一组名称会挂载在 thread、Welcome、approval 与 user-input Composer 中。即使当前 provider、compact mode、minimal chrome 或 decision state 隐藏了 Core default，surface 仍然可用。渲染插件内容前应检查共享的 Composer context。Surface 名称与它的 typed context 属于公共契约，surface 生成的 DOM 不属于。
 
@@ -283,9 +286,10 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | 成员 | 用途 |
 |---|---|
 | `plugin`、`environment` | 插件的 id、版本与显示名，以及当前 locale、theme、theme 种子与变更订阅。 |
+| `appearance` | 由 generation 持有的 theme seed 与 backdrop presentation contribution。 |
 | `session` | 前台 workspace、当前 thread、mode 与忙碌状态，以及变更订阅。 |
 | `navigation` | 打开插件 view、Settings 页与 thread，并接管自定义 scheme 的链接。 |
-| `ui` | 除三个 surface 操作外，还提供 toast 与确认对话框。 |
+| `ui` | 除三个 surface 操作外，还提供 toast、确认与颜色选择等 Host-owned 对话框。 |
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
 | `settings` | 读取、修改并跟随本插件由 schema 约束的设置。 |
 | `appBindings`、`appSurfaces` | Connected App binding 与 app 提供的 UI surface。 |
@@ -391,6 +395,34 @@ function useTheme(host: DesktopPluginViewProps["host"]) {
 }
 ```
 
+### 提供 theme 或 backdrop presentation
+
+应用级外观统一通过 `host.appearance` 提供。Theme 插件只覆盖自己负责的 light/dark seed
+字段，Core 的 Appearance 设置始终作为基础层：
+
+```ts
+host.appearance.setThemeSeedOverride({
+  light: { surface: "#f7f2e8", ink: "#2d2924", accent: "#b64b3a" },
+  dark: { surface: "#171413", ink: "#f3ece7", accent: "#e26a55" },
+});
+```
+
+Wallpaper 插件把媒体渲染到 `app.background`，再让 Host 在媒体上为每个 shell 区域只合成
+一次表面：
+
+```ts
+host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
+```
+
+每个插件 generation 在两类 contribution 中各有一个槽位。较晚 activation 的优先级更高，
+但不会丢掉前一层；传入 `null`，或者插件被禁用、卸载、热重载、activation 失败时，都会显露
+前一层。重复提供相同值不会再次发布 theme 变化。Desktop 会校验 seed 颜色，并限制 contrast
+和 opacity。
+
+这些调用不会持久化插件选择。请把所选 theme pack 或 opacity 存在 `host.settings`，activation
+时重新应用，效果关闭时传入 `null`。不要设置 Desktop 的私有 CSS 变量，也不要通过 wrap
+`app` 来实现全局外观效果。
+
 ### 读取当前 session
 
 `host.session` 告诉你 Desktop 此刻在做什么，`onChange` 则跟随它的变化：
@@ -428,11 +460,18 @@ useEffect(() => {
 
 | 分组 | 组件 |
 |---|---|
-| **控件** | `Button`、`IconButton`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch` |
+| **控件** | `Button`、`IconButton`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
 | **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 
 报告所选值的控件——`Select`、`Combobox`、`SegmentedControl`——回调名为 `onValueChange`，无障碍名称来自 `ariaLabel`。布尔开关——`Checkbox`、`PillSwitch`——回调名为 `onChange`。
+
+`Slider` 在数值移动时调用 `onValueChange`，并在指针或键盘交互结束时调用一次可选的
+`onValueCommit`。通过 `onValueChange` 预览。如果保存每个中间值会产生 I/O，则通过
+`onValueCommit` 持久化。数值需要单位时请提供 `valueText`。需要占据整行宽度的控件使用
+`SettingsRow orientation="block"`。插件特有的视觉选择器应放进 block row 或
+`SettingsGroup flush`，这样既沿用 Settings 的间距与边框，又能自行组织内部布局。`htmlFor`
+用于把行标签关联到原生控件，`align="flex-start"` 则让多行 inline row 顶部对齐。
 
 几个互斥选项能放进一行时用 `SegmentedControl`。选项较多，或者每个选项需要描述与图标时用 `Select`：
 
@@ -466,6 +505,29 @@ function DensityRow({
   );
 }
 ```
+
+### 请求颜色
+
+不透明 RGB 颜色选择统一使用 `host.ui.pickColor`。compact dialog、portal、焦点锁定、通用文案、
+Hex 校验与键盘操作都由 Desktop 管理。它接受三位或六位 Hex，并返回规范化的小写
+`#rrggbb`；拖动和输入只在弹窗内部预览。
+
+```ts
+const result = await host.ui.pickColor({
+  title: "选择工作区颜色",
+  description: "用于插件中所有表示当前工作区的位置。",
+  initialColor: "#8b5cf6",
+  allowReset: true,
+  defaultColor: "#4566cc",
+});
+
+if (result.kind === "select") await save(result.color);
+if (result.kind === "reset") await clearOverride();
+```
+
+Done 返回 `select`；Reset 立即返回 `reset` 并关闭。Escape、关闭按钮、遮罩、同时发起的另一个
+picker 请求或插件销毁都返回 `cancel`。Host 参数不合法时 Promise 以 `TypeError` 拒绝。
+不要渲染原生 `input[type="color"]`，也不要自行维护插件颜色弹窗。
 
 ## 使用打包的静态资源
 

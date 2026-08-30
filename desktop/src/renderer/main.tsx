@@ -10,6 +10,7 @@ import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
 import { DesktopPluginSurface } from './components/desktopPlugins/DesktopPluginSurface'
 import { HighlightProvider } from './highlight/react/HighlightProvider'
 import { CdpDebugIndicator } from './components/layout/CdpDebugIndicator'
+import { ColorPickerDialogHost } from './components/ui/ColorPickerDialog'
 import './styles/index.css'
 
 const stopDesktopPluginRuntime = startDesktopPluginRuntime()
@@ -47,14 +48,22 @@ createRoot(rootElement).render(
   <StrictMode>
     <LocaleProvider>
       <HighlightProvider>
-        <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
-        <DesktopPluginSurface name="app" context={appSurfaceContext}>
-          <App />
-        </DesktopPluginSurface>
+        <div className="dotcraft-plugin-background-seat">
+          <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
+        </div>
+        <div className="dotcraft-plugin-app-seat">
+          <DesktopPluginSurface name="app" context={appSurfaceContext}>
+            <App />
+          </DesktopPluginSurface>
+        </div>
         <div className="dotcraft-plugin-overlay-seat">
           <DesktopPluginSurface name="app.overlay" context={appSurfaceContext} />
         </div>
-        <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
+        <div className="dotcraft-plugin-status-seat">
+          <DesktopPluginSurface name="app.status" context={appSurfaceContext} />
+          <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
+        </div>
+        <ColorPickerDialogHost />
       </HighlightProvider>
     </LocaleProvider>
   </StrictMode>

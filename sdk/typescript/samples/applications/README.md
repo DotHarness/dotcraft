@@ -1,4 +1,4 @@
-# TypeScript SDK examples
+# TypeScript application samples
 
 Start with one focused example:
 
@@ -28,10 +28,10 @@ From `sdk/typescript`, install dependencies and build the SDK and examples:
 ```bash
 npm install
 npm run build:example
-node examples/dist/first-run.js /absolute/path/to/workspace
-node examples/dist/continue-thread.js /absolute/path/to/workspace
-node examples/dist/multimodal-input.js /absolute/path/to/workspace /absolute/path/to/image.png
-node examples/dist/models-and-mcp.js /absolute/path/to/workspace
+node samples/applications/dist/first-run.js /absolute/path/to/workspace
+node samples/applications/dist/continue-thread.js /absolute/path/to/workspace
+node samples/applications/dist/multimodal-input.js /absolute/path/to/workspace /absolute/path/to/image.png
+node samples/applications/dist/models-and-mcp.js /absolute/path/to/workspace
 ```
 
 Run the comprehensive example with:

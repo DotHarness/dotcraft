@@ -98,6 +98,18 @@ export interface SkeletonProps {
   readonly style?: CSSProperties;
 }
 
+export interface SliderProps {
+  readonly value: number;
+  readonly min: number;
+  readonly max: number;
+  readonly step?: number;
+  readonly onValueChange: (value: number) => void;
+  readonly onValueCommit?: (value: number) => void;
+  readonly ariaLabel: string;
+  readonly valueText?: string;
+  readonly disabled?: boolean;
+}
+
 export interface ActionTooltipProps {
   readonly label: string;
   readonly multiline?: boolean;
@@ -152,14 +164,18 @@ export interface SettingsGroupProps {
   readonly title?: string;
   readonly description?: ReactNode;
   readonly headerAction?: ReactNode;
+  readonly flush?: boolean;
   readonly children: ReactNode;
 }
 
 export interface SettingsRowProps {
   readonly label?: ReactNode;
   readonly description?: ReactNode;
+  readonly htmlFor?: string;
   readonly control?: ReactNode;
   readonly controlMinWidth?: number | string;
+  readonly orientation?: "inline" | "block";
+  readonly align?: "center" | "flex-start";
   readonly children?: ReactNode;
 }
 
@@ -199,6 +215,7 @@ export interface DesktopPluginUiComponents {
   readonly Checkbox: ComponentType<CheckboxProps>;
   readonly Spinner: ComponentType<SpinnerProps>;
   readonly Skeleton: ComponentType<SkeletonProps>;
+  readonly Slider: ComponentType<SliderProps>;
   readonly ActionTooltip: ComponentType<ActionTooltipProps>;
   readonly Combobox: ComponentType<ComboboxProps>;
   readonly ModalHeader: ComponentType<ModalHeaderProps>;

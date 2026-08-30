@@ -9,9 +9,8 @@ type SettingsListener = (settings: SettingsSnapshot) => void
 
 interface PluginSettingsEntry {
   readonly listeners: Set<SettingsListener>
-  /** The serialized snapshot last delivered; a read matching it publishes nothing. */
   delivered: string | null
-  /** Rises with every read and every write; only the newest issue may publish. */
+  /** Prevents an older async read from publishing after a newer request. */
   issued: number
 }
 
@@ -35,8 +34,6 @@ export async function mutateDesktopPluginSettings(
     scope,
     operations
   }) as Promise<SettingsSnapshot>)
-  // A write's own result outranks every read issued before it, and a rejected write changes
-  // nothing on disk, so there is no failure path to announce.
   const entry = entries.get(pluginId)
   if (entry) {
     entry.issued += 1
@@ -45,7 +42,6 @@ export async function mutateDesktopPluginSettings(
   return snapshot
 }
 
-/** One Host-owned watcher serves every plugin, so no plugin reloads its own configuration. */
 export function onDesktopPluginSettingsChange(
   pluginId: string,
   listener: SettingsListener
@@ -83,14 +79,6 @@ function startWatching(): void {
   })
 }
 
-/**
- * The broadcast names no plugin and carries no value, so the snapshot has to be re-read. Reading it
- * once per plugin rather than once per listener is the whole point of a Host-owned producer.
- *
- * Reads run concurrently and can land in any order, so each carries the issue number it was sent
- * with and only the newest one is allowed to publish. Without that a read of older state could
- * arrive last and become the value listeners keep.
- */
 function refresh(pluginId: string, entry: PluginSettingsEntry): void {
   const issued = (entry.issued += 1)
   void readDesktopPluginSettings(pluginId).then((snapshot) => {
@@ -99,7 +87,6 @@ function refresh(pluginId: string, entry: PluginSettingsEntry): void {
   }, (readError) => console.error('Desktop Plugin settings re-read failed:', readError))
 }
 
-/** Delivers only a value that differs from the last one, so a repeat is not an event. */
 function publish(pluginId: string, snapshot: SettingsSnapshot): void {
   const entry = entries.get(pluginId)
   if (!entry) return

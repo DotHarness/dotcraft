@@ -101,11 +101,8 @@ class PoolBackend implements HighlightBackend {
     this.state = 'initializing'
     // Imported here, not at module scope: the grammar catalogue is ~250 import
     // thunks that app startup has no use for until a code surface exists.
-    const [{ bootGrammars }, { BOOT_LANGUAGES }] = await Promise.all([
-      import('../prepare'),
-      import('../languages')
-    ])
-    this.boot = await bootGrammars(BOOT_LANGUAGES)
+    const { bootGrammars } = await import('../prepare')
+    this.boot = await bootGrammars()
 
     if (this.useWorkers) {
       try {

@@ -85,13 +85,13 @@ export function CustomMenuBar(): JSX.Element {
 
   return (
     <div
+      className="dotcraft-custom-menu-bar"
       style={{
         ...dragRegion,
         height: TITLE_BAR_OVERLAY_HEIGHT,
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        background: 'transparent',
         color: 'var(--text-secondary)',
         userSelect: 'none'
       }}

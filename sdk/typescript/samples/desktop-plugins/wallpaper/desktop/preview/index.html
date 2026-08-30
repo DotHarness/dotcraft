@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Wallpaper preview</title>
+    <link rel="stylesheet" href="./index.css" />
+    <style>
+      :root {
+        --bg-primary: #141515;
+        --bg-secondary: #202020;
+        --text-primary: #eeeeec;
+        --text-secondary: #a9a9a6;
+        --border-default: rgba(238, 238, 236, 0.1);
+        --border-active: rgba(238, 238, 236, 0.18);
+        --accent: #4566cc;
+        --chrome-glass: #1a1b1b;
+        --sidebar-glass: var(--chrome-glass);
+        --main-surface: #111212;
+        --main-surface-muted: #111212;
+        --welcome-surface: #202020;
+      }
+      body.light {
+        --bg-primary: #f9f9f9;
+        --bg-secondary: #ffffff;
+        --text-primary: #1a1c1f;
+        --text-secondary: #5b5f66;
+        --border-default: rgba(26, 28, 31, 0.1);
+        --border-active: rgba(26, 28, 31, 0.18);
+        --accent: #4f6cce;
+        --chrome-glass: #f0f0ee;
+        --main-surface: #ffffff;
+        --main-surface-muted: #ffffff;
+        --welcome-surface: #f3f3ee;
+      }
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+      body {
+        color: var(--text-primary);
+        font: 13px/1.5 system-ui, sans-serif;
+      }
+      .mock-app {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+      }
+      .mock-titlebar {
+        padding: 8px 14px;
+        background: var(--preview-shell-surface);
+        color: var(--text-secondary);
+        font-size: 12px;
+      }
+      .mock-body {
+        display: flex;
+        flex: 1;
+        gap: 0;
+        min-height: 0;
+        padding: 0 10px 10px;
+      }
+      .mock-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 210px;
+        padding: 12px 10px;
+        background: var(--preview-shell-surface);
+      }
+      .mock-project {
+        color: var(--text-secondary);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .mock-thread {
+        padding: 7px 10px;
+        border-radius: 8px;
+        color: var(--text-secondary);
+      }
+      .mock-thread-active {
+        background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+        color: var(--text-primary);
+      }
+      .mock-main {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px 24px;
+        border-radius: 12px;
+        background: var(--preview-shell-surface);
+        box-shadow: inset 1px 0 0 0 var(--border-default);
+      }
+      .mock-message {
+        max-width: 620px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--bg-secondary);
+      }
+      .mock-message-user {
+        align-self: flex-end;
+        background: color-mix(in srgb, var(--accent) 24%, var(--bg-secondary));
+      }
+      .mock-composer {
+        margin-top: auto;
+        padding: 14px 16px;
+        border: 1px solid var(--border-default);
+        border-radius: 14px;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+      }
+      .controls {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 10;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 12px;
+        border: 1px solid var(--border-active);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+        font-size: 11px;
+      }
+      .preview-frame,
+      .preview-app-seat {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      .preview-app-seat {
+        z-index: 1;
+      }
+      .controls button {
+        padding: 4px 10px;
+        border: 1px solid var(--border-active);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-primary);
+        cursor: pointer;
+      }
+      .controls label {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        color: var(--text-secondary);
+      }
+      .controls input[type='range'] {
+        width: 80px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./preview.js"></script>
+  </body>
+</html>

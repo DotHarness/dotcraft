@@ -10,7 +10,6 @@ const listeners = new Set<EnvironmentListener>()
 let stopWatching: (() => void) | null = null
 let current = readDesktopPluginEnvironment()
 
-/** Falls back to the authored seed so a plugin never sees a blank color or a NaN contrast. */
 function readThemeSeed(variant: ThemeVariant): DesktopPluginThemeSeed {
   const style = getComputedStyle(document.documentElement)
   const defaults = DEFAULT_SEEDS[variant]
@@ -25,7 +24,6 @@ function readThemeSeed(variant: ThemeVariant): DesktopPluginThemeSeed {
   }
 }
 
-/** The return type keeps Desktop's app locales and the SDK's `DesktopPluginLocale` from drifting apart. */
 export function readDesktopPluginEnvironment(): DesktopPluginEnvironmentSnapshot {
   const theme: ThemeVariant = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
   return {
@@ -35,7 +33,6 @@ export function readDesktopPluginEnvironment(): DesktopPluginEnvironmentSnapshot
   }
 }
 
-/** One Host-owned watcher serves every plugin, so no plugin observes the document itself. */
 export function onDesktopPluginEnvironmentChange(listener: EnvironmentListener): () => void {
   listeners.add(listener)
   startWatching()
@@ -74,7 +71,6 @@ function startWatching(): void {
   }
 
   window.addEventListener(THEME_CHANGED_EVENT, publish)
-  // Core announces theme changes but writes the locale straight onto the document.
   const observer = new MutationObserver(publish)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
   stopWatching = () => {

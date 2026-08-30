@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "wallpaper",
+  "version": "0.1.0",
+  "displayName": "Wallpaper",
+  "description": "Adds custom backgrounds to DotCraft.",
+  "capabilities": ["desktop"],
+  "settings": "./settings.schema.json",
+  "desktop": {
+    "description": "Adds custom backgrounds and translucent app surfaces.",
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
+  "interface": {
+    "displayName": "Wallpaper",
+    "shortDescription": "Set a custom app background",
+    "longDescription": "Wallpaper adds bundled or custom backgrounds with separate light and dark images, blur, dimming, and surface opacity.",
+    "developerName": "DotHarness",
+    "category": "Personalization",
+    "capabilities": ["Desktop", "Appearance", "Background"],
+    "defaultPrompt": "Show me what the wallpaper plugin can change.",
+    "brandColor": "#5B6FE0",
+    "logo": "./assets/wallpaper.svg",
+    "composerIcon": "./assets/wallpaper.svg"
+  }
+}

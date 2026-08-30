@@ -1,0 +1,11 @@
+{
+  "fields": [
+    { "key": "enabled", "type": "bool", "defaultValue": true },
+    { "key": "light", "type": "json", "defaultValue": { "kind": "preset", "id": "sakura" } },
+    { "key": "dark", "type": "json", "defaultValue": { "kind": "preset", "id": "aurora" } },
+    { "key": "blur", "type": "number", "defaultValue": 0, "min": 0, "max": 24 },
+    { "key": "dim", "type": "number", "defaultValue": 0, "min": 0, "max": 80 },
+    { "key": "surfaceOpacity", "type": "number", "defaultValue": 30, "min": 30, "max": 100 },
+    { "key": "fit", "type": "select", "defaultValue": "cover", "options": ["cover", "contain", "tile"] }
+  ]
+}

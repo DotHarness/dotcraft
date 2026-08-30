@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { Check, Minus, Plus } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { addToast } from '../../../stores/toastStore'
@@ -38,6 +38,7 @@ import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { AppearancePreview } from './AppearancePreview'
+import { requestColorPickerDialog } from '../../ui/ColorPickerDialog'
 
 /** Distinct alternative accents. The brand default is offered separately as "Default" (no override). */
 const ACCENT_PRESETS: string[] = ['#2f81f7', '#3e8c64', '#c9821f', '#8b5cf6', '#e0566f', '#5b6b86']
@@ -57,8 +58,6 @@ export function AppearancePanel(): JSX.Element {
   // The editor writes to the variant currently on screen, so its swatches show what a pick does.
   const variant: ThemeVariant = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE)
-  const colorInputRef = useRef<HTMLInputElement>(null)
-  const surfaceInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -112,6 +111,32 @@ export function AppearancePanel(): JSX.Element {
     const normalized = hex ? normalizeAccentHex(hex) : null
     const { surface: _dropped, ...rest } = seed
     handleSeed(normalized ? { ...rest, surface: normalized } : rest)
+  }
+
+  async function chooseAccent(): Promise<void> {
+    const request = requestColorPickerDialog({
+      title: t('settings.appearance.accent.pickerTitle'),
+      description: t('settings.appearance.accent.hint'),
+      initialColor: appearance.accent ?? DEFAULT_SEEDS[variant].accent,
+      allowReset: true,
+      defaultColor: DEFAULT_SEEDS[variant].accent
+    })
+    const result = await request.result
+    if (result.kind === 'select') handleAccent(result.color)
+    else if (result.kind === 'reset') handleAccent(null)
+  }
+
+  async function chooseSurface(): Promise<void> {
+    const request = requestColorPickerDialog({
+      title: t('settings.appearance.surface.pickerTitle'),
+      description: t('settings.appearance.surface.hint'),
+      initialColor: seed.surface ?? DEFAULT_SEEDS[variant].surface,
+      allowReset: true,
+      defaultColor: DEFAULT_SEEDS[variant].surface
+    })
+    const result = await request.result
+    if (result.kind === 'select') handleSurface(result.color)
+    else if (result.kind === 'reset') handleSurface(null)
   }
 
   function handleContrast(next: number): void {
@@ -219,25 +244,12 @@ export function AppearancePanel(): JSX.Element {
               type="button"
               aria-label={t('settings.appearance.accent.custom')}
               title={t('settings.appearance.accent.custom')}
-              onClick={() => {
-                if (colorInputRef.current) {
-                  colorInputRef.current.value = appearance.accent ?? '#4566cc'
-                  colorInputRef.current.click()
-                }
-              }}
+              onClick={() => void chooseAccent()}
               style={customSwatchStyle(isCustomAccent ? appearance.accent : null)}
             >
               {!isCustomAccent && <Plus size={13} strokeWidth={2} aria-hidden />}
               {isCustomAccent && <Check size={13} strokeWidth={3} color="#fff" aria-hidden />}
             </button>
-            <input
-              ref={colorInputRef}
-              type="color"
-              aria-hidden
-              tabIndex={-1}
-              style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-              onChange={(e) => handleAccent(e.target.value)}
-            />
             <span style={hexLabelStyle}>{(appearance.accent ?? '').toUpperCase() || t('settings.appearance.accent.default')}</span>
             </div>
           }
@@ -266,25 +278,12 @@ export function AppearancePanel(): JSX.Element {
                 type="button"
                 aria-label={t('settings.appearance.surface.custom')}
                 title={t('settings.appearance.surface.custom')}
-                onClick={() => {
-                  if (surfaceInputRef.current) {
-                    surfaceInputRef.current.value = seed.surface ?? DEFAULT_SEEDS[variant].surface
-                    surfaceInputRef.current.click()
-                  }
-                }}
+                onClick={() => void chooseSurface()}
                 style={customSwatchStyle(isCustomSurface ? seed.surface ?? null : null)}
               >
                 {!isCustomSurface && <Plus size={13} strokeWidth={2} aria-hidden />}
                 {isCustomSurface && <Check size={13} strokeWidth={3} color="#fff" aria-hidden />}
               </button>
-              <input
-                ref={surfaceInputRef}
-                type="color"
-                aria-hidden
-                tabIndex={-1}
-                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-                onChange={(e) => handleSurface(e.target.value)}
-              />
               <span style={hexLabelStyle}>
                 {(seed.surface ?? '').toUpperCase() || t('settings.appearance.surface.default')}
               </span>

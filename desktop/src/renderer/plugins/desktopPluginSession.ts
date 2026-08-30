@@ -10,7 +10,6 @@ const listeners = new Set<SessionListener>()
 let stopWatching: (() => void) | null = null
 let current = readDesktopPluginSession()
 
-/** Assembled field for field like `components/layout/ConversationPanel.tsx`, so the two agree. */
 export function readDesktopPluginSession(): DesktopPluginSessionSnapshot {
   const { turnStatus, threadMode } = useConversationStore.getState()
   return {
@@ -21,7 +20,6 @@ export function readDesktopPluginSession(): DesktopPluginSessionSnapshot {
   }
 }
 
-/** One Host-owned watcher serves every plugin, so no plugin subscribes to a renderer store. */
 export function onDesktopPluginSessionChange(listener: SessionListener): () => void {
   listeners.add(listener)
   startWatching()

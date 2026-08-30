@@ -1,0 +1,89 @@
+.grok-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  padding: 6px 0 2px;
+}
+
+/* Stands in for Core's mascot stage so the replaced surface and the added ring stack. */
+.grok-preview-stage {
+  display: grid;
+  width: 116px;
+  height: 116px;
+}
+
+.grok-preview-stage > * {
+  grid-area: 1 / 1;
+}
+
+.grok-preview-states {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px;
+}
+
+.grok-tiles {
+  display: grid;
+  gap: 6px;
+}
+
+.grok-tiles-color {
+  grid-template-columns: repeat(6, 24px);
+}
+
+.grok-tiles-shape {
+  grid-template-columns: repeat(5, 28px);
+}
+
+.grok-tile {
+  display: grid;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.grok-tiles-color .grok-tile {
+  width: 24px;
+  height: 24px;
+}
+
+.grok-tiles-shape .grok-tile {
+  width: 28px;
+  height: 28px;
+}
+
+.grok-tile:hover {
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+
+.grok-tile[data-auto='true'] {
+  border-color: var(--border-active);
+  border-style: dashed;
+}
+
+.grok-tile[aria-pressed='true'] {
+  border-color: var(--text-primary);
+  border-style: solid;
+  box-shadow: inset 0 0 0 1px var(--text-primary);
+  color: var(--text-primary);
+}
+
+.grok-tile-swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.grok-tile svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+}

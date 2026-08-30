@@ -34,7 +34,9 @@ import { PillSwitch } from '../components/ui/PillSwitch'
 import { RunningSpinner } from '../components/ui/RunningSpinner'
 import { Select } from '../components/ui/Select'
 import { Skeleton } from '../components/ui/Skeleton'
+import { Slider } from '../components/ui/Slider'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
+import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
@@ -83,6 +85,7 @@ import {
   provideDesktopPluginService,
   useDesktopPluginService
 } from './desktopPluginKernel'
+import { registerDesktopPluginAppearanceSlot } from './desktopPluginAppearance'
 
 interface DesktopPluginModule {
   activate: DesktopPluginActivate
@@ -334,6 +337,7 @@ export function startDesktopPluginRuntime(): () => void {
       Checkbox,
       Spinner: RunningSpinner,
       Skeleton,
+      Slider,
       ActionTooltip,
       Combobox,
       ModalHeader,
@@ -384,6 +388,8 @@ function createDesktopPluginHost(
     collection.add(owned)
     return owned
   }
+  const appearance = registerDesktopPluginAppearanceSlot(`${pluginId}:${revision}`)
+  own(cleanups, appearance.dispose)
   const host: DesktopPluginHost = {
     plugin: {
       id: plugin.id,
@@ -402,6 +408,14 @@ function createDesktopPluginHost(
       },
       onChange(listener) {
         return own(cleanups, onDesktopPluginEnvironmentChange(listener))
+      }
+    },
+    appearance: {
+      setThemeSeedOverride(value) {
+        appearance.setThemeSeedOverride(value)
+      },
+      setBackdropPresentation(value) {
+        appearance.setBackdropPresentation(value)
       }
     },
     session: {
@@ -468,6 +482,16 @@ function createDesktopPluginHost(
       },
       confirm(options) {
         const request = requestConfirmDialog(options)
+        const dismiss = own(cleanups, request.dismiss)
+        return request.result.finally(dismiss)
+      },
+      pickColor(options) {
+        let request: ReturnType<typeof requestColorPickerDialog>
+        try {
+          request = requestColorPickerDialog(options)
+        } catch (error) {
+          return Promise.reject(error)
+        }
         const dismiss = own(cleanups, request.dismiss)
         return request.result.finally(dismiss)
       },

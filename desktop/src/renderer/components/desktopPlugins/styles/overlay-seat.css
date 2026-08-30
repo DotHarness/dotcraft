@@ -1,3 +1,18 @@
+.dotcraft-plugin-background-seat {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dotcraft-plugin-app-seat {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
 /* The seat is click-through so a decorative overlay cannot swallow the shell underneath
    it; plugin content opts back in with `pointer-events: auto` on its own element. */
 .dotcraft-plugin-overlay-seat {
@@ -5,4 +20,60 @@
   inset: 0;
   z-index: 60;
   pointer-events: none;
+}
+
+.dotcraft-plugin-status-seat {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: calc(var(--z-tooltip) - 1);
+  display: flex;
+  min-height: 24px;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.dotcraft-window-frame {
+  background: var(--chrome-glass);
+}
+
+.dotcraft-window-frame[data-plain-surface="true"] {
+  background: var(--welcome-surface);
+}
+
+.dotcraft-custom-menu-bar,
+.dotcraft-shell-sidebar,
+.dotcraft-shell-panels {
+  background: transparent;
+}
+
+.dotcraft-shell-main {
+  background: var(--main-surface);
+}
+
+html[data-desktop-plugin-backdrop="true"] {
+  --desktop-plugin-backdrop-surface:
+    color-mix(
+      in srgb,
+      var(--bg-primary) var(--desktop-plugin-backdrop-surface-opacity),
+      transparent
+    );
+  --main-surface: var(--desktop-plugin-backdrop-surface);
+  --welcome-surface: var(--desktop-plugin-backdrop-surface);
+}
+
+html[data-desktop-plugin-backdrop="true"] .dotcraft-window-frame {
+  background: transparent;
+}
+
+html[data-desktop-plugin-backdrop="true"] .dotcraft-custom-menu-bar,
+html[data-desktop-plugin-backdrop="true"] .dotcraft-shell-panels {
+  background: var(--desktop-plugin-backdrop-surface);
+}
+
+html[data-desktop-plugin-backdrop="true"] .dotcraft-shell-sidebar,
+html[data-desktop-plugin-backdrop="true"] .dotcraft-shell-main {
+  background: transparent;
 }

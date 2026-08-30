@@ -1,6 +1,9 @@
 import {
   PluginSurface,
   SegmentedControl,
+  SettingsGroup,
+  SettingsRow,
+  Slider,
   type DesktopPluginActivate,
   type DesktopPluginHost,
   type DesktopPluginLocale,
@@ -17,12 +20,41 @@ declare module "../src/index.js" {
 
 declare const host: DesktopPluginHost;
 
+host.appearance.setThemeSeedOverride({
+  light: { surface: '#ffffff', ink: '#1a1c1f', accent: '#4f6cce', contrast: 45 },
+  dark: { surface: '#141515', accent: '#4566cc' }
+});
+host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
+host.appearance.setThemeSeedOverride(null);
+host.appearance.setBackdropPresentation(null);
+
+void host.ui.pickColor({
+  title: "Choose accent",
+  initialColor: "#4566cc",
+  allowReset: true,
+  defaultColor: "#4566cc",
+}).then((result) => {
+  if (result.kind === "select") {
+    const selected: string = result.color;
+    void selected;
+  }
+});
+
+void host.ui.pickColor({ title: "Choose label color", initialColor: "#abc" });
+
+// @ts-expect-error Resettable requests require a default color.
+void host.ui.pickColor({ title: "Choose accent", initialColor: "#4566cc", allowReset: true });
+
+// @ts-expect-error Non-resettable requests cannot provide a default color.
+void host.ui.pickColor({ title: "Choose accent", initialColor: "#4566cc", defaultColor: "#4566cc" });
+
 host.ui.add("composer", ({ host: componentHost, context }) => {
   componentHost.events.emit("sample.composer-mounted", context.threadId);
   return context.minimalChrome ? null : context.variant;
 });
 
 host.ui.replace("app.background", ({ context }) => context.rootElement.dataset.theme ?? null);
+host.ui.add("app.status", ({ context }) => context.rootElement.dataset.theme ?? null);
 host.ui.replace("composer.mascot", ({ context }) => (
   `${context.activity}:${context.expression}:${context.submitRevision}`
 ));
@@ -124,6 +156,22 @@ void (
     }}
     ariaLabel="Theme"
   />
+);
+
+void (
+  <SettingsGroup title="Preview" flush>
+    <SettingsRow label="Opacity" orientation="block" align="flex-start" htmlFor="opacity">
+      <Slider
+        value={72}
+        min={30}
+        max={100}
+        ariaLabel="Opacity"
+        valueText="72%"
+        onValueChange={(value) => void value}
+        onValueCommit={(value) => void value}
+      />
+    </SettingsRow>
+  </SettingsGroup>
 );
 
 void (

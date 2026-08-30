@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AppearancePanel } from '../components/settings/panels/AppearancePanel'
+import { ColorPickerDialogHost } from '../components/ui/ColorPickerDialog'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -41,6 +42,7 @@ async function renderPanel(): Promise<void> {
   render(
     <LocaleProvider>
       <AppearancePanel />
+      <ColorPickerDialogHost />
     </LocaleProvider>
   )
   await waitFor(() => expect(settingsGet).toHaveBeenCalled())
@@ -82,6 +84,46 @@ describe('AppearancePanel', () => {
     await renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Default accent color' }))
     expect(settingsSet).toHaveBeenCalledWith({ accent: '' })
+  })
+
+  it('selects and resets a custom accent through the shared picker', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Custom color' })[0])
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hex color' }), {
+      target: { value: '#ABC' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith({ accent: '#aabbcc' }))
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Custom color' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
+    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith({ accent: '' }))
+  })
+
+  it('selects and resets the current theme background through the shared picker', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Custom color' })[1])
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hex color' }), {
+      target: { value: '#123456' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith({
+      themeSeeds: { dark: {}, light: { surface: '#123456' } }
+    }))
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Custom color' })[1])
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
+    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith({
+      themeSeeds: { dark: {}, light: {} }
+    }))
+  })
+
+  it('does not change appearance when the shared picker is cancelled', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Custom color' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await Promise.resolve()
+    expect(settingsSet).not.toHaveBeenCalled()
   })
 
   it('persists the UI font size as an interface-zoom factor and applies it via the renderer', async () => {

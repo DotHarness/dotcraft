@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "token-hud",
+  "version": "0.1.0",
+  "displayName": "Token HUD",
+  "description": "Shows generation speed, workspace token use, and cache efficiency.",
+  "capabilities": ["desktop"],
+  "settings": "./settings.schema.json",
+  "desktop": {
+    "description": "Adds a compact performance readout to the window status rail.",
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
+  "interface": {
+    "displayName": "Token HUD",
+    "shortDescription": "Track token performance",
+    "longDescription": "Token HUD shows generation speed, workspace token use, and cache efficiency in the window status rail.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["Desktop", "Usage", "Status"],
+    "defaultPrompt": "How efficiently is this workspace using tokens?",
+    "brandColor": "#4F9D8C",
+    "logo": "./assets/token-hud.svg",
+    "composerIcon": "./assets/token-hud.svg"
+  }
+}

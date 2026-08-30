@@ -23,6 +23,7 @@ import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import { DEFAULT_SEEDS } from '../../shared/themeSeed'
+import { reapplyThemeSeed } from '../utils/appearance'
 
 const revisionA = 'a'.repeat(64)
 const revisionB = 'b'.repeat(64)
@@ -72,9 +73,9 @@ function namedPlugin(id: string, revision = revisionA, enabled = true): PluginEn
   }
 }
 
-/** Mirrors what `applyTheme` does in the renderer: write the attribute, then announce it. */
 function applyTheme(theme: 'light' | 'dark'): void {
   document.documentElement.dataset.theme = theme
+  reapplyThemeSeed()
   window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail: { mode: theme } }))
 }
 
@@ -498,6 +499,123 @@ describe('DesktopPluginRuntime', () => {
     )).toBe('看板')
 
     document.documentElement.lang = 'en'
+  })
+
+  it('cancels an owned color picker when its generation is disabled', async () => {
+    let result!: Promise<Awaited<ReturnType<DesktopPluginHost['ui']['pickColor']>>>
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      result = host.ui.pickColor({
+        title: 'Choose accent',
+        initialColor: '#4566cc',
+        allowReset: true,
+        defaultColor: '#4566cc'
+      })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+    runtime.reconcile([plugin(revisionA, false)])
+
+    await expect(result).resolves.toEqual({ kind: 'cancel' })
+  })
+
+  it('rejects invalid color picker options as a development error', async () => {
+    let result!: Promise<unknown>
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      result = host.ui.pickColor({ title: 'Choose accent', initialColor: 'invalid' })
+      void result.catch(() => {})
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(result).toBeDefined())
+    await expect(result).rejects.toBeInstanceOf(TypeError)
+  })
+
+  it('layers plugin theme seeds by activation order and restores the layer below on disposal', async () => {
+    applyTheme('dark')
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      host.appearance.setThemeSeedOverride({
+        dark: { surface: host.plugin.id === 'second.plugin' ? '#334455' : '#112233' },
+        light: { surface: host.plugin.id === 'second.plugin' ? '#ddeeff' : '#f4f5f6' }
+      })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([namedPlugin('first.plugin')])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#112233'))
+
+    runtime.reconcile([namedPlugin('first.plugin'), namedPlugin('second.plugin')])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#334455'))
+
+    applyTheme('light')
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#ddeeff'))
+    applyTheme('dark')
+
+    runtime.reconcile([namedPlugin('first.plugin')])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe('#112233'))
+
+    runtime.reconcile([])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-surface')).toBe(''))
+  })
+
+  it('does not publish a duplicate theme event for the same appearance value', async () => {
+    applyTheme('dark')
+    const onThemeChanged = vi.fn()
+    window.addEventListener(THEME_CHANGED_EVENT, onThemeChanged)
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      const override = { dark: { accent: '#4455aa' } }
+      host.appearance.setThemeSeedOverride(override)
+      host.appearance.setThemeSeedOverride(override)
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--seed-accent')).toBe('#4455aa'))
+    expect(onThemeChanged).toHaveBeenCalledTimes(1)
+    window.removeEventListener(THEME_CHANGED_EVENT, onThemeChanged)
+  })
+
+  it('owns and clamps backdrop presentation for the active generation', async () => {
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      host.appearance.setBackdropPresentation({ surfaceOpacity: 1.4 })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBe('true'))
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('100%')
+
+    runtime.reconcile([plugin(revisionA, false)])
+    await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBeUndefined())
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('')
+  })
+
+  it('does not republish an unchanged backdrop contribution', async () => {
+    const setProperty = vi.spyOn(document.documentElement.style, 'setProperty')
+    const deps = dependencies((value) => {
+      const host = value as DesktopPluginHost
+      const presentation = { surfaceOpacity: 0.3 }
+      host.appearance.setBackdropPresentation(presentation)
+      host.appearance.setBackdropPresentation(presentation)
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBe('true'))
+    expect(setProperty.mock.calls.filter(([name]) => name === '--desktop-plugin-backdrop-surface-opacity')).toHaveLength(1)
   })
 
   it('withdraws pending activation resources immediately on disable and revision replacement', async () => {

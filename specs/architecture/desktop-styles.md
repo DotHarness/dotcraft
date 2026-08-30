@@ -116,8 +116,7 @@ Three rules keep the layers honest:
 - The color axes are closed. Surfaces are `--bg-*`, text is `--text-*`, borders
   are `--border-*`. A new color belongs on an existing axis or is not a token.
 - A component token resolves from the semantic layer, never from a literal. A
-  literal there is a value no seed can reach, which is what held the palette
-  fixed before.
+  literal there is a value no seed can reach.
 - Component qualifiers name first-class surfaces only, such as `--composer-*`,
   `--sidebar-*`, `--shell-*`, `--main-surface-*`, and `--glass-*`. A one-off does
   not earn a prefix.

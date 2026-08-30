@@ -119,6 +119,7 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'app',
   'app.background',
   'app.overlay',
+  'app.status',
   'composer',
   'composer.mascot',
   'composer.before',

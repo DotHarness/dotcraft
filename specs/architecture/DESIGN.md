@@ -752,10 +752,9 @@ Desktop-owned text fields use the shared `Input` and `Textarea` components rathe
 than a locally styled native element, so height, radius, placeholder, hover,
 focus, invalid, and disabled treatments stay identical. The components own their
 own height and never set `flex`; callers place them in a row or column layout and
-pass only their genuine deltas. Three cases stay native: a visually hidden control
-that supplies semantics, one that opens a platform picker such as the system color
-chooser, and an inline editor embedded in a canvas surface whose own class already
-follows the focus rule above.
+pass only their genuine deltas. Two cases stay native: a visually hidden control
+that supplies semantics, and an inline editor embedded in a canvas surface whose
+own class already follows the focus rule above.
 
 Validation combines copy, border/icon treatment, and semantic tokens. Error or
 warning color identifies the issue without taking over the form.
@@ -763,9 +762,15 @@ warning color identifies the issue without taking over the form.
 Visible select controls, checkboxes, and editable suggestion fields in Desktop-owned
 UI use the shared `Select`, `Checkbox`, and `Combobox` components so their menus,
 focus treatment, disabled state, and keyboard behavior remain consistent. A native
-form control may remain only when it is visually hidden and supplies semantics, or
-when it deliberately opens a platform picker such as the system color chooser.
+form control may remain only when it is visually hidden and supplies semantics.
 Third-party content rendered in sandboxed views is outside this rule.
+
+Desktop-owned opaque RGB color choices use the shared `ColorPickerDialog`, not
+`input[type="color"]`. The compact Host-owned dialog contains a Hex field, saturation/value
+plane, Hue control, and explicit Done/Reset actions. Edits preview inside the dialog; Done
+commits, Reset clears the semantic override immediately, and every close path cancels. A hidden
+native file input may still open the system file chooser because file access remains a platform
+capability rather than a Desktop-owned visual editor.
 
 ### Inline Reference Chips
 
@@ -946,8 +951,8 @@ animation; the pulse itself is the running signal.
   streaming caret — do not add a second spinner beside it. Remove the redundant
   indicator, along with any elapsed-time counter that rides with it.
 - Mark loading regions `aria-busy`; give content-free skeletons `role="status"`
-  with an `aria-label` so the loading state a removed spinner used to convey is
-  still announced. Skeleton blocks themselves stay `aria-hidden`.
+  with an `aria-label` so the loading state is announced. Skeleton blocks
+  themselves stay `aria-hidden`.
 - Skeleton animation honors `data-reduce-motion` via the global reduced-motion
   rule; never gate the *meaning* of a loading state on motion — under reduced
   motion the skeleton still reads as a placeholder.
@@ -977,6 +982,46 @@ renderer root element:
 
 When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
 than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
+
+### Desktop Plugin settings and appearance
+
+Desktop Plugin settings pages use the same `SettingsPanelShell`, `SettingsGroup`, and
+`SettingsRow` grammar as built-in settings. Put switches, selects, sliders, and other ordinary
+controls in the row's control slot. Put previews, media pickers, theme choices, and other wide
+visual choices in a block row or a flush group so they do not create a decorative card inside a
+settings card. Plugin-specific artwork may carry its own colors, but the surrounding controls use
+the shared neutral borders, radii, spacing, focus, and selection states.
+
+The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of
+restyling native selects, segmented controls, switches, or ranges. A hidden native file input may
+still invoke the platform file picker when the visible trigger is a Host control. Opaque color
+choices use Core's shared picker; plugins request it through `host.ui.pickColor` and never own its
+portal, focus lifecycle, validation, or localization.
+
+Continuous controls preview locally and persist when the interaction commits. `Slider`
+`onValueChange` tracks the pointer or keyboard value, while `onValueCommit` reports the final value
+once at the end of the gesture. Do not send each intermediate delta through AppServer or write it to
+configuration storage.
+
+Global appearance is a Host-owned composition. A plugin may contribute a theme-seed override or
+request backdrop presentation through `host.appearance`; it must not write Desktop's private CSS
+custom properties. Core Appearance preferences remain the base layer. Each plugin generation owns
+one theme override and one backdrop contribution, and Desktop removes both when that generation is
+disabled, reloaded, or disposed.
+
+An `app.background` surface renders media only. When it also requests backdrop presentation, the
+window frame becomes transparent. The menu bar, panel body, and welcome surface each composite one
+Host-owned neutral layer over the media. The panel body is shared by sidebar and main so the main
+surface's rounded corner reveals the same neutral layer instead of raw media. Do not place a second
+translucent sidebar or main layer over that body: compounded alpha makes the same opacity setting
+mean different things across the shell.
+
+Persistent window telemetry belongs in the Host-owned `app.status` rail, not in a freely positioned
+`app.overlay`. The rail sits at the trailing bottom edge, keeps compact readouts and Core indicators
+on one 24px alignment line, and owns their spacing and window inset. Contributions do not position
+themselves against the viewport. Use tabular numerals for changing measurements, omit unavailable
+facts instead of presenting false zeroes, and keep passive readouts click-through. `app.overlay`
+remains the surface for decorative or independently positioned content.
 
 ## Do's and Don'ts
 

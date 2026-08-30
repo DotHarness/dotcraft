@@ -27,6 +27,7 @@
 @import "../components/sidebar/styles/task-drag.css";
 @import "./primitives/settings-group.css";
 @import "./primitives/select.css";
+@import "./primitives/slider.css";
 @import "./primitives/checkbox.css";
 @import "./primitives/combobox.css";
 @import "./primitives/button.css";
@@ -37,6 +38,7 @@
 @import "./primitives/app-picker.css";
 @import "./primitives/field.css";
 @import "./primitives/input-with-action.css";
+@import "./primitives/color-picker.css";
 @import "./primitives/shortcut-key.css";
 @import "./shared/whats-new.css";
 @import "./shared/action-tooltip.css";

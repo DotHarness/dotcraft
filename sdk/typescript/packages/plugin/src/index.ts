@@ -6,9 +6,14 @@ export type {
   DesktopPluginAppBindings,
   DesktopPluginAppServer,
   DesktopPluginAppSurfaces,
+  DesktopPluginAppearance,
+  DesktopPluginBackdropPresentation,
   DesktopPluginAssistantMessageModel,
   DesktopPluginCommandContext,
   DesktopPluginCommandContribution,
+  DesktopPluginColorPickerBaseOptions,
+  DesktopPluginColorPickerOptions,
+  DesktopPluginColorPickerResult,
   DesktopPluginConfirmOptions,
   DesktopPluginConversationViewContribution,
   DesktopPluginConversationViewProps,
@@ -16,6 +21,7 @@ export type {
   DesktopPluginEnvironment,
   DesktopPluginEnvironmentSnapshot,
   DesktopPluginThemeSeed,
+  DesktopPluginThemeSeedOverrides,
   DesktopPluginEffectSetup,
   DesktopPluginEvents,
   DesktopPluginHost,
@@ -88,6 +94,7 @@ export type {
   SelectOption,
   SelectProps,
   SkeletonProps,
+  SliderProps,
   SpinnerProps,
   SettingsBreadcrumbProps,
   SettingsGroupProps,
@@ -110,6 +117,7 @@ export const SegmentedControl = ui.SegmentedControl;
 export const Checkbox = ui.Checkbox;
 export const Spinner = ui.Spinner;
 export const Skeleton = ui.Skeleton;
+export const Slider = ui.Slider;
 export const ActionTooltip = ui.ActionTooltip;
 export const Combobox = ui.Combobox;
 export const ModalHeader = ui.ModalHeader;
