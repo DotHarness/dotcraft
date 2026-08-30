@@ -8,6 +8,8 @@
 
 ## 跑一个工作流
 
+![在 DotCraft Desktop 中打开动态工作流运行并查看编排步骤](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dynamic-workflows.gif)
+
 在对话里明确要求使用动态工作流：
 
 ```text

@@ -22,6 +22,12 @@ The native runtime runs subagents inside DotCraft itself. Role tool limits apply
 
 You can also use an external coding CLI as the runtime, with built-in support for Codex CLI and Cursor CLI. An external CLI runs a one-shot task in its own process and usually reports stage-level progress only. DotCraft passes the role instructions to it, but cannot constrain the tool calls it makes internally. When you need strong isolation, prefer the native runtime and pair it with [Security & Sandbox](../self-hosted/security).
 
+## Follow subagent progress in Desktop
+
+![Following several background subagents and their status in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/subagents.gif)
+
+Desktop keeps the main conversation available while subagents work. Open the background-agent summary to see which tasks are running or complete. The finished result still returns to the main conversation.
+
 ## Approvals still apply
 
 File and command operations from a native subagent go through the same approval flow as the current session, and every request is labeled with the subagent it came from. DotCraft cannot intercept an external CLI's internal operations one by one, but it passes the current approval mode along as far as the CLI allows.

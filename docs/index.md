@@ -106,14 +106,15 @@ lastUpdated: false
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
           <p class="dc-story__eyebrow">Built for applications</p>
-          <h2>Bring the runtime into your own product.</h2>
+          <h2>Embed the runtime, or extend Desktop around your product.</h2>
           <div class="dc-story__links">
             <a class="dc-link" href="./developing/integrations/app-binding">DotCraft App</a>
             <a class="dc-link" href="./developing/sdks/">SDKs</a>
+            <a class="dc-link" href="./developing/integrations/desktop-plugins">Desktop Plugins</a>
           </div>
         </div>
         <figure class="dc-story__media">
-          <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif" alt="The built-in Oratorio project board in DotCraft Desktop" loading="lazy" />
+          <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-plugins.gif" alt="Installing a Desktop Plugin and enabling its visual customization in DotCraft Desktop" loading="lazy" />
         </figure>
       </div>
     </article>

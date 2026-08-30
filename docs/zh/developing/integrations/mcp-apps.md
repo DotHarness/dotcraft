@@ -4,7 +4,7 @@ MCP Apps 允许 MCP 工具附带交互式结果视图。MCP server 声明 `ui://
 
 [App Binding](./app-binding) 不定义独立 UI 协议。App Binding 应用从自己的 binding-scoped Streamable HTTP MCP server 提供工具和视图。
 
-![MCP server 随工具声明视图 resource，DotCraft Desktop 把它渲染进沙箱（opaque origin、只放行已声明的 CSP origin），视图发起的调用只回到同一个 server，非可视客户端保留文本结果](/mcp-apps-boundary.svg)
+![MCP App 在 DotCraft 对话中渲染交互式 GitHub Issue 表单](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/mcp-apps.gif)
 
 ## 声明视图
 
@@ -52,6 +52,8 @@ Resource 正文和送进视图的每个结果都以 2 MB 为上限。
 UI 通过官方 `@modelcontextprotocol/ext-apps` client 通信。使用 `tools/call`、打开链接、display mode 请求和 host context 通知等 AppBridge 操作，不要创建私有 postMessage 协议。
 
 ## 安全边界
+
+![MCP server 随工具声明视图 resource，DotCraft Desktop 把它渲染进沙箱（opaque origin、只放行已声明的 CSP origin），视图发起的调用只回到同一个 server，非可视客户端保留文本结果](/mcp-apps-boundary.svg)
 
 - iframe 使用 opaque origin，不能访问宿主 DOM 或 Node。
 - 宿主 CSP 从 `default-src 'none'` 起步，只按 resource 的声明放行指定 HTTPS origin。

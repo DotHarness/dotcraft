@@ -12,6 +12,14 @@ For a closer look, open Trace or Dashboard to see which tools a task called and 
 
 Fenced `mermaid` blocks in a reply render as diagrams, falling back to the source block when a diagram can't be drawn. Images you paste into a conversation survive a restart — reopen the thread and the thumbnails are still there.
 
+## Explore interactive visualizations
+
+![An interactive weather visualization rendered inside a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/inline-visualizations.gif)
+
+Ask DotCraft to turn a comparison, explanation, or result into an interactive visualization, or invoke `$visualize` directly. The view appears inside the reply, where you can explore it without leaving the conversation.
+
+Use the view's actions to send a follow-up after confirming the prompt or copy its current state as an image.
+
 ## Keep several projects in one window
 
 Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switches, Dreams, and one-click memory reset live under **Settings → Personalization**, and [Memory and Dreams](../agent-system/memory) explains what each one covers.

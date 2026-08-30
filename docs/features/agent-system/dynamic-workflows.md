@@ -8,6 +8,8 @@ Reach for a workflow when the order, branching, and fan-out of a job should be t
 
 ## Run a workflow
 
+![Opening a Dynamic Workflow run and reviewing its orchestration steps in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dynamic-workflows.gif)
+
 Ask for a dynamic workflow explicitly in the conversation:
 
 ```text

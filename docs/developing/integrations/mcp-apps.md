@@ -4,7 +4,7 @@ MCP Apps let an MCP tool attach an interactive result view. The MCP server decla
 
 [App Binding](./app-binding) does not define a separate UI protocol. An App Binding app exposes its tools and views from its own binding-scoped Streamable HTTP MCP server.
 
-![An MCP server declares a view resource with its tool, DotCraft Desktop serves it into a sandbox with an opaque origin and only the declared CSP origins, a call the view starts goes back to the same server, and non-visual clients keep the text result](/mcp-apps-boundary.svg)
+![An MCP App rendering an interactive GitHub issue form inside a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/mcp-apps.gif)
 
 ## Declare a view
 
@@ -52,6 +52,8 @@ Every call should return concise `content` for the model and non-visual clients.
 The UI communicates through the official `@modelcontextprotocol/ext-apps` client. Use AppBridge operations such as `tools/call`, link opening, display-mode requests, and host-context notifications. Do not create a private postMessage protocol.
 
 ## Security boundaries
+
+![An MCP server declares a view resource with its tool, DotCraft Desktop serves it into a sandbox with an opaque origin and only the declared CSP origins, a call the view starts goes back to the same server, and non-visual clients keep the text result](/mcp-apps-boundary.svg)
 
 - The iframe has an opaque origin and no host DOM or Node access.
 - The host CSP starts at `default-src 'none'` and opens only to the HTTPS origins the resource declares.

@@ -106,14 +106,15 @@ lastUpdated: false
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
           <p class="dc-story__eyebrow">为应用而生</p>
-          <h2>把运行时带进你自己的产品。</h2>
+          <h2>把运行时带进你自己的产品，也可以直接扩展 Desktop。</h2>
           <div class="dc-story__links">
             <a class="dc-link" href="./developing/integrations/app-binding">DotCraft App</a>
             <a class="dc-link" href="./developing/sdks/">SDK</a>
+            <a class="dc-link" href="./developing/integrations/desktop-plugins">Desktop Plugins</a>
           </div>
         </div>
         <figure class="dc-story__media">
-          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/desktop-extensions.gif" alt="DotCraft Desktop 内置的 Oratorio 项目看板" loading="lazy" />
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/desktop-plugins.gif" alt="安装 Desktop Plugin 并在 DotCraft Desktop 中启用视觉定制" loading="lazy" />
         </figure>
       </div>
     </article>
