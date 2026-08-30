@@ -1,5 +1,5 @@
 ---
-version: "0.8.3"
+version: "0.9.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -21,6 +21,9 @@ colors:
   warning: "var(--warning)"
   error: "var(--error)"
   info: "var(--info)"
+  success-bg: "var(--success-bg)"
+  warning-bg: "var(--warning-bg)"
+  error-bg: "var(--error-bg)"
   ref-skill: "var(--ref-skill)"
   permission-full-access: "var(--permission-full-access)"
   glass-surface-strong: "var(--glass-surface-strong)"
@@ -159,6 +162,12 @@ Semantic colors communicate state, not decoration:
 
 Semantic colors should normally appear in icons, compact badges, borders, small
 text, or alert surfaces. They should not take over an entire view.
+
+`--success-bg`, `--warning-bg`, and `--error-bg` are the tinted surfaces for
+those hues. Each is mixed off its hue token, so both themes follow one value.
+Use them behind status badges and notice strips, with the hue itself as the
+foreground; reach for a local `color-mix` only where a surface needs a different
+strength than the shared step.
 
 One inverse surface exists. `--bg-inverse` is the opposite theme's tertiary tone
 — light in dark mode, dark in light mode — with `--text-on-inverse`,
@@ -899,13 +908,22 @@ animation; the pulse itself is the running signal.
 
 ## Appearance Preferences
 
+The palette is stated as a per-variant seed — `--seed-surface`, `--seed-ink`, `--seed-accent`,
+and a 0-100 contrast — and `foundations/tokens.css` derives the surface, text, and border ramps
+from it with `color-mix`. `surface` is the base plane: the page in dark, the card in light, so
+both variants move away from it by mixing in ink. `shared/themeDerive.ts` writes only what CSS
+cannot compute (the seed colors, the normalized contrast multiplier `--contrast-k`, and
+`--on-accent`), and writes nothing at all for a default seed. The layering rules and the
+formulas live in `specs/architecture/desktop-styles.md`.
+
 Desktop exposes an Appearance settings tab backed by `settings.json` and applied to the
 renderer root element:
 
 - Theme mode `system | light | dark` via `data-theme` (`system` resolves from the OS).
-- A custom accent overrides `--accent` / `--accent-hover`; unset falls back to the per-theme
-  token defaults. A custom accent stays restrained per the Colors rules — it is not promoted
-  to a primary-action fill.
+- A custom accent sets `--seed-accent`, from which `--accent`, `--accent-hover`, and the
+  foreground `--on-accent` derive; unset writes nothing and the per-theme token defaults
+  answer. A custom accent stays restrained per the Colors rules — it is not promoted to a
+  primary-action fill.
 - Code font size overrides `--text-code-size`.
 - Diff markers (`color` vs `+/-`) change how `InlineDiffView` / `DiffViewer` present changes.
 - `data-reduce-motion` (`system | on | off`) gates animations; `data-pointer-cursors`
@@ -931,6 +949,10 @@ Do:
   control styling.
 - Update `desktop/src/renderer/styles/foundations/tokens.css` and this file together when adding a
   reusable token.
+- Remove a token the same way: confirm zero `var(--x)` consumers across
+  `desktop/src`, then delete the declaration from both theme blocks and the
+  front-matter `colors:` map in one change. A token that survives with no
+  readers is a phantom the next author will copy.
 
 Don't:
 

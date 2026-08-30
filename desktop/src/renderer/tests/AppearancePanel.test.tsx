@@ -80,7 +80,7 @@ describe('AppearancePanel', () => {
   it('clears the accent override when Default is chosen', async () => {
     settingsGet.mockResolvedValue({ accent: '#3e8c64' })
     await renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Default accent color' }))
     expect(settingsSet).toHaveBeenCalledWith({ accent: '' })
   })
 

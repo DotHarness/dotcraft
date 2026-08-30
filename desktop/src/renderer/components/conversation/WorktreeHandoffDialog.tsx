@@ -456,7 +456,7 @@ const closeButtonPositionStyle: CSSProperties = {
   border: 'none',
   borderRadius: '8px',
   background: 'transparent',
-  color: 'var(--text-muted)',
+  color: 'var(--text-dimmed)',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',

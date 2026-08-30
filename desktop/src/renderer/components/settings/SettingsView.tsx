@@ -4493,7 +4493,7 @@ export function SettingsView({
                       <div
                         style={{
                           border: '1px solid var(--border-default)',
-                          borderLeft: '3px solid var(--accent-blue)',
+                          borderLeft: '3px solid var(--accent)',
                           borderRadius: '8px',
                           background: 'var(--bg-secondary)',
                           color: 'var(--text-secondary)',

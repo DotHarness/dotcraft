@@ -267,7 +267,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
             borderBottom: '1px solid var(--border-default)',
             color: 'var(--text-secondary)',
             fontSize: '12px',
-            backgroundColor: 'var(--bg-warning, rgba(255,200,0,0.08))'
+            backgroundColor: 'var(--warning-bg)'
           }}
         >
           {crashed && (

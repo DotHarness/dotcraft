@@ -82,8 +82,8 @@ export function MarkdownViewer({ absolutePath }: MarkdownViewerProps): JSX.Eleme
           role="status"
           style={{
             padding: '4px 12px',
-            backgroundColor: 'var(--bg-warning, rgba(255,200,0,0.12))',
-            color: 'var(--text-warning, #e8c000)',
+            backgroundColor: 'var(--warning-bg)',
+            color: 'var(--warning)',
             fontSize: '12px',
             borderBottom: '1px solid var(--border-default)',
             flexShrink: 0

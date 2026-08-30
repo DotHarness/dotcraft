@@ -1,14 +1,4 @@
-import { useEffect, useState } from 'react'
 import type { ITheme } from '@xterm/xterm'
-import {
-  THEME_CHANGED_EVENT,
-  resolveThemeMode,
-  type ThemeMode
-} from '../../../../shared/theme'
-
-export function getDocumentThemeMode(doc: Document = document): ThemeMode {
-  return resolveThemeMode(doc.documentElement.getAttribute('data-theme'))
-}
 
 export function createTerminalThemeFromDocument(doc: Document = document): ITheme {
   const root = doc.documentElement
@@ -42,27 +32,4 @@ export function createTerminalThemeFromDocument(doc: Document = document): IThem
     brightCyan: css('--ansi-bright-cyan', '#a5f3fc'),
     brightWhite: css('--ansi-bright-white', '#f0f6fc')
   }
-}
-
-export function useDocumentThemeMode(): ThemeMode {
-  const [mode, setMode] = useState(() => getDocumentThemeMode())
-
-  useEffect(() => {
-    const sync = (): void => setMode(getDocumentThemeMode())
-    window.addEventListener(THEME_CHANGED_EVENT, sync)
-
-    const observer = new MutationObserver(sync)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme']
-    })
-
-    sync()
-    return () => {
-      window.removeEventListener(THEME_CHANGED_EVENT, sync)
-      observer.disconnect()
-    }
-  }, [])
-
-  return mode
 }

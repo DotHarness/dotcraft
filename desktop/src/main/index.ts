@@ -118,10 +118,17 @@ import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatu
 import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
 import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
-import { applyWindowBackdropTheme, resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
+import {
+  applyNativeChromeTheme,
+  applyWindowBackdropTheme,
+  resolveInitialTheme,
+  resolveThemeSurface,
+  resolveWindowBackdropOptions
+} from './windowTheme'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { resolveThemeMode } from '../shared/theme'
-import { normalizeInterfaceZoom } from '../shared/appearance'
+import { normalizeAccentHex, normalizeInterfaceZoom } from '../shared/appearance'
+import { EMPTY_THEME_SEEDS } from '../shared/themeSeed'
 import {
   normalizeLocale,
   translate,
@@ -781,10 +788,11 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
       ensureTrayProcess(sharedSettings)
     }
   }
-  if (partial.theme !== undefined) {
+  if (partial.theme !== undefined || partial.themeSeeds !== undefined) {
     const win = mainWindow
     if (win && !win.isDestroyed()) {
-      applyWindowBackdropTheme(win, resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors))
+      const backdropTheme = resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors)
+      applyNativeChromeTheme(win, backdropTheme, resolveThemeSurface(sharedSettings, backdropTheme))
     }
   }
   // Pin is a Desktop-local, per-workspace setting. Re-push the projects payload so
@@ -1369,7 +1377,17 @@ function createWindow(
   // The renderer receives the MODE (incl. `system`) and resolves it via matchMedia so it can
   // also react to OS appearance changes; native chrome below uses the resolved dark/light value.
   const initialThemeMode = resolveThemeMode(sharedSettings.theme)
-  const windowBackdrop = resolveWindowBackdropOptions(initialTheme)
+  const windowBackdrop = resolveWindowBackdropOptions(
+    initialTheme,
+    process.platform,
+    resolveThemeSurface(sharedSettings, initialTheme)
+  )
+  // Handed to preload for the first paint and to the renderer so its own first write
+  // reproduces these values instead of clearing them.
+  const initialAppearance = {
+    accent: normalizeAccentHex(sharedSettings.accent),
+    themeSeeds: sharedSettings.themeSeeds ?? EMPTY_THEME_SEEDS
+  }
   const initialLocale = normalizeLocale(sharedSettings.locale)
   const cdpDebuggingEnabled = app.commandLine.hasSwitch('remote-debugging-port')
   const win = new BrowserWindow({
@@ -1398,6 +1416,7 @@ function createWindow(
       additionalArguments: [
         `--dotcraft-initial-theme=${initialThemeMode}`,
         `--dotcraft-applied-theme=${initialTheme}`,
+        `--dotcraft-appearance=${encodeURIComponent(JSON.stringify(initialAppearance))}`,
         `--dotcraft-initial-locale=${initialLocale}`,
         ...(cdpDebuggingEnabled ? [INITIAL_CDP_DEBUGGING_ARG] : []),
         encodeInitialWorkspaceStatusArg(initialWorkspaceStatus)
@@ -1418,7 +1437,13 @@ function createWindow(
     nativeTheme.on('updated', () => {
       const current = mainWindow
       if (current && !current.isDestroyed()) {
-        applyWindowBackdropTheme(current, resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors))
+        const backdropTheme = resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors)
+        applyWindowBackdropTheme(
+          current,
+          backdropTheme,
+          process.platform,
+          resolveThemeSurface(sharedSettings, backdropTheme)
+        )
       }
     })
   }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resolveInitialTheme, resolveWindowBackdropOptions } from '../windowTheme'
+import { titleBarOverlayForSurface } from '../../shared/titleBarOverlay'
+import { DEFAULT_SEEDS } from '../../shared/themeSeed'
 
 describe('resolveInitialTheme', () => {
   it('uses persisted light theme for the first frame', () => {
@@ -19,7 +21,7 @@ describe('resolveInitialTheme', () => {
 describe('resolveWindowBackdropOptions', () => {
   it('uses native acrylic with Windows-owned rounded corners', () => {
     expect(resolveWindowBackdropOptions('dark', 'win32')).toMatchObject({
-      backgroundColor: '#202020',
+      backgroundColor: titleBarOverlayForSurface(DEFAULT_SEEDS.dark.surface).color,
       backgroundMaterial: 'acrylic',
       roundedCorners: true,
       transparent: false
@@ -38,13 +40,21 @@ describe('resolveWindowBackdropOptions', () => {
 
   it('uses theme-colored solid fallbacks on Linux', () => {
     expect(resolveWindowBackdropOptions('dark', 'linux')).toMatchObject({
-      backgroundColor: '#202020',
+      backgroundColor: titleBarOverlayForSurface(DEFAULT_SEEDS.dark.surface).color,
       transparent: false
     })
     expect(resolveWindowBackdropOptions('light', 'linux')).toMatchObject({
-      backgroundColor: '#f3f3ee',
+      backgroundColor: titleBarOverlayForSurface(DEFAULT_SEEDS.light.surface).color,
       transparent: false
     })
+  })
+
+  it('follows a custom background so the pre-paint flash matches the theme', () => {
+    expect(resolveWindowBackdropOptions('dark', 'linux', '#101614')).toMatchObject({
+      backgroundColor: titleBarOverlayForSurface('#101614').color
+    })
+    expect(resolveWindowBackdropOptions('dark', 'linux', '#101614').backgroundColor)
+      .not.toBe(resolveWindowBackdropOptions('dark', 'linux').backgroundColor)
   })
 })
 

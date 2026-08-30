@@ -115,6 +115,7 @@ describe('resolveAppearanceSettings', () => {
     ).toEqual({
       themeMode: 'system',
       accent: '#3e8c64',
+      themeSeeds: { dark: {}, light: {} },
       codeFontSize: 15,
       diffMarkers: 'sign',
       reduceMotion: 'on',

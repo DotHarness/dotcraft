@@ -1,37 +1,6 @@
 /* Design tokens for specs/architecture/DESIGN.md. */
 
 @theme {
-  --color-bg-primary: #141515;
-  --color-bg-secondary: #202020;
-  --color-bg-tertiary: #2a2a2a;
-  --color-bg-active: #343434;
-
-  --color-text-primary: #eeeeec;
-  --color-text-secondary: color-mix(in srgb, #eeeeec 66%, #141515);
-  --color-text-dimmed: color-mix(in srgb, #eeeeec 42%, #141515);
-
-  --color-border-default: color-mix(in srgb, #eeeeec 10%, transparent);
-  --color-border-active: color-mix(in srgb, #eeeeec 18%, transparent);
-
-  --color-accent: #4566cc;
-  --color-accent-hover: #5b7ad6;
-  --color-success: #22c55e;
-  --color-warning: #eab308;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
-  --color-user-message-bg: #2a2a2a;
-
-  --color-diff-add-bg: rgba(34, 197, 94, 0.15);
-  --color-diff-remove-bg: rgba(239, 68, 68, 0.15);
-
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 24px;
-  --spacing-2xl: 32px;
-
   --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-sans-zh: -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
@@ -49,39 +18,42 @@
   --font-sans: var(--font-sans-default);
   --font-mono: var(--font-mono-default);
 
-  --animate-panel-collapse: 200ms;
-  --animate-fade: 100ms;
   --animate-spinner: 1000ms;
   --animate-cursor-blink: 800ms;
-  --animate-message-appear: 150ms;
 }
 
-/* These mirror the @theme tokens for use in non-Tailwind CSS */
 :root {
-  --bg-primary: #141515;
-  --bg-secondary: #202020;
-  --bg-tertiary: #2a2a2a;
-  --bg-active: #343434;
-  --bg-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  /* The seed. themeDerive.ts writes these inline only where a custom theme differs,
+     so an uncustomized app resolves entirely from this stylesheet. --contrast-k is
+     normalizeContrast(60, 'dark'); every percentage below is solved against it. */
+  --seed-surface: #141515;
+  --seed-ink: #eeeeec;
+  --seed-accent: #4566cc;
+  --seed-contrast: 60;
+  --contrast-k: 0.6;
 
-  --text-primary: #eeeeec;
-  --text-secondary: color-mix(in srgb, var(--text-primary) 66%, var(--bg-primary));
-  --text-dimmed: color-mix(in srgb, var(--text-primary) 42%, var(--bg-primary));
-  --composer-placeholder: color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary));
+  --bg-primary: var(--seed-surface);
+  --bg-secondary: color-mix(in srgb, var(--seed-ink) calc(3.3% + var(--contrast-k) * 3.3%), var(--seed-surface));
+  --bg-tertiary: color-mix(in srgb, var(--seed-ink) calc(6.19% + var(--contrast-k) * 6.19%), var(--seed-surface));
+  --bg-active: color-mix(in srgb, var(--seed-ink) calc(9.04% + var(--contrast-k) * 9.04%), var(--seed-surface));
+  --bg-hover: color-mix(in srgb, var(--text-primary) calc(5.6% + var(--contrast-k) * 4%), transparent);
+
+  --text-primary: var(--seed-ink);
+  --text-secondary: color-mix(in srgb, var(--text-primary) calc(60% + var(--contrast-k) * 10%), var(--bg-primary));
+  --text-dimmed: color-mix(in srgb, var(--text-primary) calc(36% + var(--contrast-k) * 10%), var(--bg-primary));
+  --composer-placeholder: color-mix(in srgb, var(--text-primary) calc(56% + var(--contrast-k) * 10%), var(--bg-primary));
   --composer-footer-text: var(--text-secondary);
   --composer-footer-muted: var(--text-dimmed);
   --composer-footer-highlight: var(--text-primary);
-  --composer-control-text: color-mix(in srgb, var(--text-primary) 78%, var(--bg-primary));
-  --composer-control-muted: color-mix(in srgb, var(--text-primary) 52%, var(--bg-primary));
   /* Alias, not a separate step: the text ramp is primary → secondary → dimmed →
      disabled. Keep --text-tertiary pointing at --text-dimmed so themes only ever
      tune one value. */
   --text-tertiary: var(--text-dimmed);
-  --text-disabled: color-mix(in srgb, var(--text-primary) 30%, var(--bg-primary));
+  --text-disabled: color-mix(in srgb, var(--text-primary) calc(24% + var(--contrast-k) * 10%), var(--bg-primary));
 
-  --border-subtle: color-mix(in srgb, var(--text-primary) 5%, transparent);
-  --border-default: color-mix(in srgb, var(--text-primary) 10%, transparent);
-  --border-active: color-mix(in srgb, var(--text-primary) 18%, transparent);
+  --border-subtle: color-mix(in srgb, var(--text-primary) calc(3.8% + var(--contrast-k) * 2%), transparent);
+  --border-default: color-mix(in srgb, var(--text-primary) calc(7.6% + var(--contrast-k) * 4%), transparent);
+  --border-active: color-mix(in srgb, var(--text-primary) calc(14.4% + var(--contrast-k) * 6%), transparent);
 
   /* --scrollbar-size is the grab target, not the painted slider: the thumb is inset
      by --scrollbar-thumb-inset on every side, so the visible bar stays slim while the
@@ -92,8 +64,10 @@
   --scrollbar-thumb-hover: var(--text-dimmed);
   --scrollbar-thumb-active: var(--text-secondary);
 
-  --accent: #4566cc;
-  --accent-hover: #5b7ad6;
+  --accent: var(--seed-accent);
+  /* Hover moves the accent toward the ink, so it gains presence on either surface;
+     lightening it would make a light-theme hover recede. */
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--text-primary));
   --success: #22c55e;
   --warning: #eab308;
   --error: #ef4444;
@@ -111,20 +85,27 @@
   --shimmer-base: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
   --shimmer-peak: color-mix(in srgb, var(--accent) 28%, color-mix(in srgb, white 22%, var(--text-primary)));
 
-  --user-message-bg: #2a2a2a;
+  --user-message-bg: var(--bg-tertiary);
 
-  --diff-add-bg: rgba(34, 197, 94, 0.15);
-  --diff-remove-bg: rgba(239, 68, 68, 0.15);
-  --diff-add-word-bg: rgba(34, 197, 94, 0.34);
-  --diff-remove-word-bg: rgba(239, 68, 68, 0.32);
-  --find-match-bg: rgba(242, 204, 96, 0.34);
-  --find-match-active-bg: rgba(242, 204, 96, 0.62);
+  --success-bg: color-mix(in srgb, var(--success) 18%, transparent);
+  --warning-bg: color-mix(in srgb, var(--warning) 18%, transparent);
+  --error-bg: color-mix(in srgb, var(--error) 18%, transparent);
 
-  --bg-elevated: #242424;
+  --diff-add-bg: color-mix(in srgb, var(--success) 15%, transparent);
+  --diff-remove-bg: color-mix(in srgb, var(--error) 15%, transparent);
+  --diff-add-word-bg: color-mix(in srgb, var(--success) 34%, transparent);
+  --diff-remove-word-bg: color-mix(in srgb, var(--error) 32%, transparent);
+  /* Its own gold rather than --warning: the search highlight sits under running text
+     in both themes, where the status yellow reads as an alert. */
+  --find-match: #f2cc60;
+  --find-match-bg: color-mix(in srgb, var(--find-match) 34%, transparent);
+  --find-match-active-bg: color-mix(in srgb, var(--find-match) 62%, transparent);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.22);
-  --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.26);
-  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --bg-elevated: color-mix(in srgb, var(--text-primary) 2%, var(--bg-secondary));
+
+  --shadow-sm: var(--shadow-level-1);
+  --shadow-md: var(--shadow-level-2);
+  --shadow-lg: var(--shadow-level-3);
 
   /* Shared action-button sizing (see specs/architecture/DESIGN.md → Actions).
      One standard so buttons, selects, and icon buttons share a control band. */
@@ -137,25 +118,18 @@
     drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 30%, transparent))
     drop-shadow(0 0 14px color-mix(in srgb, var(--warning) 14%, transparent));
 
+  --shell-chrome-tone: var(--bg-secondary);
+  --shell-chrome-tone-deep: color-mix(in srgb, var(--bg-primary) 66%, var(--bg-secondary));
   --shell-chrome-surface:
     linear-gradient(
       180deg,
-      color-mix(in srgb, #202020 90%, transparent),
-      color-mix(in srgb, #181818 88%, transparent)
+      color-mix(in srgb, var(--shell-chrome-tone) 90%, transparent),
+      color-mix(in srgb, var(--shell-chrome-tone-deep) 88%, transparent)
     );
   --app-backdrop: transparent;
-  --app-backdrop-tint:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.045) 0%,
-      rgba(255, 255, 255, 0.012) 38%,
-      rgba(0, 0, 0, 0.22) 100%
-    );
   --chrome-glass: var(--shell-chrome-surface);
-  --sidebar-glass: var(--chrome-glass);
-  --welcome-surface: #202020;
+  --welcome-surface: var(--shell-chrome-tone);
   --shell-window-radius: 10px;
-  --shell-chrome-blur: none;
   --shell-chrome-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-active: color-mix(in srgb, var(--text-primary) 13%, transparent);
@@ -163,34 +137,23 @@
   --workspace-launch-surface:
     linear-gradient(
       180deg,
-      #202020,
-      #181818
+      var(--shell-chrome-tone),
+      var(--shell-chrome-tone-deep)
     );
   --main-surface:
     linear-gradient(
       180deg,
-      #151616,
-      #101111
-    );
-  --main-surface-muted: #111212;
-  --glass-surface:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-secondary) 74%, transparent),
-      color-mix(in srgb, var(--bg-primary) 64%, transparent)
+      color-mix(in srgb, var(--text-primary) 0.5%, var(--bg-primary)),
+      color-mix(in srgb, var(--bg-primary) 80%, #000000)
     );
   /* Solid + opaque, not translucent: a floating surface that tints with whatever
      sits behind it renders inconsistently across backdrops. */
   --glass-surface-strong: var(--bg-elevated);
   --glass-surface-soft: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
-  --glass-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --glass-border: var(--border-default);
   --glass-border-strong: color-mix(in srgb, var(--text-primary) 16%, transparent);
   --main-surface-left-border: var(--glass-border-strong);
   --main-surface-top-border: color-mix(in srgb, var(--text-primary) 15%, transparent);
-  --glass-highlight: color-mix(in srgb, #ffffff 7%, transparent);
-  --glass-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 var(--glass-highlight);
   --glass-shadow-soft:
     0 16px 42px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent);
@@ -215,7 +178,7 @@
     );
   --glass-blur: blur(18px) saturate(1.08);
   --glass-blur-soft: blur(12px) saturate(1.05);
-  --composer-input-background: #2b2b2b;
+  --composer-input-background: color-mix(in srgb, var(--text-primary) 0.5%, var(--bg-tertiary));
   --background-activity-dock-background:
     linear-gradient(
       180deg,
@@ -224,8 +187,7 @@
     );
   --composer-top-accessory-separator: color-mix(in srgb, var(--text-primary) 9%, transparent);
   --composer-input-rest-border: transparent;
-  --composer-input-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
-  --composer-input-border-focus: color-mix(in srgb, var(--text-primary) 16%, transparent);
+  --composer-input-border: var(--border-default);
   --composer-input-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
   /* Brand gradient (docs/public/dotcraft-logo.svg) — drives the composer focus glow. */
   --brand-blue-1: #2458f7;
@@ -236,19 +198,10 @@
   --composer-action-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
   --corner-radius-scale: 1;
   --control-radius-md-base: 0.5rem;
-  --control-radius-lg-base: 0.625rem;
   --control-radius-md: calc(var(--control-radius-md-base) * var(--corner-radius-scale));
-  --control-radius-lg: calc(var(--control-radius-lg-base) * var(--corner-radius-scale));
   --sidebar-control-radius: var(--control-radius-md);
   --sidebar-row-radius: 10px;
   --sidebar-icon-control-radius: var(--control-radius-md);
-
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
-  --space-2xl: 32px;
 
   --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-sans-zh: -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -278,7 +231,6 @@
   --type-ui-emphasis-weight: 500;
   --type-secondary-size: 12px;
   --type-secondary-line-height: 16px;
-  --type-secondary-weight: 400;
   /* Looser leading for the 12px secondary tier when the copy wraps (settings and
      card descriptions). The compact 16px pairing above stays for single-line
      chips, footers, and list metadata. */
@@ -307,26 +259,20 @@
   --text-code-line-height: 1.44;
   --inline-reference-max-width: 28rem;
 
-  --shadow-level-0: none;
   --shadow-level-1: 0 1px 3px rgba(0, 0, 0, 0.22);
   --shadow-level-2: 0 8px 22px rgba(0, 0, 0, 0.26);
   --shadow-level-3: 0 18px 48px rgba(0, 0, 0, 0.32);
 
-  --transition-panel: 200ms ease-out;
-  --transition-fade: 100ms linear;
-  --transition-message: 150ms ease-out;
-
   /* The opposite theme's tertiary tone, mirrored in themes.css. See DESIGN.md § Tooltips. */
   --bg-inverse: #ededed;
   --text-on-inverse: #1a1c1f;
-  --text-on-inverse-muted: color-mix(in srgb, #1a1c1f 70%, #ededed);
-  --border-on-inverse: color-mix(in srgb, #1a1c1f 14%, transparent);
-  --fill-on-inverse: color-mix(in srgb, #1a1c1f 8%, transparent);
+  --text-on-inverse-muted: color-mix(in srgb, var(--text-on-inverse) 70%, var(--bg-inverse));
+  --border-on-inverse: color-mix(in srgb, var(--text-on-inverse) 14%, transparent);
+  --fill-on-inverse: color-mix(in srgb, var(--text-on-inverse) 8%, transparent);
 
   --tooltip-bg: var(--bg-inverse);
   --tooltip-border: transparent;
   --tooltip-text: var(--text-on-inverse);
-  --tooltip-muted: var(--text-on-inverse-muted);
   --tooltip-shadow: var(--shadow-lg);
   --tooltip-radius: 8px;
   --shortcut-bg: var(--bg-tertiary);
@@ -337,6 +283,7 @@
   /* Conversation + detail panel top chrome (aligned horizontal rule) */
   --chrome-header-height: 44px;
 
+  /* Matches the bundled Shiki theme background; syntax palettes stay literal. */
   --code-block-bg: #0d1117;
   --on-accent: #ffffff;
   --overlay-scrim: rgba(0, 0, 0, 0.5);

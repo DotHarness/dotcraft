@@ -2,6 +2,4 @@
    preference off repaints that whole chrome opaque, not the sidebar alone. */
 html[data-translucent-sidebar="false"] {
   --chrome-glass: var(--bg-secondary);
-  --sidebar-glass: var(--bg-secondary);
-  --shell-chrome-blur: none;
 }

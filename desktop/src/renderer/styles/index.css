@@ -45,3 +45,4 @@
 @import "./shared/reduced-motion.css";
 @import "./shared/pointer.css";
 @import "../components/sidebar/styles/appearance.css";
+@import "../components/desktopPlugins/styles/overlay-seat.css";

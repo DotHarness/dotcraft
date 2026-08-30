@@ -36,7 +36,7 @@ export function FileDiffStats({
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 'var(--space-xs)',
+        gap: '4px',
         flexShrink: 0,
         fontFamily: 'inherit',
         fontSize: 'inherit',

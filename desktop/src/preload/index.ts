@@ -5,6 +5,12 @@ import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceSt
 import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
 import type { ProviderPreferences } from '../shared/modelPreference'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
+import { deriveThemeProperties } from '../shared/themeDerive'
+import {
+  EMPTY_THEME_SEEDS,
+  type ThemeSeedOverrides,
+  type ThemeVariant
+} from '../shared/themeSeed'
 import type {
   RemoteHost,
   RemoteStack,
@@ -142,9 +148,25 @@ function readInitialLocale(): AppLocale {
   return normalizeLocale(raw)
 }
 
+interface InitialAppearance {
+  accent: string | null
+  themeSeeds: Record<ThemeVariant, ThemeSeedOverrides>
+}
+
+function readInitialAppearance(): InitialAppearance {
+  const arg = process.argv.find((value) => value.startsWith('--dotcraft-appearance='))
+  if (!arg) return { accent: null, themeSeeds: EMPTY_THEME_SEEDS }
+  try {
+    return JSON.parse(decodeURIComponent(arg.slice('--dotcraft-appearance='.length)))
+  } catch {
+    return { accent: null, themeSeeds: EMPTY_THEME_SEEDS }
+  }
+}
+
 const initialTheme = readInitialTheme()
 const initialAppliedTheme = readAppliedTheme()
 const initialLocale = readInitialLocale()
+const initialAppearance = readInitialAppearance()
 const initialCdpDebuggingEnabled = process.argv.includes(INITIAL_CDP_DEBUGGING_ARG)
 const initialWorkspaceStatus = readInitialWorkspaceStatusFromArgv(process.argv) as WorkspaceStatusPayload
 
@@ -154,6 +176,14 @@ function applyInitialDocumentState(): void {
   // Use the dark/light value main already resolved (initialTheme is the preference, which may
   // be `system`). The renderer re-applies from the preference and installs an OS listener.
   root.setAttribute('data-theme', initialAppliedTheme)
+  // Without this a customized background flashes the default one until settings load.
+  const seed = {
+    accent: initialAppearance.accent ?? undefined,
+    ...initialAppearance.themeSeeds[initialAppliedTheme]
+  }
+  for (const [name, value] of Object.entries(deriveThemeProperties(seed, initialAppliedTheme))) {
+    if (value != null) root.style.setProperty(name, value)
+  }
   root.lang = localeToHtmlLang(initialLocale)
 }
 
@@ -228,14 +258,16 @@ const notificationDispatcher = new TokenMulticastDispatcher<KnownNotificationPay
 const rawNotificationDispatcher = new TokenMulticastDispatcher<RawNotificationPayload>((error) => {
   console.error('appserver:raw-notification subscriber failed:', error)
 })
+// The raw channel is the superset: known notifications reach it too, so a subscriber that
+// filters by method name sees every notification. Typed subscribers run first, so Core state
+// is settled before plugins observe the same notification.
 ipcRenderer.on(
   'appserver:notification',
   (_event: Electron.IpcRendererEvent, payload: RawNotificationPayload) => {
     if (isKnownServerNotification(payload)) {
       notificationDispatcher.dispatch(payload)
-    } else {
-      rawNotificationDispatcher.dispatch(payload)
     }
+    rawNotificationDispatcher.dispatch(payload)
   }
 )
 
@@ -365,6 +397,8 @@ const api = {
   platform: process.platform as 'darwin' | 'win32' | 'linux',
 
   initialTheme,
+
+  initialAppearance,
 
   initialLocale,
 

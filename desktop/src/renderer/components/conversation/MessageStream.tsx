@@ -447,7 +447,7 @@ function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Element {
         style={{
           flex: 1,
           height: 1,
-          background: 'var(--border-color, rgba(127,127,127,0.25))'
+          background: 'var(--border-default)'
         }}
       />
       <span
@@ -467,7 +467,7 @@ function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Element {
         style={{
           flex: 1,
           height: 1,
-          background: 'var(--border-color, rgba(127,127,127,0.25))'
+          background: 'var(--border-default)'
         }}
       />
     </div>

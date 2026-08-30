@@ -1,57 +1,33 @@
 html[data-theme="light"] {
-  --color-bg-primary: #f9f9f9;
-  --color-bg-secondary: #ffffff;
-  --color-bg-tertiary: #ededed;
-  --color-bg-active: #e8e8e8;
+  /* Light seeds the card, not the page: --bg-secondary is the seed surface and the page
+     recedes from it, so both variants share one direction (ink mixed into the surface).
+     --contrast-k is normalizeContrast(45, 'light'). */
+  --seed-surface: #ffffff;
+  --seed-ink: #1a1c1f;
+  --seed-accent: #4f6cce;
+  --seed-contrast: 45;
+  --contrast-k: 0.45;
 
-  --color-text-primary: #1a1c1f;
-  --color-text-secondary: color-mix(in srgb, #1a1c1f 70%, #f9f9f9);
-  --color-text-dimmed: color-mix(in srgb, #1a1c1f 50%, #f9f9f9);
+  --bg-secondary: var(--seed-surface);
+  --bg-primary: color-mix(in srgb, var(--seed-ink) calc(1.83% + var(--contrast-k) * 1.83%), var(--seed-surface));
+  --bg-tertiary: color-mix(in srgb, var(--seed-ink) calc(5.48% + var(--contrast-k) * 5.48%), var(--seed-surface));
+  --bg-active: color-mix(in srgb, var(--seed-ink) calc(7% + var(--contrast-k) * 7%), var(--seed-surface));
+  --bg-hover: color-mix(in srgb, var(--text-primary) calc(4.2% + var(--contrast-k) * 4%), transparent);
 
-  --color-border-default: color-mix(in srgb, #1a1c1f 8%, transparent);
-  --color-border-active: color-mix(in srgb, #1a1c1f 12%, transparent);
+  --text-secondary: color-mix(in srgb, var(--text-primary) calc(65.5% + var(--contrast-k) * 10%), var(--bg-primary));
+  --text-dimmed: color-mix(in srgb, var(--text-primary) calc(45.5% + var(--contrast-k) * 10%), var(--bg-primary));
+  --text-disabled: color-mix(in srgb, var(--text-primary) calc(33.5% + var(--contrast-k) * 10%), var(--bg-primary));
+  --composer-placeholder: color-mix(in srgb, var(--text-primary) calc(57.5% + var(--contrast-k) * 10%), var(--bg-primary));
 
-  --color-accent: #4f6cce;
-  --color-accent-hover: #6580d6;
-  --color-success: #16a34a;
-  --color-warning: #c9a227;
-  --color-error: #dc2626;
-  --color-info: #2563eb;
-
-  --color-user-message-bg: #f0f0f0;
-
-  --color-diff-add-bg: rgba(22, 163, 74, 0.12);
-  --color-diff-remove-bg: rgba(220, 38, 38, 0.1);
-
-  --bg-primary: #f9f9f9;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #ededed;
-  --bg-active: #e8e8e8;
-  --bg-hover: color-mix(in srgb, var(--text-primary) 6%, transparent);
-
-  --text-primary: #1a1c1f;
-  --text-secondary: color-mix(in srgb, var(--text-primary) 70%, var(--bg-primary));
-  --text-dimmed: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
-  --text-tertiary: var(--text-dimmed);
-  --text-disabled: color-mix(in srgb, var(--text-primary) 38%, var(--bg-primary));
-  --composer-placeholder: color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary));
-  --composer-footer-text: var(--text-secondary);
-  --composer-footer-muted: var(--text-dimmed);
-  --composer-footer-highlight: var(--text-primary);
-  --composer-control-text: color-mix(in srgb, var(--text-primary) 78%, var(--bg-primary));
-  --composer-control-muted: color-mix(in srgb, var(--text-primary) 54%, var(--bg-primary));
-
-  --border-subtle: color-mix(in srgb, var(--text-primary) 4%, transparent);
-  --border-default: color-mix(in srgb, var(--text-primary) 8%, transparent);
-  --border-active: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --border-subtle: color-mix(in srgb, var(--text-primary) calc(3.1% + var(--contrast-k) * 2%), transparent);
+  --border-default: color-mix(in srgb, var(--text-primary) calc(6.2% + var(--contrast-k) * 4%), transparent);
+  --border-active: color-mix(in srgb, var(--text-primary) calc(9.3% + var(--contrast-k) * 6%), transparent);
 
   /* The scrollbar thumb does not follow --border-active here. A control edge can
      afford to be nearly invisible against the light surface; a thing you have to
      find and grab cannot. */
   --scrollbar-thumb: color-mix(in srgb, var(--text-primary) 22%, transparent);
 
-  --accent: #4f6cce;
-  --accent-hover: #6580d6;
   --success: #16a34a;
   --warning: #c9a227;
   --error: #dc2626;
@@ -66,29 +42,35 @@ html[data-theme="light"] {
   --shimmer-base: color-mix(in srgb, var(--text-primary) 84%, var(--bg-primary));
   --shimmer-peak: color-mix(in srgb, var(--accent) 28%, color-mix(in srgb, white 80%, var(--text-primary)));
 
-  --user-message-bg: #f0f0f0;
+  --user-message-bg: color-mix(in srgb, var(--bg-tertiary) 75%, var(--bg-primary));
 
-  --diff-add-bg: rgba(22, 163, 74, 0.12);
-  --diff-remove-bg: rgba(220, 38, 38, 0.1);
-  --diff-add-word-bg: rgba(22, 163, 74, 0.28);
-  --diff-remove-word-bg: rgba(220, 38, 38, 0.24);
-  --find-match-bg: rgba(201, 162, 39, 0.36);
-  --find-match-active-bg: rgba(201, 162, 39, 0.62);
+  --success-bg: color-mix(in srgb, var(--success) 14%, transparent);
+  --warning-bg: color-mix(in srgb, var(--warning) 14%, transparent);
+  --error-bg: color-mix(in srgb, var(--error) 14%, transparent);
 
-  --bg-elevated: #ffffff;
+  --diff-add-bg: color-mix(in srgb, var(--success) 12%, transparent);
+  --diff-remove-bg: color-mix(in srgb, var(--error) 10%, transparent);
+  --diff-add-word-bg: color-mix(in srgb, var(--success) 28%, transparent);
+  --diff-remove-word-bg: color-mix(in srgb, var(--error) 24%, transparent);
+  --find-match: #c9a227;
+  --find-match-bg: color-mix(in srgb, var(--find-match) 36%, transparent);
+  --find-match-active-bg: color-mix(in srgb, var(--find-match) 62%, transparent);
 
+  --bg-elevated: var(--bg-secondary);
+
+  /* Derived from the active theme seeds so a custom background carries the chrome with it;
+     shared/titleBarOverlay.ts applies the same mix to the native frame. */
+  --shell-chrome-tone: color-mix(in srgb, var(--seed-ink) 5.2%, var(--seed-surface));
+  --shell-chrome-tone-deep: var(--bg-tertiary);
   --shell-chrome-surface:
     linear-gradient(
       180deg,
-      color-mix(in srgb, #f3f3ee 94%, transparent),
-      color-mix(in srgb, #ededed 92%, transparent)
+      color-mix(in srgb, var(--shell-chrome-tone) 94%, transparent),
+      color-mix(in srgb, var(--shell-chrome-tone-deep) 92%, transparent)
     );
   --app-backdrop: transparent;
-  --app-backdrop-tint: transparent;
   --chrome-glass: var(--shell-chrome-surface);
-  --sidebar-glass: var(--chrome-glass);
-  --welcome-surface: #f3f3ee;
-  --shell-chrome-blur: none;
+  --welcome-surface: var(--shell-chrome-tone);
   --shell-chrome-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-active: color-mix(in srgb, var(--text-primary) 13%, transparent);
@@ -96,22 +78,16 @@ html[data-theme="light"] {
   --workspace-launch-surface:
     linear-gradient(
       180deg,
-      #f3f3ee,
-      #ededed
+      var(--shell-chrome-tone),
+      var(--shell-chrome-tone-deep)
     );
-  --main-surface: #ffffff;
-  --main-surface-muted: #ffffff;
-  --glass-surface: color-mix(in srgb, #ffffff 82%, transparent);
+  --main-surface: var(--bg-secondary);
   --glass-surface-strong: var(--bg-elevated);
   --glass-surface-soft: color-mix(in srgb, var(--text-primary) 5%, transparent);
-  --glass-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --glass-border: var(--border-default);
   --glass-border-strong: color-mix(in srgb, var(--text-primary) 12%, transparent);
   --main-surface-left-border: var(--glass-border-strong);
   --main-surface-top-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
-  --glass-highlight: rgba(255, 255, 255, 0.72);
-  --glass-shadow:
-    0 8px 16px -4px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 var(--glass-highlight);
   --glass-shadow-soft:
     0 8px 16px -4px rgba(0, 0, 0, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -134,7 +110,7 @@ html[data-theme="light"] {
     );
   --glass-blur: blur(18px) saturate(1.05);
   --glass-blur-soft: blur(12px) saturate(1.03);
-  --composer-input-background: #ffffff;
+  --composer-input-background: var(--bg-secondary);
   --background-activity-dock-background:
     linear-gradient(
       180deg,
@@ -142,15 +118,14 @@ html[data-theme="light"] {
       color-mix(in srgb, var(--composer-input-background) 86%, transparent)
     );
   --composer-top-accessory-separator: transparent;
-  --composer-input-rest-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
-  --composer-input-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
-  --composer-input-border-focus: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --composer-input-rest-border: var(--border-default);
+  --composer-input-border: var(--border-default);
   --composer-input-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
   --composer-action-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
+  --shadow-sm: var(--shadow-level-1);
+  --shadow-md: var(--shadow-level-2);
+  --shadow-lg: var(--shadow-level-3);
 
   --shadow-level-1: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-level-2: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -158,13 +133,12 @@ html[data-theme="light"] {
 
   --bg-inverse: #2a2a2a;
   --text-on-inverse: #eeeeec;
-  --text-on-inverse-muted: color-mix(in srgb, #eeeeec 66%, #2a2a2a);
-  --border-on-inverse: color-mix(in srgb, #eeeeec 16%, transparent);
+  --text-on-inverse-muted: color-mix(in srgb, var(--text-on-inverse) 66%, var(--bg-inverse));
+  --border-on-inverse: color-mix(in srgb, var(--text-on-inverse) 16%, transparent);
   /* 8%, not more: a heavier fill lifts the chip toward its own muted text and drops that pair below 4.5:1. */
-  --fill-on-inverse: color-mix(in srgb, #eeeeec 8%, transparent);
+  --fill-on-inverse: color-mix(in srgb, var(--text-on-inverse) 8%, transparent);
 
   --code-block-bg: #f6f8fa;
-  --on-accent: #ffffff;
   --overlay-scrim: rgba(0, 0, 0, 0.35);
 
   --ansi-black: #4b5563;

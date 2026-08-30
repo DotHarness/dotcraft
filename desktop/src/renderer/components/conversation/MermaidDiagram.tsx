@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
 import type { MermaidConfig, RenderResult } from 'mermaid'
-import { THEME_CHANGED_EVENT, resolveThemeMode, type ThemeMode } from '../../../shared/theme'
+import type { ThemeMode } from '../../../shared/theme'
+import { useDocumentThemeMode } from '../../utils/theme'
 import { useT } from '../../contexts/LocaleContext'
 import { IconButton } from '../ui/IconButton'
 import { sanitizeMermaidSvg } from './mermaidSanitize'
@@ -467,32 +468,6 @@ function roundAlpha(value: number): number {
   return Math.round(value * 1000) / 1000
 }
 
-function useDocumentThemeMode(): ThemeMode {
-  const [mode, setMode] = useState(() =>
-    resolveThemeMode(document.documentElement.getAttribute('data-theme'))
-  )
-
-  useEffect(() => {
-    const sync = (): void => {
-      setMode(resolveThemeMode(document.documentElement.getAttribute('data-theme')))
-    }
-    window.addEventListener(THEME_CHANGED_EVENT, sync)
-
-    const observer = new MutationObserver(sync)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme']
-    })
-
-    sync()
-    return () => {
-      window.removeEventListener(THEME_CHANGED_EVENT, sync)
-      observer.disconnect()
-    }
-  }, [])
-
-  return mode
-}
 
 const diagramFrameStyle: CSSProperties = {
   position: 'relative',

@@ -138,7 +138,7 @@ export function AttachmentStrip({
                   radius={11}
                   className="dc-attachment-image-remove"
                   onClick={() => { onRemoveImage(idx) }}
-                  style={{ boxShadow: 'var(--shadow-overlay)' }}
+                  style={{ boxShadow: 'var(--shadow-level-1)' }}
                 />
               </div>
             ))}

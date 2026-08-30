@@ -421,6 +421,6 @@ const highlightStyle: CSSProperties = {
 const errorStyle: CSSProperties = {
   padding: '8px 12px',
   borderTop: '1px solid var(--glass-border)',
-  color: 'var(--text-error, #e05c5c)',
+  color: 'var(--error)',
   fontSize: '12px'
 }

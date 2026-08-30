@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { LocaleProvider } from './contexts/LocaleContext'
 import { applyTheme, resolveTheme } from './utils/theme'
-import { applyAppearanceDom } from './utils/appearance'
+import { applyAppearanceDom, applyThemeSeeds } from './utils/appearance'
 import { resolveAppearanceSettings } from '../shared/appearance'
 import { useUIStore } from './stores/uiStore'
 import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
@@ -17,6 +17,10 @@ window.addEventListener('beforeunload', stopDesktopPluginRuntime, { once: true }
 
 const params = new URLSearchParams(window.location.search)
 const initialTheme = resolveTheme(params.get('theme') ?? window.api?.initialTheme)
+// Adopt what preload already painted before applying the theme: applyTheme re-derives the
+// seed, and with nothing stored yet that re-derive would clear it until settings load.
+const initialAppearance = window.api?.initialAppearance
+applyThemeSeeds(initialAppearance?.accent ?? null, initialAppearance?.themeSeeds)
 applyTheme(initialTheme)
 
 // Apply the remaining (non-theme) appearance preferences once settings load. Defaults are
@@ -47,6 +51,9 @@ createRoot(rootElement).render(
         <DesktopPluginSurface name="app" context={appSurfaceContext}>
           <App />
         </DesktopPluginSurface>
+        <div className="dotcraft-plugin-overlay-seat">
+          <DesktopPluginSurface name="app.overlay" context={appSurfaceContext} />
+        </div>
         <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
       </HighlightProvider>
     </LocaleProvider>

@@ -17,6 +17,7 @@ import {
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../shared/appearance'
+import { normalizeThemeSeeds, type ThemeSeedOverrides, type ThemeVariant } from '../shared/themeSeed'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -111,6 +112,8 @@ export interface AppSettings {
   theme?: UiTheme
   /** Custom accent color (`#rrggbb`); omitted uses the per-theme token default. */
   accent?: string
+  /** Per-variant background and contrast overrides; omitted uses the token defaults. */
+  themeSeeds?: Record<ThemeVariant, ThemeSeedOverrides>
   /** Code font size in px; omitted uses the token default. */
   codeFontSize?: number
   /** Diff rendering style; omitted is treated as `color`. */
@@ -285,6 +288,13 @@ function normalizeUiTheme(settings: AppSettings): UiTheme | undefined {
 
 function normalizeAccentSetting(settings: AppSettings): string | undefined {
   return normalizeAccentHex(settings.accent) ?? undefined
+}
+
+/** Persist only the variants the user actually moved, so settings.json stays minimal. */
+function normalizeThemeSeedsSetting(settings: AppSettings): Record<ThemeVariant, ThemeSeedOverrides> | undefined {
+  const seeds = normalizeThemeSeeds(settings.themeSeeds)
+  const customized = Object.keys(seeds.dark).length > 0 || Object.keys(seeds.light).length > 0
+  return customized ? seeds : undefined
 }
 
 function normalizeCodeFontSizeSetting(settings: AppSettings): number | undefined {
@@ -471,6 +481,7 @@ export function loadSettings(): AppSettings {
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.theme = normalizeUiTheme(raw)
       raw.accent = normalizeAccentSetting(raw)
+      raw.themeSeeds = normalizeThemeSeedsSetting(raw)
       raw.codeFontSize = normalizeCodeFontSizeSetting(raw)
       raw.diffMarkers = normalizeDiffMarkersSetting(raw)
       raw.reduceMotion = normalizeReduceMotionSetting(raw)
@@ -522,6 +533,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.theme = normalizeUiTheme(settings)
     settings.accent = normalizeAccentSetting(settings)
+    settings.themeSeeds = normalizeThemeSeedsSetting(settings)
     settings.codeFontSize = normalizeCodeFontSizeSetting(settings)
     settings.diffMarkers = normalizeDiffMarkersSetting(settings)
     settings.reduceMotion = normalizeReduceMotionSetting(settings)

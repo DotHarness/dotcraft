@@ -1088,7 +1088,7 @@ export function WebSearchResultsTable({
             <tr
               key={`${row.url}-${index}`}
               style={{
-                borderTop: index === 0 ? 'none' : '1px solid var(--border-muted, var(--border-default))'
+                borderTop: index === 0 ? 'none' : '1px solid var(--border-default)'
               }}
             >
               <WebSearchResultCell

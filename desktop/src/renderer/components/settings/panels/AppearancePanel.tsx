@@ -3,9 +3,9 @@ import { Check, Minus, Plus } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { addToast } from '../../../stores/toastStore'
 import { useUIStore } from '../../../stores/uiStore'
-import { applyTheme, type ThemeMode } from '../../../utils/theme'
+import { applyTheme, useDocumentThemeMode, type ThemeMode } from '../../../utils/theme'
 import {
-  applyAccent,
+  applyThemeSeeds,
   applyCodeFontSize,
   applyPointerCursors,
   applyReduceMotion,
@@ -26,6 +26,13 @@ import {
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../../../../shared/appearance'
+import {
+  CONTRAST_MAX,
+  CONTRAST_MIN,
+  DEFAULT_SEEDS,
+  type ThemeSeedOverrides,
+  type ThemeVariant
+} from '../../../../shared/themeSeed'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
@@ -35,11 +42,23 @@ import { AppearancePreview } from './AppearancePreview'
 /** Distinct alternative accents. The brand default is offered separately as "Default" (no override). */
 const ACCENT_PRESETS: string[] = ['#2f81f7', '#3e8c64', '#c9821f', '#8b5cf6', '#e0566f', '#5b6b86']
 
+/** Backgrounds near each variant's default, so a pick reads as a tint rather than a new theme. */
+const SURFACE_PRESETS: Record<ThemeVariant, string[]> = {
+  dark: ['#000000', '#16191d', '#1a1613', '#101614'],
+  light: ['#faf8f4', '#f6f8fb', '#f7f4ec', '#f4f7f4']
+}
+
+/** The contrast control moves in steps this size; the range itself is 0-100. */
+const CONTRAST_STEP = 5
+
 export function AppearancePanel(): JSX.Element {
   const t = useT()
   const setDiffMarkers = useUIStore((s) => s.setDiffMarkers)
+  // The editor writes to the variant currently on screen, so its swatches show what a pick does.
+  const variant: ThemeVariant = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE)
   const colorInputRef = useRef<HTMLInputElement>(null)
+  const surfaceInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -76,9 +95,28 @@ export function AppearancePanel(): JSX.Element {
   function handleAccent(hex: string | null): void {
     const normalized = hex ? normalizeAccentHex(hex) : null
     setAppearance((prev) => ({ ...prev, accent: normalized }))
-    applyAccent(normalized)
+    applyThemeSeeds(normalized, appearance.themeSeeds)
     // Empty string clears the override on the main side (undefined would be dropped by JSON).
     void persist({ accent: normalized ?? '' })
+  }
+
+  /** Background and contrast belong to the variant on screen; the accent is shared by both. */
+  function handleSeed(next: ThemeSeedOverrides): void {
+    const seeds = { ...appearance.themeSeeds, [variant]: next }
+    setAppearance((prev) => ({ ...prev, themeSeeds: seeds }))
+    applyThemeSeeds(appearance.accent, seeds)
+    void persist({ themeSeeds: seeds })
+  }
+
+  function handleSurface(hex: string | null): void {
+    const normalized = hex ? normalizeAccentHex(hex) : null
+    const { surface: _dropped, ...rest } = seed
+    handleSeed(normalized ? { ...rest, surface: normalized } : rest)
+  }
+
+  function handleContrast(next: number): void {
+    const clamped = Math.min(CONTRAST_MAX, Math.max(CONTRAST_MIN, next))
+    handleSeed({ ...seed, contrast: clamped })
   }
 
   function handleCodeFontSize(next: number): void {
@@ -124,6 +162,10 @@ export function AppearancePanel(): JSX.Element {
 
   const accentLower = appearance.accent?.toLowerCase() ?? null
   const isCustomAccent = accentLower !== null && !ACCENT_PRESETS.includes(accentLower)
+  const seed = appearance.themeSeeds[variant]
+  const surfaceLower = seed.surface?.toLowerCase() ?? null
+  const isCustomSurface = surfaceLower !== null && !SURFACE_PRESETS[variant].includes(surfaceLower)
+  const contrast = seed.contrast ?? DEFAULT_SEEDS[variant].contrast
   const codeSize = appearance.codeFontSize ?? DEFAULT_CODE_FONT_SIZE
   const uiFontPx = interfaceZoomToUiFontPx(appearance.interfaceZoom)
 
@@ -159,7 +201,7 @@ export function AppearancePanel(): JSX.Element {
           control={
             <div style={swatchesRowStyle}>
             <AccentSwatch
-              ariaLabel={t('settings.appearance.accent.default')}
+              ariaLabel={t('settings.appearance.accent.defaultSwatch')}
               color="var(--accent)"
               selected={appearance.accent === null}
               onSelect={() => handleAccent(null)}
@@ -197,6 +239,82 @@ export function AppearancePanel(): JSX.Element {
               onChange={(e) => handleAccent(e.target.value)}
             />
             <span style={hexLabelStyle}>{(appearance.accent ?? '').toUpperCase() || t('settings.appearance.accent.default')}</span>
+            </div>
+          }
+        />
+        <SettingsRow
+          label={t('settings.appearance.surface.label')}
+          description={t('settings.appearance.surface.hint')}
+          control={
+            <div style={swatchesRowStyle}>
+              <AccentSwatch
+                ariaLabel={t('settings.appearance.surface.defaultSwatch')}
+                color={DEFAULT_SEEDS[variant].surface}
+                selected={seed.surface === undefined}
+                onSelect={() => handleSurface(null)}
+              />
+              {SURFACE_PRESETS[variant].map((hex) => (
+                <AccentSwatch
+                  key={hex}
+                  ariaLabel={t('settings.appearance.surface.swatch', { color: hex })}
+                  color={hex}
+                  selected={surfaceLower === hex}
+                  onSelect={() => handleSurface(hex)}
+                />
+              ))}
+              <button
+                type="button"
+                aria-label={t('settings.appearance.surface.custom')}
+                title={t('settings.appearance.surface.custom')}
+                onClick={() => {
+                  if (surfaceInputRef.current) {
+                    surfaceInputRef.current.value = seed.surface ?? DEFAULT_SEEDS[variant].surface
+                    surfaceInputRef.current.click()
+                  }
+                }}
+                style={customSwatchStyle(isCustomSurface ? seed.surface ?? null : null)}
+              >
+                {!isCustomSurface && <Plus size={13} strokeWidth={2} aria-hidden />}
+                {isCustomSurface && <Check size={13} strokeWidth={3} color="#fff" aria-hidden />}
+              </button>
+              <input
+                ref={surfaceInputRef}
+                type="color"
+                aria-hidden
+                tabIndex={-1}
+                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+                onChange={(e) => handleSurface(e.target.value)}
+              />
+              <span style={hexLabelStyle}>
+                {(seed.surface ?? '').toUpperCase() || t('settings.appearance.surface.default')}
+              </span>
+            </div>
+          }
+        />
+        <SettingsRow
+          label={t('settings.appearance.contrast.label')}
+          description={t('settings.appearance.contrast.hint')}
+          control={
+            <div style={stepperStyle}>
+              <button
+                type="button"
+                aria-label={t('settings.appearance.contrast.decrease')}
+                disabled={contrast <= CONTRAST_MIN}
+                onClick={() => handleContrast(contrast - CONTRAST_STEP)}
+                style={stepperButtonStyle(contrast <= CONTRAST_MIN)}
+              >
+                <Minus size={15} strokeWidth={2} aria-hidden />
+              </button>
+              <span style={stepperValueStyle}>{contrast}</span>
+              <button
+                type="button"
+                aria-label={t('settings.appearance.contrast.increase')}
+                disabled={contrast >= CONTRAST_MAX}
+                onClick={() => handleContrast(contrast + CONTRAST_STEP)}
+                style={stepperButtonStyle(contrast >= CONTRAST_MAX)}
+              >
+                <Plus size={15} strokeWidth={2} aria-hidden />
+              </button>
             </div>
           }
         />

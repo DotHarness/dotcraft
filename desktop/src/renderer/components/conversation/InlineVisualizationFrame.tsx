@@ -157,7 +157,6 @@ export function InlineVisualizationFrame({ threadId, turnId, itemId, file }: Pro
         params: {
           locale,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          accent: getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || undefined,
           reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
           pointer: window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine',
           width: frame.clientWidth || Math.max(0, container.clientWidth - INLINE_VISUALIZATION_ACTION_RAIL_WIDTH),

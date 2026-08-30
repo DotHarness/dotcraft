@@ -174,8 +174,7 @@
 
 .dc-settings-select-option[data-disabled="true"] {
   cursor: default;
-  color: var(--text-dimmed);
-  opacity: 0.65;
+  color: var(--text-disabled);
 }
 
 .dc-settings-select-option__icon {

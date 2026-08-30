@@ -26,11 +26,7 @@ import {
   REMOTE_SERVERS_CHANNELS
 } from './remoteServers/remoteServersIpc'
 import { checkWorkspaceLock } from './workspaceLock'
-import {
-  TITLE_BAR_OVERLAY_BY_THEME,
-  TITLE_BAR_OVERLAY_HEIGHT
-} from '../shared/titleBarOverlay'
-import { applyWindowBackdropTheme } from './windowTheme'
+import { applyNativeChromeTheme, resolveThemeSurface } from './windowTheme'
 import {
   activateFileIndexWorkspace,
   cleanupWorkspaceCache,
@@ -1286,20 +1282,7 @@ export function registerIpcHandlers(
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || win.isDestroyed()) return
     const t = theme === 'light' ? 'light' : 'dark'
-    applyWindowBackdropTheme(win, t)
-    const { color, symbolColor } = TITLE_BAR_OVERLAY_BY_THEME[t]
-    try {
-      win.setTitleBarOverlay({
-        color,
-        symbolColor,
-        height: TITLE_BAR_OVERLAY_HEIGHT
-      })
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Titlebar overlay is not enabled')) {
-        return
-      }
-      throw error
-    }
+    applyNativeChromeTheme(win, t, resolveThemeSurface(callbacks?.getSettings() ?? {}, t))
   })
 
   handleSafe('window:minimize', (event) => {

@@ -1,4 +1,11 @@
 import { resolveThemeMode, type ThemeMode } from './theme'
+import {
+  EMPTY_THEME_SEEDS,
+  normalizeHexColor,
+  normalizeThemeSeeds,
+  type ThemeSeedOverrides,
+  type ThemeVariant
+} from './themeSeed'
 
 /** How code diffs are rendered: tinted line backgrounds, or +/- gutter markers with colored text. */
 export type DiffMarkerMode = 'color' | 'sign'
@@ -14,6 +21,8 @@ export interface AppearanceSettings {
   themeMode: ThemeMode
   /** Accent color hex (`#rrggbb`), or null to use the per-theme token default. */
   accent: string | null
+  /** Background and contrast overrides, per variant; an empty object means the tokens answer. */
+  themeSeeds: Record<ThemeVariant, ThemeSeedOverrides>
   /** Code font size in px, or null to use the `--text-code-size` token default. */
   codeFontSize: number | null
   diffMarkers: DiffMarkerMode
@@ -55,6 +64,7 @@ export function uiFontPxToInterfaceZoom(px: number): number {
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   themeMode: 'light',
   accent: null,
+  themeSeeds: EMPTY_THEME_SEEDS,
   codeFontSize: null,
   diffMarkers: 'color',
   reduceMotion: 'system',
@@ -65,17 +75,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   translucentSidebar: true
 }
 
-/** Normalize an accent value to `#rrggbb` (expanding `#rgb`), or null when invalid/empty. */
-export function normalizeAccentHex(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null
-  let value = raw.trim().toLowerCase()
-  if (!value) return null
-  if (!value.startsWith('#')) value = `#${value}`
-  if (/^#[0-9a-f]{3}$/.test(value)) {
-    value = `#${value.slice(1).split('').map((c) => c + c).join('')}`
-  }
-  return /^#[0-9a-f]{6}$/.test(value) ? value : null
-}
+/** The accent is one field of the theme seed, so it normalizes the same way every color does. */
+export const normalizeAccentHex = normalizeHexColor
 
 /** Normalize a code font size to an integer within bounds, or null when invalid/out of range. */
 export function normalizeCodeFontSize(raw: unknown): number | null {
@@ -118,6 +119,7 @@ export function normalizeTranslucentSidebar(raw: unknown): boolean {
 export function resolveAppearanceSettings(raw: {
   theme?: unknown
   accent?: unknown
+  themeSeeds?: unknown
   codeFontSize?: unknown
   diffMarkers?: unknown
   reduceMotion?: unknown
@@ -129,6 +131,7 @@ export function resolveAppearanceSettings(raw: {
   return {
     themeMode: resolveThemeMode(source.theme),
     accent: normalizeAccentHex(source.accent),
+    themeSeeds: normalizeThemeSeeds(source.themeSeeds),
     codeFontSize: normalizeCodeFontSize(source.codeFontSize),
     diffMarkers: normalizeDiffMarkers(source.diffMarkers),
     reduceMotion: normalizeReduceMotion(source.reduceMotion),
