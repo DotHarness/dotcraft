@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.0 |
+| **Version** | 0.7.0 |
 | **Status** | Living |
-| **Date** | 2026-08-26 |
+| **Date** | 2026-08-29 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -407,6 +407,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.heartbeatManagement` | boolean | Server supports heartbeat management methods (`heartbeat/trigger`). Absent or `false` when the heartbeat service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports the complete plugin discovery and lifecycle surface: `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, and `plugin/setTrusted`, plus the `plugin/snapshot/updated` notification. |
+| `capabilities.pluginConfiguration` | boolean | Server supports schema-backed plugin configuration through `plugin/config/get` and `plugin/config/mutate`. |
 | `capabilities.pluginMarketplaces` | boolean | Server supports user-managed plugin marketplace sources (`marketplace/add`, `marketplace/remove`, `marketplace/refresh`) and returns marketplace grouping metadata on `plugin/list`. |
 | `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`, `hooks/trustPlugin`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
@@ -2842,6 +2843,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32054` | Task already exists | `automation/task/create`: a task with the same ID already exists. |
 | `-32055` | Thread binding invalid | `automation/task/updateBinding` / `automation/task/create`: the target `threadId` does not exist or is archived. |
 | `-32097` | Thread recovery failed | A recovery package is invalid or incompatible, its workspace/Thread/Turn binding mismatches, or the target already exists. Inspect `error.data.code`. |
+| `-32099` | Plugin configuration | `plugin/config/*`: the plugin declares no settings schema, or the document, scope, or an operation is invalid. Inspect `error.data.code`. |
 
 Automation task methods are defined in full in [automations-lifecycle.md §13](../features/automations-lifecycle.md). Summary of the v1 wire surface:
 
@@ -4612,8 +4614,10 @@ On success, the server removes the skill from `Skills.DisabledSkills`, deletes a
 
 ### 18.9 Plugin Management Methods
 
-Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method or relying on
-`plugin/snapshot/updated`. These methods expose local plugin discovery, workspace enablement state,
+Clients must check `capabilities.pluginManagement` before calling the `plugin/*` methods in this
+section or relying on `plugin/snapshot/updated`. It does not gate `plugin/config/*`, which answers to
+`capabilities.pluginConfiguration` alone (18.10); the two are independent switches, and a server may
+offer either without the other. These methods expose local plugin discovery, workspace enablement state,
 in-process .NET runtime state, and serialized lifecycle mutations for Desktop and other UI clients.
 Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are
 defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle,
@@ -5203,7 +5207,94 @@ clients may coalesce pending invalidations or suppress the notification through
 `optOutNotificationMethods`. A .NET runtime-only transition advances the revision and emits this
 notification without emitting `workspace/configChanged`.
 
-### 18.10 Marketplace Management Methods
+### 18.10 Plugin Configuration Methods
+
+Clients must check `capabilities.pluginConfiguration` before calling these methods.
+`capabilities.pluginManagement` does not gate them. Plugin
+configuration is schema-backed and stored in the separate personal and workspace
+`plugin-config.json` documents defined by [Plugin Architecture](../architecture/plugin-architecture.md).
+
+#### `plugin/config/get`
+
+Returns a fresh validated snapshot for one installed plugin.
+
+**Direction**: client → server (request)
+
+**Params**: `{ "id": string }`
+
+**Result**:
+
+```json
+{
+  "schema": {
+    "fields": [
+      {
+        "key": "density",
+        "type": "select",
+        "defaultValue": "comfortable",
+        "options": ["compact", "comfortable"]
+      }
+    ]
+  },
+  "personal": { "density": "compact" },
+  "workspace": {},
+  "value": { "density": "compact" },
+  "writableScopes": ["personal", "workspace"]
+}
+```
+
+`schema` is the validated manifest-owned schema. `personal` and `workspace` are the exact validated
+namespace values from each document, or empty objects when absent. `value` is the recursively
+merged effective object. `writableScopes` includes `personal` only when `UserDataPath` is configured
+and includes `workspace` when `DataPath` is available. A plugin without a declared settings schema
+returns `PluginConfigurationNotDeclared`.
+
+#### `plugin/config/mutate`
+
+Atomically changes one plugin namespace in one scope and returns the new snapshot.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+```json
+{
+  "id": "acme.review",
+  "scope": "workspace",
+  "operations": [
+    { "op": "set", "key": "density", "value": "compact" },
+    { "op": "unset", "key": "accentOverride" }
+  ]
+}
+```
+
+Only `set` and `unset` are supported. Keys are matched case-insensitively against declared schema
+fields and persisted with the schema's canonical spelling. `set` requires a valid value. `unset`
+removes that scope's override. The operations apply in request order, and the complete resulting
+namespace must validate before the file is replaced.
+
+The server serializes the mutation with plugin lifecycle changes. For a plugin with an active .NET
+closure it quiesces the plugin and dependants before writing, reconciles after success, and restores
+the prior generation if the write fails. A successful mutation emits `workspace/configChanged`
+with `source: "plugin/config/mutate"` and `regions: ["plugins.config"]`. There is no configuration
+notification or subscription API beyond this coarse invalidation.
+
+Stable plugin configuration errors use AppServer server-error responses with an `error.data.code`:
+
+| Code | Meaning |
+|------|---------|
+| `PluginConfigurationNotDeclared` | The plugin has no valid settings schema. |
+| `PluginConfigurationScopeUnavailable` | The requested scope has no configured path. |
+| `PluginConfigurationDocumentInvalid` | The selected shared document is unreadable, malformed, or not a JSON object. |
+| `PluginConfigurationNamespaceInvalid` | A stored namespace contains an unknown field or invalid value. |
+| `PluginConfigurationMutationInvalid` | An operation, key, or value is invalid. |
+| `PluginConfigurationWriteFailed` | The atomic locked write failed. |
+
+Invalid persisted configuration is also included as a safe plugin diagnostic. It does not disable
+the AppServer or unrelated plugin contributions. The protocol has no revision, etag, conflict
+payload, secret field, per-plugin size limit, or migration endpoint in v1.
+
+### 18.11 Marketplace Management Methods
 
 Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method. These methods manage the plugin marketplace sources available to the user. Source kinds, accepted source syntax, fetch requirements, and security boundaries are defined in [Plugin Registry](../architecture/plugin-registry.md).
 
@@ -5284,7 +5375,7 @@ Re-fetches one marketplace, or every configured marketplace when `name` is omitt
 
 A failure for one marketplace is reported in `errors` and does not fail the others. The request itself fails only when a named marketplace does not exist. On success the server emits `workspace/configChanged` with `source: "marketplace/refresh"` and `regions: ["plugins"]`.
 
-### 18.11 Error Codes
+### 18.12 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|
@@ -5307,11 +5398,11 @@ Marketplace errors carry structured error data with a stable `code`, a `messageK
 | `MarketplaceFetchTimeout` | The fetch exceeded its time budget. |
 | `MarketplaceFetchFailed` | The fetch or the installed-root replacement failed for another reason. |
 
-### 18.12 Capability Advertisement
+### 18.13 Capability Advertisement
 
 Clients must check `capabilities.skillsManagement` before calling any `skills/*` method.
 Clients should additionally check `capabilities.skillVariants` before offering variant-dependent UX such as restoring the original skill. `skills/view` may still be available as a source-only effective view when this capability is absent or false.
-Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method.
+Clients must check `capabilities.pluginManagement` before calling a `plugin/*` method other than `plugin/config/get` and `plugin/config/mutate`, which are gated by `capabilities.pluginConfiguration`.
 Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method or relying on `plugin/list.marketplaces`.
 
 ---
@@ -7285,7 +7376,7 @@ Server notification emitted after a successful workspace configuration write.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
+| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/config/mutate`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
@@ -7299,6 +7390,7 @@ Current `regions` taxonomy:
 | `welcomeSuggestions` | `workspace/config/update` |
 | `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
 | `plugins` | `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh` |
+| `plugins.config` | `plugin/config/mutate` |
 | `memory` | `workspace/config/update`, `memory/reset` |
 | `workspace.defaultApprovalPolicy` | `workspace/config/update` |
 | `lsp` | `workspace/config/update`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |

@@ -11635,6 +11635,205 @@
       "variants": []
     },
     {
+      "id": "core.PluginConfigField",
+      "name": "PluginConfigField",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginConfigField.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "defaultValue",
+          "type": "json",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "max",
+          "type": "number",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "min",
+          "type": "number",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "options",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginConfigGetParams",
+      "name": "PluginConfigGetParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginConfigGetParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginConfigMutateParams",
+      "name": "PluginConfigMutateParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginConfigMutateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operations",
+          "type": "array<core.PluginConfigMutationOperation>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginConfigMutationOperation",
+      "name": "PluginConfigMutationOperation",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginConfigMutationOperation.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "op",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "value",
+          "type": "json",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginConfigSchema",
+      "name": "PluginConfigSchema",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginConfigSchema.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "fields",
+          "type": "array<core.PluginConfigField>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginConfigSnapshot",
+      "name": "PluginConfigSnapshot",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginConfigSnapshot.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "personal",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "schema",
+          "type": "core.PluginConfigSchema",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "value",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspace",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "writableScopes",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginDependencyInfo",
       "name": "PluginDependencyInfo",
       "module": "core",
@@ -14068,6 +14267,13 @@
         },
         {
           "name": "modelCatalogManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pluginConfiguration",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -27753,6 +27959,58 @@
       "scope": "connection",
       "notificationOptOut": true,
       "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "plugin/config/get",
+      "descriptorMember": "PluginConfigGet",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.PluginConfigGetParams",
+      "resultType": "core.PluginConfigSnapshot",
+      "module": "core",
+      "capability": "pluginConfiguration",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "PluginConfigurationDocumentInvalid",
+        "PluginConfigurationMutationInvalid",
+        "PluginConfigurationNamespaceInvalid",
+        "PluginConfigurationNotDeclared",
+        "PluginConfigurationScopeUnavailable",
+        "PluginConfigurationWriteFailed"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "plugin/config/mutate",
+      "descriptorMember": "PluginConfigMutate",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.PluginConfigMutateParams",
+      "resultType": "core.PluginConfigSnapshot",
+      "module": "core",
+      "capability": "pluginConfiguration",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "PluginConfigurationDocumentInvalid",
+        "PluginConfigurationMutationInvalid",
+        "PluginConfigurationNamespaceInvalid",
+        "PluginConfigurationNotDeclared",
+        "PluginConfigurationScopeUnavailable",
+        "PluginConfigurationWriteFailed"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

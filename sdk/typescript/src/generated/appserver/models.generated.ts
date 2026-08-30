@@ -2360,6 +2360,49 @@ export interface PluginAppNativeApplication {
   [key: string]: unknown;
 }
 
+export interface PluginConfigField {
+  defaultValue?: JsonValue;
+  key: string;
+  max?: number;
+  min?: number;
+  options?: string[];
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface PluginConfigGetParams {
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface PluginConfigMutateParams {
+  id: string;
+  operations: PluginConfigMutationOperation[];
+  scope: string;
+  [key: string]: unknown;
+}
+
+export interface PluginConfigMutationOperation {
+  key: string;
+  op: string;
+  value?: JsonValue;
+  [key: string]: unknown;
+}
+
+export interface PluginConfigSchema {
+  fields: PluginConfigField[];
+  [key: string]: unknown;
+}
+
+export interface PluginConfigSnapshot {
+  personal: JsonValue;
+  schema: PluginConfigSchema;
+  value: JsonValue;
+  workspace: JsonValue;
+  writableScopes: string[];
+  [key: string]: unknown;
+}
+
 export interface PluginDependencyInfo {
   availability?: string;
   id?: string;
@@ -2827,6 +2870,7 @@ export interface ServerCapabilities {
   memoryManagement?: boolean;
   modeSwitch?: boolean;
   modelCatalogManagement?: boolean;
+  pluginConfiguration?: boolean;
   pluginManagement?: boolean;
   pluginMarketplaces?: boolean;
   providerManagement?: boolean;

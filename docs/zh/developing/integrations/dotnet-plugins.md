@@ -147,7 +147,7 @@ internal sealed class PluginTool : AIFunctionToolSource
 | **`ContentRoot` / `DataRoot` / `WorkspaceRoot`** | 该 generation 的只读影子拷贝、插件自己的可写数据目录，以及 Workspace。 |
 | **`Settings`** | 本插件的有效设置，在 generation 激活时生成快照。 |
 
-请把 `ContentRoot` 当作只读，可变状态放在 `DataRoot` 下。
+请把 `ContentRoot` 当作只读，可变状态放在 `DataRoot` 下。配置了 `UserDataPath` 时，宿主把 `DataRoot` 解析为 `<UserDataPath>/plugins/<id>/data`，否则解析为 `<DataPath>/plugin-data/<id>`。同一插件的 Hooks 与 LSP 进程也会通过 `DOTCRAFT_PLUGIN_DATA` 获得同一个目录。
 
 把所有 `Contributions.Add` 调用放在 `ActivateAsync` 内。激活提交时宿主会封闭 registrar，之后从后台工作发起的调用会被拒绝。若要改变某个 generation 的贡献集合，请改变它的输入，并让运行时协调过程重启 generation。
 
@@ -174,14 +174,14 @@ var sessions = (ISessionService?)context.Services.GetService(typeof(ISessionServ
 
 ### 读取自己的设置
 
-`context.Settings` 是本插件有效 `Plugins.Settings[id]` 设置袋的快照，在 generation 激活时捕获。它的形状由插件定义，宿主不做校验。配置改动只有在运行时协调并重启 generation 后才可见，绝不会修改已经捕获的激活上下文。
+`context.Settings` 是本插件由 schema 约束的有效设置快照，在 generation 激活时捕获。在 manifest 中声明 `"settings": "./settings.schema.json"`。宿主会校验 schema 默认值与两个存储层，然后依次解析默认值、个人设置和工作区设置。对象递归合并，数组和标量替换下层值。
 
 ```csharp
 var limit = context.Settings.TryGetProperty("checklistLimit", out var value)
     && value.TryGetInt32(out var parsed) ? parsed : 3;
 ```
 
-每个字段都要自备回退值，因为未配置的插件读到的是空对象。若反序列化到插件自定义类型，请让 serializer options 与 metadata 都归插件所有，以便 generation 能够卸载。
+插件预期使用的每个字段都应声明 schema 默认值。配置 mutation 会先 quiesce 当前 generation，写入后自动 reconcile 本插件及其必要依赖闭包。quiesce 失败不会写文件，写入失败会恢复原 generation。已捕获的激活上下文绝不会被原地修改。若反序列化到插件自定义类型，请让 serializer options 与 metadata 都归插件所有，以便 generation 能够卸载。
 
 完整的贡献点目录、排序规则、类型化导出、信任与 generation 生命周期见 [.NET Plugin API 与生命周期](./dotnet-plugin-reference)。
 

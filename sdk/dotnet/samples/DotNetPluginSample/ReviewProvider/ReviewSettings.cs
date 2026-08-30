@@ -3,8 +3,7 @@ using DotCraft.Plugins;
 
 namespace Acme.ReviewCore;
 
-/// <summary>This plugin's own settings bag from Host config under
-/// <c>Plugins.Settings["acme.review-core"]</c>.</summary>
+/// <summary>This plugin's effective schema-backed settings snapshot.</summary>
 /// <remarks>The context is an activation snapshot. Each property owns its fallback because the Host does not validate the bag.</remarks>
 internal sealed class ReviewSettings(IPluginActivationContext context)
 {

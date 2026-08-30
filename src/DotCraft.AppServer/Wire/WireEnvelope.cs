@@ -299,6 +299,9 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginManagement { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PluginConfiguration { get; set; }
+
     /// <summary>
     /// Server supports user-managed plugin marketplace sources (marketplace/add, marketplace/remove,
     /// marketplace/refresh) and returns marketplace grouping metadata on plugin/list.

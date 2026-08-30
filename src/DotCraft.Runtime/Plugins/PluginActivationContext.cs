@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Plugins;
 
@@ -11,7 +10,7 @@ internal sealed class PluginActivationContext(
     string contentRoot,
     string dataRoot,
     string workspaceRoot,
-    AppConfig config,
+    JsonElement settings,
     IServiceProvider services,
     IContributionRegistrar contributions,
     PluginLifetime lifetime,
@@ -26,7 +25,7 @@ internal sealed class PluginActivationContext(
 
     public string WorkspaceRoot { get; } = workspaceRoot;
 
-    public JsonElement Settings { get; } = config.Plugins.GetPluginSettings(plugin.Id).Clone();
+    public JsonElement Settings { get; } = settings.Clone();
 
     public IServiceProvider Services { get; } = services;
 

@@ -140,6 +140,10 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<PluginInstallLocalParams, PluginOperationResult> PluginInstallLocal = new("plugin/installLocal", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
+    public static readonly RpcRequest<PluginConfigGetParams, PluginConfigSnapshot> PluginConfigGet = new("plugin/config/get", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginConfiguration", errors: PluginConfigErrors);
+
+    public static readonly RpcRequest<PluginConfigMutateParams, PluginConfigSnapshot> PluginConfigMutate = new("plugin/config/mutate", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginConfiguration", errors: PluginConfigErrors);
+
     public static readonly RpcRequest<PluginListParams, PluginListResult> PluginList = new("plugin/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<PluginRemoveParams, PluginOperationResult> PluginRemove = new("plugin/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);

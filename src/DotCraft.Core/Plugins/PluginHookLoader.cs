@@ -37,7 +37,7 @@ public static class PluginHookLoader
     public static IReadOnlyList<PluginHookSource> LoadPluginHooks(
         DiscoveredPlugin plugin,
         List<PluginDiagnostic> diagnostics,
-        string? userDataPath = null)
+        string? pluginDataPath = null)
     {
         var manifest = plugin.Manifest;
         var hooks = manifest.Hooks;
@@ -45,7 +45,7 @@ public static class PluginHookLoader
             return [];
 
         var sources = new List<PluginHookSource>();
-        var pluginDataPath = GetPluginDataPath(manifest.Id, userDataPath);
+        pluginDataPath ??= string.Empty;
         foreach (var path in hooks.Paths)
         {
             AppendHookFileSource(plugin, pluginDataPath, path, sources, diagnostics);
@@ -151,11 +151,6 @@ public static class PluginHookLoader
         }
     }
 
-    private static string GetPluginDataPath(string pluginId, string? userDataPath) =>
-        string.IsNullOrWhiteSpace(userDataPath)
-            ? string.Empty
-            : Path.Combine(userDataPath, "plugins", pluginId, "data");
-
     private static IEnumerable<KeyValuePair<string, List<HookMatcherGroup>>> EnumerateEvents(HooksFileConfig config)
     {
         foreach (var eventName in HookKeys.ValidEventNames)
@@ -178,7 +173,7 @@ public static class PluginHookLoader
 
         var sources = new List<PluginHookSource>();
         foreach (var plugin in discovery.Plugins)
-            sources.AddRange(LoadPluginHooks(plugin, allDiagnostics, paths.UserData.RootPath));
+            sources.AddRange(LoadPluginHooks(plugin, allDiagnostics, PluginDataPaths.Resolve(paths, plugin.Manifest.Id)));
 
         diagnostics = allDiagnostics;
         return sources;

@@ -315,6 +315,7 @@ public sealed class AppServerHost(
                 PluginWorkflowSummaryProvider = runtime.Services.GetService<DotCraft.Plugins.IPluginWorkflowSummaryProvider>(),
                 PluginDotnetRuntimeCoordinator = runtime.Services
                     .GetService<DotCraft.Plugins.IPluginDotnetRuntimeCoordinator>(),
+                PluginConfigStore = runtime.Services.GetService<DotCraft.Plugins.PluginConfigStore>(),
                 PluginManagementState = _services.GetRequiredService<AppServerPluginManagementState>(),
                 BroadcastPluginSnapshotUpdated = BroadcastPluginSnapshotUpdated,
                 ServerVersion = AppVersion.Informational,

@@ -96,6 +96,8 @@ export interface ClientRequestMethods {
   "mcpServerStatus/list": { params: Models.McpServerStatusListParams; result: Models.McpServerStatusListResult };
   "memory/reset": { params: Models.RpcEmpty; result: Models.MemoryResetResult };
   "model/list": { params: Models.ModelListParams; result: Models.ModelListResult };
+  "plugin/config/get": { params: Models.PluginConfigGetParams; result: Models.PluginConfigSnapshot };
+  "plugin/config/mutate": { params: Models.PluginConfigMutateParams; result: Models.PluginConfigSnapshot };
   "plugin/install": { params: Models.PluginInstallParams; result: Models.PluginOperationResult };
   "plugin/installLocal": { params: Models.PluginInstallLocalParams; result: Models.PluginOperationResult };
   "plugin/list": { params: Models.PluginListParams; result: Models.PluginListResult };

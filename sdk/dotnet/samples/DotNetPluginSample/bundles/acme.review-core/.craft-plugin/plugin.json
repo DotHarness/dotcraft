@@ -5,6 +5,7 @@
   "displayName": "Review Core",
   "description": "Sample .NET plugin contributing to every contribution point.",
   "capabilities": ["dotnet", "desktop"],
+  "settings": "./settings.schema.json",
   "dotnet": {
     "minHostVersion": "0.5.0",
     "entryAssembly": "./lib/Acme.ReviewCore.Plugin.dll",

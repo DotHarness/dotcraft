@@ -658,6 +658,30 @@ When `SourceType` is omitted, an existing directory or archive file is read loca
 
 See [Plugin Market](./integrations/plugin-market) for source syntax, the marketplace document, and lifecycle behavior.
 
+### Plugin settings files
+
+Plugin-defined settings do not live under `Plugins` in the main `config.json`. A plugin declares `"settings": "./settings.schema.json"` in `.craft-plugin/plugin.json`, and the host reads two dedicated files:
+
+| Scope | Path |
+|---|---|
+| Personal | `<UserDataPath>/plugin-config.json`; the official app uses `~/.craft/plugin-config.json` |
+| Workspace | `<DataPath>/plugin-config.json`; the default is `<workspace>/.craft/plugin-config.json` |
+
+The root object is keyed directly by canonical plugin id:
+
+```json
+{
+  "acme.review-core": {
+    "checklistLimit": 5,
+    "tone": "concise"
+  }
+}
+```
+
+Effective settings resolve as schema defaults, then personal values, then workspace values. Objects merge recursively; arrays and scalar values replace the lower layer. A namespace is rejected as a whole when it contains an undeclared field or an invalid value. Removing a workspace value reveals the personal value or schema default below it.
+
+These files are for small JSON configuration, not blobs, databases, or caches. Plugin data remains separate at `<UserDataPath>/plugins/<id>/data` when `UserDataPath` is configured, or `<DataPath>/plugin-data/<id>` otherwise. Disabling, removing, or reinstalling a plugin does not delete either its configuration namespace or data directory.
+
 Local plugin development override example:
 
 ```json

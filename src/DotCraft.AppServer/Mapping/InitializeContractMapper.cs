@@ -64,6 +64,7 @@ internal static class InitializeContractMapper
         HeartbeatManagement = value.HeartbeatManagement,
         SkillsManagement = value.SkillsManagement,
         PluginManagement = value.PluginManagement,
+        PluginConfiguration = value.PluginConfiguration,
         PluginMarketplaces = value.PluginMarketplaces,
         SkillVariants = value.SkillVariants,
         CommandManagement = value.CommandManagement,

@@ -25,7 +25,10 @@ public static class PluginLspServerResolver
         var discovery = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
         var pluginServers = discovery.Plugins
-            .SelectMany(plugin => PluginLspServerLoader.LoadPluginServers(plugin, allDiagnostics, paths.UserData.RootPath))
+            .SelectMany(plugin => PluginLspServerLoader.LoadPluginServers(
+                plugin,
+                allDiagnostics,
+                PluginDataPaths.Resolve(paths, plugin.Manifest.Id)))
             .ToList();
         diagnostics = allDiagnostics;
         return BuildEffectiveServers(config.LspServers, pluginServers);

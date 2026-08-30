@@ -112,6 +112,7 @@ public static class AppServerErrors
     public const int UnsupportedCode = -32096;
     public const int ThreadRecoveryFailedCode = -32097;
     public const int WorkflowRunErrorCode = -32098;
+    public const int PluginConfigurationErrorCode = -32099;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -157,6 +158,14 @@ public static class AppServerErrors
 
     public static AppServerException InternalError(string detail) =>
         Create(InternalErrorCode, "InternalError", "errors.internal", "Internal error", detail: detail);
+
+    public static AppServerException PluginConfiguration(string code, string detail) =>
+        Create(
+            PluginConfigurationErrorCode,
+            code,
+            $"errors.pluginConfiguration.{code}",
+            "Plugin configuration could not be processed.",
+            detail: detail);
 
     public static AppServerException ServerOverloaded() =>
         Create(ServerOverloadedCode, "ServerOverloaded", "errors.serverOverloaded", "Server overloaded; retry later.");

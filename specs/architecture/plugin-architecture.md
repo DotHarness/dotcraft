@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.6.2 |
+| **Version** | 1.7.0 |
 | **Status** | Living |
-| **Date** | 2026-08-28 |
+| **Date** | 2026-08-29 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [.NET Plugin Architecture](dotnet-plugins.md), [Desktop Plugins](desktop-plugins.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
@@ -62,8 +62,43 @@ Manifest metadata includes:
 - `paths`
 - `dotnet`
 - `dependencies`
+- `settings`
 
 Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, a Desktop module, Dynamic Workflows, an in-process `dotnet` contribution, or interface metadata. Each contribution may appear without the others.
+
+`settings` is an optional manifest-relative path to a plugin settings schema, for example
+`"./settings.schema.json"`. It does not count as a runtime contribution. The schema document has a
+single `fields` array. Each field has a required `key` and `type`, plus optional `defaultValue`,
+`options`, `min`, and `max` members. Supported types are `text`, `textarea`, `number`, `bool`,
+`select`, `stringList`, `keyValueMap`, and `json`. Keys are compared case-insensitively and must be
+unique. A declared default must pass the same validation as a stored value. `select` requires a
+non-empty string `options` array and accepts only listed values. `min` and `max` apply only to
+`number`.
+
+Plugin configuration is stored separately from the host's layered `config.json` documents:
+
+- personal: `<UserDataPath>/plugin-config.json`;
+- workspace: `<DataPath>/plugin-config.json`.
+
+For the official host these resolve to `~/.craft/plugin-config.json` and
+`<workspace>/.craft/plugin-config.json`. Each document's root is an object whose properties are
+canonical plugin ids and whose values are setting objects. There is no version or `plugins`
+wrapper. The effective value is built from schema defaults, personal configuration, then workspace
+configuration. Objects merge recursively. Arrays and scalar values replace the lower layer.
+
+Every stored namespace is strict: it may contain only fields declared by that plugin's current
+schema, and every value must validate. An invalid shared document or namespace produces a stable
+configuration error and a plugin diagnostic. It does not prevent other AppServer or plugin
+functions from operating. DotCraft rereads the documents for every configuration read, mutation,
+and .NET activation. It does not watch these files, preserve a last-good value, retain unknown
+fields, or migrate schemas.
+
+Mutations perform an atomic read-modify-write under a cross-process file lock. The writer rereads
+the complete document while holding the lock and changes only the target namespace. It never
+overwrites an existing document that cannot be parsed. Concurrent changes to different namespaces
+are retained; changes to the same namespace are last-writer-wins. Unsetting a key removes that
+scope's override so the lower layer becomes effective. Disabling, removing, or reinstalling a
+plugin does not remove either namespace.
 
 `mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config uses the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`; unknown server properties are rejected. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
 
@@ -84,7 +119,7 @@ Effective MCP merge rules:
 
 If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. If that file is absent, DotCraft also checks a top-level `./hooks.json` for compatibility with imported plugin ecosystems. Explicit `hooks` declarations always take precedence and suppress default discovery. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape defined by [Lifecycle Hooks](../features/lifecycle-hooks.md). DotCraft executes command hooks and reports unsupported reserved handler types through plugin diagnostics.
 
-Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data uses the LSP data location: `%LocalAppData%/DotCraft/plugins/<pluginId>/data` on Windows, with platform-equivalent app data paths elsewhere. Compatibility aliases may be injected for imported plugin ecosystems, but DotCraft-authored plugins should use the `DOTCRAFT_*` variables.
+Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data resolves to `<UserDataPath>/plugins/<pluginId>/data` when the host configures `UserDataPath`; otherwise it resolves to `<DataPath>/plugin-data/<pluginId>`. Hooks, LSP servers, and .NET activation use this same host-side directory. Plugin configuration files remain separate from this directory. The renderer never receives the directory path or a general file API; Desktop plugins that need blobs, SQLite, or caches must delegate them to a plugin backend. Compatibility aliases may be injected for imported plugin ecosystems, but DotCraft-authored plugins should use the `DOTCRAFT_*` variables.
 
 Plugin hooks are user-trusted runtime behavior. Installing or enabling a plugin does not automatically trust its hooks. First appearance and any hash-changing edit returns `trustStatus` `untrusted` or `modified` from `hooks/list`; plugin hooks run only after `hooks/trustPlugin` stores the current hash for every current hook from that plugin in user-global `Hooks.State`. `hooks/setState` remains the per-hook compatibility path for clients that need it.
 
@@ -206,7 +241,7 @@ Manifest-relative paths must:
 - Not contain `..`.
 - Resolve to a path that stays inside the plugin root.
 
-These rules apply to `skills`, `mcpServers`, `workflows`, `paths`, interface asset paths, and other
+These rules apply to `skills`, `mcpServers`, `settings`, `workflows`, `paths`, interface asset paths, and other
 manifest-relative fields. Desktop entry and style paths also remain inside `./desktop/dist/`.
 
 ---

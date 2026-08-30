@@ -15,6 +15,63 @@ public sealed class DotNetPluginRuntimeTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
+    public async Task ConfigurationMutation_RestartsWithFreshSettingsSnapshot()
+    {
+        const string pluginId = "settings-restart";
+        var pluginRoot = _harness.PluginRoot(pluginId);
+        Directory.CreateDirectory(pluginRoot);
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "settings.schema.json"),
+            """{"fields":[{"key":"mode","type":"text","defaultValue":"default"}]}""");
+        WritePluginBundle(
+            pluginRoot,
+            pluginId,
+            "SettingsRestart.Plugin",
+            """
+            using System.IO;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DotCraft.Plugins;
+            namespace SettingsRestart;
+            public sealed class Plugin : IDotCraftPlugin
+            {
+                public ValueTask ActivateAsync(IPluginActivationContext context, CancellationToken cancellationToken)
+                {
+                    Directory.CreateDirectory(context.DataRoot);
+                    File.AppendAllText(
+                        Path.Combine(context.DataRoot, "settings.log"),
+                        context.Settings.GetProperty("mode").GetString() + "\n");
+                    return ValueTask.CompletedTask;
+                }
+            }
+            """,
+            settings: "./settings.schema.json");
+        var store = _harness.CreatePluginConfigStore();
+        var manifest = Assert.IsType<PluginManifest>(PluginManifestParser.Load(pluginRoot).Manifest);
+        store.Mutate(
+            manifest,
+            "personal",
+            [new PluginConfigMutation("set", "mode", System.Text.Json.JsonSerializer.SerializeToElement("first"))]);
+        await using var manager = _harness.CreateManager();
+
+        await manager.StartAsync(CancellationToken.None);
+        var firstGeneration = Plugin(manager, pluginId).GenerationId;
+        var quiesce = await manager.QuiesceForMutationAsync(pluginId);
+        Assert.NotEqual(PluginRuntimeMutationOutcome.NotApplied, quiesce.Outcome);
+        store.Mutate(
+            manifest,
+            "personal",
+            [new PluginConfigMutation("set", "mode", System.Text.Json.JsonSerializer.SerializeToElement("second"))]);
+        var reconcile = await manager.ReconcileAfterMutationAsync(pluginId);
+
+        Assert.NotEqual(PluginRuntimeMutationOutcome.NotApplied, reconcile.Outcome);
+        Assert.NotEqual(firstGeneration, Plugin(manager, pluginId).GenerationId);
+        Assert.Equal(
+            ["first", "second"],
+            File.ReadAllLines(_harness.DataPath(pluginId, "settings.log")));
+    }
+
+    [Fact]
     public async Task Runtime_ExposesHostServicesWithoutTakingOwnership()
     {
         WritePlugin(

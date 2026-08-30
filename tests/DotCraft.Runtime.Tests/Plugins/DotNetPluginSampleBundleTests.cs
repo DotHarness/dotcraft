@@ -133,7 +133,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
         InstallBundle(ProviderId);
         InstallBundle(ConsumerId);
         var config = CreateHostConfig();
-        config.Plugins.Settings[ProviderId] = SettingsBag(checklistLimit: 2);
+        WriteProviderSettings(checklistLimit: 2);
         GrantInstalledBundle(config, ProviderId);
         GrantInstalledBundle(config, ConsumerId);
 
@@ -171,7 +171,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
             Assert.Contains("review__normalize", provider.Client.LastToolNames);
             Assert.DoesNotContain("review__publish", provider.Client.LastToolNames);
 
-            var journal = Path.Combine(_harness.Root, "user-data", "plugins", ProviderId, "activity.log");
+            var journal = Path.Combine(_harness.Root, "user-data", "plugins", ProviderId, "data", "activity.log");
             await WaitForJournalAsync(
                 journal,
                 "plugin activated",
@@ -199,7 +199,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
     {
         InstallBundle(ProviderId);
         InstallBundle(ConsumerId);
-        _harness.Config.Plugins.Settings[ProviderId] = SettingsBag(checklistLimit: 2);
+        WriteProviderSettings(checklistLimit: 2);
 
         var manager = _harness.CreateManager(activationTimeout: TimeSpan.FromSeconds(30));
         await manager.StartAsync(CancellationToken.None);
@@ -313,6 +313,15 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
             Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
             File.Copy(file, Path.Combine(destination, Path.GetRelativePath(source, file)), overwrite: true);
+    }
+
+    private void WriteProviderSettings(int checklistLimit)
+    {
+        var directory = Path.Combine(_harness.Root, "user-data");
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(
+            Path.Combine(directory, PluginConfigStore.FileName),
+            $$"""{"{{ProviderId}}":{{SettingsBag(checklistLimit).GetRawText()}}}""");
     }
 
     private static string[] Names(IEnumerable<Type> types) =>

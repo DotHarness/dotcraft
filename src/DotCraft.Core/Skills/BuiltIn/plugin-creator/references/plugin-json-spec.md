@@ -167,6 +167,7 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
   "displayName": "Project Board",
   "description": "Adds a Desktop board surface.",
   "capabilities": ["desktop"],
+  "settings": "./settings.schema.json",
   "desktop": {
     "description": "Adds a project board to DotCraft Desktop.",
     "entry": "./desktop/dist/index.mjs",
@@ -184,6 +185,28 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 }
 ```
 
+Matching `settings.schema.json`:
+
+```json
+{
+  "fields": [
+    {
+      "key": "density",
+      "type": "select",
+      "defaultValue": "comfortable",
+      "options": ["compact", "comfortable"]
+    },
+    {
+      "key": "pageSize",
+      "type": "number",
+      "defaultValue": 20,
+      "min": 5,
+      "max": 100
+    }
+  ]
+}
+```
+
 ## Rules
 
 - `schemaVersion` must be `1`.
@@ -195,6 +218,8 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 - Plugin hooks use the same schema as workspace `.craft/hooks.json`.
 - If `hooks` is omitted, DotCraft looks for `hooks/hooks.json` in the plugin root.
 - Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root.
+- `settings` optionally names a manifest-relative settings schema. Its `fields` array supports `text`, `textarea`, `number`, `bool`, `select`, `stringList`, `keyValueMap`, and `json`.
+- Settings field keys are case-insensitive and unique. A `defaultValue` must satisfy the field type, `options`, `min`, and `max` constraints.
 - `desktop.description` optionally describes the Desktop contribution shown in plugin content lists.
 - `desktop.entry` must name an `.mjs` file inside `./desktop/dist/`; each `desktop.styles` entry must name a `.css` file in the same output tree.
 - Desktop Plugin bundles are trusted local modules loaded after the plugin is installed and enabled.
