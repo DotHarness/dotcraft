@@ -135,6 +135,12 @@
   border-radius: var(--dc-media-radius);
 }
 
+/* SVG diagrams scale past their intrinsic width to fill the reading column. */
+.vp-doc img[src$=".svg"] {
+  width: 100%;
+  height: auto;
+}
+
 /* Docs read without horizontal rules: drop the default H2 top border and let
  * whitespace carry the section rhythm instead. */
 .vp-doc h2 {

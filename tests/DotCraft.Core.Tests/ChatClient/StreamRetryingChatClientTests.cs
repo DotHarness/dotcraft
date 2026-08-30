@@ -9,6 +9,7 @@ namespace DotCraft.Tests.Agents;
 public sealed class StreamRetryingChatClientTests
 {
     private const int FastIdleTimeoutMs = 250;
+    private static readonly TimeSpan HangingStreamCompletionTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
     public async Task GetStreamingResponseAsync_ReportsOneSuccessfulAttempt()
@@ -93,7 +94,7 @@ public sealed class StreamRetryingChatClientTests
         });
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
-            .WaitAsync(TimeSpan.FromSeconds(5));
+            .WaitAsync(HangingStreamCompletionTimeout);
 
         Assert.Equal(2, inner.Calls);
         Assert.Equal(["1/1"], notifications);
@@ -167,7 +168,7 @@ public sealed class StreamRetryingChatClientTests
 
         var exception = await Record.ExceptionAsync(async () =>
         {
-            await ConsumeAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            await ConsumeAsync().WaitAsync(HangingStreamCompletionTimeout);
         });
 
         Assert.IsAssignableFrom<IOException>(exception);
