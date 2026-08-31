@@ -275,6 +275,16 @@
       "title": "AgentMessagePayload",
       "type": "object",
       "properties": {
+        "deliveryMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "text": {
           "type": "string"
         }
@@ -12255,6 +12265,35 @@
       },
       "additionalProperties": true
     },
+    "SleepPayload": {
+      "title": "SleepPayload",
+      "type": "object",
+      "properties": {
+        "actualDurationMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "durationMs": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "durationMs",
+        "status"
+      ]
+    },
     "SocialBindingAcceptParams": {
       "title": "SocialBindingAcceptParams",
       "type": "object",
@@ -18810,6 +18849,53 @@
       "additionalProperties": true,
       "required": [
         "turn"
+      ]
+    },
+    "TurnSteerParams": {
+      "title": "TurnSteerParams",
+      "type": "object",
+      "properties": {
+        "expectedTurnId": {
+          "type": "string"
+        },
+        "input": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InputPart"
+          }
+        },
+        "sender": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SenderContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "expectedTurnId",
+        "input",
+        "threadId"
+      ]
+    },
+    "TurnSteerResult": {
+      "title": "TurnSteerResult",
+      "type": "object",
+      "properties": {
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "turnId"
       ]
     },
     "UiResourceContent": {

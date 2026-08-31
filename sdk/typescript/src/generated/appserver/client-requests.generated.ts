@@ -182,6 +182,7 @@ export interface ClientRequestMethods {
   "turn/queue/reorder": { params: Models.TurnQueueReorderParams; result: Models.TurnQueueReorderResponse };
   "turn/queue/update": { params: Models.TurnQueueUpdateParams; result: Models.TurnQueueUpdateResult };
   "turn/start": { params: Models.TurnStartParams; result: Models.TurnStartResult };
+  "turn/steer": { params: Models.TurnSteerParams; result: Models.TurnSteerResult };
   "usage/summary": { params: Models.RpcEmpty; result: Models.UsageSummaryResult };
   "usage/timeseries": { params: Models.UsageTimeseriesParams; result: Models.UsageTimeseriesResult };
   "visualization/view/close": { params: Models.InlineVisualizationViewCloseParams; result: Models.InlineVisualizationViewCloseResult };

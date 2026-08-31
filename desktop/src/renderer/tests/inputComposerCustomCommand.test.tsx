@@ -1303,7 +1303,7 @@ describe('InputComposer custom command expansion', () => {
     })
   })
 
-  it('queues structured pending messages while running so slash commands keep their leading slash', async () => {
+  it('steers structured messages while running so slash commands keep their leading slash', async () => {
     useConversationStore.setState({
       turnStatus: 'running',
       activeTurnId: 'turn-running'
@@ -1332,10 +1332,11 @@ describe('InputComposer custom command expansion', () => {
     fireEvent.keyDown(textbox, { key: 'Enter' })
 
     await waitFor(() => {
-      const enqueueCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/enqueue')
-      expect(enqueueCall).toBeDefined()
-      expect(enqueueCall?.[1]).toEqual({
+      const steerCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/steer')
+      expect(steerCall).toBeDefined()
+      expect(steerCall?.[1]).toEqual({
         threadId: 'thread-1',
+        expectedTurnId: 'turn-running',
         input: [
           { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' },
           { type: 'text', text: '\n\n' },
@@ -1373,10 +1374,11 @@ describe('InputComposer custom command expansion', () => {
     fireEvent.keyDown(textbox, { key: 'Enter' })
 
     await waitFor(() => {
-      const enqueueCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/enqueue')
-      expect(enqueueCall).toBeDefined()
-      expect(enqueueCall?.[1]).toEqual({
+      const steerCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/steer')
+      expect(steerCall).toBeDefined()
+      expect(steerCall?.[1]).toEqual({
         threadId: 'thread-1',
+        expectedTurnId: 'turn-running',
         input: [
           { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' }
         ],
@@ -1386,7 +1388,7 @@ describe('InputComposer custom command expansion', () => {
     expect(screen.queryByText(/\[\[Attached File:/)).not.toBeInTheDocument()
   })
 
-  it('queues dropped images alongside text and file references while running', async () => {
+  it('steers dropped images alongside text and file references while running', async () => {
     useConversationStore.setState({
       turnStatus: 'running',
       activeTurnId: 'turn-running'
@@ -1430,10 +1432,11 @@ describe('InputComposer custom command expansion', () => {
     fireEvent.keyDown(textbox, { key: 'Enter' })
 
     await waitFor(() => {
-      const enqueueCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/enqueue')
-      expect(enqueueCall).toBeDefined()
-      expect(enqueueCall?.[1]).toEqual({
+      const steerCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/steer')
+      expect(steerCall).toBeDefined()
+      expect(steerCall?.[1]).toEqual({
         threadId: 'thread-1',
+        expectedTurnId: 'turn-running',
         input: [
           { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' },
           { type: 'text', text: '\n\n' },

@@ -988,6 +988,42 @@ public class TestableSessionService : ISessionService, IThreadAgentRefreshServic
         return queued;
     }
 
+    public async Task<string> SteerTurnAsync(
+        string threadId,
+        string expectedTurnId,
+        IList<AIContent> content,
+        SenderContext? sender = null,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null)
+    {
+        var thread = await GetOrLoadAsync(threadId, ct);
+        if (IsSubAgentThread(thread))
+            throw new InvalidOperationException($"Thread '{threadId}' is a SubAgent child and cannot be steered directly.");
+        var turn = thread.Turns.LastOrDefault(candidate =>
+            candidate.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+            ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to steer.");
+        if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Expected active turn id '{expectedTurnId}' but found '{turn.Id}'.");
+
+        var parts = inputSnapshot?.NativeInputParts?.ToList()
+            ?? content.Select(static value => value.ToWireInputPart()).ToList();
+        thread.QueuedInputs.Add(new QueuedTurnInput
+        {
+            Id = SessionIdGenerator.NewQueuedInputId(),
+            ThreadId = threadId,
+            NativeInputParts = parts,
+            MaterializedInputParts = inputSnapshot?.MaterializedInputParts?.ToList() ?? parts,
+            DisplayText = inputSnapshot?.DisplayText ?? SessionWireMapper.BuildDisplayText(parts),
+            Sender = sender,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = "guidancePending",
+            ReadyAfterTurnId = turn.Id
+        });
+        thread.LastActiveAt = DateTimeOffset.UtcNow;
+        await _store.SaveThreadAsync(thread, ct);
+        return turn.Id;
+    }
+
     public async Task TryStartNextQueuedTurnAsync(string threadId, CancellationToken ct = default)
     {
         var thread = await GetOrLoadAsync(threadId, ct);

@@ -12,9 +12,9 @@ public sealed class RequestUserInputTools
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
     [Tool(Icon = "❓", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.RequestUserInput))]
-    [Description("Request user input for one to three short questions and wait for the response. This tool is available in root user threads in Agent and Plan modes. Each question must have 2-3 options; put the recommended option first and suffix its label with '(Recommended)'. Do not include an Other option because the client adds free-form input automatically.")]
+    [Description("Request user input for one to three short questions and wait for the response.")]
     public async Task<string> RequestUserInput(
-        [Description("Questions to show the user. Prefer 1 and do not exceed 3. Each question has id, header, question, and 2-3 selectable options with label and description.")]
+        [Description("Questions to show the user. Prefer 1 and do not exceed 3. Each question has id, header, question, and 2-3 mutually exclusive options with label and description. Put the recommended option first and suffix its label with \"(Recommended)\". Do not include an \"Other\" option.")]
         List<RequestUserInputQuestion> questions)
     {
         var context = RequestUserInputRuntimeScope.Current;

@@ -934,7 +934,9 @@ public sealed partial class SessionService
                     {
                         fallback.Add(new ChatMessage(ChatRole.User, userText.Trim()));
                     }
-                    else if (item.Type == ItemType.AgentMessage && item.AsAgentMessage is { Text: { } agentText } &&
+                    else if (item.Type == ItemType.AgentMessage &&
+                             item.AsAgentMessage is { Text: { } agentText } agentMessage &&
+                             !string.Equals(agentMessage.DeliveryMode, "async", StringComparison.Ordinal) &&
                              !string.IsNullOrWhiteSpace(agentText))
                     {
                         fallback.Add(new ChatMessage(ChatRole.Assistant, agentText.Trim()));

@@ -1191,6 +1191,15 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
             ct);
     }
 
+    public Task<string> SteerTurnAsync(
+        string threadId,
+        string expectedTurnId,
+        IList<AIContent> content,
+        SenderContext? sender = null,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null) =>
+        throw new NotSupportedException("This test service does not execute active turns.");
+
     public async Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
         string threadId,
         string queuedInputId,

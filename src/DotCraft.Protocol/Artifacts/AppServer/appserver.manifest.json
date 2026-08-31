@@ -381,6 +381,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "deliveryMode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "text",
           "type": "string",
           "required": true,
@@ -15416,6 +15423,40 @@
       "variants": []
     },
     {
+      "id": "core.SleepPayload",
+      "name": "SleepPayload",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SleepPayload.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "actualDurationMs",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "durationMs",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "app-binding.SocialBindingAcceptParams",
       "name": "SocialBindingAcceptParams",
       "module": "app-binding",
@@ -23158,6 +23199,63 @@
       "variants": []
     },
     {
+      "id": "core.TurnSteerParams",
+      "name": "TurnSteerParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnSteerParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "expectedTurnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "input",
+          "type": "array<core.InputPart>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sender",
+          "type": "core.SenderContext",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnSteerResult",
+      "name": "TurnSteerResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnSteerResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.UiResourceContent",
       "name": "UiResourceContent",
       "module": "core",
@@ -25396,6 +25494,10 @@
     {
       "kind": "reasoningContent",
       "type": "core.ReasoningContentPayload"
+    },
+    {
+      "kind": "sleep",
+      "type": "core.SleepPayload"
     },
     {
       "kind": "systemNotice",
@@ -30119,6 +30221,26 @@
       "scope": "thread",
       "notificationOptOut": true,
       "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "turn/steer",
+      "descriptorMember": "TurnSteer",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.TurnSteerParams",
+      "resultType": "core.TurnSteerResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

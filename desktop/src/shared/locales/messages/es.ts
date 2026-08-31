@@ -517,6 +517,8 @@ export const MESSAGES_ES = {
   'composer.openCommands': 'Abrir comandos',
   'composer.queueSendTitle': 'Poner mensaje en cola',
   'composer.queueSendAria': 'Poner mensaje en cola',
+  'composer.steerSendTitle': 'Enviar al turno actual',
+  'composer.steerSendAria': 'Enviar al turno actual',
   'composer.removeImageAria': 'Quitar imagen',
   'composer.removeFileAria': 'Quitar archivo',
   'threadHeader.open': 'Abrir',

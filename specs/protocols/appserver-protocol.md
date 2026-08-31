@@ -1503,7 +1503,7 @@ Before starting the agent, the server **must** ensure the in-memory thread is lo
 
 The response is returned **immediately** with the initial Turn object (status `"running"`, empty `items`). The agent's output then streams as notifications: `turn/started`, followed by `item/*` events, and finally `turn/completed` (or `turn/failed` / `turn/cancelled`).
 
-Clients must not call `turn/start` while the thread has a running/waiting turn or active blocking thread maintenance. The server rejects both cases with `TurnInProgress`; clients should use `turn/enqueue` so the input runs after the active turn or maintenance terminal event. Turn-scoped automatic memory consolidation status does not count as active thread maintenance and must not prevent `turn/start`.
+Clients must not call `turn/start` while the thread has a running/waiting turn or active blocking thread maintenance. The server rejects both cases with `TurnInProgress`. While a regular Turn is active, interactive clients should use `turn/steer` to add input to that Turn. During blocking maintenance, or when the active execution cannot accept steering, clients should use `turn/enqueue`. Turn-scoped automatic memory consolidation status does not count as active thread maintenance and must not prevent `turn/start`.
 
 For persisted server-managed threads, the execution lifecycle of a started turn is owned by the AppServer, not by the single request transport that submitted it. If the client WebSocket disconnects after `turn/start` has begun, the server must continue consuming the turn event stream so the turn can complete or fail normally. The disconnected client may miss notifications and should recover by reconnecting, establishing `thread/subscribe`, and reloading the Thread header and history head pages.
 
@@ -1646,7 +1646,7 @@ The actual cancellation is asynchronous. Rely on the `turn/cancelled` notificati
 
 ### 5.2.1 `turn/enqueue`
 
-Persist user input in the thread FIFO queue. Desktop clients use this as the default send behavior while another Turn is running.
+Persist user input in the thread FIFO queue. Interactive clients use this while blocking maintenance is active or the current execution cannot accept steering.
 
 **Direction**: client → server (request)
 
@@ -1676,7 +1676,28 @@ Persist user input in the thread FIFO queue. Desktop clients use this as the def
 
 After enqueue, remove, reorder, or dequeue, the server emits `thread/queue/updated`.
 
-### 5.2.2 `turn/queue/remove`
+### 5.2.2 `turn/steer`
+
+Add user input to an active regular Turn without creating another Turn. The server validates and materializes `input` using the same rules as `turn/start`, then atomically stores it as current-Turn guidance through the existing queue lock and `guidancePending` admission path.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Target active thread. |
+| `expectedTurnId` | string | yes | Active Turn ID observed by the client. |
+| `input` | InputPart[] | yes | Same input model as `turn/start`; at least one part required. |
+| `sender` | SenderContext | no | Sender identity for group sessions. |
+
+**Result**: `{ "turnId": string }`
+
+The method succeeds only when `expectedTurnId` matches the active regular Turn and that Turn still accepts guidance. It rejects missing or mismatched active Turns, maintenance Turns, Internal threads, and SubAgent child threads. Success does not create a Turn and does not emit `turn/started`. At the next model/tool safe boundary, Session Core materializes a `userMessage` Item with `deliveryMode = "guidance"` and removes the pending queue record under the same lock.
+
+An `expectedTurnId` mismatch is terminal for that request. Clients must preserve the draft and report the failure rather than enqueueing it or sending it to a different Turn.
+
+### 5.2.3 `turn/queue/remove`
 
 Remove one queued input without starting a Turn.
 
@@ -1691,7 +1712,7 @@ Remove one queued input without starting a Turn.
 
 **Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-### 5.2.3 `turn/queue/reorder`
+### 5.2.4 `turn/queue/reorder`
 
 Replace the current queued input order. This changes the order in which queued inputs become future turns.
 
@@ -1706,7 +1727,7 @@ Replace the current queued input order. This changes the order in which queued i
 
 **Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-### 5.2.4 `turn/queue/update`
+### 5.2.5 `turn/queue/update`
 
 Set a queued input's desired delivery status. This operation is the reversible pre-admission control used by queue UIs; it does not retract input that has already been admitted into an active Turn.
 
@@ -1727,7 +1748,7 @@ For `status = "guidancePending"`, the server requires an active regular Turn mat
 
 For `status = "queued"`, an item already in that status is an idempotent success. A `guidancePending` item returns to its existing queue position when its bound Turn matches `expectedTurnId`; the target Turn is not required to remain active. If cancellation wins the queue lock, subsequent guidance admission observes the changed status and stops. If admission wins, the queued input has already been removed and the update fails with not-found. Input already admitted into model history is never retracted. If the Turn ends before admission, the server also restores its pending items to `queued`.
 
-`turn/steer` is not used for persisted queue mutation. DotCraft currently exposes reversible steering only through this queue resource operation.
+`turn/steer` creates a new `guidancePending` record directly for an active Turn. `turn/queue/update` remains the reversible operation for queue entries that already exist and have not yet been admitted.
 
 ### 5.3 `workspace/commitMessage/suggest`
 
@@ -2042,7 +2063,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
 | `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional `triggerKind` (`"heartbeat"` / `"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"team"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, team runner, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
-| `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. |
+| `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. Optional `deliveryMode = "async"` identifies a model-initiated user message emitted during a running Turn. It is delivered immediately, does not complete the Turn, is excluded from final-text aggregation, and is not restored into model-visible assistant history. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
 | `toolCall` | Native, plugin, and managed social calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
 | `commandExecution` | Command execution payload uses camelCase fields such as `command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, and `callId`. |
@@ -2055,6 +2076,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `approvalResponse` | Response payload uses the canonical fields; decision values are serialized as wire strings. |
 | `userInputRequest` | Plan Mode question request payload. The item is paired with a server-to-client `item/tool/requestUserInput` request and puts the turn in `waitingInput`. |
 | `userInputResponse` | User answer payload for a previously emitted `userInputRequest`. |
+| `sleep` | Runtime wait lifecycle with requested `durationMs`, optional `actualDurationMs`, and `status` (`"inProgress"`, `"completed"`, or `"interrupted"`). Item envelope timestamps record the lifecycle boundaries. A steer or mailbox input for the active Turn may interrupt the wait. |
 | `error` | Error payload uses the canonical fields; transport-level JSON-RPC errors remain separate from item-level error items. |
 
 Clients that render conversation tool activity MUST treat `mcpToolCall` and `dynamicToolCall` as self-contained tool lifecycle items and render `inProgress` as non-terminal. For ordinary `toolCall`/`toolResult` pairs, clients MAY merge the completed result into the visible call row. `structuredContent` and `_meta` are client/host data and must never be shown as model-history text by default. MCP Apps provide interactive result UI.

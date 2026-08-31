@@ -174,7 +174,47 @@ public sealed class AIFunctionToolSourceTests
         Assert.Equal(presentationId, presentation.Id.Value);
     }
 
-    private static ToolPlanningContext CreatePlanningContext() => new(
+    [Theory]
+    [InlineData(ToolPlanningThreadKind.UserTopLevel, 3, true)]
+    [InlineData(ToolPlanningThreadKind.SubAgentChild, 2, false)]
+    [InlineData(ToolPlanningThreadKind.Internal, 0, false)]
+    public async Task UserCoordinationSource_UsesDefaultThreadBoundaries(
+        ToolPlanningThreadKind threadKind,
+        int expectedCount,
+        bool hasAsyncMessage)
+    {
+        var planning = CreatePlanningContext(threadKind);
+        var registrations = await new UserCoordinationToolSource().GetRegistrationsAsync(planning);
+
+        Assert.Equal(expectedCount, registrations.Count);
+        Assert.Equal(
+            hasAsyncMessage,
+            registrations.Any(registration =>
+                registration.Definition.Name == new ToolName(null, nameof(UserCoordinationTools.SendUserMessageAsync))));
+        Assert.All(registrations, registration =>
+            Assert.Equal(ToolPolicyScope.RuntimeManaged, registration.Definition.PolicyScope));
+        if (hasAsyncMessage)
+        {
+            var send = registrations.Single(registration =>
+                registration.Definition.Name.Name == nameof(UserCoordinationTools.SendUserMessageAsync));
+            Assert.Equal(ToolExposure.DirectModelOnly, send.Exposure);
+        }
+        if (threadKind != ToolPlanningThreadKind.Internal)
+        {
+            Assert.Contains(registrations, registration =>
+                registration.Definition.Name == new ToolName("clock", nameof(UserCoordinationTools.Sleep)));
+            Assert.Contains(registrations, registration =>
+                registration.Definition.Name == new ToolName("clock", nameof(UserCoordinationTools.CurrentTime)));
+            var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
+                [new UserCoordinationToolSource()],
+                planning);
+            Assert.DoesNotContain(snapshot.ProviderFlatNameIndex.Keys, name =>
+                name is "send_user_message_async" or "sleep" or "current_time");
+        }
+    }
+
+    private static ToolPlanningContext CreatePlanningContext(
+        ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown) => new(
         "thread_test",
         "turn_test",
         Path.GetTempPath(),
@@ -182,7 +222,8 @@ public sealed class AIFunctionToolSourceTests
         "agent",
         "commit",
         providerCapabilities: [],
-        revision: 1);
+        revision: 1,
+        threadKind: threadKind);
 
     private sealed class GeneratedFunctionSource(AIFunction function) : AIFunctionToolSource
     {

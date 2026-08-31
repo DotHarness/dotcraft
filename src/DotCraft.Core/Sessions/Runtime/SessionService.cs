@@ -1922,6 +1922,151 @@ public sealed partial class SessionService(
                 await turnCommitter.CommitAsync();
             }
 
+            async Task SendUserMessageAsync(string message, CancellationToken sendCt)
+            {
+                sendCt.ThrowIfCancellationRequested();
+                FinalizeStreamingAgentMessage();
+                FinalizeStreamingReasoning();
+
+                var now = DateTimeOffset.UtcNow;
+                var item = new SessionItem
+                {
+                    Id = SessionIdGenerator.NewItemId(NextItemSeq()),
+                    TurnId = turn.Id,
+                    Type = ItemType.AgentMessage,
+                    Status = ItemStatus.Completed,
+                    CreatedAt = now,
+                    CompletedAt = now,
+                    Payload = new AgentMessagePayload
+                    {
+                        Text = message,
+                        DeliveryMode = "async"
+                    }
+                };
+
+                turn.Items.Add(item);
+                thread.LastActiveAt = now;
+                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                eventChannel.EmitItemStarted(item);
+                eventChannel.EmitItemCompleted(item);
+            }
+
+            async Task<UserCoordinationSleepResult> SleepAsync(
+                int durationMs,
+                CancellationToken sleepCt)
+            {
+                FinalizeStreamingAgentMessage();
+                FinalizeStreamingReasoning();
+
+                var startedAt = DateTimeOffset.UtcNow;
+                var startedTicks = Environment.TickCount64;
+                var item = new SessionItem
+                {
+                    Id = SessionIdGenerator.NewItemId(NextItemSeq()),
+                    TurnId = turn.Id,
+                    Type = ItemType.Sleep,
+                    Status = ItemStatus.Started,
+                    CreatedAt = startedAt,
+                    Payload = new SleepPayload
+                    {
+                        DurationMs = durationMs,
+                        Status = "inProgress"
+                    }
+                };
+
+                turn.Items.Add(item);
+                thread.LastActiveAt = startedAt;
+                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                eventChannel.EmitItemStarted(item);
+
+                var rootThreadId = currentSubAgentSource?.RootThreadId;
+                if (string.IsNullOrWhiteSpace(rootThreadId))
+                    rootThreadId = thread.Id;
+                var agentPath = currentSubAgentSource?.AgentPath;
+                if (string.IsNullOrWhiteSpace(agentPath))
+                    agentPath = AgentPath.Root;
+
+                var status = "completed";
+                try
+                {
+                    using var subscription = _subAgentCommunicationRuntime.SubscribeInput(
+                        rootThreadId,
+                        agentPath,
+                        out var inputActivity);
+
+                    if (await HasPendingSleepInputAsync(rootThreadId, agentPath, sleepCt))
+                    {
+                        status = "interrupted";
+                    }
+                    else
+                    {
+                        using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(sleepCt);
+                        var delay = Task.Delay(durationMs, delayCts.Token);
+                        var completed = await Task.WhenAny(delay, inputActivity).ConfigureAwait(false);
+                        if (completed == inputActivity)
+                        {
+                            status = "interrupted";
+                            await delayCts.CancelAsync();
+                        }
+                        else
+                        {
+                            await delay.ConfigureAwait(false);
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (sleepCt.IsCancellationRequested)
+                {
+                    await CompleteSleepItemAsync(item, durationMs, startedTicks, "interrupted");
+                    throw;
+                }
+
+                var result = await CompleteSleepItemAsync(item, durationMs, startedTicks, status);
+                return result;
+            }
+
+            async Task<bool> HasPendingSleepInputAsync(
+                string rootThreadId,
+                string agentPath,
+                CancellationToken pendingCt)
+            {
+                using (await AcquireThreadQueueLockAsync(threadId, pendingCt))
+                {
+                    if (thread.QueuedInputs.Any(input =>
+                        string.Equals(input.Status, "guidancePending", StringComparison.Ordinal)
+                        && string.Equals(input.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal)))
+                    {
+                        return true;
+                    }
+                }
+
+                var pendingMailbox = await ListPendingSubAgentMailboxAsync(
+                    rootThreadId,
+                    agentPath,
+                    pendingCt);
+                return pendingMailbox.Count > 0;
+            }
+
+            async Task<UserCoordinationSleepResult> CompleteSleepItemAsync(
+                SessionItem item,
+                int durationMs,
+                long startedTicks,
+                string status)
+            {
+                var actualDurationMs = Math.Max(0, Environment.TickCount64 - startedTicks);
+                item.Status = ItemStatus.Completed;
+                item.CompletedAt = DateTimeOffset.UtcNow;
+                item.Payload = new SleepPayload
+                {
+                    DurationMs = durationMs,
+                    ActualDurationMs = actualDurationMs,
+                    Status = status
+                };
+                thread.LastActiveAt = item.CompletedAt.Value;
+                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                eventChannel.EmitItemCompleted(item);
+                return new UserCoordinationSleepResult(actualDurationMs, status);
+            }
+
             async Task<ChatMessage?> TryDrainTurnContextMessageAsync(CancellationToken drainCt)
             {
                 var goalSteeringMessage = TryDrainGoalSteeringMessage();
@@ -2129,13 +2274,20 @@ public sealed partial class SessionService(
                 return new ChatMessage(ChatRole.User, contentParts);
             }
 
-            async Task RestoreUndrainedGuidanceAsync()
+            async Task RestoreUndrainedGuidanceAsync(Action? terminalTransition = null)
             {
                 if (!_runtimeRegistry.IsCurrent(threadId, admittedRuntime))
+                {
+                    terminalTransition?.Invoke();
                     return;
+                }
 
                 await admittedRuntime.Commands.InvokeAsync(
-                    RestoreUndrainedGuidanceCoreAsync,
+                    async commandCt =>
+                    {
+                        await RestoreUndrainedGuidanceCoreAsync(commandCt);
+                        terminalTransition?.Invoke();
+                    },
                     CancellationToken.None);
             }
 
@@ -2448,14 +2600,12 @@ public sealed partial class SessionService(
             {
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
-                await RestoreUndrainedGuidanceAsync();
-
                 var errorItem = CreateErrorItem(turn, NextItemSeq(), errorMsg, errorCode, fatal: true);
                 turn.Items.Add(errorItem);
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
 
-                FailTurn(turn, eventChannel, errorMsg);
+                await RestoreUndrainedGuidanceAsync(() => FailTurn(turn, eventChannel, errorMsg));
                 await AccountGoalUsageAsync(
                     turnKey,
                     new TokenUsageInfo
@@ -2836,6 +2986,11 @@ public sealed partial class SessionService(
                             return await userInputRequestService.RequestAsync(requestId, questions);
                         }))
                         : null;
+                using var userCoordinationScope = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal
+                    ? UserCoordinationRuntimeScope.Set(new UserCoordinationRuntimeContext(
+                        SendUserMessageAsync,
+                        SleepAsync))
+                    : null;
                 using var subAgentSessionScope = SubAgentSessionScope.Set(new SubAgentSessionContext
                 {
                     SessionService = this,
@@ -3515,12 +3670,15 @@ public sealed partial class SessionService(
                 gateLock.Dispose();
                 gateLock = null;
 
-                await RestoreUndrainedGuidanceAsync();
-
-                // Steps 5n-5r: Complete Turn
-                turn.Status = TurnStatus.Completed;
-                turn.CompletedAt = DateTimeOffset.UtcNow;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                // Steps 5n-5r: Complete Turn. The status transition shares the
+                // serialized queue command with guidance restoration so steer
+                // cannot bind input after this turn has crossed its final boundary.
+                await RestoreUndrainedGuidanceAsync(() =>
+                {
+                    turn.Status = TurnStatus.Completed;
+                    turn.CompletedAt = DateTimeOffset.UtcNow;
+                    thread.LastActiveAt = DateTimeOffset.UtcNow;
+                });
                 RecordTurnTokenUsage(thread, turn);
                 RecordTurnDurationTrace(threadId, turn);
                 await PersistCurrentTurnCommitAsync();
@@ -3550,7 +3708,6 @@ public sealed partial class SessionService(
                 // Explicit CancelTurn call
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
-                await RestoreUndrainedGuidanceAsync();
                 await AccountGoalUsageAsync(
                     turnKey,
                     new TokenUsageInfo
@@ -3567,8 +3724,11 @@ public sealed partial class SessionService(
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
                 await PauseActiveGoalForInterruptAsync(turnKey, CancellationToken.None);
-                turn.Status = TurnStatus.Cancelled;
-                turn.CompletedAt = DateTimeOffset.UtcNow;
+                await RestoreUndrainedGuidanceAsync(() =>
+                {
+                    turn.Status = TurnStatus.Cancelled;
+                    turn.CompletedAt = DateTimeOffset.UtcNow;
+                });
                 eventChannel.EmitTurnCancelled(turn, "Cancelled by request");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
@@ -3578,9 +3738,11 @@ public sealed partial class SessionService(
                 // Caller cancellation
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
-                await RestoreUndrainedGuidanceAsync();
-                turn.Status = TurnStatus.Cancelled;
-                turn.CompletedAt = DateTimeOffset.UtcNow;
+                await RestoreUndrainedGuidanceAsync(() =>
+                {
+                    turn.Status = TurnStatus.Cancelled;
+                    turn.CompletedAt = DateTimeOffset.UtcNow;
+                });
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
@@ -3596,9 +3758,11 @@ public sealed partial class SessionService(
                 // are not the SDK network timeout and are not tied to a known source.
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
-                await RestoreUndrainedGuidanceAsync();
-                turn.Status = TurnStatus.Cancelled;
-                turn.CompletedAt = DateTimeOffset.UtcNow;
+                await RestoreUndrainedGuidanceAsync(() =>
+                {
+                    turn.Status = TurnStatus.Cancelled;
+                    turn.CompletedAt = DateTimeOffset.UtcNow;
+                });
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
@@ -3911,6 +4075,29 @@ public sealed partial class SessionService(
         return await InvokeThreadCommandAsync(
             threadId,
             commandCt => ThreadQueue.EnqueueAsync(threadId, capturedContent, sender, commandCt, capturedSnapshot),
+            ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<string> SteerTurnAsync(
+        string threadId,
+        string expectedTurnId,
+        IList<AIContent> content,
+        SenderContext? sender = null,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null)
+    {
+        var capturedContent = content.ToList();
+        var capturedSnapshot = CloneInputSnapshot(inputSnapshot);
+        return await InvokeThreadCommandAsync(
+            threadId,
+            commandCt => ThreadQueue.SteerAsync(
+                threadId,
+                expectedTurnId,
+                capturedContent,
+                sender,
+                commandCt,
+                capturedSnapshot),
             ct);
     }
 
@@ -5938,7 +6125,9 @@ public sealed partial class SessionService(
         toolContext.ToolInvocationPolicy = capabilityPolicy.EvaluateInvocation;
 
         var snapshotSources = config.UseToolProfileOnly
-            ? new List<IToolSource>()
+            ? agentFactory.GetToolSources(thread.Id)
+                .Where(static source => source is UserCoordinationToolSource)
+                .ToList()
             : agentFactory.GetToolSources(thread.Id).ToList();
         if (!config.UseToolProfileOnly && toolContext.McpClientManager is not null)
             snapshotSources.Add(new McpToolSource(toolContext.McpClientManager, currentConfig));

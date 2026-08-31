@@ -27,7 +27,10 @@ public sealed class ModeSupplementalToolSource(
             yield return GeneratedToolFunctions.PlanTools_TodoWrite(planTools);
         }
 
-        var userInputTools = new RequestUserInputTools();
-        yield return GeneratedToolFunctions.RequestUserInputTools_RequestUserInput(userInputTools);
+        if (context.ThreadKind is not (ToolPlanningThreadKind.Internal or ToolPlanningThreadKind.SubAgentChild))
+        {
+            var userInputTools = new RequestUserInputTools();
+            yield return GeneratedToolFunctions.RequestUserInputTools_RequestUserInput(userInputTools);
+        }
     }
 }

@@ -517,6 +517,8 @@ export const MESSAGES_FR = {
   'composer.openCommands': 'Ouvrir les commandes',
   'composer.queueSendTitle': 'Mettre le message en file',
   'composer.queueSendAria': 'Mettre le message en file',
+  'composer.steerSendTitle': 'Envoyer au tour actuel',
+  'composer.steerSendAria': 'Envoyer au tour actuel',
   'composer.removeImageAria': 'Supprimer l’image',
   'composer.removeFileAria': 'Supprimer le fichier',
   'threadHeader.open': 'Ouvrir',

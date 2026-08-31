@@ -517,6 +517,8 @@ export const MESSAGES_DE = {
   'composer.openCommands': 'Befehle öffnen',
   'composer.queueSendTitle': 'Nachricht einreihen',
   'composer.queueSendAria': 'Nachricht einreihen',
+  'composer.steerSendTitle': 'An aktuellen Turn senden',
+  'composer.steerSendAria': 'An aktuellen Turn senden',
   'composer.removeImageAria': 'Bild entfernen',
   'composer.removeFileAria': 'Datei entfernen',
   'threadHeader.open': 'Öffnen',

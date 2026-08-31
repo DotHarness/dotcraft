@@ -1319,6 +1319,8 @@ export const MESSAGES_ZH_HANS = {
   'composer.queueReorderFailed': '调整排队消息顺序失败：{{error}}',
   'composer.queueSendTitle': '加入队列',
   'composer.queueSendAria': '加入队列',
+  'composer.steerSendTitle': '发送到当前轮次',
+  'composer.steerSendAria': '发送到当前轮次',
   'composer.removeImageAria': '移除图片',
   'composer.removeFileAria': '移除文件',
 

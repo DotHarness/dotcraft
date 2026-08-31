@@ -517,6 +517,8 @@ export const MESSAGES_JA = {
   'composer.openCommands': 'コマンドを開く',
   'composer.queueSendTitle': 'メッセージをキューに追加',
   'composer.queueSendAria': 'メッセージをキューに追加',
+  'composer.steerSendTitle': '現在のターンに送信',
+  'composer.steerSendAria': '現在のターンに送信',
   'composer.removeImageAria': '画像を削除',
   'composer.removeFileAria': 'ファイルを削除',
   'threadHeader.open': '開く',

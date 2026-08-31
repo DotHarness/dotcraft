@@ -47,6 +47,7 @@ internal static class SystemPromptSectionCatalog
         (SystemPromptSectionNames.ModeProtocol, 800, static _ => GuidancePromptSections.ModeProtocol),
         (SystemPromptSectionNames.RequestUserInput, 900, static context =>
             context.IsToolAvailable("RequestUserInput") ? GuidancePromptSections.RequestUserInput : null),
+        (SystemPromptSectionNames.UserCoordination, 950, GuidancePromptSections.UserCoordination),
         (SystemPromptSectionNames.BootstrapFiles, 1000, WorkspaceContextPromptSections.Bootstrap),
         (SystemPromptSectionNames.Memory, 1100, WorkspaceContextPromptSections.Memory),
         (SystemPromptSectionNames.SelfLearning, 1200, SkillPromptSections.SelfLearning),

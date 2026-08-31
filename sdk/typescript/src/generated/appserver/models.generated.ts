@@ -81,6 +81,7 @@ export interface AcpTerminalWaitForExitParams {
 }
 
 export interface AgentMessagePayload {
+  deliveryMode?: string | null;
   text: string;
   [key: string]: unknown;
 }
@@ -3089,6 +3090,13 @@ export interface SkillsViewResult {
   [key: string]: unknown;
 }
 
+export interface SleepPayload {
+  actualDurationMs?: number | null;
+  durationMs: number;
+  status: string;
+  [key: string]: unknown;
+}
+
 export interface SocialBindingAcceptParams {
   code?: string;
   target?: SocialChannelTarget;
@@ -4630,6 +4638,19 @@ export interface TurnStartParams {
 
 export interface TurnStartResult {
   turn: SessionTurn;
+  [key: string]: unknown;
+}
+
+export interface TurnSteerParams {
+  expectedTurnId: string;
+  input: InputPart[];
+  sender?: SenderContext | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface TurnSteerResult {
+  turnId: string;
   [key: string]: unknown;
 }
 

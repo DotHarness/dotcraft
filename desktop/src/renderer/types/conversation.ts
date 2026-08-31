@@ -21,6 +21,7 @@ export type ItemType =
   | 'dynamicToolCall'
   | 'mcpToolCall'
   | 'toolResult'
+  | 'sleep'
   | 'error'
   | 'approvalCard'
   | 'systemNotice'
@@ -90,8 +91,8 @@ export interface ConversationItem {
   id: string
   type: ItemType
   status: ItemStatus
-  /** User message delivery mode: normal turn input, queued turn input, mid-turn guidance, or an internal SubAgent mailbox notification. */
-  deliveryMode?: 'normal' | 'queued' | 'guidance' | 'subagentMailbox'
+  /** User or agent delivery mode, including non-blocking async agent messages. */
+  deliveryMode?: 'normal' | 'queued' | 'guidance' | 'subagentMailbox' | 'async'
   /** Primary text content: userMessage text, agentMessage markdown, error message */
   text?: string
   /** Native user input parts used as the source of truth for history rendering. */
@@ -730,7 +731,7 @@ function normalizeTriggerKind(
   return undefined
 }
 
-function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance' | 'subagentMailbox' | undefined {
+function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance' | 'subagentMailbox' | 'async' | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
   if (
@@ -738,6 +739,7 @@ function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance'
     || normalized === 'queued'
     || normalized === 'guidance'
     || normalized === 'subagentMailbox'
+    || normalized === 'async'
   ) {
     return normalized
   }

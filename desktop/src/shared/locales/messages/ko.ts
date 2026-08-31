@@ -517,6 +517,8 @@ export const MESSAGES_KO = {
   'composer.openCommands': '명령 열기',
   'composer.queueSendTitle': '메시지 대기열에 추가',
   'composer.queueSendAria': '메시지 대기열에 추가',
+  'composer.steerSendTitle': '현재 턴으로 보내기',
+  'composer.steerSendAria': '현재 턴으로 보내기',
   'composer.removeImageAria': '이미지 제거',
   'composer.removeFileAria': '파일 제거',
   'threadHeader.open': '열기',

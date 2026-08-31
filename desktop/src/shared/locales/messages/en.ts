@@ -1363,6 +1363,8 @@ export const MESSAGES_EN = {
   'composer.queueReorderFailed': 'Failed to reorder queued messages: {{error}}',
   'composer.queueSendTitle': 'Queue message',
   'composer.queueSendAria': 'Queue message',
+  'composer.steerSendTitle': 'Send to current turn',
+  'composer.steerSendAria': 'Send to current turn',
   'composer.removeImageAria': 'Remove image',
   'composer.removeFileAria': 'Remove file',
 

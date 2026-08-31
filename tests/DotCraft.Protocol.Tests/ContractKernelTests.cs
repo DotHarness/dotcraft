@@ -93,8 +93,8 @@ public sealed class ContractKernelTests
     {
         var core = AppServerRpcCatalog.All.Where(static descriptor => descriptor.Module == "core").ToArray();
 
-        Assert.Equal(194, core.Length);
-        Assert.Equal(147, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ClientToServer }));
+        Assert.Equal(195, core.Length);
+        Assert.Equal(148, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ClientToServer }));
         Assert.Equal(41, core.Count(static descriptor => descriptor is { Kind: "notification", Direction: RpcDirection.ServerToClient }));
         Assert.Equal(5, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ServerToClient }));
         Assert.Single(core, static descriptor => descriptor is { Kind: "notification", Direction: RpcDirection.ClientToServer });
@@ -111,11 +111,11 @@ public sealed class ContractKernelTests
             .GroupBy(static descriptor => descriptor.Module, StringComparer.Ordinal)
             .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
 
-        Assert.Equal(263, AppServerRpcCatalog.All.Count);
+        Assert.Equal(264, AppServerRpcCatalog.All.Count);
         Assert.Equal(7, modules["acp"]);
         Assert.Equal(29, modules["app-binding"]);
         Assert.Equal(11, modules["automations"]);
-        Assert.Equal(194, modules["core"]);
+        Assert.Equal(195, modules["core"]);
         Assert.Equal(8, modules["external-channel"]);
         Assert.Equal(2, modules["node-repl"]);
         Assert.Equal(6, modules["teams"]);
@@ -213,6 +213,7 @@ public sealed class ContractKernelTests
             ["userInputRequest"] = """{"requestId":"req_1","questions":[]}""",
             ["userInputResponse"] = """{"requestId":"req_1","response":{"answers":{}}}""",
             ["error"] = """{"message":"failed","code":"agent_error","fatal":true}""",
+            ["sleep"] = """{"durationMs":1000,"actualDurationMs":250,"status":"interrupted"}""",
             ["systemNotice"] = """{"kind":"compacted","trigger":"manual","mode":"partial","tokensBefore":100,"tokensAfter":50,"percentLeftAfter":0.5,"clearedToolResults":0}"""
         };
 

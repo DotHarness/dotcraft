@@ -37,6 +37,7 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly AgentRuntimeContext _runtimeContext;
     private readonly IReadOnlyList<IToolSource> _toolSources;
     private readonly IToolSource _supplementalToolSource;
+    private readonly IToolSource _userCoordinationToolSource;
     private readonly ChatClientRegistry _chatClientRegistry;
     private readonly IChatClient? _compactionChatClientOverride;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
@@ -169,8 +170,10 @@ public sealed class AgentFactory : IAsyncDisposable
         };
 
         _supplementalToolSource = new ModeSupplementalToolSource(_planStore, _onPlanUpdated);
+        _userCoordinationToolSource = new UserCoordinationToolSource();
         _toolSources = (toolSources ?? [])
             .Append(_supplementalToolSource)
+            .Append(_userCoordinationToolSource)
             .ToArray();
     }
 
@@ -190,9 +193,10 @@ public sealed class AgentFactory : IAsyncDisposable
         if (contributed is not { Count: > 0 })
             return _toolSources;
 
-        var sources = new List<IToolSource>(contributed.Count + 1);
+        var sources = new List<IToolSource>(contributed.Count + 2);
         sources.AddRange(contributed);
         sources.Add(_supplementalToolSource);
+        sources.Add(_userCoordinationToolSource);
         return sources;
     }
 

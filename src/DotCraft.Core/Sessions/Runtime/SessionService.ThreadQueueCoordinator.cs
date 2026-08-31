@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using DotCraft.Sessions.Wire;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -75,6 +76,80 @@ public sealed partial class SessionService
 
             owner.PublishQueueUpdated(thread.Id, queueSnapshot);
             return queued;
+        }
+
+        public async Task<string> SteerAsync(
+            string threadId,
+            string expectedTurnId,
+            IList<AIContent> content,
+            SenderContext? sender,
+            CancellationToken ct,
+            SessionInputSnapshot? inputSnapshot)
+        {
+            if (string.IsNullOrWhiteSpace(expectedTurnId))
+                throw new InvalidOperationException("expectedTurnId must not be empty.");
+            if (content.Count == 0 && inputSnapshot?.MaterializedInputParts is not { Count: > 0 })
+                throw new InvalidOperationException("Steer input must not be empty.");
+
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+            if (ToolPlanningThreadClassifier.Classify(thread) is ToolPlanningThreadKind.Internal)
+                throw new InvalidOperationException($"Thread '{threadId}' is internal and cannot be steered.");
+            if (thread.Source.SubAgent is not null)
+                throw new InvalidOperationException($"Thread '{threadId}' is a SubAgent child and cannot be steered directly.");
+
+            var nativeParts = inputSnapshot?.NativeInputParts?.ToList()
+                ?? content.Select(static value => value.ToWireInputPart()).ToList();
+            var materializedParts = inputSnapshot?.MaterializedInputParts?.ToList() ?? nativeParts;
+            var displayText = inputSnapshot?.DisplayText ?? SessionWireMapper.BuildDisplayText(nativeParts);
+            var triggerInfo = TurnTriggerScope.Current;
+            IReadOnlyList<QueuedTurnInput> queueSnapshot;
+            string activeTurnId;
+
+            using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
+            {
+                if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
+                    thread = cachedThread;
+
+                if (thread.Status != ThreadStatus.Active)
+                    throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot steer input.");
+                if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null)
+                    throw new InvalidOperationException($"Thread '{threadId}' is running maintenance and cannot be steered.");
+
+                var activeTurn = thread.Turns.LastOrDefault(turn =>
+                    turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                    ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to steer.");
+                if (!string.Equals(activeTurn.Id, expectedTurnId, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"Expected active turn id '{expectedTurnId}' but found '{activeTurn.Id}'.");
+
+                activeTurnId = activeTurn.Id;
+                var queue = thread.QueuedInputs.ToList();
+                queue.Add(new QueuedTurnInput
+                {
+                    Id = SessionIdGenerator.NewQueuedInputId(),
+                    ThreadId = threadId,
+                    NativeInputParts = nativeParts,
+                    MaterializedInputParts = materializedParts,
+                    DisplayText = displayText,
+                    Sender = sender,
+                    Status = "guidancePending",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    ReadyAfterTurnId = activeTurn.Id,
+                    TriggerKind = triggerInfo?.Kind,
+                    TriggerLabel = triggerInfo?.Label,
+                    TriggerRefId = triggerInfo?.RefId,
+                    DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
+                    SentAsGoal = inputSnapshot?.SentAsGoal
+                });
+                thread.QueuedInputs = queue;
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                queueSnapshot = queue.ToList();
+            }
+
+            owner.PublishQueueUpdated(thread.Id, queueSnapshot);
+            owner._subAgentCommunicationRuntime.PublishSteer(thread.Id, AgentPath.Root);
+            return activeTurnId;
         }
 
         public async Task<IReadOnlyList<QueuedTurnInput>> RemoveAsync(

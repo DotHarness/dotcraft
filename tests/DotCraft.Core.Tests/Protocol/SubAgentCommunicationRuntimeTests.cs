@@ -5,6 +5,23 @@ namespace DotCraft.Tests.Sessions.Protocol;
 
 public sealed class SubAgentCommunicationRuntimeTests
 {
+    [Fact]
+    public async Task InputSubscription_IgnoresGraphAndWakesForMailboxOrSteer()
+    {
+        var runtime = new SubAgentCommunicationRuntime();
+        using var graphOnly = runtime.SubscribeInput("root-a", AgentPath.Root, out var graphActivity);
+
+        runtime.PublishGraph("root-a");
+        Assert.False(graphActivity.IsCompleted);
+
+        runtime.PublishMailbox("root-a", AgentPath.Root);
+        await graphActivity.WaitAsync(TimeSpan.FromSeconds(1));
+
+        using var steerOnly = runtime.SubscribeInput("root-a", AgentPath.Root, out var steerActivity);
+        runtime.PublishSteer("root-a", AgentPath.Root);
+        await steerActivity.WaitAsync(TimeSpan.FromSeconds(1));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("message")]

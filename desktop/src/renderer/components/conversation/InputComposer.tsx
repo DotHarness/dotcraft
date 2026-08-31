@@ -322,6 +322,7 @@ function InputComposerCore({
 
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
+  const activeTurnId = useConversationStore((s) => s.activeTurnId)
   const pendingMessage = useConversationStore((s) => s.pendingMessage)
   const queuedInputs = useConversationStore((s) => s.queuedInputs)
   const interruptingTurnId = useConversationStore((s) => s.interruptingTurnId)
@@ -1162,15 +1163,27 @@ function InputComposerCore({
             files: inputFiles,
             images: inputImages
           })
-          await window.api.appServer.sendRequest('turn/enqueue', {
-            threadId,
-            input: inputParts,
-            sender: undefined
-          })
+          if (isRunning) {
+            if (!activeTurnId || activeTurnId.startsWith('local-turn-')) {
+              throw new Error('The active turn is not ready for steering yet. Your draft was preserved.')
+            }
+            await window.api.appServer.sendRequest('turn/steer', {
+              threadId,
+              expectedTurnId: activeTurnId,
+              input: inputParts,
+              sender: undefined
+            })
+          } else {
+            await window.api.appServer.sendRequest('turn/enqueue', {
+              threadId,
+              input: inputParts,
+              sender: undefined
+            })
+          }
         }
         resetComposerInput()
       } catch (err) {
-        console.error('turn/enqueue failed:', err)
+        console.error(isRunning ? 'turn/steer failed:' : 'turn/enqueue failed:', err)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
         sendInFlightRef.current = false
@@ -1206,7 +1219,9 @@ function InputComposerCore({
       })
     } catch (err) {
       console.error('turn/start failed:', err)
-      if (isTurnBusyError(err)) {
+      const currentMaintenanceKind = useConversationStore.getState().maintenanceKind
+      if (isTurnBusyError(err)
+        && (currentMaintenanceKind === 'compacting' || currentMaintenanceKind === 'consolidating')) {
         try {
           await window.api.appServer.sendRequest('turn/enqueue', {
             threadId,
@@ -1230,7 +1245,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
+  }, [activeTurnId, compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isRunning, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1915,13 +1930,13 @@ function InputComposerCore({
             submit={!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
-                  <ActionTooltip label={t('composer.queueSendTitle')} placement="top">
+                  <ActionTooltip label={t(isRunning ? 'composer.steerSendTitle' : 'composer.queueSendTitle')} placement="top">
                     <ComposerSendButton
                       tone="enabled"
                       onClick={() => {
                         void sendMessage()
                       }}
-                      aria-label={t('composer.queueSendAria')}
+                      aria-label={t(isRunning ? 'composer.steerSendAria' : 'composer.queueSendAria')}
                     >
                       <SendIcon />
                     </ComposerSendButton>
