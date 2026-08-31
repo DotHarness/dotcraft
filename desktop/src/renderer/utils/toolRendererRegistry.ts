@@ -122,6 +122,7 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   fileWrite: 'core.file-write',
   web: 'core.web',
   requestUserInput: 'core.request-user-input',
+  sendUserMessageAsync: 'core.send-user-message-async',
   readFile: 'core.read-file',
   lsp: 'core.lsp',
   commitSuggest: 'core.commit-suggest',

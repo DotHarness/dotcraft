@@ -30,7 +30,7 @@ import { addToast } from '../../stores/toastStore'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
-import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
+import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
 import {
@@ -516,6 +516,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
 function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean): boolean {
   if (!isToolLikeItemType(item.type)) return false
+  if (item.presentation?.presentationId === CORE_TOOL_PRESENTATION_IDS.sendUserMessageAsync) return true
   if (item.presentation?.presentationId === 'core.sleep') return true
   return item.presentation?.presentationId === 'core.request-user-input'
     && isToolItemLive(item, { turnRunning })

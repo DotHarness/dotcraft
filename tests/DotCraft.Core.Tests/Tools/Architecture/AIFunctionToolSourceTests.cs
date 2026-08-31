@@ -199,6 +199,7 @@ public sealed class AIFunctionToolSourceTests
             var send = registrations.Single(registration =>
                 registration.Definition.Name.Name == nameof(UserCoordinationTools.SendUserMessageAsync));
             Assert.Equal(ToolExposure.DirectModelOnly, send.Exposure);
+            Assert.Equal("core.send-user-message-async", send.Definition.Presentation?.Id.Value);
         }
         if (threadKind != ToolPlanningThreadKind.Internal)
         {
