@@ -95,7 +95,7 @@ Goal: get a competent reader through one real task. Action only — no teaching 
 ```markdown
 # <Do the specific task>
 
-One sentence on the goal and the prerequisite state ("Assumes you have … already set up").
+One sentence on the goal. Mention a prerequisite only when the reader must satisfy it before the first step.
 
 ## Steps
 
@@ -107,12 +107,12 @@ One sentence on the goal and the prerequisite state ("Assumes you have … alrea
 
 ### 2. <Action>
 
-Direct, ordered, no digression. Note the one gotcha inline only if it blocks success.
+Direct, ordered, no digression. Add a gotcha only when it commonly blocks success and requires a different reader action.
 
 > [!CAUTION]
 > Only when a step has a real, irreversible consequence.
 
-## Verify
+## Verify (only when success is not already visible)
 
 How the reader confirms it worked.
 
@@ -121,7 +121,7 @@ How the reader confirms it worked.
 - [...](./...)
 ```
 
-Rules: a how-to solves a problem, not "operate feature X." Title it by the goal ("Connect a remote server"), not the tool.
+Rules: a how-to solves a problem, not "operate feature X." Title it by the goal ("Connect a remote server"), not the tool. Do not append failure recovery, shutdown, or cleanup sections unless they change what the reader must do or prevent a persistent or safety consequence. When development and packaged environments use different paths, label them directly instead of framing one as an assumption and the other as an exception.
 
 ---
 

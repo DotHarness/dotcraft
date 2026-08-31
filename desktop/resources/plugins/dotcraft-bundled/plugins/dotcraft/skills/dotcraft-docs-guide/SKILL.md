@@ -38,9 +38,12 @@ Write current, task-focused documentation and keep applicable localized mirrors 
 ## Editing rules
 
 - Give each artifact one job. Link across tutorial, explanation, and reference layers instead of mixing them.
+- Include only information the reader needs to complete that job. A behavior being true or verified is not enough reason to document it. Omit defensive failure branches, redundant confirmation steps, and shutdown or cleanup guidance unless they require a distinct action, prevent a common blocker, or have a persistent or safety consequence.
 - Lead user pages with the outcome. Keep developer pages neutral, exact, and organized around the contract.
 - User pages answer three questions only: what the feature is for, when to reach for it, and how to turn it on or use it. Defaults, config keys, internal state names, tool identifiers, and edge-case caveats belong in the developing references — link once inline where the need arises. Never inventory a settings page's controls as bullets; give the UI path once and let a screenshot or GIF show the rest.
 - Liveliness comes from concreteness and directness, not metaphor. Declarative sentences carry the page; at most an occasional light touch of humor. The target register: a capable colleague stating what the product does and when to reach for it — plain verbs, short sentences, zero marketing flourish.
+- Use imperative sentences for steps the reader performs. Use declarative sentences for context, outcomes, responsibility boundaries, and product or agent behavior; do not turn an explanation into commands directed at the reader.
+- State prerequisites only when the reader must satisfy them before the first step. When procedures differ by environment or distribution, label those paths directly instead of opening with a generic assumptions paragraph.
 - Describe current behavior only. Keep migration rationale, compatibility history, and maintainer requirements in specs or issues.
 - State load-bearing rules in prose; never make an example the only place a requirement appears.
 - Keep examples minimal and executable. Verify API choices against the current implementation and owning specification instead of inferring them from this skill.

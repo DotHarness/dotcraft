@@ -101,6 +101,13 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     items: [
       { text: withIcon('route', 'SDD Workflow'), link: '/developing/workflow/spec-driven-development' },
       {
+        text: withIcon('activity', 'Debugging'),
+        link: '/developing/debugging/desktop',
+        items: [
+          { text: withIcon('monitor', 'Desktop'), link: '/developing/debugging/desktop' }
+        ]
+      },
+      {
         text: withIcon('waypoints', 'Architecture'),
         link: '/developing/architecture/overview',
         items: [
@@ -245,6 +252,13 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     text: '开发',
     items: [
       { text: withIcon('route', 'SDD 工作流'), link: '/zh/developing/workflow/spec-driven-development' },
+      {
+        text: withIcon('activity', '调试'),
+        link: '/zh/developing/debugging/desktop',
+        items: [
+          { text: withIcon('monitor', 'Desktop'), link: '/zh/developing/debugging/desktop' }
+        ]
+      },
       {
         text: withIcon('waypoints', '架构'),
         link: '/zh/developing/architecture/overview',

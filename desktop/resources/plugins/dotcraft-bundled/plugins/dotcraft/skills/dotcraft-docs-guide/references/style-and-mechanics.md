@@ -21,6 +21,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 - Address the reader as **you**; refer to the product or agent by name. Avoid "we" — it's vague about who acts.
 - **Imperative for instructions:** "Open Settings," "Run the command." Cut "you can" and "there is/are" — start statements with a verb.
+- **Declarative for explanation:** Describe outcomes, responsibility boundaries, and product or agent behavior as facts. Do not phrase contextual explanation as an instruction to the reader.
 - **User-facing pages** read like a helpful colleague: encouraging, plain, outcome-first. **Developer pages** are technical, neutral, and exact; link to the normative specification when contract detail matters. The product is one; the register changes with the audience.
 - Contractions are fine and preferred in user docs ("it's," "you'll") — they read naturally. Developer reference can be more formal but needn't be stiff.
 - **Metaphor is seasoning, not structure.** Liveliness comes from concrete, specific statements ("decisions you discussed, preferences you set"), not from imagery ("give it arms," "pin a goal," "potholes you hit"). One light touch per page at most; a stack of metaphors reads as unserious.
@@ -172,6 +173,14 @@ Read every paragraph aloud. Noun piles, hidden actors, and 30-word sentences are
 > **Before:** a connection rule (e.g. clients must append a path suffix to the server URL) is shown only by example, scattered across pages, and resurfaces as a troubleshooting item.
 >
 > **After:** State it once as a rule on the relevant page: "The server listens on `host:port`; clients append `/suffix`." Examples then just confirm the rule instead of being the only place it lives.
+
+### 10.10 Defensive detail without a reader decision
+
+> **Before:** A successful setup path adds checks for implied state, rare failure branches, and a final section explaining how to stop or clean up a transient session.
+>
+> **After:** Keep the actions required for the successful path. Add confirmation, recovery, or cleanup only when the reader must make a distinct decision, the omission commonly blocks completion, or the operation has a persistent or safety consequence.
+
+Verified behavior is not automatically useful documentation. Ask what the reader does differently because of the sentence; if the answer is nothing, remove it.
 
 ### Also still watch for
 
