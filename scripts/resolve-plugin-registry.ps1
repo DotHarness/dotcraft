@@ -138,7 +138,7 @@ function Remove-StaleRegistryCacheTemporaryDirectories {
     }
 
     foreach ($directory in Get-ChildItem -LiteralPath $cacheBaseRoot -Directory -ErrorAction SilentlyContinue) {
-        if ($directory.Name -notmatch '^\..+\.(tmp|backup)$') {
+        if ($directory.Name -notmatch '^\..+\.(tmp|stage|backup)$') {
             continue
         }
 
@@ -278,7 +278,7 @@ function Remove-OtherRegistryCacheVersions {
     }
 
     foreach ($directory in Get-ChildItem -LiteralPath $cacheBaseRoot -Directory -ErrorAction SilentlyContinue) {
-        if ($directory.Name -match '^\..+\.(tmp|backup)$' `
+        if ($directory.Name -match '^\..+\.(tmp|stage|backup)$' `
             -or ($currentFullPath -and [string]::Equals($directory.FullName, $currentFullPath, [StringComparison]::OrdinalIgnoreCase))) {
             continue
         }
@@ -403,7 +403,8 @@ function Expand-ArchiveToCache {
     Remove-StaleRegistryCacheTemporaryDirectories
 
     $sourceKey = [System.IO.Path]::GetFileName($sourceCacheRoot)
-    $tempRoot = Join-Path $cacheParent ("." + $sourceKey + "." + [Guid]::NewGuid().ToString("N") + ".tmp")
+    $transactionKey = [Guid]::NewGuid().ToString("N").Substring(0, 12)
+    $tempRoot = Join-Path $cacheParent ("." + $transactionKey + ".stage")
     $tempSnapshotRoot = Join-Path $tempRoot "snapshot"
 
     try {
@@ -473,7 +474,7 @@ function Expand-ArchiveToCache {
             (Join-Path $tempRoot "updatedAt.txt"),
             $activatedAt.ToString("O"))
 
-        $backupRoot = Join-Path $cacheParent ("." + $sourceKey + "." + [Guid]::NewGuid().ToString("N") + ".backup")
+        $backupRoot = Join-Path $cacheParent ("." + $transactionKey + ".backup")
         $hasBackup = Test-Path -LiteralPath $sourceCacheRoot -PathType Container
         if ($hasBackup) {
             Move-Item -LiteralPath $sourceCacheRoot -Destination $backupRoot
