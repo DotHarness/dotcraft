@@ -104,6 +104,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 }: AgentResponseBlockProps): JSX.Element {
   useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
+  const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const activeItemId =
@@ -111,7 +112,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
   const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
-  const defaultRenderableItems = hydratedItems.filter(isDefaultRenderableItem)
+  const isSleeping = hydratedItems.some(
+    (item) => item.presentation?.presentationId === 'core.sleep'
+      && isToolItemLive(item, { turnRunning: isRunning })
+  )
+  const defaultRenderableItems = hydratedItems
+    .filter((item) => !shouldHideCoordinationTool(item, isRunning))
+    .filter(isDefaultRenderableItem)
 
   const renderableItems = trimHistoricalToolContent
     ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
@@ -380,13 +387,16 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       hasActiveStreamingAgentMessage(renderableItems, activeItemId),
     lastDeltaAt: streamingMessageLastDeltaAt
   })
-  const shouldShowIdleThinkingFallback = showIdleThinkingFallback && shouldRenderIdleThinkingFallback({
-    items: renderableItems,
-    isRunning,
-    activeItemId,
-    streamingMessage,
-    streamingMessageStalled
-  })
+  const shouldShowIdleThinkingFallback = showIdleThinkingFallback
+    && !isSleeping
+    && pendingUserInput == null
+    && shouldRenderIdleThinkingFallback({
+      items: renderableItems,
+      isRunning,
+      activeItemId,
+      streamingMessage,
+      streamingMessageStalled
+    })
 
   if (shouldCollapseIntermediate) {
     if (trimHistoricalToolContent) {
@@ -503,6 +513,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     </div>
   )
 })
+
+function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean): boolean {
+  if (!isToolLikeItemType(item.type)) return false
+  if (item.presentation?.presentationId === 'core.sleep') return true
+  return item.presentation?.presentationId === 'core.request-user-input'
+    && isToolItemLive(item, { turnRunning })
+}
 
 function ConversationNodeFlow({
   nodes,

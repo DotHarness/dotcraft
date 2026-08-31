@@ -547,6 +547,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
             Payload = new UserInputRequestPayload
             {
                 RequestId = requestId,
+                IsBlocking = false,
                 Questions =
                 [
                     new RequestUserInputQuestion

@@ -1052,7 +1052,7 @@ A typical Turn produces Items in this order:
 2. [ReasoningContent] (if model exposes thinking)
 3. [ToolCall → ToolResult | ImageGeneration | McpToolCall | DynamicToolCall]* (zero or more tool/hosted invocations)
    3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
-   3b. [UserInputRequest → UserInputResponse] (Plan Mode only, if the agent needs a user decision before continuing)
+   3b. [UserInputRequest → UserInputResponse] (if the agent needs a structured user decision before continuing)
 4. AgentMessage (final response, streamed)
 5. [Error] (if something went wrong)
 ```
@@ -1852,6 +1852,8 @@ The adapter is responsible only for presenting the request and returning the dec
 
 `RequestUserInput` is a model tool that lets the agent ask one to three short structured questions before continuing. It is exposed only to main user threads, not SubAgents, and remains schema-stable across Agent and Plan modes.
 
+Each persisted `UserInputRequest` carries a required `isBlocking` value selected by Session Core from the active mode: `true` in Plan mode and `false` in Agent mode. The flag is client-facing lifecycle metadata, not a model tool argument. It does not change the server-side wait: both modes pause until the adapter resolves the request or the turn is cancelled.
+
 When the tool is invoked, Session Core must:
 
 - finalize and persist any assistant or reasoning content emitted before the tool call
@@ -1860,7 +1862,7 @@ When the tool is invoked, Session Core must:
 - record the returned `UserInputResponse` Item
 - resume execution with the answer payload returned to the tool
 
-Interactive adapters present the request in their native UI. Non-interactive or unsupported adapters resolve the request with an empty answer object so the turn can continue.
+Interactive adapters present the request in their native UI. A client may automatically resolve a non-blocking request with an empty answer object according to its own foreground and inactivity policy. Blocking requests require an explicit answer or turn cancellation. Non-interactive or unsupported adapters resolve the request with an empty answer object so the turn can continue.
 
 ### 10.5 Asynchronous User Coordination
 

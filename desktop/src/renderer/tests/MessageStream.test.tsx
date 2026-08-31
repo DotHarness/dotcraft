@@ -666,7 +666,7 @@ describe('MessageStream', () => {
     expect(screen.getByText('Partial answer continued')).toBeInTheDocument()
   })
 
-  it('keeps RequestUserInput tool rows visually running while waiting for an answer', () => {
+  it('lets the structured composer own active RequestUserInput state', () => {
     useConversationStore.setState({
       turns: [{
         ...makeRunningTurn(),
@@ -701,12 +701,56 @@ describe('MessageStream', () => {
       }],
       turnStatus: 'waitingInput',
       activeTurnId: 'turn-1',
+      pendingUserInput: {
+        bridgeId: 'bridge-1',
+        threadId: 'thread-1',
+        requestId: 'request-1',
+        turnId: 'turn-1',
+        isBlocking: false,
+        questions: []
+      },
       turnStartedAt: Date.now()
     })
 
     renderWithLocale(<MessageStream />)
 
-    expect(screen.getByText('Asking questions')).toBeInTheDocument()
+    expect(screen.queryByText('Asking questions')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
+  })
+
+  it('keeps active Sleep tool calls quiet', () => {
+    useConversationStore.setState({
+      turns: [{
+        ...makeRunningTurn(),
+        items: [
+          {
+            id: 'u1',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'Wait here',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'sleep-tool',
+            type: 'toolCall',
+            status: 'streaming',
+            toolName: 'Sleep',
+            presentation: { presentationId: 'core.sleep' },
+            toolCallId: 'call-sleep',
+            argumentsPreview: '{',
+            createdAt: new Date().toISOString()
+          }
+        ]
+      }],
+      turnStatus: 'running',
+      activeTurnId: 'turn-1',
+      activeItemId: 'sleep-tool',
+      turnStartedAt: Date.now()
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.queryByText(/Sleep/)).toBeNull()
     expect(screen.queryByText('Thinking')).toBeNull()
   })
 

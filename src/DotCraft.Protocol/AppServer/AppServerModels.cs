@@ -1651,6 +1651,9 @@ public sealed class UserInputRequestParams : ExtensibleJsonObject
 
     [JsonPropertyName("questions")]
     public required IReadOnlyList<UserInputQuestion> Questions { get; init; }
+
+    [JsonPropertyName("isBlocking")]
+    public required bool IsBlocking { get; init; }
 }
 
 /// <summary>Answer to one structured user-input question.</summary>

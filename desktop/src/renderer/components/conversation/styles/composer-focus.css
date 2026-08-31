@@ -15,6 +15,13 @@
   will-change: opacity, filter;
 }
 
+.request-user-input-countdown {
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--type-secondary-line-height);
+}
+
 /* Composer card popovers need to clear the workspace footer below the card.
    Raise this layer only while an in-card overlay is open so the footer's own
    upward-opening menus can still paint above the card at every other time. */

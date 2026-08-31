@@ -2778,6 +2778,7 @@ The turn enters `"waitingInput"` status while waiting for the response.
 | `itemId` | string | The `userInputRequest` item ID. |
 | `requestId` | string | Unique correlation ID. |
 | `questions` | `RequestUserInputQuestion[]` | One to three questions. |
+| `isBlocking` | boolean | Required client lifecycle hint: `true` for Plan-mode requests and `false` for Agent-mode requests. |
 
 `RequestUserInputQuestion`:
 
@@ -2802,7 +2803,7 @@ The turn enters `"waitingInput"` status while waiting for the response.
 }
 ```
 
-Clients should return `{ "answers": {} }` when the user explicitly dismisses the request or when the request cannot be displayed. If a client did not declare `capabilities.requestUserInputSupport = true`, the server must not send the request and resolves it with empty answers so the turn can continue. Cancelling a passive `thread/subscribe` subscription, for example because the user switched to another thread, must not resolve an outstanding user-input request; the request remains pending until the client responds, the transport becomes unavailable, or the turn is cancelled. `RequestUserInput` does not have a response timeout while the client transport remains available.
+`isBlocking` is persisted with the `userInputRequest` Item and replayed unchanged. It is not a model parameter and does not alter the server-side wait. A client may automatically return `{ "answers": {} }` for `isBlocking = false`; for `isBlocking = true`, dismissing the UI interrupts the turn rather than fabricating an empty response. If a client did not declare `capabilities.requestUserInputSupport = true`, the server must not send the request and resolves it with empty answers so the turn can continue. Cancelling a passive `thread/subscribe` subscription, for example because the user switched to another thread, must not resolve an outstanding user-input request; the request remains pending until the client responds, the transport becomes unavailable, or the turn is cancelled. `RequestUserInput` does not have a server-side response timeout while the client transport remains available.
 
 When a client later resumes or subscribes to a thread that is still waiting for the same unresolved user-input request, the server replays `item/tool/requestUserInput` with the original `requestId` so the client can render an actionable question composer again.
 

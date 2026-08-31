@@ -749,6 +749,7 @@ describe('notification dispatch payload format', () => {
       threadId: 'thread-1',
       turnId: 'turn_input',
       requestId: 'req-input',
+      isBlocking: false,
       questions: [
         {
           id: 'scope',

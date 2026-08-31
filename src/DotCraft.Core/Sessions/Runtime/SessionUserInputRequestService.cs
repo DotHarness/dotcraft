@@ -37,12 +37,14 @@ internal sealed class SessionUserInputRequestService
 
     public Task<RequestUserInputResponse> RequestAsync(
         string requestId,
-        IReadOnlyList<RequestUserInputQuestion> questions)
+        IReadOnlyList<RequestUserInputQuestion> questions,
+        bool isBlocking)
     {
         var payload = new UserInputRequestPayload
         {
             RequestId = requestId,
-            Questions = questions.Select(NormalizeQuestion).ToArray()
+            Questions = questions.Select(NormalizeQuestion).ToArray(),
+            IsBlocking = isBlocking
         };
         return RequestCoreAsync(requestId, payload);
     }

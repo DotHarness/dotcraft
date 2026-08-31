@@ -166,6 +166,7 @@ public sealed class AIFunctionToolSourceTests
     [Theory]
     [InlineData("LSP", "core.lsp")]
     [InlineData("CommitSuggest", "core.commit-suggest")]
+    [InlineData("Sleep", "core.sleep")]
     public void CoreUtilityTools_UseTrustedPresentation(string toolName, string presentationId)
     {
         var presentation = CoreToolPresentationCatalog.Resolve(toolName);

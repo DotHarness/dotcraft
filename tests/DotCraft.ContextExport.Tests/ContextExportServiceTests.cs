@@ -232,6 +232,7 @@ public sealed class ContextExportServiceTests : IDisposable
                 Payload = new UserInputRequestPayload
                 {
                     RequestId = "request_export_input",
+                    IsBlocking = false,
                     Questions =
                     [
                         new RequestUserInputQuestion

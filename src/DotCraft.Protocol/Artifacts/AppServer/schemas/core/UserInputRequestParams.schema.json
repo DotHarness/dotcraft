@@ -4,6 +4,9 @@
   "title": "UserInputRequestParams",
   "type": "object",
   "properties": {
+    "isBlocking": {
+      "type": "boolean"
+    },
     "itemId": {
       "type": "string"
     },
@@ -25,6 +28,7 @@
   },
   "additionalProperties": true,
   "required": [
+    "isBlocking",
     "itemId",
     "questions",
     "requestId",

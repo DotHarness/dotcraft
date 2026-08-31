@@ -14,6 +14,8 @@ import { Input } from '../ui/Input'
 import type { PendingUserInputRequest } from '../../stores/conversationStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
+import { useUserInputAutoResolutionStore } from '../../stores/userInputAutoResolutionStore'
+import { interruptTurn } from '../../utils/interruptTurn'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
@@ -65,22 +67,30 @@ export function RequestUserInputComposer({
   const [otherText, setOtherText] = useState<string[]>([])
   const otherInputRef = useRef<HTMLInputElement | null>(null)
   const sentEmptyRef = useRef(false)
+  const respondingRef = useRef(false)
+  const autoResolution = useUserInputAutoResolutionStore((state) =>
+    state.states.get(request.requestId))
+  const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
     sentEmptyRef.current = false
+    respondingRef.current = false
     setCurrentQuestion(0)
     setSelected(request.questions.map(() => 0))
     setOtherText(request.questions.map(() => ''))
   }, [request.requestId, request.questions])
 
   const respond = useCallback((response: RequestUserInputResponse): void => {
-    useConversationStore.getState().onUserInputResolved()
+    if (respondingRef.current) return
+    respondingRef.current = true
     window.api.appServer
       .sendServerResponse(request.bridgeId, response)
       .then(() => {
+        useConversationStore.getState().onUserInputResolved()
         onResponseAccepted?.()
       })
       .catch((err: unknown) => {
+        respondingRef.current = false
         addToast(
           t('userInput.sendFailed', {
             error: err instanceof Error ? err.message : String(err)
@@ -90,18 +100,16 @@ export function RequestUserInputComposer({
       })
   }, [onResponseAccepted, request.bridgeId, t])
 
-  useEffect(() => {
-    if (request.questions.length === 0 && !sentEmptyRef.current) {
-      sentEmptyRef.current = true
-      respond({ answers: {} })
-    }
-  }, [request.questions.length, respond])
-
   const questionCount = request.questions.length
-  if (questionCount === 0) return null
 
-  const safeQuestionIndex = Math.min(currentQuestion, questionCount - 1)
-  const question = request.questions[safeQuestionIndex]
+  const safeQuestionIndex = Math.max(0, Math.min(currentQuestion, questionCount - 1))
+  const question = request.questions[safeQuestionIndex] ?? {
+    id: '',
+    header: '',
+    question: '',
+    isOther: true,
+    options: []
+  }
   const hasOther = question.isOther !== false
   const otherIndex = question.options.length
   const optionCount = question.options.length + (hasOther ? 1 : 0)
@@ -152,8 +160,41 @@ export function RequestUserInputComposer({
   }, [buildResponse, questionCount, respond, safeQuestionIndex])
 
   const dismiss = useCallback((): void => {
-    respond({ answers: {} })
-  }, [respond])
+    if (!request.isBlocking) {
+      respond({ answers: {} })
+      return
+    }
+    void interruptTurn({
+      threadId: request.threadId,
+      turnId: request.turnId,
+      onError: (error) => {
+        addToast(t('composer.stopFailed', {
+          error: error instanceof Error ? error.message : String(error)
+        }), 'error')
+      }
+    }).then((interrupted) => {
+      if (interrupted) void window.api.appServer.cancelServerRequest(request.bridgeId)
+    })
+  }, [request.bridgeId, request.isBlocking, request.threadId, request.turnId, respond, t])
+
+  useEffect(() => {
+    if (request.questions.length === 0 && !sentEmptyRef.current) {
+      sentEmptyRef.current = true
+      dismiss()
+    }
+  }, [dismiss, request.questions.length])
+
+  useEffect(() => {
+    if (autoResolution?.phase !== 'scheduled' || autoResolution.deadlineAt == null) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [autoResolution?.deadlineAt, autoResolution?.phase])
+
+  const snoozeAutoResolution = useCallback((): void => {
+    if (request.isBlocking) return
+    void window.api.appServer.snoozeUserInputAutoResolution(request.threadId, request.requestId)
+  }, [request.isBlocking, request.requestId, request.threadId])
 
   const goPreviousQuestion = useCallback((): void => {
     setCurrentQuestion((index) => Math.max(index - 1, 0))
@@ -214,6 +255,8 @@ export function RequestUserInputComposer({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [dismiss, goNextQuestion, goPreviousQuestion, optionCount, questionCount, selectedIndex, submit])
 
+  if (questionCount === 0) return null
+
   const questionText = question.question.trim() || question.header.trim() || question.id
   const primaryLabel = safeQuestionIndex + 1 < questionCount
     ? t('userInput.continue')
@@ -222,6 +265,13 @@ export function RequestUserInputComposer({
     current: String(safeQuestionIndex + 1),
     total: String(questionCount)
   })
+  const countdownSeconds = autoResolution?.phase === 'scheduled'
+    && autoResolution.deadlineAt != null
+    ? Math.max(0, Math.ceil((autoResolution.deadlineAt - now) / 1_000))
+    : null
+  const visibleCountdownSeconds = countdownSeconds != null && countdownSeconds <= 60
+    ? countdownSeconds
+    : null
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
     threadId: null,
@@ -233,7 +283,12 @@ export function RequestUserInputComposer({
   } as const
 
   return (
-    <div style={composerDockStyle}>
+    <div
+      style={composerDockStyle}
+      data-user-input-request="true"
+      onPointerDownCapture={snoozeAutoResolution}
+      onKeyDownCapture={snoozeAutoResolution}
+    >
       <ConversationColumn>
         <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
         <ComposerShell
@@ -330,6 +385,11 @@ export function RequestUserInputComposer({
                     onClick={dismiss}
                     ariaLabel={t('userInput.dismiss')}
                   />
+                  {visibleCountdownSeconds != null && (
+                    <span className="request-user-input-countdown" aria-live="polite">
+                      {t('userInput.autoDismissCountdown', { seconds: visibleCountdownSeconds })}
+                    </span>
+                  )}
                   <DecisionSubmitButton label={primaryLabel} onClick={submit} />
                 </>
               )}

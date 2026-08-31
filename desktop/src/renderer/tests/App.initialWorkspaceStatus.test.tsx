@@ -429,7 +429,13 @@ function installApi(
         onNotification,
         onServerRequest,
         onServerRequestRaw,
-        sendServerResponse: vi.fn()
+        sendServerResponse: vi.fn(),
+        cancelServerRequest: vi.fn().mockResolvedValue(undefined),
+        getUserInputAutoResolutionSnapshot: vi.fn().mockResolvedValue([]),
+        onUserInputAutoResolutionChanged: vi.fn(() => vi.fn()),
+        setUserInputConversationPresented: vi.fn().mockResolvedValue(undefined),
+        recordUserInputConversationActivity: vi.fn().mockResolvedValue(undefined),
+        snoozeUserInputAutoResolution: vi.fn().mockResolvedValue(undefined)
       },
       workspace: {
         getStatus: workspaceGetStatus,
@@ -1718,6 +1724,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-1',
           requestId: 'request-input-hidden',
+          isBlocking: false,
           questions: [
             {
               id: 'confirm',
@@ -1818,6 +1825,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-retry',
           requestId: 'request-retry',
+          isBlocking: false,
           questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
         }
       })
@@ -1993,6 +2001,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-replay',
           requestId: 'request-replay',
+          isBlocking: false,
           questions: [{
             id: 'confirm',
             question: 'Continue?',
@@ -2096,6 +2105,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-generation',
           requestId: 'request-generation',
+          isBlocking: false,
           questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
         }
       })
@@ -2182,6 +2192,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-initial-restore',
           requestId: 'request-initial-restore',
+          isBlocking: false,
           questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
         }
       })
@@ -2286,6 +2297,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId: firstThreadId,
           turnId: 'turn-old',
           requestId: 'request-old',
+          isBlocking: false,
           questions: [{
             id: 'confirm',
             question: 'Continue?',

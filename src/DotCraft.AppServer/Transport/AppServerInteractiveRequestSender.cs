@@ -129,6 +129,7 @@ internal sealed class AppServerInteractiveRequestSender
             TurnId = turnId,
             ItemId = itemId,
             RequestId = request.RequestId,
+            IsBlocking = request.IsBlocking,
             Questions = request.Questions.Select(static question => new Contract.UserInputQuestion
             {
                 Id = question.Id,

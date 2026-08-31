@@ -2983,7 +2983,10 @@ public sealed partial class SessionService(
                         ? RequestUserInputRuntimeScope.Set(new RequestUserInputRuntimeContext(async questions =>
                         {
                             var requestId = Guid.NewGuid().ToString("N")[..12];
-                            return await userInputRequestService.RequestAsync(requestId, questions);
+                            return await userInputRequestService.RequestAsync(
+                                requestId,
+                                questions,
+                                turnMode == AgentMode.Plan);
                         }))
                         : null;
                 using var userCoordinationScope = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal

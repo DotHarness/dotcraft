@@ -23862,6 +23862,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "isBlocking",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "itemId",
           "type": "string",
           "required": true,
@@ -23907,6 +23914,13 @@
       "schema": "schemas/core/UserInputRequestPayload.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "isBlocking",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
         {
           "name": "questions",
           "type": "array<core.UserInputQuestion>",

@@ -108,6 +108,7 @@ import type {
   ConnectionStatusPayload,
   RetryConnectionRequest
 } from '../shared/connectionStatus'
+import type { UserInputAutoResolutionState } from '../shared/userInputAutoResolution'
 
 interface WindowVisibilityState {
   minimized: boolean
@@ -854,18 +855,38 @@ function injectModuleDotcraftConfig(
 }
 
 let nextBridgeId = 1
-const pendingServerRequests = new Map<string, (result: unknown) => void>()
+interface PendingServerRequest {
+  resolve: (result: unknown) => void
+  reject: (error: Error) => void
+  onSettled?: () => void
+}
 
-/**
- * Bridges a server-initiated AppServer request to the renderer: the promise resolves
- * when the renderer calls `appserver:server-response` with the matching bridgeId.
- */
-export function createServerRequestBridge(): { bridgeId: string; promise: Promise<unknown> } {
+const pendingServerRequests = new Map<string, PendingServerRequest>()
+
+export function createServerRequestBridge(
+  onSettled?: () => void
+): { bridgeId: string; promise: Promise<unknown> } {
   const bridgeId = String(nextBridgeId++)
-  const promise = new Promise<unknown>((resolve) => {
-    pendingServerRequests.set(bridgeId, resolve)
+  const promise = new Promise<unknown>((resolve, reject) => {
+    pendingServerRequests.set(bridgeId, { resolve, reject, onSettled })
   })
   return { bridgeId, promise }
+}
+
+export function resolveServerRequestBridge(bridgeId: string, result: unknown): void {
+  const pending = pendingServerRequests.get(bridgeId)
+  if (!pending) return
+  pendingServerRequests.delete(bridgeId)
+  pending.onSettled?.()
+  pending.resolve(result)
+}
+
+export function cancelServerRequestBridge(bridgeId: string): void {
+  const pending = pendingServerRequests.get(bridgeId)
+  if (!pending) return
+  pendingServerRequests.delete(bridgeId)
+  pending.onSettled?.()
+  pending.reject(new Error('Interactive request was cancelled with its turn.'))
 }
 
 export interface IpcHandlerCallbacks {
@@ -912,6 +933,10 @@ export interface IpcHandlerCallbacks {
     params: unknown,
     result: unknown
   ) => void
+  getUserInputAutoResolutionSnapshot?: () => UserInputAutoResolutionState[]
+  onUserInputConversationPresented?: (threadId: string | null) => void
+  onUserInputConversationActivity?: (threadId: string) => void
+  onUserInputAutoResolutionSnoozed?: (threadId: string, requestId: string) => void
 }
 
 function mainLocale(callbacks?: IpcHandlerCallbacks): AppLocale {
@@ -1263,12 +1288,30 @@ export function registerIpcHandlers(
   })
 
   handleSafe('appserver:server-response', (_event, bridgeId: string, result: unknown) => {
-    const resolve = pendingServerRequests.get(bridgeId)
-    if (resolve) {
-      pendingServerRequests.delete(bridgeId)
-      resolve(result)
-    }
+    resolveServerRequestBridge(bridgeId, result)
   })
+
+  handleSafe('appserver:cancel-server-request', (_event, bridgeId: string) => {
+    cancelServerRequestBridge(bridgeId)
+  })
+
+  handleSafe('appserver:user-input-auto-resolution-snapshot', () =>
+    callbacks?.getUserInputAutoResolutionSnapshot?.() ?? [])
+
+  handleSafe('appserver:user-input-conversation-presented', (_event, threadId: string | null) => {
+    callbacks?.onUserInputConversationPresented?.(threadId)
+  })
+
+  handleSafe('appserver:user-input-conversation-activity', (_event, threadId: string) => {
+    callbacks?.onUserInputConversationActivity?.(threadId)
+  })
+
+  handleSafe(
+    'appserver:user-input-auto-resolution-snooze',
+    (_event, threadId: string, requestId: string) => {
+      callbacks?.onUserInputAutoResolutionSnoozed?.(threadId, requestId)
+    }
+  )
 
   // Titles the sender's own window, which is not necessarily the focused one.
   handleSafe('window:set-title', (event, title: string) => {
@@ -2485,6 +2528,11 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('appserver:retry-connection')
   ipcMain.removeHandler('appserver:apply-connection-settings')
   ipcMain.removeHandler('appserver:server-response')
+  ipcMain.removeHandler('appserver:cancel-server-request')
+  ipcMain.removeHandler('appserver:user-input-auto-resolution-snapshot')
+  ipcMain.removeHandler('appserver:user-input-conversation-presented')
+  ipcMain.removeHandler('appserver:user-input-conversation-activity')
+  ipcMain.removeHandler('appserver:user-input-auto-resolution-snooze')
   ipcMain.removeHandler('window:set-title')
   ipcMain.removeHandler('window:set-title-bar-overlay-theme')
   ipcMain.removeHandler('window:minimize')

@@ -147,6 +147,7 @@ internal static class CoreToolPresentationCatalog
         "WebSearch" => Descriptor("core.web", "search"),
         "WebFetch" => Descriptor("core.web", "fetch"),
         "RequestUserInput" => Descriptor("core.request-user-input"),
+        "Sleep" => Descriptor("core.sleep"),
         "ReadFile" or "GrepFiles" or "FindFiles" => Descriptor("core.read-file"),
         "LSP" => Descriptor("core.lsp"),
         "CommitSuggest" => Descriptor("core.commit-suggest"),

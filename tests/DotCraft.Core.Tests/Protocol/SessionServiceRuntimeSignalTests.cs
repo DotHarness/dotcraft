@@ -233,6 +233,64 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             < events.FindIndex(item => item.EventType == SessionEventType.TurnCompleted));
     }
 
+    [Theory]
+    [InlineData("agent", false)]
+    [InlineData("plan", true)]
+    public async Task SubmitInputAsync_UserInputRequestCarriesModeBlockingState(
+        string mode,
+        bool expectedIsBlocking)
+    {
+        var chatClient = new CoordinationToolCallChatClient(
+            nameof(RequestUserInputTools.RequestUserInput),
+            new Dictionary<string, object?>
+            {
+                ["questions"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["id"] = "choice",
+                        ["header"] = "Choice",
+                        ["question"] = "Pick one",
+                        ["options"] = new[]
+                        {
+                            new Dictionary<string, object?>
+                            {
+                                ["label"] = "A",
+                                ["description"] = "Pick A"
+                            },
+                            new Dictionary<string, object?>
+                            {
+                                ["label"] = "B",
+                                ["description"] = "Pick B"
+                            }
+                        }
+                    }
+                }
+            });
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(
+            MakeIdentity(),
+            new ThreadConfiguration { Mode = mode });
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var collectTask = CollectAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("ask me")]));
+        var (turnId, request) = await WaitForUserInputRequestAsync(service, thread.Id);
+
+        Assert.Equal(expectedIsBlocking, request.IsBlocking);
+        await service.ResolveUserInputRequestAsync(
+            thread.Id,
+            turnId,
+            request.RequestId,
+            new RequestUserInputResponse());
+
+        var events = await collectTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(2, chatClient.RequestCount);
+        Assert.Contains(events, item => item.EventType == SessionEventType.TurnCompleted);
+    }
+
     [Fact]
     public async Task SubmitInputAsync_SleepCompletesAfterItsRequestedDuration()
     {
@@ -2795,6 +2853,27 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         }
 
         throw new TimeoutException("The running turn did not start a Sleep item.");
+    }
+
+    private static async Task<(string TurnId, UserInputRequestPayload Request)> WaitForUserInputRequestAsync(
+        SessionService service,
+        string threadId)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var thread = await service.GetThreadAsync(threadId);
+            var turn = thread.Turns.SingleOrDefault(candidate => candidate.Status == TurnStatus.WaitingInput);
+            var request = turn?.Items
+                .Select(item => item.Payload)
+                .OfType<UserInputRequestPayload>()
+                .SingleOrDefault();
+            if (turn is not null && request is not null)
+                return (turn.Id, request);
+
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException("The running turn did not request user input.");
     }
 
     private static string FormatMessage(ChatMessage message)

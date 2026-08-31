@@ -4760,6 +4760,7 @@ export interface UserInputQuestion {
 }
 
 export interface UserInputRequestParams {
+  isBlocking: boolean;
   itemId: string;
   questions: UserInputQuestion[];
   requestId: string;
@@ -4769,6 +4770,7 @@ export interface UserInputRequestParams {
 }
 
 export interface UserInputRequestPayload {
+  isBlocking: boolean;
   questions: UserInputQuestion[];
   requestId: string;
   [key: string]: unknown;

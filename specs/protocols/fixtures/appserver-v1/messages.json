@@ -493,6 +493,7 @@
             "turnId": "turn_fixture",
             "itemId": "item_input",
             "requestId": "input_request_fixture",
+            "isBlocking": true,
             "questions": [
               {
                 "id": "choice",

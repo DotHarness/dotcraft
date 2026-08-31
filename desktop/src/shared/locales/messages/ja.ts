@@ -2170,6 +2170,7 @@ export const MESSAGES_JA = {
   'userInput.other': 'その他',
   'userInput.otherPlaceholder': 'いいえ、別の方法を DotCraft に指示してください',
   'userInput.dismiss': '解雇する',
+  'userInput.autoDismissCountdown': '{{seconds}}秒',
   'userInput.continue': '続ける',
   'userInput.progress': '{{current}}/{{total}}',
   'userInput.previousQuestion': '前の質問',

@@ -73,6 +73,7 @@ export const MESSAGES_ZH_HANS = {
   'userInput.other': '其他',
   'userInput.otherPlaceholder': '不，并告诉 DotCraft 该怎么调整',
   'userInput.dismiss': '关闭',
+  'userInput.autoDismissCountdown': '{{seconds}} 秒',
   'userInput.continue': '继续',
   'userInput.progress': '{{current}} of {{total}}',
   'userInput.previousQuestion': '上一题',

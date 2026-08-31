@@ -2172,6 +2172,7 @@ export const MESSAGES_KO = {
   'userInput.other': '기타',
   'userInput.otherPlaceholder': '아니요, DotCraft에게 다르게 수행할 작업을 알려주세요.',
   'userInput.dismiss': '닫기',
+  'userInput.autoDismissCountdown': '{{seconds}}초',
   'userInput.continue': '계속',
   'userInput.progress': '{{total}} 중 {{current}}',
   'userInput.previousQuestion': '이전 질문',

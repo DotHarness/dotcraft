@@ -210,7 +210,7 @@ public sealed class ContractKernelTests
             ["toolResult"] = """{"callId":"call_1","toolName":"shell","providerFlatName":"shell","result":"ok","success":true}""",
             ["approvalRequest"] = """{"approvalType":"shell","operation":"pwd","target":"/tmp","requestId":"req_1","scopeKey":"shell:pwd","reason":"required","expiresAt":"2026-08-03T01:02:03Z"}""",
             ["approvalResponse"] = """{"requestId":"req_1","approved":true,"decision":"accept"}""",
-            ["userInputRequest"] = """{"requestId":"req_1","questions":[]}""",
+            ["userInputRequest"] = """{"requestId":"req_1","questions":[],"isBlocking":true}""",
             ["userInputResponse"] = """{"requestId":"req_1","response":{"answers":{}}}""",
             ["error"] = """{"message":"failed","code":"agent_error","fatal":true}""",
             ["sleep"] = """{"durationMs":1000,"actualDurationMs":250,"status":"interrupted"}""",

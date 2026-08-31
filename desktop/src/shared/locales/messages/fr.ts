@@ -2176,6 +2176,7 @@ export const MESSAGES_FR = {
   'userInput.other': 'Autre',
   'userInput.otherPlaceholder': 'Non, et dites à DotCraft quoi faire différemment',
   'userInput.dismiss': 'Rejeter',
+  'userInput.autoDismissCountdown': '{{seconds}} s',
   'userInput.continue': 'Continuer',
   'userInput.progress': '{{current}} de {{total}}',
   'userInput.previousQuestion': 'Question précédente',
