@@ -20,6 +20,49 @@ function Write-Section {
     Write-Host "================================" -ForegroundColor $Color
 }
 
+function Select-LinkDestinations {
+    param([Parameter(Mandatory = $true)][object[]]$Destinations)
+
+    $activeIndex = 0
+    $selected = @($Destinations | ForEach-Object { $false })
+    $lineWidth = [Console]::WindowWidth - 1
+    $cursorVisible = [Console]::CursorVisible
+    [Console]::CursorVisible = $false
+    try {
+        foreach ($destination in $Destinations) {
+            [Console]::WriteLine()
+        }
+        $listTop = [Console]::CursorTop - $Destinations.Count
+
+        while ($true) {
+            for ($i = 0; $i -lt $Destinations.Count; $i++) {
+                [Console]::SetCursorPosition(0, $listTop + $i)
+                $pointer = if ($i -eq $activeIndex) { ">" } else { " " }
+                $mark = if ($selected[$i]) { "[x]" } else { "[ ]" }
+                $line = "$pointer $mark $($Destinations[$i].Name)"
+                [Console]::Write($line.PadRight($lineWidth))
+            }
+
+            switch ([Console]::ReadKey($true).Key) {
+                "UpArrow" { $activeIndex = ($activeIndex - 1 + $Destinations.Count) % $Destinations.Count }
+                "DownArrow" { $activeIndex = ($activeIndex + 1) % $Destinations.Count }
+                "Spacebar" { $selected[$activeIndex] = -not $selected[$activeIndex] }
+                "Enter" {
+                    $result = @(for ($i = 0; $i -lt $Destinations.Count; $i++) {
+                        if ($selected[$i]) { $Destinations[$i] }
+                    })
+                    if ($result.Count -gt 0) {
+                        [Console]::SetCursorPosition(0, $listTop + $Destinations.Count)
+                        return $result
+                    }
+                }
+            }
+        }
+    } finally {
+        [Console]::CursorVisible = $cursorVisible
+    }
+}
+
 function Resolve-LinkTarget {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -169,22 +212,18 @@ if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
 }
 
 $dotcraftSkillsPath = Join-Path $repoRoot "desktop\resources\plugins\dotcraft-bundled\plugins\dotcraft\skills"
-$harnessWorkflowSkillsPath = Join-Path $PluginsRepoRoot "plugins\harness-workflow\skills"
-$registrySkillSourceNames = @("Harness Workflow skills")
+$dotHarnessSkillsPath = Join-Path $PluginsRepoRoot "plugins\dotharness\skills"
+$registrySkillSourceNames = @("DotHarness skills")
 $skillSources = @(
     @{
         Name = "DotCraft skills"
         Path = $dotcraftSkillsPath
     },
     @{
-        Name = "Harness Workflow skills"
-        Path = $harnessWorkflowSkillsPath
+        Name = "DotHarness skills"
+        Path = $dotHarnessSkillsPath
     }
 )
-$cursorSkillsPath = Join-Path $repoRoot ".cursor\skills"
-$codexSkillsPath = Join-Path $env:USERPROFILE ".codex\skills"
-$claudeSkillsPath = Join-Path $env:USERPROFILE ".claude\skills"
-
 Write-Section -Text "DotCraft Skills Linker"
 Write-Host "Repository root: $repoRoot" -ForegroundColor Gray
 Write-Host "Plugin registry source: $pluginRegistrySource" -ForegroundColor Gray
@@ -204,20 +243,21 @@ foreach ($skillSource in $skillSources) {
     }
 }
 
-$skillDestinations = @(
+$availableDestinations = @(
     @{
-        Name = ".cursor\skills"
-        Path = $cursorSkillsPath
+        Name = "Cursor (.cursor\skills)"
+        Path = Join-Path $repoRoot ".cursor\skills"
     },
     @{
-        Name = "~\.codex\skills"
-        Path = $codexSkillsPath
+        Name = "Claude (~\.claude\skills)"
+        Path = Join-Path $env:USERPROFILE ".claude\skills"
     },
     @{
-        Name = "~\.claude\skills"
-        Path = $claudeSkillsPath
+        Name = "Codex (~\.codex\skills)"
+        Path = Join-Path $env:USERPROFILE ".codex\skills"
     }
 )
+$skillDestinations = @(Select-LinkDestinations -Destinations $availableDestinations)
 $legacyDotCraftSkillNames = @("dev-guide", "docs-guide", "release-draft")
 
 foreach ($skillDestination in $skillDestinations) {
@@ -232,8 +272,6 @@ foreach ($skillDestination in $skillDestinations) {
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
-Write-Host "  - Cursor gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
-Write-Host "  - Codex gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
-Write-Host "  - Claude gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
-Write-Host "DotCraft skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
-Write-Host "Harness Workflow skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green
+Write-Host "Selected agents get per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
+Write-Host "DotCraft skill edits in this repo take effect immediately in the selected agents." -ForegroundColor Green
+Write-Host "DotHarness skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green
