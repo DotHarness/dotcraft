@@ -12,14 +12,13 @@
 [中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Quick Start](https://www.dotcraft.net/getting-started) · [Releases](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
 
-DotCraft is an open-source, self-hosted, and embeddable **project-native AI agent
-runtime** built with C#/.NET.
+DotCraft is an open-source, self-hosted, and embeddable **AI agent runtime** built with C#/.NET.
 
 </div>
 
 ## Why DotCraft?
 
-DotCraft turns projects into **extensible environments for AI agents**.
+DotCraft turns your projects into **extensible environments for AI agents**.
 
 ![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
