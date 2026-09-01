@@ -310,6 +310,54 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
+    public async Task ResultNormalizer_DoesNotRespillRemoteArtifactPreview()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-remote-result-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workspace);
+        try
+        {
+            var registration = Registration(
+                new ToolName(null, "ReadFile"),
+                new DelegateRuntime((_, _) => ToolExecutionResult.Succeeded("unused")));
+            var preview = new string('x', 200);
+            var provenance = new RemoteToolInvocationProvenance(
+                "remote",
+                "host",
+                "workspace",
+                "instance",
+                "invocation",
+                12,
+                ".craft/remote-tool-host/artifacts/lease/tool-results/thread/result.txt",
+                2_000);
+            var normalizer = new DefaultToolResultNormalizer(
+                maxModelContentCharacters: 80,
+                defaultWorkspacePath: workspace,
+                dataPath: Path.Combine(workspace, ".craft"));
+            var result = await normalizer.NormalizeAsync(
+                new ToolInvocationContext(
+                    "thread",
+                    "turn",
+                    "call",
+                    ToolInvocationAudience.Model,
+                    registration.Definition.Name,
+                    registration.Definition.Id,
+                    registration.Binding.Id,
+                    1,
+                    DateTimeOffset.UtcNow,
+                    WorkspacePath: workspace),
+                registration,
+                ToolExecutionResult.Succeeded(preview, meta: provenance.ToJson()));
+
+            Assert.Equal(preview, result.Content);
+            Assert.False(Directory.Exists(Path.Combine(workspace, ".craft", "tool-results")));
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task DispatchAsync_InvalidInputTerminalizesTheAcceptedProjection()
     {
         var events = new List<string>();

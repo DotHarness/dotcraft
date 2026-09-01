@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Contributions;
 using Microsoft.Extensions.AI;
@@ -180,7 +181,10 @@ public sealed class DefaultToolResultNormalizer(
         }
 
         var limit = ResolveResultLimit(registration, maxModelContentCharacters);
-        if (result.Content is { Length: > 0 } content && limit > 0 && content.Length > limit)
+        if (result.Content is { Length: > 0 } content
+            && limit > 0
+            && content.Length > limit
+            && !HasRemoteArtifact(result))
         {
             var workspacePath = string.IsNullOrWhiteSpace(context.WorkspacePath)
                 ? defaultWorkspacePath
@@ -240,6 +244,13 @@ public sealed class DefaultToolResultNormalizer(
         && value.TryGetInt32(out var perToolLimit)
             ? Math.Max(0, perToolLimit)
             : Math.Max(0, globalLimit);
+
+    private static bool HasRemoteArtifact(ToolExecutionResult result) =>
+        result.Meta is { ValueKind: JsonValueKind.Object } meta
+        && meta.TryGetProperty("executionTarget", out var target)
+        && string.Equals(target.GetString(), "remote", StringComparison.Ordinal)
+        && meta.TryGetProperty("remoteArtifactPath", out var path)
+        && !string.IsNullOrWhiteSpace(path.GetString());
 
     private static IReadOnlyList<AIContent>? LimitRichText(
         IReadOnlyList<AIContent>? contentItems,

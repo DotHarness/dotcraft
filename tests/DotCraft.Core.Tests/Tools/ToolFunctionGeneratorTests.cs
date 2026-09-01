@@ -70,6 +70,7 @@ public sealed class ToolFunctionGeneratorTests
             internal sealed class FixtureExecutable
             {
                 [GeneratedTool(Name = "exec_alias")]
+                [ToolRpc]
                 [Description("Executable fixture.")]
                 public string Go(
                     [ToolParameter(Name = "input_value")]
@@ -104,6 +105,7 @@ public sealed class ToolFunctionGeneratorTests
         Assert.Equal("schema_test", declaration.Name);
         Assert.Equal("Schema-only declaration.", declaration.Description);
         Assert.Null(declaration.OutputSchema);
+        Assert.False(declaration.RpcEligible);
         var schema = JsonNode.Parse(declaration.InputSchema.GetRawText())!.AsObject();
         Assert.False(schema["additionalProperties"]!.GetValue<bool>());
         Assert.Equal(["mode_name"], schema["required"]!.AsArray().Select(static value => value!.GetValue<string>()));
@@ -132,6 +134,11 @@ public sealed class ToolFunctionGeneratorTests
         var function = Assert.IsAssignableFrom<AIFunction>(
             functions.GetMethod("FixtureExecutable_Go", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, [target]));
         Assert.Equal("exec_alias", function.Name);
+        var catalog = assembly.GetType($"{generatedNamespace}.GeneratedToolCatalog");
+        Assert.NotNull(catalog);
+        var descriptors = Assert.IsAssignableFrom<IReadOnlyList<GeneratedToolDescriptor>>(
+            catalog.GetProperty("Descriptors", BindingFlags.Public | BindingFlags.Static)!.GetValue(null));
+        Assert.True(Assert.Single(descriptors, descriptor => descriptor.Name == "exec_alias").RpcEligible);
         var functionProperties = function.JsonSchema.GetProperty("properties");
         Assert.True(functionProperties.TryGetProperty("input_value", out _));
         Assert.Equal("inline", functionProperties.GetProperty("mode").GetProperty("default").GetString());
@@ -192,6 +199,12 @@ public sealed class ToolFunctionGeneratorTests
                 [Description("Second declaration.")]
                 void Second([Description("Input value.")] string value);
             }
+
+            internal sealed class InvalidRpcTool
+            {
+                [ToolRpc]
+                public void Run() { }
+            }
             """;
 
         var result = RunGenerator(source, $"InvalidFixture_{Guid.NewGuid():N}", out _);
@@ -203,6 +216,7 @@ public sealed class ToolFunctionGeneratorTests
         Assert.Contains("DCGEN008", ids);
         Assert.Contains("DCGEN009", ids);
         Assert.Contains("DCGEN010", ids);
+        Assert.Contains("DCGEN011", ids);
         var constraintMessages = result.Diagnostics
             .Where(static diagnostic => diagnostic.Id == "DCGEN007")
             .Select(static diagnostic => diagnostic.GetMessage())

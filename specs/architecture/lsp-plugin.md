@@ -99,8 +99,7 @@ Example manifest:
     "shortDescription": "Go to definition, hover, symbols, and references for C#.",
     "developerName": "DotCraft",
     "category": "Coding",
-    "capabilities": ["LSP"],
-    "brandColor": "#512BD4"
+    "capabilities": ["LSP"]
   }
 }
 ```

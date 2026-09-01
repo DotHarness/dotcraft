@@ -3450,10 +3450,6 @@ public sealed class PluginConfigSnapshot : ExtensibleJsonObject
 /// <summary>Executable wire contract for PluginInterface.</summary>
 public sealed class PluginInterface : ExtensibleJsonObject
 {
-    [JsonPropertyName("brandColor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> BrandColor { get; init; }
-
     [JsonPropertyName("capabilities")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>> Capabilities { get; init; }

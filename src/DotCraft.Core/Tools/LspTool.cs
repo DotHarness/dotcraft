@@ -37,6 +37,7 @@ public sealed class LspTool(
 
     [Description("Interact with Language Server Protocol (LSP) servers for code intelligence. Supported operations: goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls. line and character are 1-based positions.")]
     [Tool(Icon = "🧭", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.LSP), MaxResultChars = 100_000)]
+    [ToolRpc]
     public async Task<string> LSP(
         [Description("LSP operation name")] string operation,
         [Description("The absolute or relative file path")] string filePath,

@@ -89,12 +89,6 @@ function verifyResourcesDir(target) {
   const bundledPluginsRoot = path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins')
   if (!existsSync(bundledPluginsRoot)) {
     fail('Missing bundled plugins directory.')
-  } else {
-    const generatedPythonArtifact = readdirSync(bundledPluginsRoot, { recursive: true })
-      .find((entry) => entry.split(path.sep).includes('__pycache__') || entry.endsWith('.pyc'))
-    if (generatedPythonArtifact) {
-      fail(`Generated Python artifact must not be packaged: ${generatedPythonArtifact}`)
-    }
   }
 
   verifyChannelFeishuCompanion(resourcesDir, platform, arch)

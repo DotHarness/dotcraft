@@ -9832,16 +9832,6 @@
       "title": "PluginInterface",
       "type": "object",
       "properties": {
-        "brandColor": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "capabilities": {
           "type": "array",
           "items": {

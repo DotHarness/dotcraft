@@ -171,7 +171,9 @@
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
         ]
       },
       {

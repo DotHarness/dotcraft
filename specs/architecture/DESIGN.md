@@ -372,11 +372,10 @@ corner geometry from an arbitrary size:
 | Hero | `60px / 16px` | One prominent product or plugin identity at the start of a detail or setup surface. Hero use is intentionally rare. |
 
 Use `object-fit: contain`; cropping belongs to thumbnails. Identity-mark shells
-are transparent by default, while an owning identity contract may opt into a
-restrained background fill. Plugin `interface.brandColor` supplies that optional
-fill behind icon and logo artwork; omit it when the artwork should remain on a
-transparent shell. Generated letter or glyph fallbacks may use the same brand
-fill or a neutral fallback. Hero shells use only the near-invisible `1px`
+are transparent. Each icon or logo asset owns its complete visual treatment,
+including any background required for reliable contrast. Artwork that remains
+legible in both themes may stay transparent. Generated letter or glyph fallbacks
+use the shared neutral fallback. Hero shells use only the near-invisible `1px`
 `--identity-mark-hero-border` hairline (about 8% ink); compact and list shells
 remain unframed unless interaction requires a boundary. Reserve circles for
 people, presence/status, toggles, and circular actions.

@@ -40,3 +40,10 @@ public class ToolAttribute : Attribute
     /// </summary>
     public bool CatalogVisible { get; set; } = true;
 }
+
+/// <summary>
+/// Marks a generated native tool as eligible for Remote Tool Host export and runtime routing.
+/// This marker does not grant authority or affect ordinary CLR method calls.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, Inherited = false)]
+public sealed class ToolRpcAttribute : Attribute;

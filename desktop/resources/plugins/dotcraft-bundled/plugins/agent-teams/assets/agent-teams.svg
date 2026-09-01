@@ -25,6 +25,7 @@
       <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#020617" flood-opacity=".2"/>
     </filter>
   </defs>
+  <rect width="1024" height="1024" rx="224" fill="#4F7CF6"/>
 
   <g transform="translate(512 528) scale(1.05) translate(-512 -512)">
     <g filter="url(#soft-shadow)">

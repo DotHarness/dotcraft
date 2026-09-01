@@ -25,7 +25,6 @@
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write", "Browser"],
     "defaultPrompt": "Please inspect the signed-in page I already have open in Chrome.",
-    "brandColor": "#FFFFFF",
     "composerIcon": "./assets/chrome-small.svg",
     "logo": "./assets/chrome.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",

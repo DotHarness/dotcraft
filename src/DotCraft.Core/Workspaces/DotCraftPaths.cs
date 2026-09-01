@@ -12,6 +12,18 @@ public sealed class DotCraftPaths
         UserData = new OptionalDotCraftPathRoot(userDataPath);
     }
 
+    /// <summary>Creates a normalized path set for a provider-free execution host.</summary>
+    public static DotCraftPaths CreateForExecutionHost(
+        string workspacePath,
+        string dataPath,
+        string? userDataPath = null) =>
+        new(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspacePath)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataPath)),
+            string.IsNullOrWhiteSpace(userDataPath)
+                ? null
+                : Path.TrimEndingDirectorySeparator(Path.GetFullPath(userDataPath)));
+
     /// <summary>Gets the normalized workspace root.</summary>
     public string WorkspacePath { get; }
 

@@ -12346,13 +12346,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "brandColor",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "capabilities",
           "type": "array<string>",
           "required": false,

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">DotCraft</title>
-  <desc id="desc">A transparent vector icon of the DotCraft terminal robot with a monocle over its terminal prompt and an orange code card.</desc>
+  <desc id="desc">The DotCraft terminal robot with a monocle over its terminal prompt and an orange code card on a blue rounded background.</desc>
   <defs>
     <linearGradient id="blue" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2458f7"/>
@@ -30,6 +30,7 @@
       <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#020617" flood-opacity=".2"/>
     </filter>
   </defs>
+  <rect width="1024" height="1024" rx="224" fill="#2458F7"/>
 
   <g transform="translate(512 512) scale(.88) translate(-512 -512)">
     <g transform="translate(512 528) scale(1.3) translate(-512 -512)">

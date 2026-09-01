@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.4.0 |
+| **Version** | 0.4.1 |
 | **Status** | Living |
-| **Date** | 2026-07-31 |
+| **Date** | 2026-09-01 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 ## Overview
@@ -72,10 +72,16 @@ corresponding local tool is executed.
 
 ## Request construction
 
-For a version-1 thread, the Responses request input is:
+For a version-1 thread, a normal `ProviderRequestKind.Turn` Responses request input is:
 
 1. the current canonical generation;
 2. plus only the current MEAI sampling tail not already represented by that generation.
+
+Auxiliary `ProviderRequestKind.Compaction` and `ProviderRequestKind.Memory` requests use the
+messages supplied by their caller. They retain the active request identity and cache-routing
+metadata, but they do not consume, append, abort, or otherwise mutate the active canonical
+provider-history generation. A provider-native compact backend captures its input through the
+provider compaction bridge instead of the ordinary Responses sampling adapter.
 
 The turn runtime captures the MEAI baseline before the current user input enters the agent.
 Coverage is an append-only message boundary measured against the sanitizer-normalized sampling
@@ -198,6 +204,8 @@ provider response IDs, or any future provider-native recovery payload.
   byte-identical prefix and append only completed provider items and new local tail items.
 - Request-local sanitization never emits `provider_history_replaced`; successful neutral or
   provider-native compaction emits exactly one replacement for the new context window.
+- Local compaction and memory requests use their explicit maintenance input without consuming or
+  appending the active canonical provider-history generation.
 - Coverage accounting uses the sanitizer-normalized sampling projection even when replay or fork
   materialization reconstructs multiple MEAI tool messages for one assistant tool-call block.
 - Provider IDs, `call_id`, item ordering, replayable image-generation fields, and encrypted

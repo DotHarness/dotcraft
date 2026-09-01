@@ -81,6 +81,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Runtime.Tests", "t
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Harness.Tests", "tests\DotCraft.Harness.Tests\DotCraft.Harness.Tests.csproj", "{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.RemoteTools", "src\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj", "{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -559,6 +561,18 @@ Global
 		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|x86.ActiveCfg = Release|Any CPU
 		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|x86.Build.0 = Release|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Debug|x64.Build.0 = Debug|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Debug|x86.Build.0 = Debug|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Release|x64.ActiveCfg = Release|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Release|x64.Build.0 = Release|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Release|x86.ActiveCfg = Release|Any CPU
+		{6A8E53B1-41D9-4E5A-A13B-CF247718B0D2}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

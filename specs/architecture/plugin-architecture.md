@@ -142,13 +142,12 @@ Example MCP plugin:
     "developerName": "DotCraft",
     "category": "Coding",
     "capabilities": ["Skill", "MCP", "Hooks"],
-    "defaultPrompt": "Review this change.",
-    "brandColor": "#2563EB"
+    "defaultPrompt": "Review this change."
   }
 }
 ```
 
-`interface` contains optional UI metadata for Desktop and other clients: display name, short and long descriptions, developer, category, capability tags, default prompt, brand color, icon/logo paths, and public website/privacy/terms links. When `brandColor` is present, Desktop paints it behind the plugin's icon and logo artwork; omit it to keep the identity-mark shell transparent. Path fields inside `interface` use the same manifest-relative path rules. Tool-result-specific renderer contracts are not declared in `interface`; trusted local presentation and MCP Apps boundaries are defined by [Tool Architecture](tools-architecture.md#14-presentation-boundary).
+`interface` contains optional UI metadata for Desktop and other clients: display name, short and long descriptions, developer, category, capability tags, default prompt, icon/logo paths, and public website/privacy/terms links. Icon and logo assets own their complete visual treatment. Assets that need a background for theme contrast include it directly; assets that work in both themes may remain transparent. Path fields inside `interface` use the same manifest-relative path rules. Tool-result-specific renderer contracts are not declared in `interface`; trusted local presentation and MCP Apps boundaries are defined by [Tool Architecture](tools-architecture.md#14-presentation-boundary).
 
 `skills` points to a plugin-contained skill directory, for example `"./skills/"`. Each child directory can contain a DotCraft-compatible `SKILL.md`. Skills contributed by enabled plugins are available in `skills/list` with source `plugin` and include `pluginId` / `pluginDisplayName` attribution. Disabling the plugin removes its contributed skills from agent context and hides compatibility built-in copies owned by that plugin.
 

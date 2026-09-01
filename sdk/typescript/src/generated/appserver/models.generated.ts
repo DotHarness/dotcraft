@@ -2500,7 +2500,6 @@ export interface PluginInstallParams {
 }
 
 export interface PluginInterface {
-  brandColor?: string | null;
   capabilities?: string[];
   category?: string | null;
   composerIconDataUrl?: string | null;

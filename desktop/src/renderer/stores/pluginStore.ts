@@ -24,7 +24,6 @@ export interface PluginInterface {
   category?: string | null
   capabilities?: string[]
   defaultPrompt?: string | null
-  brandColor?: string | null
   composerIconDataUrl?: string | null
   logoDataUrl?: string | null
   websiteUrl?: string | null

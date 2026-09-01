@@ -7,7 +7,11 @@ namespace DotCraft.Tools;
 /// A single built-in tool's catalog metadata: its canonical model-visible name,
 /// human-readable description, and display icon.
 /// </summary>
-public sealed record BuiltInToolDescriptor(string Name, string Description, string Icon);
+public sealed record BuiltInToolDescriptor(
+    string Name,
+    string Description,
+    string Icon,
+    bool RpcEligible = false);
 
 /// <summary>
 /// Enumerates the built-in tools the server can expose to the model by reflecting over
@@ -48,7 +52,8 @@ public static class BuiltInToolCatalog
                 byName[descriptor.Name] = new BuiltInToolDescriptor(
                     descriptor.Name,
                     descriptor.Description,
-                    icon);
+                    icon,
+                    descriptor.RpcEligible);
             }
 
             return byName.Values.ToList();
@@ -72,7 +77,11 @@ public static class BuiltInToolCatalog
 
                 var description = method.GetCustomAttribute<DescriptionAttribute>()?.Description ?? string.Empty;
                 var icon = string.IsNullOrEmpty(tool.Icon) ? DefaultIcon : tool.Icon;
-                byName[method.Name] = new BuiltInToolDescriptor(method.Name, description, icon);
+                byName[method.Name] = new BuiltInToolDescriptor(
+                    method.Name,
+                    description,
+                    icon,
+                    method.IsDefined(typeof(ToolRpcAttribute), inherit: false));
             }
         }
 

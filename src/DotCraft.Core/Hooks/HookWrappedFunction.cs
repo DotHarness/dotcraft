@@ -75,6 +75,9 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
     public Func<IDictionary<string, object?>?, string>? DisplayFormatter =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.DisplayFormatter : null;
 
+    public bool RpcEligible =>
+        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.RpcEligible;
+
     protected override async ValueTask<object?> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)

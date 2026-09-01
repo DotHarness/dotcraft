@@ -218,6 +218,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
             var fallbackApproval = new AutoApproveApprovalService();
             var scopedApproval = new SessionScopedApprovalService(fallbackApproval);
+            var remoteToolHostClient = Services
+                .GetService<IRemoteToolHostClientFactory>()?
+                .Create(scopedApproval);
             var planStore = new PlanStore(Paths.Data.RootPath, Services.GetRequiredService<WorkspaceStateDatabase>());
             var acpExtensionProxy = Services.GetService<IAcpExtensionProxy>();
             var nodeReplProxy = Services.GetService<INodeReplProxy>();
@@ -314,7 +317,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     chatClientRegistry: chatClientRegistry,
                     toolDispatcher: Services.GetRequiredService<IToolDispatcher>(),
                     toolSources: effectiveToolSources,
-                    loggerFactory: Services.GetService<ILoggerFactory>());
+                    loggerFactory: Services.GetService<ILoggerFactory>(),
+                    remoteToolHostClient: remoteToolHostClient);
 
                 _contributionScope.RegisterAgentContributions(agentFactory);
 
