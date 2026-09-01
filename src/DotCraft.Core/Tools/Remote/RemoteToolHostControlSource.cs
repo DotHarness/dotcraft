@@ -17,13 +17,10 @@ internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client)
         "RemoteToolHost";
 
     protected override string? GetNamespaceDescription(AIFunction function, ToolPlanningContext context) =>
-        "Inspect and switch this thread's registered Remote Tool Host execution route.";
+        "Manage this thread's remote workspace connection.";
 
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        if (!client.HasRegistrations)
-            return [];
-
         var tools = new RemoteToolHostTools(client);
         return
         [
@@ -31,15 +28,6 @@ internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client)
             GeneratedToolFunctions.RemoteToolHostTools_Connect(tools),
             GeneratedToolFunctions.RemoteToolHostTools_Disconnect(tools)
         ];
-    }
-
-    protected override string GetDescription(AIFunction function, ToolPlanningContext context)
-    {
-        var description = base.GetDescription(function, context);
-        if (!string.Equals(function.Name, "Connect", StringComparison.Ordinal))
-            return description;
-        var summary = client.GetPlanningSummary();
-        return string.IsNullOrWhiteSpace(summary) ? description : $"{description}\n\n{summary}";
     }
 
     public async ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default) =>
@@ -54,7 +42,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
     [GeneratedTool(Name = "List")]
-    [Description("List registered Remote Tool Hosts, their online workspaces, and this thread's current route. Credentials and endpoints are never returned.")]
+    [Description("List registered Remote Tool Hosts, their workspaces, and this thread's current connection.")]
     public async Task<string> List(CancellationToken cancellationToken = default)
     {
         var threadId = CurrentThreadId();
@@ -63,10 +51,10 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     }
 
     [GeneratedTool(Name = "Connect")]
-    [Description("Connect this thread to a registered Remote Tool Host workspace. Subsequent RPC-eligible tools execute there until explicitly disconnected.")]
+    [Description("Connect this thread to a remote workspace.")]
     public async Task<string> Connect(
-        [Description("Registered opaque Remote Tool Host id.")] string hostId,
-        [Description("Host-local workspace id returned by RemoteToolHost.List.")] string workspaceId,
+        [Description("Remote Tool Host id.")] string hostId,
+        [Description("Remote workspace id.")] string workspaceId,
         CancellationToken cancellationToken = default)
     {
         var result = await client.ConnectAsync(CurrentThreadId(), hostId, workspaceId, cancellationToken)
@@ -75,7 +63,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     }
 
     [GeneratedTool(Name = "Disconnect")]
-    [Description("Disconnect this thread from its Remote Tool Host workspace and return RPC-eligible tools to local execution.")]
+    [Description("Disconnect this thread from its remote workspace.")]
     public async Task<string> Disconnect(CancellationToken cancellationToken = default)
     {
         var result = await client.DisconnectAsync(CurrentThreadId(), cancellationToken).ConfigureAwait(false);

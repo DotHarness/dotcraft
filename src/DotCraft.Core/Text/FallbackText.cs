@@ -74,8 +74,6 @@ public static class FallbackText
     public static string CommandCronListTitle => Format("command.cron.list_title");
 
     // Auth commands
-    public static string AuthUsage => Format("auth.usage");
-    public static string AuthOpenAiUnsupported => Format("auth.openai.unsupported");
     public static string AuthOpenAiLoginStarting => Format("auth.openai.login.starting");
     public static string AuthOpenAiLoginUrl(string url) => Format("auth.openai.login.url", url);
     public static string AuthOpenAiLoginWaiting(int port) => Format("auth.openai.login.waiting", port);
@@ -173,8 +171,6 @@ public static class FallbackText
   "hub.notification.turn_failed.title": "DotCraft task failed",
   "hub.notification.turn_failed.body": "\"{0}\" failed.",
   "hub.notification.thread.default": "Current chat",
-  "auth.usage": "Usage: dotcraft auth openai <login|logout|status> [--provider-id <id>] [--no-browser]",
-  "auth.openai.unsupported": "Only 'openai' is supported. Run `dotcraft auth openai login`.",
   "auth.openai.login.starting": "Starting Sign in with ChatGPT...",
   "auth.openai.login.url": "If your browser does not open automatically, visit:\n  {0}",
   "auth.openai.login.waiting": "Waiting for browser authorization on http://localhost:{0}/auth/callback ...",

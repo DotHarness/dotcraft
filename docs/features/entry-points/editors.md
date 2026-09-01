@@ -34,17 +34,17 @@ Follow the prompts for provider, model, and api-key. Run `dotcraft setup --help`
 Fill in three fields in the editor's agent configuration:
 
 - **Command**: `dotcraft`
-- **Arguments**: `-acp`
+- **Arguments**: `acp`
 - **Working directory**: the project root from step 1
 
-Launched with `-acp`, DotCraft enters ACP mode automatically — no config-file changes required.
+Launched with `acp`, DotCraft enters ACP mode automatically — no config-file changes required.
 
 ### 3. Connect to a remote AppServer (optional)
 
 If an AppServer is already running (started by `dotcraft app-server` or the desktop app), point the editor at it instead of starting a second one:
 
 ```text
-dotcraft -acp --remote ws://<host>:<port>/ws
+dotcraft acp --remote ws://<host>:<port>/ws
 ```
 
 The AppServer listens on a bare `ws://host:port` address, and clients always append the `/ws` path. Add `--token <token>` if the AppServer requires authentication. Once connected, sessions you create in the editor are visible in real time to every connected client.
@@ -58,7 +58,7 @@ A JetBrains IDE with the AI Assistant plugin can register an ACP agent directly.
     "agent_servers": {
         "DotCraft": {
             "command": "dotcraft",
-            "args": ["-acp"]
+            "args": ["acp"]
         }
     }
 }
@@ -75,7 +75,7 @@ Install [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client
 | **AgentID** | DotCraft |
 | **Display name** | DotCraft |
 | **Path** | `dotcraft.exe` |
-| **Arguments** | `-acp` |
+| **Arguments** | `acp` |
 
 DotCraft then appears in the plugin's chat UI. It answers questions and reads and writes notes directly — one agent, both coding assistant and knowledge-base assistant.
 

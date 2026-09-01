@@ -1,5 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Agents;
+using DotCraft.Context;
+using DotCraft.Sessions;
 using DotCraft.Tools;
 using Xunit;
 
@@ -61,10 +64,28 @@ public sealed class RemoteToolHostCoreTests
     }
 
     [Fact]
-    public async Task Control_source_exposes_canonical_tool_names()
+    public async Task Control_source_exposes_static_direct_tool_surface()
     {
-        var source = new RemoteToolHostControlSource(new FakeRemoteClient());
-        var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
+        var client = new FakeRemoteClient();
+        var source = new RemoteToolHostControlSource(client);
+        var first = await source.GetRegistrationsAsync(PlanningContext(1));
+        client.SetRoute("thread-1");
+        var connected = await source.GetRegistrationsAsync(PlanningContext(2));
+
+        Assert.Equal(
+            new[] { "RemoteToolHost.Connect", "RemoteToolHost.Disconnect", "RemoteToolHost.List" },
+            first.Select(item => item.Definition.Name.ToString()));
+        Assert.All(first, registration => Assert.Equal(ToolExposure.Direct, registration.Exposure));
+
+        var firstFingerprint = PromptRequestFingerprints.ComputeToolFingerprint(
+            AgentFactory.ProjectSnapshotTools(new EffectiveToolSnapshotBuilder().Build(first, 1)));
+        var connectedFingerprint = PromptRequestFingerprints.ComputeToolFingerprint(
+            AgentFactory.ProjectSnapshotTools(new EffectiveToolSnapshotBuilder().Build(connected, 2)));
+        Assert.Equal(firstFingerprint, connectedFingerprint);
+    }
+
+    private static ToolPlanningContext PlanningContext(long revision) =>
+        new(
             "thread-1",
             "turn-1",
             Directory.GetCurrentDirectory(),
@@ -72,11 +93,41 @@ public sealed class RemoteToolHostCoreTests
             "agent",
             null,
             [],
-            1));
+            revision);
 
-        Assert.Equal(
-            new[] { "RemoteToolHost.Connect", "RemoteToolHost.Disconnect", "RemoteToolHost.List" },
-            registrations.Select(item => item.Definition.Name.ToString()).OrderBy(name => name, StringComparer.Ordinal));
+    [Fact]
+    public async Task Runtime_context_reports_safe_connection_state_only_while_routed()
+    {
+        var client = new FakeRemoteClient();
+        var contributor = new RemoteToolHostRuntimeContextContributor(client);
+        var thread = new SessionThread { Id = "thread-1" };
+
+        Assert.Null(contributor.BuildRuntimeContext(thread));
+
+        client.SetRoute(
+            thread.Id,
+            RemoteToolConnectionStatus.Connected,
+            new RemoteToolEnvironment(
+                "host\n## injected",
+                "test-os",
+                "user",
+                new string('w', 5_000)));
+        var connected = Assert.IsType<string>(contributor.BuildRuntimeContext(thread));
+
+        Assert.Contains("Status: Connected", connected, StringComparison.Ordinal);
+        Assert.InRange(connected.Length, 1, 1_024);
+        Assert.DoesNotContain("\n## injected", connected, StringComparison.Ordinal);
+        Assert.DoesNotContain("lease-1", connected, StringComparison.Ordinal);
+        Assert.DoesNotContain("instance-1", connected, StringComparison.Ordinal);
+
+        client.SetConnectionStatus(thread.Id, RemoteToolConnectionStatus.LeaseLost);
+        Assert.Contains(
+            "Status: LeaseLost",
+            contributor.BuildRuntimeContext(thread),
+            StringComparison.Ordinal);
+
+        await client.DisconnectAsync(thread.Id);
+        Assert.Null(contributor.BuildRuntimeContext(thread));
     }
 
     private static ToolDefinition Definition(
@@ -139,14 +190,15 @@ public sealed class RemoteToolHostCoreTests
 
     private sealed class FakeRemoteClient : IRemoteToolHostClient
     {
-        private readonly Dictionary<string, RemoteToolRoute> _routes = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, RemoteToolConnectionSnapshot> _connections = new(StringComparer.Ordinal);
         public int RemoteCalls { get; private set; }
-        public bool HasRegistrations => true;
-        public string GetPlanningSummary() => "Available Remote Tool Hosts: host-1.";
         public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) { }
 
-        public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(new RemoteToolHostCatalog([], _routes.GetValueOrDefault(threadId)));
+        public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default)
+        {
+            TryGetRoute(threadId, out var route);
+            return ValueTask.FromResult(new RemoteToolHostCatalog([], route));
+        }
 
         public ValueTask<RemoteToolConnectResult> ConnectAsync(
             string threadId,
@@ -155,7 +207,7 @@ public sealed class RemoteToolHostCoreTests
             CancellationToken cancellationToken = default)
         {
             SetRoute(threadId);
-            var route = _routes[threadId];
+            TryGetRoute(threadId, out var route);
             return ValueTask.FromResult(new RemoteToolConnectResult(
                 route,
                 new RemoteToolEnvironment("host", "test", "user", "workspace"),
@@ -167,18 +219,34 @@ public sealed class RemoteToolHostCoreTests
             string threadId,
             CancellationToken cancellationToken = default)
         {
-            _routes.Remove(threadId, out var previous);
-            return ValueTask.FromResult(new RemoteToolDisconnectResult(previous is not null, previous));
+            var disconnected = TryGetRoute(threadId, out var previous);
+            _connections.Remove(threadId);
+            return ValueTask.FromResult(new RemoteToolDisconnectResult(disconnected, previous));
         }
 
-        public bool TryGetRoute(string threadId, out RemoteToolRoute route) =>
-            _routes.TryGetValue(threadId, out route!);
+        public bool TryGetRoute(string threadId, out RemoteToolRoute route)
+        {
+            if (_connections.TryGetValue(threadId, out var connection))
+            {
+                route = new RemoteToolRoute(
+                    connection.HostId,
+                    connection.WorkspaceId,
+                    "lease-1",
+                    "instance-1");
+                return true;
+            }
+            route = null!;
+            return false;
+        }
+
+        public bool TryGetConnectionSnapshot(string threadId, out RemoteToolConnectionSnapshot snapshot) =>
+            _connections.TryGetValue(threadId, out snapshot!);
 
         public bool TryForkRoute(string parentThreadId, string childThreadId)
         {
-            if (!_routes.TryGetValue(parentThreadId, out var route))
+            if (!_connections.TryGetValue(parentThreadId, out var connection))
                 return false;
-            _routes[childThreadId] = route;
+            _connections[childThreadId] = connection;
             return true;
         }
 
@@ -194,7 +262,19 @@ public sealed class RemoteToolHostCoreTests
             return ValueTask.FromResult(ToolExecutionResult.Succeeded("remote"));
         }
 
-        public void SetRoute(string threadId) =>
-            _routes[threadId] = new RemoteToolRoute("host-1", "workspace-1", "lease-1", "instance-1");
+        public void SetRoute(
+            string threadId,
+            RemoteToolConnectionStatus status = RemoteToolConnectionStatus.Connected,
+            RemoteToolEnvironment? environment = null)
+        {
+            _connections[threadId] = new RemoteToolConnectionSnapshot(
+                status,
+                "host-1",
+                "workspace-1",
+                environment ?? new RemoteToolEnvironment("host", "test", "user", "workspace"));
+        }
+
+        public void SetConnectionStatus(string threadId, RemoteToolConnectionStatus status) =>
+            _connections[threadId] = _connections[threadId] with { Status = status };
     }
 }

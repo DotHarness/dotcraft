@@ -17,6 +17,20 @@ public sealed record RemoteToolEnvironment(
     string UserName,
     string WorkspacePath);
 
+/// <summary>The runtime state of one thread's Remote Tool Host connection.</summary>
+public enum RemoteToolConnectionStatus
+{
+    Connected,
+    LeaseLost
+}
+
+/// <summary>Model-safe, runtime-only connection information for one thread.</summary>
+public sealed record RemoteToolConnectionSnapshot(
+    RemoteToolConnectionStatus Status,
+    string HostId,
+    string WorkspaceId,
+    RemoteToolEnvironment Environment);
+
 /// <summary>One Host-local workspace that may be leased by an Agent Host.</summary>
 public sealed record RemoteToolWorkspaceDescriptor(
     string WorkspaceId,
@@ -55,12 +69,6 @@ public sealed record RemoteToolDisconnectResult(bool Disconnected, RemoteToolRou
 /// </summary>
 public interface IRemoteToolHostClient
 {
-    /// <summary>Gets whether at least one Host has been registered out of band.</summary>
-    bool HasRegistrations { get; }
-
-    /// <summary>Returns a bounded, non-secret Host summary suitable for a tool description.</summary>
-    string GetPlanningSummary();
-
     /// <summary>Replaces the current trusted set of RPC-eligible definitions.</summary>
     void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions);
 
@@ -83,6 +91,9 @@ public interface IRemoteToolHostClient
 
     /// <summary>Gets the current runtime-only route without performing network work.</summary>
     bool TryGetRoute(string threadId, out RemoteToolRoute route);
+
+    /// <summary>Gets model-safe runtime connection state without performing network work.</summary>
+    bool TryGetConnectionSnapshot(string threadId, out RemoteToolConnectionSnapshot snapshot);
 
     /// <summary>Copies the parent's current route reference to a native child thread.</summary>
     bool TryForkRoute(string parentThreadId, string childThreadId);

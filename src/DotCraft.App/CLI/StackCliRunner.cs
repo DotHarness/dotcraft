@@ -13,6 +13,22 @@ internal interface IStackProcessRunner
     Task<StackProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string workingDirectory, CancellationToken ct);
 }
 
+internal sealed record StackCommandOptions
+{
+    public string Directory { get; init; } = Path.GetFullPath(".");
+    public bool DryRun { get; init; }
+    public bool NoStart { get; init; }
+    public string? Version { get; init; }
+    public string? Provider { get; init; }
+    public string? Model { get; init; }
+    public string? ApiKey { get; init; }
+    public string? Project { get; init; }
+    public string? Workspace { get; init; }
+    public string? Tail { get; init; }
+    public string? Service { get; init; }
+    public string? PublicHost { get; init; }
+}
+
 internal sealed class StackProcessRunner : IStackProcessRunner
 {
     public async Task<StackProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string workingDirectory, CancellationToken ct)
@@ -40,56 +56,107 @@ internal static class StackCliRunner
     private const string WebhookComposeFile = "docker-compose.webhook.yml";
     private const string CaddyFile = "Caddyfile";
 
-    public static Task<int> RunAsync(
-        string[] args,
+    public static Task<int> InitAsync(
+        StackCommandOptions options,
         TextWriter output,
         TextWriter error,
         CancellationToken ct,
-        IStackProcessRunner? processRunner = null) =>
-        new Runner(output, error, processRunner ?? new StackProcessRunner()).RunAsync(args, ct);
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.InitAsync(options, ct));
+
+    public static Task<int> AddProjectAsync(StackCommandOptions options, TextWriter output, TextWriter error) =>
+        ExecuteAsync(output, error, null, runner => runner.AddProjectAsync(options));
+
+    public static Task<int> DoctorAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.DoctorAsync(options, ct));
+
+    public static Task<int> StatusAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.ComposeAsync(options, ["ps", "--all"], ct));
+
+    public static Task<int> LogsAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.LogsAsync(options, ct));
+
+    public static Task<int> RestartAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.MutatingComposeAsync(options, ["restart"], ct));
+
+    public static Task<int> UpgradeAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.UpgradeAsync(options, ct));
+
+    public static Task<int> EnableWebhookAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.EnableWebhookAsync(options, ct));
+
+    public static Task<int> WebhookStatusAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.WebhookStatusAsync(options, ct));
+
+    public static Task<int> DisableWebhookAsync(
+        StackCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct,
+        IStackProcessRunner? processRunner = null) => ExecuteAsync(
+            output, error, processRunner, runner => runner.DisableWebhookAsync(options, ct));
+
+    private static async Task<int> ExecuteAsync(
+        TextWriter output,
+        TextWriter error,
+        IStackProcessRunner? processRunner,
+        Func<Runner, Task<int>> action)
+    {
+        try
+        {
+            return await action(new Runner(output, error, processRunner ?? new StackProcessRunner())).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            await error.WriteLineAsync("Stack operation cancelled.").ConfigureAwait(false);
+            return 130;
+        }
+        catch (Exception ex)
+        {
+            await error.WriteLineAsync($"error: {Redact(ex.Message)}").ConfigureAwait(false);
+            return 1;
+        }
+    }
 
     private sealed class Runner(TextWriter output, TextWriter error, IStackProcessRunner processes)
     {
-        public async Task<int> RunAsync(string[] args, CancellationToken ct)
+        internal async Task<int> InitAsync(StackCommandOptions options, CancellationToken ct)
         {
-            try
-            {
-                if (args.Length == 0 || IsHelp(args[0]))
-                {
-                    await WriteHelpAsync();
-                    return args.Length == 0 ? 1 : 0;
-                }
-
-                var command = args[0].ToLowerInvariant();
-                var tail = args.Skip(1).ToArray();
-                return command switch
-                {
-                    "init" => await InitAsync(tail, ct),
-                    "add-project" => await AddProjectAsync(tail),
-                    "doctor" => await DoctorAsync(tail, ct),
-                    "status" => await ComposeAsync(tail, ["ps", "--all"], ct),
-                    "logs" => await LogsAsync(tail, ct),
-                    "restart" => await MutatingComposeAsync(tail, ["restart"], ct),
-                    "upgrade" => await UpgradeAsync(tail, ct),
-                    "webhook" => await WebhookAsync(tail, ct),
-                    _ => throw new ArgumentException($"Unknown stack command '{args[0]}'.")
-                };
-            }
-            catch (OperationCanceledException)
-            {
-                await error.WriteLineAsync("Stack operation cancelled.");
-                return 130;
-            }
-            catch (Exception ex)
-            {
-                await error.WriteLineAsync($"error: {Redact(ex.Message)}");
-                return 1;
-            }
-        }
-
-        private async Task<int> InitAsync(string[] args, CancellationToken ct)
-        {
-            var options = StackOptions.Parse(args);
             var root = options.Directory;
             var planned = new[] { ComposeFile, ".env", "state/dotcraft", "state/oratorio/config.json", "workspace", "secrets" };
             if (options.DryRun)
@@ -125,14 +192,13 @@ internal static class StackCliRunner
             return 0;
         }
 
-        private async Task<int> AddProjectAsync(string[] args)
+        internal async Task<int> AddProjectAsync(StackCommandOptions options)
         {
-            var options = StackOptions.Parse(args);
-            var provider = options.Require("provider").ToLowerInvariant();
+            var provider = Require(options.Provider, "--provider").ToLowerInvariant();
             if (provider is not ("github" or "gitlab"))
                 throw new ArgumentException("--provider must be github or gitlab.");
-            var project = NormalizeProject(provider, options.Require("project"));
-            var workspace = NormalizeWorkspace(options.Require("workspace"));
+            var project = NormalizeProject(provider, Require(options.Project, "--project"));
+            var workspace = NormalizeWorkspace(Require(options.Workspace, "--workspace"));
             var path = Path.Combine(options.Directory, "state", "oratorio", "config.json");
             if (!File.Exists(path)) throw new FileNotFoundException("Stack Oratorio configuration was not found.", path);
 
@@ -166,9 +232,8 @@ internal static class StackCliRunner
             return 0;
         }
 
-        private async Task<int> DoctorAsync(string[] args, CancellationToken ct)
+        internal async Task<int> DoctorAsync(StackCommandOptions options, CancellationToken ct)
         {
-            var options = StackOptions.Parse(args);
             var failures = 0;
             foreach (var file in new[] { ComposeFile, ".env", Path.Combine("state", "oratorio", "config.json") })
             {
@@ -193,18 +258,19 @@ internal static class StackCliRunner
             return failures == 0 ? 0 : 1;
         }
 
-        private async Task<int> LogsAsync(string[] args, CancellationToken ct)
+        internal async Task<int> LogsAsync(StackCommandOptions options, CancellationToken ct)
         {
-            var options = StackOptions.Parse(args);
-            var composeArgs = new List<string> { "logs", "--no-color", "--tail", options.Value("tail") ?? "200" };
-            var service = options.Value("service");
+            var composeArgs = new List<string> { "logs", "--no-color", "--tail", options.Tail ?? "200" };
+            var service = options.Service;
             if (!string.IsNullOrWhiteSpace(service)) composeArgs.Add(ValidateService(service));
             return await RunComposeAsync(options.Directory, composeArgs, ct);
         }
 
-        private async Task<int> MutatingComposeAsync(string[] args, IReadOnlyList<string> composeArgs, CancellationToken ct)
+        internal async Task<int> MutatingComposeAsync(
+            StackCommandOptions options,
+            IReadOnlyList<string> composeArgs,
+            CancellationToken ct)
         {
-            var options = StackOptions.Parse(args);
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would run docker compose {string.Join(' ', composeArgs)} in {options.Directory}.");
@@ -213,9 +279,8 @@ internal static class StackCliRunner
             return await RunComposeAsync(options.Directory, composeArgs, ct);
         }
 
-        private async Task<int> UpgradeAsync(string[] args, CancellationToken ct)
+        internal async Task<int> UpgradeAsync(StackCommandOptions options, CancellationToken ct)
         {
-            var options = StackOptions.Parse(args);
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would pull and recreate the stack in {options.Directory}.");
@@ -225,67 +290,64 @@ internal static class StackCliRunner
             return pull == 0 ? await RunComposeAsync(options.Directory, ["up", "-d", "--remove-orphans"], ct) : pull;
         }
 
-        private async Task<int> WebhookAsync(string[] args, CancellationToken ct)
+        internal async Task<int> WebhookStatusAsync(StackCommandOptions options, CancellationToken ct)
         {
-            if (args.Length == 0) throw new ArgumentException("Missing webhook command: enable, status, or disable.");
-            var command = args[0].ToLowerInvariant();
-            var options = StackOptions.Parse(args.Skip(1).ToArray());
-            var overlay = Path.Combine(options.Directory, WebhookComposeFile);
-            var caddy = Path.Combine(options.Directory, CaddyFile);
-            if (command == "status")
-            {
-                await output.WriteLineAsync(File.Exists(overlay) && File.Exists(caddy) ? "Webhook ingress: enabled" : "Webhook ingress: disabled");
-                return File.Exists(overlay) && File.Exists(caddy)
-                    ? await RunComposeAsync(options.Directory, ["ps", "webhook-gateway"], ct)
-                    : 0;
-            }
-            if (command == "enable")
-            {
-                var host = ValidatePublicHost(options.Require("public-host"));
-                if (options.DryRun)
-                {
-                    await output.WriteLineAsync($"Would enable GitHub webhook ingress at https://{host}/api/v1/sources/github/webhook.");
-                    return 0;
-                }
-                WriteAtomic(overlay, ReadAsset(WebhookComposeFile));
-                WriteAtomic(caddy, ReadAsset(CaddyFile));
-                var envPath = Path.Combine(options.Directory, ".env");
-                var env = await File.ReadAllTextAsync(envPath, ct);
-                env = UpsertEnv(env, "ORATORIO_WEBHOOK_PUBLIC_HOST", host);
-                var existing = ReadEnv(env, "ORATORIO_GITHUB_WEBHOOK_SECRET");
-                var secret = existing is { Length: > 0 } ? existing : GenerateToken();
-                env = UpsertEnv(env, "ORATORIO_GITHUB_WEBHOOK_SECRET", secret);
-                WriteAtomic(envPath, env);
-                if (existing is not { Length: > 0 }) await output.WriteLineAsync($"Webhook secret (shown once): {secret}");
-                return await RunComposeAsync(options.Directory, ["up", "-d", "--force-recreate", "oratorio", "webhook-gateway"], ct);
-            }
-            if (command == "disable")
-            {
-                if (options.DryRun)
-                {
-                    await output.WriteLineAsync("Would stop and remove the webhook gateway while preserving stack state and secrets.");
-                    return 0;
-                }
-                if (File.Exists(overlay))
-                {
-                    var result = await RunComposeAsync(options.Directory, ["stop", "webhook-gateway"], ct);
-                    if (result != 0) return result;
-                    result = await RunComposeAsync(options.Directory, ["rm", "-f", "webhook-gateway"], ct);
-                    if (result != 0) return result;
-                }
-                if (File.Exists(overlay)) File.Delete(overlay);
-                if (File.Exists(caddy)) File.Delete(caddy);
-                await output.WriteLineAsync("Webhook ingress is disabled; state, secrets, and certificate volumes were preserved.");
-                return 0;
-            }
-            throw new ArgumentException($"Unknown webhook command '{command}'.");
+            var enabled = File.Exists(Path.Combine(options.Directory, WebhookComposeFile))
+                && File.Exists(Path.Combine(options.Directory, CaddyFile));
+            await output.WriteLineAsync(enabled ? "Webhook ingress: enabled" : "Webhook ingress: disabled");
+            return enabled
+                ? await RunComposeAsync(options.Directory, ["ps", "webhook-gateway"], ct)
+                : 0;
         }
 
-        private Task<int> ComposeAsync(string[] args, IReadOnlyList<string> composeArgs, CancellationToken ct)
+        internal async Task<int> EnableWebhookAsync(StackCommandOptions options, CancellationToken ct)
         {
-            var options = StackOptions.Parse(args);
-            return RunComposeAsync(options.Directory, composeArgs, ct);
+            var host = ValidatePublicHost(Require(options.PublicHost, "--public-host"));
+            if (options.DryRun)
+            {
+                await output.WriteLineAsync($"Would enable GitHub webhook ingress at https://{host}/api/v1/sources/github/webhook.");
+                return 0;
+            }
+
+            WriteAtomic(Path.Combine(options.Directory, WebhookComposeFile), ReadAsset(WebhookComposeFile));
+            WriteAtomic(Path.Combine(options.Directory, CaddyFile), ReadAsset(CaddyFile));
+            var envPath = Path.Combine(options.Directory, ".env");
+            var env = await File.ReadAllTextAsync(envPath, ct);
+            env = UpsertEnv(env, "ORATORIO_WEBHOOK_PUBLIC_HOST", host);
+            var existing = ReadEnv(env, "ORATORIO_GITHUB_WEBHOOK_SECRET");
+            var secret = existing is { Length: > 0 } ? existing : GenerateToken();
+            env = UpsertEnv(env, "ORATORIO_GITHUB_WEBHOOK_SECRET", secret);
+            WriteAtomic(envPath, env);
+            if (existing is not { Length: > 0 }) await output.WriteLineAsync($"Webhook secret (shown once): {secret}");
+            return await RunComposeAsync(options.Directory, ["up", "-d", "--force-recreate", "oratorio", "webhook-gateway"], ct);
         }
+
+        internal async Task<int> DisableWebhookAsync(StackCommandOptions options, CancellationToken ct)
+        {
+            var overlay = Path.Combine(options.Directory, WebhookComposeFile);
+            var caddy = Path.Combine(options.Directory, CaddyFile);
+            if (options.DryRun)
+            {
+                await output.WriteLineAsync("Would stop and remove the webhook gateway while preserving stack state and secrets.");
+                return 0;
+            }
+            if (File.Exists(overlay))
+            {
+                var result = await RunComposeAsync(options.Directory, ["stop", "webhook-gateway"], ct);
+                if (result != 0) return result;
+                result = await RunComposeAsync(options.Directory, ["rm", "-f", "webhook-gateway"], ct);
+                if (result != 0) return result;
+            }
+            if (File.Exists(overlay)) File.Delete(overlay);
+            if (File.Exists(caddy)) File.Delete(caddy);
+            await output.WriteLineAsync("Webhook ingress is disabled; state, secrets, and certificate volumes were preserved.");
+            return 0;
+        }
+
+        internal Task<int> ComposeAsync(
+            StackCommandOptions options,
+            IReadOnlyList<string> composeArgs,
+            CancellationToken ct) => RunComposeAsync(options.Directory, composeArgs, ct);
 
         private async Task<int> RunComposeAsync(string directory, IReadOnlyList<string> command, CancellationToken ct, bool quietSuccess = false)
         {
@@ -318,61 +380,17 @@ internal static class StackCliRunner
             }
         }
 
-        private async Task WriteHelpAsync() => await output.WriteLineAsync(
-            "Usage: dotcraft stack <init|add-project|doctor|status|logs|restart|upgrade|webhook> [options]");
     }
 
-    private sealed class StackOptions
-    {
-        private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
-        public string Directory { get; private set; } = Path.GetFullPath(".");
-        public bool DryRun { get; private set; }
-        public bool NoStart { get; private set; }
-
-        public static StackOptions Parse(string[] args)
-        {
-            var result = new StackOptions();
-            for (var i = 0; i < args.Length; i++)
-            {
-                var arg = args[i];
-                if (arg.Equals("--dry-run", StringComparison.OrdinalIgnoreCase)) { result.DryRun = true; continue; }
-                if (arg.Equals("--no-start", StringComparison.OrdinalIgnoreCase)) { result.NoStart = true; continue; }
-                if (!arg.StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException($"Unexpected argument '{arg}'.");
-                var name = arg[2..];
-                string value;
-                var separator = name.IndexOf('=');
-                if (separator >= 0)
-                {
-                    value = name[(separator + 1)..];
-                    name = name[..separator];
-                }
-                else
-                {
-                    if (++i >= args.Length || args[i].StartsWith("--", StringComparison.Ordinal))
-                        throw new ArgumentException($"Missing value for --{name}.");
-                    value = args[i];
-                }
-                result._values[name] = value.Trim();
-            }
-            if (result._values.TryGetValue("dir", out var directory)) result.Directory = Path.GetFullPath(directory);
-            return result;
-        }
-
-        public string? Value(string name) => _values.GetValueOrDefault(name);
-        public string Require(string name) => Value(name) is { Length: > 0 } value
-            ? value
-            : throw new ArgumentException($"--{name} is required.");
-    }
-
-    private static string BuildEnvironment(StackOptions options, string appServerToken, string oratorioToken) =>
+    private static string BuildEnvironment(StackCommandOptions options, string appServerToken, string oratorioToken) =>
         $"APPSERVER_TOKEN={appServerToken}\n" +
         $"ORATORIO_SERVICE_TOKEN={oratorioToken}\n" +
         "APPSERVER_PORT=9100\nORATORIO_PORT=5087\nDASHBOARD_PORT=8080\n" +
-        $"DOTCRAFT_VERSION={options.Value("version") ?? "latest"}\n" +
+        $"DOTCRAFT_VERSION={options.Version ?? "latest"}\n" +
         "DOTCRAFT_WORKSPACE_DIR=./workspace\nDOTCRAFT_STACK_STATE_DIR=./state\n" +
-        $"DOTCRAFT_PROVIDER={options.Value("provider") ?? "openai"}\n" +
-        $"DOTCRAFT_MODEL={options.Value("model") ?? "gpt-5.6"}\n" +
-        $"DOTCRAFT_API_KEY={options.Value("api-key") ?? string.Empty}\n";
+        $"DOTCRAFT_PROVIDER={options.Provider ?? "openai"}\n" +
+        $"DOTCRAFT_MODEL={options.Model ?? "gpt-5.6"}\n" +
+        $"DOTCRAFT_API_KEY={options.ApiKey ?? string.Empty}\n";
 
     private static string BuildInitialConfiguration() =>
         new JsonObject
@@ -478,7 +496,9 @@ internal static class StackCliRunner
         return string.Join('\n', lines).TrimEnd() + "\n";
     }
 
-    private static bool IsHelp(string value) => value is "-h" or "--help" or "help";
+    private static string Require(string? value, string option) => value is { Length: > 0 }
+        ? value
+        : throw new ArgumentException($"{option} is required.");
 
     private static string Redact(string value) => System.Text.RegularExpressions.Regex.Replace(
         value,

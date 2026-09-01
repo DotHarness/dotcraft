@@ -172,6 +172,17 @@ public sealed class AgentFactory : IAsyncDisposable
             PathBlacklist = blacklist,
             TraceCollector = traceCollector
         };
+        if (remoteToolHostClient is not null)
+        {
+            _runtimeContext = new AgentRuntimeContext(_runtimeContext)
+            {
+                RuntimeContextContributors =
+                [
+                    .. _runtimeContext.RuntimeContextContributors,
+                    new RemoteToolHostRuntimeContextContributor(remoteToolHostClient)
+                ]
+            };
+        }
 
         _supplementalToolSource = new ModeSupplementalToolSource(_planStore, _onPlanUpdated);
         _userCoordinationToolSource = new UserCoordinationToolSource();

@@ -4,6 +4,21 @@ using DotCraft.ContextExport;
 
 namespace DotCraft.CLI;
 
+internal sealed record ContextExportCommandOptions(
+    string ThreadId,
+    string? WorkspacePath,
+    string? OutputPath,
+    string? Profile,
+    string? ToolResults,
+    string? History);
+
+internal sealed record ContextSearchCommandOptions(
+    string Query,
+    string? WorkspacePath,
+    int? Limit,
+    string? Status,
+    bool Json);
+
 internal static class ContextCliRunner
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerOptions.Web)
@@ -11,20 +26,25 @@ internal static class ContextCliRunner
         WriteIndented = true
     };
 
-    public static async Task<int> RunAsync(
-        CommandLineArgs args,
+    public static Task<int> ExportAsync(
+        ContextExportCommandOptions options,
         TextWriter output,
         TextWriter error,
-        CancellationToken ct = default)
+        CancellationToken ct = default) => ExecuteAsync(
+            () => ExportCoreAsync(options, output, error, ct), error);
+
+    public static Task<int> SearchAsync(
+        ContextSearchCommandOptions options,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken ct = default) => ExecuteAsync(
+            () => SearchCoreAsync(options, output, error, ct), error);
+
+    private static async Task<int> ExecuteAsync(Func<Task<int>> action, TextWriter error)
     {
         try
         {
-            return (args.ContextCommand ?? string.Empty).Trim().ToLowerInvariant() switch
-            {
-                "export" => await RunExportAsync(args, output, error, ct).ConfigureAwait(false),
-                "search" => await RunSearchAsync(args, output, error, ct).ConfigureAwait(false),
-                _ => await WriteUsageAsync(error).ConfigureAwait(false)
-            };
+            return await action().ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -38,35 +58,29 @@ internal static class ContextCliRunner
         }
     }
 
-    private static async Task<int> RunExportAsync(
-        CommandLineArgs args,
+    private static async Task<int> ExportCoreAsync(
+        ContextExportCommandOptions options,
         TextWriter output,
         TextWriter error,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(args.ContextThreadId))
-        {
-            await error.WriteLineAsync("Missing required option: --thread <threadId>").ConfigureAwait(false);
-            return 1;
-        }
-
         var service = new ContextExportService();
         var result = await service.ExportAsync(new ContextExportOptions
         {
-            ThreadId = args.ContextThreadId.Trim(),
-            WorkspacePath = args.ContextWorkspacePath,
-            Profile = ParseEnum(args.ContextProfile, ContextExportProfile.Handoff, "--profile"),
-            ToolResults = ParseEnum(args.ContextToolResults, ContextExportToolResultMode.Summary, "--tool-results"),
-            History = ParseEnum(args.ContextHistory, ContextExportHistoryMode.Tail, "--history")
+            ThreadId = options.ThreadId.Trim(),
+            WorkspacePath = options.WorkspacePath,
+            Profile = ParseEnum(options.Profile, ContextExportProfile.Handoff, "--profile"),
+            ToolResults = ParseEnum(options.ToolResults, ContextExportToolResultMode.Summary, "--tool-results"),
+            History = ParseEnum(options.History, ContextExportHistoryMode.Tail, "--history")
         }, ct).ConfigureAwait(false);
 
-        if (string.IsNullOrWhiteSpace(args.ContextOutputPath))
+        if (string.IsNullOrWhiteSpace(options.OutputPath))
         {
             await output.WriteAsync(result.Markdown).ConfigureAwait(false);
             return 0;
         }
 
-        var outputPath = Path.GetFullPath(args.ContextOutputPath);
+        var outputPath = Path.GetFullPath(options.OutputPath);
         var outputDir = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(outputDir))
             Directory.CreateDirectory(outputDir);
@@ -78,28 +92,22 @@ internal static class ContextCliRunner
         return 0;
     }
 
-    private static async Task<int> RunSearchAsync(
-        CommandLineArgs args,
+    private static async Task<int> SearchCoreAsync(
+        ContextSearchCommandOptions options,
         TextWriter output,
         TextWriter error,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(args.ContextQuery))
-        {
-            await error.WriteLineAsync("Missing required option: --query <text>").ConfigureAwait(false);
-            return 1;
-        }
-
         var service = new ContextSearchService();
         var result = await service.SearchAsync(new ContextSearchOptions
         {
-            WorkspacePath = args.ContextWorkspacePath,
-            Query = args.ContextQuery.Trim(),
-            Limit = args.ContextLimit ?? 10,
-            Status = ParseEnum(args.ContextStatus, ContextSearchStatusFilter.All, "--status")
+            WorkspacePath = options.WorkspacePath,
+            Query = options.Query.Trim(),
+            Limit = options.Limit ?? 10,
+            Status = ParseEnum(options.Status, ContextSearchStatusFilter.All, "--status")
         }, ct).ConfigureAwait(false);
 
-        if (args.ContextJson)
+        if (options.Json)
         {
             await output.WriteLineAsync(JsonSerializer.Serialize(result, JsonOptions)).ConfigureAwait(false);
             return 0;
@@ -170,10 +178,4 @@ internal static class ContextCliRunner
         throw new ArgumentException($"Invalid value for {optionName}: {value}");
     }
 
-    private static async Task<int> WriteUsageAsync(TextWriter error)
-    {
-        await error.WriteLineAsync("Usage: dotcraft context export --thread <threadId> [--workspace <path>] [--output <file>] [--profile handoff|transcript] [--tool-results none|summary|full] [--history none|tail|full]").ConfigureAwait(false);
-        await error.WriteLineAsync("       dotcraft context search --query <text> [--workspace <path>] [--limit <n>] [--status active|archived|all] [--json]").ConfigureAwait(false);
-        return 1;
-    }
 }

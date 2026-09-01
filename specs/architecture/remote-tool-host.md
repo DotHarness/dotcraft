@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.1.0 |
+| Version | 0.1.1 |
 | Status | Draft |
 | Date | 2026-09-01 |
 | Parent | [Tool Architecture](tools-architecture.md) |
-| Related Specs | [Runtime Module Boundaries](runtime-module-boundaries.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| Related Specs | [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 ## 1. Purpose
 
@@ -132,7 +132,8 @@ Failure to acquire leaves the old route unchanged. Connecting to the current rou
 
 ## 6. Model control surface
 
-The Agent Host exposes three ordinary, profile-managed Core tools with these canonical names:
+When the Remote Tool Host client capability is installed, the Agent Host always exposes three
+ordinary, profile-managed, directly loaded Core tools with these canonical names:
 
 ```text
 RemoteToolHost.List()
@@ -144,16 +145,45 @@ Provider-flat projections MAY translate the dot but the canonical identity remai
 These tools never accept or return an endpoint, token, certificate, credential reference, or raw
 Host configuration.
 
+Their static descriptions are:
+
+```text
+Namespace: Manage this thread's remote workspace connection.
+List: List registered Remote Tool Hosts, their workspaces, and this thread's current connection.
+Connect: Connect this thread to a remote workspace.
+Disconnect: Disconnect this thread from its remote workspace.
+Connect.hostId: Remote Tool Host id.
+Connect.workspaceId: Remote workspace id.
+```
+
+The namespace, tool descriptions, schemas, ordering, and exposure are static. Host registrations,
+online catalogs, thread routes, and lease state MUST NOT change any declaration or deferred-search
+metadata. An empty registration store therefore still exposes all three tools: `List` returns an
+empty catalog, `Connect` returns `HostNotRegistered`, and `Disconnect` reports that no route was
+removed. Profile policy MAY continue to filter the tools as it filters other Core tools.
+
 `List` returns the safe registered Host catalog, online state, available workspaces, and the current
 thread route. `Connect` uses only a registered Host credential, verifies the pinned certificate and
 profile, acquires the workspace, negotiates the remote tool catalog, and immediately publishes the
 route for later calls in the same Turn. Its result includes a non-secret execution summary:
 hostname, OS, user, canonical workspace path, Host instance id, and matched/unavailable tool names.
-`Disconnect` removes only the current thread route and returns it to local execution.
+`Disconnect` removes only the current thread route and returns it to local execution. `List` is the
+authoritative discovery surface and loads the current registration and workspace catalogs when it
+is called, so out-of-band registration changes do not require a tool-snapshot rebuild.
 
-The Connect declaration description MAY include a bounded, non-secret Host registry snapshot for
-planning. `List` is authoritative. Out-of-band registry changes become model-visible no later than
-the next Turn and MUST NOT change the Connect input schema.
+At the start of each Turn, the Agent Host appends a Remote Tool Host section to the latest user
+message runtime context when the thread has a connected or lost route. The section contains only
+`Status`, `HostId`, `WorkspaceId`, `HostName`, `OperatingSystem`, `UserName`, and
+`RemoteWorkingDirectory`. Values are bounded and encoded as single-line scalars. The section MUST
+omit lease and Host instance identifiers, endpoints, tokens, certificates, and credential
+references. A disconnected thread has no Remote Tool Host runtime-context section. A successful
+`Connect` or `Disconnect` result is authoritative for the remainder of its current Turn; the next
+Turn's runtime context reflects the new state.
+
+The control namespace remains directly loaded while it contains this small discovery and
+connection surface. A future deferred projection MUST treat the whole namespace as one stable
+capability, MUST NOT vary with registrations or connection state, and MUST fall back to direct
+exposure when provider-native tool search is unavailable.
 
 ## 7. Invocation flow and policy
 
@@ -262,19 +292,26 @@ permissions of the logged-in Host user and MUST be treated accordingly.
 The official application exposes:
 
 ```text
-dotcraft tool-host setup --listen <https-endpoint>
-dotcraft tool-host workspace add <workspaceId> --path <absolute-path>
-dotcraft tool-host workspace list|remove
+dotcraft tool-host setup <https-endpoint> [-o|--output <pairing-file>]
+dotcraft tool-host workspace add <workspace-id> <absolute-path>
+dotcraft tool-host workspace list [--json]
+dotcraft tool-host workspace remove <workspace-id>
+dotcraft tool-host policy list [--json]
+dotcraft tool-host policy set <tool-name> <allow|deny|needs-approval>
 dotcraft tool-host autostart install|remove
-dotcraft tool-host pair --output <pairing-file>
-dotcraft tool-host token rotate
-dotcraft tool-host status
+dotcraft tool-host token rotate [-o|--output <pairing-file>]
+dotcraft tool-host status [--json]
 dotcraft tool-host serve
-dotcraft tool-host register --file <pairing-file>
-dotcraft tool-host unregister <hostId>
-dotcraft tool-host list
-dotcraft tool-host test <hostId>
+dotcraft tool-host register <pairing-file>
+dotcraft tool-host unregister <host-id>
+dotcraft tool-host list [--json]
+dotcraft tool-host test <host-id>
 ```
+
+The CLI is non-interactive. Setup requires an explicit HTTPS endpoint because it determines both
+the listener and the certificate identity. Workspace registration requires an explicit stable
+workspace id. Setup and token rotation write a pairing file named from `hostId` in the current
+directory unless `--output` is supplied.
 
 Registration MUST NOT accept the token as a command-line argument. `serve` composes a provider-free
 workspace execution runtime and the Remote Tool Host transport. It does not compose a model

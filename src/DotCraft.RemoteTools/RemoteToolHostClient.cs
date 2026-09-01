@@ -43,18 +43,6 @@ internal sealed class RemoteToolHostClient :
         _spillPreviewLines = limits.SpillPreviewLines;
     }
 
-    public bool HasRegistrations => _storage.LoadRegistrations().Count > 0;
-
-    public string GetPlanningSummary()
-    {
-        var registrations = _storage.LoadRegistrations();
-        if (registrations.Count == 0)
-            return "No Remote Tool Hosts are registered.";
-        return "Registered Remote Tool Hosts: " + string.Join(
-            ", ",
-            registrations.Take(8).Select(item => $"{item.DisplayName} ({item.HostId})"));
-    }
-
     public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions)
     {
         ArgumentNullException.ThrowIfNull(definitions);
@@ -238,6 +226,30 @@ internal sealed class RemoteToolHostClient :
     {
         lock (_stateGate)
             return _routes.TryGetValue(threadId, out route!);
+    }
+
+    public bool TryGetConnectionSnapshot(string threadId, out RemoteToolConnectionSnapshot snapshot)
+    {
+        lock (_stateGate)
+        {
+            if (!_routes.TryGetValue(threadId, out var route)
+                || !_leases.TryGetValue(new RouteKey(route.HostId, route.WorkspaceId), out var lease))
+            {
+                snapshot = null!;
+                return false;
+            }
+
+            snapshot = new RemoteToolConnectionSnapshot(
+                lease.Lost ? RemoteToolConnectionStatus.LeaseLost : RemoteToolConnectionStatus.Connected,
+                route.HostId,
+                route.WorkspaceId,
+                new RemoteToolEnvironment(
+                    lease.HostName,
+                    lease.OperatingSystem,
+                    lease.UserName,
+                    lease.WorkspacePath));
+            return true;
+        }
     }
 
     public bool TryForkRoute(string parentThreadId, string childThreadId)
@@ -783,7 +795,6 @@ internal sealed class RemoteToolHostClient :
             }
             catch
             {
-                Lost = true;
                 _lost(Route);
             }
         }
