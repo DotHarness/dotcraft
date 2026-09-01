@@ -1829,15 +1829,15 @@ public sealed class SubAgentSessionControlTests : IDisposable
     [Fact]
     public async Task CloseAgent_WithNativeProfile_MarksProgressEntryCompleted()
     {
-        SubAgentProgressBridge.Remove("Inspect");
+        var progressKey = $"CloseAgent-{Guid.NewGuid():N}";
         try
         {
             var context = await CreateContextAsync();
-            await CreatePathSubAgentAsync(context);
+            await CreatePathSubAgentAsync(context, agentNickname: progressKey);
 
             await SubAgentSessionControl.CloseAgentAsync(context, "/root/inspect", CancellationToken.None);
 
-            var progress = SubAgentProgressBridge.TryGet("Inspect");
+            var progress = SubAgentProgressBridge.TryGet(progressKey);
             Assert.NotNull(progress);
             Assert.True(progress!.IsCompleted);
             Assert.Null(progress.CurrentTool);
@@ -1845,7 +1845,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         }
         finally
         {
-            SubAgentProgressBridge.Remove("Inspect");
+            SubAgentProgressBridge.Remove(progressKey);
         }
     }
 
@@ -2032,7 +2032,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
     private async Task<SessionThread> CreatePathSubAgentAsync(
         SubAgentSessionContext context,
         string runtimeType = NativeSubAgentRuntime.RuntimeTypeName,
-        string profileName = SubAgentCoordinator.DefaultProfileName)
+        string profileName = SubAgentCoordinator.DefaultProfileName,
+        string agentNickname = "Inspect")
     {
         var child = await _sessionService.CreateThreadAsync(
             new SessionIdentity
@@ -2042,7 +2043,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 ChannelName = SubAgentThreadOrigin.ChannelName,
                 ChannelContext = context.ParentThread.Id
             },
-            displayName: "Inspect",
+            displayName: agentNickname,
             source: ThreadSource.ForSubAgent(new SubAgentThreadSource
             {
                 ParentThreadId = context.ParentThread.Id,
@@ -2051,7 +2052,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 Depth = context.Depth + 1,
                 AgentPath = "/root/inspect",
                 TaskName = "inspect",
-                AgentNickname = "Inspect",
+                AgentNickname = agentNickname,
                 ProfileName = profileName,
                 RuntimeType = runtimeType,
                 SupportsSendMessage = true,
@@ -2066,7 +2067,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             Depth = context.Depth + 1,
             AgentPath = "/root/inspect",
             TaskName = "inspect",
-            AgentNickname = "Inspect",
+            AgentNickname = agentNickname,
             ProfileName = profileName,
             RuntimeType = runtimeType,
             SupportsSendMessage = true,
