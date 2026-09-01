@@ -38,6 +38,8 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly IReadOnlyList<IToolSource> _toolSources;
     private readonly IToolSource _supplementalToolSource;
     private readonly IToolSource _userCoordinationToolSource;
+    private readonly IToolSource? _remoteToolHostControlSource;
+    private readonly IRemoteToolHostClient? _remoteToolHostClient;
     private readonly ChatClientRegistry _chatClientRegistry;
     private readonly IChatClient? _compactionChatClientOverride;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
@@ -77,7 +79,8 @@ public sealed class AgentFactory : IAsyncDisposable
         IContextPageManager? contextPageManager = null,
         IToolDispatcher? toolDispatcher = null,
         IEnumerable<IToolSource>? toolSources = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IRemoteToolHostClient? remoteToolHostClient = null)
     {
         _config = config;
         _traceCollector = traceCollector;
@@ -90,6 +93,7 @@ public sealed class AgentFactory : IAsyncDisposable
         _memoryConsolidatorOverride = memoryConsolidator;
         _compactionChatClientOverride = compactionChatClient;
         _toolDispatcher = toolDispatcher ?? new ToolDispatcher();
+        _remoteToolHostClient = remoteToolHostClient;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<AgentFactory>();
         _globalEnabledToolNames = ResolveGlobalEnabledToolNames(_config);
@@ -171,9 +175,13 @@ public sealed class AgentFactory : IAsyncDisposable
 
         _supplementalToolSource = new ModeSupplementalToolSource(_planStore, _onPlanUpdated);
         _userCoordinationToolSource = new UserCoordinationToolSource();
+        _remoteToolHostControlSource = remoteToolHostClient is null
+            ? null
+            : new RemoteToolHostControlSource(remoteToolHostClient);
         _toolSources = (toolSources ?? [])
             .Append(_supplementalToolSource)
             .Append(_userCoordinationToolSource)
+            .Concat(_remoteToolHostControlSource is null ? [] : [_remoteToolHostControlSource])
             .ToArray();
     }
 
@@ -193,10 +201,12 @@ public sealed class AgentFactory : IAsyncDisposable
         if (contributed is not { Count: > 0 })
             return _toolSources;
 
-        var sources = new List<IToolSource>(contributed.Count + 2);
+        var sources = new List<IToolSource>(contributed.Count + 3);
         sources.AddRange(contributed);
         sources.Add(_supplementalToolSource);
         sources.Add(_userCoordinationToolSource);
+        if (_remoteToolHostControlSource is not null)
+            sources.Add(_remoteToolHostControlSource);
         return sources;
     }
 
@@ -408,6 +418,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var builder = new EffectiveToolSnapshotBuilder();
         var registrations = await builder.CollectAsync(sources, planningContext, cancellationToken)
             .ConfigureAwait(false);
+        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient);
         return ApplyGlobalToolExposure(builder.Build(
             ApplyToolRestrictions(registrations, planningContext),
             planningContext.Revision,
@@ -923,6 +934,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 : null;
         public string? Icon => null;
         public Func<IDictionary<string, object?>?, string>? DisplayFormatter => null;
+        public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
 
         protected override ValueTask<object?> InvokeCoreAsync(
             AIFunctionArguments arguments,

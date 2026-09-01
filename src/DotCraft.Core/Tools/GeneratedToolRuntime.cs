@@ -42,7 +42,8 @@ public sealed record GeneratedToolDescriptor(
     Func<IDictionary<string, object?>?, string>? DisplayFormatter,
     int? MaxResultChars,
     bool StreamArgumentsEnabled,
-    bool CatalogVisible);
+    bool CatalogVisible,
+    bool RpcEligible = false);
 
 /// <summary>
 /// Immutable compile-time declaration for a generated tool contract.
@@ -54,7 +55,8 @@ public sealed class GeneratedToolDeclaration
         string name,
         string description,
         string inputSchemaJson,
-        Type? outputType)
+        Type? outputType,
+        bool rpcEligible = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(description);
@@ -64,6 +66,7 @@ public sealed class GeneratedToolDeclaration
         Description = description;
         InputSchema = GeneratedToolSchema.Parse(inputSchemaJson);
         OutputSchema = GeneratedToolSchema.CreateReturnSchema(outputType, AIJsonUtilities.DefaultOptions);
+        RpcEligible = rpcEligible;
     }
 
     /// <summary>Gets the model-visible tool name.</summary>
@@ -77,6 +80,9 @@ public sealed class GeneratedToolDeclaration
 
     /// <summary>Gets the immutable output JSON Schema when one is declared.</summary>
     public JsonElement? OutputSchema { get; }
+
+    /// <summary>Gets whether the native declaration may be exported by a Remote Tool Host.</summary>
+    public bool RpcEligible { get; }
 }
 
 internal interface IGeneratedToolMetadata
@@ -88,6 +94,8 @@ internal interface IGeneratedToolMetadata
     string? Icon { get; }
 
     Func<IDictionary<string, object?>?, string>? DisplayFormatter { get; }
+
+    bool RpcEligible { get; }
 }
 
 /// <summary>
@@ -104,7 +112,7 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
         string jsonSchema,
         Type? returnType,
         GeneratedToolDescriptor metadata)
-        : this(new GeneratedToolDeclaration(name, description, jsonSchema, returnType), metadata)
+        : this(new GeneratedToolDeclaration(name, description, jsonSchema, returnType, metadata.RpcEligible), metadata)
     {
     }
 
@@ -134,6 +142,8 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
     public string? Icon => string.IsNullOrEmpty(_metadata.Icon) ? null : _metadata.Icon;
 
     public Func<IDictionary<string, object?>?, string>? DisplayFormatter => _metadata.DisplayFormatter;
+
+    public bool RpcEligible => _metadata.RpcEligible;
 }
 
 internal static class GeneratedToolMetadataResolver

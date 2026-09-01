@@ -110,6 +110,8 @@ public sealed class PluginToolSource : IToolSource
         }
         if (descriptor.RequiresChatContext)
             annotations["dotcraft/requiresChatContext"] = JsonSerializer.SerializeToElement(true);
+        if (descriptor.RpcEligible)
+            annotations[RemoteToolMetadata.RpcEligibleAnnotation] = JsonSerializer.SerializeToElement(true);
         return annotations.Count == 0 ? null : annotations;
     }
 }

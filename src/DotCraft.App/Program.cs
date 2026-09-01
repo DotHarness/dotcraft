@@ -13,6 +13,7 @@ using DotCraft.Modules;
 using DotCraft.Logging;
 using DotCraft.DynamicWorkflows;
 using DotCraft.OpenSandbox;
+using DotCraft.RemoteTools;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,18 @@ using Spectre.Console;
 using DotCraft.Sessions.Wire;
 
 Console.OutputEncoding = Encoding.UTF8;
+
+if (args.Length > 0 && args[0].Equals("tool-host", StringComparison.OrdinalIgnoreCase))
+{
+    using var toolHostCts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; toolHostCts.Cancel(); };
+    Environment.Exit(await RemoteToolHostCliRunner.RunAsync(
+        args.Skip(1).ToArray(),
+        Console.Out,
+        Console.Error,
+        toolHostCts.Token));
+    return;
+}
 
 if (args.Length > 0 && args[0].Equals("stack", StringComparison.OrdinalIgnoreCase))
 {

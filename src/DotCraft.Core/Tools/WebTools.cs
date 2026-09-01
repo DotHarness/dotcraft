@@ -12,9 +12,9 @@ namespace DotCraft.Tools;
 public sealed class WebTools
 {
     private readonly HttpClient _httpClient;
-    
+
     private readonly int _maxChars;
-    
+
     private readonly int _timeoutSeconds;
 
     private readonly int _searchMaxResults;
@@ -37,7 +37,7 @@ public sealed class WebTools
         _timeoutSeconds = timeoutSeconds;
         _searchMaxResults = searchMaxResults;
         _searchProvider = searchProvider;
-        
+
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         _httpClient.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
@@ -112,7 +112,7 @@ public sealed class WebTools
         [Description("Maximum characters to extract.")] int? maxChars = null)
     {
         var actualMaxChars = maxChars ?? _maxChars;
-        
+
         if (!IsValidUrl(url, out var validationError))
         {
             return JsonSerializer.Serialize(new { error = $"URL validation failed: {validationError}", url });
@@ -145,7 +145,7 @@ public sealed class WebTools
                     extractor = "raw_json";
                 }
             }
-            else if (contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase) || 
+            else if (contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase) ||
                      content.TrimStart().StartsWith("<!DOCTYPE", StringComparison.OrdinalIgnoreCase) ||
                      content.TrimStart().StartsWith("<html", StringComparison.OrdinalIgnoreCase))
             {
@@ -210,7 +210,7 @@ public sealed class WebTools
         try
         {
             var uri = new Uri(url);
-            
+
             if (uri.Scheme != "http" && uri.Scheme != "https")
             {
                 error = $"Only http/https allowed, got '{uri.Scheme}'";
@@ -248,16 +248,16 @@ public sealed class WebTools
         // Remove script and style blocks
         var withoutScripts = Regex.Replace(html, @"<script[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
         var withoutStyles = Regex.Replace(withoutScripts, @"<style[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
-        
+
         // Remove all HTML tags
         var withoutTags = Regex.Replace(withoutStyles, @"<[^>]+>", " ");
-        
+
         // Decode HTML entities
         var decoded = WebUtility.HtmlDecode(withoutTags);
-        
+
         // Normalize whitespace
         var normalized = Regex.Replace(decoded, @"\s+", " ").Trim();
-        
+
         return normalized;
     }
 

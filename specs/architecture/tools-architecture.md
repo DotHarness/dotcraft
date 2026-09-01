@@ -6,7 +6,7 @@
 | Status | Normative |
 | Date | 2026-07-18 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
-| Related | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |
+| Related | [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |
 
 ## 1. Purpose
 
@@ -69,6 +69,11 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Binding MCP** | An MCP server connection authorized for one App Binding and added independently to one thread. |
 
 **Runtime Dynamic Tool** is the canonical term for client-owned callbacks. App Binding tools use binding-scoped MCP sessions.
+
+Remote execution of an existing Core Native or trusted Plugin Native registration is governed by
+the [Remote Tool Host specification](remote-tool-host.md). It replaces the runtime route behind a
+stable definition and MUST NOT be represented as a Runtime Dynamic Tool, MCP source, or additional
+`ToolSourceKind`.
 
 ## 5. Architectural layers
 

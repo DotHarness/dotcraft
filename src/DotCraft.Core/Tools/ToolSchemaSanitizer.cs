@@ -143,6 +143,9 @@ internal class ToolSchemaSanitizingFunction(AIFunction innerFunction)
 
     public Func<IDictionary<string, object?>?, string>? DisplayFormatter =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.DisplayFormatter : null;
+
+    public bool RpcEligible =>
+        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.RpcEligible;
 }
 
 internal sealed class DeferredToolSearchSchemaSanitizingFunction(

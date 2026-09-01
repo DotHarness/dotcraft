@@ -54,6 +54,7 @@ public sealed class ShellTools
 
     [Description("Execute a shell command and return its output. On Windows PowerShell, run inline Python by piping a here-string to stdin, for example @'\\nprint('hello')\\n'@ | python -, instead of python -c with nested escaped quotes.")]
     [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
+    [ToolRpc]
     public async Task<string> Exec(
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory for the command.")] string? workingDir = null,
@@ -101,6 +102,7 @@ public sealed class ShellTools
 
     [Description("Write input to a running background terminal session, or pass an empty input string to poll for recent output.")]
     [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
+    [ToolRpc]
     public async Task<string> WriteStdin(
         [Description("Background terminal session ID returned by Exec.")] string sessionId,
         [Description("Characters to write to stdin. Include newlines when the process expects Enter.")] string input = "",

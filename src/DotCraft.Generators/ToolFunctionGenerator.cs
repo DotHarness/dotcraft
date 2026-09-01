@@ -18,6 +18,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
     private const string GeneratedToolAttributeFqn = "DotCraft.Tools.GeneratedToolAttribute";
     private const string ToolDeclarationAttributeFqn = "DotCraft.Tools.ToolDeclarationAttribute";
     private const string ToolSchemaAttributeFqn = "DotCraft.Tools.ToolSchemaAttribute";
+    private const string ToolRpcAttributeFqn = "DotCraft.Tools.ToolRpcAttribute";
     private const string ToolParameterAttributeFqn = "DotCraft.Tools.ToolParameterAttribute";
     private const string DescriptionAttributeFqn = "System.ComponentModel.DescriptionAttribute";
     private const string StreamArgumentsAttributeFqn = "DotCraft.Agents.StreamArgumentsAttribute";
@@ -74,6 +75,15 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             GenerateToolFactories(ctx, data.Right.GeneratedNamespace, tools);
         });
 
+        var invalidRpcMarkers = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ToolRpcAttributeFqn,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx.TargetSymbol as IMethodSymbol)
+            .Where(static method => method != null);
+        context.RegisterSourceOutput(invalidRpcMarkers, static (ctx, method) =>
+            ToolGeneratorValidator.ValidateRpcMarker(ctx, method!));
+
     }
 
     private static ToolInfo? GetToolInfo(
@@ -96,6 +106,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         var generatedAttribute = FindAttribute(method, GeneratedToolAttributeFqn);
         var declarationAttribute = FindAttribute(method, ToolDeclarationAttributeFqn);
         var schemaAttribute = FindAttribute(method, ToolSchemaAttributeFqn);
+        var rpcEligible = FindAttribute(method, ToolRpcAttributeFqn) != null;
         var generateFunction = generateFunctionOverride ?? declarationAttribute == null;
         var description = GetDescription(method);
         var catalogVisible = toolAttribute != null
@@ -132,6 +143,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             MaxResultChars: maxResultChars == -1 ? null : maxResultChars,
             StreamArgumentsEnabled: streamArgumentsEnabled,
             CatalogVisible: catalogVisible,
+            RpcEligible: rpcEligible,
             GenerateFunction: generateFunction,
             IsAbstract: method.IsAbstract,
             DisallowAdditionalProperties: GetNamedBool(schemaAttribute, "DisallowAdditionalProperties", false),
@@ -212,7 +224,8 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             sb.AppendLine($"        {Quote(tool.FunctionName)},");
             sb.AppendLine($"        {Quote(tool.Description)},");
             sb.AppendLine($"        {Quote(ToolSchemaEmitter.BuildFunctionSchema(tool))},");
-            sb.AppendLine($"        typeof({tool.ReturnType}));");
+            sb.AppendLine($"        typeof({tool.ReturnType}),");
+            sb.AppendLine($"        {(tool.RpcEligible ? "true" : "false")});");
         }
         sb.AppendLine("}");
         sb.AppendLine();
@@ -343,6 +356,8 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         sb.Append(tool.StreamArgumentsEnabled ? "true" : "false");
         sb.Append(", ");
         sb.Append(tool.CatalogVisible ? "true" : "false");
+        sb.Append(", ");
+        sb.Append(tool.RpcEligible ? "true" : "false");
     }
 
     private static string FormatDisplayFormatter(ToolInfo tool)
@@ -485,6 +500,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             int? MaxResultChars,
             bool StreamArgumentsEnabled,
             bool CatalogVisible,
+            bool RpcEligible,
             bool GenerateFunction,
             bool IsAbstract,
             bool DisallowAdditionalProperties,
@@ -510,6 +526,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.MaxResultChars = MaxResultChars;
             this.StreamArgumentsEnabled = StreamArgumentsEnabled;
             this.CatalogVisible = CatalogVisible;
+            this.RpcEligible = RpcEligible;
             this.GenerateFunction = GenerateFunction;
             this.IsAbstract = IsAbstract;
             this.DisallowAdditionalProperties = DisallowAdditionalProperties;
@@ -536,6 +553,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public int? MaxResultChars { get; }
         public bool StreamArgumentsEnabled { get; }
         public bool CatalogVisible { get; }
+        public bool RpcEligible { get; }
         public bool GenerateFunction { get; }
         public bool IsAbstract { get; }
         public bool DisallowAdditionalProperties { get; }

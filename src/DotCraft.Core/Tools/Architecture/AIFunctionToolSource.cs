@@ -118,6 +118,11 @@ public abstract class AIFunctionToolSource : IToolSource
                 annotations["dotcraft/maxResultChars"] =
                     JsonSerializer.SerializeToElement(metadata.MaxResultChars.Value);
             }
+            if (metadata.RpcEligible)
+            {
+                annotations[RemoteToolMetadata.RpcEligibleAnnotation] =
+                    JsonSerializer.SerializeToElement(true);
+            }
         }
 
         return annotations.Count == 0 ? null : annotations;
