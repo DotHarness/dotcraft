@@ -2949,11 +2949,12 @@ export function App(): JSX.Element {
       const pending = convBeforeReset.pendingUserInput
       useThreadStore.getState().parkUserInput(prev, {
         bridgeId: pending.bridgeId,
-        turnId: convBeforeReset.activeTurnId,
+        turnId: pending.turnId,
         rawParams: {
           threadId: prev,
-          turnId: convBeforeReset.activeTurnId,
+          turnId: pending.turnId,
           requestId: pending.requestId,
+          isBlocking: pending.isBlocking,
           questions: pending.questions
         }
       })
