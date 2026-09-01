@@ -1490,6 +1490,7 @@ function shouldRenderIdleThinkingFallback({
   streamingMessageStalled: boolean
 }): boolean {
   if (!isRunning) return false
+  if (isActivitySliceClosed(items)) return false
 
   return !items.some((item) => {
     if (item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId) {
@@ -1512,6 +1513,25 @@ function shouldRenderIdleThinkingFallback({
     }
     return false
   })
+}
+
+function isActivitySliceClosed(items: ConversationItem[]): boolean {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.type === 'agentMessage') {
+      return item.status === 'completed' && item.deliveryMode !== 'async'
+    }
+    if (
+      item.type === 'reasoningContent'
+      || item.type === 'userMessage'
+      || isToolLikeItemType(item.type)
+      || item.type === 'imageGeneration'
+      || item.type === 'approvalCard'
+    ) {
+      return false
+    }
+  }
+  return false
 }
 
 function hasActiveStreamingAgentMessage(
