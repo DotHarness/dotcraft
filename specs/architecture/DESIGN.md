@@ -371,9 +371,12 @@ corner geometry from an arbitrary size:
 | List | `40px / 8px` | Catalog, management, dialog-header, and repeated identity rows. Local layouts may use `30–40px` without creating another radius tier. |
 | Hero | `60px / 16px` | One prominent product or plugin identity at the start of a detail or setup surface. Hero use is intentionally rare. |
 
-Use `object-fit: contain`; cropping belongs to thumbnails. Existing artwork sits
-on a transparent shell, while generated letter or glyph fallbacks may use a
-restrained brand or neutral fill. Hero shells use only the near-invisible `1px`
+Use `object-fit: contain`; cropping belongs to thumbnails. Identity-mark shells
+are transparent by default, while an owning identity contract may opt into a
+restrained background fill. Plugin `interface.brandColor` supplies that optional
+fill behind icon and logo artwork; omit it when the artwork should remain on a
+transparent shell. Generated letter or glyph fallbacks may use the same brand
+fill or a neutral fallback. Hero shells use only the near-invisible `1px`
 `--identity-mark-hero-border` hairline (about 8% ink); compact and list shells
 remain unframed unless interaction requires a boundary. Reserve circles for
 people, presence/status, toggles, and circular actions.

@@ -107,6 +107,7 @@ export function PluginIcon({
       size={size}
       src={icon}
       fallback={pluginTitle(plugin).slice(0, 1)}
+      backgroundColor={plugin.interface?.brandColor || undefined}
       style={{
         '--identity-mark-fallback-background': plugin.interface?.brandColor || '#0B63CE',
         '--identity-mark-fallback-color': '#fff',

@@ -148,7 +148,7 @@ Example MCP plugin:
 }
 ```
 
-`interface` contains optional UI metadata for Desktop and other clients: display name, short and long descriptions, developer, category, capability tags, default prompt, brand color, icon/logo paths, and public website/privacy/terms links. Path fields inside `interface` use the same manifest-relative path rules. Tool-result-specific renderer contracts are not declared in `interface`; trusted local presentation and MCP Apps boundaries are defined by [Tool Architecture](tools-architecture.md#14-presentation-boundary).
+`interface` contains optional UI metadata for Desktop and other clients: display name, short and long descriptions, developer, category, capability tags, default prompt, brand color, icon/logo paths, and public website/privacy/terms links. When `brandColor` is present, Desktop paints it behind the plugin's icon and logo artwork; omit it to keep the identity-mark shell transparent. Path fields inside `interface` use the same manifest-relative path rules. Tool-result-specific renderer contracts are not declared in `interface`; trusted local presentation and MCP Apps boundaries are defined by [Tool Architecture](tools-architecture.md#14-presentation-boundary).
 
 `skills` points to a plugin-contained skill directory, for example `"./skills/"`. Each child directory can contain a DotCraft-compatible `SKILL.md`. Skills contributed by enabled plugins are available in `skills/list` with source `plugin` and include `pluginId` / `pluginDisplayName` attribution. Disabling the plugin removes its contributed skills from agent context and hides compatibility built-in copies owned by that plugin.
 
