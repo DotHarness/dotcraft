@@ -86,6 +86,28 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
+    public void MainPrompt_WithAllCoordinationTools_ExplainsBlockingAsyncAndSleepBoundaries()
+    {
+        var prompt = CreateMainBuilder(
+                ["RequestUserInput", "SendUserMessageAsync", "clock__Sleep", "clock__CurrentTime"])
+            .BuildSystemPrompt();
+
+        Assert.Contains("## User Coordination", prompt, StringComparison.Ordinal);
+        Assert.Contains("prerequisite for further work", prompt, StringComparison.Ordinal);
+        Assert.Contains("independent authorized work can continue", prompt, StringComparison.Ordinal);
+        Assert.Contains("no independent work remains", prompt, StringComparison.Ordinal);
+        Assert.Contains("Do not create a Goal implicitly", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainPrompt_WithoutCoordinationTools_OmitsCoordinationSection()
+    {
+        var prompt = CreateMainBuilder(["ReadFile"]).BuildSystemPrompt();
+
+        Assert.DoesNotContain("## User Coordination", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Prompt_WithoutRoleInstructions_MatchesBaselineByteForByte()
     {
         var toolNames = new[] { "ReadFile", "GrepFiles", "SpawnAgent", "SkillManage", "RequestUserInput" };

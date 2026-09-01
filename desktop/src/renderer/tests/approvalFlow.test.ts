@@ -411,8 +411,10 @@ describe('approval lifecycle integration', () => {
 
 describe('user input request lifecycle', () => {
   const USER_INPUT_PARAMS = {
+    threadId: 'thread-1',
     requestId: 'req-1',
     turnId: 'turn-1',
+    isBlocking: false,
     questions: [
       {
         id: 'provider_id_handling',

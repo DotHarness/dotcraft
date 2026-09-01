@@ -838,6 +838,23 @@ public sealed class TurnEnqueueParams : ExtensibleJsonObject
     public bool? SentAsGoal { get; init; }
 }
 
+/// <summary>Parameters for steering an active turn.</summary>
+public sealed class TurnSteerParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    [JsonPropertyName("expectedTurnId")]
+    public required string ExpectedTurnId { get; init; }
+
+    [JsonPropertyName("input")]
+    public required IReadOnlyList<InputPart> Input { get; init; }
+
+    [JsonPropertyName("sender")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SenderContext? Sender { get; init; }
+}
+
 /// <summary>Parameters for interrupting a turn.</summary>
 public sealed class TurnInterruptParams : ExtensibleJsonObject
 {
@@ -1459,6 +1476,13 @@ public sealed class TurnEnqueueResult : ExtensibleJsonObject
     public required IReadOnlyList<QueuedTurnInput> QueuedInputs { get; init; }
 }
 
+/// <summary>Result of turn/steer.</summary>
+public sealed class TurnSteerResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; init; }
+}
+
 /// <summary>Thread lifecycle notification payload.</summary>
 public sealed class ThreadNotification : ExtensibleJsonObject
 {
@@ -1627,6 +1651,9 @@ public sealed class UserInputRequestParams : ExtensibleJsonObject
 
     [JsonPropertyName("questions")]
     public required IReadOnlyList<UserInputQuestion> Questions { get; init; }
+
+    [JsonPropertyName("isBlocking")]
+    public required bool IsBlocking { get; init; }
 }
 
 /// <summary>Answer to one structured user-input question.</summary>

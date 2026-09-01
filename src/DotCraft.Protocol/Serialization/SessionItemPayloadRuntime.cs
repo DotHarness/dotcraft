@@ -21,6 +21,7 @@ public static class SessionItemPayloadCatalog
         new("imageGeneration", typeof(ImageGenerationPayload)),
         new("mcpToolCall", typeof(McpToolCallPayload)),
         new("reasoningContent", typeof(ReasoningContentPayload)),
+        new("sleep", typeof(SleepPayload)),
         new("systemNotice", typeof(SystemNoticePayload)),
         new("toolCall", typeof(ToolCallPayload)),
         new("toolExecution", typeof(ToolExecutionPayload)),

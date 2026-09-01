@@ -85,6 +85,22 @@ public sealed class SocialChannelDeliveryCoordinator
 
             switch (evt.EventType)
             {
+                case SessionEventType.ItemCompleted
+                    when evt.ItemPayload?.Payload is AgentMessagePayload
+                    {
+                        DeliveryMode: "async",
+                        Text: { } asyncText
+                    }:
+                    await DeliverTextAsync(
+                        workspaceCraftPath,
+                        bindingId,
+                        authorityRevision,
+                        threadId,
+                        matchedTurnId,
+                        asyncText,
+                        "socialBindingAsyncMessage",
+                        linked.Token);
+                    break;
                 case SessionEventType.TurnCompleted:
                     await DeliverCompletedTurnAsync(workspaceCraftPath, bindingId, authorityRevision, evt.TurnPayload, linked.Token);
                     return;
@@ -107,10 +123,35 @@ public sealed class SocialChannelDeliveryCoordinator
             return;
 
         var replyText = string.Concat(turn.Items
-            .Where(item => item.Type == ItemType.AgentMessage)
+            .Where(item => item.Type == ItemType.AgentMessage
+                && item.Payload is not AgentMessagePayload { DeliveryMode: "async" })
             .Select(item => (item.Payload as AgentMessagePayload)?.Text)
             .Where(text => !string.IsNullOrEmpty(text)));
         if (string.IsNullOrWhiteSpace(replyText))
+            return;
+
+        await DeliverTextAsync(
+            workspaceCraftPath,
+            bindingId,
+            authorityRevision,
+            turn.ThreadId,
+            turn.Id,
+            replyText,
+            "socialBindingReply",
+            cancellationToken);
+    }
+
+    private async Task DeliverTextAsync(
+        string workspaceCraftPath,
+        string bindingId,
+        long? authorityRevision,
+        string threadId,
+        string turnId,
+        string text,
+        string deliveryKind,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text))
             return;
 
         var binding = controlPlane.GetBinding(workspaceCraftPath, bindingId);
@@ -128,15 +169,15 @@ public sealed class SocialChannelDeliveryCoordinator
             new ChannelDeliveryMessage
             {
                 Kind = "text",
-                Text = replyText
+                Text = text
             },
             metadata: new
             {
-                turn.ThreadId,
-                TurnId = turn.Id,
+                ThreadId = threadId,
+                TurnId = turnId,
                 BindingId = bindingId,
                 AppId = $"com.dotharness.channel.{target.ChannelName.Trim().ToLowerInvariant()}",
-                DeliveryKind = "socialBindingReply"
+                DeliveryKind = deliveryKind
             },
             cancellationToken);
 

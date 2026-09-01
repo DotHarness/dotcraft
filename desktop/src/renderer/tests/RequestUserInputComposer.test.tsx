@@ -9,18 +9,24 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore, type PendingUserInputRequest } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useUserInputAutoResolutionStore } from '../stores/userInputAutoResolutionStore'
 import {
   clearDesktopPluginRegistry,
   registerDesktopPluginSurface
 } from '../plugins/desktopPluginRegistry'
 
 const sendServerResponse = vi.fn()
+const cancelServerRequest = vi.fn()
+const snoozeUserInputAutoResolution = vi.fn()
+const sendRequest = vi.fn()
 
 function request(overrides: Partial<PendingUserInputRequest> = {}): PendingUserInputRequest {
   return {
     bridgeId: 'bridge-input',
+    threadId: 'thread-1',
     requestId: 'req-1',
     turnId: 'turn-1',
+    isBlocking: false,
     questions: [
       {
         id: 'provider_id_handling',
@@ -89,11 +95,16 @@ describe('RequestUserInputComposer', () => {
     vi.clearAllMocks()
     clearDesktopPluginRegistry()
     sendServerResponse.mockResolvedValue({})
+    cancelServerRequest.mockResolvedValue({})
+    snoozeUserInputAutoResolution.mockResolvedValue({})
+    sendRequest.mockResolvedValue({})
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
       appServer: {
-        sendRequest: vi.fn().mockResolvedValue({}),
-        sendServerResponse
+        sendRequest,
+        sendServerResponse,
+        cancelServerRequest,
+        snoozeUserInputAutoResolution
       },
       file: { readFile: vi.fn().mockResolvedValue('{}') },
       shell: { listEditors: vi.fn().mockResolvedValue([]) },
@@ -107,6 +118,7 @@ describe('RequestUserInputComposer', () => {
       activeMainView: 'conversation',
       planApprovalDismissed: {}
     })
+    useUserInputAutoResolutionStore.getState().replace([])
   })
 
   afterEach(() => {
@@ -324,6 +336,49 @@ describe('RequestUserInputComposer', () => {
     await waitFor(() => {
       expect(sendServerResponse).toHaveBeenCalledWith('bridge-input', { answers: {} })
     })
+  })
+
+  it('interrupts the turn when a blocking request is dismissed', async () => {
+    const blocking = request({ isBlocking: true })
+    useConversationStore.setState({
+      turnStatus: 'waitingInput',
+      activeTurnId: 'turn-1',
+      pendingUserInput: blocking
+    })
+    renderWithLocale(<RequestUserInputComposer request={blocking} />)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('turn/interrupt', {
+        threadId: 'thread-1',
+        turnId: 'turn-1'
+      })
+      expect(cancelServerRequest).toHaveBeenCalledWith('bridge-input')
+    })
+    expect(sendServerResponse).not.toHaveBeenCalled()
+  })
+
+  it('shows only the final minute of a non-blocking auto-resolution countdown', () => {
+    useUserInputAutoResolutionStore.getState().replace([{
+      threadId: 'thread-1',
+      requestId: 'req-1',
+      phase: 'scheduled',
+      deadlineAt: Date.now() + 61_000
+    }])
+
+    renderWithLocale(<RequestUserInputComposer request={request()} />)
+
+    expect(screen.queryByText('61s')).toBeNull()
+    act(() => {
+      useUserInputAutoResolutionStore.getState().replace([{
+        threadId: 'thread-1',
+        requestId: 'req-1',
+        phase: 'scheduled',
+        deadlineAt: Date.now() + 60_000
+      }])
+    })
+    expect(screen.getByText('60s')).toBeInTheDocument()
   })
 
   it('submits Other as a user note', async () => {

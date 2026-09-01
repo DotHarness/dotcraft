@@ -81,6 +81,7 @@ export interface AcpTerminalWaitForExitParams {
 }
 
 export interface AgentMessagePayload {
+  deliveryMode?: string | null;
   text: string;
   [key: string]: unknown;
 }
@@ -3089,6 +3090,13 @@ export interface SkillsViewResult {
   [key: string]: unknown;
 }
 
+export interface SleepPayload {
+  actualDurationMs?: number | null;
+  durationMs: number;
+  status: string;
+  [key: string]: unknown;
+}
+
 export interface SocialBindingAcceptParams {
   code?: string;
   target?: SocialChannelTarget;
@@ -4633,6 +4641,19 @@ export interface TurnStartResult {
   [key: string]: unknown;
 }
 
+export interface TurnSteerParams {
+  expectedTurnId: string;
+  input: InputPart[];
+  sender?: SenderContext | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface TurnSteerResult {
+  turnId: string;
+  [key: string]: unknown;
+}
+
 export interface UiResourceContent {
   mimeType?: string | null;
   text?: string | null;
@@ -4739,6 +4760,7 @@ export interface UserInputQuestion {
 }
 
 export interface UserInputRequestParams {
+  isBlocking: boolean;
   itemId: string;
   questions: UserInputQuestion[];
   requestId: string;
@@ -4748,6 +4770,7 @@ export interface UserInputRequestParams {
 }
 
 export interface UserInputRequestPayload {
+  isBlocking: boolean;
   questions: UserInputQuestion[];
   requestId: string;
   [key: string]: unknown;

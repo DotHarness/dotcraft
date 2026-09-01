@@ -21,7 +21,8 @@ internal sealed class SubAgentCommunicationRuntime
     private sealed class ActivitySubscription(
         SubAgentCommunicationRuntime owner,
         string rootThreadId,
-        string targetAgentPath) : IDisposable
+        string targetAgentPath,
+        bool inputOnly) : IDisposable
     {
         private int _disposed;
 
@@ -31,6 +32,8 @@ internal sealed class SubAgentCommunicationRuntime
         public string RootThreadId { get; } = rootThreadId;
 
         public string TargetAgentPath { get; } = targetAgentPath;
+
+        public bool InputOnly { get; } = inputOnly;
 
         public Task Activity => Signal.Task;
 
@@ -79,7 +82,19 @@ internal sealed class SubAgentCommunicationRuntime
         string targetAgentPath,
         out Task activity)
     {
-        var subscription = new ActivitySubscription(this, rootThreadId, targetAgentPath);
+        var subscription = new ActivitySubscription(this, rootThreadId, targetAgentPath, inputOnly: false);
+        lock (_subscriptionsLock)
+            _subscriptions.Add(subscription);
+        activity = subscription.Activity;
+        return subscription;
+    }
+
+    public IDisposable SubscribeInput(
+        string rootThreadId,
+        string targetAgentPath,
+        out Task activity)
+    {
+        var subscription = new ActivitySubscription(this, rootThreadId, targetAgentPath, inputOnly: true);
         lock (_subscriptionsLock)
             _subscriptions.Add(subscription);
         activity = subscription.Activity;
@@ -106,6 +121,7 @@ internal sealed class SubAgentCommunicationRuntime
             matches = _subscriptions
                 .Where(subscription =>
                     string.Equals(subscription.RootThreadId, rootThreadId, StringComparison.Ordinal)
+                    && (!subscription.InputOnly || kind is SubAgentCommunicationActivityKind.Mailbox or SubAgentCommunicationActivityKind.Steer)
                     && (kind == SubAgentCommunicationActivityKind.Graph
                         || string.Equals(subscription.TargetAgentPath, targetAgentPath, StringComparison.Ordinal)))
                 .ToArray();

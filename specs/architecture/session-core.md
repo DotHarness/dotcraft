@@ -1052,7 +1052,7 @@ A typical Turn produces Items in this order:
 2. [ReasoningContent] (if model exposes thinking)
 3. [ToolCall → ToolResult | ImageGeneration | McpToolCall | DynamicToolCall]* (zero or more tool/hosted invocations)
    3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
-   3b. [UserInputRequest → UserInputResponse] (Plan Mode only, if the agent needs a user decision before continuing)
+   3b. [UserInputRequest → UserInputResponse] (if the agent needs a structured user decision before continuing)
 4. AgentMessage (final response, streamed)
 5. [Error] (if something went wrong)
 ```
@@ -1377,6 +1377,8 @@ The `content` parameter accepts multimodal input (text, images, etc.) as a list 
 
 `UserMessagePayload.QueuedInputId` stores the queue record that produced the message when available. `UserMessagePayload.DeliveryBindingId` stores the App Binding id that should receive the default assistant output for that Turn; direct Desktop-originated input leaves it empty.
 
+`AgentMessagePayload.DeliveryMode` is optional. `"async"` marks a model-initiated message sent to the user while the Turn continues. Session Core persists and broadcasts the Item immediately, but excludes its text when rebuilding model-visible assistant history and when aggregating the Turn's final answer. The ordinary `ToolCall` and `ToolResult` for the invocation remain model-visible.
+
 ```
 Task<QueuedTurnInput> EnqueueTurnInputAsync(
     string threadId,
@@ -1407,6 +1409,18 @@ Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
 ```
 
 Sets the referenced queued input's desired status to `"queued"` or `"guidancePending"`. Promotion to `guidancePending` validates that `expectedTurnId` matches the active Turn. Restoring `queued` validates the queued input's bound Turn but does not require that Turn to remain active. Setting the current status again is an idempotent success. The active execution loop drains pending guidance only at safe model/tool boundaries, and the final status recheck, `UserMessage` persistence, and queue removal occur under the same per-thread queue lock used by update and removal operations. If update-to-queued wins the lock, admission is skipped; if admission wins, the queued input no longer exists and the later update fails. If the Turn ends before admission, pending guidance is restored to `queued`.
+
+```
+Task<string> SteerTurnAsync(
+    string threadId,
+    string expectedTurnId,
+    IList<AIContent> content,
+    SenderContext? sender = null,
+    CancellationToken ct = default,
+    SessionInputSnapshot? inputSnapshot = null)
+```
+
+Atomically appends a new `guidancePending` input for the active regular Turn. It rejects a missing or mismatched active Turn, maintenance execution, Internal threads, and SubAgent child threads. It creates no new Turn and emits no Turn-start event. Guidance persistence, later Item admission, and queue removal use the existing per-thread queue lock.
 
 The adapter starts a turn and immediately consumes the returned async stream. Callback-style consumption is a helper-layer concern (for example, wrapping the stream in a local event handler), not part of the `ISessionService` contract.
 
@@ -1838,6 +1852,8 @@ The adapter is responsible only for presenting the request and returning the dec
 
 `RequestUserInput` is a model tool that lets the agent ask one to three short structured questions before continuing. It is exposed only to main user threads, not SubAgents, and remains schema-stable across Agent and Plan modes.
 
+Each persisted `UserInputRequest` carries a required `isBlocking` value selected by Session Core from the active mode: `true` in Plan mode and `false` in Agent mode. The flag is client-facing lifecycle metadata, not a model tool argument. It does not change the server-side wait: both modes pause until the adapter resolves the request or the turn is cancelled.
+
 When the tool is invoked, Session Core must:
 
 - finalize and persist any assistant or reasoning content emitted before the tool call
@@ -1846,7 +1862,15 @@ When the tool is invoked, Session Core must:
 - record the returned `UserInputResponse` Item
 - resume execution with the answer payload returned to the tool
 
-Interactive adapters present the request in their native UI. Non-interactive or unsupported adapters resolve the request with an empty answer object so the turn can continue.
+Interactive adapters present the request in their native UI. A client may automatically resolve a non-blocking request with an empty answer object according to its own foreground and inactivity policy. Blocking requests require an explicit answer or turn cancellation. Non-interactive or unsupported adapters resolve the request with an empty answer object so the turn can continue.
+
+### 10.5 Asynchronous User Coordination
+
+`SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads, except Internal and SubAgent child threads. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the current model/tool loop continue.
+
+The `clock` namespace is exposed by default to ordinary Session Core agent threads, including native SubAgents but excluding Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 through 43,200,000 and records a `Sleep` Item for the wait lifecycle. Sleep completes after the requested duration, Turn cancellation, or an active-Turn steer/mailbox signal. The runtime subscribes before rechecking pending input so input arriving at the subscription boundary cannot be lost. After Sleep returns, the existing safe-boundary drain admits steer and mailbox content before the next model sample.
+
+Prompt composition describes the choice only when the corresponding tools are available: use `RequestUserInput` when a structured answer blocks further work, use `SendUserMessageAsync` when the agent can continue independent authorized work, and use `clock/Sleep` after asking when no independent work remains. An asynchronous message must not be repeated in the final answer. These tools never create a Goal or change Goal continuation behavior.
 
 ## 11. Implementation Status
 

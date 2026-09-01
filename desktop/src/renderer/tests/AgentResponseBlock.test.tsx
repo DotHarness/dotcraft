@@ -1990,15 +1990,7 @@ describe('AgentResponseBlock idle running fallback', () => {
       threadId: 'thread-1',
       status: 'running',
       startedAt: '2026-04-18T11:21:00.000Z',
-      items: [
-        {
-          id: 'assistant-static',
-          type: 'agentMessage',
-          status: 'completed',
-          text: 'Still reviewing the context.',
-          createdAt: '2026-04-18T11:21:01.000Z'
-        }
-      ]
+      items: []
     }
 
     const { container } = render(
@@ -2018,6 +2010,54 @@ describe('AgentResponseBlock idle running fallback', () => {
     fireEvent.click(button)
 
     expect(container.textContent).not.toContain('undefined')
+  })
+
+  it('does not reopen Thinking after the final agent message completes', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-final-message-pending-completion',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:21:00.000Z',
+      items: [
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'The work is complete.',
+          createdAt: '2026-04-18T11:21:01.000Z',
+          completedAt: '2026-04-18T11:21:02.000Z'
+        }
+      ]
+    }
+
+    renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
+
+    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(screen.getByText('The work is complete.')).toBeInTheDocument()
+  })
+
+  it('keeps Thinking available after a completed async agent message', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-async-message',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:21:00.000Z',
+      items: [
+        {
+          id: 'assistant-async',
+          type: 'agentMessage',
+          status: 'completed',
+          deliveryMode: 'async',
+          text: 'Which option do you prefer?',
+          createdAt: '2026-04-18T11:21:01.000Z',
+          completedAt: '2026-04-18T11:21:02.000Z'
+        }
+      ]
+    }
+
+    renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
+
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
   })
 
   it('does not duplicate the fallback when live reasoning is visible', () => {
@@ -2238,6 +2278,43 @@ describe('AgentResponseBlock idle running fallback', () => {
 
     expect(screen.getByText('Thinking')).toBeInTheDocument()
     expect(screen.queryByText(/Reading file/i)).toBeNull()
+  })
+
+  it('reopens Thinking after a tool completes following an intermediate agent message', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-intermediate-message-tool-complete',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:24:10.000Z',
+      items: [
+        {
+          id: 'assistant-intermediate',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'I will inspect the file.',
+          createdAt: '2026-04-18T11:24:11.000Z',
+          completedAt: '2026-04-18T11:24:12.000Z'
+        },
+        {
+          id: 'tool-read-settled',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-read-settled',
+          toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
+          arguments: { path: 'docs/readme.md' },
+          result: 'file contents',
+          success: true,
+          createdAt: '2026-04-18T11:24:13.000Z',
+          completedAt: '2026-04-18T11:24:14.000Z'
+        }
+      ]
+    }
+
+    renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
+
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
   })
 
   it('does not render the fallback after terminal turn statuses', () => {

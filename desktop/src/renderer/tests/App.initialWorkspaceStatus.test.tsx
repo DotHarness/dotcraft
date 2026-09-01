@@ -429,7 +429,13 @@ function installApi(
         onNotification,
         onServerRequest,
         onServerRequestRaw,
-        sendServerResponse: vi.fn()
+        sendServerResponse: vi.fn(),
+        cancelServerRequest: vi.fn().mockResolvedValue(undefined),
+        getUserInputAutoResolutionSnapshot: vi.fn().mockResolvedValue([]),
+        onUserInputAutoResolutionChanged: vi.fn(() => vi.fn()),
+        setUserInputConversationPresented: vi.fn().mockResolvedValue(undefined),
+        recordUserInputConversationActivity: vi.fn().mockResolvedValue(undefined),
+        snoozeUserInputAutoResolution: vi.fn().mockResolvedValue(undefined)
       },
       workspace: {
         getStatus: workspaceGetStatus,
@@ -1718,6 +1724,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-1',
           requestId: 'request-input-hidden',
+          isBlocking: false,
           questions: [
             {
               id: 'confirm',
@@ -1818,6 +1825,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-retry',
           requestId: 'request-retry',
+          isBlocking: false,
           questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
         }
       })
@@ -1993,6 +2001,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-replay',
           requestId: 'request-replay',
+          isBlocking: false,
           questions: [{
             id: 'confirm',
             question: 'Continue?',
@@ -2096,6 +2105,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-generation',
           requestId: 'request-generation',
+          isBlocking: false,
           questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
         }
       })
@@ -2182,6 +2192,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId,
           turnId: 'turn-initial-restore',
           requestId: 'request-initial-restore',
+          isBlocking: false,
           questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
         }
       })
@@ -2286,6 +2297,7 @@ describe('App initial workspace status bootstrap', () => {
           threadId: firstThreadId,
           turnId: 'turn-old',
           requestId: 'request-old',
+          isBlocking: false,
           questions: [{
             id: 'confirm',
             question: 'Continue?',
@@ -2320,6 +2332,86 @@ describe('App initial workspace status bootstrap', () => {
 
     expect(useThreadStore.getState().activeThread?.id).toBe(secondThreadId)
     expect(useConversationStore.getState().turns).toHaveLength(0)
+  })
+
+  it('preserves pending user input metadata across a thread switch', async () => {
+    const firstThreadId = 'thread-input-old'
+    const secondThreadId = 'thread-input-new'
+    let firstThreadWaitingInput = false
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { threadId?: string }
+    ) => {
+      if (method === 'thread/read') {
+        const threadId = params?.threadId ?? firstThreadId
+        const thread = makeThread(threadId, readyWorkspaceStatus.workspacePath, threadId)
+        if (threadId === firstThreadId && firstThreadWaitingInput) {
+          thread.runtime = {
+            running: true,
+            waitingOnApproval: false,
+            waitingOnInput: true,
+            waitingOnPlanConfirmation: false
+          }
+        }
+        return {
+          thread
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            makeThreadSummary(firstThreadId, readyWorkspaceStatus.workspacePath),
+            makeThreadSummary(secondThreadId, readyWorkspaceStatus.workspacePath)
+          ]
+        }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(firstThreadId)
+
+    renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThread?.id).toBe(firstThreadId)
+    })
+
+    act(() => {
+      useConversationStore.getState().onUserInputRequest('bridge-input-switch', {
+        threadId: firstThreadId,
+        turnId: 'turn-input-original',
+        requestId: 'request-input-switch',
+        isBlocking: true,
+        questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
+      })
+      useConversationStore.setState({ activeTurnId: 'turn-transient' })
+      firstThreadWaitingInput = true
+    })
+
+    await act(async () => {
+      useThreadStore.getState().setActiveThreadId(secondThreadId)
+    })
+    await waitFor(() => {
+      const parked = useThreadStore.getState().parkedUserInputs.get(firstThreadId)
+      expect(parked?.turnId).toBe('turn-input-original')
+      expect(parked?.rawParams.turnId).toBe('turn-input-original')
+      expect(parked?.rawParams.isBlocking).toBe(true)
+    })
+
+    await act(async () => {
+      useThreadStore.getState().setActiveThreadId(firstThreadId)
+    })
+    await waitFor(() => {
+      const pending = useConversationStore.getState().pendingUserInput
+      expect(pending?.bridgeId).toBe('bridge-input-switch')
+      expect(pending?.turnId).toBe('turn-input-original')
+      expect(pending?.isBlocking).toBe(true)
+    })
   })
 
   it('does not reconcile an ordinary focus transition without deferred conversation state', async () => {

@@ -29,6 +29,7 @@ internal sealed class TurnRequestHandler(
     {
         table.Map(Contract.AppServerRpc.TurnStart, HandleTurnStartAsync);
         table.Map(Contract.AppServerRpc.TurnEnqueue, HandleTurnEnqueueAsync);
+        table.Map(Contract.AppServerRpc.TurnSteer, HandleTurnSteerAsync);
         table.Map(Contract.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
         table.Map(Contract.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
         table.Map(Contract.AppServerRpc.TurnQueueUpdate, HandleTurnQueueUpdateAsync);
@@ -323,6 +324,43 @@ internal sealed class TurnRequestHandler(
             QueuedInputs = TurnContractMapper.ToContract(thread.QueuedInputs)
         };
         return AppServerTypedResult<Contract.TurnEnqueueResult>.FromResult(result);
+    }
+
+    private async Task<AppServerTypedResult<Contract.TurnSteerResult>> HandleTurnSteerAsync(
+        AppServerTypedRequest<Contract.TurnSteerParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var threadId = p.ThreadId;
+        var expectedTurnId = p.ExpectedTurnId;
+        if (string.IsNullOrWhiteSpace(threadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+        if (string.IsNullOrWhiteSpace(expectedTurnId))
+            throw AppServerErrors.InvalidParams("'expectedTurnId' is required.");
+        var input = TurnContractMapper.ToDomain(p.Input);
+        var sender = TurnContractMapper.ToDomain(p.Sender);
+        var materializedInput = await PrepareTurnInputAsync(input, threadId, ct);
+        RecordSkillReferences(threadId, materializedInput.NativeInputParts);
+
+        using var channelScope = CreateChannelScope(sender);
+        await sessionService.EnsureThreadLoadedAsync(threadId, ct);
+        var turnId = await sessionService.SteerTurnAsync(
+            threadId,
+            expectedTurnId,
+            materializedInput.Content,
+            sender,
+            ct,
+            new SessionInputSnapshot
+            {
+                NativeInputParts = materializedInput.NativeInputParts,
+                MaterializedInputParts = materializedInput.MaterializedInputParts,
+                DisplayText = materializedInput.DisplayText
+            });
+
+        return AppServerTypedResult<Contract.TurnSteerResult>.FromResult(new()
+        {
+            TurnId = turnId
+        });
     }
 
     private async Task<AppServerTypedResult<Contract.TurnQueueRemoveResponse>> HandleTurnQueueRemoveAsync(

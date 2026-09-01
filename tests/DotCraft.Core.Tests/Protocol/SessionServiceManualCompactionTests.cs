@@ -336,8 +336,12 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var result = await service.CompactThreadAsync(thread.Id);
 
         Assert.Equal("partial", result.Outcome);
-        var capturedTool = Assert.Single(summaryChat.Options?.Tools ?? []);
-        Assert.Equal("GetStatus", capturedTool.Name);
+        Assert.Equal(
+            ["GetStatus", "SendUserMessageAsync", "clock__CurrentTime", "clock__Sleep"],
+            (summaryChat.Options?.Tools ?? [])
+                .Select(tool => tool.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
         Assert.Null(summaryChat.Options?.ToolMode);
     }
 

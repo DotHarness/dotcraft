@@ -38,6 +38,7 @@ public enum ItemType
     ApprovalResponse,
     UserInputRequest,
     UserInputResponse,
+    Sleep,
     Error,
     SystemNotice
 }

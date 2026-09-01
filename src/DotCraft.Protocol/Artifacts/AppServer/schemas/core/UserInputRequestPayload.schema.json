@@ -4,6 +4,9 @@
   "title": "UserInputRequestPayload",
   "type": "object",
   "properties": {
+    "isBlocking": {
+      "type": "boolean"
+    },
     "questions": {
       "type": "array",
       "items": {
@@ -16,6 +19,7 @@
   },
   "additionalProperties": true,
   "required": [
+    "isBlocking",
     "questions",
     "requestId"
   ]

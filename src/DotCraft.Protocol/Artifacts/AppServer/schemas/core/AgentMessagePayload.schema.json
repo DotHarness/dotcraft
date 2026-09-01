@@ -4,6 +4,16 @@
   "title": "AgentMessagePayload",
   "type": "object",
   "properties": {
+    "deliveryMode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "text": {
       "type": "string"
     }

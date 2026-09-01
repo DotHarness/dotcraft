@@ -6498,6 +6498,39 @@
       ]
     },
     {
+      "name": "turn/steer",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/TurnSteerParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/TurnSteerResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "threadManagement",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "usage/summary",
       "paramStructure": "by-name",
       "params": [

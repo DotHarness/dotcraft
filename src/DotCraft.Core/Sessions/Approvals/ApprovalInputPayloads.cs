@@ -95,6 +95,8 @@ public sealed record UserInputRequestPayload
     public string RequestId { get; init; } = string.Empty;
 
     public IReadOnlyList<RequestUserInputQuestion> Questions { get; init; } = [];
+
+    public required bool IsBlocking { get; init; }
 }
 
 /// <summary>

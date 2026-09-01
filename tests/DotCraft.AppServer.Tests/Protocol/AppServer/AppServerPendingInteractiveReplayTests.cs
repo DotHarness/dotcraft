@@ -273,6 +273,7 @@ public sealed class AppServerPendingInteractiveReplayTests
         AppServerTestHarness.AssertIsSuccessResponse(firstResponse);
         using var firstReplay = await harness.Transport.ReadNextSentAsync();
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.UserInputRequest, firstReplay.RootElement.GetProperty("method").GetString());
+        Assert.True(firstReplay.RootElement.GetProperty("params").GetProperty("isBlocking").GetBoolean());
         await WaitForAsync(() => harness.Service.ResolvedUserInputs.Count == 1);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
@@ -312,6 +313,7 @@ public sealed class AppServerPendingInteractiveReplayTests
             Payload = new UserInputRequestPayload
             {
                 RequestId = requestId,
+                IsBlocking = true,
                 Questions =
                 [
                     new RequestUserInputQuestion

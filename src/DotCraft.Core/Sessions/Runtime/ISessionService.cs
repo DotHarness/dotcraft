@@ -315,6 +315,15 @@ public interface ISessionService
         CancellationToken ct = default,
         SessionInputSnapshot? inputSnapshot = null);
 
+    /// <summary>Adds user guidance to the active regular Turn without creating a new Turn.</summary>
+    Task<string> SteerTurnAsync(
+        string threadId,
+        string expectedTurnId,
+        IList<AIContent> content,
+        SenderContext? sender = null,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null);
+
     /// <summary>
     /// Attempts to start the next queued input if the thread is currently idle.
     /// Implementations must not preempt a running turn, pending approval, pending model input,

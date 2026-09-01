@@ -39,6 +39,22 @@ public abstract class AIFunctionToolSource : IToolSource
     protected virtual string GetDescription(AIFunction function, ToolPlanningContext context) =>
         string.IsNullOrWhiteSpace(function.Description) ? function.Name : function.Description;
 
+    /// <summary>Returns the canonical namespace for one generated declaration.</summary>
+    protected virtual string? GetNamespace(AIFunction function, ToolPlanningContext context) =>
+        ToolNamespaceMetadataResolver.TryGet(function, out var toolNamespace) ? toolNamespace : null;
+
+    /// <summary>Returns the model-facing description for the canonical namespace.</summary>
+    protected virtual string? GetNamespaceDescription(AIFunction function, ToolPlanningContext context) =>
+        ToolNamespaceMetadataResolver.GetDescription(function);
+
+    /// <summary>Returns the model exposure for one generated declaration.</summary>
+    protected virtual ToolExposure GetExposure(AIFunction function, ToolPlanningContext context) =>
+        ToolExposure.Direct;
+
+    /// <summary>Returns whether profile restrictions may filter one generated declaration.</summary>
+    protected virtual ToolPolicyScope GetPolicyScope(AIFunction function, ToolPlanningContext context) =>
+        ToolPolicyScope.ProfileManaged;
+
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         ToolPlanningContext context,
@@ -59,9 +75,7 @@ public abstract class AIFunctionToolSource : IToolSource
         var revision = context.Revision;
         var sourceToolId = new SourceToolId(function.Name);
         var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, sourceToolId);
-        var name = new ToolName(
-            ToolNamespaceMetadataResolver.TryGet(function, out var toolNamespace) ? toolNamespace : null,
-            function.Name);
+        var name = new ToolName(GetNamespace(function, context), function.Name);
         var definition = new ToolDefinition(
             definitionId,
             name,
@@ -71,7 +85,9 @@ public abstract class AIFunctionToolSource : IToolSource
             annotations: BuildAnnotations(function, context),
             policyHints: GetPolicyHints(function, context),
             presentation: GetPresentation(function, context),
-            provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"));
+            provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"),
+            namespaceDescription: GetNamespaceDescription(function, context),
+            policyScope: GetPolicyScope(function, context));
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId($"native:{SourceId}:{function.Name}:{revision}"),
             definitionId,
@@ -79,7 +95,11 @@ public abstract class AIFunctionToolSource : IToolSource
             ToolBindingLeases.AlwaysAvailable,
             $"native:{SourceId}",
             revision);
-        return new ToolRegistration(definition, binding, ToolProjectionShape.StandardPair);
+        return new ToolRegistration(
+            definition,
+            binding,
+            ToolProjectionShape.StandardPair,
+            GetExposure(function, context));
     }
 
     private IReadOnlyDictionary<string, JsonElement>? BuildAnnotations(
@@ -127,6 +147,8 @@ internal static class CoreToolPresentationCatalog
         "WebSearch" => Descriptor("core.web", "search"),
         "WebFetch" => Descriptor("core.web", "fetch"),
         "RequestUserInput" => Descriptor("core.request-user-input"),
+        "SendUserMessageAsync" => Descriptor("core.send-user-message-async"),
+        "Sleep" => Descriptor("core.sleep"),
         "ReadFile" or "GrepFiles" or "FindFiles" => Descriptor("core.read-file"),
         "LSP" => Descriptor("core.lsp"),
         "CommitSuggest" => Descriptor("core.commit-suggest"),

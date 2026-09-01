@@ -91,7 +91,7 @@ public sealed class SessionWireModelsTests
                 TurnId = "turn_1",
                 Type = ItemType.UserInputRequest,
                 Status = ItemStatus.Completed,
-                Payload = new UserInputRequestPayload { RequestId = "req_1" }
+                Payload = new UserInputRequestPayload { RequestId = "req_1", IsBlocking = true }
             }
         };
 

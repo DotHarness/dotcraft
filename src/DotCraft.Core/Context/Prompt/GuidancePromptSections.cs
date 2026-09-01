@@ -1,3 +1,5 @@
+using DotCraft.Contributions;
+
 namespace DotCraft.Context;
 
 /// <summary>The built-in behavioural guidance sections: working style, response style, editing workflow, file references, mode protocol, and structured user questions.</summary>
@@ -101,8 +103,35 @@ Use `RequestUserInput` only when it is listed in the available tools for this tu
 
 In Plan mode, after targeted non-mutating exploration, use `RequestUserInput` for user decisions that materially change the plan. Ask only questions that cannot be answered by repo or environment exploration. Do not ask meaningful multiple-choice questions as plain assistant text when this tool is available.
 
-Question shape: prefer 1 question and never exceed 3. Each question has 2-3 meaningful, mutually exclusive options. Put the recommended option first and suffix its label with `(Recommended)`. Do not include an `Other` option; the client adds free-form input automatically.
-
 In Agent mode, prefer reasonable assumptions and execution; ask only when the user requested a choice or guessing is risky.
 """;
+
+    /// <summary>Builds coordination guidance from the tools actually exposed to the model.</summary>
+    internal static string? UserCoordination(SystemPromptSectionContext context)
+    {
+        var hasBlockingQuestion = context.IsToolAvailable("RequestUserInput");
+        var hasAsyncMessage = context.IsToolAvailable("SendUserMessageAsync");
+        var hasSleep = context.IsToolAvailable("clock__Sleep");
+        if (!hasBlockingQuestion && !hasAsyncMessage && !hasSleep)
+            return null;
+
+        var rules = new List<string>
+        {
+            "## User Coordination",
+            string.Empty
+        };
+        if (hasBlockingQuestion)
+            rules.Add("- Use `RequestUserInput` when the answer is a prerequisite for further work and a short structured decision is appropriate.");
+        if (hasAsyncMessage)
+            rules.Add("- Use `SendUserMessageAsync` to ask for missing information, preferences, constraints, clarification, or authorization when independent authorized work can continue.");
+        if (hasSleep)
+            rules.Add("- Use `clock__Sleep` only after a question has been sent, no independent work remains, and this turn needs to wait for the reply.");
+        if (hasAsyncMessage)
+            rules.Add("- After an asynchronous question, continue every authorized task that does not depend on the answer.");
+        if (hasSleep)
+            rules.Add("- Stay quiet while waiting. The next model sample receives the Sleep result together with any newly admitted steer or mailbox input.");
+        rules.Add("- Do not repeat the same question, authorization request, or status in both an asynchronous message and the final answer.");
+        rules.Add("- Do not create a Goal implicitly. Only an existing Goal explicitly created by the user or system continues across turns.");
+        return string.Join(Environment.NewLine, rules);
+    }
 }

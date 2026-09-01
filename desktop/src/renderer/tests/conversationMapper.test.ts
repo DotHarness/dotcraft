@@ -173,6 +173,20 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.deliveryMode).toBe('guidance')
   })
 
+  it('preserves async delivery mode on agent messages', () => {
+    const item = wireItemToConversationItem({
+      id: 'i2-async-agent',
+      type: 'agentMessage',
+      status: 'completed',
+      payloadKind: 'agentMessage',
+      payload: { text: 'Which target should I use?', deliveryMode: 'async' },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(item.text).toBe('Which target should I use?')
+    expect(item.deliveryMode).toBe('async')
+  })
+
   it('preserves goal triggerKind from userMessage payload', () => {
     const item = wireItemToConversationItem({
       id: 'i2-goal',

@@ -11,13 +11,14 @@
 
 [English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
-DotCraft 是一个基于 C#/.NET 构建的开源、自托管、可嵌入的**项目原生 AI Agent Runtime**。
+DotCraft 是一个基于 C#/.NET 构建的开源、自托管、可嵌入的**AI Agent Runtime**。
+
 </div>
 
 
 ## 为什么选择 DotCraft？
 
-DotCraft 将项目转变为 **AI Agent 的可扩展运行环境**。
+DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 
 ![同一个 Agent Runtime，三种接入方式 —— 桌面应用、AppServer + SDK、Harness 包](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 

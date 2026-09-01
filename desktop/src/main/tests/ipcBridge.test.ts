@@ -119,7 +119,9 @@ vi.mock('../workspaceComposerIpc', async () => {
 })
 
 import {
+  cancelServerRequestBridge,
   createServerRequestBridge,
+  resolveServerRequestBridge,
   registerIpcHandlers,
   unregisterIpcHandlers,
   sanitizeHttpOrHttpsUrl,
@@ -194,14 +196,18 @@ describe('createServerRequestBridge', () => {
     const a = createServerRequestBridge()
     const b = createServerRequestBridge()
     expect(a.bridgeId).not.toBe(b.bridgeId)
+    resolveServerRequestBridge(a.bridgeId, null)
+    resolveServerRequestBridge(b.bridgeId, null)
   })
 
   it('returns a promise that is pending until resolved externally', async () => {
-    const { promise } = createServerRequestBridge()
+    const { bridgeId, promise } = createServerRequestBridge()
     let settled = false
     void promise.then(() => { settled = true })
     await new Promise((r) => setTimeout(r, 10))
     expect(settled).toBe(false)
+    resolveServerRequestBridge(bridgeId, null)
+    await promise
   })
 
   it('bridge IDs are numeric strings in ascending order', () => {
@@ -213,6 +219,27 @@ describe('createServerRequestBridge', () => {
     const nums = ids.map(Number)
     expect(nums[0]).toBeLessThan(nums[1])
     expect(nums[1]).toBeLessThan(nums[2])
+    for (const id of ids) resolveServerRequestBridge(id, null)
+  })
+
+  it('resolves a bridge and runs its settlement callback once', async () => {
+    const onSettled = vi.fn()
+    const { bridgeId, promise } = createServerRequestBridge(onSettled)
+
+    resolveServerRequestBridge(bridgeId, { answers: {} })
+    await expect(promise).resolves.toEqual({ answers: {} })
+    resolveServerRequestBridge(bridgeId, null)
+    expect(onSettled).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a cancelled bridge and runs its settlement callback once', async () => {
+    const onSettled = vi.fn()
+    const { bridgeId, promise } = createServerRequestBridge(onSettled)
+
+    cancelServerRequestBridge(bridgeId)
+    await expect(promise).rejects.toThrow()
+    cancelServerRequestBridge(bridgeId)
+    expect(onSettled).toHaveBeenCalledTimes(1)
   })
 })
 

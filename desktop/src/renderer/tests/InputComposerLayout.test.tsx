@@ -1506,7 +1506,7 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('button', { name: 'Select model' })).toBeDisabled()
   })
 
-  it('shows the queued send action instead of stop while running with draft text', () => {
+  it('shows the steer send action instead of stop while running with draft text', () => {
     useConversationStore.setState({
       turnStatus: 'running',
       activeTurnId: 'turn-123'
@@ -1518,8 +1518,42 @@ describe('InputComposer layout', () => {
     textbox.textContent = 'follow up'
     fireEvent.input(textbox)
 
-    expect(screen.getByRole('button', { name: 'Queue message' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send to current turn' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Stop turn' })).toBeNull()
+  })
+
+  it('steers running turns with the observed turn id', async () => {
+    useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
+    renderComposer()
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'apply this now'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('turn/steer', expect.objectContaining({
+        threadId: 'thread-1',
+        expectedTurnId: 'turn-123'
+      }))
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
+  })
+
+  it('preserves the draft when steering fails', async () => {
+    appServerSendRequest.mockImplementation((method: string) =>
+      method === 'turn/steer' ? Promise.reject(new Error('active turn changed')) : Promise.resolve({}))
+    useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
+    renderComposer()
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'do not lose this'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => expect(textbox.textContent).toBe('do not lose this'))
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
   })
 
   it('queues Enter submissions while thread maintenance is active', async () => {
@@ -1565,6 +1599,23 @@ describe('InputComposer layout', () => {
       }))
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
+  })
+
+  it('preserves an idle draft when turn start races with a regular active turn', async () => {
+    appServerSendRequest.mockImplementation((method: string) =>
+      method === 'turn/start'
+        ? Promise.reject(new Error('Thread already has a running turn'))
+        : Promise.resolve({}))
+    renderComposer()
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'keep this racing submission'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => expect(textbox.textContent).toBe('keep this racing submission'))
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/steer', expect.anything())
   })
 
   it('cycles recent user messages with ArrowUp and ArrowDown while preserving the current draft', () => {

@@ -44,6 +44,10 @@ public sealed class SessionItem
         Payload as AgentMessagePayload;
 
     [JsonIgnore]
+    public SleepPayload? AsSleep =>
+        Payload as SleepPayload;
+
+    [JsonIgnore]
     public ReasoningContentPayload? AsReasoningContent =>
         Payload as ReasoningContentPayload;
 

@@ -938,7 +938,9 @@ public sealed partial class ThreadStore : IAsyncDisposable
             {
                 assistantBuilder.AddReasoning(reasoningText);
             }
-            else if (item.Type == ItemType.AgentMessage && item.AsAgentMessage is { Text: { } agentText } &&
+            else if (item.Type == ItemType.AgentMessage &&
+                     item.AsAgentMessage is { Text: { } agentText } agentMessage &&
+                     !string.Equals(agentMessage.DeliveryMode, "async", StringComparison.Ordinal) &&
                      !string.IsNullOrWhiteSpace(agentText))
             {
                 assistantBuilder.AddText(agentText.Trim());

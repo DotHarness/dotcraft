@@ -127,6 +127,7 @@ import {
   type RawNotificationPayload,
   type RawServerRequestPayload
 } from '../shared/appServerBoundary'
+import type { UserInputAutoResolutionState } from '../shared/userInputAutoResolution'
 
 export type UnsubscribeFn = () => void
 
@@ -268,6 +269,16 @@ ipcRenderer.on(
       notificationDispatcher.dispatch(payload)
     }
     rawNotificationDispatcher.dispatch(payload)
+  }
+)
+
+let userInputAutoResolutionToken = 0
+let activeUserInputAutoResolutionCallback:
+  ((states: UserInputAutoResolutionState[]) => void) | null = null
+ipcRenderer.on(
+  'appserver:user-input-auto-resolution-changed',
+  (_event: Electron.IpcRendererEvent, states: UserInputAutoResolutionState[]) => {
+    activeUserInputAutoResolutionCallback?.(states)
   }
 )
 
@@ -540,6 +551,40 @@ const api = {
     /** Main forwards this as the JSON-RPC response to the AppServer. */
     sendServerResponse(bridgeId: string, result: unknown): Promise<void> {
       return ipcRenderer.invoke('appserver:server-response', bridgeId, result)
+    },
+
+    cancelServerRequest(bridgeId: string): Promise<void> {
+      return ipcRenderer.invoke('appserver:cancel-server-request', bridgeId)
+    },
+
+    getUserInputAutoResolutionSnapshot(): Promise<UserInputAutoResolutionState[]> {
+      return ipcRenderer.invoke('appserver:user-input-auto-resolution-snapshot')
+    },
+
+    onUserInputAutoResolutionChanged(
+      callback: (states: UserInputAutoResolutionState[]) => void
+    ): UnsubscribeFn {
+      const token = ++userInputAutoResolutionToken
+      activeUserInputAutoResolutionCallback = callback
+      return () => {
+        if (userInputAutoResolutionToken === token) activeUserInputAutoResolutionCallback = null
+      }
+    },
+
+    setUserInputConversationPresented(threadId: string | null): Promise<void> {
+      return ipcRenderer.invoke('appserver:user-input-conversation-presented', threadId)
+    },
+
+    recordUserInputConversationActivity(threadId: string): Promise<void> {
+      return ipcRenderer.invoke('appserver:user-input-conversation-activity', threadId)
+    },
+
+    snoozeUserInputAutoResolution(threadId: string, requestId: string): Promise<void> {
+      return ipcRenderer.invoke(
+        'appserver:user-input-auto-resolution-snooze',
+        threadId,
+        requestId
+      )
     }
   },
 

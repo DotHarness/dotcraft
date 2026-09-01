@@ -33,6 +33,9 @@ public static class SystemPromptSectionNames
     /// <summary>When and how to ask the user a structured question.</summary>
     public const string RequestUserInput = "request-user-input";
 
+    /// <summary>How blocking questions, asynchronous messages, and waits coordinate with the user.</summary>
+    public const string UserCoordination = "user-coordination";
+
     /// <summary>The workspace bootstrap markdown files loaded from the DotCraft directory.</summary>
     public const string BootstrapFiles = "bootstrap-files";
 

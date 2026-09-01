@@ -607,6 +607,61 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnSteer_AddsGuidanceToExistingTurnWithoutStartingAnother()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        thread.Turns.Add(new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        });
+
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnSteer, new
+        {
+            threadId = thread.Id,
+            expectedTurnId = "turn_001",
+            input = new[] { new { type = "text", text = "Use this now" } }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        Assert.Equal("turn_001", doc.RootElement.GetProperty("result").GetProperty("turnId").GetString());
+        Assert.Single(thread.Turns);
+        var guidance = Assert.Single(thread.QueuedInputs);
+        Assert.Equal("guidancePending", guidance.Status);
+        Assert.Equal("turn_001", guidance.ReadyAfterTurnId);
+        Assert.Null(_h.Transport.TryReadSent());
+    }
+
+    [Fact]
+    public async Task TurnSteer_MismatchedTurnDoesNotQueueInput()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        thread.Turns.Add(new SessionTurn
+        {
+            Id = "turn_002",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        });
+
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnSteer, new
+        {
+            threadId = thread.Id,
+            expectedTurnId = "turn_001",
+            input = new[] { new { type = "text", text = "Wrong turn" } }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        Assert.True(doc.RootElement.TryGetProperty("error", out _));
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
     public async Task TurnQueueRemove_ReturnsRemainingQueue()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);

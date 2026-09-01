@@ -73,6 +73,7 @@ export const MESSAGES_ZH_HANS = {
   'userInput.other': '其他',
   'userInput.otherPlaceholder': '不，并告诉 DotCraft 该怎么调整',
   'userInput.dismiss': '关闭',
+  'userInput.autoDismissCountdown': '{{seconds}} 秒',
   'userInput.continue': '继续',
   'userInput.progress': '{{current}} of {{total}}',
   'userInput.previousQuestion': '上一题',
@@ -1319,6 +1320,8 @@ export const MESSAGES_ZH_HANS = {
   'composer.queueReorderFailed': '调整排队消息顺序失败：{{error}}',
   'composer.queueSendTitle': '加入队列',
   'composer.queueSendAria': '加入队列',
+  'composer.steerSendTitle': '发送到当前轮次',
+  'composer.steerSendAria': '发送到当前轮次',
   'composer.removeImageAria': '移除图片',
   'composer.removeFileAria': '移除文件',
 

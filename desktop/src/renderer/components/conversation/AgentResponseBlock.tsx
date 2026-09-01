@@ -30,7 +30,7 @@ import { addToast } from '../../stores/toastStore'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
-import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
+import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
 import {
@@ -104,6 +104,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 }: AgentResponseBlockProps): JSX.Element {
   useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
+  const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const activeItemId =
@@ -111,7 +112,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
   const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
-  const defaultRenderableItems = hydratedItems.filter(isDefaultRenderableItem)
+  const isSleeping = hydratedItems.some(
+    (item) => item.presentation?.presentationId === 'core.sleep'
+      && isToolItemLive(item, { turnRunning: isRunning })
+  )
+  const defaultRenderableItems = hydratedItems
+    .filter((item) => !shouldHideCoordinationTool(item, isRunning))
+    .filter(isDefaultRenderableItem)
 
   const renderableItems = trimHistoricalToolContent
     ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
@@ -380,13 +387,16 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       hasActiveStreamingAgentMessage(renderableItems, activeItemId),
     lastDeltaAt: streamingMessageLastDeltaAt
   })
-  const shouldShowIdleThinkingFallback = showIdleThinkingFallback && shouldRenderIdleThinkingFallback({
-    items: renderableItems,
-    isRunning,
-    activeItemId,
-    streamingMessage,
-    streamingMessageStalled
-  })
+  const shouldShowIdleThinkingFallback = showIdleThinkingFallback
+    && !isSleeping
+    && pendingUserInput == null
+    && shouldRenderIdleThinkingFallback({
+      items: renderableItems,
+      isRunning,
+      activeItemId,
+      streamingMessage,
+      streamingMessageStalled
+    })
 
   if (shouldCollapseIntermediate) {
     if (trimHistoricalToolContent) {
@@ -503,6 +513,14 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     </div>
   )
 })
+
+function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean): boolean {
+  if (!isToolLikeItemType(item.type)) return false
+  if (item.presentation?.presentationId === CORE_TOOL_PRESENTATION_IDS.sendUserMessageAsync) return true
+  if (item.presentation?.presentationId === 'core.sleep') return true
+  return item.presentation?.presentationId === 'core.request-user-input'
+    && isToolItemLive(item, { turnRunning })
+}
 
 function ConversationNodeFlow({
   nodes,
@@ -1472,6 +1490,7 @@ function shouldRenderIdleThinkingFallback({
   streamingMessageStalled: boolean
 }): boolean {
   if (!isRunning) return false
+  if (isActivitySliceClosed(items)) return false
 
   return !items.some((item) => {
     if (item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId) {
@@ -1494,6 +1513,25 @@ function shouldRenderIdleThinkingFallback({
     }
     return false
   })
+}
+
+function isActivitySliceClosed(items: ConversationItem[]): boolean {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.type === 'agentMessage') {
+      return item.status === 'completed' && item.deliveryMode !== 'async'
+    }
+    if (
+      item.type === 'reasoningContent'
+      || item.type === 'userMessage'
+      || isToolLikeItemType(item.type)
+      || item.type === 'imageGeneration'
+      || item.type === 'approvalCard'
+    ) {
+      return false
+    }
+  }
+  return false
 }
 
 function hasActiveStreamingAgentMessage(

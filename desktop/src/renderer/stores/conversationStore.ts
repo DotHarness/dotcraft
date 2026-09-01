@@ -192,8 +192,10 @@ export interface UserInputQuestion {
 
 export interface PendingUserInputRequest {
   bridgeId: string
+  threadId: string
   requestId: string
-  turnId: string | null
+  turnId: string
+  isBlocking: boolean
   questions: UserInputQuestion[]
 }
 
@@ -3432,10 +3434,12 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onUserInputRequest(bridgeId, params) {
-    const state = get()
-    const activeTurnId = state.activeTurnId
-    const turnId = typeof params.turnId === 'string' ? params.turnId : activeTurnId
-    if (!activeTurnId && !turnId) return
+    if (
+      typeof params.threadId !== 'string'
+      || typeof params.turnId !== 'string'
+      || typeof params.requestId !== 'string'
+      || typeof params.isBlocking !== 'boolean'
+    ) return
 
     const rawQuestions = Array.isArray(params.questions) ? params.questions : []
     const questions: UserInputQuestion[] = rawQuestions
@@ -3463,11 +3467,13 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     set({
       turnStatus: 'waitingInput',
-      activeTurnId: turnId ?? activeTurnId,
+      activeTurnId: params.turnId,
       pendingUserInput: {
         bridgeId,
-        requestId: typeof params.requestId === 'string' ? params.requestId : '',
-        turnId: turnId ?? null,
+        threadId: params.threadId,
+        requestId: params.requestId,
+        turnId: params.turnId,
+        isBlocking: params.isBlocking,
         questions
       }
     })

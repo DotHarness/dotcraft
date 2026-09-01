@@ -15,6 +15,7 @@ import { useUIStore } from './stores/uiStore'
 import { useViewerTabStore } from './stores/viewerTabStore'
 import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
+import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
@@ -616,6 +617,7 @@ function WindowFrame({
 }
 
 export function App(): JSX.Element {
+  useUserInputAutoResolutionBridge()
   const locale = useLocale()
   const localeRef = useRef(locale)
   localeRef.current = locale
@@ -2947,11 +2949,12 @@ export function App(): JSX.Element {
       const pending = convBeforeReset.pendingUserInput
       useThreadStore.getState().parkUserInput(prev, {
         bridgeId: pending.bridgeId,
-        turnId: convBeforeReset.activeTurnId,
+        turnId: pending.turnId,
         rawParams: {
           threadId: prev,
-          turnId: convBeforeReset.activeTurnId,
+          turnId: pending.turnId,
           requestId: pending.requestId,
+          isBlocking: pending.isBlocking,
           questions: pending.questions
         }
       })

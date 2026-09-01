@@ -53,10 +53,12 @@ import {
   broadcastNotification,
   broadcastServerRequest,
   createServerRequestBridge,
+  resolveServerRequestBridge,
   sanitizeHttpOrHttpsUrl,
   openExternalHttpUrl,
   type IpcHandlerCallbacks
 } from './ipcBridge'
+import { UserInputAutoResolutionCoordinator } from './userInputAutoResolution'
 import type {
   ConnectionErrorType,
   ConnectionStatusPayload
@@ -191,6 +193,17 @@ import {
 
 let mainWindow: BrowserWindow | null = null
 let wireClient: DesktopAppServerClient | null = null
+const userInputAutoResolution = new UserInputAutoResolutionCoordinator({
+  onResolve: (bridgeId) => {
+    resolveServerRequestBridge(bridgeId, { answers: {} })
+  },
+  onChanged: (states) => {
+    const win = mainWindow
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('appserver:user-input-auto-resolution-changed', states)
+    }
+  }
+})
 let currentWorkspacePath = ''
 /** Last DashBoard URL from a successful initialize (for View menu). */
 let lastDashboardUrl: string | null = null
@@ -658,7 +671,25 @@ async function bridgeServerRequestToRenderer(method: string, params: unknown): P
   if (!win || win.isDestroyed()) {
     throw new Error('Window is not available to handle server request')
   }
-  const { bridgeId, promise } = createServerRequestBridge()
+  let bridgeId = ''
+  const bridge = createServerRequestBridge(() => userInputAutoResolution.remove(bridgeId))
+  bridgeId = bridge.bridgeId
+  const { promise } = bridge
+  if (method === 'item/tool/requestUserInput') {
+    const request = (params ?? {}) as Record<string, unknown>
+    if (
+      typeof request.threadId === 'string'
+      && typeof request.requestId === 'string'
+      && typeof request.isBlocking === 'boolean'
+    ) {
+      userInputAutoResolution.track({
+        bridgeId,
+        threadId: request.threadId,
+        requestId: request.requestId,
+        isBlocking: request.isBlocking
+      })
+    }
+  }
   broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
   return promise
 }
@@ -1116,6 +1147,7 @@ async function teardownRuntime(
     releaseWorkspaceLock(entry.workspacePath)
     entry.client.dispose()
   }
+  userInputAutoResolution.clear()
   workspaceConnections.clear()
   wireClient?.dispose()
   wireClient = null
@@ -1521,6 +1553,14 @@ function createWindow(
       focused: win.isFocused()
     })
   }
+  const handleWindowFocus = (): void => {
+    userInputAutoResolution.setWindowFocused(true)
+    sendVisibilityState()
+  }
+  const handleWindowBlur = (): void => {
+    userInputAutoResolution.setWindowFocused(false)
+    sendVisibilityState()
+  }
 
   // Re-apply the persisted interface zoom on every load (webContents zoom resets per load),
   // so the UI scales without a flash. Runtime changes go through the renderer (webFrame).
@@ -1537,8 +1577,9 @@ function createWindow(
   win.on('restore', sendVisibilityState)
   win.on('show', sendVisibilityState)
   win.on('hide', sendVisibilityState)
-  win.on('focus', sendVisibilityState)
-  win.on('blur', sendVisibilityState)
+  win.on('focus', handleWindowFocus)
+  win.on('blur', handleWindowBlur)
+  userInputAutoResolution.setWindowFocused(win.isFocused())
 
   win.on('close', () => {
     viewerBrowserManager.destroyAllTabs(win)
@@ -2438,6 +2479,16 @@ function buildCallbacks(): IpcHandlerCallbacks {
     },
     onAppServerRequestCompleted: (client, method, params) => {
       observeAppServerRequestCompletion(client, method, params)
+    },
+    getUserInputAutoResolutionSnapshot: () => userInputAutoResolution.getSnapshot(),
+    onUserInputConversationPresented: (threadId) => {
+      userInputAutoResolution.setPresentedThread(threadId)
+    },
+    onUserInputConversationActivity: (threadId) => {
+      userInputAutoResolution.recordConversationActivity(threadId)
+    },
+    onUserInputAutoResolutionSnoozed: (threadId, requestId) => {
+      userInputAutoResolution.snooze(threadId, requestId)
     },
     getConnectionStatus: () => lastConnectionStatus,
     getWorkspaceStatus: () => getWorkspaceStatusForRenderer(currentWorkspacePath)
