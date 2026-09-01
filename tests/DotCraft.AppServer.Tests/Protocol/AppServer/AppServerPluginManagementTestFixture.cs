@@ -441,8 +441,7 @@ interface:
     "developerName": "Example Labs",
     "category": "Productivity",
     "capabilities": ["App", "Skill"],
-    "defaultPrompt": "Manage Registry App workflow tasks.",
-    "brandColor": "#5B6FF0"
+    "defaultPrompt": "Manage Registry App workflow tasks."
   }
 }
 """);
@@ -518,8 +517,7 @@ interface:
     "developerName": "Example Labs",
     "category": "Coding",
     "capabilities": ["Skill", "MCP"],
-    "defaultPrompt": "Review this change.",
-    "brandColor": "#2563EB"
+    "defaultPrompt": "Review this change."
   }
 }
 """);

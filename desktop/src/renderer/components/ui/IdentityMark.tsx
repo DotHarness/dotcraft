@@ -8,7 +8,6 @@ interface IdentityMarkProps {
   src?: string | null
   fallback: ReactNode
   size?: number
-  backgroundColor?: CSSProperties['backgroundColor']
   framed?: boolean
   className?: string
   style?: CSSProperties
@@ -25,14 +24,12 @@ export function IdentityMark({
   src,
   fallback,
   size = defaultSize[role],
-  backgroundColor,
   framed = role === 'hero',
   className,
   style,
 }: IdentityMarkProps): JSX.Element {
   const rootStyle = {
     '--identity-mark-size': `${size}px`,
-    backgroundColor,
     ...style,
   } as CSSProperties
 

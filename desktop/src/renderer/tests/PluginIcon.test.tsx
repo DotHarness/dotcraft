@@ -30,18 +30,7 @@ function renderPluginIcon(interfaceMetadata: PluginInterface): HTMLElement {
 }
 
 describe('PluginIcon', () => {
-  it('paints brandColor behind plugin artwork', () => {
-    const mark = renderPluginIcon({
-      displayName: 'Example Plugin',
-      brandColor: '#123456',
-      composerIconDataUrl: 'data:image/svg+xml,<svg/>',
-    })
-
-    expect(mark.querySelector('img')).toBeInTheDocument()
-    expect(mark).toHaveStyle({ backgroundColor: '#123456' })
-  })
-
-  it('keeps the shell transparent when artwork has no brandColor', () => {
+  it('keeps the shell transparent for plugin artwork', () => {
     const mark = renderPluginIcon({
       displayName: 'Example Plugin',
       composerIconDataUrl: 'data:image/svg+xml,<svg/>',
@@ -51,18 +40,7 @@ describe('PluginIcon', () => {
     expect(mark.style.backgroundColor).toBe('')
   })
 
-  it('uses brandColor behind the generated fallback', () => {
-    const mark = renderPluginIcon({
-      displayName: 'Example Plugin',
-      brandColor: '#654321',
-    })
-
-    expect(mark.querySelector('img')).not.toBeInTheDocument()
-    expect(mark).toHaveTextContent('E')
-    expect(mark).toHaveStyle({ backgroundColor: '#654321' })
-  })
-
-  it('keeps the default fallback color when brandColor is absent', () => {
+  it('uses the default blue background for the generated fallback', () => {
     const mark = renderPluginIcon({ displayName: 'Example Plugin' })
 
     expect(mark.querySelector('img')).not.toBeInTheDocument()

@@ -14,7 +14,6 @@
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write"],
     "defaultPrompt": "Please test my checkout flow on localhost in the in-app browser.",
-    "brandColor": "#142238",
     "composerIcon": "./assets/browser-small.svg",
     "logo": "./assets/browser.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",

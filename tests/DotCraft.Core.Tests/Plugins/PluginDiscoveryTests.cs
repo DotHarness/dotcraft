@@ -33,7 +33,6 @@ public sealed class PluginDiscoveryTests
     "category": "Coding",
     "capabilities": ["Read"],
     "defaultPrompt": "Try demo",
-    "brandColor": "#123456",
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/icon.svg"
   }
@@ -1595,8 +1594,7 @@ description: Test skill
     "developerName": "DotCraft",
     "category": "Coding",
     "capabilities": ["Metadata"],
-    "defaultPrompt": "Try demo",
-    "brandColor": "#2563EB"
+    "defaultPrompt": "Try demo"
   }{{extra}}
 }
 """);

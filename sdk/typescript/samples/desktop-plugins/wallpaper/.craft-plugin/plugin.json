@@ -19,7 +19,6 @@
     "category": "Design",
     "capabilities": ["Desktop", "Appearance", "Background"],
     "defaultPrompt": "Show me what the wallpaper plugin can change.",
-    "brandColor": "#5B6FE0",
     "logo": "./assets/wallpaper.svg",
     "composerIcon": "./assets/wallpaper.svg"
   }

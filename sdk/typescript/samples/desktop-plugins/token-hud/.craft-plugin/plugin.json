@@ -19,7 +19,6 @@
     "category": "Productivity",
     "capabilities": ["Desktop", "Usage", "Status"],
     "defaultPrompt": "How efficiently is this workspace using tokens?",
-    "brandColor": "#4F9D8C",
     "logo": "./assets/token-hud.svg",
     "composerIcon": "./assets/token-hud.svg"
   }

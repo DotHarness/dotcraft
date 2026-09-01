@@ -18,7 +18,6 @@
     "category": "Engineering",
     "capabilities": ["Skill", "Read"],
     "defaultPrompt": "Help me develop or troubleshoot DotCraft using the appropriate workflow.",
-    "brandColor": "#2458F7",
     "composerIcon": "./assets/dotcraft.svg",
     "logo": "./assets/dotcraft.svg"
   }

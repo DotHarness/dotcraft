@@ -81,6 +81,12 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
         Assert.True(File.Exists(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json")));
         Assert.True(File.Exists(Path.Combine(pluginRoot, "skills", "ordinary-plugin", "SKILL.md")));
         Assert.False(Directory.Exists(Path.Combine(_root, ".craft", "plugin-projects", "ordinary-plugin")));
+
+        using var manifest = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json")));
+        Assert.Equal(
+            ["displayName", "shortDescription", "longDescription", "developerName", "category", "capabilities", "defaultPrompt"],
+            manifest.RootElement.GetProperty("interface").EnumerateObject().Select(property => property.Name));
     }
 
     [Fact]

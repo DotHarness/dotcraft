@@ -87,8 +87,6 @@ public sealed record PluginInterfaceMetadata
 
     public string? DefaultPrompt { get; init; }
 
-    public string? BrandColor { get; init; }
-
     public string? ComposerIcon { get; init; }
 
     public string? Logo { get; init; }
@@ -779,7 +777,6 @@ public static partial class PluginManifestParser
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray(),
             DefaultPrompt = NormalizeOptional(raw.DefaultPrompt),
-            BrandColor = NormalizeOptional(raw.BrandColor),
             ComposerIcon = composerIcon,
             Logo = logo,
             WebsiteUrl = NormalizeOptional(raw.WebsiteUrl),
@@ -904,8 +901,6 @@ public static partial class PluginManifestParser
         public List<string> Capabilities { get; set; } = [];
 
         public string? DefaultPrompt { get; set; }
-
-        public string? BrandColor { get; set; }
 
         public string? ComposerIcon { get; set; }
 

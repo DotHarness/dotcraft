@@ -19,7 +19,6 @@
     "category": "Productivity",
     "capabilities": ["App", "Skill", "Read", "Write"],
     "defaultPrompt": "Please help me inspect and manage tasks on my Oratorio board.",
-    "brandColor": "#5B6FF0",
     "composerIcon": "./assets/oratorio-small.svg",
     "logo": "./assets/oratorio.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",

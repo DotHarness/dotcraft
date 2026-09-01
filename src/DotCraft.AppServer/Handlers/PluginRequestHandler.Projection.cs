@@ -244,7 +244,6 @@ internal sealed partial class PluginRequestHandler
             Category = OmitIfNull(metadata.Category),
             Capabilities = metadata.Capabilities.ToList(),
             DefaultPrompt = OmitIfNull(metadata.DefaultPrompt),
-            BrandColor = OmitIfNull(metadata.BrandColor),
             ComposerIconDataUrl = OmitIfNull(TryReadDataUrl(metadata.ComposerIcon)),
             LogoDataUrl = OmitIfNull(TryReadDataUrl(metadata.Logo)),
             WebsiteUrl = OmitIfNull(metadata.WebsiteUrl),

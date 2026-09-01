@@ -19,7 +19,6 @@
     "category": "Design",
     "capabilities": ["Desktop", "Mascot", "Appearance"],
     "defaultPrompt": "What is Grok Mascot doing?",
-    "brandColor": "#A97EFE",
     "logo": "./assets/grok.svg",
     "composerIcon": "./assets/grok.svg"
   }

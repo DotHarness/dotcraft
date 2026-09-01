@@ -17,7 +17,6 @@
     "category": "Productivity",
     "capabilities": ["Team", "Missions", "Card Board"],
     "defaultPrompt": "Please help me plan and deliver this feature with an agent team.",
-    "brandColor": "#4F7CF6",
     "composerIcon": "./assets/agent-teams.svg",
     "logo": "./assets/agent-teams.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",

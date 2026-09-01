@@ -145,7 +145,6 @@ def build_manifest(
             "category": "Coding",
             "capabilities": interface_capabilities,
             "defaultPrompt": f"Use {display_name}.",
-            "brandColor": "#2563EB",
         },
     }
 
