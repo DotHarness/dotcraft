@@ -176,7 +176,6 @@ public sealed class RemoteToolHostInfrastructureTests
         var serverTask = RemoteToolHostServer.RunAsync(
             storage,
             new AppConfig(),
-            trustedPluginSources: null,
             cancellationToken: serverCts.Token);
         var approvals = new ApproveService();
         await using var client = new RemoteToolHostClient(storage, approvals);

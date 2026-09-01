@@ -26,7 +26,6 @@ internal static class RemoteToolArtifactStore
             var leaseDataPath = GetLeaseDataPath(workspacePath, invocation.LeaseId);
             EnsureWorkspaceBound(workspacePath, leaseDataPath);
             Directory.CreateDirectory(leaseDataPath);
-            EnsureWorkspaceBound(workspacePath, leaseDataPath);
 
             var relativePath = ToolResultProcessor.SpillToDisk(
                 content,

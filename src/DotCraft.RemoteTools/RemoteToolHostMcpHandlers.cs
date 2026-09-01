@@ -19,7 +19,6 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
     private readonly RemoteToolHostStorage _storage;
     private readonly WorkspaceLeaseManager _leases;
     private readonly AppConfig _config;
-    private readonly IReadOnlyList<IToolSource> _trustedPluginSources;
     private readonly string _hostInstanceId = "host_" + Guid.NewGuid().ToString("N");
     private readonly object _gate = new();
     private readonly Dictionary<string, HostWorkspaceRuntime> _runtimes = new(StringComparer.Ordinal);
@@ -27,13 +26,11 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
     public RemoteToolHostMcpHandlers(
         RemoteToolHostStorage storage,
         WorkspaceLeaseManager leases,
-        AppConfig? config = null,
-        IReadOnlyList<IToolSource>? trustedPluginSources = null)
+        AppConfig? config = null)
     {
         _storage = storage;
         _leases = leases;
         _config = config ?? new AppConfig();
-        _trustedPluginSources = trustedPluginSources ?? [];
     }
 
     public IReadOnlyList<McpServerRequestHandler> CreateExtensionHandlers() =>
@@ -151,13 +148,13 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
                 Audit(invocation, request.Params.Name, ex.Code, started, cancelled: false);
             return Error(ex.Code, ex.Message, ex.InvocationId ?? invocation?.InvocationId, started);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             if (invocation is not null)
                 Audit(invocation, request.Params.Name, ToolErrorCodes.ExecutionFailed, started, cancelled: false);
             return Error(
                 ToolErrorCodes.ExecutionFailed,
-                ex.Message,
+                "Remote Tool Host execution failed.",
                 invocation?.InvocationId,
                 started);
         }
@@ -288,7 +285,6 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             state.CatalogRevision,
             _config,
             _storage.RootPath,
-            _trustedPluginSources,
             cancellationToken).ConfigureAwait(false);
         HostWorkspaceRuntime? retired = null;
         lock (_gate)
@@ -524,13 +520,15 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
                             RemoteToolHostProtocol.JsonOptions)
                     };
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     return new JsonObject
                     {
                         ["success"] = false,
                         ["error"] = JsonSerializer.SerializeToNode(
-                            new ExtensionError(ToolErrorCodes.ExecutionFailed, ex.Message),
+                            new ExtensionError(
+                                ToolErrorCodes.ExecutionFailed,
+                                "Remote Tool Host request failed."),
                             RemoteToolHostProtocol.JsonOptions)
                     };
                 }
@@ -574,7 +572,6 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         long catalogRevision,
         AppConfig config,
         string hostDataPath,
-        IReadOnlyList<IToolSource> trustedPluginSources,
         CancellationToken cancellationToken)
     {
         var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId);
@@ -608,16 +605,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             .ConfigureAwait(false);
         var exported = registrations
             .Where(registration => RemoteToolMetadata.IsRpcEligible(registration.Definition))
-            .ToList();
-        foreach (var pluginSource in trustedPluginSources)
-        {
-            var pluginRegistrations = await pluginSource
-                .GetRegistrationsAsync(planningContext, cancellationToken)
-                .ConfigureAwait(false);
-            exported.AddRange(pluginRegistrations.Where(registration =>
-                registration.Definition.Id.Kind == ToolSourceKind.PluginNative
-                && RemoteToolMetadata.IsRpcEligible(registration.Definition)));
-        }
+            .ToArray();
         return new HostWorkspaceRuntime(workspacePath, catalogRevision, exported, terminals, lsp);
     }
 

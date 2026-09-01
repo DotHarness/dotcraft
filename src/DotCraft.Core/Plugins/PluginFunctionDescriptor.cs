@@ -65,12 +65,6 @@ public sealed record PluginFunctionDescriptor
     /// Reserved for future lazy-loading support. The current runtime records the value but does not apply lazy loading.
     /// </summary>
     public bool? DeferLoading { get; init; }
-
-    /// <summary>
-    /// Whether this trusted in-process native function is eligible for Remote Tool Host routing.
-    /// Manifest or MCP metadata must not set this value without the native plugin loader's trust decision.
-    /// </summary>
-    public bool RpcEligible { get; init; }
 }
 
 /// <summary>

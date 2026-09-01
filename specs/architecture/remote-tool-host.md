@@ -41,7 +41,7 @@ Agent-control, planning, goal, or user-interaction tools.
 ## 3. RPC eligibility
 
 `ToolRpcAttribute` is a parameterless method marker used alongside `ToolAttribute` or
-`GeneratedToolAttribute`. It means that a trusted native tool MAY be exported by a Remote Tool Host
+`GeneratedToolAttribute`. It means that a Core Native tool MAY be exported by a Remote Tool Host
 and that an Agent Host MAY route the tool's runtime binding remotely. It grants no authority,
 changes no approval policy, and has no effect on direct method calls.
 
@@ -60,9 +60,6 @@ The initial Core RPC-eligible set is:
 change network egress, DNS, proxy, or search-provider configuration. Remote network access is a
 separate capability and is not part of this profile.
 
-Trusted in-process Plugin Native tools MAY opt in explicitly. Runtime-discovered schemas and
-untrusted source annotations MUST NOT make a tool RPC eligible.
-
 ## 4. Contract identity and catalog negotiation
 
 Remote Tool Host profile version `1` defines a contract hash over canonical UTF-8 data containing:
@@ -78,8 +75,8 @@ The hash excludes runtime-binding identity, presentation metadata, workspace pat
 instance provenance, and connection state. Object properties are ordinally sorted recursively and
 numbers use their canonical JSON representation before SHA-256 is calculated.
 
-The Host exports only RPC-eligible Core Native and trusted Plugin Native registrations. Every
-exported MCP tool carries the following metadata:
+The Host exports only RPC-eligible Core Native registrations. Every exported MCP tool carries the
+following metadata:
 
 ```json
 {
@@ -293,7 +290,7 @@ session, workspace, tool, result code, duration, and cancellation without record
 
 Conformance tests cover:
 
-- generated and reflection RPC eligibility, trusted-source export, and ineligible-source rejection;
+- generated and reflection RPC eligibility, Core export, and ineligible-source rejection;
 - contract hashing, missing/mismatched catalogs, and per-call revalidation;
 - local, same-Turn connect, remote, disconnect, and no-fallback execution;
 - Native SubAgent inheritance and independent routes over a shared process lease;

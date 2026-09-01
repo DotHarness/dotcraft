@@ -1,7 +1,6 @@
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using DotCraft.Configuration;
-using DotCraft.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -19,7 +18,6 @@ internal static class RemoteToolHostServer
     public static async Task RunAsync(
         RemoteToolHostStorage storage,
         AppConfig? config = null,
-        IReadOnlyList<IToolSource>? trustedPluginSources = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(storage);
@@ -35,10 +33,7 @@ internal static class RemoteToolHostServer
                 ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.PersistKeySet
                 : X509KeyStorageFlags.DefaultKeySet);
         foreach (var workspacePath in state.Workspaces.Values.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (!RemoteToolArtifactStore.CleanupStaleArtifacts(Path.GetFullPath(workspacePath)))
-                throw new InvalidOperationException("Remote Tool Host could not clean stale workspace artifacts.");
-        }
+            RemoteToolArtifactStore.CleanupStaleArtifacts(Path.GetFullPath(workspacePath));
         var leases = new WorkspaceLeaseManager(
             onReleased: released => RemoteToolArtifactStore.CleanupLeaseArtifacts(
                 released.WorkspacePath,
@@ -46,8 +41,7 @@ internal static class RemoteToolHostServer
         var handlers = new RemoteToolHostMcpHandlers(
             storage,
             leases,
-            config,
-            trustedPluginSources);
+            config);
 
         var listenUri = new Uri(state.ListenEndpoint, UriKind.Absolute);
         var listenAddress = IPAddress.TryParse(listenUri.Host, out var parsedAddress)

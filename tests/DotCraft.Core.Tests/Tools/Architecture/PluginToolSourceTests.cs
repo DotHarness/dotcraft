@@ -25,18 +25,6 @@ public sealed class PluginToolSourceTests
     }
 
     [Fact]
-    public async Task Registration_ProjectsOnlyExplicitNativeRpcEligibility()
-    {
-        var eligible = Assert.Single(await CreateSource(new RecordingInvoker(), rpcEligible: true)
-            .GetRegistrationsAsync(CreatePlanningContext()));
-        var ordinary = Assert.Single(await CreateSource(new RecordingInvoker())
-            .GetRegistrationsAsync(CreatePlanningContext()));
-
-        Assert.True(RemoteToolMetadata.IsRpcEligible(eligible.Definition));
-        Assert.False(RemoteToolMetadata.IsRpcEligible(ordinary.Definition));
-    }
-
-    [Fact]
     public async Task Runtime_PreservesProviderCallId_AndDoesNotRequireAmbientPluginScope()
     {
         var invoker = new RecordingInvoker
@@ -159,8 +147,7 @@ public sealed class PluginToolSourceTests
         RecordingInvoker invoker,
         bool deferLoading = false,
         bool requiresChatContext = false,
-        PluginToolInvocationMetadata? invocationMetadata = null,
-        bool rpcEligible = false) =>
+        PluginToolInvocationMetadata? invocationMetadata = null) =>
         new(
             "example-plugin",
             [
@@ -173,7 +160,6 @@ public sealed class PluginToolSourceTests
                         Description = "Looks up an example.",
                         DeferLoading = deferLoading,
                         RequiresChatContext = requiresChatContext,
-                        RpcEligible = rpcEligible,
                         InputSchema = new JsonObject
                         {
                             ["type"] = "object",

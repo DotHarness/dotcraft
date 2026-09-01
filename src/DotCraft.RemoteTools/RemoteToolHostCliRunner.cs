@@ -221,12 +221,9 @@ public static partial class RemoteToolHostCliRunner
         RemoteToolHostStorage storage,
         CancellationToken cancellationToken)
     {
-        // The pure host deliberately does not parse the Agent Host's global config, which may
-        // contain provider credentials. Host-local policy and workspace state live in host.json.
         await RemoteToolHostServer.RunAsync(
             storage,
             new AppConfig(),
-            trustedPluginSources: null,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return 0;
     }

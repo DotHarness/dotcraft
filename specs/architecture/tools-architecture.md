@@ -70,8 +70,8 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 
 **Runtime Dynamic Tool** is the canonical term for client-owned callbacks. App Binding tools use binding-scoped MCP sessions.
 
-Remote execution of an existing Core Native or trusted Plugin Native registration is governed by
-the [Remote Tool Host specification](remote-tool-host.md). It replaces the runtime route behind a
+Remote execution of an existing Core Native registration is governed by the
+[Remote Tool Host specification](remote-tool-host.md). It replaces the runtime route behind a
 stable definition and MUST NOT be represented as a Runtime Dynamic Tool, MCP source, or additional
 `ToolSourceKind`.
 
