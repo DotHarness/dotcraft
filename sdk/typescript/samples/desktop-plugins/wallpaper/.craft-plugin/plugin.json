@@ -16,7 +16,7 @@
     "shortDescription": "Set a custom app background",
     "longDescription": "Wallpaper adds bundled or custom backgrounds with separate light and dark images, blur, dimming, and surface opacity.",
     "developerName": "DotHarness",
-    "category": "Personalization",
+    "category": "Design",
     "capabilities": ["Desktop", "Appearance", "Background"],
     "defaultPrompt": "Show me what the wallpaper plugin can change.",
     "brandColor": "#5B6FE0",

@@ -16,7 +16,7 @@
     "shortDescription": "A reactive companion for the Composer",
     "longDescription": "Grok Mascot follows pointer and agent activity, with selectable colors, shapes, and turn-status feedback.",
     "developerName": "DotHarness",
-    "category": "Personalization",
+    "category": "Design",
     "capabilities": ["Desktop", "Mascot", "Appearance"],
     "defaultPrompt": "What is Grok Mascot doing?",
     "brandColor": "#A97EFE",
