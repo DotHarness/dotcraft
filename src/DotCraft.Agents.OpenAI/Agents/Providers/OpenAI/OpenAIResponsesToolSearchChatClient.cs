@@ -97,8 +97,10 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         // (prompt_cache_key, client_metadata, tool_choice, reasoning) intact.
         var preparedOptions = ResponsesToolSearchMapper.PreparePromptCacheOptions(options);
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
-        var providerHistory = ProviderRequestContextScope.Current?.History
-            as OpenAIResponsesProviderHistoryContext;
+        var requestContext = ProviderRequestContextScope.Current;
+        var providerHistory = requestContext?.CurrentIdentity.RequestKind == ProviderRequestKind.Turn
+            ? requestContext.History as OpenAIResponsesProviderHistoryContext
+            : null;
         var canonicalInput = providerHistory == null
             ? null
             : await providerHistory.PrepareInputAsync(messages, preparedOptions, cancellationToken)
@@ -113,7 +115,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             cancellationToken);
         var responseOptions = preparedResponse.Options;
         var traceCollector = _diagnostics
-            ?? ProviderRequestContextScope.Current?.Diagnostics
+            ?? requestContext?.Diagnostics
             ?? CurrentDiagnosticsLocal.Value;
         RecordPromptCacheRequestShape(traceCollector, preparedResponse.RequestShape);
         var sdkUpdates = preparedResponse.Updates;

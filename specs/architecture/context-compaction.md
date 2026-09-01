@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.1.0 |
+| **Version** | 0.1.1 |
 | **Status** | Draft |
-| **Date** | 2026-07-31 |
+| **Date** | 2026-09-01 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline for DotCraft contributors. This
@@ -193,6 +193,11 @@ The local backend wraps the existing `CompactionPipeline` behavior:
 - Session Core persists a model-history replacement checkpoint before making the replacement live;
 - an active Responses adapter maps the final neutral replacement once into a new provider-history
   generation.
+
+The summary request consumes only the snapshot or trimmed message list supplied by the local
+compaction pipeline. It may retain the active thread identity and prompt-cache routing, but it must
+not read from or append to the active Responses provider-history generation. That generation is
+used again only when Session Core projects the successful neutral replacement.
 
 The summary content and maintenance-fork requirements remain in
 [Session Core](session-core.md#local-summary-compaction-contract). Prompt-cache constraints remain
@@ -473,6 +478,8 @@ Clients do not need to know which backend produced the replacement.
 - Auth, malformed-response, cancellation, and pre-commit rollout failures leave the previous
   generation replayable.
 - The existing local compaction test suite remains unchanged in behavior.
+- API-key Responses local summary requests consume their explicit compaction input without reading
+  or appending the active provider-history generation.
 - A credential-gated integration test confirms that `/responses/compact` output is accepted as the
   next ChatGPT OAuth `/responses` input.
 
