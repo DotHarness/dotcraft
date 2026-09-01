@@ -55,6 +55,37 @@ public sealed class RemoteToolHostInfrastructureTests
     }
 
     [Fact]
+    public async Task Empty_registration_store_keeps_control_operations_live()
+    {
+        using var directory = new TemporaryDirectory();
+        var storage = new RemoteToolHostStorage(directory.Path, new MemoryCredentialStore());
+        await using var client = new RemoteToolHostClient(storage, new ApproveService());
+
+        var catalog = await client.ListAsync("thread");
+        Assert.Empty(catalog.Hosts);
+        Assert.Null(catalog.ConnectedRoute);
+
+        var error = await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
+            await client.ConnectAsync("thread", "missing-host", "workspace"));
+        Assert.Equal(RemoteToolErrorCodes.HostNotRegistered, error.Code);
+        Assert.False((await client.DisconnectAsync("thread")).Disconnected);
+
+        storage.Register(new RemoteToolPairingBundle
+        {
+            HostId = "rth_added_later",
+            DisplayName = "added-later",
+            Endpoint = "https://127.0.0.1:1",
+            CertificateFingerprint = new string('A', 64),
+            Token = "test-token"
+        });
+
+        var updatedCatalog = await client.ListAsync("thread");
+        var registered = Assert.Single(updatedCatalog.Hosts);
+        Assert.Equal("rth_added_later", registered.HostId);
+        Assert.False(registered.Online);
+    }
+
+    [Fact]
     public async Task WorkspaceExecutionSource_ExportsOnlyRpcEligibleTools()
     {
         using var directory = new TemporaryDirectory();
@@ -193,6 +224,17 @@ public sealed class RemoteToolHostInfrastructureTests
 
         var connected = await client.ConnectAsync("agent-thread", state.HostId, "repo");
         Assert.Contains("ReadFile", connected.MatchedTools);
+        Assert.True(client.TryGetConnectionSnapshot("agent-thread", out var connection));
+        Assert.Equal(
+            new RemoteToolConnectionSnapshot(
+                RemoteToolConnectionStatus.Connected,
+                state.HostId,
+                "repo",
+                connected.Environment),
+            connection);
+        Assert.True(client.TryForkRoute("agent-thread", "child-thread"));
+        Assert.True(client.TryGetConnectionSnapshot("child-thread", out var childConnection));
+        Assert.Equal(connection, childConnection);
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile");
         var invocationContext = new ToolInvocationContext(
             "agent-thread", "turn", "call", ToolInvocationAudience.Model,
@@ -246,6 +288,10 @@ public sealed class RemoteToolHostInfrastructureTests
 
         Assert.True((await client.DisconnectAsync("agent-thread")).Disconnected);
         Assert.False(client.TryGetRoute("agent-thread", out _));
+        Assert.False(client.TryGetConnectionSnapshot("agent-thread", out _));
+        Assert.True(client.TryGetConnectionSnapshot("child-thread", out _));
+        Assert.True((await client.DisconnectAsync("child-thread")).Disconnected);
+        Assert.False(client.TryGetConnectionSnapshot("child-thread", out _));
 
         serverCts.Cancel();
         await serverTask;
