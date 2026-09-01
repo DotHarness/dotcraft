@@ -29,15 +29,20 @@ public static partial class DotCraftCommandLine
             if (values.Length > 0 && result.GetValue(stdin))
                 result.AddError("A prompt cannot be combined with --stdin.");
         });
-        command.SetAction((parseResult, cancellationToken) => RunApplicationAsync(new CommandLineArgs
+        command.SetAction((parseResult, cancellationToken) =>
         {
-            Mode = CommandLineArgs.RunMode.Exec,
-            ExecPrompt = string.Join(' ', parseResult.GetValue(prompt) ?? []).Trim(),
-            ExecReadStdin = parseResult.GetValue(stdin),
-            RemoteUrl = parseResult.GetValue(remote),
-            Token = parseResult.GetValue(token),
-            ReservesStdout = true
-        }, cancellationToken));
+            var values = parseResult.GetValue(prompt) ?? [];
+            var readStdin = parseResult.GetValue(stdin) || values is ["-"];
+            return RunApplicationAsync(new CommandLineArgs
+            {
+                Mode = CommandLineArgs.RunMode.Exec,
+                ExecPrompt = readStdin ? null : string.Join(' ', values).Trim(),
+                ExecReadStdin = readStdin,
+                RemoteUrl = parseResult.GetValue(remote),
+                Token = parseResult.GetValue(token),
+                ReservesStdout = true
+            }, cancellationToken);
+        });
         return command;
     }
 
