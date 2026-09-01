@@ -29,7 +29,7 @@ public sealed class CliHost(
             var prompt = await ResolvePromptAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(prompt))
             {
-                await CliStartup.WriteUsageAsync(Console.Error).ConfigureAwait(false);
+                await Console.Error.WriteLineAsync("Prompt cannot be empty.").ConfigureAwait(false);
                 Environment.ExitCode = 1;
                 return;
             }

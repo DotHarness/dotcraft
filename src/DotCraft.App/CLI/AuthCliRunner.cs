@@ -5,50 +5,43 @@ using Spectre.Console;
 
 namespace DotCraft.CLI;
 
-/// <summary>
-/// Implements <c>dotcraft auth openai &lt;login|logout|status&gt;</c>.
-/// Operates against the global <c>~/.craft/config.json</c> + <c>~/.craft/auth.json</c>; no workspace required.
-/// </summary>
-public static class AuthCliRunner
+internal static class AuthCliRunner
 {
-    public static async Task<int> RunAsync(CommandLineArgs cliArgs, CancellationToken cancellationToken)
+    public static Task<int> LoginAsync(
+        string? providerId,
+        bool noBrowser,
+        bool noBind,
+        CancellationToken cancellationToken)
     {
-        var provider = cliArgs.AuthProvider?.Trim().ToLowerInvariant();
-        if (provider is null or "")
-        {
-            AnsiConsole.MarkupLine($"[red]{FallbackText.AuthUsage}[/]");
-            return 64;
-        }
-
-        if (!string.Equals(provider, "openai", StringComparison.Ordinal))
-        {
-            AnsiConsole.MarkupLine($"[red]{FallbackText.AuthOpenAiUnsupported}[/]");
-            return 64;
-        }
-
-        var action = cliArgs.AuthAction?.Trim().ToLowerInvariant() ?? "login";
-        var providerId = string.IsNullOrWhiteSpace(cliArgs.AuthProviderId)
+        var effectiveProviderId = string.IsNullOrWhiteSpace(providerId)
             ? "openai"
-            : cliArgs.AuthProviderId.Trim();
-
-        var globalConfigPath = InitHelper.GetGlobalConfigPath();
-        var authService = new OpenAIAuthManager(
-            new OpenAITokenStore(HubPaths.ForCurrentUser().CraftHomePath));
-
-        return action switch
-        {
-            "login" => await HandleLoginAsync(authService, providerId, globalConfigPath, cliArgs.AuthNoBrowser, cliArgs.AuthNoBind, cancellationToken),
-            "logout" => await HandleLogoutAsync(authService, providerId, globalConfigPath, cancellationToken),
-            "status" => await HandleStatusAsync(authService, cliArgs.AuthNoUsage, cancellationToken),
-            _ => UsageError()
-        };
+            : providerId.Trim();
+        return HandleLoginAsync(
+            CreateManager(),
+            effectiveProviderId,
+            InitHelper.GetGlobalConfigPath(),
+            noBrowser,
+            noBind,
+            cancellationToken);
     }
 
-    private static int UsageError()
+    public static Task<int> LogoutAsync(string? providerId, CancellationToken cancellationToken)
     {
-        AnsiConsole.MarkupLine($"[red]{FallbackText.AuthUsage}[/]");
-        return 64;
+        var effectiveProviderId = string.IsNullOrWhiteSpace(providerId)
+            ? "openai"
+            : providerId.Trim();
+        return HandleLogoutAsync(
+            CreateManager(),
+            effectiveProviderId,
+            InitHelper.GetGlobalConfigPath(),
+            cancellationToken);
     }
+
+    public static Task<int> StatusAsync(bool noUsage, CancellationToken cancellationToken) =>
+        HandleStatusAsync(CreateManager(), noUsage, cancellationToken);
+
+    private static OpenAIAuthManager CreateManager() => new(
+        new OpenAITokenStore(HubPaths.ForCurrentUser().CraftHomePath));
 
     private static async Task<int> HandleLoginAsync(
         OpenAIAuthManager authService,

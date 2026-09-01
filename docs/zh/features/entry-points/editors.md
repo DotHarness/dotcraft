@@ -34,17 +34,17 @@ dotcraft setup
 在编辑器的 Agent 配置里填三项：
 
 - **命令**：`dotcraft`
-- **参数**：`-acp`
+- **参数**：`acp`
 - **工作目录**：第 1 步初始化的项目根目录
 
-带 `-acp` 启动时 DotCraft 会自动进入 ACP 模式，不用改任何配置文件。
+带 `acp` 启动时 DotCraft 会自动进入 ACP 模式，不用改任何配置文件。
 
 ### 3. 连接远程 AppServer（可选）
 
 已经有一个 AppServer 在跑（用 `dotcraft app-server` 或桌面应用启动的），可以让编辑器连过去，而不是再起一个：
 
 ```text
-dotcraft -acp --remote ws://<host>:<port>/ws
+dotcraft acp --remote ws://<host>:<port>/ws
 ```
 
 AppServer 监听的是裸地址 `ws://host:port`，客户端连接时一律在末尾加上 `/ws`。AppServer 开了认证就再补一个 `--token <token>`。连上之后，你在编辑器里创建的会话，其他已连接的客户端实时可见。
@@ -58,7 +58,7 @@ AppServer 监听的是裸地址 `ws://host:port`，客户端连接时一律在�
     "agent_servers": {
         "DotCraft": {
             "command": "dotcraft",
-            "args": ["-acp"]
+            "args": ["acp"]
         }
     }
 }
@@ -75,7 +75,7 @@ AppServer 监听的是裸地址 `ws://host:port`，客户端连接时一律在�
 | **AgentID** | DotCraft |
 | **Display name** | DotCraft |
 | **Path** | `dotcraft.exe` |
-| **Arguments** | `-acp` |
+| **Arguments** | `acp` |
 
 配置完成后，DotCraft 会出现在插件的聊天界面里。它既能回答问题，也能直接读写笔记——同一个 Agent，既是编码助手，也是知识库助理。
 

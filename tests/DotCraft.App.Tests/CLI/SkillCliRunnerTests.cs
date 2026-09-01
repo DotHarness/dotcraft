@@ -13,11 +13,11 @@ public sealed class SkillCliRunnerTests : IDisposable
         var craftPath = Path.Combine(_tempRoot, ".craft");
         Directory.CreateDirectory(craftPath);
         var candidate = WriteCandidate("demo-skill");
-        var args = CommandLineArgs.Parse(["skill", "verify", "--candidate", candidate, "--json"]);
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var exitCode = await SkillCliRunner.RunAsync(craftPath, args, output, error);
+        var exitCode = await SkillCliRunner.VerifyAsync(
+            craftPath, candidate, null, true, output, error);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("\"isValid\": true", output.ToString());
@@ -28,11 +28,11 @@ public sealed class SkillCliRunnerTests : IDisposable
     public async Task RunAsync_InstallWithoutWorkspace_ReturnsJsonError()
     {
         var candidate = WriteCandidate("demo-skill");
-        var args = CommandLineArgs.Parse(["skill", "install", "--candidate", candidate, "--json"]);
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var exitCode = await SkillCliRunner.RunAsync(Path.Combine(_tempRoot, ".craft"), args, output, error);
+        var exitCode = await SkillCliRunner.InstallAsync(
+            Path.Combine(_tempRoot, ".craft"), candidate, null, null, false, true, output, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("\"success\": false", output.ToString());
@@ -41,15 +41,8 @@ public sealed class SkillCliRunnerTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_tempRoot))
-                Directory.Delete(_tempRoot, recursive: true);
-        }
-        catch
-        {
-            // Best-effort cleanup for temp test directories.
-        }
+        if (Directory.Exists(_tempRoot))
+            Directory.Delete(_tempRoot, recursive: true);
     }
 
     private string WriteCandidate(string name)

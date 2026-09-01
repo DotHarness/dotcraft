@@ -10,8 +10,9 @@ public sealed class StackCliRunnerTests
     {
         var path = NewPath();
 
-        var exitCode = await StackCliRunner.RunAsync(
-            ["init", "--dir", path, "--dry-run"], new StringWriter(), new StringWriter(), CancellationToken.None, new FakeRunner());
+        var exitCode = await StackCliRunner.InitAsync(
+            new StackCommandOptions { Directory = path, DryRun = true },
+            new StringWriter(), new StringWriter(), CancellationToken.None, new FakeRunner());
 
         Assert.Equal(0, exitCode);
         Assert.False(Directory.Exists(path));
@@ -23,16 +24,19 @@ public sealed class StackCliRunnerTests
         var path = NewPath();
         try
         {
-            await StackCliRunner.RunAsync(
-                ["init", "--dir", path, "--no-start"], new StringWriter(), new StringWriter(), CancellationToken.None, new FakeRunner());
+            await StackCliRunner.InitAsync(
+                new StackCommandOptions { Directory = path, NoStart = true },
+                new StringWriter(), new StringWriter(), CancellationToken.None, new FakeRunner());
             var runner = new FakeRunner();
 
-            Assert.Equal(0, await StackCliRunner.RunAsync(
-                ["upgrade", "--dir", path, "--dry-run"], new StringWriter(), new StringWriter(), CancellationToken.None, runner));
+            Assert.Equal(0, await StackCliRunner.UpgradeAsync(
+                new StackCommandOptions { Directory = path, DryRun = true },
+                new StringWriter(), new StringWriter(), CancellationToken.None, runner));
             Assert.Empty(runner.Calls);
 
-            Assert.Equal(0, await StackCliRunner.RunAsync(
-                ["upgrade", "--dir", path], new StringWriter(), new StringWriter(), CancellationToken.None, runner));
+            Assert.Equal(0, await StackCliRunner.UpgradeAsync(
+                new StackCommandOptions { Directory = path },
+                new StringWriter(), new StringWriter(), CancellationToken.None, runner));
             Assert.Collection(runner.Calls,
                 call => Assert.EndsWith("pull", string.Join(' ', call.Arguments), StringComparison.Ordinal),
                 call => Assert.EndsWith("up -d --remove-orphans", string.Join(' ', call.Arguments), StringComparison.Ordinal));

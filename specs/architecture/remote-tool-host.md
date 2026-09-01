@@ -262,19 +262,26 @@ permissions of the logged-in Host user and MUST be treated accordingly.
 The official application exposes:
 
 ```text
-dotcraft tool-host setup --listen <https-endpoint>
-dotcraft tool-host workspace add <workspaceId> --path <absolute-path>
-dotcraft tool-host workspace list|remove
+dotcraft tool-host setup <https-endpoint> [-o|--output <pairing-file>]
+dotcraft tool-host workspace add <workspace-id> <absolute-path>
+dotcraft tool-host workspace list [--json]
+dotcraft tool-host workspace remove <workspace-id>
+dotcraft tool-host policy list [--json]
+dotcraft tool-host policy set <tool-name> <allow|deny|needs-approval>
 dotcraft tool-host autostart install|remove
-dotcraft tool-host pair --output <pairing-file>
-dotcraft tool-host token rotate
-dotcraft tool-host status
+dotcraft tool-host token rotate [-o|--output <pairing-file>]
+dotcraft tool-host status [--json]
 dotcraft tool-host serve
-dotcraft tool-host register --file <pairing-file>
-dotcraft tool-host unregister <hostId>
-dotcraft tool-host list
-dotcraft tool-host test <hostId>
+dotcraft tool-host register <pairing-file>
+dotcraft tool-host unregister <host-id>
+dotcraft tool-host list [--json]
+dotcraft tool-host test <host-id>
 ```
+
+The CLI is non-interactive. Setup requires an explicit HTTPS endpoint because it determines both
+the listener and the certificate identity. Workspace registration requires an explicit stable
+workspace id. Setup and token rotation write a pairing file named from `hostId` in the current
+directory unless `--output` is supplied.
 
 Registration MUST NOT accept the token as a command-line argument. `serve` composes a provider-free
 workspace execution runtime and the Remote Tool Host transport. It does not compose a model

@@ -7,63 +7,18 @@ using Microsoft.Win32;
 
 namespace DotCraft.RemoteTools;
 
-public static partial class RemoteToolHostCliRunner
+internal static partial class RemoteToolHostCliRunner
 {
-    public static async Task<int> RunAsync(
-        string[] args,
-        TextWriter output,
-        TextWriter error,
-        CancellationToken cancellationToken = default)
-    {
-        var storage = new RemoteToolHostStorage();
-        if (args.Length == 0)
-        {
-            await WriteUsageAsync(output).ConfigureAwait(false);
-            return 0;
-        }
-
-        try
-        {
-            return args[0].ToLowerInvariant() switch
-            {
-                "setup" => await SetupAsync(storage, args[1..], output).ConfigureAwait(false),
-                "workspace" => await WorkspaceAsync(storage, args[1..], output).ConfigureAwait(false),
-                "policy" => await PolicyAsync(storage, args[1..], output).ConfigureAwait(false),
-                "autostart" => await AutostartAsync(args[1..], output).ConfigureAwait(false),
-                "pair" => await PairAsync(storage, args[1..], output).ConfigureAwait(false),
-                "token" => await TokenAsync(storage, args[1..], output).ConfigureAwait(false),
-                "status" => await StatusAsync(storage, output).ConfigureAwait(false),
-                "serve" => await ServeAsync(storage, cancellationToken).ConfigureAwait(false),
-                "register" => await RegisterAsync(storage, args[1..], output).ConfigureAwait(false),
-                "unregister" => await UnregisterAsync(storage, args[1..], output).ConfigureAwait(false),
-                "list" => await ListAsync(storage, output, cancellationToken).ConfigureAwait(false),
-                "test" => await TestAsync(storage, args[1..], output, cancellationToken).ConfigureAwait(false),
-                _ => throw new ArgumentException($"Unknown tool-host command '{args[0]}'.")
-            };
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            await error.WriteLineAsync("Remote Tool Host operation cancelled.").ConfigureAwait(false);
-            return 130;
-        }
-        catch (Exception ex)
-        {
-            await error.WriteLineAsync($"Error: {ex.Message}").ConfigureAwait(false);
-            return 1;
-        }
-    }
-
-    private static async Task<int> SetupAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
+    internal static async Task<int> SetupAsync(
+        string listen,
+        string? pairingPath,
         TextWriter output)
     {
-        var listen = GetOption(args, "--listen")
-            ?? throw new ArgumentException("setup requires --listen <https-endpoint>.");
+        var storage = new RemoteToolHostStorage();
         if (!Uri.TryCreate(listen, UriKind.Absolute, out var endpoint)
             || endpoint.Scheme != Uri.UriSchemeHttps
             || endpoint.Port <= 0)
-            throw new ArgumentException("--listen must be an absolute HTTPS endpoint with a port.");
+            throw new ArgumentException("The endpoint must be an absolute HTTPS URL with a port.");
         if (storage.LoadHostState() is not null)
             throw new InvalidOperationException("Remote Tool Host is already set up.");
 
@@ -89,8 +44,7 @@ public static partial class RemoteToolHostCliRunner
             CertificateFingerprint = state.CertificateFingerprint,
             Token = token
         };
-        var pairingPath = GetOption(args, "--output")
-            ?? Path.Combine(Directory.GetCurrentDirectory(), $"dotcraft-tool-host-{hostId}.pairing.json");
+        pairingPath ??= DefaultPairingPath(hostId);
         WritePairingFile(pairingPath, bundle);
         await output.WriteLineAsync($"Remote Tool Host created: {hostId}").ConfigureAwait(false);
         await output.WriteLineAsync($"TLS fingerprint: {state.CertificateFingerprint}").ConfigureAwait(false);
@@ -99,95 +53,105 @@ public static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    private static async Task<int> WorkspaceAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
+    internal static async Task<int> AddWorkspaceAsync(
+        string workspaceId,
+        string path,
         TextWriter output)
     {
-        if (args.Length == 0)
-            throw new ArgumentException("workspace requires add, list, or remove.");
+        if (!WorkspaceIdPattern().IsMatch(workspaceId))
+            throw new ArgumentException("The workspace id must contain only letters, digits, '.', '_' or '-'.");
+        if (!Path.IsPathFullyQualified(path) || !Directory.Exists(path))
+            throw new ArgumentException("The workspace path must be an existing absolute directory.");
+        var storage = new RemoteToolHostStorage();
         var state = RequireState(storage);
-        switch (args[0].ToLowerInvariant())
+        var canonical = CanonicalizeDirectory(path);
+        var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
         {
-            case "add":
-            {
-                if (args.Length < 2 || !WorkspaceIdPattern().IsMatch(args[1]))
-                    throw new ArgumentException("workspace add requires a workspaceId containing letters, digits, '.', '_' or '-'.");
-                var path = GetOption(args[2..], "--path")
-                    ?? throw new ArgumentException("workspace add requires --path <absolute-path>.");
-                if (!Path.IsPathFullyQualified(path) || !Directory.Exists(path))
-                    throw new ArgumentException("Workspace path must be an existing absolute directory.");
-                var canonical = CanonicalizeDirectory(path);
-                var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
-                {
-                    [args[1]] = canonical
-                };
-                storage.SaveHostState(state with
-                {
-                    Workspaces = workspaces,
-                    CatalogRevision = state.CatalogRevision + 1
-                });
-                await output.WriteLineAsync($"{args[1]} -> {canonical}").ConfigureAwait(false);
-                return 0;
-            }
-            case "list":
-                foreach (var pair in state.Workspaces.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-                    await output.WriteLineAsync($"{pair.Key}\t{pair.Value}").ConfigureAwait(false);
-                return 0;
-            case "remove":
-            {
-                if (args.Length != 2)
-                    throw new ArgumentException("workspace remove requires exactly one workspaceId.");
-                var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal);
-                if (!workspaces.Remove(args[1]))
-                    throw new InvalidOperationException($"Workspace '{args[1]}' is not registered.");
-                storage.SaveHostState(state with
-                {
-                    Workspaces = workspaces,
-                    CatalogRevision = state.CatalogRevision + 1
-                });
-                await output.WriteLineAsync($"Removed workspace '{args[1]}'.").ConfigureAwait(false);
-                return 0;
-            }
-            default:
-                throw new ArgumentException($"Unknown workspace command '{args[0]}'.");
-        }
-    }
-
-    private static async Task<int> PolicyAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
-        TextWriter output)
-    {
-        var state = RequireState(storage);
-        if (args.Length == 1 && args[0].Equals("list", StringComparison.OrdinalIgnoreCase))
-        {
-            foreach (var pair in state.ToolPolicies.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-                await output.WriteLineAsync($"{pair.Key}\t{pair.Value}").ConfigureAwait(false);
-            return 0;
-        }
-        if (args.Length != 3 || !args[0].Equals("set", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("policy requires 'list' or 'set <toolName> <allow|deny|needsApproval>'.");
-        var value = args[2];
-        if (value is not ("allow" or "deny" or "needsApproval"))
-            throw new ArgumentException("Policy must be allow, deny, or needsApproval (case-sensitive).");
-        var policies = new Dictionary<string, string>(state.ToolPolicies, StringComparer.Ordinal)
-        {
-            [args[1]] = value
+            [workspaceId] = canonical
         };
-        storage.SaveHostState(state with { ToolPolicies = policies });
-        await output.WriteLineAsync($"{args[1]} -> {value}").ConfigureAwait(false);
+        storage.SaveHostState(state with
+        {
+            Workspaces = workspaces,
+            CatalogRevision = state.CatalogRevision + 1
+        });
+        await output.WriteLineAsync($"{workspaceId} -> {canonical}").ConfigureAwait(false);
         return 0;
     }
 
-    private static async Task<int> PairAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
-        TextWriter output)
+    internal static async Task<int> ListWorkspacesAsync(bool json, TextWriter output)
     {
+        var storage = new RemoteToolHostStorage();
         var state = RequireState(storage);
-        var path = GetOption(args, "--output")
-            ?? throw new ArgumentException("pair requires --output <pairing-file>.");
+        var workspaces = state.Workspaces.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
+        if (json)
+        {
+            await WriteJsonAsync(output, workspaces.Select(pair => new
+            {
+                workspaceId = pair.Key,
+                path = pair.Value
+            })).ConfigureAwait(false);
+            return 0;
+        }
+
+        foreach (var pair in workspaces)
+            await output.WriteLineAsync($"{pair.Key}\t{pair.Value}").ConfigureAwait(false);
+        return 0;
+    }
+
+    internal static async Task<int> RemoveWorkspaceAsync(string workspaceId, TextWriter output)
+    {
+        var storage = new RemoteToolHostStorage();
+        var state = RequireState(storage);
+        var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal);
+        if (!workspaces.Remove(workspaceId))
+            throw new InvalidOperationException($"Workspace '{workspaceId}' is not registered.");
+        storage.SaveHostState(state with
+        {
+            Workspaces = workspaces,
+            CatalogRevision = state.CatalogRevision + 1
+        });
+        await output.WriteLineAsync($"Removed workspace '{workspaceId}'.").ConfigureAwait(false);
+        return 0;
+    }
+
+    internal static async Task<int> ListPoliciesAsync(bool json, TextWriter output)
+    {
+        var state = RequireState(new RemoteToolHostStorage());
+        var policies = state.ToolPolicies.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
+        if (json)
+        {
+            await WriteJsonAsync(output, policies.Select(pair => new
+            {
+                toolName = pair.Key,
+                policy = ToCliPolicy(pair.Value)
+            })).ConfigureAwait(false);
+            return 0;
+        }
+
+        foreach (var pair in policies)
+            await output.WriteLineAsync($"{pair.Key}\t{ToCliPolicy(pair.Value)}").ConfigureAwait(false);
+        return 0;
+    }
+
+    internal static async Task<int> SetPolicyAsync(string toolName, string policy, TextWriter output)
+    {
+        var storage = new RemoteToolHostStorage();
+        var state = RequireState(storage);
+        var value = policy == "needs-approval" ? "needsApproval" : policy;
+        var policies = new Dictionary<string, string>(state.ToolPolicies, StringComparer.Ordinal)
+        {
+            [toolName] = value
+        };
+        storage.SaveHostState(state with { ToolPolicies = policies });
+        await output.WriteLineAsync($"{toolName} -> {policy}").ConfigureAwait(false);
+        return 0;
+    }
+
+    internal static async Task<int> RotateTokenAsync(string? pairingPath, TextWriter output)
+    {
+        var storage = new RemoteToolHostStorage();
+        var state = RequireState(storage);
+        var path = pairingPath ?? DefaultPairingPath(state.HostId);
         var bundle = storage.RotateToken(state);
         WritePairingFile(path, bundle);
         await output.WriteLineAsync($"Token rotated; pairing file written to {Path.GetFullPath(path)}.").ConfigureAwait(false);
@@ -195,19 +159,24 @@ public static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    private static Task<int> TokenAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
-        TextWriter output)
+    internal static async Task<int> StatusAsync(bool json, TextWriter output)
     {
-        if (args.Length == 0 || !args[0].Equals("rotate", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("token requires 'rotate --output <pairing-file>'.");
-        return PairAsync(storage, args[1..], output);
-    }
-
-    private static async Task<int> StatusAsync(RemoteToolHostStorage storage, TextWriter output)
-    {
+        var storage = new RemoteToolHostStorage();
         var state = RequireState(storage);
+        if (json)
+        {
+            await WriteJsonAsync(output, new
+            {
+                hostId = state.HostId,
+                displayName = state.DisplayName,
+                endpoint = state.ListenEndpoint,
+                certificateFingerprint = state.CertificateFingerprint,
+                workspaceCount = state.Workspaces.Count,
+                catalogRevision = state.CatalogRevision
+            }).ConfigureAwait(false);
+            return 0;
+        }
+
         await output.WriteLineAsync($"HostId: {state.HostId}").ConfigureAwait(false);
         await output.WriteLineAsync($"DisplayName: {state.DisplayName}").ConfigureAwait(false);
         await output.WriteLineAsync($"Endpoint: {state.ListenEndpoint}").ConfigureAwait(false);
@@ -217,10 +186,9 @@ public static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    private static async Task<int> ServeAsync(
-        RemoteToolHostStorage storage,
-        CancellationToken cancellationToken)
+    internal static async Task<int> ServeAsync(CancellationToken cancellationToken)
     {
+        var storage = new RemoteToolHostStorage();
         await RemoteToolHostServer.RunAsync(
             storage,
             new AppConfig(),
@@ -228,15 +196,9 @@ public static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    private static async Task<int> RegisterAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
-        TextWriter output)
+    internal static async Task<int> RegisterAsync(string path, TextWriter output)
     {
-        if (args.Length != 2 || !args[0].Equals("--file", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("register accepts only --file <pairing-file>; tokens are never accepted on the command line.");
-        var path = GetOption(args, "--file")
-            ?? throw new ArgumentException("register requires --file <pairing-file>; tokens are not accepted on the command line.");
+        var storage = new RemoteToolHostStorage();
         var bundle = JsonSerializer.Deserialize<RemoteToolPairingBundle>(
             File.ReadAllText(path),
             RemoteToolHostProtocol.JsonOptions)
@@ -246,26 +208,29 @@ public static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    private static async Task<int> UnregisterAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
-        TextWriter output)
+    internal static async Task<int> UnregisterAsync(string hostId, TextWriter output)
     {
-        if (args.Length != 1)
-            throw new ArgumentException("unregister requires exactly one hostId.");
-        var removed = storage.Unregister(args[0]);
-        await output.WriteLineAsync(removed ? $"Unregistered {args[0]}." : $"Host {args[0]} was not registered.")
+        var storage = new RemoteToolHostStorage();
+        var removed = storage.Unregister(hostId);
+        await output.WriteLineAsync(removed ? $"Unregistered {hostId}." : $"Host {hostId} was not registered.")
             .ConfigureAwait(false);
         return removed ? 0 : 1;
     }
 
-    private static async Task<int> ListAsync(
-        RemoteToolHostStorage storage,
+    internal static async Task<int> ListAsync(
+        bool json,
         TextWriter output,
         CancellationToken cancellationToken)
     {
+        var storage = new RemoteToolHostStorage();
         await using var client = new RemoteToolHostClient(storage, new DenyApprovalService());
         var catalog = await client.ListAsync("cli", cancellationToken).ConfigureAwait(false);
+        if (json)
+        {
+            await WriteJsonAsync(output, catalog).ConfigureAwait(false);
+            return 0;
+        }
+
         foreach (var host in catalog.Hosts)
         {
             await output.WriteLineAsync(
@@ -278,35 +243,37 @@ public static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    private static async Task<int> TestAsync(
-        RemoteToolHostStorage storage,
-        string[] args,
+    internal static async Task<int> TestAsync(
+        string hostId,
         TextWriter output,
         CancellationToken cancellationToken)
     {
-        if (args.Length != 1)
-            throw new ArgumentException("test requires exactly one hostId.");
+        var storage = new RemoteToolHostStorage();
         await using var client = new RemoteToolHostClient(storage, new DenyApprovalService());
         var catalog = await client.ListAsync("cli", cancellationToken).ConfigureAwait(false);
-        var host = catalog.Hosts.FirstOrDefault(item => string.Equals(item.HostId, args[0], StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"Host '{args[0]}' is not registered.");
+        var host = catalog.Hosts.FirstOrDefault(item => string.Equals(item.HostId, hostId, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"Host '{hostId}' is not registered.");
         await output.WriteLineAsync(host.Online
             ? $"Connected to {host.DisplayName}; {host.Workspaces.Count} workspace(s)."
             : $"Connection failed: {host.ErrorCode}").ConfigureAwait(false);
         return host.Online ? 0 : 1;
     }
 
-    private static async Task<int> AutostartAsync(string[] args, TextWriter output)
+    internal static Task<int> InstallAutostartAsync(TextWriter output) =>
+        SetAutostartAsync(install: true, output);
+
+    internal static Task<int> RemoveAutostartAsync(TextWriter output) =>
+        SetAutostartAsync(install: false, output);
+
+    private static async Task<int> SetAutostartAsync(bool install, TextWriter output)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Windows user-login autostart is the v1 implementation target.");
-        if (args.Length != 1 || args[0] is not ("install" or "remove"))
-            throw new ArgumentException("autostart requires install or remove.");
         const string keyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string valueName = "DotCraftRemoteToolHost";
         using var key = Registry.CurrentUser.CreateSubKey(keyPath, writable: true)
             ?? throw new InvalidOperationException("Unable to open the current user's autostart registry key.");
-        if (args[0] == "install")
+        if (install)
         {
             var executable = Environment.ProcessPath
                 ?? throw new InvalidOperationException("Cannot resolve the DotCraft executable path.");
@@ -343,19 +310,6 @@ public static partial class RemoteToolHostCliRunner
         return fullPath;
     }
 
-    private static string? GetOption(string[] args, string name)
-    {
-        for (var i = 0; i < args.Length; i++)
-        {
-            if (!args[i].Equals(name, StringComparison.OrdinalIgnoreCase))
-                continue;
-            if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]))
-                throw new ArgumentException($"Missing value for {name}.");
-            return args[i + 1];
-        }
-        return null;
-    }
-
     private static void WritePairingFile(string path, RemoteToolPairingBundle bundle)
     {
         var fullPath = Path.GetFullPath(path);
@@ -363,8 +317,13 @@ public static partial class RemoteToolHostCliRunner
         File.WriteAllText(fullPath, JsonSerializer.Serialize(bundle, RemoteToolHostProtocol.JsonOptions));
     }
 
-    private static Task WriteUsageAsync(TextWriter output) => output.WriteLineAsync(
-        "dotcraft tool-host setup|workspace|policy|autostart|pair|token|status|serve|register|unregister|list|test");
+    private static string DefaultPairingPath(string hostId) =>
+        Path.Combine(Directory.GetCurrentDirectory(), $"dotcraft-tool-host-{hostId}.pairing.json");
+
+    private static string ToCliPolicy(string value) => value == "needsApproval" ? "needs-approval" : value;
+
+    private static Task WriteJsonAsync(TextWriter output, object value) =>
+        output.WriteLineAsync(JsonSerializer.Serialize(value, RemoteToolHostProtocol.JsonOptions));
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
     private static partial Regex WorkspaceIdPattern();
