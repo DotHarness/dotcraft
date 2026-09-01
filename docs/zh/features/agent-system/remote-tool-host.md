@@ -1,14 +1,12 @@
 # Remote Tool Host
 
-Remote Tool Host 让一台设备上的 Agent 在另一台设备的工作区中运行符合条件的文件、Shell 和 LSP 工具。Agent 设备仍负责模型、对话、审批和工具历史；Tool Host 持有真实工作区，并在本机执行工具。
+Remote Tool Host 让一台设备上的 Agent 在另一台设备的工作区中运行符合条件的文件、Shell 和 LSP 工具。Agent 设备仍负责模型、对话、审批和工具历史。Tool Host 持有真实工作区，并在本机执行工具。
 
 ![Agent Runtime 保留模型循环和工具身份，Remote Tool Host 在目标工作区旁执行符合条件的 Core 文件、Shell 与 LSP 工具](/remote-tool-host-topology.svg)
 
 ## 适用场景
 
 当 Agent 设备不应该保存项目 checkout 或本地工具链时，可以使用 Remote Tool Host。常见组合是一台负责对话和模型访问的 Agent 设备，加上一台已经准备好代码仓库、构建工具、Shell 环境和 language server 的开发工作站。
-
-Remote Tool Host 只改变符合条件的内置工具在哪里执行，不会迁移 Agent 会话，也不会改变普通 .NET 方法调用。
 
 ## 准备条件
 
@@ -63,7 +61,7 @@ dotcraft tool-host list
 dotcraft tool-host test <host-id>
 ```
 
-Setup 会输出 host id，`tool-host list` 也会再次显示。Pairing 文件包含 bearer token。注册后删除所有传输副本；Agent 会把 token 保存到操作系统凭据存储中。
+Setup 会输出 host id，`tool-host list` 也会再次显示。Pairing 文件包含 bearer token。注册后删除所有传输副本。Agent 会把 token 保存到操作系统凭据存储中。
 
 如果 `setup` 或 `token rotate` 没有指定输出路径，DotCraft 会在当前目录生成以 host id 命名的 pairing 文件。Token rotate 会立即撤销所有旧注册，因此在重新依赖该 Host 前，需要分发并注册新的 pairing 文件。
 

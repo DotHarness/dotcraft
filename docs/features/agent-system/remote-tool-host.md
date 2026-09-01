@@ -8,8 +8,6 @@ Remote Tool Host lets an Agent on one device run eligible file, Shell, and LSP t
 
 Use Remote Tool Host when the Agent device should not contain the project checkout or its local toolchain. A common setup is an Agent device for conversation and model access, plus a developer workstation that already has the repository, build tools, Shell environment, and language servers.
 
-Remote Tool Host changes where eligible built-in tools execute without moving the Agent session or changing ordinary .NET method calls.
-
 ## Before you start
 
 You need:
