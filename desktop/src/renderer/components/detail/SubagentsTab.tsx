@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Bot } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildClosed,
@@ -11,6 +10,8 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { formatSubAgentMeta, getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
+import { avatarFromSeed } from '../agents/agentAvatar'
+import { RobotAvatar } from '../agents/RobotAvatar'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { formatSubAgentElapsed } from '../../utils/formatSubAgentElapsed'
 import styles from './SubagentsTab.module.css'
@@ -135,7 +136,8 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
   const t = useT()
   const locale = useLocale()
   const running = isSubAgentChildRunning(child)
-  const color = getSubAgentAccent(getSubAgentIdentitySeed(child))
+  const seed = getSubAgentIdentitySeed(child) ?? child.nickname
+  const color = getSubAgentAccent(seed)
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,
@@ -165,9 +167,8 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
       style={{ '--subagent-accent': color } as CSSProperties}
     >
       <span className={styles.iconSlot}>
-        {/* Both active and finished rows use the Bot glyph; the running state is
-            conveyed by the gradient preview text below, not a separate spinner. */}
-        <Bot size={15} strokeWidth={2} aria-hidden className={styles.icon} />
+        {/* The accessory is unreadable at this size, so palette and face carry the identity. */}
+        <RobotAvatar spec={{ ...avatarFromSeed(seed), accessory: 0 }} size={20} />
       </span>
       <span className={styles.bodyCell}>
         <span className={styles.titleRow}>

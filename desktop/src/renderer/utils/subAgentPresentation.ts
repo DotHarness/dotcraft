@@ -1,4 +1,4 @@
-const SUB_AGENT_ACCENTS = ['#ff6b7a', '#0ea5ff', '#f59e0b', '#22c55e', '#a78bfa']
+import { avatarFromSeed, paletteOf } from '../components/agents/agentAvatar'
 
 interface SubAgentMetaInput {
   agentRole?: string | null
@@ -57,15 +57,9 @@ export function formatSubAgentMeta({
   return parts.join(' · ')
 }
 
+/** The tint comes from the seeded avatar's palette, so name and robot cannot drift. */
 export function getSubAgentAccent(seed?: string | null): string {
-  const normalized = normalizeText(seed)
-  if (!normalized) return SUB_AGENT_ACCENTS[0]
-
-  let hash = 0
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash = ((hash << 5) - hash + normalized.charCodeAt(i)) | 0
-  }
-  return SUB_AGENT_ACCENTS[Math.abs(hash) % SUB_AGENT_ACCENTS.length]
+  return paletteOf(avatarFromSeed(normalizeText(seed) ?? 'agent')).accent
 }
 
 export function getSubAgentIdentitySeed({

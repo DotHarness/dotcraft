@@ -8,7 +8,6 @@ import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
 import {
   useComposerDraftStore,
@@ -54,7 +53,7 @@ import { ChatGptUsageBadge } from './ChatGptUsageBadge'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { ContextUsageRing } from './ContextUsageRing'
 import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
-import { BackgroundActivityDock } from './SubAgentDock'
+import { QueuedInputDock } from './QueuedInputDock'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
   ComposerCustomProfileLabel,
@@ -334,12 +333,9 @@ function InputComposerCore({
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const composerFileAttachmentRequest = useUIStore((s) => s.composerFileAttachmentRequest)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
-  const hasSubAgentDock = useSubAgentStore(
-    (s) => (s.childrenByParent.get(threadId)?.some(isSubAgentChildRunning) ?? false)
-  )
   const visibleQueuedInputs = hasSubmitOverride ? [] : queuedInputs
   const visiblePendingMessage = hasSubmitOverride ? null : pendingMessage
-  const hasBackgroundActivityDock = !hasSubmitOverride && (queuedInputs.length > 0 || hasSubAgentDock)
+  const hasBackgroundActivityDock = !hasSubmitOverride && queuedInputs.length > 0
   const locale = useLocale()
   const confirm = useConfirmDialog()
   const activeMainView = useUIStore((s) => s.activeMainView)
@@ -1663,13 +1659,12 @@ function InputComposerCore({
         dragOver={dragOver}
         dropLabel={t('composer.dropImage')}
         topAccessory={(
-          <BackgroundActivityDock
-            parentThreadId={threadId}
+          <QueuedInputDock
             queuedInputs={visibleQueuedInputs}
-            onQueueSteer={(id) => { void steerQueuedInput(id) }}
-            onQueueRemove={(id) => { void removeQueuedInput(id) }}
-            onQueueEdit={(id) => { void editQueuedInput(id) }}
-            onQueueReorder={(orderedIds) => { void reorderQueuedInputs(orderedIds) }}
+            onQueueSteer={(id: string) => { void steerQueuedInput(id) }}
+            onQueueRemove={(id: string) => { void removeQueuedInput(id) }}
+            onQueueEdit={(id: string) => { void editQueuedInput(id) }}
+            onQueueReorder={(orderedIds: string[]) => { void reorderQueuedInputs(orderedIds) }}
             editingQueuedInputId={editingQueuedInputId}
           />
         )}

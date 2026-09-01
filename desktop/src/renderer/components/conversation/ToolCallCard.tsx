@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -30,11 +30,9 @@ import {
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
-import { SkillManageCard } from './SkillManageCard'
-import { SkillViewCard } from './SkillViewCard'
+import { renderSkillToolLabel } from './SkillToolLabel'
 import { McpAppView, hasAvailableMcpApp } from './McpAppView'
-import { ToolCollapseChevron } from './ToolCollapseChevron'
-import { CollapsibleContent } from './CollapsibleContent'
+import { ToolDisclosure } from './ToolDisclosure'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
@@ -46,7 +44,7 @@ import {
   formatSkillManageLabel,
   formatSkillManageRunningLabel,
   getSkillManageDisplay,
-  shouldRenderSkillManageCard
+  getSkillManageLabel
 } from '../../utils/skillManageToolDisplay'
 import {
   formatSkillViewLabel,
@@ -218,7 +216,6 @@ export const ToolCallCard = memo(function ToolCallCard({
   const threadId = useThreadStore((state) => state.activeThreadId)
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [renderExpanded, setRenderExpanded] = useState(false)
   const [autoExpanded, setAutoExpanded] = useState(false)
   const [userInteracted, setUserInteracted] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
@@ -275,12 +272,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
   useEffect(() => {
-    if (expanded) {
-      setRenderExpanded(true)
-    }
-  }, [expanded])
-
-  useEffect(() => {
     const start = item.createdAt ? new Date(item.createdAt).getTime() : Date.now()
     if (!isRunning) {
       setElapsedMs(Math.max(0, Date.now() - start))
@@ -323,6 +314,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     : isStreamingFileTool
       ? !!renderableFileDiff || hasVisibleText(toolResult)
       : hasVisibleText(toolResult)
+  // Only a skill edit has something behind the row, and it is the diff.
+  const renderableSkillManageDiff = hasRenderableDiff(skillManageDiff ?? undefined)
+    ? skillManageDiff ?? undefined
+    : undefined
   const canExpandWhileRunning =
     !isWebFetchTool
     && !isSkillManageTool
@@ -331,10 +326,9 @@ export const ToolCallCard = memo(function ToolCallCard({
     && hasRunningExpandableContent
   const canExpandCompleted =
     !isWebFetchTool
-    && !isSkillManageTool
     && !isSkillViewTool
     && !isTodoTool
-    && hasCompletedExpandableContent
+    && (isSkillManageTool ? !!renderableSkillManageDiff : hasCompletedExpandableContent)
   const autoExpandEligible = (isShellTool || isStreamingFileTool)
     && (isRunning ? hasRunningExpandableContent : hasCompletedExpandableContent)
   const hasFinalArgs = args != null && Object.keys(args).length > 0
@@ -468,24 +462,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <CronCreatedCard item={item} locale={locale} />
   }
 
-  if (
-    isSkillManageTool
-    && !isRunning
-    && success
-    && shouldRenderSkillManageCard(args, item.result)
-  ) {
-    return <SkillManageCard item={item} locale={locale} diff={skillManageDiff} />
-  }
-
-  if (
-    isSkillViewTool
-    && !isRunning
-    && success
-    && skillViewDisplay?.loaded
-  ) {
-    return <SkillViewCard item={item} locale={locale} />
-  }
-
   const workflowRunId = !isRunning ? parseWorkflowRunId(toolName, item.result) : null
   if (workflowRunId && threadId) {
     return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} />
@@ -510,89 +486,41 @@ export const ToolCallCard = memo(function ToolCallCard({
     const runningResolvedPath = runningFilePath && workspacePath
       ? toAbsoluteWorkspacePath(workspacePath, runningFilePath)
       : runningFilePath ?? undefined
-    return (
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{
-          borderRadius: '4px',
-          overflow: 'hidden',
-          border: runningExpanded ? '1px solid var(--border-default)' : 'none'
-        }}
-      >
-        <button
-          onClick={toggleExpand}
-          onFocus={() => setHovered(true)}
-          onBlur={() => setHovered(false)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            width: '100%',
-            padding: '3px 6px',
-            background: runningExpanded ? 'var(--bg-tertiary)' : 'transparent',
-            border: 'none',
-            borderBottom: runningExpanded ? '1px solid var(--border-default)' : 'none',
-            borderRadius: runningExpanded ? '4px 4px 0 0' : '4px',
-            color: hovered || runningExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-            fontSize: 'var(--type-secondary-size)',
-            textAlign: 'left',
-            cursor: canExpandWhileRunning ? 'pointer' : 'default'
-          }}
-        >
-          <span
-            data-testid="tool-row-title-group"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '3px',
-              flex: '0 1 auto',
-              minWidth: 0,
-              maxWidth: '100%'
-            }}
+    const runningTitle = (
+      <>
+        {runningFilePath && !runningExpanded ? (
+          <ActionTooltip
+            label={runningResolvedPath ?? runningFilePath}
+            wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
           >
-            {runningFilePath && !runningExpanded ? (
-              <ActionTooltip
-                label={runningResolvedPath ?? runningFilePath}
-                wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-              >
-                <span
-                  className="tool-running-gradient-text"
-                  style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {runningDisplayLabel}
-                </span>
-              </ActionTooltip>
-            ) : (
-              <span
-                className="tool-running-gradient-text"
-                style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                {runningDisplayLabel}
-              </span>
-            )}
-            {!runningExpanded && renderableStreamingFileDiff && (
-              <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
-            )}
-            {canExpandWhileRunning && (
-              <ToolCollapseChevron expanded={runningExpanded} visible={hovered || runningExpanded} />
-            )}
-          </span>
-          <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>
-            {runningElapsedLabel}
-          </span>
-        </button>
+            <span
+              className="tool-running-gradient-text"
+              style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {runningDisplayLabel}
+            </span>
+          </ActionTooltip>
+        ) : (
+          <span className="tool-running-gradient-text">{runningDisplayLabel}</span>
+        )}
+        {!runningExpanded && renderableStreamingFileDiff && (
+          <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
+        )}
+      </>
+    )
 
-        <CollapsibleContent
-          expanded={expanded && canExpandWhileRunning}
-          renderExpanded={renderExpanded && canExpandWhileRunning}
-          setRenderExpanded={setRenderExpanded}
-        >
+    return (
+      <ToolDisclosure
+        expanded={runningExpanded}
+        onToggle={toggleExpand}
+        expandable={canExpandWhileRunning}
+        onHoverChange={setHovered}
+        title={runningTitle}
+        trailing={runningElapsedLabel}
+      >
           <div
-            style={{
-              background: 'var(--bg-secondary)',
-              padding: isStreamingFileTool && renderableStreamingFileDiff ? 0 : '8px'
-            }}
+            className="dc-tool-panel-surface"
+            data-padded={isStreamingFileTool && renderableStreamingFileDiff ? 'false' : 'true'}
           >
             {isShellTool ? (
               <ExpandedContent
@@ -622,8 +550,7 @@ export const ToolCallCard = memo(function ToolCallCard({
               ) : null
             ) : null}
           </div>
-        </CollapsibleContent>
-      </div>
+      </ToolDisclosure>
     )
   }
 
@@ -674,115 +601,97 @@ export const ToolCallCard = memo(function ToolCallCard({
   const completedResolvedPath = completedFilePath && workspacePath
     ? toAbsoluteWorkspacePath(workspacePath, completedFilePath)
     : completedFilePath
-  const completedRowColor = hovered || completedExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
+  const skillTitle = isSkillViewTool && skillViewDisplay?.name
+    ? renderSkillToolLabel(locale, 'skillView.tool.loadedSkill', skillViewDisplay.name)
+    : isSkillManageTool
+      ? renderSkillManageTitle(locale, args, item.result)
+      : null
 
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        borderRadius: '4px',
-        overflow: 'hidden',
-        border: completedExpanded ? '1px solid var(--border-default)' : 'none'
-      }}
-    >
-      <button
-        onClick={toggleExpand}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          width: '100%',
-          padding: '3px 6px',
-          background: completedExpanded ? 'var(--bg-tertiary)' : 'transparent',
-          border: 'none',
-          borderBottom: completedExpanded ? '1px solid var(--border-default)' : 'none',
-          cursor: canExpandCompleted ? 'pointer' : 'default',
-          color: success ? completedRowColor : 'var(--error)',
-          fontSize: 'var(--type-secondary-size)',
-          textAlign: 'left',
-          borderRadius: completedExpanded ? '4px 4px 0 0' : '4px'
-        }}
-      >
-        <span
-          data-testid="tool-row-title-group"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '3px',
-            flex: '0 1 auto',
-            minWidth: 0,
-            maxWidth: '100%',
-            color: success ? completedRowColor : 'var(--error)'
-          }}
+  const completedTitle = (
+    <>
+      {skillTitle && success ? (
+        skillTitle
+      ) : success && completedFilePath && !completedExpanded ? (
+        <ActionTooltip
+          label={completedResolvedPath ?? completedFilePath}
+          wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
         >
-          {success && completedFilePath && !completedExpanded ? (
-            <ActionTooltip
-              label={completedResolvedPath ?? completedFilePath}
-              wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-            >
-              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {completedDisplayLabel}
-              </span>
-            </ActionTooltip>
-          ) : (
-            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {success
-                ? completedDisplayLabel
-                : isWorkflowTool
-                  ? formatWorkflowFailureLabel(args, locale)
-                  : translate(locale, 'toolCall.failed', { label })}
-              {!success && hasFailurePreview && failedPreview && (
-                <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
-                  - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
-                </span>
-              )}
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {completedDisplayLabel}
+          </span>
+        </ActionTooltip>
+      ) : (
+        <>
+          {success
+            ? completedDisplayLabel
+            : isWorkflowTool
+              ? formatWorkflowFailureLabel(args, locale)
+              : translate(locale, 'toolCall.failed', { label })}
+          {!success && hasFailurePreview && failedPreview && (
+            <span style={{ marginLeft: '6px' }}>
+              - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
             </span>
           )}
-          {success && !completedExpanded && renderableFileDiff && (
-            <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
-          )}
-          {canExpandCompleted && (
-            <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
-          )}
-        </span>
-      </button>
-
-      {canExpandCompleted && (
-        <CollapsibleContent
-          expanded={expanded}
-          renderExpanded={renderExpanded}
-          setRenderExpanded={setRenderExpanded}
-        >
-          <div
-            data-testid="tool-expanded-content"
-            style={{
-              background: 'var(--bg-secondary)',
-              padding: hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile ? 0 : '8px'
-            }}
-          >
-            <ExpandedContent
-              itemId={item.id}
-              rendererFamily={rendererFamily}
-              rendererOptions={rendererPlan?.options}
-              toolName={toolName}
-              args={shellDisplayArgs}
-              result={isShellTool ? shellOutput : toolResult}
-              success={success}
-              fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
-              locale={locale}
-              workspacePath={workspacePath}
-              shellCommand={shellCommand}
-              planTodos={planTodos}
-            />
-          </div>
-        </CollapsibleContent>
+        </>
       )}
-    </div>
+      {success && !completedExpanded && renderableFileDiff && (
+        <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
+      )}
+    </>
+  )
+
+  return (
+    <ToolDisclosure
+      expanded={completedExpanded}
+      onToggle={toggleExpand}
+      expandable={canExpandCompleted}
+      onHoverChange={setHovered}
+      tone={success ? undefined : 'error'}
+      title={completedTitle}
+    >
+      <div
+        data-testid="tool-expanded-content"
+        className="dc-tool-panel-surface"
+        data-padded={hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile || !!renderableSkillManageDiff ? 'false' : 'true'}
+      >
+        {renderableSkillManageDiff ? (
+          <InlineDiffView
+            diff={renderableSkillManageDiff}
+            variant="embedded"
+            headerMode="compact"
+            locale={locale}
+          />
+        ) : (
+        <ExpandedContent
+          itemId={item.id}
+          rendererFamily={rendererFamily}
+          rendererOptions={rendererPlan?.options}
+          toolName={toolName}
+          args={shellDisplayArgs}
+          result={isShellTool ? shellOutput : toolResult}
+          success={success}
+          fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
+          locale={locale}
+          workspacePath={workspacePath}
+          shellCommand={shellCommand}
+          planTodos={planTodos}
+        />
+        )}
+      </div>
+    </ToolDisclosure>
   )
 })
+
+function renderSkillManageTitle(
+  locale: AppLocale,
+  args: Record<string, unknown> | undefined,
+  result: string | undefined
+): ReactNode {
+  const label = getSkillManageLabel(args, result)
+  return label.name
+    ? renderSkillToolLabel(locale, label.key, label.name, label.vars)
+    : translate(locale, label.key, label.vars)
+}
 
 interface ExpandedContentProps {
   itemId: string
@@ -1179,117 +1088,41 @@ function SubAgentToolResultCard({
   locale: AppLocale
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const [hovered, setHovered] = useState(false)
   const hasMessage = !!display.message
-  const hasPrompt = !!display.prompt
-  const normalTextColor = hovered || expanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
-  const textColor = display.tone === 'error'
-    ? 'var(--error)'
-    : display.tone === 'warning'
-      ? 'var(--warning)'
-      : normalTextColor
-  const rowContent = (
-    <span
-      data-testid="tool-row-title-group"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '3px',
-        flex: '0 1 auto',
-        minWidth: 0,
-        maxWidth: '100%'
-      }}
-    >
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+  const title = (
+    <span style={subAgentResultContentStyle}>
+      <span>
         {renderSubAgentTitle(locale, display.titleKey, display.name, display.accentColor)}
         {display.meta && <span style={subAgentMetaStyle}>({display.meta})</span>}
         {display.subtitle && <span style={subAgentMetaStyle}>{display.subtitle}</span>}
       </span>
-      {hasMessage && (
-        <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
+      {display.prompt && (
+        <ActionTooltip label={display.prompt} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
+          <span style={{ ...subAgentPromptStyle, display: 'block' }}>
+            {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt })}
+          </span>
+        </ActionTooltip>
       )}
     </span>
   )
-  const rowStyle: CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    width: '100%',
-    padding: '4px 6px',
-    background: expanded ? 'var(--bg-tertiary)' : 'transparent',
-    border: 'none',
-    borderBottom: expanded ? '1px solid var(--border-default)' : 'none',
-    borderRadius: expanded ? '4px 4px 0 0' : '4px',
-    color: textColor,
-    fontSize: '12px',
-    textAlign: 'left'
-  }
 
   return (
-    <div
-      style={{
-        borderRadius: '4px',
-        overflow: 'hidden',
-        border: expanded ? '1px solid var(--border-default)' : 'none'
-      }}
+    <ToolDisclosure
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      expandable={hasMessage}
+      tone={display.tone === 'error' ? 'error' : undefined}
+      title={title}
     >
-      {hasMessage ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          onFocus={() => setHovered(true)}
-          onBlur={() => setHovered(false)}
-          style={{ ...rowStyle, cursor: 'pointer' }}
-          aria-label={expanded ? translate(locale, 'toolCall.subAgent.collapse') : translate(locale, 'toolCall.subAgent.expand')}
-        >
-          <span style={subAgentResultContentStyle}>
-            {rowContent}
-            {hasPrompt && (
-              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
-                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-                </span>
-              </ActionTooltip>
-            )}
-          </span>
-        </button>
-      ) : (
-        <div
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          style={rowStyle}
-        >
-          <span style={subAgentResultContentStyle}>
-            {rowContent}
-            {hasPrompt && (
-              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
-                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-                </span>
-              </ActionTooltip>
-            )}
-          </span>
-        </div>
-      )}
-      {expanded && hasMessage && (
-        <div
-          className="selectable"
-          style={{
-            padding: '8px',
-            background: 'var(--bg-secondary)',
-            color: textColor,
-            fontSize: '12px',
-            lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
-          }}
-        >
-          {display.message}
-        </div>
-      )}
-    </div>
+      <div
+        className="selectable dc-tool-panel-surface"
+        data-padded="true"
+        style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+      >
+        {display.message}
+      </div>
+    </ToolDisclosure>
   )
 }
 

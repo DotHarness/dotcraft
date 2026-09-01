@@ -362,7 +362,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     expect(text).not.toContain('SubAgent completed')
   })
 
-  it('renders grouped SpawnAgent calls as an expanded instruction list with colored names', () => {
+  it('renders grouped SpawnAgent calls as inline chips that open each subagent', () => {
     const turn: ConversationTurn = {
       id: 'turn-spawn-group',
       threadId: 'thread-1',
@@ -422,12 +422,11 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Spawned 2 agents')).toBeInTheDocument()
-    expect(screen.getByText('Kepler')).toBeInTheDocument()
-    expect(screen.getByText('Lagrange')).toBeInTheDocument()
-    expect(screen.getAllByText('(explorer)')).toHaveLength(2)
-    expect(screen.getByText('Inspect Settings diagnostics output')).toBeInTheDocument()
-    expect(screen.getByText('Review AppServer credential redaction')).toBeInTheDocument()
+    expect(screen.getByTestId('subagent-chips')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Kepler/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Lagrange/ })).toBeInTheDocument()
+    // The prompt rides the chip's tooltip rather than taking a line of its own.
+    expect(screen.queryByText('Inspect Settings diagnostics output')).toBeNull()
     expect(screen.queryByText(/childThreadId/)).toBeNull()
   })
 
@@ -459,7 +458,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     expect(text).not.toContain('Updated 1 agents')
   })
 
-  it('groups consecutive FollowupTask calls as an expanded Updated agents list', () => {
+  it('groups consecutive FollowupTask calls as inline chips', () => {
     const items = ['Reviewer', 'Researcher'].map((name, index) => {
       const item = makeToolCallItem(
         `followup-${index}`,
@@ -493,11 +492,9 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Updated 2 agents')).toBeInTheDocument()
-    expect(screen.getByText('Reviewer')).toBeInTheDocument()
-    expect(screen.getByText('Researcher')).toBeInTheDocument()
-    expect(screen.getByText('Update Reviewer instructions')).toBeInTheDocument()
-    expect(screen.getByText('Update Researcher instructions')).toBeInTheDocument()
+    expect(screen.getByTestId('subagent-chips')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Reviewer/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Researcher/ })).toBeInTheDocument()
   })
 
   it('hides a pending WaitAgent row from the transcript', () => {
@@ -1311,7 +1308,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(titleGroup).toBeTruthy()
     expect(titleGroup).toHaveTextContent('Ran 2 commands')
     // Mirrors the individual ToolCallCard, which never reddens shell tools.
-    expect(titleGroup.style.color).toBe('var(--text-dimmed)')
+    expect(titleGroup.closest('[data-tone]')).toBeNull()
   })
 
   it('still reddens an aggregated non-shell group when a tool fails', () => {
@@ -1334,7 +1331,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
 
     const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
     expect(titleGroup).toBeTruthy()
-    expect(titleGroup.style.color).toBe('var(--error)')
+    expect(titleGroup.closest('[data-tone="error"]')).toBeTruthy()
   })
 
   it('keeps adjacent tool stacks compact when hidden reasoning splits the raw items', () => {

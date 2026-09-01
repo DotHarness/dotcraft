@@ -61,7 +61,7 @@ describe('ToolCallCard structured result rendering', () => {
     }
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('ToolCallCard RequestUserInput rendering', () => {
     }
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
     expect(container.querySelector('pre')).toBeNull()
@@ -149,7 +149,7 @@ describe('ToolCallCard default tool result rendering', () => {
     }
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     const pre = container.querySelector('pre')
     expect(() => JSON.parse(pre?.textContent ?? '')).not.toThrow()
@@ -247,7 +247,7 @@ describe('ToolCallCard subagent result rendering', () => {
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(container.querySelector('.selectable')).toBeNull()
-    const button = screen.getByRole('button')
+    const button = screen.getByTestId('tool-row')
     fireEvent.click(button)
     expect(container.querySelector('.selectable')).toBeInTheDocument()
   })
@@ -330,8 +330,8 @@ describe('ToolCallCard subagent result rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByTestId('tool-row')).toBeInTheDocument()
+    expect(document.querySelector('[data-tone="error"]')).toBeNull()
   })
 })
 
@@ -388,11 +388,11 @@ describe('ToolCallCard shell rendering', () => {
     expect(document.querySelector('pre')).toBeNull()
     expect(document.querySelector('.animate-spin-custom')).toBeNull()
     expectDisclosureInsideTitleGroup(container)
-    expect(screen.getByRole('button')).toHaveTextContent('Running: npm test')
+    expect(screen.getByTestId('tool-row')).toHaveTextContent('Running: npm test')
 
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
-    expect(screen.getByRole('button')).toHaveTextContent('Running command')
+    expect(screen.getByTestId('tool-row')).toHaveTextContent('Running command')
     expect(screen.getByTestId('shell-command')).toHaveTextContent('$npm test')
     expect(document.querySelector('pre')).toBeInTheDocument()
   })
@@ -416,7 +416,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const toolButton = screen.getByRole('button')
+    const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Running: npm run build')
     fireEvent.click(toolButton)
 
@@ -442,7 +442,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const toolButton = screen.getByRole('button')
+    const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Ran command')
     expect(toolButton).not.toHaveTextContent('Exec')
     fireEvent.click(toolButton)
@@ -468,7 +468,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const toolButton = screen.getByRole('button')
+    const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Ran npm run lint &&')
     expect(toolButton).not.toHaveTextContent('npm run build')
     fireEvent.click(toolButton)
@@ -497,7 +497,7 @@ describe('ToolCallCard shell rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
     expectDisclosureInsideTitleGroup(container)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     const pre = document.querySelector('pre')
     expect(pre).toBeInTheDocument()
@@ -552,9 +552,9 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    expect(screen.getByRole('button')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-row')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     const pre = document.querySelector('pre')
     expect(pre).toBeInTheDocument()
@@ -577,7 +577,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     const pre = document.querySelector('pre')
     expect(pre).toBeInTheDocument()
@@ -599,7 +599,7 @@ describe('ToolCallCard shell rendering', () => {
     }
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
@@ -642,7 +642,7 @@ describe('ToolCallCard shell rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
     expectDisclosureInsideTitleGroup(container)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
   })
@@ -661,7 +661,7 @@ describe('ToolCallCard shell rendering', () => {
     }
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     expect(screen.queryByTestId('inline-diff-view')).toBeNull()
@@ -708,7 +708,7 @@ describe('ToolCallCard shell rendering', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
   })
 
@@ -756,7 +756,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const toolButton = screen.getByRole('button')
+    const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Edited Target.cs+1-1')
     const collapsedStats = screen.getByTestId('tool-row-diff-stats')
     expect((collapsedStats.children[0] as HTMLElement).style.color).toBe('currentcolor')
@@ -794,7 +794,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const toolButton = screen.getByRole('button')
+    const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Read Target.cs L10-14')
     fireEvent.click(toolButton)
 
@@ -870,7 +870,7 @@ describe('ToolCallCard shell rendering', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
-    expect(screen.getByRole('button')).toHaveTextContent('Running: echo hello')
+    expect(screen.getByTestId('tool-row')).toHaveTextContent('Running: echo hello')
   })
 
   it('renders isolated live shell output while the running timer continues advancing', () => {
@@ -898,7 +898,7 @@ describe('ToolCallCard shell rendering', () => {
         ]])
       })
     })
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByText('line 100')).toBeInTheDocument()
 
     act(() => {
@@ -937,7 +937,7 @@ describe('ToolCallCard shell rendering', () => {
     renderWithLocale(
       <ToolCallCard item={item} turnId="turn-review" shellRuntimeScope="review" />
     )
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getByText('review output')).toBeInTheDocument()
     expect(screen.queryByText('conversation output')).not.toBeInTheDocument()
@@ -1051,12 +1051,7 @@ describe('ToolCallCard shell rendering', () => {
     )
 
     expect(document.querySelector('pre')).toBeInTheDocument()
-
-    act(() => {
-      vi.advanceTimersByTime(collapseAnimationMs)
-    })
-
-    expect(document.querySelector('pre')).toBeNull()
+    expect(document.querySelector('.dc-tool-row')).not.toHaveAttribute('open')
     vi.useRealTimers()
   })
 
@@ -1082,7 +1077,7 @@ describe('ToolCallCard shell rendering', () => {
     })
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
     vi.useRealTimers()
   })
@@ -1143,7 +1138,7 @@ describe('ToolCallCard shell rendering', () => {
       </LocaleProvider>
     )
 
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(document.querySelector('pre')).toBeInTheDocument()
 
     rerender(
@@ -1182,7 +1177,7 @@ describe('ToolCallCard shell rendering', () => {
     useViewerTabStore.getState().onThreadSwitched('thread-1')
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getAllByRole('columnheader')).toHaveLength(2)
     expect(screen.getAllByRole('button').length).toBeGreaterThan(1)
@@ -1213,7 +1208,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const row = screen.getByRole('button')
+    const row = screen.getByTestId('tool-row')
     expect(row).toBeInTheDocument()
     fireEvent.click(row)
 
@@ -1241,7 +1236,7 @@ describe('ToolCallCard shell rendering', () => {
     }
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    const row = screen.getByRole('button')
+    const row = screen.getByTestId('tool-row')
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(row)
@@ -1249,7 +1244,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
-  it('renders successful SkillManage create as a skill card and opens skill detail', async () => {
+  it('renders successful SkillManage create as a skill row and opens skill detail', async () => {
     const iconDataUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"></svg>'
     const item: ConversationItem = {
       id: 'skill-create-1',
@@ -1332,11 +1327,15 @@ describe('ToolCallCard shell rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    expect(container.querySelector('img')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-row')).toHaveTextContent('Created skill demo-skill')
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.queryByTestId('inline-diff-view')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
 
     await act(async () => {
-      fireEvent.click(screen.getAllByRole('button').at(-1) as HTMLElement)
+      fireEvent.click(container.querySelector('.dc-ref-skill') as HTMLElement)
     })
 
     expect(useUIStore.getState().activeMainView).toBeTruthy()
@@ -1346,7 +1345,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(sendRequest.mock.calls.length).toBeGreaterThan(0)
   })
 
-  it('renders successful SkillManage patch as a skill card with an embedded diff', async () => {
+  it('renders successful SkillManage patch as a skill row whose panel is the diff', async () => {
     const item: ConversationItem = {
       id: 'skill-patch-1',
       type: 'toolCall',
@@ -1385,6 +1384,9 @@ describe('ToolCallCard shell rendering', () => {
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(container.querySelector('img')).toBeNull()
+    expect(screen.queryByTestId('inline-diff-view')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
   })
 
@@ -1410,7 +1412,7 @@ describe('ToolCallCard shell rendering', () => {
     }
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-    const row = screen.getByRole('button')
+    const row = screen.getByTestId('tool-row')
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(row)
@@ -1447,7 +1449,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
-  it('renders successful SkillView as a non-expandable skill card and opens skill detail', async () => {
+  it('renders successful SkillView as a one-line skill row that opens skill detail', async () => {
     const iconDataUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"></svg>'
     const item: ConversationItem = {
       id: 'skill-view-1',
@@ -1491,12 +1493,13 @@ describe('ToolCallCard shell rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    await waitFor(() => expect(container.querySelector('img')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'View in Skills' }).querySelector('svg')).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector('.dc-ref-skill')).toBeInTheDocument())
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.getByTestId('tool-row')).toHaveAttribute('data-expandable', 'false')
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
 
     await act(async () => {
-      fireEvent.click(screen.getAllByRole('button').at(-1) as HTMLElement)
+      fireEvent.click(container.querySelector('.dc-ref-skill') as HTMLElement)
     })
 
     expect(useUIStore.getState().activeMainView).toBeTruthy()
@@ -1526,7 +1529,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
-  it('keeps content mounted during manual collapse animation before removing it', () => {
+  it('mounts panel content on first open and keeps it mounted once collapsed', () => {
     vi.useFakeTimers()
     const completedItem: ConversationItem = {
       id: 'tool-manual-collapse',
@@ -1545,17 +1548,14 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={completedItem} turnId="turn-1" />)
 
-    fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
-
-    act(() => {
-      vi.advanceTimersByTime(collapseAnimationMs)
-    })
-
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tool-row'))
+    expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('tool-row'))
+    expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
+    expect(document.querySelector('.dc-tool-row')).not.toHaveAttribute('open')
     vi.useRealTimers()
   })
 
@@ -1577,7 +1577,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    const button = screen.getByRole('button')
+    const button = screen.getByTestId('tool-row')
     expect(button).toBeInTheDocument()
   })
 
@@ -1614,7 +1614,7 @@ describe('ToolCallCard todo rendering safety', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
@@ -1638,7 +1638,7 @@ describe('ToolCallCard todo rendering safety', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
@@ -1668,7 +1668,7 @@ describe('ToolCallCard todo rendering safety', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 })

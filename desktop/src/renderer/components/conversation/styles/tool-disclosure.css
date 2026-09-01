@@ -1,0 +1,242 @@
+/* `interpolate-size` is what lets the panel's `block-size` transition to `auto`. */
+.dc-tool-row {
+  interpolate-size: allow-keywords;
+}
+
+.dc-tool-row > summary,
+.dc-tool-row-static {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dimmed);
+  font: inherit;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  text-align: left;
+  list-style: none;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.dc-tool-row > summary {
+  cursor: pointer;
+}
+
+.dc-tool-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dc-tool-row > summary::marker {
+  content: "";
+}
+
+.dc-tool-row > summary:hover,
+.dc-tool-row > summary:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.dc-tool-row[open] > summary {
+  color: var(--text-secondary);
+}
+
+.dc-tool-row[data-tone="error"] > summary,
+.dc-tool-row[data-tone="error"][open] > summary,
+.dc-tool-row-static[data-tone="error"] {
+  color: var(--error);
+}
+
+.dc-tool-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dc-tool-row-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-tool-row-trailing {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-dimmed);
+}
+
+/* `content-visibility` rides the same transition, so a closed panel stays unrendered. */
+.dc-tool-row::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition:
+    block-size var(--duration-expand) var(--ease-expand),
+    opacity var(--duration-base) var(--ease-standard),
+    content-visibility var(--duration-expand) allow-discrete;
+}
+
+.dc-tool-row[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+}
+
+/* The panel is the row's own content, so it starts at the row's text edge. */
+.dc-tool-panel {
+  min-width: 0;
+  margin: 2px 0 6px;
+  padding-left: 6px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+/* Output that is its own artifact keeps a quiet surface; the row does not. */
+.dc-tool-panel-surface {
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
+.dc-tool-panel-surface[data-padded="true"] {
+  padding: 8px;
+}
+
+/* Rows nesting under a row indent; a panel does not. */
+.dc-tool-children {
+  margin: 0 0 4px 6px;
+  padding-left: 12px;
+}
+
+/* A live group bounds its children so a long run cannot push the answer off screen. */
+.dc-tool-children[data-live="true"] {
+  max-height: 132px;
+  overflow-y: auto;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 18px,
+    #000 calc(100% - 18px),
+    transparent 100%
+  );
+}
+
+.dc-tool-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+  opacity: 0;
+  transform: rotate(0deg);
+  transition:
+    transform var(--duration-expand) var(--ease-expand),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.dc-tool-row > summary:hover .dc-tool-chevron,
+.dc-tool-row > summary:focus-visible .dc-tool-chevron,
+.dc-tool-row[open] .dc-tool-chevron,
+.dc-tool-chevron[data-visible="true"] {
+  opacity: 1;
+}
+
+.dc-tool-row[open] .dc-tool-chevron,
+.dc-tool-chevron[data-expanded="true"] {
+  transform: rotate(90deg);
+}
+
+/* The reference chip is sized for 14px bubble text; pin it to this row's line box. */
+.dc-tool-row-title .dc-ref {
+  padding-block: 0;
+  line-height: 14px;
+}
+
+.dc-subagent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  padding: 3px 6px;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.dc-subagent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  height: 22px;
+  margin-right: 6px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--subagent-accent, var(--text-secondary));
+  font: inherit;
+  font-size: var(--type-secondary-size);
+  cursor: pointer;
+  vertical-align: middle;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.dc-subagent-chip:hover,
+.dc-subagent-chip:focus-visible {
+  border-color: var(--border-active);
+  background: var(--bg-hover);
+}
+
+.dc-subagent-chip-dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.dc-subagent-chip[data-running="false"] .dc-subagent-chip-dot {
+  background: var(--text-dimmed);
+}
+
+.dc-subagent-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.dc-subagent-chips-more {
+  margin-right: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dimmed);
+  font: inherit;
+  font-size: var(--type-secondary-size);
+  text-decoration: underline;
+  text-decoration-color: var(--border-active);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.dc-subagent-chips-more:hover {
+  color: var(--text-secondary);
+}

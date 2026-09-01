@@ -76,34 +76,49 @@ export function getSkillManageDisplay(
   }
 }
 
-export function formatSkillManageLabel(
+export interface SkillManageLabel {
+  key: string
+  vars: Record<string, string>
+  /** The skill name, when the label names one and can carry a reference chip. */
+  name: string | null
+}
+
+export function getSkillManageLabel(
   args: Record<string, unknown> | undefined,
-  resultText: string | undefined,
-  locale: AppLocale
-): string {
+  resultText: string | undefined
+): SkillManageLabel {
   const display = getSkillManageDisplay(args, resultText)
   const name = display.name || 'SkillManage'
   const filePath = readString(args?.filePath)
   switch (display.action) {
     case 'create':
-      return translate(locale, 'skillManage.tool.createdSkill', { name })
+      return { key: 'skillManage.tool.createdSkill', vars: { name }, name }
     case 'edit':
-      return translate(locale, 'skillManage.tool.updatedSkill', { name })
+      return { key: 'skillManage.tool.updatedSkill', vars: { name }, name }
     case 'patch':
-      return translate(locale, 'skillManage.tool.patchedSkill', { name })
+      return { key: 'skillManage.tool.patchedSkill', vars: { name }, name }
     case 'write_file':
       return filePath
-        ? translate(locale, 'skillManage.tool.addedFile', { filePath })
-        : translate(locale, 'skillManage.tool.addedSkillFile', { name })
+        ? { key: 'skillManage.tool.addedFile', vars: { filePath }, name: null }
+        : { key: 'skillManage.tool.addedSkillFile', vars: { name }, name }
     case 'remove_file':
       return filePath
-        ? translate(locale, 'skillManage.tool.removedFile', { filePath })
-        : translate(locale, 'skillManage.tool.removedSkillFile', { name })
+        ? { key: 'skillManage.tool.removedFile', vars: { filePath }, name: null }
+        : { key: 'skillManage.tool.removedSkillFile', vars: { name }, name }
     case 'delete':
-      return translate(locale, 'skillManage.tool.deletedSkill', { name })
+      return { key: 'skillManage.tool.deletedSkill', vars: { name }, name }
     default:
-      return translate(locale, 'toolCall.called', { toolName: SKILL_MANAGE_TOOL_NAME })
+      return { key: 'toolCall.called', vars: { toolName: SKILL_MANAGE_TOOL_NAME }, name: null }
   }
+}
+
+export function formatSkillManageLabel(
+  args: Record<string, unknown> | undefined,
+  resultText: string | undefined,
+  locale: AppLocale
+): string {
+  const label = getSkillManageLabel(args, resultText)
+  return translate(locale, label.key, label.vars)
 }
 
 export function formatSkillManageRunningLabel(
@@ -192,14 +207,3 @@ export function buildSkillManageDiff(
   }
 }
 
-export function shouldRenderSkillManageCard(
-  args: Record<string, unknown> | undefined,
-  resultText: string | undefined
-): boolean {
-  const display = getSkillManageDisplay(args, resultText)
-  if (!display.result?.success || !display.name) return false
-  return display.action === 'create'
-    || display.action === 'edit'
-    || display.action === 'patch'
-    || display.action === 'write_file'
-}

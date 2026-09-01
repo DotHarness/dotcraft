@@ -64,6 +64,13 @@
   --scrollbar-thumb-hover: var(--text-dimmed);
   --scrollbar-thumb-active: var(--text-secondary);
 
+  /* `--ease-expand` decelerates hard so a panel that grows reads as settling. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-expand: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-expand: 240ms;
+
   --accent: var(--seed-accent);
   /* Hover moves the accent toward the ink, so it gains presence on either surface;
      lightening it would make a light-theme hover recede. */
