@@ -1,86 +1,33 @@
 import { create } from 'zustand'
 import type { SubAgentEntry } from '../types/toolCall'
 import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
-import { wireTurnToConversationTurn } from '../types/conversation'
 import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
+import {
+  childFromWire, createPlaceholderChild, extractLastAgentMessagePreview,
+  isSubAgentChildClosed, isSubAgentChildRunning, mergeExistingProgress,
+  type SubAgentChild, type SubAgentChildWire
+} from './subAgentChildren'
 import { readThreadHistoryHead } from '../utils/threadHistory'
 
-export interface SubAgentEdgeWire {
-  parentThreadId?: string
-  childThreadId?: string
-  parentTurnId?: string | null
-  depth?: number
-  agentPath?: string | null
-  taskName?: string | null
-  agentNickname?: string | null
-  agentRole?: string | null
-  agentType?: string | null
-  agent_type?: string | null
-  role?: string | null
-  profileName?: string | null
-  runtimeType?: string | null
-  supportsSendInput?: boolean
-  supportsResume?: boolean
-  supportsSendMessage?: boolean
-  supportsFollowupTask?: boolean
-  supportsClose?: boolean
-  status?: string
+export { isSubAgentChildClosed, isSubAgentChildRunning, isTerminalSubAgentStatus } from './subAgentChildren'
+export type { SubAgentChild } from './subAgentChildren'
+
+export interface SubAgentDiscovery {
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  discovered: boolean
 }
 
-interface SubAgentChildWire {
-  edge?: SubAgentEdgeWire
-  thread?: ThreadSummary | null
-}
-
-export interface SubAgentChild {
-  childThreadId: string
-  parentThreadId: string
-  agentPath?: string | null
-  taskName?: string | null
-  nickname: string
-  agentRole: string | null
-  profileName: string | null
-  runtimeType: string | null
-  supportsSendInput: boolean
-  supportsResume: boolean
-  supportsSendMessage?: boolean
-  supportsFollowupTask?: boolean
-  supportsClose: boolean
-  status: string
-  lastToolDisplay: string | null
-  /**
-   * Preview of the subagent's most recent agent message, used by the Subagents
-   * panel for finished subagents (running ones prefer live tool progress).
-   * Loaded lazily via {@link SubAgentStore.fetchPreviews}; null until read.
-   */
-  lastMessagePreview: string | null
-  currentTool: string | null
-  inputTokens: number
-  outputTokens: number
-  isCompleted: boolean
-  isPlaceholder?: boolean
-  runtime?: ThreadRuntimeSnapshot
-  threadSummary?: ThreadSummary | null
-}
+export const undiscoveredSubAgents: SubAgentDiscovery = { status: 'idle', discovered: false }
 
 interface SubAgentStoreState {
   childrenByParent: Map<string, SubAgentChild[]>
-  collapsedByParent: Map<string, boolean>
-  userCollapsedByParent: Map<string, boolean>
-  loadingParents: Set<string>
+  discoveryByParent: Map<string, SubAgentDiscovery>
   staleProgressBlockedParents: Set<string>
 }
 
 interface FetchChildrenOptions {
   authoritative?: boolean
-  /**
-   * Include closed (main-agent-closed or residency-reclaimed) edges. Defaults to
-   * false so the shared loader used by the dock and notification refresh paths
-   * only surfaces active children. Only the Subagents detail tab opts in to keep
-   * closed subagents visible for read-only review.
-   */
-  includeClosed?: boolean
 }
 
 interface SetChildrenOptions {
@@ -90,19 +37,11 @@ interface SetChildrenOptions {
 
 interface SubAgentStoreActions {
   setChildren(parentThreadId: string, children: SubAgentChild[], options?: SetChildrenOptions): void
+  ensureChildren(parentThreadId: string): Promise<void>
   fetchChildren(parentThreadId: string, options?: FetchChildrenOptions): Promise<void>
-  /**
-   * Loads a short preview of each child's most recent agent message via
-   * `thread/read`, populating {@link SubAgentChild.lastMessagePreview}. Skips
-   * children that already have a preview unless `force` is set. When
-   * `runningOnly` is set, only running children are read and they are always
-   * refreshed (ignoring the cached preview) — used by the panel's live poll so a
-   * running subagent's message keeps updating.
-   */
   fetchPreviews(parentThreadId: string, options?: { force?: boolean; runningOnly?: boolean }): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
-  setParentCollapsed(parentThreadId: string, collapsed: boolean, userInitiated?: boolean): void
   clearParent(parentThreadId: string): void
   reset(): void
 }
@@ -111,215 +50,25 @@ export interface SubAgentStore extends SubAgentStoreState, SubAgentStoreActions 
 
 const initialState: SubAgentStoreState = {
   childrenByParent: new Map(),
-  collapsedByParent: new Map(),
-  userCollapsedByParent: new Map(),
-  loadingParents: new Set(),
+  discoveryByParent: new Map(),
   staleProgressBlockedParents: new Set()
 }
 
-function normalizeText(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+interface ChildRequest {
+  promise: Promise<void>
+  refresh: boolean
+  authoritative: boolean
 }
 
-function lastAgentPathSegment(agentPath: string | null | undefined): string | null {
-  if (!agentPath) return null
-  const parts = agentPath.split('/').filter((part) => part.length > 0)
-  return parts.length > 0 ? parts[parts.length - 1] : null
-}
-
-function normalizeRole(source: {
-  agentRole?: unknown
-  agentType?: unknown
-  agent_type?: unknown
-  role?: unknown
-} | null | undefined): string | null {
-  return normalizeText(source?.agentRole)
-    ?? normalizeText(source?.agentType)
-    ?? normalizeText(source?.agent_type)
-    ?? normalizeText(source?.role)
-}
-
-const PREVIEW_MAX_LENGTH = 140
-
-/**
- * Extracts a short single-line preview from the most recent agent message across
- * the given raw turns (newest last). Returns null when no agent text is present.
- */
-function extractLastAgentMessagePreview(rawTurns: Array<Record<string, unknown>>): string | null {
-  for (let turnIndex = rawTurns.length - 1; turnIndex >= 0; turnIndex -= 1) {
-    let turn
-    try {
-      turn = wireTurnToConversationTurn(rawTurns[turnIndex])
-    } catch {
-      continue
-    }
-    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
-      const item = turn.items[itemIndex]
-      if (item.type !== 'agentMessage') continue
-      const text = item.text?.replace(/\s+/g, ' ').trim()
-      if (!text) continue
-      return text.length > PREVIEW_MAX_LENGTH ? `${text.slice(0, PREVIEW_MAX_LENGTH)}…` : text
-    }
+const requests = new Map<string, ChildRequest>()
+const lifetimes = new Map<string, object>()
+function lifetime(parentThreadId: string): object {
+  let token = lifetimes.get(parentThreadId)
+  if (!token) {
+    token = {}
+    lifetimes.set(parentThreadId, token)
   }
-  return null
-}
-
-export function isTerminalSubAgentStatus(status: string | null | undefined): boolean {
-  const normalized = status?.trim().toLowerCase()
-  return normalized === 'closed'
-    || normalized === 'completed'
-    || normalized === 'failed'
-    || normalized === 'cancelled'
-    || normalized === 'canceled'
-}
-
-/** True when the subagent's spawn edge has been closed (by CloseAgent or residency reclaim). */
-export function isSubAgentChildClosed(child: SubAgentChild): boolean {
-  return child.status.trim().toLowerCase() === 'closed'
-}
-
-export function isSubAgentChildRunning(child: SubAgentChild): boolean {
-  // A closed edge is terminal even if a stale runtime snapshot still says running.
-  if (isSubAgentChildClosed(child)) return false
-  if (child.runtime?.running === true) return true
-  if (child.runtime?.running === false) return false
-  if (child.isPlaceholder === true) return !child.isCompleted && !isTerminalSubAgentStatus(child.status)
-  if (child.isCompleted || isTerminalSubAgentStatus(child.status)) return false
-  return false
-}
-
-function childFromWire(parentThreadId: string, wire: SubAgentChildWire): SubAgentChild | null {
-  const edge = wire.edge ?? {}
-  const childThreadId = normalizeText(edge.childThreadId) ?? normalizeText(wire.thread?.id)
-  if (!childThreadId) return null
-  const cachedThread = useThreadStore.getState().threadList.find((thread) => thread.id === childThreadId)
-  const threadSummary = wire.thread ?? cachedThread ?? null
-  const source = threadSummary?.source?.subAgent
-  const runtime = threadSummary?.runtime
-  const status = normalizeText(edge.status) ?? 'open'
-  const agentPath = normalizeText(edge.agentPath) ?? normalizeText(source?.agentPath)
-  const taskName = normalizeText(edge.taskName) ?? normalizeText(source?.taskName)
-  const isCompleted = runtime?.running === true
-    ? false
-    : runtime?.running === false || isTerminalSubAgentStatus(status)
-  const nickname =
-    normalizeText(wire.thread?.displayName)
-    ?? normalizeText(edge.agentNickname)
-    ?? normalizeText(source?.agentNickname)
-    ?? taskName
-    ?? lastAgentPathSegment(agentPath)
-    ?? childThreadId
-  return {
-    childThreadId,
-    parentThreadId: normalizeText(edge.parentThreadId) ?? parentThreadId,
-    agentPath,
-    taskName,
-    nickname,
-    agentRole: normalizeRole(edge) ?? normalizeRole(source),
-    profileName: normalizeText(edge.profileName) ?? normalizeText(source?.profileName),
-    runtimeType: normalizeText(edge.runtimeType) ?? normalizeText(source?.runtimeType),
-    supportsSendInput: edge.supportsSendInput ?? source?.supportsSendInput ?? true,
-    supportsResume: edge.supportsResume ?? source?.supportsResume ?? true,
-    supportsSendMessage: edge.supportsSendMessage ?? source?.supportsSendMessage ?? false,
-    supportsFollowupTask: edge.supportsFollowupTask ?? source?.supportsFollowupTask ?? false,
-    supportsClose: edge.supportsClose ?? source?.supportsClose ?? true,
-    status,
-    lastToolDisplay: null,
-    lastMessagePreview: null,
-    currentTool: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    isCompleted,
-    isPlaceholder: false,
-    runtime,
-    threadSummary
-  }
-}
-
-function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | undefined): SubAgentChild {
-  if (!existing) return next
-  let runtime = next.runtime ?? existing.runtime
-  const nextCompleted = next.runtime?.running === true
-    ? false
-    : next.isCompleted || next.runtime?.running === false || isTerminalSubAgentStatus(next.status)
-  if (nextCompleted && runtime) {
-    runtime = { ...runtime, running: false }
-  }
-  const isCompleted = nextCompleted
-    ? true
-    : existing.runtime?.running === true
-      ? false
-      : existing.isCompleted
-  return {
-    ...next,
-    agentPath: next.agentPath ?? existing.agentPath,
-    taskName: next.taskName ?? existing.taskName,
-    agentRole: next.agentRole ?? existing.agentRole,
-    profileName: next.profileName ?? existing.profileName,
-    runtimeType: next.runtimeType ?? existing.runtimeType,
-    lastToolDisplay: existing.lastToolDisplay,
-    lastMessagePreview: existing.lastMessagePreview,
-    currentTool: isCompleted ? null : existing.currentTool,
-    inputTokens: existing.inputTokens,
-    outputTokens: existing.outputTokens,
-    isCompleted,
-    isPlaceholder: false,
-    runtime
-  }
-}
-
-function createPlaceholderChild(
-  parentThreadId: string,
-  progress: SubAgentEntry,
-  index: number
-): SubAgentChild {
-  const label = normalizeText(progress.label) ?? `Agent ${index + 1}`
-  const task = normalizeText((progress as SubAgentEntry & { task?: string }).task)
-  const display = normalizeText(progress.currentToolDisplay)
-    ?? normalizeText(progress.currentTool)
-    ?? task
-  const isCompleted = progress.isCompleted === true
-  return {
-    childThreadId: `subagent-placeholder:${parentThreadId}:${index}:${label}`,
-    parentThreadId,
-    agentPath: null,
-    taskName: null,
-    nickname: label,
-    agentRole: null,
-    profileName: null,
-    runtimeType: null,
-    supportsSendInput: false,
-    supportsResume: false,
-    supportsSendMessage: false,
-    supportsFollowupTask: false,
-    supportsClose: false,
-    status: isCompleted ? 'completed' : 'open',
-    lastToolDisplay: display,
-    lastMessagePreview: null,
-    currentTool: isCompleted ? null : progress.currentTool,
-    inputTokens: progress.inputTokens,
-    outputTokens: progress.outputTokens,
-    isCompleted,
-    isPlaceholder: true,
-    runtime: {
-      running: !isCompleted,
-      waitingOnApproval: false,
-      waitingOnPlanConfirmation: false
-    },
-    threadSummary: null
-  }
-}
-
-function ensureDefaultCollapsed(
-  state: SubAgentStoreState,
-  parentThreadId: string,
-  children: SubAgentChild[]
-): Map<string, boolean> | null {
-  if (children.length === 0 || state.collapsedByParent.has(parentThreadId)) return null
-
-  const collapsedByParent = new Map(state.collapsedByParent)
-  collapsedByParent.set(parentThreadId, true)
-  return collapsedByParent
+  return token
 }
 
 export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
@@ -336,12 +85,11 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         && previous.some((child) => child.isPlaceholder)
       ) {
         const runningPlaceholders = previous.filter((child) =>
-          child.isPlaceholder === true && isSubAgentChildRunning(child)
+          isSubAgentChildClosed(child) || (child.isPlaceholder === true && isSubAgentChildRunning(child))
         )
         const childrenByParent = new Map(state.childrenByParent)
         childrenByParent.set(parentThreadId, runningPlaceholders)
-        const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, runningPlaceholders)
-        return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
+        return { childrenByParent }
       }
 
       const byId = new Map(previous.map((child) => [child.childThreadId, child]))
@@ -351,7 +99,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const usedPlaceholderIndexes = new Set<number>()
       const merged = children.map((child) => {
         let existing = byId.get(child.childThreadId)
-        if (!existing) {
+        if (!existing && !isSubAgentChildClosed(child)) {
           const nicknameMatch = placeholderMatches.find((entry) =>
             !usedPlaceholderIndexes.has(entry.index)
             && entry.child.nickname === child.nickname
@@ -365,10 +113,14 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         }
         return mergeExistingProgress(child, existing)
       })
+      for (const child of previous) {
+        if (isSubAgentChildClosed(child) && !merged.some((entry) => entry.childThreadId === child.childThreadId)) {
+          merged.push(child)
+        }
+      }
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, merged)
-      const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, merged)
-      const staleProgressBlockedParents = cloneSet(state.staleProgressBlockedParents)
+      const staleProgressBlockedParents = new Set(state.staleProgressBlockedParents)
       let staleProgressChanged = false
       if (merged.length > 0 && staleProgressBlockedParents.delete(parentThreadId)) {
         staleProgressChanged = true
@@ -378,47 +130,84 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       }
       return {
         childrenByParent,
-        ...(collapsedByParent ? { collapsedByParent } : {}),
         ...(staleProgressChanged ? { staleProgressBlockedParents } : {})
       }
     })
   },
 
-  async fetchChildren(parentThreadId, options) {
-    if (!parentThreadId) return
-    if (useConnectionStore.getState().capabilities?.subAgentSessions !== true) return
-    set((state) => {
-      const loadingParents = new Set(state.loadingParents)
-      loadingParents.add(parentThreadId)
-      return { loadingParents }
-    })
-    try {
-      const result = await window.api.appServer.sendRequest('subagent/children/list', {
-        parentThreadId,
-        includeClosed: options?.includeClosed === true,
-        includeThreads: true
-      }) as { data?: SubAgentChildWire[] }
-      const children = (result.data ?? [])
-        .map((entry) => childFromWire(parentThreadId, entry))
-        .filter((entry): entry is SubAgentChild => entry != null)
-      const childThreads = children
-        .map((child) => child.threadSummary)
-        .filter((thread): thread is ThreadSummary => thread != null)
-      useThreadStore.getState().upsertThreads(childThreads)
-      get().setChildren(parentThreadId, children, options?.authoritative === true
-        ? { preserveRunningPlaceholders: false, blockStaleProgressWhenEmpty: children.length === 0 }
-        : undefined)
-    } finally {
+  ensureChildren(parentThreadId) {
+    const pending = requests.get(parentThreadId)
+    if (pending) return pending.promise
+    if (get().discoveryByParent.has(parentThreadId)) return Promise.resolve()
+    return get().fetchChildren(parentThreadId)
+  },
+
+  fetchChildren(parentThreadId, options) {
+    if (!parentThreadId || useConnectionStore.getState().capabilities?.subAgentSessions !== true) {
+      return Promise.resolve()
+    }
+    const pending = requests.get(parentThreadId)
+    if (pending) {
+      pending.refresh = true
+      pending.authoritative ||= options?.authoritative === true
+      return pending.promise
+    }
+    const token = lifetime(parentThreadId)
+    const current = (): boolean => lifetimes.get(parentThreadId) === token
+    const task: ChildRequest = {
+      promise: Promise.resolve(), refresh: false, authoritative: options?.authoritative === true
+    }
+    requests.set(parentThreadId, task)
+    const setDiscovery = (status: SubAgentDiscovery['status']): void => {
+      if (!current()) return
       set((state) => {
-        const loadingParents = new Set(state.loadingParents)
-        loadingParents.delete(parentThreadId)
-        return { loadingParents }
+        const discoveryByParent = new Map(state.discoveryByParent)
+        discoveryByParent.set(parentThreadId, {
+          status,
+          discovered: status === 'ready' || state.discoveryByParent.get(parentThreadId)?.discovered === true
+        })
+        return { discoveryByParent }
       })
     }
+    task.promise = (async () => {
+      let failure: unknown
+      do {
+        task.refresh = false
+        const authoritative = task.authoritative
+        task.authoritative = false
+        setDiscovery('loading')
+        try {
+          const result = await window.api.appServer.sendRequest('subagent/children/list', {
+            parentThreadId, includeClosed: true, includeThreads: true
+          }) as { data?: SubAgentChildWire[] }
+          if (!current()) return
+          const children = (result.data ?? [])
+            .map((entry) => childFromWire(parentThreadId, entry))
+            .filter((entry): entry is SubAgentChild => entry != null)
+          useThreadStore.getState().upsertThreads(children
+            .map((child) => child.threadSummary)
+            .filter((thread): thread is ThreadSummary => thread != null))
+          get().setChildren(parentThreadId, children, authoritative
+            ? { preserveRunningPlaceholders: false, blockStaleProgressWhenEmpty: children.length === 0 }
+            : undefined)
+          setDiscovery('ready')
+          failure = undefined
+        } catch (error) {
+          if (!current()) return
+          setDiscovery('error')
+          failure = error
+        }
+      } while (task.refresh && current())
+      if (failure) throw failure
+    })().finally(() => {
+      if (requests.get(parentThreadId) === task) requests.delete(parentThreadId)
+    })
+    return task.promise
   },
 
   async fetchPreviews(parentThreadId, options) {
     if (!parentThreadId) return
+    const token = lifetime(parentThreadId)
     const runningOnly = options?.runningOnly === true
     // runningOnly polls always refresh (the message is still changing); the
     // default pass only fills children that have no cached preview yet.
@@ -446,7 +235,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         // Best-effort preview; leave null so the row falls back to a status label.
       }
     }))
-    if (updates.size === 0) return
+    if (updates.size === 0 || lifetimes.get(parentThreadId) !== token) return
 
     set((state) => {
       const current = state.childrenByParent.get(parentThreadId)
@@ -460,6 +249,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           lastMessagePreview
         }
       })
+      if (next.every((child, index) => child === current[index])) return state
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, next)
       return { childrenByParent }
@@ -470,8 +260,11 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     set((state) => {
       const current = state.childrenByParent.get(parentThreadId) ?? []
       const allowPlaceholderCreation = !state.staleProgressBlockedParents.has(parentThreadId)
-      const unmatched = [...entries]
+      const closedNames = new Set(current.filter(isSubAgentChildClosed).map((child) => child.nickname))
+      const activeNames = new Set(current.filter((child) => !isSubAgentChildClosed(child)).map((child) => child.nickname))
+      const unmatched = entries.filter((entry) => !closedNames.has(entry.label) || activeNames.has(entry.label))
       const next = current.map((child) => {
+        if (isSubAgentChildClosed(child)) return child
         const index = unmatched.findIndex((entry) => entry.label === child.nickname)
         const progress = index >= 0 ? unmatched.splice(index, 1)[0] : unmatched.shift()
         if (!progress) return child
@@ -496,12 +289,10 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       if (next.length === 0 && current.length === 0) return state
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, next)
-      const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, next)
-      const staleProgressBlockedParents = cloneSet(state.staleProgressBlockedParents)
+      const staleProgressBlockedParents = new Set(state.staleProgressBlockedParents)
       const staleProgressChanged = next.length > 0 && staleProgressBlockedParents.delete(parentThreadId)
       return {
         childrenByParent,
-        ...(collapsedByParent ? { collapsedByParent } : {}),
         ...(staleProgressChanged ? { staleProgressBlockedParents } : {})
       }
     })
@@ -513,7 +304,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const childrenByParent = new Map(state.childrenByParent)
       for (const [parentThreadId, children] of childrenByParent) {
         const next = children.map((child) => {
-          if (child.childThreadId !== childThreadId) return child
+          if (child.childThreadId !== childThreadId || isSubAgentChildClosed(child)) return child
           changed = true
           return {
             ...child,
@@ -523,58 +314,32 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           }
         })
         childrenByParent.set(parentThreadId, next)
-        const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, next)
-        if (collapsedByParent) {
-          return { childrenByParent, collapsedByParent }
-        }
       }
       return changed ? { childrenByParent } : state
     })
   },
 
-  setParentCollapsed(parentThreadId, collapsed, userInitiated = true) {
-    set((state) => {
-      const collapsedByParent = new Map(state.collapsedByParent)
-      collapsedByParent.set(parentThreadId, collapsed)
-      if (!userInitiated) {
-        return { collapsedByParent }
-      }
-
-      const userCollapsedByParent = new Map(state.userCollapsedByParent)
-      if (collapsed) {
-        userCollapsedByParent.set(parentThreadId, true)
-      } else {
-        userCollapsedByParent.delete(parentThreadId)
-      }
-      return { collapsedByParent, userCollapsedByParent }
-    })
-  },
-
   clearParent(parentThreadId) {
+    lifetimes.delete(parentThreadId)
+    requests.delete(parentThreadId)
     set((state) => {
       const childrenByParent = new Map(state.childrenByParent)
-      const collapsedByParent = new Map(state.collapsedByParent)
-      const userCollapsedByParent = new Map(state.userCollapsedByParent)
-      const staleProgressBlockedParents = cloneSet(state.staleProgressBlockedParents)
+      const staleProgressBlockedParents = new Set(state.staleProgressBlockedParents)
+      const discoveryByParent = new Map(state.discoveryByParent)
+      discoveryByParent.delete(parentThreadId)
       childrenByParent.delete(parentThreadId)
-      collapsedByParent.delete(parentThreadId)
-      userCollapsedByParent.delete(parentThreadId)
       staleProgressBlockedParents.delete(parentThreadId)
-      return { childrenByParent, collapsedByParent, userCollapsedByParent, staleProgressBlockedParents }
+      return { childrenByParent, staleProgressBlockedParents, discoveryByParent }
     })
   },
 
   reset() {
+    lifetimes.clear()
+    requests.clear()
     set({
       childrenByParent: new Map(),
-      collapsedByParent: new Map(),
-      userCollapsedByParent: new Map(),
-      loadingParents: new Set(),
+      discoveryByParent: new Map(),
       staleProgressBlockedParents: new Set()
     })
   }
 }))
-
-function cloneSet<T>(source: Set<T>): Set<T> {
-  return new Set(source)
-}

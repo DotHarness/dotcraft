@@ -26,9 +26,10 @@ This specification covers:
 - full-history, fresh, and bounded context creation;
 - role, profile, model, permission, and tool resolution;
 - task dispatch, communication, continuation, cancellation, and closure;
-- persistence, recovery, progress, and parent ownership.
+- persistence, recovery, progress, and parent ownership;
+- Desktop identity resolution and discovery-dependent activity state.
 
-Feature-specific orchestration, module-owned task graphs, client presentation, external runtime command
+Feature-specific orchestration, module-owned task graphs, client layout, external runtime command
 lines, and public wire DTOs remain in their owning specifications.
 
 ---
@@ -53,6 +54,31 @@ routing. Siblings under one parent cannot reuse a child `taskName` or path, incl
 
 `agentRole` and `profile` are independent. A role controls DotCraft behavior; a profile selects the
 runtime. A role name is not a profile name, and neither is display metadata.
+
+### Desktop identity and activity
+
+Tools, grouped activity, plugin fallbacks, and previews resolve from the containing Turn's
+`threadId`. Spawn resolves only direct children. An explicit child thread ID takes precedence;
+agent paths are used only without an ID. Control tools may resolve across parents only when
+source and target ancestry prove the same `rootThreadId`.
+
+Activity and navigation share the resolved child. Clicking it opens its conversation; unresolved
+entries select their source conversation and open the Subagents detail tab.
+
+Desktop caches `subagent/children/list` with `includeClosed: true` and `includeThreads: true`.
+Conversation and preview surfaces share initial discovery per parent; notifications refresh it.
+Each parent records idle, loading, ready, or error, plus whether discovery has ever succeeded.
+A refresh during loading schedules one trailing request. Clearing a parent or resetting the
+connection invalidates pending list and preview responses. Failure does not complete discovery.
+
+Pending spawn and initial discovery display `started working`. Resolved runtime and explicit
+terminal state take precedence: closed edges stay finished despite stale running notifications,
+and failure displays `interrupted`. After successful discovery, a successfully created historical
+agent without an active entity or runtime is finished. Refresh preserves reliable prior state;
+a failed initial discovery without reliable state leaves only the name and navigation entry.
+Groups prioritize failure, then running activity, and display `finished` only when every entry
+is confirmed finished. Closed records remain in history but never consume active progress
+matches or contribute to running counts.
 
 ---
 

@@ -8,7 +8,7 @@ import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../../stores/workflowRunStore'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
-import { ToolCollapseChevron } from '../../conversation/ToolCollapseChevron'
+import { ToolCollapseChevron } from '../../conversation/ToolDisclosure'
 import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowPhaseMetrics, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
 import type { WorkflowViewerTab as WorkflowViewerTabDescriptor } from '../../../../shared/viewer/types'
 

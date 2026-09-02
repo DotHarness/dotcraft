@@ -174,7 +174,7 @@ describe('subAgentStore', () => {
 
     expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
       parentThreadId: 'parent-1',
-      includeClosed: false,
+      includeClosed: true,
       includeThreads: true
     })
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
@@ -194,7 +194,6 @@ describe('subAgentStore', () => {
         })
       })
     ])
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('falls back from displayName to nickname, taskName, agentPath segment, and childThreadId', async () => {
@@ -475,7 +474,6 @@ describe('subAgentStore', () => {
     useSubAgentStore.getState().updateProgress('parent-1', [
       {
         label: 'Lovelace',
-        task: 'Create hatch pet',
         isCompleted: false,
         inputTokens: 12,
         outputTokens: 34,
@@ -499,7 +497,6 @@ describe('subAgentStore', () => {
         threadSummary: null
       })
     ])
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('clears completed placeholders from authoritative empty child lists while keeping running placeholders', async () => {
@@ -533,7 +530,6 @@ describe('subAgentStore', () => {
       })
     ])
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.some((child) => child.nickname === 'Finished')).toBe(false)
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('clears authoritative empty child lists and blocks stale progress placeholders', async () => {
@@ -649,7 +645,6 @@ describe('subAgentStore', () => {
       })
     ])
     expect(useThreadStore.getState().runningTurnThreadIds.has('child-1')).toBe(true)
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('lets terminal edge status override stale running runtime from cache', async () => {
@@ -812,7 +807,6 @@ describe('subAgentStore', () => {
     useSubAgentStore.getState().updateProgress('parent-1', [
       {
         label: 'Popper',
-        task: 'Create hatch pet',
         isCompleted: false,
         inputTokens: 12,
         outputTokens: 34,
@@ -831,54 +825,6 @@ describe('subAgentStore', () => {
         runtime: expect.objectContaining({ running: true })
       })
     )
-  })
-
-  it('does not auto-expand running children after a user collapse', () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Popper',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: null,
-        currentTool: null,
-        inputTokens: 0,
-        outputTokens: 0,
-        isCompleted: true,
-        runtime: {
-          running: false,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-    useSubAgentStore.getState().setParentCollapsed('parent-1', true)
-
-    useSubAgentStore.getState().updateProgress('parent-1', [
-      {
-        label: 'Popper',
-        task: 'Create hatch pet',
-        isCompleted: false,
-        inputTokens: 12,
-        outputTokens: 34,
-        currentTool: 'ReadFile',
-        currentToolDisplay: 'Reading sprite atlas'
-      }
-    ])
-
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
-    expect(useSubAgentStore.getState().userCollapsedByParent.get('parent-1')).toBe(true)
-
-    useSubAgentStore.getState().setParentCollapsed('parent-1', false)
-
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(false)
-    expect(useSubAgentStore.getState().userCollapsedByParent.get('parent-1')).toBeUndefined()
   })
 
   it('marks a child completed and clears current tool when runtime stops', () => {

@@ -96,6 +96,10 @@ components:
   selection-row:
     border: "none"
     hoverBackground: "var(--bg-tertiary)"
+  hover-annotation:
+    cardPlacement: "inline axis — right, mirroring to left"
+    controlPlacement: "block axis — top, mirroring to bottom"
+    cardSurface: "var(--glass-surface-strong)"
 ---
 
 # DotCraft Desktop Design
@@ -532,7 +536,9 @@ prevents a second rounded surface from appearing inside an already highlighted
 row. Pin state may also use its filled icon to communicate selection without an
 active background. Archive remains neutral in this context because archived
 threads are recoverable; reserve danger color for irreversible or genuinely
-hazardous actions.
+hazardous actions. These actions sit inside a row that carries a details card,
+so their tooltips take the block axis and anchor to the control rather than to a
+wrapper the absolute positioning has collapsed (see Hover Annotations).
 
 Compound triggers combine a principal action with a menu of related commands. Both
 segments share one intent and one size; the group clips the outer corners while each
@@ -667,6 +673,54 @@ use one continuous chip:
 - the chip is a 16px box in the UI face at `--type-hint`, flat — no keycap
   emboss, and no per-key frames;
 - the DOM keeps one `<kbd>` per key; the joins are drawn, not typed.
+
+A tooltip inside a row that carries a details card takes the block axis. See
+Hover Annotations below.
+
+### Hover Annotations
+
+Two things can be worth saying about the row under the pointer, and they are not
+the same thing. A tooltip names the control the pointer is on. A details card —
+the sidebar's `SidebarEntryDetailsCard` — describes the row's subject: its
+project, its branch, when it last ran. The card is why a row can stay one shape
+whether or not it came from a channel: metadata that only identifies the row
+lives in the annotation instead of in a column the list has to reserve, which is
+the trade the Selection Rows rule already asks for.
+
+Both statements are true at the same moment, so they coexist rather than
+compete. Closing the card when the pointer reaches the row's own actions would
+blank out the context the reader is using, at exactly the moment they act on it.
+
+Coexisting is only possible if the two stop asking for the same screen, so each
+annotation owns one axis:
+
+- a row's details card owns the **inline** axis — `right`, mirroring to `left`
+  when the card would leave the viewport;
+- every hover-revealed control inside that row owns the **block** axis — `top`,
+  mirroring to `bottom` when the label would leave it.
+
+Mirroring happens inside an axis, never across it. A control inside a
+card-bearing row does not take `left` or `right`: that side belongs to the row,
+and a label placed there lands on the card it was meant to sit beside, covering
+the line the reader was reading. A row rail sets the axis once for every action
+in it rather than per button, so the rail cannot drift control by control.
+
+This governs annotations only. Menus and popovers opened by those same controls
+are places the pointer travels to, and they keep their own positioning.
+
+A tooltip is placed against the control's own box. A hover-revealed rail action
+is normally taken out of flow so it can sit at the row's trailing edge without
+taking layout, which collapses the wrapper around it to `0×0` and leaves the
+label measured from a phantom point at the row's centre — low enough to clip the
+card even with the axes already correct. Anchor to what is drawn, or reserve the
+control's footprint in the row so it can stay in flow.
+
+The card itself is an ordinary elevated surface, not the inverse pair: it is
+sometimes a place the pointer can travel, so it follows the Colors rule above
+rather than the tooltip's inversion. It tucks under the row's trailing edge and
+carries the single `--glass-border` hairline on that overlapping edge, as the
+Elevation rule requires. It opens on a delay and closes on a short grace period;
+a tooltip on a control the pointer has already arrived at does not.
 
 ### Menus, Popovers, and Pickers
 
@@ -843,10 +897,11 @@ hidden at rest and reveal them on hover, so a list of many rows stays quiet. Suc
 a control must reveal on keyboard focus as well, or it is unreachable without a
 pointer. Reveal by changing opacity rather than by mounting the control, so the
 row does not shift as the pointer crosses it. Metadata that only identifies the
-row — a path, a source URL — may stay a tooltip instead of taking layout at all.
-Metadata that only some rows carry belongs there by default: a column reserved
-for it makes the rows that have it a different shape from the rows that do not,
-and the list reads as ragged rather than as one column.
+row — a path, a source URL, an origin channel — may stay in a hover annotation
+instead of taking layout at all: a tooltip when it is one line, a details card
+when it is several. Metadata that only some rows carry belongs there by default:
+a column reserved for it makes the rows that have it a different shape from the
+rows that do not, and the list reads as ragged rather than as one column.
 
 ### Scrollbars
 

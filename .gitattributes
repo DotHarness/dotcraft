@@ -4,6 +4,9 @@
 .githooks/* text eol=lf
 scripts/*.mjs text eol=lf
 scripts/*.ps1 text eol=lf
+# npm bin-links rewrites a bin target's shebang with LF. Checking this one out as
+# CRLF leaves it mixed after every `npm ci`, which reads as a permanent change.
+sdk/typescript/packages/plugin/scripts/build-plugin.mjs text eol=lf
 src/DotCraft.Protocol/Artifacts/AppServer/appserver.manifest.json text eol=lf linguist-generated=true
 src/DotCraft.Protocol/Artifacts/AppServer/openrpc.json text eol=lf linguist-generated=true
 src/DotCraft.Protocol/Artifacts/AppServer/contract.sha256 text eol=lf linguist-generated=true

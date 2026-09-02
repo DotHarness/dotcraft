@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Bot } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildClosed,
@@ -7,10 +6,13 @@ import {
   useSubAgentStore,
   type SubAgentChild
 } from '../../stores/subAgentStore'
+import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { formatSubAgentMeta, getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
+import { avatarFromSeed } from '../agents/agentAvatar'
+import { RobotAvatar } from '../agents/RobotAvatar'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { formatSubAgentElapsed } from '../../utils/formatSubAgentElapsed'
 import styles from './SubagentsTab.module.css'
@@ -20,24 +22,14 @@ const EMPTY_CHILDREN: SubAgentChild[] = []
 /** Refresh interval for running subagents' live message preview while the tab is open. */
 const RUNNING_PREVIEW_POLL_MS = 3000
 
-/**
- * Subagents appear in neither the dock (running-only) nor the sidebar, so this is
- * the durable place to reopen them, closed ones included. Deliberately offers no
- * destructive action, so their history is always preserved.
- */
 export function SubagentsTab(): JSX.Element {
   const t = useT()
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const children = useSubAgentStore((s) =>
     activeThreadId ? s.childrenByParent.get(activeThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
   )
-  const fetchChildren = useSubAgentStore((s) => s.fetchChildren)
+  useSubAgentLookup(activeThreadId ?? '')
   const fetchPreviews = useSubAgentStore((s) => s.fetchPreviews)
-
-  useEffect(() => {
-    if (!activeThreadId) return
-    void fetchChildren(activeThreadId, { authoritative: true, includeClosed: true })
-  }, [fetchChildren, activeThreadId])
 
   // Load previews for any children that arrived via live progress/graph events
   // after the initial fetch (e.g. a subagent finishing while the tab is open).
@@ -135,7 +127,8 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
   const t = useT()
   const locale = useLocale()
   const running = isSubAgentChildRunning(child)
-  const color = getSubAgentAccent(getSubAgentIdentitySeed(child))
+  const seed = getSubAgentIdentitySeed(child) ?? child.nickname
+  const color = getSubAgentAccent(seed)
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,
@@ -165,9 +158,8 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
       style={{ '--subagent-accent': color } as CSSProperties}
     >
       <span className={styles.iconSlot}>
-        {/* Both active and finished rows use the Bot glyph; the running state is
-            conveyed by the gradient preview text below, not a separate spinner. */}
-        <Bot size={15} strokeWidth={2} aria-hidden className={styles.icon} />
+        {/* The accessory is unreadable at this size, so palette and face carry the identity. */}
+        <RobotAvatar spec={{ ...avatarFromSeed(seed), accessory: 0 }} size={20} />
       </span>
       <span className={styles.bodyCell}>
         <span className={styles.titleRow}>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ToolCollapseChevron } from './ToolCollapseChevron'
+import { ToolCollapseChevron } from './ToolDisclosure'
 
 interface ThinkingIndicatorProps {
   elapsedSeconds?: number

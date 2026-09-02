@@ -39,8 +39,13 @@
 
 .dc-ref-command,
 .dc-ref-skill,
+.dc-ref-cron,
 .dc-ref-link {
   font-weight: 600;
+}
+
+.dc-ref-cron {
+  color: var(--accent);
 }
 
 /* Links use the brighter --info rather than --accent, which reads too dark for URLs. */

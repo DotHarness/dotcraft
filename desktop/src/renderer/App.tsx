@@ -29,7 +29,7 @@ import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
 import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
-import { useSubAgentStore } from './stores/subAgentStore'
+import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
@@ -1723,7 +1723,7 @@ export function App(): JSX.Element {
             if (pp.thread && isSubAgentThread(pp.thread)) {
               const parentThreadId = getSubAgentParentThreadId(pp.thread)
               if (parentThreadId) {
-                void useSubAgentStore.getState().fetchChildren(parentThreadId)
+                void useSubAgentStore.getState().fetchChildren(parentThreadId).catch(() => {})
               }
             }
             break
@@ -2120,15 +2120,14 @@ export function App(): JSX.Element {
             const threadId = (p.threadId as string | undefined) ?? ''
             if (threadId) {
               const subAgentStore = useSubAgentStore.getState()
-              const knownChildCount = subAgentStore.childrenByParent.get(threadId)?.length ?? 0
+              const knownChildCount = subAgentStore.childrenByParent.get(threadId)?.filter((child) => !isSubAgentChildClosed(child)).length ?? 0
               subAgentStore.updateProgress(threadId, entries)
               const nextSubAgentStore = useSubAgentStore.getState()
               if (
                 entries.length > 0
                 && knownChildCount < entries.length
-                && !nextSubAgentStore.loadingParents.has(threadId)
               ) {
-                void nextSubAgentStore.fetchChildren(threadId)
+                void nextSubAgentStore.fetchChildren(threadId).catch(() => {})
               }
             }
             break
@@ -2137,7 +2136,7 @@ export function App(): JSX.Element {
           case 'subagent/graphChanged': {
             const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
             if (parentThreadId) {
-              void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true })
+              void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true }).catch(() => {})
             }
             void reloadThreadList()
             break
@@ -3056,7 +3055,7 @@ export function App(): JSX.Element {
             useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
             useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
             useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
-            void useSubAgentStore.getState().fetchChildren(requestedId)
+            void useSubAgentStore.getState().ensureChildren(requestedId).catch(() => {})
           }
           if (!await subscriptionReady) {
             clearThreadRestoreGate(requestedId, restoreGateToken)

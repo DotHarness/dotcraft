@@ -112,7 +112,7 @@ describe('SubagentsTab', () => {
       return {}
     })
 
-    renderTab()
+    await act(async () => { renderTab() })
 
     await vi.waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
@@ -303,7 +303,7 @@ describe('SubagentsTab', () => {
     }
   })
 
-  it('polls thread/read for running subagents while the tab is open', () => {
+  it('polls thread/read for running subagents while the tab is open', async () => {
     vi.useFakeTimers()
     try {
       useSubAgentStore.getState().setChildren('thread-1', [
@@ -313,7 +313,7 @@ describe('SubagentsTab', () => {
       renderTab()
       appServerSendRequest.mockClear()
 
-      vi.advanceTimersByTime(3000)
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
 
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/turns/list', {
         threadId: 'child-running',

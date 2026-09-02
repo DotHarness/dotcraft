@@ -3,7 +3,7 @@ import { Image as ImageIcon, Info } from 'lucide-react'
 import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { renderSubAgentTitle, ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
+import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { ErrorBlock } from './ErrorBlock'
@@ -17,27 +17,24 @@ import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { Skeleton } from '../ui/Skeleton'
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
+import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { addToast } from '../../stores/toastStore'
-import { ToolCollapseChevron } from './ToolCollapseChevron'
+import { ToolDisclosure } from './ToolDisclosure'
+import { getSubAgentChipDisplay } from './SubAgentChips'
+import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
 import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
-import {
-  formatSubAgentMeta,
-  getSubAgentAccent,
-  getSubAgentIdentitySeed
-} from '../../utils/subAgentPresentation'
 import type { StreamRetrySignal } from '../../stores/conversationStore'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
 
@@ -149,6 +146,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         const toolRunNodes = entries.map((entry, offset) =>
           renderAggregatedEntry(
             entry,
+            turn.threadId,
             turn.id,
             offset,
             isRunning,
@@ -231,6 +229,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           const workflowNodes = entries.map((entry, offset) =>
             renderAggregatedEntry(
               entry,
+              turn.threadId,
               turn.id,
               offset,
               isRunning,
@@ -425,6 +424,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           <TurnCollapsedSummary
             key={`turn-collapsed-${turn.id}`}
             elapsedMs={elapsedMs}
+            followedByContent={pinnedTrimmedNodes.length + trailingNodes.length > 0}
           >
             <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" />
           </TurnCollapsedSummary>
@@ -467,6 +467,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             <TurnCollapsedSummary
               key={`turn-collapsed-${turn.id}`}
               elapsedMs={elapsedMs}
+              followedByContent={pinnedNodes.length + trailingNodes.length > 0}
             >
               <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" />
             </TurnCollapsedSummary>
@@ -686,6 +687,7 @@ const userFlowItemStyle: CSSProperties = {
 
 function renderAggregatedEntry(
   entry: AggregatedToolCall,
+  threadId: string,
   turnId: string,
   offset: number,
   turnRunning: boolean,
@@ -694,6 +696,21 @@ function renderAggregatedEntry(
 ): React.ReactNode {
   if (entry.kind === 'single') {
     const images = getToolOutputImages([entry.item])
+    // A lone follow-up keeps its own row: it updates an agent rather than introducing one.
+    const isLoneSpawn = resolveCoreFallbackPlan(entry.item)?.options.operation === 'spawn'
+    if (isLoneSpawn && getSubAgentChipDisplay(entry.item) != null) {
+      return (
+        <ToolEntryWithOutputs key={entry.item.id} images={images}>
+          <SubAgentGroupChips
+            items={[entry.item]}
+            threadId={threadId}
+            turnId={turnId}
+            turnRunning={turnRunning}
+            shellRuntimeScope={shellRuntimeScope}
+          />
+        </ToolEntryWithOutputs>
+      )
+    }
     return (
       <ToolEntryWithOutputs
         key={entry.item.id}
@@ -701,6 +718,7 @@ function renderAggregatedEntry(
       >
         <ToolCallCard
           item={entry.item}
+          threadId={threadId}
           turnId={turnId}
           turnRunning={turnRunning}
           shellRuntimeScope={shellRuntimeScope}
@@ -714,13 +732,24 @@ function renderAggregatedEntry(
       key={`group-${keyPrefix}-${turnId}-${offset}`}
       images={images}
     >
-      <GroupedToolCallRow
-        category={entry.category}
-        items={entry.items}
-        turnId={turnId}
-        turnRunning={turnRunning}
-        shellRuntimeScope={shellRuntimeScope}
-      />
+      {entry.category === 'subagent' ? (
+        <SubAgentGroupChips
+          items={entry.items}
+          threadId={threadId}
+          turnId={turnId}
+          turnRunning={turnRunning}
+          shellRuntimeScope={shellRuntimeScope}
+        />
+      ) : (
+        <GroupedToolCallRow
+          category={entry.category}
+          items={entry.items}
+          threadId={threadId}
+          turnId={turnId}
+          turnRunning={turnRunning}
+          shellRuntimeScope={shellRuntimeScope}
+        />
+      )}
     </ToolEntryWithOutputs>
   )
 }
@@ -993,6 +1022,7 @@ const imageGenerationSkeletonFrameStyle: CSSProperties = {
 interface GroupedToolCallRowProps {
   category: ToolGroupCategory
   items: ConversationItem[]
+  threadId: string
   turnId: string
   turnRunning: boolean
   shellRuntimeScope: ShellRuntimeScope
@@ -1001,6 +1031,7 @@ interface GroupedToolCallRowProps {
 function GroupedToolCallRow({
   category,
   items,
+  threadId,
   turnId,
   turnRunning,
   shellRuntimeScope
@@ -1009,159 +1040,24 @@ function GroupedToolCallRow({
   const changedFiles = useConversationStore((s) => s.changedFiles)
   const label = formatToolGroupLabel(category, items, locale, changedFiles)
   const hasFailedItems = items.some(isGroupedItemFailed)
-  const [expanded, setExpanded] = useState(category === 'subagent')
-  const [hovered, setHovered] = useState(false)
-  const rowColor = hovered || expanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
+  const [expanded, setExpanded] = useState(false)
+
+  // A live group bounds its children so a long run cannot push the answer off screen.
+  const live = turnRunning && items.some((item) => isToolItemLive(item))
 
   return (
-    <div>
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          width: '100%',
-          padding: '3px 6px',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          color: hasFailedItems ? 'var(--error)' : rowColor,
-          fontSize: '12px',
-          textAlign: 'left',
-          borderRadius: '4px'
-        }}
-      >
-        <span
-          data-testid="tool-row-title-group"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '3px',
-            flex: '0 1 auto',
-            minWidth: 0,
-            maxWidth: '100%',
-            color: hasFailedItems ? 'var(--error)' : rowColor
-          }}
-        >
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {label}
-          </span>
-          <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
-        </span>
-      </button>
-      {expanded && (
-        category === 'subagent'
-          ? <SubAgentActionGroupItems items={items} locale={locale} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
-          : (
-            <div style={{ paddingLeft: '16px' }}>
-              {items.map((item) => (
-                <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
-              ))}
-            </div>
-          )
-      )}
-    </div>
-  )
-}
-
-interface SubAgentActionGroupDisplay {
-  id: string
-  operation: 'spawn' | 'followupTask'
-  name: string
-  meta: string
-  prompt: string
-  accentColor: string
-}
-
-function SubAgentActionGroupItems({
-  items,
-  locale,
-  turnId,
-  turnRunning,
-  shellRuntimeScope
-}: {
-  items: ConversationItem[]
-  locale: AppLocale
-  turnId: string
-  turnRunning: boolean
-  shellRuntimeScope: ShellRuntimeScope
-}): JSX.Element {
-  const displays = items
-    .map((item) => getSubAgentActionGroupDisplay(item, locale))
-    .filter((display): display is SubAgentActionGroupDisplay => display != null)
-
-  if (displays.length === 0) {
-    return (
-      <div style={{ paddingLeft: '16px' }}>
+    <ToolDisclosure
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      tone={hasFailedItems ? 'error' : undefined}
+      title={label}
+    >
+      <div className="dc-tool-children" data-live={live ? 'true' : undefined}>
         {items.map((item) => (
-          <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
+          <ToolCallCard key={item.id} item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
         ))}
       </div>
-    )
-  }
-
-  return (
-    <div style={spawnAgentGroupStyle}>
-      {displays.map((display) => (
-        <div key={display.id} style={spawnAgentGroupItemStyle}>
-          <div style={spawnAgentGroupTitleStyle}>
-            {renderGroupedSubAgentTitle(locale, display)}
-          </div>
-          {display.prompt && (
-            <ActionTooltip label={display.prompt} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
-            <div style={{ ...spawnAgentPromptPreviewStyle, display: 'block' }}>
-              {display.prompt}
-            </div>
-            </ActionTooltip>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function renderGroupedSubAgentTitle(
-  locale: AppLocale,
-  display: SubAgentActionGroupDisplay
-): JSX.Element {
-  const templateKey = display.operation === 'spawn'
-    ? 'toolCall.subAgent.spawnedFromPrompt'
-    : 'toolCall.subAgent.updatedFromPrompt'
-  const titleKey = display.operation === 'spawn'
-    ? 'toolCall.subAgent.spawned'
-    : 'toolCall.subAgent.followedUp'
-  const template = translate(locale, templateKey, {
-    name: '__DOTCRAFT_SUB_AGENT_NAME__'
-  })
-  const parts = template.split('__DOTCRAFT_SUB_AGENT_NAME__')
-  if (parts.length === 1) {
-    return (
-      <span>
-        {renderSubAgentTitle(locale, titleKey, display.name, display.accentColor)}
-        {display.meta && <span style={spawnAgentMetaStyle}>({display.meta})</span>}
-      </span>
-    )
-  }
-
-  return (
-    <span>
-      {parts.map((part, index) => (
-        <span key={`${part}-${index}`}>
-          {part}
-          {index < parts.length - 1 && (
-            <>
-              <span style={{ color: display.accentColor, fontWeight: 600 }}>{display.name}</span>
-              {display.meta && <span style={spawnAgentMetaStyle}>({display.meta})</span>}
-            </>
-          )}
-        </span>
-      ))}
-    </span>
+    </ToolDisclosure>
   )
 }
 
@@ -1172,110 +1068,6 @@ function resolveCoreFallbackPlan(item: ConversationItem) {
     : resolveCoreToolRenderPlan(item)
 }
 
-function getSubAgentActionGroupDisplay(
-  item: ConversationItem,
-  locale: AppLocale
-): SubAgentActionGroupDisplay | null {
-  const plan = resolveCoreFallbackPlan(item)
-  const operation = plan?.options.operation
-  if (plan?.family !== 'subagent' || (operation !== 'spawn' && operation !== 'followupTask')) return null
-  const parsed = parseJsonObject(item.result)
-  const args = item.arguments
-  const agentPath = getString(parsed, 'agentPath') ?? getString(args, 'target')
-  const childThreadId = getString(parsed, 'childThreadId')
-    ?? getString(parsed, 'agentId')
-    ?? getString(args, 'childThreadId')
-    ?? getString(args, 'agentId')
-  const name = getString(parsed, 'agentNickname')
-    ?? getString(parsed, 'nickname')
-    ?? getString(parsed, 'taskName')
-    ?? getString(args, 'agentNickname')
-    ?? getString(args, 'nickname')
-    ?? getString(args, 'taskName')
-    ?? translate(locale, 'toolCall.subAgent.agent')
-  const prompt = getString(args, 'message')
-    ?? getString(args, 'agentPrompt')
-    ?? getString(args, 'prompt')
-    ?? ''
-  const meta = formatSubAgentMeta({
-    agentRole: getString(parsed, 'agentRole') ?? getString(args, 'agentRole'),
-    profileName: getString(parsed, 'profileName') ?? getString(args, 'profile'),
-    runtimeType: getString(parsed, 'runtimeType')
-  })
-
-  return {
-    id: item.id,
-    operation,
-    name,
-    meta,
-    prompt: truncateGroupedPrompt(prompt, 180),
-    accentColor: getSubAgentAccent(getSubAgentIdentitySeed({ agentPath, childThreadId, nickname: name }))
-  }
-}
-
-function truncateGroupedPrompt(value: string, maxChars: number): string {
-  const trimmed = value.trim().replace(/\s+/g, ' ')
-  const chars = Array.from(trimmed)
-  if (chars.length <= maxChars) return trimmed
-  return `${chars.slice(0, maxChars - 1).join('')}...`
-}
-
-function parseJsonObject(value: string | undefined): Record<string, unknown> | undefined {
-  if (!value) return undefined
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (typeof parsed === 'string') {
-      const nested = JSON.parse(parsed) as unknown
-      return typeof nested === 'object' && nested != null ? nested as Record<string, unknown> : undefined
-    }
-    return typeof parsed === 'object' && parsed != null ? parsed as Record<string, unknown> : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function getString(source: Record<string, unknown> | undefined, key: string): string | null {
-  const value = source?.[key]
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
-}
-
-const spawnAgentGroupStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '3px',
-  padding: '1px 6px 2px 18px'
-}
-
-const spawnAgentGroupItemStyle: CSSProperties = {
-  minWidth: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1px',
-  fontSize: '12px',
-  lineHeight: 1.45
-}
-
-const spawnAgentGroupTitleStyle: CSSProperties = {
-  color: 'var(--text-secondary)',
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const spawnAgentMetaStyle: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  marginLeft: 4
-}
-
-const spawnAgentPromptPreviewStyle: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
 function isGroupedItemFailed(item: ConversationItem): boolean {
   if (isToolItemLive(item)) return false
   // Shell tools (Exec/RunCommand/BashCommand) never render as failed in their
@@ -1283,22 +1075,6 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
   // aggregated row consistent so an exec exit code / failure doesn't redden it.
   if (resolveCoreFallbackPlan(item)?.successOverride === true) return false
   return isToolExecutionFailure(item)
-}
-
-function isToolExecutionFailure(item: ConversationItem): boolean {
-  const executionFailed = item.executionStatus === 'failed'
-    || item.executionStatus === 'cancelled'
-    || (item.exitCode != null && item.exitCode !== 0)
-  if (item.success === false || executionFailed) return true
-
-  const parsedResult = parseJsonObject(item.result)
-  const resultStatus = getString(parsedResult, 'status')?.toLowerCase()
-  if (resultStatus === 'timeout') return false
-  return resultStatus === 'failed'
-    || resultStatus === 'error'
-    || resultStatus === 'cancelled'
-    || resultStatus === 'canceled'
-    || getString(parsedResult, 'error') != null
 }
 
 function findLastAgentMessageIndex(items: ConversationItem[]): number {

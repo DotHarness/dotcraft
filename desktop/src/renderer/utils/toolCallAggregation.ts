@@ -108,6 +108,14 @@ export function aggregateToolCalls(
       settledBucket = []
     }
 
+    // The sentence carries each agent's own state, so a live spawn joins it rather than splitting it.
+    if (category === 'subagent') {
+      settledBucket.push(...run)
+      flushSettledBucket()
+      i++
+      continue
+    }
+
     for (const runItem of run) {
       const isBreakingItem = isToolItemLive(runItem, context)
       if (isBreakingItem) {

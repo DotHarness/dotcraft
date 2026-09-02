@@ -25,6 +25,10 @@ import {
   type ActiveDesktopPluginToolRenderer,
   type DesktopPluginGeneration
 } from '../plugins/desktopPluginRegistry'
+import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
+import { useSubAgentStore } from '../stores/subAgentStore'
+import { useThreadStore } from '../stores/threadStore'
+import { makeSpawn, makeSubAgent } from './subAgentFixtures'
 import { useConversationStore } from '../stores/conversationStore'
 import type { ConversationItem } from '../types/conversation'
 import { aggregateToolCalls } from '../utils/toolCallAggregation'
@@ -238,7 +242,7 @@ describe('Desktop Plugin contribution outlets', () => {
       createdAt: '2026-08-27T00:00:00.000Z'
     }
     render(
-      <LocaleProvider><ToolCallCard item={item} turnId="turn-a" /></LocaleProvider>
+      <LocaleProvider><ToolCallCard threadId="thread-1" item={item} turnId="turn-a" /></LocaleProvider>
     )
     expect(screen.getByTestId('plugin-tool')).toHaveTextContent('core.read-file')
 
@@ -260,6 +264,7 @@ describe('Desktop Plugin contribution outlets', () => {
     render(
       <LocaleProvider>
         <ToolCallCard
+          threadId="thread-1"
           item={{
             id: 'read-failed',
             type: 'toolCall',
@@ -279,6 +284,28 @@ describe('Desktop Plugin contribution outlets', () => {
 
     expect(screen.getByRole('button')).toBeInTheDocument()
     expect(error).toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('passes the source conversation to a plugin and preserves it in a failed subagent fallback', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const seen = vi.fn()
+    const renderer: ActiveDesktopPluginToolRenderer = {
+      ...activeToolRenderer('fixture.plugin', 'subagent', 'core.subagent', 10),
+      component: ({ presentation }) => { seen(presentation.threadId); throw new Error('renderer failed') }
+    }
+    useThreadStore.setState({ activeThreadId: 'parent-A' })
+    useSubAgentStore.getState().reset()
+    useSubAgentStore.getState().setChildren('parent-A', [makeSubAgent({ parentThreadId: 'parent-A', childThreadId: 'child-A', nickname: 'Core A' })])
+    useSubAgentStore.getState().setChildren('parent-B', [makeSubAgent()])
+    publishDesktopPluginGeneration(generation('fixture.plugin', { toolRenderers: [renderer] }))
+    render(<LocaleProvider><AgentResponseBlock turn={{
+      id: 'turn-B', threadId: 'parent-B', status: 'completed', startedAt: '', items: [makeSpawn()]
+    }} /></LocaleProvider>)
+    expect(seen).toHaveBeenCalledWith('parent-B')
+    expect(screen.queryByText('Core A')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Core B/ }))
+    expect(useThreadStore.getState().activeThreadId).toBe('child-B')
     error.mockRestore()
   })
 

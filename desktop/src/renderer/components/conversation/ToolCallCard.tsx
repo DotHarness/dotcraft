@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -30,38 +30,30 @@ import {
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
-import { SkillManageCard } from './SkillManageCard'
-import { SkillViewCard } from './SkillViewCard'
+import { renderSkillToolLabel } from './SkillToolLabel'
 import { McpAppView, hasAvailableMcpApp } from './McpAppView'
-import { ToolCollapseChevron } from './ToolCollapseChevron'
-import { CollapsibleContent } from './CollapsibleContent'
+import { ToolDisclosure } from './ToolDisclosure'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import type { FileDiff } from '../../types/toolCall'
-import type { Thread, ThreadSummary } from '../../types/thread'
 import {
   buildSkillManageDiff,
   formatSkillManageLabel,
   formatSkillManageRunningLabel,
   getSkillManageDisplay,
-  shouldRenderSkillManageCard
+  getSkillManageLabel
 } from '../../utils/skillManageToolDisplay'
 import {
   formatSkillViewLabel,
   formatSkillViewRunningLabel,
   getSkillViewDisplay
 } from '../../utils/skillViewToolDisplay'
-import { useThreadStore } from '../../stores/threadStore'
-import { useSubAgentStore, type SubAgentChild } from '../../stores/subAgentStore'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay'
-import {
-  formatSubAgentMeta,
-  getSubAgentAccent,
-  getSubAgentIdentitySeed
-} from '../../utils/subAgentPresentation'
+import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
+import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
 import {
   formatRequestUserInputResultLines,
   type RequestUserInputResultLine
@@ -77,6 +69,7 @@ export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
 interface ToolCallCardProps {
   item: ConversationItem
+  threadId: string
   turnId: string
   turnRunning?: boolean
   shellRuntimeScope?: ShellRuntimeScope
@@ -112,12 +105,6 @@ function formatRunningToolLabel(
     return formatInvocationDisplay(toolName, args, locale) ?? streamingLabel
   }
   return streamingLabel
-}
-
-interface SubAgentLookupSources {
-  childrenByParent: Map<string, SubAgentChild[]>
-  threadList: ThreadSummary[]
-  activeThread: Thread | null
 }
 
 function getFilename(path: string): string {
@@ -208,6 +195,7 @@ function resolveShellCommand(
 
 export const ToolCallCard = memo(function ToolCallCard({
   item,
+  threadId,
   turnId,
   turnRunning = false,
   shellRuntimeScope = 'conversation',
@@ -215,10 +203,8 @@ export const ToolCallCard = memo(function ToolCallCard({
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
   const workspacePath = useConversationStore((state) => state.workspacePath)
-  const threadId = useThreadStore((state) => state.activeThreadId)
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [renderExpanded, setRenderExpanded] = useState(false)
   const [autoExpanded, setAutoExpanded] = useState(false)
   const [userInteracted, setUserInteracted] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
@@ -275,12 +261,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
   useEffect(() => {
-    if (expanded) {
-      setRenderExpanded(true)
-    }
-  }, [expanded])
-
-  useEffect(() => {
     const start = item.createdAt ? new Date(item.createdAt).getTime() : Date.now()
     if (!isRunning) {
       setElapsedMs(Math.max(0, Date.now() - start))
@@ -302,14 +282,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     isStreamingFileTool ? s.streamingItemDiffs.get(item.id) : undefined
   )
   const planTodos = useConversationStore((s) => s.plan?.todos)
-  const subAgentChildrenByParent = useSubAgentStore((s) => s.childrenByParent)
-  const threadList = useThreadStore((s) => s.threadList)
-  const activeThread = useThreadStore((s) => s.activeThread)
-  const subAgentLookup: SubAgentLookupSources = {
-    childrenByParent: subAgentChildrenByParent,
-    threadList,
-    activeThread
-  }
+  const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
   const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
@@ -323,6 +296,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     : isStreamingFileTool
       ? !!renderableFileDiff || hasVisibleText(toolResult)
       : hasVisibleText(toolResult)
+  // Only a skill edit has something behind the row, and it is the diff.
+  const renderableSkillManageDiff = hasRenderableDiff(skillManageDiff ?? undefined)
+    ? skillManageDiff ?? undefined
+    : undefined
   const canExpandWhileRunning =
     !isWebFetchTool
     && !isSkillManageTool
@@ -331,10 +308,9 @@ export const ToolCallCard = memo(function ToolCallCard({
     && hasRunningExpandableContent
   const canExpandCompleted =
     !isWebFetchTool
-    && !isSkillManageTool
     && !isSkillViewTool
     && !isTodoTool
-    && hasCompletedExpandableContent
+    && (isSkillManageTool ? !!renderableSkillManageDiff : hasCompletedExpandableContent)
   const autoExpandEligible = (isShellTool || isStreamingFileTool)
     && (isRunning ? hasRunningExpandableContent : hasCompletedExpandableContent)
   const hasFinalArgs = args != null && Object.keys(args).length > 0
@@ -445,6 +421,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         fallback={(
           <ToolCallCard
             item={item}
+            threadId={threadId}
             turnId={turnId}
             turnRunning={turnRunning}
             shellRuntimeScope={shellRuntimeScope}
@@ -468,24 +445,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <CronCreatedCard item={item} locale={locale} />
   }
 
-  if (
-    isSkillManageTool
-    && !isRunning
-    && success
-    && shouldRenderSkillManageCard(args, item.result)
-  ) {
-    return <SkillManageCard item={item} locale={locale} diff={skillManageDiff} />
-  }
-
-  if (
-    isSkillViewTool
-    && !isRunning
-    && success
-    && skillViewDisplay?.loaded
-  ) {
-    return <SkillViewCard item={item} locale={locale} />
-  }
-
   const workflowRunId = !isRunning ? parseWorkflowRunId(toolName, item.result) : null
   if (workflowRunId && threadId) {
     return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} />
@@ -495,7 +454,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? getSubAgentToolDisplay(rendererOperation, args, item.result, success, locale, subAgentLookup)
     : null
   if (subAgentDisplay) {
-    return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} />
+    return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} sourceThreadId={threadId} />
   }
 
   if (isRunning) {
@@ -510,89 +469,41 @@ export const ToolCallCard = memo(function ToolCallCard({
     const runningResolvedPath = runningFilePath && workspacePath
       ? toAbsoluteWorkspacePath(workspacePath, runningFilePath)
       : runningFilePath ?? undefined
-    return (
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{
-          borderRadius: '4px',
-          overflow: 'hidden',
-          border: runningExpanded ? '1px solid var(--border-default)' : 'none'
-        }}
-      >
-        <button
-          onClick={toggleExpand}
-          onFocus={() => setHovered(true)}
-          onBlur={() => setHovered(false)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            width: '100%',
-            padding: '3px 6px',
-            background: runningExpanded ? 'var(--bg-tertiary)' : 'transparent',
-            border: 'none',
-            borderBottom: runningExpanded ? '1px solid var(--border-default)' : 'none',
-            borderRadius: runningExpanded ? '4px 4px 0 0' : '4px',
-            color: hovered || runningExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-            fontSize: 'var(--type-secondary-size)',
-            textAlign: 'left',
-            cursor: canExpandWhileRunning ? 'pointer' : 'default'
-          }}
-        >
-          <span
-            data-testid="tool-row-title-group"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '3px',
-              flex: '0 1 auto',
-              minWidth: 0,
-              maxWidth: '100%'
-            }}
+    const runningTitle = (
+      <>
+        {runningFilePath && !runningExpanded ? (
+          <ActionTooltip
+            label={runningResolvedPath ?? runningFilePath}
+            wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
           >
-            {runningFilePath && !runningExpanded ? (
-              <ActionTooltip
-                label={runningResolvedPath ?? runningFilePath}
-                wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-              >
-                <span
-                  className="tool-running-gradient-text"
-                  style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {runningDisplayLabel}
-                </span>
-              </ActionTooltip>
-            ) : (
-              <span
-                className="tool-running-gradient-text"
-                style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                {runningDisplayLabel}
-              </span>
-            )}
-            {!runningExpanded && renderableStreamingFileDiff && (
-              <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
-            )}
-            {canExpandWhileRunning && (
-              <ToolCollapseChevron expanded={runningExpanded} visible={hovered || runningExpanded} />
-            )}
-          </span>
-          <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>
-            {runningElapsedLabel}
-          </span>
-        </button>
+            <span
+              className="tool-running-gradient-text"
+              style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {runningDisplayLabel}
+            </span>
+          </ActionTooltip>
+        ) : (
+          <span className="tool-running-gradient-text">{runningDisplayLabel}</span>
+        )}
+        {!runningExpanded && renderableStreamingFileDiff && (
+          <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
+        )}
+      </>
+    )
 
-        <CollapsibleContent
-          expanded={expanded && canExpandWhileRunning}
-          renderExpanded={renderExpanded && canExpandWhileRunning}
-          setRenderExpanded={setRenderExpanded}
-        >
+    return (
+      <ToolDisclosure
+        expanded={runningExpanded}
+        onToggle={toggleExpand}
+        expandable={canExpandWhileRunning}
+        onHoverChange={setHovered}
+        title={runningTitle}
+        trailing={runningElapsedLabel}
+      >
           <div
-            style={{
-              background: 'var(--bg-secondary)',
-              padding: isStreamingFileTool && renderableStreamingFileDiff ? 0 : '8px'
-            }}
+            className="dc-tool-panel-surface"
+            data-padded={isStreamingFileTool && renderableStreamingFileDiff ? 'false' : 'true'}
           >
             {isShellTool ? (
               <ExpandedContent
@@ -622,8 +533,7 @@ export const ToolCallCard = memo(function ToolCallCard({
               ) : null
             ) : null}
           </div>
-        </CollapsibleContent>
-      </div>
+      </ToolDisclosure>
     )
   }
 
@@ -674,115 +584,97 @@ export const ToolCallCard = memo(function ToolCallCard({
   const completedResolvedPath = completedFilePath && workspacePath
     ? toAbsoluteWorkspacePath(workspacePath, completedFilePath)
     : completedFilePath
-  const completedRowColor = hovered || completedExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
+  const skillTitle = isSkillViewTool && skillViewDisplay?.name
+    ? renderSkillToolLabel(locale, 'skillView.tool.loadedSkill', skillViewDisplay.name)
+    : isSkillManageTool
+      ? renderSkillManageTitle(locale, args, item.result)
+      : null
 
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        borderRadius: '4px',
-        overflow: 'hidden',
-        border: completedExpanded ? '1px solid var(--border-default)' : 'none'
-      }}
-    >
-      <button
-        onClick={toggleExpand}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          width: '100%',
-          padding: '3px 6px',
-          background: completedExpanded ? 'var(--bg-tertiary)' : 'transparent',
-          border: 'none',
-          borderBottom: completedExpanded ? '1px solid var(--border-default)' : 'none',
-          cursor: canExpandCompleted ? 'pointer' : 'default',
-          color: success ? completedRowColor : 'var(--error)',
-          fontSize: 'var(--type-secondary-size)',
-          textAlign: 'left',
-          borderRadius: completedExpanded ? '4px 4px 0 0' : '4px'
-        }}
-      >
-        <span
-          data-testid="tool-row-title-group"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '3px',
-            flex: '0 1 auto',
-            minWidth: 0,
-            maxWidth: '100%',
-            color: success ? completedRowColor : 'var(--error)'
-          }}
+  const completedTitle = (
+    <>
+      {skillTitle && success ? (
+        skillTitle
+      ) : success && completedFilePath && !completedExpanded ? (
+        <ActionTooltip
+          label={completedResolvedPath ?? completedFilePath}
+          wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
         >
-          {success && completedFilePath && !completedExpanded ? (
-            <ActionTooltip
-              label={completedResolvedPath ?? completedFilePath}
-              wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-            >
-              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {completedDisplayLabel}
-              </span>
-            </ActionTooltip>
-          ) : (
-            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {success
-                ? completedDisplayLabel
-                : isWorkflowTool
-                  ? formatWorkflowFailureLabel(args, locale)
-                  : translate(locale, 'toolCall.failed', { label })}
-              {!success && hasFailurePreview && failedPreview && (
-                <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
-                  - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
-                </span>
-              )}
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {completedDisplayLabel}
+          </span>
+        </ActionTooltip>
+      ) : (
+        <>
+          {success
+            ? completedDisplayLabel
+            : isWorkflowTool
+              ? formatWorkflowFailureLabel(args, locale)
+              : translate(locale, 'toolCall.failed', { label })}
+          {!success && hasFailurePreview && failedPreview && (
+            <span style={{ marginLeft: '6px' }}>
+              - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
             </span>
           )}
-          {success && !completedExpanded && renderableFileDiff && (
-            <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
-          )}
-          {canExpandCompleted && (
-            <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
-          )}
-        </span>
-      </button>
-
-      {canExpandCompleted && (
-        <CollapsibleContent
-          expanded={expanded}
-          renderExpanded={renderExpanded}
-          setRenderExpanded={setRenderExpanded}
-        >
-          <div
-            data-testid="tool-expanded-content"
-            style={{
-              background: 'var(--bg-secondary)',
-              padding: hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile ? 0 : '8px'
-            }}
-          >
-            <ExpandedContent
-              itemId={item.id}
-              rendererFamily={rendererFamily}
-              rendererOptions={rendererPlan?.options}
-              toolName={toolName}
-              args={shellDisplayArgs}
-              result={isShellTool ? shellOutput : toolResult}
-              success={success}
-              fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
-              locale={locale}
-              workspacePath={workspacePath}
-              shellCommand={shellCommand}
-              planTodos={planTodos}
-            />
-          </div>
-        </CollapsibleContent>
+        </>
       )}
-    </div>
+      {success && !completedExpanded && renderableFileDiff && (
+        <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
+      )}
+    </>
+  )
+
+  return (
+    <ToolDisclosure
+      expanded={completedExpanded}
+      onToggle={toggleExpand}
+      expandable={canExpandCompleted}
+      onHoverChange={setHovered}
+      tone={success ? undefined : 'error'}
+      title={completedTitle}
+    >
+      <div
+        data-testid="tool-expanded-content"
+        className="dc-tool-panel-surface"
+        data-padded={hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile || !!renderableSkillManageDiff ? 'false' : 'true'}
+      >
+        {renderableSkillManageDiff ? (
+          <InlineDiffView
+            diff={renderableSkillManageDiff}
+            variant="embedded"
+            headerMode="compact"
+            locale={locale}
+          />
+        ) : (
+        <ExpandedContent
+          itemId={item.id}
+          rendererFamily={rendererFamily}
+          rendererOptions={rendererPlan?.options}
+          toolName={toolName}
+          args={shellDisplayArgs}
+          result={isShellTool ? shellOutput : toolResult}
+          success={success}
+          fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
+          locale={locale}
+          workspacePath={workspacePath}
+          shellCommand={shellCommand}
+          planTodos={planTodos}
+        />
+        )}
+      </div>
+    </ToolDisclosure>
   )
 })
+
+function renderSkillManageTitle(
+  locale: AppLocale,
+  args: Record<string, unknown> | undefined,
+  result: string | undefined
+): ReactNode {
+  const label = getSkillManageLabel(args, result)
+  return label.name
+    ? renderSkillToolLabel(locale, label.key, label.name, label.vars)
+    : translate(locale, label.key, label.vars)
+}
 
 interface ExpandedContentProps {
   itemId: string
@@ -1156,405 +1048,6 @@ function WebSearchResultCell({
       </ActionTooltip>
     </td>
   )
-}
-
-interface SubAgentToolDisplay {
-  titleKey: string
-  name: string
-  subtitle: string
-  meta: string
-  prompt: string | null
-  accentColor: string
-  childThreadId: string | null
-  message: string | null
-  success: boolean
-  tone: 'normal' | 'warning' | 'error'
-}
-
-function SubAgentToolResultCard({
-  display,
-  locale
-}: {
-  display: SubAgentToolDisplay
-  locale: AppLocale
-}): JSX.Element {
-  const [expanded, setExpanded] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const hasMessage = !!display.message
-  const hasPrompt = !!display.prompt
-  const normalTextColor = hovered || expanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
-  const textColor = display.tone === 'error'
-    ? 'var(--error)'
-    : display.tone === 'warning'
-      ? 'var(--warning)'
-      : normalTextColor
-  const rowContent = (
-    <span
-      data-testid="tool-row-title-group"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '3px',
-        flex: '0 1 auto',
-        minWidth: 0,
-        maxWidth: '100%'
-      }}
-    >
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {renderSubAgentTitle(locale, display.titleKey, display.name, display.accentColor)}
-        {display.meta && <span style={subAgentMetaStyle}>({display.meta})</span>}
-        {display.subtitle && <span style={subAgentMetaStyle}>{display.subtitle}</span>}
-      </span>
-      {hasMessage && (
-        <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
-      )}
-    </span>
-  )
-  const rowStyle: CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    width: '100%',
-    padding: '4px 6px',
-    background: expanded ? 'var(--bg-tertiary)' : 'transparent',
-    border: 'none',
-    borderBottom: expanded ? '1px solid var(--border-default)' : 'none',
-    borderRadius: expanded ? '4px 4px 0 0' : '4px',
-    color: textColor,
-    fontSize: '12px',
-    textAlign: 'left'
-  }
-
-  return (
-    <div
-      style={{
-        borderRadius: '4px',
-        overflow: 'hidden',
-        border: expanded ? '1px solid var(--border-default)' : 'none'
-      }}
-    >
-      {hasMessage ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          onFocus={() => setHovered(true)}
-          onBlur={() => setHovered(false)}
-          style={{ ...rowStyle, cursor: 'pointer' }}
-          aria-label={expanded ? translate(locale, 'toolCall.subAgent.collapse') : translate(locale, 'toolCall.subAgent.expand')}
-        >
-          <span style={subAgentResultContentStyle}>
-            {rowContent}
-            {hasPrompt && (
-              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
-                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-                </span>
-              </ActionTooltip>
-            )}
-          </span>
-        </button>
-      ) : (
-        <div
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          style={rowStyle}
-        >
-          <span style={subAgentResultContentStyle}>
-            {rowContent}
-            {hasPrompt && (
-              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
-                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-                </span>
-              </ActionTooltip>
-            )}
-          </span>
-        </div>
-      )}
-      {expanded && hasMessage && (
-        <div
-          className="selectable"
-          style={{
-            padding: '8px',
-            background: 'var(--bg-secondary)',
-            color: textColor,
-            fontSize: '12px',
-            lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
-          }}
-        >
-          {display.message}
-        </div>
-      )}
-    </div>
-  )
-}
-
-const subAgentResultContentStyle: CSSProperties = {
-  display: 'inline-flex',
-  flexDirection: 'column',
-  gap: '2px',
-  minWidth: 0,
-  maxWidth: '100%'
-}
-
-const subAgentMetaStyle: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  marginLeft: 6
-}
-
-const subAgentPromptStyle: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const SUB_AGENT_NAME_TOKEN = '__DOTCRAFT_SUB_AGENT_NAME__'
-
-export function renderSubAgentTitle(
-  locale: AppLocale,
-  titleKey: string,
-  name: string,
-  accentColor: string
-): JSX.Element {
-  const template = translate(locale, titleKey, { name: SUB_AGENT_NAME_TOKEN })
-  const parts = template.split(SUB_AGENT_NAME_TOKEN)
-  if (parts.length === 1) {
-    return <span>{translate(locale, titleKey, { name })}</span>
-  }
-
-  return (
-    <span>
-      {parts.map((part, index) => (
-        <span key={`${part}-${index}`}>
-          {part}
-          {index < parts.length - 1 && (
-            <span style={{ color: accentColor, fontWeight: 600 }}>{name}</span>
-          )}
-        </span>
-      ))}
-    </span>
-  )
-}
-
-function getSubAgentToolDisplay(
-  operation: unknown,
-  args: Record<string, unknown> | undefined,
-  result: string | undefined,
-  success: boolean,
-  locale: AppLocale,
-  lookup: SubAgentLookupSources
-): SubAgentToolDisplay | null {
-  if (!isSubAgentOperation(operation)) return null
-  if (operation === 'wait' && result === undefined) return null
-  const parsed = parseJsonObject(result)
-  const profile = getString(parsed, 'profileName') ?? getString(args, 'profile')
-  const runtimeType = getString(parsed, 'runtimeType')
-  const agentRole = getString(parsed, 'agentRole') ?? getString(args, 'agentRole')
-  const agentPath = getString(parsed, 'agentPath')
-    ?? getString(args, 'target')
-  const explicitChildThreadId = getString(parsed, 'childThreadId')
-    ?? getString(parsed, 'agentId')
-    ?? getString(args, 'agentId')
-    ?? getString(args, 'childThreadId')
-  const matchedChild = findSubAgentChild(lookup, explicitChildThreadId, agentPath)
-  const childThreadId = explicitChildThreadId ?? matchedChild?.childThreadId ?? null
-  const resolvedAgentPath = agentPath ?? matchedChild?.agentPath ?? null
-  const status = getString(parsed, 'status')?.toLowerCase()
-  const error = getString(parsed, 'error') ?? getString(parsed, 'message')
-  const message = operation === 'wait'
-    ? getString(parsed, 'message') ?? getString(parsed, 'result')
-    : null
-  const label = resolveSubAgentDisplayName(parsed, args, childThreadId, resolvedAgentPath, locale, lookup)
-  const prompt = operation === 'spawn'
-    ? getString(args, 'message') ?? getString(args, 'agentPrompt')
-    : null
-  const isTimeout = operation === 'wait'
-    && (status === 'timeout' || isTimeoutMessage(error) || isTimeoutMessage(message))
-  const tone: SubAgentToolDisplay['tone'] = isTimeout
-    ? 'warning'
-    : (!success || status === 'failed')
-      ? 'error'
-      : 'normal'
-  const titleKey = isTimeout
-    ? 'toolCall.subAgent.timeout'
-    : !success || status === 'failed'
-      ? 'toolCall.subAgent.failed'
-      : getSubAgentCompletedTitleKey(operation)
-  return {
-    titleKey,
-    name: label,
-    subtitle: '',
-    meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
-    prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
-    accentColor: getSubAgentAccent(getSubAgentIdentitySeed({
-      agentPath: resolvedAgentPath,
-      childThreadId,
-      nickname: label
-    })),
-    childThreadId,
-    message: isTimeout
-      ? (message && !isTimeoutMessage(message) ? message : null)
-      : !success && error
-        ? error
-        : message,
-    success: tone !== 'error',
-    tone
-  }
-}
-
-function truncateSubAgentPrompt(value: string, maxChars: number): string {
-  const trimmed = value.trim().replace(/\s+/g, ' ')
-  const chars = Array.from(trimmed)
-  if (chars.length <= maxChars) return trimmed
-  return `${chars.slice(0, maxChars - 1).join('')}…`
-}
-
-function formatSubAgentRunningLabel(
-  operation: unknown,
-  args: Record<string, unknown> | undefined,
-  locale: AppLocale,
-  lookup: SubAgentLookupSources
-): string | null {
-  if (!isSubAgentOperation(operation)) return null
-  const explicitChildThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId')
-  const agentPath = getString(args, 'target')
-  const matchedChild = findSubAgentChild(lookup, explicitChildThreadId, agentPath)
-  const childThreadId = explicitChildThreadId ?? matchedChild?.childThreadId ?? null
-  const resolvedAgentPath = agentPath ?? matchedChild?.agentPath ?? null
-  const label = resolveSubAgentDisplayName(undefined, args, childThreadId, resolvedAgentPath, locale, lookup)
-  const key = operation === 'spawn'
-    ? 'toolCall.subAgent.starting'
-    : operation === 'wait'
-      ? 'toolCall.subAgent.waiting'
-      : getSubAgentRunningTitleKey(operation)
-  return translate(locale, key, { name: label })
-}
-
-function getSubAgentCompletedTitleKey(operation: SubAgentOperation): string {
-  if (operation === 'spawn') return 'toolCall.subAgent.spawned'
-  if (operation === 'wait') return 'toolCall.subAgent.waited'
-  if (operation === 'sendMessage') return 'toolCall.subAgent.sentMessage'
-  if (operation === 'followupTask') return 'toolCall.subAgent.followedUp'
-  if (operation === 'list') return 'toolCall.subAgent.listed'
-  if (operation === 'sendInput') return 'toolCall.subAgent.sentInput'
-  if (operation === 'resume') return 'toolCall.subAgent.resumed'
-  return 'toolCall.subAgent.closed'
-}
-
-function getSubAgentRunningTitleKey(operation: SubAgentOperation): string {
-  if (operation === 'sendMessage') return 'toolCall.subAgent.sendingMessage'
-  if (operation === 'followupTask') return 'toolCall.subAgent.followingUp'
-  if (operation === 'list') return 'toolCall.subAgent.listing'
-  if (operation === 'sendInput') return 'toolCall.subAgent.sendingInput'
-  if (operation === 'resume') return 'toolCall.subAgent.resuming'
-  return 'toolCall.subAgent.closing'
-}
-
-function resolveSubAgentDisplayName(
-  parsed: Record<string, unknown> | undefined,
-  args: Record<string, unknown> | undefined,
-  childThreadId: string | null | undefined,
-  agentPath: string | null | undefined,
-  locale: AppLocale,
-  lookup: SubAgentLookupSources
-): string {
-  const explicitDisplayName = getString(parsed, 'displayName') ?? getString(args, 'displayName')
-  if (explicitDisplayName && !isThreadIdLike(explicitDisplayName, childThreadId)) return explicitDisplayName
-
-  const matchedChild = findSubAgentChild(lookup, childThreadId, agentPath)
-  if (matchedChild?.nickname && !isThreadIdLike(matchedChild.nickname, childThreadId)) {
-    return matchedChild.nickname
-  }
-
-  if (childThreadId) {
-    const threads = lookup.activeThread ? [lookup.activeThread, ...lookup.threadList] : lookup.threadList
-    const thread = threads.find((entry) => entry.id === childThreadId)
-    if (thread?.displayName && !isThreadIdLike(thread.displayName, childThreadId)) return thread.displayName
-    const sourceName = thread?.source?.subAgent?.agentNickname
-    if (sourceName && !isThreadIdLike(sourceName, childThreadId)) return sourceName
-  }
-
-  const explicitName = getString(parsed, 'agentNickname')
-    ?? getString(parsed, 'nickname')
-    ?? getString(args, 'agentNickname')
-    ?? getString(args, 'nickname')
-    ?? getString(parsed, 'taskName')
-    ?? getString(args, 'taskName')
-    ?? getAgentPathSegment(agentPath ?? childThreadId)
-  if (explicitName && !isThreadIdLike(explicitName, childThreadId)) return explicitName
-
-  return translate(locale, 'toolCall.subAgent.agent')
-}
-
-function findSubAgentChild(
-  lookup: SubAgentLookupSources,
-  childThreadId: string | null | undefined,
-  agentPath: string | null | undefined
-): SubAgentChild | null {
-  for (const children of lookup.childrenByParent.values()) {
-    const child = children.find((entry) =>
-      (childThreadId != null && entry.childThreadId === childThreadId)
-      || (agentPath != null && entry.agentPath === agentPath)
-    )
-    if (child) return child
-  }
-  return null
-}
-
-function getAgentPathSegment(value: string | null | undefined): string | null {
-  if (!value?.startsWith('/root/')) return null
-  const parts = value.split('/').filter((part) => part.length > 0)
-  return parts.length > 0 ? parts[parts.length - 1] : null
-}
-
-function isThreadIdLike(value: string, childThreadId: string | null | undefined): boolean {
-  const normalized = value.trim()
-  return normalized.length === 0
-    || normalized === childThreadId
-    || /^thread[_-]/i.test(normalized)
-}
-
-function isTimeoutMessage(value: string | null): boolean {
-  if (!value) return false
-  const normalized = value.toLowerCase()
-  return normalized.includes('timed out') || normalized.includes('timeout')
-}
-
-type SubAgentOperation = 'spawn' | 'wait' | 'sendInput' | 'sendMessage' | 'followupTask' | 'resume' | 'list' | 'close'
-
-function isSubAgentOperation(operation: unknown): operation is SubAgentOperation {
-  return operation === 'spawn'
-    || operation === 'wait'
-    || operation === 'sendInput'
-    || operation === 'sendMessage'
-    || operation === 'followupTask'
-    || operation === 'resume'
-    || operation === 'list'
-    || operation === 'close'
-}
-
-function parseJsonObject(value: string | undefined): Record<string, unknown> | undefined {
-  if (!value) return undefined
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (typeof parsed === 'string') {
-      const nested = JSON.parse(parsed) as unknown
-      return typeof nested === 'object' && nested != null ? nested as Record<string, unknown> : undefined
-    }
-    return typeof parsed === 'object' && parsed != null ? parsed as Record<string, unknown> : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function getString(source: Record<string, unknown> | undefined, key: string): string | null {
-  const value = source?.[key]
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
 
 function parseCompletedCreatePlanArgs(args: Record<string, unknown> | undefined): {

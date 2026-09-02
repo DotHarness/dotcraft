@@ -676,66 +676,17 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('option', { name: /计划模式/ })).toBeInTheDocument()
   })
 
-  it('renders the SubAgent dock as a responsive attached accessory above the composer surface', () => {
-    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
-    useSubAgentStore.getState().setChildren('thread-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'thread-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
+  it('renders the queued-input dock as a responsive attached accessory above the composer surface', () => {
+    useConversationStore.setState({
+      queuedInputs: [
+        {
+          id: 'queued-1',
+          threadId: 'thread-1',
+          displayText: 'queued follow-up',
+          status: 'queued',
+          createdAt: new Date().toISOString()
         }
-      }
-    ])
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'subagent/children/list') {
-        return {
-          data: [
-            {
-              edge: {
-                parentThreadId: 'thread-1',
-                childThreadId: 'child-1',
-                agentNickname: 'Lovelace',
-                profileName: 'native',
-                runtimeType: 'native',
-                supportsSendInput: true,
-                supportsResume: true,
-                supportsClose: true,
-                status: 'open'
-              },
-              thread: {
-                id: 'child-1',
-                displayName: 'Lovelace',
-                status: 'active',
-                originChannel: 'subagent',
-                createdAt: new Date().toISOString(),
-                lastActiveAt: new Date().toISOString(),
-                runtime: {
-                  running: true,
-                  waitingOnApproval: false,
-                  waitingOnPlanConfirmation: false
-                }
-              }
-            }
-          ]
-        }
-      }
-      return {}
+      ]
     })
 
     renderComposer()
@@ -749,117 +700,6 @@ describe('InputComposer layout', () => {
     expect(composerLayer).toContainElement(screen.getByRole('textbox'))
     expect(shell).toContainElement(overlay)
     expect(dock.parentElement).toBe(overlay)
-  })
-
-  it('hides the dock when the only subagents are completed', () => {
-    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
-    useSubAgentStore.getState().setChildren('thread-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'thread-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'completed',
-        lastToolDisplay: null,
-        currentTool: null,
-        inputTokens: 12,
-        outputTokens: 34,
-        isCompleted: true,
-        runtime: {
-          running: false,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-
-    renderComposer()
-
-    expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
-  })
-
-  it('shows only running subagents and a View done link for completed ones', () => {
-    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
-    useSubAgentStore.getState().setChildren('thread-1', [
-      {
-        childThreadId: 'child-running',
-        parentThreadId: 'thread-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      },
-      {
-        childThreadId: 'child-done',
-        parentThreadId: 'thread-1',
-        nickname: 'Babbage',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'completed',
-        lastToolDisplay: null,
-        currentTool: null,
-        inputTokens: 5,
-        outputTokens: 9,
-        isCompleted: true,
-        runtime: {
-          running: false,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      },
-      {
-        // A closed child (the Subagents tab requests these into shared state).
-        childThreadId: 'child-closed',
-        parentThreadId: 'thread-1',
-        nickname: 'Retired',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'closed',
-        lastToolDisplay: null,
-        currentTool: null,
-        inputTokens: 1,
-        outputTokens: 2,
-        isCompleted: true,
-        runtime: {
-          running: false,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-
-    renderComposer()
-
-    const dock = screen.getByTestId('subagent-dock')
-    expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
-    expect(within(dock).queryByText(/Done ·/)).not.toBeInTheDocument()
   })
 
   it('renders queued messages inside the background activity dock with neutral drag handles', async () => {
@@ -898,62 +738,6 @@ describe('InputComposer layout', () => {
     expect(firstQueueRow).toHaveStyle({
       gridTemplateColumns: '18px minmax(0, 1fr) auto 24px 24px'
     })
-  })
-
-  it('separates queued messages from background agents inside one dock', () => {
-    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
-    useConversationStore.setState({
-      queuedInputs: [
-        {
-          id: 'queued-1',
-          threadId: 'thread-1',
-          displayText: 'queued follow-up',
-          status: 'queued',
-          createdAt: new Date().toISOString()
-        }
-      ]
-    })
-    useSubAgentStore.getState().setChildren('thread-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'thread-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-
-    renderComposer()
-
-    const dock = screen.getByTestId('subagent-dock')
-    expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
-    expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
-    expect(within(dock).getByRole('button', { name: 'Expand background agents' })).toBeInTheDocument()
-
-    fireEvent.click(within(dock).getByRole('button', { name: 'Expand background agents' }))
-
-    expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
-    expect(within(dock).getByRole('button', { name: 'Collapse background agents' })).toBeInTheDocument()
-
-    fireEvent.click(within(dock).getByRole('button', { name: 'Collapse background agents' }))
-
-    expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
-    expect(within(dock).getByRole('button', { name: 'Expand background agents' })).toBeInTheDocument()
   })
 
   it('removes queued messages through the dock action', async () => {

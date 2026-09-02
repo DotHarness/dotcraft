@@ -83,14 +83,9 @@
 .iconSlot {
   display: inline-flex;
   width: 22px;
-  height: 18px;
+  height: 20px;
   align-items: center;
   justify-content: center;
-}
-
-.icon {
-  display: block;
-  color: var(--subagent-accent);
 }
 
 .bodyCell {
