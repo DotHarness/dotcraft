@@ -40,7 +40,8 @@ public sealed class AgentTools(
         var sessionContext = SubAgentSessionScope.Current
             ?? throw new InvalidOperationException("SpawnAgent is available only inside a Session Core turn.");
 
-        if ((model != null || reasoningEffort != null) && IsFullHistoryFork(forkTurns))
+        if ((!string.IsNullOrWhiteSpace(model) || !string.IsNullOrWhiteSpace(reasoningEffort))
+            && IsFullHistoryFork(forkTurns))
         {
             throw new InvalidOperationException(
                 "Full-history native SubAgents inherit the parent model and reasoning; model overrides require forkTurns=none or a positive integer.");

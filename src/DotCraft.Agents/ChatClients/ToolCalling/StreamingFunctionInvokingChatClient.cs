@@ -623,6 +623,8 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                 : await FunctionInvoker(context, cancellationToken);
             if (value is FunctionResultContent { Exception: { } resultException })
                 toolExecution?.CompleteFailure(SanitizeToolFailureMessage(resultException.Message), value);
+            else if (value is FunctionResultContent result && GetToolResultErrorCode(result) is { } errorCode)
+                toolExecution?.CompleteFailure(SanitizeToolFailureMessage(result.Result?.ToString() ?? errorCode), value);
             else
                 toolExecution?.CompleteSuccess(value);
             await NotifyToolHandlerFinishedAsync(toolExecution, call.Name, call.CallId, cancellationToken);
