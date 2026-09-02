@@ -40,10 +40,12 @@ type AgentState = 'running' | 'done' | 'failed' | 'unknown'
 
 export function SubAgentChips({
   items,
-  parentThreadId
+  parentThreadId,
+  turnRunning
 }: {
   items: ConversationItem[]
   parentThreadId: string
+  turnRunning: boolean
 }): JSX.Element | null {
   const t = useT()
   const locale = useLocale()
@@ -61,7 +63,7 @@ export function SubAgentChips({
     return { ...display, name, seed, accentColor: getSubAgentAccent(seed), child }
   })
   if (resolved.length === 0) return null
-  const states = resolved.map((display) => agentState(display, display.child, discovery))
+  const states = resolved.map((display) => agentState(display, display.child, discovery, turnRunning))
   const anyFailed = states.includes('failed')
   const allDone = states.every((state) => state === 'done')
   const anyRunning = states.includes('running')
@@ -106,7 +108,8 @@ export function SubAgentChips({
 function agentState(
   display: SubAgentChipDisplay,
   child: SubAgentChild | null,
-  discovery: SubAgentDiscovery
+  discovery: SubAgentDiscovery,
+  turnRunning: boolean
 ): AgentState {
   if (display.failed) return 'failed'
   if (display.pending) return 'running'
@@ -118,6 +121,7 @@ function agentState(
   }
   if (isFailureStatus(display.resultStatus)) return 'failed'
   if (isTerminalSubAgentStatus(display.resultStatus)) return 'done'
+  if (turnRunning) return 'running'
   if (discovery.discovered) return 'done'
   return discovery.status === 'error' ? 'unknown' : 'running'
 }

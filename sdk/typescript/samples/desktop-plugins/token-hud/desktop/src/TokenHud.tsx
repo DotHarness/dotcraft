@@ -69,7 +69,6 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
       aria-live="off"
       aria-label={`${strings.hudLabel}: ${ariaParts.join(', ')}`}
     >
-      <span className="token-hud-dot" aria-hidden="true" />
       <span className="token-hud-cell" data-metric="speed">
         <span className="token-hud-value">{speedValue}</span>
         <span>tok/s</span>

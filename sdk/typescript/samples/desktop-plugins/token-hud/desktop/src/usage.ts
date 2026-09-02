@@ -90,7 +90,7 @@ export function startUsageFeed(
     observedTokens = 0
     observedDurationMs = 0
     sampleStartedAtMs = null
-    update({ tokensPerSecond: null, waitingForSample })
+    update({ waitingForSample })
   }
 
   update({ ...EMPTY_USAGE, waitingForSample: host.session.busy })

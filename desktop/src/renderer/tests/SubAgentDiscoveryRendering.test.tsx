@@ -25,7 +25,11 @@ beforeEach(() => {
 })
 
 function chips(items = [makeSpawn()]) {
-  return render(<LocaleProvider><SubAgentChips items={items} parentThreadId="parent-B" /></LocaleProvider>)
+  return render(
+    <LocaleProvider>
+      <SubAgentChips items={items} parentThreadId="parent-B" turnRunning={false} />
+    </LocaleProvider>
+  )
 }
 
 function seedCollidingAgents() {
@@ -107,6 +111,19 @@ describe('discovery-dependent activity', () => {
     await act(async () => { response.resolve({ data: [] }); await refresh })
   })
 
+  it('does not treat an earlier empty discovery as completion for a live turn', () => {
+    useSubAgentStore.setState({
+      discoveryByParent: new Map([['parent-B', { status: 'ready', discovered: true }]])
+    })
+
+    render(<LocaleProvider><AgentResponseBlock isRunning turn={{
+      id: 'turn-B', threadId: 'parent-B', status: 'running', startedAt: '', items: [makeSpawn()]
+    }} /></LocaleProvider>)
+
+    expect(screen.getByText('started working')).toBeInTheDocument()
+    expect(screen.queryByText('finished')).toBeNull()
+  })
+
   it('keeps only names and navigation after an initial load fails', async () => {
     request.mockRejectedValue(new Error('offline'))
     useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
@@ -133,7 +150,7 @@ describe('discovery-dependent activity', () => {
     request.mockImplementation(async (method: string) => method === 'subagent/children/list'
       ? { data: [{ edge: { childThreadId: 'child-B', agentPath: '/root/review_core', agentNickname: 'Core', status: 'open' } }] }
       : { thread: { id: 'child-B', turns: [] }, data: [] })
-    render(<LocaleProvider><div data-testid="transcript"><SubAgentChips items={[makeSpawn()]} parentThreadId="parent-B" /></div><SubagentsTab /></LocaleProvider>)
+    render(<LocaleProvider><div data-testid="transcript"><SubAgentChips items={[makeSpawn()]} parentThreadId="parent-B" turnRunning={false} /></div><SubagentsTab /></LocaleProvider>)
     await screen.findByText('finished')
     expect(screen.getByText('Done · 1')).toBeInTheDocument()
     act(() => store().setChildren('parent-B', [makeSubAgent({ nickname: 'Core', status: 'closed', isCompleted: true })]))

@@ -22,7 +22,7 @@ export function SubAgentGroupChips({
   return (
     <>
       {chipItems.length > 0 && (
-        <SubAgentChips items={chipItems} parentThreadId={threadId} />
+        <SubAgentChips items={chipItems} parentThreadId={threadId} turnRunning={turnRunning} />
       )}
       {rest.map((item) => (
         <ToolCallCard

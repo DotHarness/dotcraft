@@ -54,10 +54,10 @@ function seedChild(nickname: string, overrides: Record<string, unknown> = {}): v
   } as never)
 }
 
-function renderChips(items: ConversationItem[]): void {
+function renderChips(items: ConversationItem[], turnRunning = false): void {
   render(
     <LocaleProvider>
-      <SubAgentChips items={items} parentThreadId="parent-1" />
+      <SubAgentChips items={items} parentThreadId="parent-1" turnRunning={turnRunning} />
     </LocaleProvider>
   )
 }
@@ -108,6 +108,17 @@ describe('SubAgentChips', () => {
     expect(screen.getByText('started working')).toBeInTheDocument()
   })
 
+  it('keeps a live spawn working when an earlier discovery found no child', () => {
+    useSubAgentStore.setState({
+      discoveryByParent: new Map([['parent-1', { status: 'ready', discovered: true }]])
+    })
+
+    renderChips([spawnItem('spawn-1', 'Kepler')], true)
+
+    expect(screen.getByText('started working')).toBeInTheDocument()
+    expect(screen.queryByText('finished')).toBeNull()
+  })
+
   it('reads as interrupted when a spawn failed', () => {
     const failed = {
       ...spawnItem('spawn-1', 'Kepler'),
@@ -137,7 +148,7 @@ describe('SubAgentChips', () => {
   it('renders nothing for items that are not a recognisable spawn', () => {
     const { container } = render(
       <LocaleProvider>
-        <SubAgentChips items={[]} parentThreadId="parent-1" />
+        <SubAgentChips items={[]} parentThreadId="parent-1" turnRunning={false} />
       </LocaleProvider>
     )
 
