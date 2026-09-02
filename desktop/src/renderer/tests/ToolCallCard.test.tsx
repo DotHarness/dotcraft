@@ -9,8 +9,6 @@ import { usePluginStore } from '../stores/pluginStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
-import { useSubAgentStore } from '../stores/subAgentStore'
-import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import * as ansiUtils from '../utils/ansi'
@@ -60,7 +58,7 @@ describe('ToolCallCard structured result rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
@@ -114,7 +112,7 @@ describe('ToolCallCard RequestUserInput rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(screen.getByTestId('tool-expanded-content')).toBeInTheDocument()
@@ -148,190 +146,12 @@ describe('ToolCallCard default tool result rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     fireEvent.click(screen.getByTestId('tool-row'))
 
     const pre = container.querySelector('pre')
     expect(() => JSON.parse(pre?.textContent ?? '')).not.toThrow()
     expect(JSON.parse(pre?.textContent ?? '{}')).toMatchObject({ ok: true })
-  })
-})
-
-describe('ToolCallCard subagent result rendering', () => {
-  beforeEach(() => {
-    useConversationStore.getState().reset()
-    useSubAgentStore.getState().reset()
-    useThreadStore.getState().reset()
-    installDesktopApiMock({
-      settings: {
-        get: async () => ({ locale: 'en' })
-      },
-      appServer: {
-        sendRequest: vi.fn(async () => ({}))
-      }
-    })
-  })
-
-  it('renders SpawnAgent result with role, external profile, and prompt without raw JSON', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'SpawnAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
-      toolCallId: 'call-1',
-      arguments: {
-        agentPrompt: 'Create hatch pet',
-        agentNickname: 'Popper',
-        agentRole: 'worker',
-        profile: 'cursor-cli'
-      },
-      result: JSON.stringify({
-        childThreadId: 'thread_child',
-        agentNickname: 'Popper',
-        agentRole: 'worker',
-        profileName: 'cursor-cli',
-        runtimeType: 'cli-oneshot',
-        status: 'running'
-      }),
-      success: true,
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-
-    expect(container.querySelector('span[style*="width: 7px"]')).toBeNull()
-    expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-  })
-
-  it('renders streaming SpawnAgent from argument preview without raw JSON', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-streaming',
-      type: 'toolCall',
-      status: 'streaming',
-      toolName: 'SpawnAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
-      toolCallId: 'call-streaming',
-      argumentsPreview: '{"agentPrompt":"Review the API surface","agentNickname":"Reviewer"}',
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" turnRunning />)
-
-    expect(container.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
-  })
-
-  it('folds WaitAgent message behind an expandable result body', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-2',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'WaitAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-      toolCallId: 'call-2',
-      arguments: { childThreadId: 'thread_child' },
-      result: JSON.stringify({
-        childThreadId: 'thread_child',
-        agentNickname: 'Reviewer',
-        profileName: 'codex',
-        status: 'completed',
-        message: 'Detailed child agent result'
-      }),
-      success: true,
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-
-    expect(container.querySelector('.selectable')).toBeNull()
-    const button = screen.getByTestId('tool-row')
-    fireEvent.click(button)
-    expect(container.querySelector('.selectable')).toBeInTheDocument()
-  })
-
-  it('renders running WaitAgent with the shared running gradient label', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-running-wait',
-      type: 'toolCall',
-      status: 'started',
-      toolName: 'WaitAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-      toolCallId: 'call-running-wait',
-      arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
-    expect(document.querySelector('.animate-spin-custom')).toBeNull()
-  })
-
-  it('keeps WaitAgent running after toolCall completion until the tool result arrives', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-pending-wait-result',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'WaitAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-      toolCallId: 'call-pending-wait',
-      arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" turnRunning />)
-
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
-    expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
-  })
-
-  it('does not show a stale running state for historical WaitAgent calls without a result', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-historical-missing-result',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'WaitAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-      toolCallId: 'call-historical-wait',
-      arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
-  })
-
-  it('renders WaitAgent timeout as a wait timeout rather than a subagent failure', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-timeout',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'WaitAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-      toolCallId: 'call-timeout',
-      arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
-      result: JSON.stringify({
-        childThreadId: 'thread_child',
-        agentNickname: 'Reviewer',
-        status: 'timeout',
-        message: 'Wait timed out.'
-      }),
-      success: true,
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
-
-    expect(screen.getByTestId('tool-row')).toBeInTheDocument()
-    expect(document.querySelector('[data-tone="error"]')).toBeNull()
   })
 })
 
@@ -383,7 +203,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('pre')).toBeNull()
     expect(document.querySelector('.animate-spin-custom')).toBeNull()
@@ -414,7 +234,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Running: npm run build')
@@ -440,7 +260,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Ran command')
@@ -466,7 +286,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Ran npm run lint &&')
@@ -495,7 +315,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     expectDisclosureInsideTitleGroup(container)
     fireEvent.click(screen.getByTestId('tool-row'))
 
@@ -522,7 +342,7 @@ describe('ToolCallCard shell rendering', () => {
     }
 
     try {
-      const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+      const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
       expectDisclosureInsideTitleGroup(container)
       expect(stripAnsiSpy.mock.calls.every((call) => {
@@ -550,7 +370,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(screen.getByTestId('tool-row')).toBeInTheDocument()
 
@@ -575,7 +395,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     fireEvent.click(screen.getByTestId('tool-row'))
 
@@ -598,7 +418,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
@@ -640,7 +460,7 @@ describe('ToolCallCard shell rendering', () => {
       streamingItemDiffs: new Map([[item.id, streamingDiff]])
     })
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     expectDisclosureInsideTitleGroup(container)
     fireEvent.click(screen.getByTestId('tool-row'))
 
@@ -660,7 +480,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     fireEvent.click(screen.getByTestId('tool-row'))
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
@@ -705,7 +525,7 @@ describe('ToolCallCard shell rendering', () => {
       streamingItemDiffs: new Map([[item.id, streamingDiff]])
     })
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('tool-row'))
@@ -754,7 +574,7 @@ describe('ToolCallCard shell rendering', () => {
       itemDiffs: new Map([[item.id, diff]])
     })
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Edited Target.cs+1-1')
@@ -792,7 +612,7 @@ describe('ToolCallCard shell rendering', () => {
     }
     useConversationStore.setState({ workspacePath: 'F:/workspace' })
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Read Target.cs L10-14')
@@ -823,7 +643,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
 
@@ -846,7 +666,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" turnRunning />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
 
@@ -867,7 +687,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
     expect(screen.getByTestId('tool-row')).toHaveTextContent('Running: echo hello')
@@ -889,7 +709,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     act(() => {
       useConversationStore.setState({
         shellRuntimeByCallId: new Map([[
@@ -935,7 +755,7 @@ describe('ToolCallCard shell rendering', () => {
     })
 
     renderWithLocale(
-      <ToolCallCard item={item} turnId="turn-review" shellRuntimeScope="review" />
+      <ToolCallCard threadId="thread-1" item={item} turnId="turn-review" shellRuntimeScope="review" />
     )
     fireEvent.click(screen.getByTestId('tool-row'))
 
@@ -957,7 +777,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(screen.getByText('Running: dotnet test --filter Session')).toBeInTheDocument()
     expect(screen.queryByText('Ran Exec')).not.toBeInTheDocument()
@@ -976,7 +796,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(screen.getByText('Generating parameters for Exec...')).toBeInTheDocument()
     expect(screen.queryByText(/sensitive-command/)).not.toBeInTheDocument()
@@ -999,7 +819,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     } as ConversationItem
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
 
@@ -1032,7 +852,7 @@ describe('ToolCallCard shell rendering', () => {
 
     const { rerender } = render(
       <LocaleProvider>
-        <ToolCallCard item={runningItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />
       </LocaleProvider>
     )
 
@@ -1046,7 +866,7 @@ describe('ToolCallCard shell rendering', () => {
 
     rerender(
       <LocaleProvider>
-        <ToolCallCard item={completedItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" />
       </LocaleProvider>
     )
 
@@ -1070,7 +890,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={runningItem} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />)
 
     act(() => {
       vi.advanceTimersByTime(450)
@@ -1097,7 +917,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={runningItem} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
 
@@ -1134,7 +954,7 @@ describe('ToolCallCard shell rendering', () => {
 
     const { rerender } = render(
       <LocaleProvider>
-        <ToolCallCard item={runningItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />
       </LocaleProvider>
     )
 
@@ -1143,7 +963,7 @@ describe('ToolCallCard shell rendering', () => {
 
     rerender(
       <LocaleProvider>
-        <ToolCallCard item={completedItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" />
       </LocaleProvider>
     )
 
@@ -1175,7 +995,7 @@ describe('ToolCallCard shell rendering', () => {
 
     useConversationStore.setState({ workspacePath: 'X:\\fixtures\\workspace' })
     useViewerTabStore.getState().onThreadSwitched('thread-1')
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     fireEvent.click(screen.getByTestId('tool-row'))
 
@@ -1206,7 +1026,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const row = screen.getByTestId('tool-row')
     expect(row).toBeInTheDocument()
@@ -1235,7 +1055,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     const row = screen.getByTestId('tool-row')
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
@@ -1325,7 +1145,7 @@ describe('ToolCallCard shell rendering', () => {
       detailLoading: false
     })
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(screen.getByTestId('tool-row')).toHaveTextContent('Created skill demo-skill')
     expect(container.querySelector('img')).toBeNull()
@@ -1381,7 +1201,7 @@ describe('ToolCallCard shell rendering', () => {
       ]
     })
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(container.querySelector('img')).toBeNull()
     expect(screen.queryByTestId('inline-diff-view')).toBeNull()
@@ -1411,7 +1231,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
     const row = screen.getByTestId('tool-row')
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
@@ -1444,7 +1264,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
@@ -1491,7 +1311,7 @@ describe('ToolCallCard shell rendering', () => {
       appServer: { sendRequest }
     })
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     await waitFor(() => expect(container.querySelector('.dc-ref-skill')).toBeInTheDocument())
     expect(container.querySelector('img')).toBeNull()
@@ -1523,7 +1343,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
@@ -1546,7 +1366,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={completedItem} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" />)
 
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
 
@@ -1575,7 +1395,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const button = screen.getByTestId('tool-row')
     expect(button).toBeInTheDocument()
@@ -1611,7 +1431,7 @@ describe('ToolCallCard todo rendering safety', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(screen.getByTestId('tool-row'))
@@ -1635,7 +1455,7 @@ describe('ToolCallCard todo rendering safety', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(screen.getByTestId('tool-row'))
@@ -1665,7 +1485,7 @@ describe('ToolCallCard todo rendering safety', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(screen.getByTestId('tool-row'))
@@ -1703,7 +1523,7 @@ describe('ToolCallCard CreatePlan rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     const buttons = screen.getAllByRole('button')
     expect(buttons.length).toBeGreaterThan(0)
@@ -1738,7 +1558,7 @@ describe('ToolCallCard CreatePlan rendering', () => {
 
     const { rerender } = render(
       <LocaleProvider>
-        <ToolCallCard item={startedItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={startedItem} turnId="turn-1" />
       </LocaleProvider>
     )
 
@@ -1746,7 +1566,7 @@ describe('ToolCallCard CreatePlan rendering', () => {
 
     rerender(
       <LocaleProvider>
-        <ToolCallCard item={completedItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" />
       </LocaleProvider>
     )
 

@@ -1,5 +1,4 @@
 import { avatarFromSeed, paletteOf } from '../components/agents/agentAvatar'
-import type { SubAgentChild } from '../stores/subAgentStore'
 
 interface SubAgentMetaInput {
   agentRole?: string | null
@@ -71,23 +70,4 @@ export function getSubAgentIdentitySeed({
   return normalizeText(agentPath)
     ?? normalizeText(childThreadId)
     ?? normalizeText(nickname)
-}
-
-/**
- * `SubAgentControlResult` omits the child thread id, so a spawn result identifies its
- * agent by `agentPath`. Match on either key.
- */
-export function findSubAgentChild(
-  childrenByParent: Map<string, SubAgentChild[]>,
-  childThreadId: string | null | undefined,
-  agentPath: string | null | undefined
-): SubAgentChild | null {
-  for (const children of childrenByParent.values()) {
-    const child = children.find((entry) =>
-      (childThreadId != null && entry.childThreadId === childThreadId)
-      || (agentPath != null && entry.agentPath === agentPath)
-    )
-    if (child) return child
-  }
-  return null
 }

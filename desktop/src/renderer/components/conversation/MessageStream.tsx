@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore, type StreamRetrySignal } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useSubAgentStore } from '../../stores/subAgentStore'
 import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
 import { ConversationFindSurface } from '../../find/ConversationFindSurface'
@@ -17,7 +16,7 @@ import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { readThreadHistoryHead, readThreadTurnsPage } from '../../utils/threadHistory'
-import { estimateBackgroundActivityDockHeightPx } from './backgroundActivityDockLayout'
+import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 
 /** Module-level scroll position cache — ephemeral, not persisted to storage. */
 const scrollPositionCache = new Map<string, number>()
@@ -113,12 +112,6 @@ export function MessageStream(): JSX.Element {
     return { refId: parentId, label: parent?.displayName?.trim() || undefined }
   }, [threadList, activeThreadId])
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.length)
-  const subAgentChildCount = useSubAgentStore((s) =>
-    activeThreadId ? (s.childrenByParent.get(activeThreadId)?.length ?? 0) : 0
-  )
-  const subAgentCollapsed = useSubAgentStore((s) =>
-    activeThreadId ? s.collapsedByParent.get(activeThreadId) === true : false
-  )
   const [editing, setEditing] = useState<InlineEditState | null>(null)
   const prevThreadIdRef = useRef<string | null>(null)
   const effectiveSystemLabel = systemLabel
@@ -138,11 +131,7 @@ export function MessageStream(): JSX.Element {
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
   // The dock floats over the bottom of the scroll region, so its height is reserved
   // below the last message and the scroll-to-bottom button is lifted by the same amount.
-  const dockHeightPx = estimateBackgroundActivityDockHeightPx({
-    queuedInputCount,
-    subAgentChildCount,
-    subAgentCollapsed
-  })
+  const dockHeightPx = estimateQueuedInputDockHeightPx(queuedInputCount)
   const scrollButtonBottomOffsetPx =
     SCROLL_BUTTON_BASE_BOTTOM_PX + (dockHeightPx > 0 ? dockHeightPx + SCROLL_BUTTON_DOCK_GAP_PX : 0)
   const bottomClearancePx = MESSAGE_STREAM_BOTTOM_BASE_PX + dockHeightPx

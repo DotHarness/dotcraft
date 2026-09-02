@@ -25,11 +25,11 @@ import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useThreadStore } from '../../stores/threadStore'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { addToast } from '../../stores/toastStore'
 import { ToolDisclosure } from './ToolDisclosure'
-import { SubAgentChips, getSubAgentChipDisplay } from './SubAgentChips'
+import { getSubAgentChipDisplay } from './SubAgentChips'
+import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
 import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
@@ -146,6 +146,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         const toolRunNodes = entries.map((entry, offset) =>
           renderAggregatedEntry(
             entry,
+            turn.threadId,
             turn.id,
             offset,
             isRunning,
@@ -228,6 +229,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           const workflowNodes = entries.map((entry, offset) =>
             renderAggregatedEntry(
               entry,
+              turn.threadId,
               turn.id,
               offset,
               isRunning,
@@ -685,6 +687,7 @@ const userFlowItemStyle: CSSProperties = {
 
 function renderAggregatedEntry(
   entry: AggregatedToolCall,
+  threadId: string,
   turnId: string,
   offset: number,
   turnRunning: boolean,
@@ -700,6 +703,7 @@ function renderAggregatedEntry(
         <ToolEntryWithOutputs key={entry.item.id} images={images}>
           <SubAgentGroupChips
             items={[entry.item]}
+            threadId={threadId}
             turnId={turnId}
             turnRunning={turnRunning}
             shellRuntimeScope={shellRuntimeScope}
@@ -714,6 +718,7 @@ function renderAggregatedEntry(
       >
         <ToolCallCard
           item={entry.item}
+          threadId={threadId}
           turnId={turnId}
           turnRunning={turnRunning}
           shellRuntimeScope={shellRuntimeScope}
@@ -730,6 +735,7 @@ function renderAggregatedEntry(
       {entry.category === 'subagent' ? (
         <SubAgentGroupChips
           items={entry.items}
+          threadId={threadId}
           turnId={turnId}
           turnRunning={turnRunning}
           shellRuntimeScope={shellRuntimeScope}
@@ -738,46 +744,13 @@ function renderAggregatedEntry(
         <GroupedToolCallRow
           category={entry.category}
           items={entry.items}
+          threadId={threadId}
           turnId={turnId}
           turnRunning={turnRunning}
           shellRuntimeScope={shellRuntimeScope}
         />
       )}
     </ToolEntryWithOutputs>
-  )
-}
-
-/** Items that are not a recognisable spawn fall back to ordinary tool rows. */
-function SubAgentGroupChips({
-  items,
-  turnId,
-  turnRunning,
-  shellRuntimeScope
-}: {
-  items: ConversationItem[]
-  turnId: string
-  turnRunning: boolean
-  shellRuntimeScope: ShellRuntimeScope
-}): JSX.Element {
-  const parentThreadId = useThreadStore((state) => state.activeThreadId)
-  const chipItems = items.filter((item) => getSubAgentChipDisplay(item) != null)
-  const rest = items.filter((item) => getSubAgentChipDisplay(item) == null)
-
-  return (
-    <>
-      {chipItems.length > 0 && (
-        <SubAgentChips items={chipItems} parentThreadId={parentThreadId} />
-      )}
-      {rest.map((item) => (
-        <ToolCallCard
-          key={item.id}
-          item={item}
-          turnId={turnId}
-          turnRunning={turnRunning}
-          shellRuntimeScope={shellRuntimeScope}
-        />
-      ))}
-    </>
   )
 }
 
@@ -1049,6 +1022,7 @@ const imageGenerationSkeletonFrameStyle: CSSProperties = {
 interface GroupedToolCallRowProps {
   category: ToolGroupCategory
   items: ConversationItem[]
+  threadId: string
   turnId: string
   turnRunning: boolean
   shellRuntimeScope: ShellRuntimeScope
@@ -1057,6 +1031,7 @@ interface GroupedToolCallRowProps {
 function GroupedToolCallRow({
   category,
   items,
+  threadId,
   turnId,
   turnRunning,
   shellRuntimeScope
@@ -1079,7 +1054,7 @@ function GroupedToolCallRow({
     >
       <div className="dc-tool-children" data-live={live ? 'true' : undefined}>
         {items.map((item) => (
-          <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
+          <ToolCallCard key={item.id} item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
         ))}
       </div>
     </ToolDisclosure>

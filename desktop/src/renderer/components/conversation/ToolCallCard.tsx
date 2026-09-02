@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -38,7 +38,6 @@ import { stripAnsi } from '../../utils/ansi'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import type { FileDiff } from '../../types/toolCall'
-import type { Thread, ThreadSummary } from '../../types/thread'
 import {
   buildSkillManageDiff,
   formatSkillManageLabel,
@@ -51,16 +50,10 @@ import {
   formatSkillViewRunningLabel,
   getSkillViewDisplay
 } from '../../utils/skillViewToolDisplay'
-import { useThreadStore } from '../../stores/threadStore'
-import { useSubAgentStore, type SubAgentChild } from '../../stores/subAgentStore'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay'
-import {
-  findSubAgentChild,
-  formatSubAgentMeta,
-  getSubAgentAccent,
-  getSubAgentIdentitySeed
-} from '../../utils/subAgentPresentation'
+import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
+import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
 import {
   formatRequestUserInputResultLines,
   type RequestUserInputResultLine
@@ -76,6 +69,7 @@ export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
 interface ToolCallCardProps {
   item: ConversationItem
+  threadId: string
   turnId: string
   turnRunning?: boolean
   shellRuntimeScope?: ShellRuntimeScope
@@ -111,12 +105,6 @@ function formatRunningToolLabel(
     return formatInvocationDisplay(toolName, args, locale) ?? streamingLabel
   }
   return streamingLabel
-}
-
-interface SubAgentLookupSources {
-  childrenByParent: Map<string, SubAgentChild[]>
-  threadList: ThreadSummary[]
-  activeThread: Thread | null
 }
 
 function getFilename(path: string): string {
@@ -207,6 +195,7 @@ function resolveShellCommand(
 
 export const ToolCallCard = memo(function ToolCallCard({
   item,
+  threadId,
   turnId,
   turnRunning = false,
   shellRuntimeScope = 'conversation',
@@ -214,7 +203,6 @@ export const ToolCallCard = memo(function ToolCallCard({
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
   const workspacePath = useConversationStore((state) => state.workspacePath)
-  const threadId = useThreadStore((state) => state.activeThreadId)
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [autoExpanded, setAutoExpanded] = useState(false)
@@ -294,14 +282,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     isStreamingFileTool ? s.streamingItemDiffs.get(item.id) : undefined
   )
   const planTodos = useConversationStore((s) => s.plan?.todos)
-  const subAgentChildrenByParent = useSubAgentStore((s) => s.childrenByParent)
-  const threadList = useThreadStore((s) => s.threadList)
-  const activeThread = useThreadStore((s) => s.activeThread)
-  const subAgentLookup: SubAgentLookupSources = {
-    childrenByParent: subAgentChildrenByParent,
-    threadList,
-    activeThread
-  }
+  const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
   const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
@@ -440,6 +421,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         fallback={(
           <ToolCallCard
             item={item}
+            threadId={threadId}
             turnId={turnId}
             turnRunning={turnRunning}
             shellRuntimeScope={shellRuntimeScope}
@@ -472,7 +454,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? getSubAgentToolDisplay(rendererOperation, args, item.result, success, locale, subAgentLookup)
     : null
   if (subAgentDisplay) {
-    return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} />
+    return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} sourceThreadId={threadId} />
   }
 
   if (isRunning) {
@@ -1066,314 +1048,6 @@ function WebSearchResultCell({
       </ActionTooltip>
     </td>
   )
-}
-
-interface SubAgentToolDisplay {
-  titleKey: string
-  name: string
-  subtitle: string
-  meta: string
-  prompt: string | null
-  accentColor: string
-  childThreadId: string | null
-  message: string | null
-  success: boolean
-  tone: 'normal' | 'warning' | 'error'
-}
-
-function SubAgentToolResultCard({
-  display,
-  locale
-}: {
-  display: SubAgentToolDisplay
-  locale: AppLocale
-}): JSX.Element {
-  const [expanded, setExpanded] = useState(false)
-  const hasMessage = !!display.message
-
-  const title = (
-    <span style={subAgentResultContentStyle}>
-      <span>
-        {renderSubAgentTitle(locale, display.titleKey, display.name, display.accentColor)}
-        {display.meta && <span style={subAgentMetaStyle}>({display.meta})</span>}
-        {display.subtitle && <span style={subAgentMetaStyle}>{display.subtitle}</span>}
-      </span>
-      {display.prompt && (
-        <ActionTooltip label={display.prompt} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-          <span style={{ ...subAgentPromptStyle, display: 'block' }}>
-            {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt })}
-          </span>
-        </ActionTooltip>
-      )}
-    </span>
-  )
-
-  return (
-    <ToolDisclosure
-      expanded={expanded}
-      onToggle={() => setExpanded((v) => !v)}
-      expandable={hasMessage}
-      tone={display.tone === 'error' ? 'error' : undefined}
-      title={title}
-    >
-      <div
-        className="selectable dc-tool-panel-surface"
-        data-padded="true"
-        style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-      >
-        {display.message}
-      </div>
-    </ToolDisclosure>
-  )
-}
-
-const subAgentResultContentStyle: CSSProperties = {
-  display: 'inline-flex',
-  flexDirection: 'column',
-  gap: '2px',
-  minWidth: 0,
-  maxWidth: '100%'
-}
-
-const subAgentMetaStyle: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  marginLeft: 6
-}
-
-const subAgentPromptStyle: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const SUB_AGENT_NAME_TOKEN = '__DOTCRAFT_SUB_AGENT_NAME__'
-
-export function renderSubAgentTitle(
-  locale: AppLocale,
-  titleKey: string,
-  name: string,
-  accentColor: string
-): JSX.Element {
-  const template = translate(locale, titleKey, { name: SUB_AGENT_NAME_TOKEN })
-  const parts = template.split(SUB_AGENT_NAME_TOKEN)
-  if (parts.length === 1) {
-    return <span>{translate(locale, titleKey, { name })}</span>
-  }
-
-  return (
-    <span>
-      {parts.map((part, index) => (
-        <span key={`${part}-${index}`}>
-          {part}
-          {index < parts.length - 1 && (
-            <span style={{ color: accentColor, fontWeight: 600 }}>{name}</span>
-          )}
-        </span>
-      ))}
-    </span>
-  )
-}
-
-function getSubAgentToolDisplay(
-  operation: unknown,
-  args: Record<string, unknown> | undefined,
-  result: string | undefined,
-  success: boolean,
-  locale: AppLocale,
-  lookup: SubAgentLookupSources
-): SubAgentToolDisplay | null {
-  if (!isSubAgentOperation(operation)) return null
-  if (operation === 'wait' && result === undefined) return null
-  const parsed = parseJsonObject(result)
-  const profile = getString(parsed, 'profileName') ?? getString(args, 'profile')
-  const runtimeType = getString(parsed, 'runtimeType')
-  const agentRole = getString(parsed, 'agentRole') ?? getString(args, 'agentRole')
-  const agentPath = getString(parsed, 'agentPath')
-    ?? getString(args, 'target')
-  const explicitChildThreadId = getString(parsed, 'childThreadId')
-    ?? getString(parsed, 'agentId')
-    ?? getString(args, 'agentId')
-    ?? getString(args, 'childThreadId')
-  const matchedChild = findSubAgentChild(lookup.childrenByParent, explicitChildThreadId, agentPath)
-  const childThreadId = explicitChildThreadId ?? matchedChild?.childThreadId ?? null
-  const resolvedAgentPath = agentPath ?? matchedChild?.agentPath ?? null
-  const status = getString(parsed, 'status')?.toLowerCase()
-  const error = getString(parsed, 'error') ?? getString(parsed, 'message')
-  const message = operation === 'wait'
-    ? getString(parsed, 'message') ?? getString(parsed, 'result')
-    : null
-  const label = resolveSubAgentDisplayName(parsed, args, childThreadId, resolvedAgentPath, locale, lookup)
-  const prompt = operation === 'spawn'
-    ? getString(args, 'message') ?? getString(args, 'agentPrompt')
-    : null
-  const isTimeout = operation === 'wait'
-    && (status === 'timeout' || isTimeoutMessage(error) || isTimeoutMessage(message))
-  const tone: SubAgentToolDisplay['tone'] = isTimeout
-    ? 'warning'
-    : (!success || status === 'failed')
-      ? 'error'
-      : 'normal'
-  const titleKey = isTimeout
-    ? 'toolCall.subAgent.timeout'
-    : !success || status === 'failed'
-      ? 'toolCall.subAgent.failed'
-      : getSubAgentCompletedTitleKey(operation)
-  return {
-    titleKey,
-    name: label,
-    subtitle: '',
-    meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
-    prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
-    accentColor: getSubAgentAccent(getSubAgentIdentitySeed({
-      agentPath: resolvedAgentPath,
-      childThreadId,
-      nickname: label
-    })),
-    childThreadId,
-    message: isTimeout
-      ? (message && !isTimeoutMessage(message) ? message : null)
-      : !success && error
-        ? error
-        : message,
-    success: tone !== 'error',
-    tone
-  }
-}
-
-function truncateSubAgentPrompt(value: string, maxChars: number): string {
-  const trimmed = value.trim().replace(/\s+/g, ' ')
-  const chars = Array.from(trimmed)
-  if (chars.length <= maxChars) return trimmed
-  return `${chars.slice(0, maxChars - 1).join('')}…`
-}
-
-function formatSubAgentRunningLabel(
-  operation: unknown,
-  args: Record<string, unknown> | undefined,
-  locale: AppLocale,
-  lookup: SubAgentLookupSources
-): string | null {
-  if (!isSubAgentOperation(operation)) return null
-  const explicitChildThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId')
-  const agentPath = getString(args, 'target')
-  const matchedChild = findSubAgentChild(lookup.childrenByParent, explicitChildThreadId, agentPath)
-  const childThreadId = explicitChildThreadId ?? matchedChild?.childThreadId ?? null
-  const resolvedAgentPath = agentPath ?? matchedChild?.agentPath ?? null
-  const label = resolveSubAgentDisplayName(undefined, args, childThreadId, resolvedAgentPath, locale, lookup)
-  const key = operation === 'spawn'
-    ? 'toolCall.subAgent.starting'
-    : operation === 'wait'
-      ? 'toolCall.subAgent.waiting'
-      : getSubAgentRunningTitleKey(operation)
-  return translate(locale, key, { name: label })
-}
-
-function getSubAgentCompletedTitleKey(operation: SubAgentOperation): string {
-  if (operation === 'spawn') return 'toolCall.subAgent.spawned'
-  if (operation === 'wait') return 'toolCall.subAgent.waited'
-  if (operation === 'sendMessage') return 'toolCall.subAgent.sentMessage'
-  if (operation === 'followupTask') return 'toolCall.subAgent.followedUp'
-  if (operation === 'list') return 'toolCall.subAgent.listed'
-  if (operation === 'sendInput') return 'toolCall.subAgent.sentInput'
-  if (operation === 'resume') return 'toolCall.subAgent.resumed'
-  return 'toolCall.subAgent.closed'
-}
-
-function getSubAgentRunningTitleKey(operation: SubAgentOperation): string {
-  if (operation === 'sendMessage') return 'toolCall.subAgent.sendingMessage'
-  if (operation === 'followupTask') return 'toolCall.subAgent.followingUp'
-  if (operation === 'list') return 'toolCall.subAgent.listing'
-  if (operation === 'sendInput') return 'toolCall.subAgent.sendingInput'
-  if (operation === 'resume') return 'toolCall.subAgent.resuming'
-  return 'toolCall.subAgent.closing'
-}
-
-function resolveSubAgentDisplayName(
-  parsed: Record<string, unknown> | undefined,
-  args: Record<string, unknown> | undefined,
-  childThreadId: string | null | undefined,
-  agentPath: string | null | undefined,
-  locale: AppLocale,
-  lookup: SubAgentLookupSources
-): string {
-  const explicitDisplayName = getString(parsed, 'displayName') ?? getString(args, 'displayName')
-  if (explicitDisplayName && !isThreadIdLike(explicitDisplayName, childThreadId)) return explicitDisplayName
-
-  const matchedChild = findSubAgentChild(lookup.childrenByParent, childThreadId, agentPath)
-  if (matchedChild?.nickname && !isThreadIdLike(matchedChild.nickname, childThreadId)) {
-    return matchedChild.nickname
-  }
-
-  if (childThreadId) {
-    const threads = lookup.activeThread ? [lookup.activeThread, ...lookup.threadList] : lookup.threadList
-    const thread = threads.find((entry) => entry.id === childThreadId)
-    if (thread?.displayName && !isThreadIdLike(thread.displayName, childThreadId)) return thread.displayName
-    const sourceName = thread?.source?.subAgent?.agentNickname
-    if (sourceName && !isThreadIdLike(sourceName, childThreadId)) return sourceName
-  }
-
-  const explicitName = getString(parsed, 'agentNickname')
-    ?? getString(parsed, 'nickname')
-    ?? getString(args, 'agentNickname')
-    ?? getString(args, 'nickname')
-    ?? getString(parsed, 'taskName')
-    ?? getString(args, 'taskName')
-    ?? getAgentPathSegment(agentPath ?? childThreadId)
-  if (explicitName && !isThreadIdLike(explicitName, childThreadId)) return explicitName
-
-  return translate(locale, 'toolCall.subAgent.agent')
-}
-
-function getAgentPathSegment(value: string | null | undefined): string | null {
-  if (!value?.startsWith('/root/')) return null
-  const parts = value.split('/').filter((part) => part.length > 0)
-  return parts.length > 0 ? parts[parts.length - 1] : null
-}
-
-function isThreadIdLike(value: string, childThreadId: string | null | undefined): boolean {
-  const normalized = value.trim()
-  return normalized.length === 0
-    || normalized === childThreadId
-    || /^thread[_-]/i.test(normalized)
-}
-
-function isTimeoutMessage(value: string | null): boolean {
-  if (!value) return false
-  const normalized = value.toLowerCase()
-  return normalized.includes('timed out') || normalized.includes('timeout')
-}
-
-type SubAgentOperation = 'spawn' | 'wait' | 'sendInput' | 'sendMessage' | 'followupTask' | 'resume' | 'list' | 'close'
-
-function isSubAgentOperation(operation: unknown): operation is SubAgentOperation {
-  return operation === 'spawn'
-    || operation === 'wait'
-    || operation === 'sendInput'
-    || operation === 'sendMessage'
-    || operation === 'followupTask'
-    || operation === 'resume'
-    || operation === 'list'
-    || operation === 'close'
-}
-
-function parseJsonObject(value: string | undefined): Record<string, unknown> | undefined {
-  if (!value) return undefined
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (typeof parsed === 'string') {
-      const nested = JSON.parse(parsed) as unknown
-      return typeof nested === 'object' && nested != null ? nested as Record<string, unknown> : undefined
-    }
-    return typeof parsed === 'object' && parsed != null ? parsed as Record<string, unknown> : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function getString(source: Record<string, unknown> | undefined, key: string): string | null {
-  const value = source?.[key]
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
 
 function parseCompletedCreatePlanArgs(args: Record<string, unknown> | undefined): {

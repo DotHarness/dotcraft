@@ -1,12 +1,12 @@
 import { useMemo, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
-import { isSubAgentChildRunning, useSubAgentStore, type SubAgentChild } from '../../stores/subAgentStore'
+import { isSubAgentChildClosed, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
+import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
+import { findSubAgentChild, type SubAgentScope } from '../../utils/subAgentIdentity'
+import { openSubAgent } from '../../utils/subAgentNavigation'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import {
-  findSubAgentChild,
   getSubAgentAccent,
   getSubAgentIdentitySeed
 } from '../../utils/subAgentPresentation'
@@ -14,7 +14,7 @@ import { avatarFromSeed } from '../agents/agentAvatar'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginRegistry'
-import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
+import { isToolExecutionFailure, parseToolResultObject } from '../../utils/toolCallDisplay'
 
 const VISIBLE_CHIPS = 3
 
@@ -28,6 +28,12 @@ export interface SubAgentChipDisplay {
   agentPath: string | null
   pending: boolean
   failed: boolean
+  scope: SubAgentScope
+  resultStatus: string | null
+}
+
+interface ResolvedSubAgentChip extends SubAgentChipDisplay {
+  child: SubAgentChild | null
 }
 
 type AgentState = 'running' | 'done' | 'failed' | 'unknown'
@@ -37,42 +43,43 @@ export function SubAgentChips({
   parentThreadId
 }: {
   items: ConversationItem[]
-  parentThreadId: string | null
+  parentThreadId: string
 }): JSX.Element | null {
   const t = useT()
   const locale = useLocale()
   const [showAll, setShowAll] = useState(false)
-  const children = useSubAgentStore((state) =>
-    parentThreadId ? state.childrenByParent.get(parentThreadId) : undefined
-  )
-
-  const displays = useMemo(
+  const parsedDisplays = useMemo(
     () => items.map(getSubAgentChipDisplay).filter((entry): entry is SubAgentChipDisplay => entry != null),
     [items]
   )
 
-  if (displays.length === 0) return null
-
-  const lookup = new Map(parentThreadId ? [[parentThreadId, children ?? []]] : [])
-  const states = displays.map((display) => agentState(display, lookup))
+  const { lookup, discovery } = useSubAgentLookup(parentThreadId, parsedDisplays.length > 0)
+  const resolved = parsedDisplays.map((display) => {
+    const child = findSubAgentChild(lookup, display.childThreadId, display.agentPath, display.scope)
+    const name = child?.nickname ?? display.name
+    const seed = getSubAgentIdentitySeed(child ?? display) ?? display.seed
+    return { ...display, name, seed, accentColor: getSubAgentAccent(seed), child }
+  })
+  if (resolved.length === 0) return null
+  const states = resolved.map((display) => agentState(display, display.child, discovery))
   const anyFailed = states.includes('failed')
-  // `finished` needs every agent provably done; anything unresolved still reads as work
-  // in flight, because absence of evidence must not be reported as completion.
   const allDone = states.every((state) => state === 'done')
-  const visible = showAll ? displays : displays.slice(0, VISIBLE_CHIPS)
-  const hidden = displays.length - visible.length
+  const anyRunning = states.includes('running')
+  const visible = showAll ? resolved : resolved.slice(0, VISIBLE_CHIPS)
+  const hidden = resolved.length - visible.length
 
   return (
     <div className="dc-subagent-chips" data-testid="subagent-chips">
       <span className="dc-subagent-marks" aria-hidden>
         {visible.map((display) => (
           <span key={display.id} className="dc-subagent-mark">
-            {/* Same identity the Subagents tab draws, so one agent reads the same in both places. */}
             <RobotAvatar spec={{ ...avatarFromSeed(display.seed), accessory: 0 }} size={16} />
           </span>
         ))}
       </span>
-      {joinNames(locale, visible)}
+      {joinNames(locale, visible, (display) => {
+        openSubAgent(parentThreadId, display.child)
+      })}
       {hidden > 0 && (
         <>
           {' '}
@@ -87,10 +94,10 @@ export function SubAgentChips({
       )}
       {' '}
       <span
-        className={!anyFailed && !allDone ? 'tool-running-gradient-text' : undefined}
+        className={!anyFailed && anyRunning ? 'tool-running-gradient-text' : undefined}
         aria-live="polite"
       >
-        {statusLabel(t, { anyFailed, allDone })}
+        {statusLabel(t, { anyFailed, allDone, anyRunning })}
       </span>
     </div>
   )
@@ -98,26 +105,39 @@ export function SubAgentChips({
 
 function agentState(
   display: SubAgentChipDisplay,
-  childrenByParent: Map<string, SubAgentChild[]>
+  child: SubAgentChild | null,
+  discovery: SubAgentDiscovery
 ): AgentState {
   if (display.failed) return 'failed'
   if (display.pending) return 'running'
-  const child = findSubAgentChild(childrenByParent, display.childThreadId, display.agentPath)
-  if (!child) return 'unknown'
-  return isSubAgentChildRunning(child) ? 'running' : 'done'
+  if (child) {
+    if (isSubAgentChildClosed(child)) return 'done'
+    if (child.runtime?.running === true) return 'running'
+    if (isFailureStatus(child.status)) return 'failed'
+    if (child.runtime?.running === false || child.isCompleted || isTerminalSubAgentStatus(child.status)) return 'done'
+  }
+  if (isFailureStatus(display.resultStatus)) return 'failed'
+  if (isTerminalSubAgentStatus(display.resultStatus)) return 'done'
+  if (discovery.discovered) return 'done'
+  return discovery.status === 'error' ? 'unknown' : 'running'
+}
+
+function isFailureStatus(status: string | null): boolean {
+  return ['failed', 'cancelled', 'canceled', 'interrupted'].includes(status?.toLowerCase() ?? '')
 }
 
 /** A failed spawn has no verb of its own, so it reads as interrupted. */
 function statusLabel(
   t: (key: string) => string,
-  state: { anyFailed: boolean; allDone: boolean }
+  state: { anyFailed: boolean; allDone: boolean; anyRunning: boolean }
 ): string {
   if (state.anyFailed) return t('subAgentChips.interrupted')
-  return state.allDone ? t('subAgentChips.finished') : t('subAgentChips.startedWorking')
+  if (state.anyRunning) return t('subAgentChips.startedWorking')
+  return state.allDone ? t('subAgentChips.finished') : ''
 }
 
 /** Names read as one sentence, so the separators come from the locale rather than a hardcoded comma. */
-function joinNames(locale: string, displays: SubAgentChipDisplay[]): ReactNode {
+function joinNames(locale: string, displays: ResolvedSubAgentChip[], open: (display: ResolvedSubAgentChip) => void): ReactNode {
   const parts = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })
     .formatToParts(displays.map((entry) => entry.name))
   let index = -1
@@ -125,29 +145,14 @@ function joinNames(locale: string, displays: SubAgentChipDisplay[]): ReactNode {
     if (part.type !== 'element') return <span key={`sep-${position}`}>{part.value}</span>
     index += 1
     const display = displays[index]
-    return <SubAgentName key={display.id} display={display} />
+    return <SubAgentName key={display.id} display={display} open={() => open(display)} />
   })
 }
 
-function SubAgentName({ display }: { display: SubAgentChipDisplay }): JSX.Element {
+function SubAgentName({ display, open }: { display: SubAgentChipDisplay; open: () => void }): JSX.Element {
   const t = useT()
   const label = t('subagentsPanel.openAria', { name: display.name })
   const tooltip = display.prompt ? `${display.name} — ${display.prompt}` : label
-
-  const open = (): void => {
-    const threadId = display.childThreadId
-      ?? findSubAgentChild(
-        useSubAgentStore.getState().childrenByParent,
-        display.childThreadId,
-        display.agentPath
-      )?.childThreadId
-    if (threadId) {
-      useThreadStore.getState().setActiveThreadId(threadId)
-      useUIStore.getState().setActiveMainView('conversation')
-      return
-    }
-    useUIStore.getState().setActiveDetailTab('subagents')
-  }
 
   return (
     <ActionTooltip label={tooltip} placement="top">
@@ -172,7 +177,7 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
   const operation = plan?.options.operation
   if (plan?.family !== 'subagent' || (operation !== 'spawn' && operation !== 'followupTask')) return null
 
-  const parsed = parseJsonObject(item.result)
+  const parsed = parseToolResultObject(item.result)
   const args = item.arguments
   const agentPath = getString(parsed, 'agentPath') ?? getString(args, 'target')
   const childThreadId = getString(parsed, 'childThreadId')
@@ -202,8 +207,10 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
     seed,
     childThreadId,
     agentPath,
-    pending: item.status !== 'completed',
-    failed: isToolExecutionFailure(item)
+    pending: item.status !== 'completed' || item.result == null,
+    failed: isToolExecutionFailure(item),
+    scope: operation === 'spawn' ? 'children' : 'tree',
+    resultStatus: getString(parsed, 'status')
   }
 }
 
@@ -212,20 +219,6 @@ function truncatePrompt(value: string, maxChars: number): string {
   const chars = Array.from(trimmed)
   if (chars.length <= maxChars) return trimmed
   return `${chars.slice(0, maxChars - 1).join('')}...`
-}
-
-function parseJsonObject(value: string | undefined): Record<string, unknown> | undefined {
-  if (!value) return undefined
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (typeof parsed === 'string') {
-      const nested = JSON.parse(parsed) as unknown
-      return typeof nested === 'object' && nested != null ? nested as Record<string, unknown> : undefined
-    }
-    return typeof parsed === 'object' && parsed != null ? parsed as Record<string, unknown> : undefined
-  } catch {
-    return undefined
-  }
 }
 
 function getString(source: Record<string, unknown> | undefined, key: string): string | null {

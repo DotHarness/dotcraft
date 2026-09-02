@@ -6,6 +6,7 @@ import {
   useSubAgentStore,
   type SubAgentChild
 } from '../../stores/subAgentStore'
+import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -21,24 +22,14 @@ const EMPTY_CHILDREN: SubAgentChild[] = []
 /** Refresh interval for running subagents' live message preview while the tab is open. */
 const RUNNING_PREVIEW_POLL_MS = 3000
 
-/**
- * Subagents appear in neither the dock (running-only) nor the sidebar, so this is
- * the durable place to reopen them, closed ones included. Deliberately offers no
- * destructive action, so their history is always preserved.
- */
 export function SubagentsTab(): JSX.Element {
   const t = useT()
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const children = useSubAgentStore((s) =>
     activeThreadId ? s.childrenByParent.get(activeThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
   )
-  const fetchChildren = useSubAgentStore((s) => s.fetchChildren)
+  useSubAgentLookup(activeThreadId ?? '')
   const fetchPreviews = useSubAgentStore((s) => s.fetchPreviews)
-
-  useEffect(() => {
-    if (!activeThreadId) return
-    void fetchChildren(activeThreadId, { authoritative: true, includeClosed: true })
-  }, [fetchChildren, activeThreadId])
 
   // Load previews for any children that arrived via live progress/graph events
   // after the initial fetch (e.g. a subagent finishing while the tab is open).
