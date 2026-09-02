@@ -2,10 +2,14 @@ import { useMemo, useState, type CSSProperties, type JSX, type ReactNode } from 
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
+import { isSubAgentChildRunning, useSubAgentStore, type SubAgentChild } from '../../stores/subAgentStore'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
+import {
+  findSubAgentChild,
+  getSubAgentAccent,
+  getSubAgentIdentitySeed
+} from '../../utils/subAgentPresentation'
 import { avatarFromSeed } from '../agents/agentAvatar'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
@@ -21,9 +25,12 @@ export interface SubAgentChipDisplay {
   accentColor: string
   seed: string
   childThreadId: string | null
+  agentPath: string | null
   pending: boolean
   failed: boolean
 }
+
+type AgentState = 'running' | 'done' | 'failed' | 'unknown'
 
 export function SubAgentChips({
   items,
@@ -46,14 +53,12 @@ export function SubAgentChips({
 
   if (displays.length === 0) return null
 
-  const runningIds = new Set(
-    (children ?? []).filter(isSubAgentChildRunning).map((child) => child.childThreadId)
-  )
-  // A spawn still in flight has no child id to match, so its own state counts as running.
-  const anyRunning = displays.some((display) =>
-    display.pending || (display.childThreadId != null && runningIds.has(display.childThreadId))
-  )
-  const anyFailed = displays.some((display) => display.failed)
+  const lookup = new Map(parentThreadId ? [[parentThreadId, children ?? []]] : [])
+  const states = displays.map((display) => agentState(display, lookup))
+  const anyFailed = states.includes('failed')
+  // `finished` needs every agent provably done; anything unresolved still reads as work
+  // in flight, because absence of evidence must not be reported as completion.
+  const allDone = states.every((state) => state === 'done')
   const visible = showAll ? displays : displays.slice(0, VISIBLE_CHIPS)
   const hidden = displays.length - visible.length
 
@@ -82,23 +87,33 @@ export function SubAgentChips({
       )}
       {' '}
       <span
-        className={anyRunning && !anyFailed ? 'tool-running-gradient-text' : undefined}
+        className={!anyFailed && !allDone ? 'tool-running-gradient-text' : undefined}
         aria-live="polite"
       >
-        {statusLabel(t, { anyFailed, anyRunning })}
+        {statusLabel(t, { anyFailed, allDone })}
       </span>
     </div>
   )
 }
 
+function agentState(
+  display: SubAgentChipDisplay,
+  childrenByParent: Map<string, SubAgentChild[]>
+): AgentState {
+  if (display.failed) return 'failed'
+  if (display.pending) return 'running'
+  const child = findSubAgentChild(childrenByParent, display.childThreadId, display.agentPath)
+  if (!child) return 'unknown'
+  return isSubAgentChildRunning(child) ? 'running' : 'done'
+}
+
 /** A failed spawn has no verb of its own, so it reads as interrupted. */
 function statusLabel(
   t: (key: string) => string,
-  state: { anyFailed: boolean; anyRunning: boolean }
+  state: { anyFailed: boolean; allDone: boolean }
 ): string {
   if (state.anyFailed) return t('subAgentChips.interrupted')
-  if (state.anyRunning) return t('subAgentChips.startedWorking')
-  return t('subAgentChips.finished')
+  return state.allDone ? t('subAgentChips.finished') : t('subAgentChips.startedWorking')
 }
 
 /** Names read as one sentence, so the separators come from the locale rather than a hardcoded comma. */
@@ -120,8 +135,14 @@ function SubAgentName({ display }: { display: SubAgentChipDisplay }): JSX.Elemen
   const tooltip = display.prompt ? `${display.name} — ${display.prompt}` : label
 
   const open = (): void => {
-    if (display.childThreadId) {
-      useThreadStore.getState().setActiveThreadId(display.childThreadId)
+    const threadId = display.childThreadId
+      ?? findSubAgentChild(
+        useSubAgentStore.getState().childrenByParent,
+        display.childThreadId,
+        display.agentPath
+      )?.childThreadId
+    if (threadId) {
+      useThreadStore.getState().setActiveThreadId(threadId)
       useUIStore.getState().setActiveMainView('conversation')
       return
     }
@@ -180,6 +201,7 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
     accentColor: getSubAgentAccent(seed),
     seed,
     childThreadId,
+    agentPath,
     pending: item.status !== 'completed',
     failed: isToolExecutionFailure(item)
   }
