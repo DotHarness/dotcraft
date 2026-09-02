@@ -65,9 +65,8 @@ export function ActionTooltip({
     const tooltip = overlayRef.current
     if (!anchor || !tooltip) return
 
-    const anchorRect = anchor.getBoundingClientRect()
     const tooltipRect = tooltip.getBoundingClientRect()
-    setPosition(placeTooltip(anchorRect, tooltipRect, placement))
+    setPosition(placeTooltip(anchorRect(anchor), tooltipRect, placement))
   }, [visible, placement, tooltipLabel, shortcut, alternateShortcuts])
 
   const shortcutGroups = !disabledReason ? [shortcut, ...(alternateShortcuts ?? [])].filter(Boolean) as ShortcutSpec[] : []
@@ -122,30 +121,75 @@ export function ActionTooltip({
   )
 }
 
-function placeTooltip(
+/**
+ * A control that leaves the flow — a hover-revealed row action pinned to its
+ * row's trailing edge — collapses this wrapper to nothing, which would place the
+ * tooltip against a phantom point. Measure what is drawn instead.
+ */
+function anchorRect(anchor: HTMLElement): DOMRect {
+  const rect = anchor.getBoundingClientRect()
+  if (rect.width > 0 && rect.height > 0) return rect
+  const child = anchor.firstElementChild
+  return child ? child.getBoundingClientRect() : rect
+}
+
+export function placeTooltip(
   anchor: DOMRect,
   tooltip: DOMRect,
-  placement: TooltipPlacement
+  placement: TooltipPlacement,
+  viewportWidth: number = window.innerWidth,
+  viewportHeight: number = window.innerHeight
 ): TooltipPosition {
+  const side = resolvePlacement(anchor, tooltip, placement, viewportWidth, viewportHeight)
   let left = anchor.left + anchor.width / 2 - tooltip.width / 2
   let top = anchor.top - tooltip.height - GAP
   let transform: string | undefined
 
-  if (placement === 'bottom') {
+  if (side === 'bottom') {
     top = anchor.bottom + GAP
-  } else if (placement === 'left') {
+  } else if (side === 'left') {
     left = anchor.left - tooltip.width - GAP
     top = anchor.top + anchor.height / 2 - tooltip.height / 2
-  } else if (placement === 'right') {
+  } else if (side === 'right') {
     left = anchor.right + GAP
     top = anchor.top + anchor.height / 2 - tooltip.height / 2
   }
 
-  left = clamp(left, VIEWPORT_PADDING, window.innerWidth - tooltip.width - VIEWPORT_PADDING)
-  top = clamp(top, VIEWPORT_PADDING, window.innerHeight - tooltip.height - VIEWPORT_PADDING)
+  left = clamp(left, VIEWPORT_PADDING, viewportWidth - tooltip.width - VIEWPORT_PADDING)
+  top = clamp(top, VIEWPORT_PADDING, viewportHeight - tooltip.height - VIEWPORT_PADDING)
 
-  if (placement === 'top' || placement === 'bottom') transform = 'translateZ(0)'
+  if (side === 'top' || side === 'bottom') transform = 'translateZ(0)'
   return { left, top, transform }
+}
+
+/**
+ * Mirroring happens inside an axis, never across it: a tooltip asked for the
+ * block axis stays on it even when it has to flip, because the inline axis
+ * beside a row belongs to that row's details card. Keep the requested side when
+ * neither fits and let clamping resolve it.
+ */
+function resolvePlacement(
+  anchor: DOMRect,
+  tooltip: DOMRect,
+  placement: TooltipPlacement,
+  viewportWidth: number,
+  viewportHeight: number
+): TooltipPlacement {
+  const fitsTop = anchor.top - tooltip.height - GAP >= VIEWPORT_PADDING
+  const fitsBottom = anchor.bottom + tooltip.height + GAP <= viewportHeight - VIEWPORT_PADDING
+  const fitsLeft = anchor.left - tooltip.width - GAP >= VIEWPORT_PADDING
+  const fitsRight = anchor.right + tooltip.width + GAP <= viewportWidth - VIEWPORT_PADDING
+
+  switch (placement) {
+    case 'top':
+      return fitsTop || !fitsBottom ? 'top' : 'bottom'
+    case 'bottom':
+      return fitsBottom || !fitsTop ? 'bottom' : 'top'
+    case 'left':
+      return fitsLeft || !fitsRight ? 'left' : 'right'
+    case 'right':
+      return fitsRight || !fitsLeft ? 'right' : 'left'
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {

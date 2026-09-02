@@ -22,6 +22,7 @@ import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
+import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -421,6 +422,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           <TurnCollapsedSummary
             key={`turn-collapsed-${turn.id}`}
             elapsedMs={elapsedMs}
+            followedByContent={pinnedTrimmedNodes.length + trailingNodes.length > 0}
           >
             <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" />
           </TurnCollapsedSummary>
@@ -463,6 +465,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             <TurnCollapsedSummary
               key={`turn-collapsed-${turn.id}`}
               elapsedMs={elapsedMs}
+              followedByContent={pinnedNodes.length + trailingNodes.length > 0}
             >
               <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" />
             </TurnCollapsedSummary>
@@ -690,6 +693,20 @@ function renderAggregatedEntry(
 ): React.ReactNode {
   if (entry.kind === 'single') {
     const images = getToolOutputImages([entry.item])
+    // A lone follow-up keeps its own row: it updates an agent rather than introducing one.
+    const isLoneSpawn = resolveCoreFallbackPlan(entry.item)?.options.operation === 'spawn'
+    if (isLoneSpawn && getSubAgentChipDisplay(entry.item) != null) {
+      return (
+        <ToolEntryWithOutputs key={entry.item.id} images={images}>
+          <SubAgentGroupChips
+            items={[entry.item]}
+            turnId={turnId}
+            turnRunning={turnRunning}
+            shellRuntimeScope={shellRuntimeScope}
+          />
+        </ToolEntryWithOutputs>
+      )
+    }
     return (
       <ToolEntryWithOutputs
         key={entry.item.id}
@@ -1083,41 +1100,6 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
   // aggregated row consistent so an exec exit code / failure doesn't redden it.
   if (resolveCoreFallbackPlan(item)?.successOverride === true) return false
   return isToolExecutionFailure(item)
-}
-
-function isToolExecutionFailure(item: ConversationItem): boolean {
-  const executionFailed = item.executionStatus === 'failed'
-    || item.executionStatus === 'cancelled'
-    || (item.exitCode != null && item.exitCode !== 0)
-  if (item.success === false || executionFailed) return true
-
-  const parsedResult = parseJsonObject(item.result)
-  const resultStatus = getString(parsedResult, 'status')?.toLowerCase()
-  if (resultStatus === 'timeout') return false
-  return resultStatus === 'failed'
-    || resultStatus === 'error'
-    || resultStatus === 'cancelled'
-    || resultStatus === 'canceled'
-    || getString(parsedResult, 'error') != null
-}
-
-function parseJsonObject(value: string | undefined): Record<string, unknown> | undefined {
-  if (!value) return undefined
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (typeof parsed === 'string') {
-      const nested = JSON.parse(parsed) as unknown
-      return typeof nested === 'object' && nested != null ? nested as Record<string, unknown> : undefined
-    }
-    return typeof parsed === 'object' && parsed != null ? parsed as Record<string, unknown> : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function getString(source: Record<string, unknown> | undefined, key: string): string | null {
-  const value = source?.[key]
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
 
 function findLastAgentMessageIndex(items: ConversationItem[]): number {

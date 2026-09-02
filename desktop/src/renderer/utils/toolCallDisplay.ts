@@ -1,4 +1,5 @@
 import { translate, type AppLocale } from '../../shared/locales'
+import type { ConversationItem } from '../types/conversation'
 import { isShellToolName } from './shellTools'
 import {
   CRON_TOOL_NAME,
@@ -775,4 +776,40 @@ export function formatExpandedInvocation(
   }
 
   return formatGenericInvocation(toolName, args)
+}
+
+/** The authoritative failure signal for a tool call: execution status first, then the result payload. */
+export function isToolExecutionFailure(item: ConversationItem): boolean {
+  const executionFailed = item.executionStatus === 'failed'
+    || item.executionStatus === 'cancelled'
+    || (item.exitCode != null && item.exitCode !== 0)
+  if (item.success === false || executionFailed) return true
+
+  const parsedResult = parseToolResultObject(item.result)
+  const resultStatus = readString(parsedResult, 'status')?.toLowerCase()
+  if (resultStatus === 'timeout') return false
+  return resultStatus === 'failed'
+    || resultStatus === 'error'
+    || resultStatus === 'cancelled'
+    || resultStatus === 'canceled'
+    || readString(parsedResult, 'error') != null
+}
+
+export function parseToolResultObject(value: string | undefined): Record<string, unknown> | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (typeof parsed === 'string') {
+      const nested = JSON.parse(parsed) as unknown
+      return typeof nested === 'object' && nested != null ? nested as Record<string, unknown> : undefined
+    }
+    return typeof parsed === 'object' && parsed != null ? parsed as Record<string, unknown> : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function readString(source: Record<string, unknown> | undefined, key: string): string | null {
+  const value = source?.[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }

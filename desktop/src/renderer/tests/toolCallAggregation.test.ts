@@ -239,15 +239,18 @@ describe('aggregateToolCalls', () => {
     expect(result.every((entry) => entry.kind === 'single')).toBe(true)
   })
 
-  it('keeps running SpawnAgent calls as individual cards', () => {
+  it('keeps a starting SpawnAgent on the same line as its settled neighbour', () => {
     const items = [
       makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { status: 'started' }),
       makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { result: '{"status":"running"}', success: true })
     ]
     const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(2)
-    expect(result[0].kind).toBe('single')
-    expect(result[1].kind).toBe('single')
+    expect(result).toHaveLength(1)
+    expect(result[0].kind).toBe('group')
+    if (result[0].kind === 'group') {
+      expect(result[0].category).toBe('subagent')
+      expect(result[0].items).toHaveLength(2)
+    }
   })
 
   it('preserves order of non-aggregatable items', () => {

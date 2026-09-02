@@ -102,9 +102,16 @@ test("generated safe integers use the TypeScript number wire type", () => {
 });
 
 test("generated item payload catalog preserves known, unknown, null, and missing values", () => {
-  assert.equal(SESSION_ITEM_PAYLOAD_KINDS.length, 16);
-  assert.equal(new Set(SESSION_ITEM_PAYLOAD_KINDS).size, 16);
+  // The catalog's size belongs to the C# protocol, so pinning it here only costs
+  // an edit every time a payload kind is added. A duplicate entry would be a real
+  // generator defect, so that is what this checks instead.
+  assert.equal(new Set(SESSION_ITEM_PAYLOAD_KINDS).size, SESSION_ITEM_PAYLOAD_KINDS.length);
+  for (const kind of SESSION_ITEM_PAYLOAD_KINDS) {
+    assert.ok(isKnownSessionItemPayloadKind(kind), `${kind} should be recognized`);
+  }
   assert.ok(isKnownSessionItemPayloadKind("agentMessage"));
+  assert.ok(isKnownSessionItemPayloadKind("userMessage"));
+  assert.ok(isKnownSessionItemPayloadKind("toolCall"));
   assert.ok(!isKnownSessionItemPayloadKind("futurePayload"));
 
   const raw = { text: "typed", futureField: { kept: true } };

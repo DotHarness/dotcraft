@@ -20,9 +20,7 @@
   line-height: var(--type-secondary-line-height);
   text-align: left;
   list-style: none;
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
 .dc-tool-row > summary {
@@ -37,14 +35,28 @@
   content: "";
 }
 
-.dc-tool-row > summary:hover,
+/* The row is a label first and a target second, so hover lifts the text and the
+   chevron fades in; a fill would read as chrome wrapped around the label. Focus
+   therefore carries its own ring -- see primitives/quiet-action.css. */
+.dc-tool-row > summary:hover {
+  color: var(--text-primary);
+}
+
 .dc-tool-row > summary:focus-visible {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+  color: var(--text-primary);
 }
 
 .dc-tool-row[open] > summary {
   color: var(--text-secondary);
+}
+
+/* The transcript's one rule: agent activity above it, the answer below. Ordinary
+   tool rows nest inside a run and carry none. */
+.dc-tool-row[data-variant="turn"] > summary {
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
 }
 
 .dc-tool-row[data-tone="error"] > summary,
@@ -69,10 +81,12 @@
   white-space: nowrap;
 }
 
+/* The elapsed counter ticks at one decimal, so its digits must not reflow. */
 .dc-tool-row-trailing {
   flex-shrink: 0;
   margin-left: auto;
   color: var(--text-dimmed);
+  font-variant-numeric: tabular-nums;
 }
 
 /* `content-visibility` rides the same transition, so a closed panel stays unrendered. */
@@ -158,6 +172,16 @@
   transform: rotate(90deg);
 }
 
+.dc-cron-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dc-cron-detail__value {
+  color: var(--text-secondary);
+}
+
 /* The reference chip is sized for 14px bubble text; pin it to this row's line box. */
 .dc-tool-row-title .dc-ref {
   padding-block: 0;
@@ -165,63 +189,48 @@
 }
 
 .dc-subagent-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 0;
   padding: 3px 6px;
   color: var(--text-dimmed);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
 }
 
-.dc-subagent-chip {
+/* `middle` aligns to half the x-height, leaving a 16px mark 2px low on a 12/16 line. */
+.dc-subagent-marks {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  max-width: 190px;
-  height: 22px;
+  gap: 3px;
   margin-right: 6px;
-  padding: 0 9px 0 7px;
-  border: 1px solid var(--border-default);
-  border-radius: 999px;
+  vertical-align: -0.25em;
+}
+
+.dc-subagent-mark {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.dc-subagent-name {
+  padding: 0;
+  border: 0;
   background: transparent;
   color: var(--subagent-accent, var(--text-secondary));
   font: inherit;
-  font-size: var(--type-secondary-size);
-  cursor: pointer;
-  vertical-align: middle;
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard);
-}
-
-.dc-subagent-chip:hover,
-.dc-subagent-chip:focus-visible {
-  border-color: var(--border-active);
-  background: var(--bg-hover);
-}
-
-.dc-subagent-chip-dot {
-  flex-shrink: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.dc-subagent-chip[data-running="false"] .dc-subagent-chip-dot {
-  background: var(--text-dimmed);
-}
-
-.dc-subagent-chip-name {
-  min-width: 0;
-  overflow: hidden;
   font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
+.dc-subagent-name:hover {
+  color: var(--text-primary);
+}
+
+.dc-subagent-name:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+  color: var(--text-primary);
+}
 
 .dc-subagent-chips-more {
   margin-right: 6px;

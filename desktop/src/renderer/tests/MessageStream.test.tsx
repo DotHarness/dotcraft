@@ -401,7 +401,7 @@ describe('MessageStream', () => {
     expect(screen.queryByText('Read old.ts')).toBeNull()
     expect(screen.queryByText('old-artifact.md')).toBeNull()
     expect(screen.queryByText(/hidden/i)).toBeNull()
-    const processedSummary = screen.getByRole('button', { name: /Processed in/ })
+    const processedSummary = screen.getByRole('button', { name: /Worked for/ })
     expect(processedSummary).toBeInTheDocument()
     expect(screen.getByText('Read recent-2.ts')).toBeInTheDocument()
     expect(screen.getByText('Read recent-3.ts')).toBeInTheDocument()

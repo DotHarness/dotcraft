@@ -364,7 +364,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                   icon={<PinIcon filled={isPinned} />}
                   label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
                   tooltipLabel={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-                  tooltipPlacement="right"
+                  tooltipPlacement="top"
                   size={22}
                   radius={6}
                   className="dc-thread-list-icon-button"
@@ -556,7 +556,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               icon={<Archive size={14} strokeWidth={2} aria-hidden="true" />}
               label={t('threadEntry.archive')}
               tooltipLabel={t('threadEntry.archive')}
-              tooltipPlacement="right"
+              tooltipPlacement="top"
               size={24}
               radius={8}
               className="dc-thread-list-icon-button"

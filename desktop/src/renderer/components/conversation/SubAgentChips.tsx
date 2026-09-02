@@ -1,13 +1,16 @@
-import { useMemo, useState, type CSSProperties, type JSX } from 'react'
-import { useT } from '../../contexts/LocaleContext'
+import { useMemo, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
+import { avatarFromSeed } from '../agents/agentAvatar'
+import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginRegistry'
+import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
 
 const VISIBLE_CHIPS = 3
 
@@ -16,7 +19,10 @@ export interface SubAgentChipDisplay {
   name: string
   prompt: string
   accentColor: string
+  seed: string
   childThreadId: string | null
+  pending: boolean
+  failed: boolean
 }
 
 export function SubAgentChips({
@@ -27,6 +33,7 @@ export function SubAgentChips({
   parentThreadId: string | null
 }): JSX.Element | null {
   const t = useT()
+  const locale = useLocale()
   const [showAll, setShowAll] = useState(false)
   const children = useSubAgentStore((state) =>
     parentThreadId ? state.childrenByParent.get(parentThreadId) : undefined
@@ -42,47 +49,72 @@ export function SubAgentChips({
   const runningIds = new Set(
     (children ?? []).filter(isSubAgentChildRunning).map((child) => child.childThreadId)
   )
-  const anyRunning = displays.some(
-    (display) => display.childThreadId != null && runningIds.has(display.childThreadId)
+  // A spawn still in flight has no child id to match, so its own state counts as running.
+  const anyRunning = displays.some((display) =>
+    display.pending || (display.childThreadId != null && runningIds.has(display.childThreadId))
   )
+  const anyFailed = displays.some((display) => display.failed)
   const visible = showAll ? displays : displays.slice(0, VISIBLE_CHIPS)
   const hidden = displays.length - visible.length
 
   return (
     <div className="dc-subagent-chips" data-testid="subagent-chips">
-      {visible.map((display) => (
-        <SubAgentChip
-          key={display.id}
-          display={display}
-          running={display.childThreadId != null && runningIds.has(display.childThreadId)}
-        />
-      ))}
+      <span className="dc-subagent-marks" aria-hidden>
+        {visible.map((display) => (
+          <span key={display.id} className="dc-subagent-mark">
+            {/* Same identity the Subagents tab draws, so one agent reads the same in both places. */}
+            <RobotAvatar spec={{ ...avatarFromSeed(display.seed), accessory: 0 }} size={16} />
+          </span>
+        ))}
+      </span>
+      {joinNames(locale, visible)}
       {hidden > 0 && (
-        <button
-          type="button"
-          className="dc-subagent-chips-more"
-          onClick={() => setShowAll(true)}
-        >
-          {t('subAgentChips.more', { count: hidden })}
-        </button>
+        <>
+          {' '}
+          <button
+            type="button"
+            className="dc-subagent-chips-more"
+            onClick={() => setShowAll(true)}
+          >
+            {t('subAgentChips.more', { count: hidden })}
+          </button>
+        </>
       )}
+      {' '}
       <span
-        className={anyRunning ? 'tool-running-gradient-text' : undefined}
+        className={anyRunning && !anyFailed ? 'tool-running-gradient-text' : undefined}
         aria-live="polite"
       >
-        {anyRunning ? t('subAgentChips.startedWorking') : t('subAgentChips.finished')}
+        {statusLabel(t, { anyFailed, anyRunning })}
       </span>
     </div>
   )
 }
 
-function SubAgentChip({
-  display,
-  running
-}: {
-  display: SubAgentChipDisplay
-  running: boolean
-}): JSX.Element {
+/** A failed spawn has no verb of its own, so it reads as interrupted. */
+function statusLabel(
+  t: (key: string) => string,
+  state: { anyFailed: boolean; anyRunning: boolean }
+): string {
+  if (state.anyFailed) return t('subAgentChips.interrupted')
+  if (state.anyRunning) return t('subAgentChips.startedWorking')
+  return t('subAgentChips.finished')
+}
+
+/** Names read as one sentence, so the separators come from the locale rather than a hardcoded comma. */
+function joinNames(locale: string, displays: SubAgentChipDisplay[]): ReactNode {
+  const parts = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })
+    .formatToParts(displays.map((entry) => entry.name))
+  let index = -1
+  return parts.map((part, position) => {
+    if (part.type !== 'element') return <span key={`sep-${position}`}>{part.value}</span>
+    index += 1
+    const display = displays[index]
+    return <SubAgentName key={display.id} display={display} />
+  })
+}
+
+function SubAgentName({ display }: { display: SubAgentChipDisplay }): JSX.Element {
   const t = useT()
   const label = t('subagentsPanel.openAria', { name: display.name })
   const tooltip = display.prompt ? `${display.name} — ${display.prompt}` : label
@@ -100,14 +132,12 @@ function SubAgentChip({
     <ActionTooltip label={tooltip} placement="top">
       <button
         type="button"
-        className="dc-subagent-chip"
-        data-running={running ? 'true' : 'false'}
+        className="dc-subagent-name"
         style={{ '--subagent-accent': display.accentColor } as CSSProperties}
         onClick={open}
         aria-label={label}
       >
-        <span className="dc-subagent-chip-dot" aria-hidden />
-        <span className="dc-subagent-chip-name">{display.name}</span>
+        {display.name}
       </button>
     </ActionTooltip>
   )
@@ -141,12 +171,17 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
     ?? getString(args, 'prompt')
     ?? ''
 
+  const seed = getSubAgentIdentitySeed({ agentPath, childThreadId, nickname: name }) ?? name
+
   return {
     id: item.id,
     name,
     prompt: truncatePrompt(prompt, 180),
-    accentColor: getSubAgentAccent(getSubAgentIdentitySeed({ agentPath, childThreadId, nickname: name })),
-    childThreadId
+    accentColor: getSubAgentAccent(seed),
+    seed,
+    childThreadId,
+    pending: item.status !== 'completed',
+    failed: isToolExecutionFailure(item)
   }
 }
 

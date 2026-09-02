@@ -1592,7 +1592,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(screen.getByText('Last answer.')).toBeInTheDocument()
     expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for/ }))
 
     expect(screen.getByText('First answer.')).toBeInTheDocument()
     expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
@@ -1929,7 +1929,7 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
 
     expect(screen.queryByText('Thought 4s')).toBeNull()
     expect(screen.queryByText('private reasoning')).toBeNull()
-    expect(screen.queryByText(/Processed in/)).toBeNull()
+    expect(screen.queryByText(/Worked for/)).toBeNull()
     expect(screen.getByText('final answer')).toBeInTheDocument()
   })
 
@@ -2497,10 +2497,10 @@ describe('AgentResponseBlock completed turn folding', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Processed in 5s')).toBeInTheDocument()
+    expect(screen.getByText('Worked for 5s')).toBeInTheDocument()
     expect(screen.getByText('final response')).toBeInTheDocument()
     expect(screen.queryByText('Read main.ts')).toBeNull()
-    const summaryButton = screen.getByRole('button', { name: /Processed in 5s/ })
+    const summaryButton = screen.getByRole('button', { name: /Worked for 5s/ })
 
     fireEvent.click(summaryButton)
 
@@ -2556,7 +2556,7 @@ describe('AgentResponseBlock completed turn folding', () => {
     expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
     expect(screen.queryByText('intermediate response')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in 6s/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for 6s/ }))
 
     expect(screen.getByText('intermediate response')).toBeInTheDocument()
     expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
@@ -2607,12 +2607,12 @@ describe('AgentResponseBlock completed turn folding', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Processed in 6s')).toBeInTheDocument()
+    expect(screen.getByText('Worked for 6s')).toBeInTheDocument()
     expect(screen.getByText('Visible Plan')).toBeInTheDocument()
     expect(screen.getByText('final response after plan')).toBeInTheDocument()
     expect(screen.queryByText('Read main.ts')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in 6s/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for 6s/ }))
 
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
   })
@@ -2696,7 +2696,7 @@ describe('AgentResponseBlock completed turn folding', () => {
       (item) => (item as HTMLElement).dataset.kind
     )).toEqual(['other', 'assistant'])
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for/ }))
     expect(screen.getByText(/rejected-review/)).toBeInTheDocument()
   })
 
@@ -2769,7 +2769,7 @@ describe('AgentResponseBlock completed turn folding', () => {
     expect(screen.queryByText('First Plan')).toBeNull()
     expect(screen.getByText('final response after latest plan')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in 8s/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for 8s/ }))
 
     expect(screen.getByText('First Plan')).toBeInTheDocument()
   })
@@ -2811,13 +2811,13 @@ describe('AgentResponseBlock completed turn folding', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByRole('button', { name: /Processed in 7s/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Worked for 7s/ })).toBeInTheDocument()
     expect(screen.getByText('Generated image')).toBeInTheDocument()
     expect(screen.getByTestId('tool-output-image')).toBeInTheDocument()
     expect(screen.getByText('final response after image')).toBeInTheDocument()
     expect(screen.queryByText('Read main.ts')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in 7s/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for 7s/ }))
 
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
   })
@@ -2868,7 +2868,7 @@ describe('AgentResponseBlock completed turn folding', () => {
       `data:image/png;base64,${latestImage}`
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in 8s/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for 8s/ }))
 
     const images = screen.getAllByTestId('tool-output-image')
     expect(images).toHaveLength(2)
@@ -3014,10 +3014,10 @@ describe('AgentResponseBlock interactive card pinning', () => {
     expect(container.querySelector('.interactive-tool-view__frame')).toBeNull()
     expect(screen.getByText('here is the board')).toBeInTheDocument()
     // The non-UI tool call stays collapsed until the summary is expanded.
-    expect(screen.getByText(/Processed in/)).toBeInTheDocument()
+    expect(screen.getByText(/Worked for/)).toBeInTheDocument()
     expect(screen.queryByText('Read main.ts')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for/ }))
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
   })
 
@@ -3062,7 +3062,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
     expect(container.querySelector('iframe[title="GetBoardItem"]')).toBeNull()
     expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Worked for/ }))
     expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeNull()
   })
 
@@ -3253,7 +3253,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
     expect(screen.getByText('Generated image')).toBeInTheDocument()
     expect(screen.getByTestId('tool-output-image')).toBeInTheDocument()
     expect(screen.getByText('final response stays visible')).toBeInTheDocument()
-    const processedSummary = screen.getByRole('button', { name: /Processed in 8s/ })
+    const processedSummary = screen.getByRole('button', { name: /Worked for 8s/ })
     expect(processedSummary).toBeInTheDocument()
     expect(screen.queryByText('private reasoning')).toBeNull()
     expect(screen.queryByText('Thought 2s')).toBeNull()
@@ -3421,7 +3421,7 @@ describe('AgentResponseBlock guidance user messages', () => {
       </LocaleProvider>
     )
 
-    expect(screen.queryByText(/Processed in/)).toBeNull()
+    expect(screen.queryByText(/Worked for/)).toBeNull()
     expect(screen.getByText('Called FollowupTool')).toBeInTheDocument()
     expect(screen.getByText('Steered conversation')).toBeInTheDocument()
     expect(screen.getByText('guide the active turn')).toBeInTheDocument()

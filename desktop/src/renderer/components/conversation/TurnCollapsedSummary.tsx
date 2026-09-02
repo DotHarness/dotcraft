@@ -6,11 +6,14 @@ import { ToolDisclosure } from './ToolDisclosure'
 
 interface TurnCollapsedSummaryProps {
   elapsedMs: number
+  /** Suppresses the rule when no answer follows the summary. */
+  followedByContent: boolean
   children: ReactNode
 }
 
 export function TurnCollapsedSummary({
   elapsedMs,
+  followedByContent,
   children
 }: TurnCollapsedSummaryProps): JSX.Element {
   const t = useT()
@@ -22,7 +25,8 @@ export function TurnCollapsedSummary({
     <ToolDisclosure
       expanded={expanded}
       onToggle={() => setExpanded((value) => !value)}
-      title={t('conversation.turnCollapsed.processed', { duration })}
+      title={t('conversation.turnCollapsed.workedFor', { duration })}
+      variant={followedByContent ? 'turn' : undefined}
     >
       {children}
     </ToolDisclosure>
