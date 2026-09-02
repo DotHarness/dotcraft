@@ -18,7 +18,7 @@ Agent work happens in a worktree Oratorio creates for the run, so the checkout y
 
 ## Connect GitHub and GitLab
 
-Add a project in Oratorio settings and work from your provider syncs onto the same Board. [GitHub](./oratorio/github) connects through a GitHub App, and [GitLab](./oratorio/gitlab) through a project-scoped token.
+Select **Connect GitHub** or **Connect GitLab** on the Board and the guided flow takes you from credentials to a first sync. [GitHub](./oratorio/github) connects through a GitHub App, and [GitLab](./oratorio/gitlab) through a project-scoped token.
 
 Oratorio writes nothing back to a provider until you enable it. A public webhook endpoint is optional, since manual and scheduled sync work without one. Project-to-workspace mapping, Agent execution, and automation are set in [Configure Oratorio](./oratorio/settings).
 

@@ -36,6 +36,7 @@ const host = {
   navigation: {
     openMainView: vi.fn(),
     openSettingsPage: vi.fn(),
+    openExternal: vi.fn(),
     openThread
   },
   ui: {

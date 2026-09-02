@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, MousePointer2, Pencil, Plus, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
@@ -70,6 +70,8 @@ import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderTool
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
 import { AgentBuilderChatEmptyState } from './AgentBuilderChatEmptyState'
+import { AgentTemplateDeck } from './AgentTemplateDeck'
+import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
 import './AgentBuilderView.css'
 
 // Wire shapes, a subset of specs/protocols/appserver-protocol.md.
@@ -146,26 +148,6 @@ const SUGGESTIONS: { icon: LucideIcon; title: string; desc: string; prompt: stri
   { icon: Tag, title: 'Bug triage', desc: 'Prioritize incoming bugs and log them', prompt: 'A bug triage agent that reviews incoming bugs, prioritizes them, and logs them.' }
 ]
 
-const FAN = [
-  { rot: -11, y: 12 },
-  { rot: -6, y: 4 },
-  { rot: 0, y: 0 },
-  { rot: 6, y: 4 },
-  { rot: 11, y: 12 }
-]
-
-const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
-  name: 'agentBuilder.field.name',
-  description: 'agentBuilder.field.description',
-  instructions: 'agentBuilder.field.instructions',
-  'tools.policy': 'agentBuilder.field.tools',
-  'mcp.servers': 'agentBuilder.field.mcp',
-  'skills.preload': 'agentBuilder.field.skills',
-  providerPreference: 'agentBuilder.field.model',
-  approval: 'agentBuilder.field.approval',
-  'tools.agentControl': 'agentBuilder.field.toolControl'
-}
-
 const INSTRUCTIONS_PLACEHOLDER = 'Give your agent instructions on how to operate — its job, boundaries, and what it handles…'
 
 type CatalogKind = 'tool' | 'mcp' | 'skill'
@@ -184,62 +166,6 @@ function catalogIcon(kind: CatalogKind, id: string): LucideIcon {
   if (kind === 'mcp') return Server
   if (kind === 'skill') return BookOpen
   return TOOL_ICON_BY_NAME[id] ?? Wrench
-}
-
-const MARKER_TARGET_SELECTOR = '[data-agent-builder-marker-target]'
-const MARKER_FALLBACK_SELECTOR = [
-  MARKER_TARGET_SELECTOR,
-  '.dc-settings-select__value',
-  'input',
-  'textarea',
-  '.agent-builder-chip-label',
-  '.agent-builder-pick-empty',
-  '.agent-builder-add'
-].join(', ')
-const MARKER_OFFSET_X_ATTR = 'data-agent-builder-marker-offset-x'
-const MARKER_OFFSET_Y_ATTR = 'data-agent-builder-marker-offset-y'
-const MARKER_SELECTOR = '.agent-builder-edit-marker'
-const MARKER_FLIP_PAD = 12
-
-function markerOffset(target: HTMLElement, attr: string): number | null {
-  const value = target.getAttribute(attr)
-  if (value == null) return null
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-let markerTextCanvas: HTMLCanvasElement | null = null
-
-// Width of `line` as the element actually renders it — used to find where the
-// text ends inside a full-width input/textarea (its box edge is uninformative).
-function markerTextWidth(el: HTMLElement, line: string): number {
-  try {
-    const canvas = (markerTextCanvas ??= document.createElement('canvas'))
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return 0
-    const style = window.getComputedStyle(el)
-    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
-    return ctx.measureText(line).width
-  } catch {
-    return 0
-  }
-}
-
-// Distance from a marker target's left edge to the end of its rendered content.
-// Text fields span the full width, so we measure the text rather than trust the
-// box edge; every other target hugs its own content.
-function markerContentEnd(target: HTMLElement): number {
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-    const style = window.getComputedStyle(target)
-    const paddingLeft = Number.parseFloat(style.paddingLeft) || 0
-    const paddingRight = Number.parseFloat(style.paddingRight) || 0
-    const raw = target.value || target.placeholder || ''
-    const line = target instanceof HTMLTextAreaElement ? (raw.split('\n')[0] ?? '') : raw
-    const end = paddingLeft + markerTextWidth(target, line)
-    const maxEnd = target.clientWidth - paddingRight
-    return maxEnd > 0 ? Math.min(end, maxEnd) : end
-  }
-  return target.getBoundingClientRect().width
 }
 
 const galleryAvatar: CSSProperties = { flex: '0 0 auto', display: 'inline-flex' }
@@ -278,13 +204,18 @@ function newDraftTargetId(): string {
   return `draft-agent-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`
 }
 
-export function AgentBuilderView(): JSX.Element {
+interface AgentBuilderViewProps {
+  /** Where the view opens; the design lab mounts the Welcome page directly. */
+  initialRoute?: 'gallery' | 'intro'
+}
+
+export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewProps = {}): JSX.Element {
   const t = useT()
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [route, setRoute] = useState<Route>({ name: 'gallery' })
+  const [route, setRoute] = useState<Route>(() => (initialRoute === 'intro' ? { name: 'intro' } : { name: 'gallery' }))
 
   const [toolCatalog, setToolCatalog] = useState<ToolInfo[]>([])
   const [skillCatalog, setSkillCatalog] = useState<SkillInfo[]>([])
@@ -306,10 +237,9 @@ export function AgentBuilderView(): JSX.Element {
   const [builderPrefillRequest, setBuilderPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const introPrefillSeqRef = useRef(0)
   const builderPrefillSeqRef = useRef(0)
-  // The field the agent most recently edited — drives the cursor marker after a tool result lands.
-  const [highlight, setHighlight] = useState<{ field: BuilderField; seq: number } | null>(null)
+  // Persists between turns; only another builder tool moves it.
+  const [cursor, setCursor] = useState<{ field: BuilderField; phase: AgentEditingPhase } | null>(null)
   const [editingField, setEditingField] = useState<BuilderField | null>(null)
-  const highlightSeqRef = useRef(0)
   const builderSplitRef = useRef<HTMLDivElement>(null)
   const builderSplitWidthRef = useRef<number | null>(null)
   const [builderSplitWidth, setBuilderSplitWidth] = useState<number | null>(null)
@@ -326,21 +256,25 @@ export function AgentBuilderView(): JSX.Element {
   const latestBuilderDraftRef = useRef<string>('')
 
   useEffect(() => {
-    if (!highlight) return undefined
-    const timer = window.setTimeout(() => setHighlight(null), 1500)
-    return () => window.clearTimeout(timer)
-  }, [highlight])
+    if (route.name !== 'builder') setCursor(null)
+  }, [route.name])
 
   const handleBuilderResult = useCallback((result: BuilderToolResult): void => {
     if (!result.ok || !isBuilderField(result.field)) return
-    setHighlight({ field: result.field, seq: (highlightSeqRef.current += 1) })
+    const field = result.field
+    setCursor((current) => ({ field, phase: current?.phase ?? 'editing' }))
     setRoute((r) => (r.name === 'builder' ? { ...r, draft: applyBuilderChange(r.draft, result).draft } : r))
+  }, [])
+
+  const handleEditingField = useCallback((field: BuilderField | null): void => {
+    setEditingField(field)
+    setCursor((current) => (field ? { field, phase: 'editing' } : current ? { ...current, phase: 'settled' } : null))
   }, [])
 
   const builderConversation = useAgentBuilderConversation({
     active: route.name === 'builder',
     onResult: handleBuilderResult,
-    onEditingField: setEditingField
+    onEditingField: handleEditingField
   })
   const builderConversationStatus = builderConversation.status
   const builderConversationError = builderConversation.error
@@ -723,7 +657,7 @@ export function AgentBuilderView(): JSX.Element {
 
   const leaveBuilder = useCallback((): void => {
     setBuilderSession(null)
-    setHighlight(null)
+    setCursor(null)
     setEditingField(null)
     setRoute({ name: 'gallery' })
   }, [])
@@ -738,7 +672,6 @@ export function AgentBuilderView(): JSX.Element {
   }, [profiles, query])
 
   if (route.name === 'builder') {
-    const activeEditingField = editingField ?? highlight?.field ?? null
     const agentDriving = builderConversation.threadId !== null && (builderTurnStatus === 'running' || editingField !== null)
     const effectiveBuilderChatWidth = resolveAgentBuilderChatWidth(
       agentBuilderChatWidth,
@@ -763,7 +696,7 @@ export function AgentBuilderView(): JSX.Element {
             viewMode={viewMode}
             setViewMode={setViewMode}
             autoSaveState={autoSaveState}
-            editingField={activeEditingField}
+            cursor={cursor}
             agentDriving={agentDriving}
             onBack={leaveBuilder}
             onDelete={removeProfile}
@@ -852,9 +785,18 @@ export function AgentBuilderView(): JSX.Element {
               })}
             </div>
           </div>
-          {templates.length > 0 && (
-            <TemplateDeck templates={templates} onPick={(p) => void fromTemplate(p)} />
-          )}
+          <AgentTemplateDeck
+            templates={templates.map((p) => ({
+              key: `${p.source}:${p.id}`,
+              name: p.id,
+              description: p.description || '',
+              avatar: avatarForEntry(p)
+            }))}
+            onPick={(key) => {
+              const entry = templates.find((p) => `${p.source}:${p.id}` === key)
+              if (entry) void fromTemplate(entry)
+            }}
+          />
         </div>
       </div>
     )
@@ -1047,57 +989,6 @@ function DetachedAgentBuilderChat({
   )
 }
 
-// Hover selection is driven by pointer X over the stable container rect, not per-card
-// :hover: lifting a card must not change which card is selected, or it oscillates.
-function TemplateDeck({ templates, onPick }: { templates: ProfileEntry[]; onPick: (entry: ProfileEntry) => void }): JSX.Element {
-  const ref = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState<number | null>(null)
-  const cards = templates.slice(0, 5)
-
-  const trackPointer = (clientX: number): void => {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    if (rect.width <= 0) return
-    const ratio = (clientX - rect.left) / rect.width
-    setActive(Math.max(0, Math.min(cards.length - 1, Math.floor(ratio * cards.length))))
-  }
-
-  return (
-    <div
-      ref={ref}
-      className="agent-builder-intro-deck"
-      onMouseMove={(e) => trackPointer(e.clientX)}
-      onMouseLeave={() => setActive(null)}
-    >
-      {cards.map((p, i) => {
-        const f = FAN[i % FAN.length]
-        const isActive = active === i
-        return (
-          <button
-            key={p.id}
-            type="button"
-            className={`agent-builder-deckcard${isActive ? ' is-active' : ''}`}
-            style={{
-              transform: isActive
-                ? 'translateY(-84px) rotate(0deg) scale(1.04)'
-                : `translateY(${f.y}px) rotate(${f.rot}deg)`,
-              zIndex: isActive ? 40 : 5 - Math.abs((i % 5) - 2)
-            }}
-            onClick={() => onPick(p)}
-          >
-            <span className="agent-builder-deckcard-head">
-              <RobotAvatar spec={avatarForEntry(p)} size={40} />
-              <span className="agent-builder-deckcard-name">{p.id}</span>
-            </span>
-            <span className="agent-builder-deckcard-desc">{p.description || ''}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 interface BuilderViewProps {
   route: Extract<Route, { name: 'builder' }>
   setRoute: Dispatch<SetStateAction<Route>>
@@ -1108,14 +999,14 @@ interface BuilderViewProps {
   viewMode: 'edit' | 'preview'
   setViewMode: Dispatch<SetStateAction<'edit' | 'preview'>>
   autoSaveState: 'idle' | 'saving' | 'saved' | 'error'
-  editingField: BuilderField | null
+  cursor: { field: BuilderField; phase: AgentEditingPhase } | null
   agentDriving: boolean
   onBack: () => void
   onDelete: () => void
   onCreate: () => void
 }
 
-function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, editingField, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
+function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
   const locale = useLocale()
   const t = useT()
   const { draft, avatar } = route
@@ -1288,6 +1179,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
       <div className="agent-builder-scroll dc-scrollbar-stable">
       <div className={`agent-builder-doc${agentDriving ? ' is-agent-driving' : ''}`}>
         {agentDriving && <div className="agent-builder-driving-veil" aria-hidden />}
+        <AgentEditingCursor field={cursor?.field ?? null} phase={cursor?.phase ?? 'settled'} />
         <div className="agent-builder-id">
           <span className="agent-builder-id-avatar">
             <RobotAvatar spec={avatar} size={64} animated />
@@ -1298,7 +1190,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             )}
           </span>
           <div className="agent-builder-id-main">
-            <FieldAnchor field="name" active={editingField === 'name'} className="agent-builder-field-anchor-name">
+            <FieldAnchor field="name" className="agent-builder-field-anchor-name">
               <input
                 className={`agent-builder-id-name${nameMissing ? ' is-empty' : ''}`}
                 value={draft.name}
@@ -1309,7 +1201,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
                 onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
               />
             </FieldAnchor>
-            <FieldAnchor field="description" active={editingField === 'description'} className="agent-builder-field-anchor-description">
+            <FieldAnchor field="description" className="agent-builder-field-anchor-description">
               <input
                 className="agent-builder-id-desc"
                 value={draft.description}
@@ -1327,7 +1219,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
         <div className="agent-builder-divider" />
 
         <Section label="Tools">
-          <FieldAnchor field="tools.policy" active={editingField === 'tools.policy'} className="agent-builder-tool-policy">
+          <FieldAnchor field="tools.policy" className="agent-builder-tool-policy">
             <SettingsSelect<ToolPolicyMode>
               value={draft.tools.mode}
               ariaLabel={t('agentBuilder.tools.modeLabel')}
@@ -1364,7 +1256,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
                 : undefined}
               kind="tool"
               field="tools.policy"
-              editingField={editingField}
               readOnly={preview}
             />
           )}
@@ -1378,7 +1269,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             addLabel="Add MCP server"
             kind="mcp"
             field="mcp.servers"
-            editingField={editingField}
             readOnly={preview}
           />
         </Section>
@@ -1391,7 +1281,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             addLabel="Add skill"
             kind="skill"
             field="skills.preload"
-            editingField={editingField}
             readOnly={preview}
           />
         </Section>
@@ -1400,7 +1289,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
           <InstructionsField
             value={draft.roleInstructions}
             preview={preview}
-            editingField={editingField}
             onChange={(roleInstructions) => setDraft((d) => ({ ...d, roleInstructions }))}
           />
         </Section>
@@ -1411,7 +1299,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
               label={t('agentBuilder.model.customSettings')}
               description={draft.providerPreference ? t('agentBuilder.model.customDescription') : inheritSummary}
               control={(
-                <FieldAnchor field="providerPreference" active={editingField === 'providerPreference'} className="agent-builder-detail-toggle">
+                <FieldAnchor field="providerPreference" className="agent-builder-detail-toggle">
                   <PillSwitch
                     checked={draft.providerPreference != null}
                     onChange={(checked) => {
@@ -1483,7 +1371,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
               description="Whether the agent can manage its own available tools at runtime."
               controlMinWidth={200}
               control={(
-                <FieldAnchor field="tools.agentControl" active={editingField === 'tools.agentControl'} className="agent-builder-detail-control">
+                <FieldAnchor field="tools.agentControl" className="agent-builder-detail-control">
                   <SettingsSelect<AgentControl>
                     value={draft.tools.agentControl}
                     onValueChange={(v) => setDraft((d) => ({ ...d, tools: { ...d.tools, agentControl: v } }))}
@@ -1499,7 +1387,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
               label="Approval"
               controlMinWidth={200}
               control={(
-                <FieldAnchor field="approval" active={editingField === 'approval'} className="agent-builder-detail-control">
+                <FieldAnchor field="approval" className="agent-builder-detail-control">
                   <SettingsSelect<ApprovalPolicy>
                     value={draft.permissions.approvalPolicy}
                     onValueChange={(v) => setDraft((d) => ({ ...d, permissions: { ...d.permissions, approvalPolicy: v } }))}
@@ -1540,94 +1428,13 @@ function Section({ label, children }: { label: string; children: ReactNode }): J
   )
 }
 
-function FieldAnchor({
-  field,
-  active,
-  className,
-  children
-}: {
-  field: BuilderField
-  active: boolean
-  className?: string
-  children: ReactNode
-}): JSX.Element {
-  const anchorRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    if (!active) return undefined
-    const anchor = anchorRef.current
-    if (!anchor) return undefined
-    let frame = 0
-
-    const measure = (): void => {
-      const target = anchor.querySelector<HTMLElement>(MARKER_FALLBACK_SELECTOR)
-      if (!target) return
-      const anchorRect = anchor.getBoundingClientRect()
-      const targetRect = target.getBoundingClientRect()
-      const x = targetRect.left - anchorRect.left + markerContentEnd(target) + (markerOffset(target, MARKER_OFFSET_X_ATTR) ?? 0)
-      const y = targetRect.top - anchorRect.top + (markerOffset(target, MARKER_OFFSET_Y_ATTR) ?? (targetRect.height / 2))
-      anchor.style.setProperty('--agent-builder-marker-x', `${Math.round(x)}px`)
-      anchor.style.setProperty('--agent-builder-marker-y', `${Math.round(y)}px`)
-
-      // The label trails to the right of the cursor by default; flip it leftward
-      // only when the content already reaches the field's right edge so it never
-      // overflows the (clipped) editor pane.
-      const marker = anchor.querySelector<HTMLElement>(MARKER_SELECTOR)
-      if (marker) {
-        marker.classList.toggle('is-marker-flipped', x + marker.offsetWidth + MARKER_FLIP_PAD > anchorRect.width)
-      }
-    }
-
-    const scheduleMeasure = (): void => {
-      if (frame) window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(measure)
-    }
-
-    scheduleMeasure()
-    const target = anchor.querySelector<HTMLElement>(MARKER_FALLBACK_SELECTOR)
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleMeasure) : null
-    observer?.observe(anchor)
-    if (target) observer?.observe(target)
-    window.addEventListener('resize', scheduleMeasure)
-    window.addEventListener('scroll', scheduleMeasure, true)
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      observer?.disconnect()
-      window.removeEventListener('resize', scheduleMeasure)
-      window.removeEventListener('scroll', scheduleMeasure, true)
-    }
-  })
-
-  return (
-    <div ref={anchorRef} className={`agent-builder-field-anchor${className ? ` ${className}` : ''}`} data-builder-field-anchor={field}>
-      {active && <AgentEditingMarker field={field} />}
-      {children}
-    </div>
-  )
-}
-
-function AgentEditingMarker({ field }: { field: BuilderField }): JSX.Element {
-  const t = useT()
-  const fieldLabel = t(BUILDER_FIELD_LABEL_KEYS[field])
-  const label = t('agentBuilder.editing.updatingField', { field: fieldLabel })
-
-  return (
-    <span className="agent-builder-edit-marker" aria-label={label}>
-      <MousePointer2 className="agent-builder-edit-marker-arrow" size={17} aria-hidden />
-      <span className="agent-builder-edit-marker-pill">{label}</span>
-    </span>
-  )
-}
-
 function InstructionsField({
   value,
   preview,
-  editingField,
   onChange
 }: {
   value: string
   preview: boolean
-  editingField: BuilderField | null
   onChange: (value: string) => void
 }): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -1640,7 +1447,7 @@ function InstructionsField({
   }, [value, preview])
 
   return (
-    <FieldAnchor field="instructions" active={editingField === 'instructions'} className="agent-builder-field-anchor-instructions">
+    <FieldAnchor field="instructions" className="agent-builder-field-anchor-instructions">
       {preview ? (
         <div
           className="agent-builder-instr-preview"
@@ -1689,7 +1496,6 @@ function CatalogField({
   emptyHint,
   kind,
   field,
-  editingField,
   readOnly = false
 }: {
   options: CatalogOption[]
@@ -1699,7 +1505,6 @@ function CatalogField({
   emptyHint?: string
   kind: CatalogKind
   field: BuilderField
-  editingField: BuilderField | null
   readOnly?: boolean
 }): JSX.Element {
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -1709,14 +1514,14 @@ function CatalogField({
 
   if (readOnly && selected.length === 0) {
     return (
-      <FieldAnchor field={field} active={editingField === field} className="agent-builder-field-anchor-catalog">
+      <FieldAnchor field={field} className="agent-builder-field-anchor-catalog">
         <span className="agent-builder-pick-empty" data-agent-builder-marker-target>None</span>
       </FieldAnchor>
     )
   }
 
   return (
-    <FieldAnchor field={field} active={editingField === field} className="agent-builder-field-anchor-catalog">
+    <FieldAnchor field={field} className="agent-builder-field-anchor-catalog">
       <div className="agent-builder-pick">
         {!readOnly && selected.length === 0 && emptyHint && (
           <span className="agent-builder-pick-empty" data-agent-builder-marker-target>{emptyHint}</span>

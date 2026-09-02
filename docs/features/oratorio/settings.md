@@ -6,7 +6,7 @@ Open the Board and select **Oratorio settings** to manage source connections, pr
 
 ## Sources and projects
 
-GitHub and GitLab credentials live on their own provider pages. Add each repository and project separately, and map each one to the DotCraft workspace that holds the matching checkout. Source-backed work never falls through to another workspace.
+**Connect a source** walks through credentials, the repository or project, its DotCraft workspace, and automation in one pass, then confirms read access with a first sync. The GitHub and GitLab provider pages hold the same settings for later changes. Each repository and project maps to the DotCraft workspace that holds the matching checkout, and source-backed work never falls through to another workspace.
 
 When a mapped Workspace goes offline or is no longer registered in DotCraft, the binding stays visible, marked unavailable. Rebind it to an open local Workspace, or remove the project. Removing a project stops future sync, automation, and dispatch, and keeps the existing task history. An unavailable binding doesn't block other settings changes — Oratorio checks again when it reports status or starts a run.
 

@@ -8,6 +8,7 @@ export {
   Input,
   ModalHeader,
   PillSwitch,
+  SegmentedControl,
   Select,
   SettingsBreadcrumb,
   SettingsGroup,

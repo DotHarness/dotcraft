@@ -6,7 +6,8 @@ import { mapItemDetail, mapItemSummary } from './oratorio-mappers'
 import type { OratorioTask, TaskStage } from './oratorio-model'
 import { OratorioTaskDetail } from './OratorioTaskDetail'
 import type { QuickActionId } from './oratorio-workflow'
-import { consumeOratorioNavigation, onOratorioNavigation, type OratorioNavigationTarget } from './oratorio-navigation'
+import { consumeOratorioNavigation, onOratorioNavigation, requestOratorioNavigation, type OratorioNavigationTarget } from './oratorio-navigation'
+import { loadOratorioSourcePresence } from './settings/oratorio-settings-service'
 import './oratorio.css'
 
 const defaultBoardState: OratorioBoardState = { mode: 'active', query: '', repository: 'all', assignee: 'all', selectedTaskId: null, scrollTop: 0 }
@@ -20,6 +21,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
   const [serviceError, setServiceError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [sourcesConfigured, setSourcesConfigured] = useState<boolean | null>(null)
   const loadingMore = useRef(false)
   const restoreStarted = useRef(false)
   const selectedTaskId = useRef<string | null>(null)
@@ -32,6 +34,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
       setTasks(mapped)
       setNextCursor(response.nextCursor)
       setServiceError(false)
+      if (mapped.length === 0) setSourcesConfigured(await loadOratorioSourcePresence().catch(() => null))
     } catch { setServiceError(true) } finally {
       if (options?.initial) setLoading(false)
     }
@@ -143,7 +146,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
   return <>
     {serviceError ? <div className="oratorio-service-alert" role="alert">Oratorio is unavailable. <button type="button" onClick={() => void host.oratorio.retry().then(() => loadBoard({ initial: true }))}>Retry</button></div> : null}
     <OratorioBoard
-      presentation={serviceError ? 'error' : loading ? 'loading' : tasks.length === 0 ? 'empty' : 'ready'}
+      presentation={serviceError ? 'error' : loading ? 'loading' : tasks.length === 0 ? (sourcesConfigured === false ? 'unconfigured' : 'empty') : 'ready'}
       tasks={tasks}
       initialState={retainedViewState.board}
       onStateChange={(board) => {
@@ -151,6 +154,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
         void host.oratorio.focusRun(tasks.find((task) => task.id === board.selectedTaskId)?.run?.runId ?? null)
       }}
       onOpenSettings={openSettings}
+      onConnectSource={(provider) => { requestOratorioNavigation({ kind: 'settings', section: 'connect', provider }); host.navigation.openSettingsPage('oratorio') }}
       onOpenThread={openThread}
       onSync={async () => { const results = await Promise.allSettled(['github', 'gitlab'].map((provider) => oratorioClient.sync(provider))); if (results.every((result) => result.status === 'rejected')) throw new Error('oratorio.sync_failed'); await loadBoard() }}
       onCreateTask={async (draft) => mapItemSummary((await oratorioClient.createLocalTask(draft)).item)}

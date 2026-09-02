@@ -11,6 +11,7 @@ describe('Oratorio native navigation', () => {
     expect(parseOratorioNavigationUrl('oratorio://open/board')).toEqual({ kind: 'board' })
     expect(parseOratorioNavigationUrl('oratorio://open/task/ORA-42')).toEqual({ kind: 'task', taskId: 'ORA-42' })
     expect(parseOratorioNavigationUrl('oratorio://open/settings/github')).toEqual({ kind: 'settings', section: 'github' })
+    expect(parseOratorioNavigationUrl('oratorio://open/settings/connect/gitlab')).toEqual({ kind: 'settings', section: 'connect', provider: 'gitlab' })
   })
 
   it('does not claim unrelated URLs', () => {

@@ -349,15 +349,13 @@ function InlineReferenceLink({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         data-inline-reference-kind={presentation.kind}
-        // Shares the .dc-ref* chip rules (tokens.css) with the composer pills and
-        // user-message refs, including their baseline alignment.
+        // Shares the .dc-ref rules with the composer pills and user-message refs.
         className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
         style={{
           margin: '0 4px',
           maxWidth: 'min(100%, var(--inline-reference-max-width))',
           fontSize: '12px',
           lineHeight: 1.25,
-          textDecoration: 'none',
           cursor: href ? 'pointer' : 'default',
           boxShadow: focused ? '0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)' : 'none'
         }}

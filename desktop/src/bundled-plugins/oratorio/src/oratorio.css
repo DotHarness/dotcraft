@@ -442,3 +442,18 @@
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 10%, transparent);
 }
+
+/* Board before any source is connected */
+.ora-board__onboarding { display: grid; align-self: start; justify-items: center; gap: 18px; width: min(100%, 520px); margin: 40px auto; text-align: center; }
+.ora-board__onboarding-mark { display: inline-grid; width: 60px; height: 60px; place-items: center; border-radius: 16px; background: var(--bg-tertiary); color: var(--text-primary); }
+.ora-board__onboarding h2 { margin: 0; color: var(--text-primary); font-size: var(--type-page-title-size); font-weight: var(--type-page-title-weight); line-height: var(--type-page-title-line-height); }
+.ora-board__onboarding p { max-width: 440px; margin: 6px auto 0; color: var(--text-secondary); font-size: var(--type-secondary-size); line-height: var(--type-secondary-prose-line-height); }
+.ora-board__onboarding-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ora-board__onboarding-cta { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-secondary); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; transition: background-color 120ms ease; }
+.ora-board__onboarding-cta:hover { background: var(--bg-tertiary); }
+.ora-board__onboarding-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ora-board__onboarding-cta > span:first-child { display: inline-grid; width: 40px; height: 40px; flex-shrink: 0; place-items: center; border-radius: 8px; background: var(--bg-tertiary); }
+.ora-board__onboarding-cta > span:last-child { display: grid; min-width: 0; gap: 2px; }
+.ora-board__onboarding-cta strong { font-size: var(--type-ui-size); font-weight: 600; line-height: var(--type-ui-line-height); }
+.ora-board__onboarding-cta > span:last-child > span { color: var(--text-secondary); font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); }
+@media (max-width: 820px) { .ora-board__onboarding-actions { grid-template-columns: 1fr; } }

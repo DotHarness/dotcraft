@@ -460,6 +460,9 @@ function createDesktopPluginHost(
           }
         })
       },
+      async openExternal(url) {
+        await window.api.shell.openExternal(url)
+      },
       onOpenUrl(listener) {
         return own(
           cleanups,

@@ -159,8 +159,26 @@ internal static class CoreToolPresentationCatalog
         "CommitSuggest" => Descriptor("core.commit-suggest"),
         "TodoWrite" or "UpdateTodos" => Descriptor("core.todo"),
         "SearchTools" => Descriptor("core.deferred-search"),
+        "SetAgentName" => FieldDescriptor("name"),
+        "SetAgentDescription" => FieldDescriptor("description"),
+        "SetAgentInstructions" or "AppendAgentInstructions" => FieldDescriptor("instructions"),
+        "SetAgentToolPolicy" => FieldDescriptor("tools.policy"),
+        "SetAgentToolControl" => FieldDescriptor("tools.agentControl"),
+        "AddAgentSkills" or "RemoveAgentSkills" => FieldDescriptor("skills.preload"),
+        "AddAgentMcpServers" or "RemoveAgentMcpServers" => FieldDescriptor("mcp.servers"),
+        "SetAgentProviderPreference" or "ClearAgentProviderPreference" => FieldDescriptor("providerPreference"),
+        "SetAgentApproval" => FieldDescriptor("approval"),
         _ => null
     };
+
+    // Agent Builder edits (specs/features/agent-profiles.md §12A.2) name the profile field they touch.
+    private static ToolPresentationDescriptor FieldDescriptor(string field) =>
+        new(
+            new PresentationId("core.agent-builder"),
+            new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["field"] = JsonSerializer.SerializeToElement(field)
+            });
 
     private static ToolPresentationDescriptor Descriptor(string id, string? operation = null) =>
         new(

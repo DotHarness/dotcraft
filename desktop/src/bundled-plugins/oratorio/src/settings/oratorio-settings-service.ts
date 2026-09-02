@@ -1,12 +1,22 @@
 import type { OratorioSettingsConfig, SecretConfigurationField, SourceProvider } from './oratorio-settings-model'
+import { hasConfiguredSource } from './oratorio-connect-model'
 import { oratorioHost } from '../runtime'
 
 type JsonObject = Record<string, any>
+
+export interface GitHubInstallationWarning {
+  instance: string
+  owner: string
+  repository: string
+  code: string
+  message: string
+}
 
 export interface LoadedOratorioSettings {
   settings: OratorioSettingsConfig
   serverConfiguration: JsonObject
   restartRequired: boolean
+  gitHubInstallationWarnings: GitHubInstallationWarning[]
 }
 
 export async function loadOratorioSettings(): Promise<LoadedOratorioSettings> {
@@ -18,19 +28,21 @@ export async function loadOratorioSettings(): Promise<LoadedOratorioSettings> {
   return {
     settings: fromServer(envelope, schedulesResponse.data.schedules ?? []),
     serverConfiguration: structuredClone(envelope.configuration),
-    restartRequired: Boolean(envelope.restartRequired)
+    restartRequired: Boolean(envelope.restartRequired),
+    gitHubInstallationWarnings: []
   }
 }
 
 export async function saveOratorioSettings(
   settings: OratorioSettingsConfig,
-  serverConfiguration: JsonObject
+  serverConfiguration: JsonObject,
+  options: { detectGitHubInstallations?: boolean } = {}
 ): Promise<LoadedOratorioSettings> {
   const configuration = toServer(settings, serverConfiguration)
   const response = await oratorioHost().oratorio.request<JsonObject>({
     method: 'PUT',
     path: '/api/v1/settings/server-configuration',
-    body: { baseRevision: settings.revision, confirmImpact: true, configuration }
+    body: { baseRevision: settings.revision, confirmImpact: true, configuration, detectGitHubInstallations: Boolean(options.detectGitHubInstallations) }
   })
   const envelope = response.data.configuration
   return {
@@ -39,8 +51,14 @@ export async function saveOratorioSettings(
       { provider: 'gitlab', enabled: settings.gitlab.syncIntervalSeconds !== null, intervalSeconds: settings.gitlab.syncIntervalSeconds }
     ]),
     serverConfiguration: structuredClone(envelope.configuration),
-    restartRequired: Boolean(envelope.restartRequired)
+    restartRequired: Boolean(envelope.restartRequired),
+    gitHubInstallationWarnings: (response.data.gitHubInstallationWarnings ?? []) as GitHubInstallationWarning[]
   }
+}
+
+export async function loadOratorioSourcePresence(): Promise<boolean> {
+  const response = await oratorioHost().oratorio.request<JsonObject>({ method: 'GET', path: '/api/v1/settings/server-configuration' })
+  return hasConfiguredSource(fromServer(response.data, []))
 }
 
 export async function saveOratorioSyncSchedule(provider: 'github' | 'gitlab', intervalSeconds: number | null): Promise<void> {

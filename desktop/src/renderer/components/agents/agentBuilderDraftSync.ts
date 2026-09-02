@@ -1,9 +1,4 @@
-/**
- * Builder tools return compact change descriptors rather than the whole document,
- * e.g. `{ ok: true, field: "tools.policy", change: { op: "set", list: [...] } }`.
- * Applying them locally keeps the structured editor in sync field-by-field without
- * re-fetching Markdown; see specs/features/agent-profiles.md §12A.
- */
+/** Builder tools return per-field change descriptors (specs/features/agent-profiles.md §12A); applying them locally keeps the editor in sync without re-fetching Markdown. */
 
 import type { AgentControl, AgentProviderPreference, ApprovalPolicy, ProfileDraft, ToolPolicyMode } from './agentProfileDraft'
 
@@ -59,6 +54,18 @@ const BUILDER_TOOL_FIELDS: ReadonlyMap<string, BuilderField> = new Map([
 ])
 
 export const BUILDER_TOOL_NAMES: ReadonlySet<string> = new Set(BUILDER_TOOL_FIELDS.keys())
+
+export const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
+  name: 'agentBuilder.field.name',
+  description: 'agentBuilder.field.description',
+  instructions: 'agentBuilder.field.instructions',
+  'tools.policy': 'agentBuilder.field.tools',
+  'tools.agentControl': 'agentBuilder.field.toolControl',
+  'skills.preload': 'agentBuilder.field.skills',
+  'mcp.servers': 'agentBuilder.field.mcp',
+  providerPreference: 'agentBuilder.field.model',
+  approval: 'agentBuilder.field.approval'
+}
 
 const BUILDER_FIELDS: ReadonlySet<BuilderField> = new Set(BUILDER_TOOL_FIELDS.values())
 

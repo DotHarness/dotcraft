@@ -34,8 +34,10 @@ import { OratorioBrandMark } from './OratorioBrandMark'
 import type { QuickActionId } from './oratorio-workflow'
 import { oratorioHost, showOratorioToast } from './runtime'
 import { NewLocalTaskDialog, type NewLocalTaskDraft } from './NewLocalTaskDialog'
+import { OratorioBoardEmptyState } from './OratorioBoardEmptyState'
+import type { SourceProvider } from './settings/oratorio-settings-model'
 
-type BoardPresentation = 'ready' | 'loading' | 'empty' | 'error'
+type BoardPresentation = 'ready' | 'loading' | 'empty' | 'unconfigured' | 'error'
 
 export interface OratorioBoardState {
   mode: BoardMode
@@ -59,6 +61,7 @@ export function OratorioBoard({
   onLoadTaskDetail,
   onOpenDetail,
   onOpenSettings,
+  onConnectSource,
   onOpenThread,
   initialState,
   onStateChange,
@@ -75,6 +78,7 @@ export function OratorioBoard({
   onLoadTaskDetail?: (task: OratorioTask) => Promise<OratorioTask>
   onOpenDetail: (task: OratorioTask, stage?: TaskStage, options?: { focus?: 'discussion' }) => void
   onOpenSettings: () => void
+  onConnectSource?: (provider: SourceProvider) => void
   onOpenThread: (task: OratorioTask) => void
   initialState?: OratorioBoardState
   onStateChange?: (state: OratorioBoardState) => void
@@ -144,7 +148,7 @@ export function OratorioBoard({
   }, [onLoadTaskDetail, selected?.detail, selected?.id])
 
   const source = useMemo(() => {
-    if (effectivePresentation === 'empty') return []
+    if (effectivePresentation === 'empty' || effectivePresentation === 'unconfigured') return []
     if (mode === 'active') return taskItems.filter((task) => task.lifecycle === 'open')
     if (mode === 'all') return taskItems
     if (mode === 'cancelled') return taskItems.filter((task) => task.cancelled)
@@ -208,12 +212,14 @@ export function OratorioBoard({
         />
         <span className="ora-board__actions">
           <IconButton icon={<Plus size={15} />} label="New local task" tooltipLabel="New local task" onClick={() => setNewTaskOpen(true)} />
-          <IconButton icon={<RefreshCw size={15} className={syncing ? 'ora-spin' : undefined} />} label="Sync sources" tooltipLabel="Sync sources" onClick={sync} disabled={syncing} />
+          <IconButton icon={<RefreshCw size={15} className={syncing ? 'ora-spin' : undefined} />} label="Sync sources" tooltipLabel="Sync sources" onClick={sync} disabled={syncing || effectivePresentation === 'unconfigured'} />
           <IconButton icon={<Settings size={15} />} label="Oratorio settings" tooltipLabel="Oratorio settings" onClick={onOpenSettings} />
         </span>
       </div>
 
-      {effectivePresentation === 'loading' ? <BoardSkeleton /> : effectivePresentation === 'error' ? (
+      {effectivePresentation === 'loading' ? <BoardSkeleton /> : effectivePresentation === 'unconfigured' ? (
+        <OratorioBoardEmptyState onConnect={(provider) => onConnectSource?.(provider)} onCreateTask={() => setNewTaskOpen(true)} />
+      ) : effectivePresentation === 'error' ? (
         <InlineBoardError onRetry={() => { setRecovered(true); showOratorioToast({ message: 'Board restored', tone: 'success' }) }} />
       ) : mode === 'active' ? (
         <div className="ora-board__columns">

@@ -18,7 +18,7 @@ Agent 的工作发生在 Oratorio 单独创建的 Worktree 里，运行期间不
 
 ## 接入 GitHub 与 GitLab
 
-在 Oratorio 设置中添加项目，代码托管平台上的工作就会同步进同一块 Board。[GitHub](./oratorio/github) 用 GitHub App 接入，[GitLab](./oratorio/gitlab) 用项目级 Token 接入。
+在 Board 上选择 **Connect GitHub** 或 **Connect GitLab**，引导流程会带你从凭据一路走到首次同步。[GitHub](./oratorio/github) 用 GitHub App 接入，[GitLab](./oratorio/gitlab) 用项目级 Token 接入。
 
 Oratorio 默认不向代码托管平台写入任何内容，需要你显式启用。没有公网 Webhook endpoint 也不影响使用，手动同步和定时同步照常工作。项目与工作区的映射、Agent 执行策略和自动化都在[配置 Oratorio](./oratorio/settings)里调整。
 

@@ -1,27 +1,23 @@
-/* One shared chip treatment for the composer editor pills (raw DOM, see
-   richInputSerialization.createRefSpan) and the sent-message bubble refs
-   (UserMessageBlock). The 1px transparent rest border reserves space so the hover
-   border never nudges the surrounding text. */
+/* Shared by the composer pills (richInputSerialization.createRefSpan), sent-message refs,
+   markdown refs, and tool-row refs: tinted text with an icon, no box at rest or on hover. */
 .dc-ref {
-  /* inline-block, not inline-flex: an inline-block's baseline is its last text line's,
-     so the chip's LABEL sits on the surrounding text baseline. An inline-flex chip
-     synthesizes its baseline from the icon and rides high above the running text. */
+  /* inline-block, not inline-flex, so the label sits on the surrounding text baseline. */
   display: inline-block;
   vertical-align: baseline;
-  padding: 1px 6px;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
   background: transparent;
   white-space: nowrap;
   user-select: none;
-  transition: background 110ms ease, border-color 110ms ease;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
 /* Nudged down onto the text so the icon centres on the label, with a 4px gap after it. */
 .dc-ref > .dc-ref-icon-slot,
 .dc-ref > svg {
-  /* inline-block is required: a bare inline <svg> aligns its bottom to the text
-     baseline and rides high; a block <svg> would stack onto its own line. */
+  /* A bare inline <svg> rides high on the baseline; a block one takes its own line. */
   display: inline-block;
   vertical-align: -0.17em;
   margin-right: 4px;
@@ -33,23 +29,21 @@
   height: 14px;
 }
 
-.dc-ref-file {
+.dc-ref-file,
+.dc-ref-profile {
   color: var(--text-primary);
 }
 
 .dc-ref-command,
 .dc-ref-skill,
 .dc-ref-cron,
-.dc-ref-link {
+.dc-ref-link,
+.dc-ref-profile {
   font-weight: 600;
 }
 
+.dc-ref-command,
 .dc-ref-cron {
-  color: var(--accent);
-}
-
-/* Links use the brighter --info rather than --accent, which reads too dark for URLs. */
-.dc-ref-command {
   color: var(--accent);
 }
 
@@ -57,26 +51,25 @@
   color: var(--ref-skill);
 }
 
+/* Links use the brighter --info rather than --accent, which reads too dark for URLs. */
 .dc-ref-link {
   color: var(--info);
 }
 
-.dc-ref-file:hover {
-  border-color: color-mix(in srgb, var(--border-active) 44%, transparent);
-  background: color-mix(in srgb, var(--bg-tertiary) 88%, transparent);
+a.dc-ref:hover,
+button.dc-ref:hover,
+.dc-ref[data-ref-type]:hover {
+  color: var(--text-primary);
 }
 
-.dc-ref-command:hover {
-  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+/* Composer pills only lift (their hover reveals the remove icon); navigating refs also underline. */
+a.dc-ref:hover,
+button.dc-ref:not([disabled]):hover {
+  text-decoration: underline dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
-.dc-ref-skill:hover {
-  border-color: color-mix(in srgb, var(--ref-skill) 38%, transparent);
-  background: color-mix(in srgb, var(--ref-skill) 16%, transparent);
-}
-
-.dc-ref-link:hover {
-  border-color: color-mix(in srgb, var(--info) 38%, transparent);
-  background: color-mix(in srgb, var(--info) 16%, transparent);
+button.dc-ref[disabled] {
+  cursor: default;
 }

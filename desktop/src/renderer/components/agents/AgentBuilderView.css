@@ -1,5 +1,3 @@
-/* Every selector here is scoped under `.agent-builder`. */
-
 .agent-builder {
   position: relative;
   height: 100%;
@@ -36,7 +34,7 @@
 
 /* full-width scroll container keeps the scrollbar at the app's right edge, not on the centered doc */
 .agent-builder-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.agent-builder-doc { max-width: 720px; width: 100%; margin: 0 auto; padding: 22px 30px 56px; container-type: inline-size; }
+.agent-builder-doc { position: relative; max-width: 720px; width: 100%; margin: 0 auto; padding: 22px 30px 56px; container-type: inline-size; }
 .agent-builder-id { display: flex; align-items: center; gap: 16px; }
 .agent-builder-id-avatar { position: relative; display: inline-flex; flex: 0 0 auto; }
 .agent-builder-reroll { position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border-default); border-radius: 999px; background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; box-shadow: var(--shadow-sm); }
@@ -154,12 +152,6 @@
 .agent-builder-intro-sug:hover .agent-builder-intro-sug-ic, .agent-builder-intro-sug:focus-visible .agent-builder-intro-sug-ic { color: var(--text-secondary); }
 .agent-builder-intro-sug-t { font-size: inherit; line-height: inherit; font-weight: var(--type-ui-emphasis-weight); color: var(--text-primary); flex: 0 0 auto; }
 .agent-builder-intro-sug-d { font-size: inherit; line-height: inherit; color: var(--text-dimmed); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-builder-intro-deck { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 42%); display: flex; align-items: flex-end; justify-content: center; }
-.agent-builder-deckcard { position: relative; width: 168px; min-height: 168px; margin: 0 -38px; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px 16px 18px; cursor: pointer; text-align: left; transform-origin: bottom center; border: 1px solid var(--border-default); border-radius: 16px; background: var(--bg-elevated); box-shadow: var(--shadow-md); color: var(--text-primary); transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease; }
-.agent-builder-deckcard.is-active { box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default)); }
-.agent-builder-deckcard-head { display: flex; align-items: center; gap: 9px; width: 100%; }
-.agent-builder-deckcard-name { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; line-height: 1.1; text-transform: capitalize; overflow-wrap: anywhere; }
-.agent-builder-deckcard-desc { font-size: 11.5px; color: var(--text-dimmed); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .ab-robot { display: block; }
 .ab-robot--anim { animation: agent-builder-bob 3.6s ease-in-out infinite; }
@@ -194,56 +186,10 @@
 .agent-builder-detached-chat > .agent-builder-chat-error { flex: 0 0 auto; display: block; padding: 12px 20px; border-bottom: 1px solid var(--border-default); text-align: left; }
 .agent-builder-btn-secondary.is-active { border-color: var(--border-active); background: var(--bg-tertiary); }
 
-.agent-builder-field-anchor { position: relative; min-width: 0; --agent-builder-marker-x: 0px; --agent-builder-marker-y: 50%; }
 .agent-builder-field-anchor-catalog, .agent-builder-detail-control { width: 100%; }
 .agent-builder-sec-label { display: inline-flex; align-items: center; gap: 8px; }
 
-/* Agent-driven edits use a cursor marker instead of changing the edited field's chrome. */
-.agent-builder-edit-marker {
-  position: absolute;
-  z-index: 8;
-  left: var(--agent-builder-marker-x);
-  top: var(--agent-builder-marker-y);
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 4px;
-  opacity: 1;
-  pointer-events: none;
-  white-space: nowrap;
-  transform: translate(2px, -50%);
-  animation: agent-builder-marker-pop 180ms ease both;
-}
-/* Fallback when the content already reaches the field's right edge: trail the
-   label leftward instead so it never overflows the clipped editor pane. */
-.agent-builder-edit-marker.is-marker-flipped {
-  flex-direction: row-reverse;
-  transform: translate(calc(-100% - 2px), -50%);
-}
-.agent-builder-edit-marker-pill {
-  margin-top: 9px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--text-primary);
-  color: var(--bg-primary);
-  box-shadow: var(--shadow-md);
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1.2;
-  letter-spacing: 0;
-}
-.agent-builder-edit-marker-arrow {
-  color: var(--text-primary);
-  fill: var(--text-primary);
-  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--text-primary) 26%, transparent));
-  transform: rotate(-12deg);
-}
-@keyframes agent-builder-marker-pop {
-  from { opacity: 0.72; }
-  to { opacity: 1; }
-}
-
 /* While a builder turn runs, the document is agent-driven and non-interactive. */
-.agent-builder-doc.is-agent-driving { position: relative; }
 .agent-builder-doc.is-agent-driving > :not(.agent-builder-driving-veil) { pointer-events: none; }
 .agent-builder-driving-veil {
   position: absolute;
@@ -257,5 +203,5 @@
   50% { opacity: 0.66; transform: translateY(-2px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .agent-builder-edit-marker, .agent-builder-split-main.is-agent-driving::before { animation: none; }
+  .agent-builder-split-main.is-agent-driving::before { animation: none; }
 }

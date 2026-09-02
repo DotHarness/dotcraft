@@ -9,10 +9,12 @@ import {
   onOratorioNavigation,
   type OratorioNavigationTarget
 } from './oratorio-navigation'
+import type { SourceProvider } from './settings/oratorio-settings-model'
 import './oratorio.css'
 
 export function OratorioSettingsSurface({ host }: DesktopPluginViewProps): JSX.Element {
   const [view, setView] = useState<OratorioSettingsView>('root')
+  const [connectProvider, setConnectProvider] = useState<SourceProvider>('github')
   const [serviceError, setServiceError] = useState(false)
   const [remote, setRemote] = useState(false)
 
@@ -35,6 +37,11 @@ export function OratorioSettingsSurface({ host }: DesktopPluginViewProps): JSX.E
   useEffect(() => {
     const navigate = (target: OratorioNavigationTarget): void => {
       if (target.kind !== 'settings') return
+      if (target.section === 'connect') {
+        setConnectProvider(target.provider ?? 'github')
+        setView('connect')
+        return
+      }
       setView(target.section === 'github' || target.section === 'gitlab' ? target.section : 'root')
     }
     const pending = consumeOratorioNavigation()
@@ -42,5 +49,5 @@ export function OratorioSettingsSurface({ host }: DesktopPluginViewProps): JSX.E
     return onOratorioNavigation(navigate)
   }, [])
 
-  return <OratorioSettingsPanel view={view} serviceError={serviceError} readOnly={remote} onViewChange={setView} />
+  return <OratorioSettingsPanel view={view} connectProvider={connectProvider} serviceError={serviceError} readOnly={remote} onViewChange={setView} onConnect={(provider) => { setConnectProvider(provider); setView('connect') }} />
 }

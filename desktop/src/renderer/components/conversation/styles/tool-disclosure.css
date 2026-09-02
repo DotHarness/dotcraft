@@ -184,7 +184,6 @@
 
 /* The reference chip is sized for 14px bubble text; pin it to this row's line box. */
 .dc-tool-row-title .dc-ref {
-  padding-block: 0;
   line-height: 14px;
 }
 

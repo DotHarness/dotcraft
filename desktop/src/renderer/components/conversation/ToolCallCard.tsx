@@ -30,6 +30,8 @@ import {
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
+import { AgentBuilderEditCard } from './AgentBuilderEditCard'
+import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../agents/agentBuilderDraftSync'
 import { renderSkillToolLabel } from './SkillToolLabel'
 import { McpAppView, hasAvailableMcpApp } from './McpAppView'
 import { ToolDisclosure } from './ToolDisclosure'
@@ -226,6 +228,9 @@ export const ToolCallCard = memo(function ToolCallCard({
   const isSkillManageTool = rendererFamily === 'skillManage'
   const isSkillViewTool = rendererFamily === 'skillView'
   const isWorkflowTool = toolName === 'Workflow'
+  const builderField: BuilderField | null = rendererFamily === 'agentBuilder' && isBuilderField(rendererPlan?.options.field as string | undefined)
+    ? rendererPlan!.options.field as BuilderField
+    : null
   const isTodoTool = rendererFamily === 'todo'
   const isShellTool = rendererFamily === 'shell'
   const isStreamingFileTool = rendererFamily === 'fileWrite'
@@ -317,7 +322,9 @@ export const ToolCallCard = memo(function ToolCallCard({
   const subAgentRunningLabel = hasFinalArgs
     ? formatSubAgentRunningLabel(rendererOperation, args, locale, subAgentLookup)
     : null
-  const runningBaseLabel = subAgentRunningLabel
+  const runningBaseLabel = builderField
+    ? translate(locale, 'agentBuilder.editing.updatingField', { field: translate(locale, BUILDER_FIELD_LABEL_KEYS[builderField]) })
+    : subAgentRunningLabel
     ?? formatRunningToolLabel(
       rendererFamily,
       toolName,
@@ -455,6 +462,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     : null
   if (subAgentDisplay) {
     return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} sourceThreadId={threadId} />
+  }
+
+  if (builderField && !isRunning) {
+    return <AgentBuilderEditCard item={item} field={builderField} locale={locale} />
   }
 
   if (isRunning) {

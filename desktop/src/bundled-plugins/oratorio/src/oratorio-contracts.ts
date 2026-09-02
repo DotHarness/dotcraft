@@ -95,4 +95,4 @@ export interface ItemDetailResponse {
   discussionTurns?: DiscussionTurnDto[]; sourceSnapshot?: SourceSnapshotDto | null
 }
 
-export interface SourceSyncJobDto { jobId: string; provider: string; status: string; mode: string; createdAt: string; updatedAt: string; projects?: unknown[] }
+export interface SourceSyncJobDto { jobId: string; provider: string; status: string; mode: string; createdAt: string; updatedAt: string; projectsFailed?: number; issuesImported?: number; reviewTargetsImported?: number; errorCode?: string | null; errorMessage?: string | null; projects?: unknown[] }

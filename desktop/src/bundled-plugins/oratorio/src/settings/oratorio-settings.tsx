@@ -18,10 +18,13 @@ import { useOratorioSettingsT } from './oratorio-settings-i18n'
 import { cloneSettings, createDefaultOratorioSettings, validateEndpoint, type ApprovalPolicy, type DeliveryPolicy, type GitHubInstallationProfile, type GitLabProjectProfile, type OratorioProjectConfig, type OratorioSettingsConfig, type ReviewListKey, type SourceProvider } from './oratorio-settings-model'
 import { buildOratorioProjectDisplayOptions, oratorioProjectDisplay, projectValueMatchesOption } from './oratorio-project-display'
 import { loadOratorioSettings, saveOratorioSettings, saveOratorioSyncSchedule } from './oratorio-settings-service'
+import { OratorioConnectSource } from './oratorio-connect-source'
+import { useOratorioConnectT } from './oratorio-connect-i18n'
+import { githubAppConfigured } from './oratorio-connect-model'
 import { oratorioClient } from '../oratorio-client'
 import { oratorioHost } from '../runtime'
 
-export type OratorioSettingsView = 'root' | 'github' | 'gitlab' | 'project'
+export type OratorioSettingsView = 'root' | 'github' | 'gitlab' | 'project' | 'connect'
 type DialogState = { kind: 'add-project' } | { kind: 'allowlist'; listKey: ReviewListKey } | { kind: 'secret'; provider: SourceProvider; profileId?: string; secretKey: string; secretName: string } | { kind: 'profile'; provider: SourceProvider; profileId?: string } | null
 type ProjectSyncState = 'idle' | 'queued' | 'syncing'
 type NotifySettingsError = (message: string, retry?: () => void) => void
@@ -205,10 +208,25 @@ function useSettingsController(readOnly: boolean, notifyError: NotifySettingsErr
     timersRef.current.set(path, timer)
   }, [notifyError, t])
 
-  return { draft, restartRequired, change, snapshot: () => draftRef.current }
+  // Undebounced save for the connect wizard; the server answer becomes the confirmed draft.
+  const commit = useCallback(async (settings: OratorioSettingsConfig, options: { detectGitHubInstallations: boolean; schedule: { provider: SourceProvider; intervalSeconds: number | null } }) => {
+    if (readOnly) throw new Error('oratorio.settings.read_only')
+    const loaded = await saveOratorioSettings(settings, serverConfigRef.current, { detectGitHubInstallations: options.detectGitHubInstallations })
+    await saveOratorioSyncSchedule(options.schedule.provider, options.schedule.intervalSeconds)
+    loaded.settings.github.syncIntervalSeconds = options.schedule.provider === 'github' ? options.schedule.intervalSeconds : confirmedRef.current.github.syncIntervalSeconds
+    loaded.settings.gitlab.syncIntervalSeconds = options.schedule.provider === 'gitlab' ? options.schedule.intervalSeconds : confirmedRef.current.gitlab.syncIntervalSeconds
+    confirmedRef.current = cloneSettings(loaded.settings)
+    draftRef.current = cloneSettings(loaded.settings)
+    serverConfigRef.current = loaded.serverConfiguration
+    setDraft(loaded.settings)
+    setRestartRequired(loaded.restartRequired)
+    return loaded
+  }, [readOnly])
+
+  return { draft, restartRequired, change, commit, snapshot: () => draftRef.current }
 }
 
-export function OratorioSettingsPanel({ view = 'root', serviceError = false, readOnly = false, onViewChange }: { view?: OratorioSettingsView; serviceError?: boolean; readOnly?: boolean; onViewChange: (view: OratorioSettingsView) => void }): ReactNode {
+export function OratorioSettingsPanel({ view = 'root', connectProvider = 'github', serviceError = false, readOnly = false, onViewChange, onConnect }: { view?: OratorioSettingsView; connectProvider?: SourceProvider; serviceError?: boolean; readOnly?: boolean; onViewChange: (view: OratorioSettingsView) => void; onConnect: (provider: SourceProvider) => void }): ReactNode {
   const t = useOratorioSettingsT()
   const notifyError = useSettingsErrorToast()
   const controller = useSettingsController(readOnly, notifyError)
@@ -234,7 +252,8 @@ export function OratorioSettingsPanel({ view = 'root', serviceError = false, rea
       {serviceError ? <div className="oratorio-service-alert" role="alert">Oratorio is unavailable.</div> : null}
       {readOnly ? <div className="oratorio-service-alert" role="status">Remote Stack configuration is read-only. Source synchronization remains available.</div> : null}
       {controller.restartRequired ? <div className="oratorio-service-alert oratorio-service-alert--restart" role="status">{t('restartRequired')}</div> : null}
-      {view === 'root' ? <RootSettings controller={controller} projectSyncStates={projectSyncStates} onNavigate={onViewChange} onNavigateProject={navigateProject} onDialog={setDialog} /> : null}
+      {view === 'root' ? <RootSettings controller={controller} projectSyncStates={projectSyncStates} onNavigate={onViewChange} onNavigateProject={navigateProject} onDialog={setDialog} onConnect={onConnect} /> : null}
+      {view === 'connect' ? <OratorioConnectSource controller={controller} provider={connectProvider} readOnly={readOnly} onExit={() => onViewChange('root')} onOpenBoard={() => oratorioHost().navigation.openMainView('board')} onConnected={setSelectedProjectId} /> : null}
       {view === 'github' || view === 'gitlab' ? <ProviderSettings provider={view} controller={controller} onBack={() => onViewChange('root')} onDialog={setDialog} onOperationError={notifyError} /> : null}
       {view === 'project' && selectedProject ? <ProjectSettings project={selectedProject} workspaceOptions={workspaces.options} workspaceLoading={workspaces.loading} sync={projectSyncStates[selectedProject.id] ?? 'idle'} controller={controller} onSync={() => startProjectSync(selectedProject)} onBack={() => onViewChange('root')} onRemoved={() => onViewChange('root')} /> : null}
     </div>
@@ -256,18 +275,19 @@ export function OratorioSettingsPanel({ view = 'root', serviceError = false, rea
 }
 
 type Controller = ReturnType<typeof useSettingsController>
-function RootSettings({ controller, projectSyncStates, onNavigate, onNavigateProject, onDialog }: { controller: Controller; projectSyncStates: Record<string, ProjectSyncState>; onNavigate: (view: OratorioSettingsView) => void; onNavigateProject: (id: string) => void; onDialog: (dialog: DialogState) => void }) {
-  const t = useOratorioSettingsT(); const c = controller.draft
+function RootSettings({ controller, projectSyncStates, onNavigate, onNavigateProject, onDialog, onConnect }: { controller: Controller; projectSyncStates: Record<string, ProjectSyncState>; onNavigate: (view: OratorioSettingsView) => void; onNavigateProject: (id: string) => void; onDialog: (dialog: DialogState) => void; onConnect: (provider: SourceProvider) => void }) {
+  const t = useOratorioSettingsT(); const ct = useOratorioConnectT(); const c = controller.draft
   const projectCount = (provider: SourceProvider): string => {
     const count = c.projects.filter((item) => item.provider === provider).length
     return `${count} ${t(count === 1 ? 'project' : 'projects')}`
   }
-  return <SettingsPanelShell title={t('oratorio')} description={t('rootDescription')}>
+  return <SettingsPanelShell title={t('oratorio')} description={t('rootDescription')} action={<Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={() => onConnect('github')}>{ct('connectSource')}</Button>}>
     <SettingsGroup title={t('providers')} description={t('providersDescription')}>
-      <SettingsRow label={<span className="ora-settings__label"><GithubGlyph size={15} />GitHub</span>} description={projectCount('github')} control={<Button variant="secondary" size="sm" aria-label={`GitHub ${t('manage')}`} onClick={() => onNavigate('github')}>{t('manage')}</Button>} />
+      <SettingsRow label={<span className="ora-settings__label"><GithubGlyph size={15} />GitHub</span>} description={githubAppConfigured(c) ? `${ct('appConfiguredShort')} · ${projectCount('github')}` : projectCount('github')} control={<Button variant="secondary" size="sm" aria-label={`GitHub ${t('manage')}`} onClick={() => onNavigate('github')}>{t('manage')}</Button>} />
       <SettingsRow label={<span className="ora-settings__label"><GitlabGlyph size={15} />GitLab</span>} description={projectCount('gitlab')} control={<Button variant="secondary" size="sm" aria-label={`GitLab ${t('manage')}`} onClick={() => onNavigate('gitlab')}>{t('manage')}</Button>} />
     </SettingsGroup>
     <SettingsGroup title={t('projects')} description={t('projectsDescription')} headerAction={<Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={() => onDialog({ kind: 'add-project' })}>{t('addProject')}</Button>}>
+      {c.projects.length === 0 ? <SettingsRow><span className="ora-settings__value">{ct('noProjectsYet')}</span></SettingsRow> : null}
       {c.projects.map((project) => <ProjectRow key={project.id} project={project} sync={projectSyncStates[project.id] ?? 'idle'} manageLabel={t('manage')} onManage={() => onNavigateProject(project.id)} onChange={(checked) => controller.change('projects', c.projects.map((item) => item.id === project.id ? { ...item, enabled: checked } : item))} />)}
     </SettingsGroup>
     <SettingsGroup title={t('agentExecution')} description={t('capturedForRun')}>

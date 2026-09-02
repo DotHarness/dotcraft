@@ -1,0 +1,124 @@
+/* Clipped by the intro's bottom edge, so only the top of each resting card shows. */
+.agent-template-deck {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24px 40px 0;
+}
+
+.agent-template-card {
+  --deck-i: 0;
+  --deck-rot: 0deg;
+  --deck-y: 0px;
+  --deck-x: 0px;
+  --deck-peek: 46%;
+  position: relative;
+  width: 150px;
+  height: 178px;
+  margin: 0 -18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  /* A pivot below the card splays the outer cards outward like a held hand. */
+  transform-origin: 50% 140%;
+  transform:
+    translateX(var(--deck-x))
+    translateY(calc(var(--deck-peek) + var(--deck-y)))
+    rotate(var(--deck-rot));
+  transition:
+    transform var(--duration-expand) var(--ease-expand),
+    box-shadow var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard);
+  /* The entrance animates `translate`, which composes with the fan `transform`. */
+  animation: agent-template-card-enter 360ms var(--ease-expand) backwards;
+  animation-delay: calc(var(--deck-i) * 45ms);
+}
+
+.agent-template-card.is-active {
+  transform: translateX(var(--deck-x)) translateY(-12px) rotate(0deg) scale(1.03);
+  border-color: var(--border-active);
+  box-shadow: var(--shadow-lg);
+}
+
+.agent-template-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.agent-template-card-avatar {
+  display: inline-flex;
+  margin-left: -4px;
+}
+
+.agent-template-card-name {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  text-transform: capitalize;
+  overflow-wrap: anywhere;
+}
+
+.agent-template-card-desc {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dimmed);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.agent-template-card-cta {
+  margin-top: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.agent-template-card.is-active .agent-template-card-cta {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes agent-template-card-enter {
+  from {
+    opacity: 0;
+    translate: 0 26px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-template-card {
+    animation: none;
+    transition: none;
+  }
+  .agent-template-card-cta {
+    transition: none;
+  }
+}

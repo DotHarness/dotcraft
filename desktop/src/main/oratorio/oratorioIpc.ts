@@ -11,6 +11,7 @@ const GET_PATHS = [
   /^\/api\/v1\/tasks(?:\?.*)?$/,
   /^\/api\/v1\/tasks\/[^/?]+$/,
   /^\/api\/v1\/sources\/sync-schedules$/,
+  /^\/api\/v1\/sources\/sync-jobs\/(?!active(?:\?|$))[^/?]+\?provider=(?:github|gitlab)$/,
   /^\/api\/v1\/settings\/server-configuration$/
 ]
 const POST_PATHS = [

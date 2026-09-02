@@ -15,17 +15,16 @@ Prefer a Project Access Token so its authority stays inside one project. Grant t
 
 Each connected project uses its own profile and token.
 
-## Configure the GitLab connection
+## Connect the project
 
-1. Open the Oratorio Board, select **Oratorio settings**, then choose **GitLab**.
-2. Enable source reads. Keep the default endpoint for GitLab.com, or enter the root address of a self-managed instance.
-3. Add a project profile with its instance and full `group/project` path. Subgroups work too.
-4. Add the project token to that profile.
-5. Return to Oratorio settings, add the project, and pick the matching DotCraft workspace for it.
-6. Enable **Source writes** only when Oratorio should publish notes, status, branches, or merge requests.
-7. Select **Sync now** and confirm that the project reports read access.
+1. Open the Oratorio Board and select **Connect GitLab**. The same flow starts from **Connect a source** in Oratorio settings.
+2. Choose the token kind and paste the token. Keep the default endpoint for GitLab.com, or enter the root address of a self-managed instance.
+3. Enter the project as `group/project`. Subgroups work too.
+4. Choose the DotCraft workspace that holds the project's checkout.
+5. Keep the sync schedule and automatic review defaults. Leave writes off until the first reviews look right.
+6. Select **Connect and sync**. Oratorio saves the configuration, runs a first sync, and confirms read access.
 
-Private projects need no extra setup. Oratorio fetches review targets into the mapped checkout with the project profile token, so that checkout doesn't need stored Git credentials of its own.
+Add more projects by running the flow again. Private projects need no extra setup. Oratorio fetches review targets into the mapped checkout with the project token, so that checkout doesn't need stored Git credentials of its own.
 
 ## Enable webhook delivery
 

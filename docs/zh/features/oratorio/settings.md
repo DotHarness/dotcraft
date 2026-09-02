@@ -6,7 +6,7 @@
 
 ## 来源与项目
 
-GitHub 和 GitLab 的凭据分别在各自的提供商页面配置。仓库和项目要逐个添加，每个都映射到含有对应 checkout 的 DotCraft workspace。来源任务不会落到别的 workspace 上。
+**Connect a source** 会一次走完凭据、仓库或项目、DotCraft workspace 和自动化，最后用一次首次同步确认可读。GitHub 和 GitLab 的提供商页面保留同样的设置，供之后修改。每个仓库和项目都映射到含有对应 checkout 的 DotCraft workspace，来源任务不会落到别的 workspace 上。
 
 映射的 Workspace 离线或不再注册在 DotCraft 中时，绑定仍然显示，只是标记为不可用。把它重新绑定到一个已打开的本地 Workspace，或者移除这个项目。移除项目会停掉后续的同步、自动化和派发，已有的任务历史保留。不可用的绑定不会挡住其他设置的修改，Oratorio 会在报告状态或开始运行时重新检查。
 

@@ -164,6 +164,20 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Theory]
+    [InlineData("SetAgentName", "name")]
+    [InlineData("AppendAgentInstructions", "instructions")]
+    [InlineData("RemoveAgentSkills", "skills.preload")]
+    [InlineData("ClearAgentProviderPreference", "providerPreference")]
+    public void AgentBuilderTools_UseTrustedFieldPresentation(string toolName, string field)
+    {
+        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
+
+        Assert.NotNull(presentation);
+        Assert.Equal("core.agent-builder", presentation.Id.Value);
+        Assert.Equal(field, presentation.Options["field"].GetString());
+    }
+
+    [Theory]
     [InlineData("LSP", "core.lsp")]
     [InlineData("CommitSuggest", "core.commit-suggest")]
     [InlineData("Sleep", "core.sleep")]

@@ -1,5 +1,6 @@
 import type { ConversationItem, ToolPresentationDescriptor, ToolSourceProvenance } from '../types/conversation'
 import type { ToolGroupCategory } from './toolCallAggregation'
+import { isBuilderField } from '../components/agents/agentBuilderDraftSync'
 
 export type ToolRendererFamily =
   | 'createPlan'
@@ -16,6 +17,7 @@ export type ToolRendererFamily =
   | 'commitSuggest'
   | 'todo'
   | 'deferredSearch'
+  | 'agentBuilder'
 
 export interface ToolRendererPlan {
   family: ToolRendererFamily
@@ -104,6 +106,12 @@ function hasNoOptions(options: Readonly<Record<string, unknown>>): boolean {
   return Object.keys(options).length === 0
 }
 
+function hasBuilderField(options: Readonly<Record<string, unknown>>): boolean {
+  return Object.keys(options).length === 1
+    && typeof options.field === 'string'
+    && isBuilderField(options.field)
+}
+
 function hasOperation(...allowed: readonly string[]) {
   return (options: Readonly<Record<string, unknown>>): boolean => (
     Object.keys(options).length === 1
@@ -127,7 +135,8 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   lsp: 'core.lsp',
   commitSuggest: 'core.commit-suggest',
   todo: 'core.todo',
-  deferredSearch: 'core.deferred-search'
+  deferredSearch: 'core.deferred-search',
+  agentBuilder: 'core.agent-builder'
 } as const
 
 export const coreToolRendererRegistry = new ToolRendererRegistry([
@@ -164,7 +173,10 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.todo, 'todo', { mode: 'collapsible' }),
   registration(CORE_TOOL_PRESENTATION_IDS.deferredSearch, 'deferredSearch', {
     mode: 'collapsible'
-  })
+  }),
+  registration(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'agentBuilder', {
+    mode: 'standalone'
+  }, hasBuilderField)
 ])
 
 export function resolveCoreToolRenderPlan(item: ConversationItem): ToolRendererPlan | null {

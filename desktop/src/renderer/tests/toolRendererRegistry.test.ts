@@ -46,6 +46,20 @@ describe('ToolRendererRegistry', () => {
     }
   )
 
+  it('resolves the agent-builder family only for a known profile field', () => {
+    expect(coreToolRendererRegistry.resolve(item(
+      CORE_TOOL_PRESENTATION_IDS.agentBuilder,
+      'CoreNative',
+      { field: 'tools.policy' }
+    ))).toMatchObject({
+      family: 'agentBuilder',
+      mode: 'standalone',
+      options: { field: 'tools.policy' }
+    })
+    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative', { field: 'avatar' }))).toBeNull()
+    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative'))).toBeNull()
+  })
+
   it('uses the generic fallback when presentation is missing or unknown', () => {
     expect(coreToolRendererRegistry.resolve(item(undefined))).toBeNull()
     expect(coreToolRendererRegistry.resolve(item('core.not-registered'))).toBeNull()

@@ -668,6 +668,46 @@ workspace route, and equivalent entries from Auto Review, Draft auto-publish, an
 Implementation Follow-up allowlists. Existing task, run, and audit history remains
 available, and shared provider profiles and credentials are not removed.
 
+### Connect a source
+
+Settings offers one guided path for a new source in addition to the per-field
+pages above. It is a full-width view inside the Oratorio settings page (breadcrumb
+`Oratorio settings › Connect GitHub|GitLab`, the shared setup stepper, and a
+Back/Next footer), never a modal, and it uses plain fields and inline
+`Learn more` links rather than disclosures, capsule pills, or in-panel progress
+lists. Two entry points open it: the Board renders a "no source connected" state
+with `Connect GitHub` and `Connect GitLab` actions while no provider has
+credentials, profiles, or projects and no tasks exist; and the Settings root
+carries a `Connect a source` page action. The existing Add project dialog stays
+for users who already hold provider credentials.
+
+The five steps are Source (provider choice, endpoint, and the provider's
+credentials: GitHub App ID plus private key or key path, or a GitLab token kind
+and token; an already configured GitHub App collapses to a configured row with
+`Replace`), Project (`owner/repository` or `group/project`, validated and
+de-duplicated against configured projects; GitHub shows an optional installation
+ID whose absence means server-side detection), Workspace (a choice among local
+DotCraft Projects, defaulting to the foreground Project; with none registered the
+step explains that a Workspace must be opened first and cannot advance),
+Automation (sync schedule preset Off / 15 minutes / hourly / custom minutes,
+automatic review, and provider write enablement, all defaulting to a local
+Desktop: 15 minutes, review on, writes off), and Connect (a read-only summary
+with per-row `Change` actions and the single primary `Connect and sync`).
+
+The wizard never shows a profile. It derives the GitHub owner profile (or the
+GitLab project profile carrying the token) from the project path, so the derived
+association matches how Settings re-links profiles to projects on load. Connect
+commits one atomic configuration change through the settings API with GitHub
+installation detection requested, saves the provider sync schedule, reports the
+saved configuration through the shared toast, then enqueues a sync for the new
+project and polls that job. A succeeded job with no failed project shows read
+access confirmed with imported counts; a failed or partially failed job, or a
+detection warning for the new owner, shows the failure with `Retry` and a way
+back to the step that owns the fix; the configuration remains saved in both
+cases. A job still running after the polling window reports that the first sync
+continues in the background. Remote read-only mode disables every field and the
+primary action and explains why. Enter inside a field advances a valid step.
+
 ---
 
 ## 7. DotCraft design system

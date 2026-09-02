@@ -172,6 +172,8 @@ export interface DesktopPluginNavigation {
   openMainView(contributionId: string): void;
   openSettingsPage(contributionId: string): void;
   openThread(threadId: string, workspacePath?: string): Promise<void>;
+  /** Opens an http(s) URL in the user's default browser. */
+  openExternal(url: string): Promise<void>;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
 }
 

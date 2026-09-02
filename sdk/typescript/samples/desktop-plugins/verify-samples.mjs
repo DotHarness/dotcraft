@@ -1,11 +1,6 @@
 #!/usr/bin/env node
 /**
- * A build / load / activate smoke test for the sample Desktop Plugins. It builds each
- * bundle, loads it through the shared React runtime, calls `activate(host)`, checks what
- * it registered, then disposes and checks it let go.
- *
- * It does not render UI; Desktop's vitest suites cover rendered behavior.
- *
+ * Build, load, and activate smoke test for the sample Desktop Plugins; rendered behavior is covered by Desktop's vitest suites.
  * Run: node sdk/typescript/samples/desktop-plugins/verify-samples.mjs
  */
 import { spawnSync } from 'node:child_process'
@@ -233,6 +228,7 @@ function makeHost(sample, record) {
       openMainView: () => {},
       openSettingsPage: () => {},
       openThread: async () => {},
+      openExternal: async () => {},
       onOpenUrl: nothing
     },
     ui: {

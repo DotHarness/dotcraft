@@ -1,5 +1,5 @@
 ---
-version: "0.9.0"
+version: "0.10.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -444,6 +444,11 @@ interactive. And the affordance has to live somewhere else — a chevron beside 
 or a tooltip naming the action. A row should keep at most one quiet action; if
 everything in it goes silent, nothing in it reads as reachable.
 
+Inline references and subagent names are not quiet actions. They answer hover by
+lifting their text to `--text-primary` (see Inline Reference Chips), which is the
+one hover treatment a text-only target may carry — never a fill, border, or pill
+drawn around the words.
+
 Destructive actions must use explicit copy such as Delete, Remove, Discard, or
 Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%)
 with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
@@ -830,14 +835,18 @@ capability rather than a Desktop-owned visual editor.
 
 ### Inline Reference Chips
 
-Composer file, command, and skill references are quiet inline content rather than
-standalone controls. At rest they show only their type icon and label; hover may
-reveal the type-tinted border and fill plus a neutral remove affordance. Rest and
-hover states reserve identical border, padding, icon-slot, and label geometry, so
-hover never changes the chip width, text baseline, caret position, or the position
-of surrounding text. Default and remove icons occupy the same fixed slot and swap
-through opacity rather than entering or leaving layout. Use vector icons from the
-shared icon language instead of font-dependent Unicode glyphs.
+File, command, skill, link, scheduled-task, and profile references — in the
+composer, in sent bubbles, in markdown, and in tool rows — are quiet inline content
+rather than standalone controls: a type icon and a type-tinted label, with no border,
+fill, or pill at rest or on hover. Hover answers on the text alone, as the subagent
+chips do: an interactive reference lifts to `--text-primary`, and one that navigates
+(a link or a button that opens something) adds a 1px dashed underline offset 2px. A
+composer pill instead reveals its neutral remove affordance, with default and remove
+icons occupying the same fixed slot and swapping through opacity rather than entering
+or leaving layout, so hover never changes the chip width, text baseline, caret
+position, or the position of surrounding text. Inert references (a value merely
+named by a tool row) do not react to hover. Use vector icons from the shared icon
+language instead of font-dependent Unicode glyphs.
 
 ### Message Markers
 
@@ -987,6 +996,42 @@ visualization document. Ordinary visualization buttons follow the shared 32px / 
 action treatment; primary actions use neutral inversion rather than an accent fill. Feature
 colors remain available for charts and diagrams, not ordinary controls.
 
+### Agent Builder
+
+The builder is a profile document the agent and the person edit together, with the
+conversation beside it. Three rules keep the agent's work legible without turning
+the document into a dashboard.
+
+**Welcome deck.** The built-in templates rest against the Welcome page's bottom
+edge as a fanned hand of cards, clipped so only the top of each card shows — the
+avatar and the name. The composer stays the page's subject; the deck is an
+invitation, not a second list, so it carries no heading or label of its own and the
+composer block does not move to make room for it. The card under the pointer or
+keyboard focus rises fully into view while its neighbours part, and only that card
+shows its "Use template" line. Cards are `--bg-elevated` with `--border-default`,
+a 10px radius, and `--shadow-md` (`--shadow-lg` when lifted); the lift is the one
+sanctioned transform, and it honours reduced motion.
+
+**Editing cursor.** While the agent edits, one cursor marks where it is working: an
+arrow with a pill label, positioned against the document rather than mounted inside
+each field. It fades in at the first edit, glides between fields (`transform` over
+`460ms` on `--ease-expand`) instead of disappearing and reappearing, and stays on
+the last edited field after the turn ends. The label reads "Updating {field}" with a
+sheen while the edit runs, then "Updated {field}", and fades after about two
+seconds, leaving the arrow. The cursor is the only presence indicator; the edited
+field's own chrome does not change. While a turn runs the document is veiled and
+non-interactive and the pane edges glow softly; both end with the turn, the cursor
+does not.
+
+**Edit rows.** Each builder tool call renders in the transcript as a
+profile-change row, never as generic tool output: the change stated in words
+("Named the agent", "Allowed only …", "Extended the instructions"), the value as
+an inline reference, and whatever the title cannot carry — instructions, long
+lists, model details, rejected names — behind the row's disclosure. A failed edit
+takes the error tone with its reason; a running edit shimmers on its own text. The
+rows follow Inline Reference Chips and Message Markers above, so a value merely
+named by a row is an inert reference.
+
 ## Loading & Progress
 
 Loading is communicated by a placeholder shaped like the content that will
@@ -1117,3 +1162,5 @@ Don't:
 - Use semantic colors as decoration.
 - Use oversized type in compact panels, cards, sidebars, dashboards, menus, or
   dialogs.
+- Wrap an inline reference — a file, skill, link, agent, job, or profile value —
+  in a pill, border, or fill, at rest or on hover; hover lifts the text instead.

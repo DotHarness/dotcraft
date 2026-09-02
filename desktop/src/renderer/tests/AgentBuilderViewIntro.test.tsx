@@ -368,37 +368,36 @@ describe('AgentBuilderView intro composer', () => {
     expect(screen.getByText('Keep scope tight')).toBeInTheDocument()
   })
 
-  it('anchors agent editing markers to the active builder field', async () => {
+  it('moves one editing cursor between builder fields as tools start', async () => {
     await startBuilderTurn()
 
     emitBuilderToolStarted('tools', 'SetAgentToolPolicy')
-    await waitFor(() => {
-      expect(screen.getByLabelText('Updating tools').closest('[data-builder-field-anchor="tools.policy"]')).not.toBeNull()
-    })
+    const cursor = await screen.findByLabelText('Updating tools')
+    expect(cursor.getAttribute('data-agent-builder-cursor-field')).toBe('tools.policy')
+    expect(document.querySelector('[data-builder-field-anchor="tools.policy"]')).not.toBeNull()
 
+    // The same element retargets rather than remounting, so it can glide between fields.
     emitBuilderToolStarted('instructions', 'AppendAgentInstructions')
-    await waitFor(() => {
-      expect(screen.getByLabelText('Updating instructions').closest('[data-builder-field-anchor="instructions"]')).not.toBeNull()
-    })
+    await waitFor(() => expect(screen.getByLabelText('Updating instructions')).toBe(cursor))
+    expect(cursor.getAttribute('data-agent-builder-cursor-field')).toBe('instructions')
 
     emitBuilderToolStarted('providerPreference', 'SetAgentProviderPreference')
-    await waitFor(() => {
-      expect(screen.getByLabelText('Updating model').closest('[data-builder-field-anchor="providerPreference"]')).not.toBeNull()
-    })
+    await waitFor(() => expect(screen.getByLabelText('Updating model')).toBe(cursor))
+    expect(cursor.getAttribute('data-agent-builder-cursor-field')).toBe('providerPreference')
   })
 
-  it('measures marker position from the active field target when a builder tool starts', async () => {
+  it('positions the cursor from the active field target when a builder tool starts', async () => {
     await startBuilderTurn()
 
     emitBuilderToolStarted('instructions', 'AppendAgentInstructions')
 
-    const marker = await screen.findByLabelText('Updating instructions')
-    const anchor = marker.closest('[data-builder-field-anchor="instructions"]') as HTMLElement | null
+    const cursor = await screen.findByLabelText('Updating instructions')
+    const anchor = document.querySelector('[data-builder-field-anchor="instructions"]') as HTMLElement | null
     expect(anchor).not.toBeNull()
     expect(anchor?.querySelector('[data-agent-builder-marker-target]')).not.toBeNull()
     await waitFor(() => {
-      expect(anchor?.style.getPropertyValue('--agent-builder-marker-x')).not.toBe('')
-      expect(anchor?.style.getPropertyValue('--agent-builder-marker-y')).not.toBe('')
+      expect(cursor.style.getPropertyValue('--agent-builder-cursor-x')).not.toBe('')
+      expect(cursor.style.getPropertyValue('--agent-builder-cursor-y')).not.toBe('')
     })
   })
 
@@ -439,13 +438,15 @@ describe('AgentBuilderView intro composer', () => {
     expect(glow.style.opacity).toBe('0')
   })
 
-  it('shows a cursor marker and driving glow while the builder edits a profile field', async () => {
+  it('keeps the cursor on the last edited field after the turn and moves it on the next edit', async () => {
     await startBuilderTurn()
 
     emitBuilderToolStarted('call-name', 'SetAgentName')
 
     await waitFor(() => expect(screen.getByLabelText('Updating name')).toBeInTheDocument())
-    expect(screen.getByLabelText('Updating name').closest('[data-builder-field-anchor="name"]')).not.toBeNull()
+    const cursor = screen.getByLabelText('Updating name')
+    expect(cursor.getAttribute('data-agent-builder-cursor-field')).toBe('name')
+    expect(cursor.getAttribute('data-phase')).toBe('editing')
     expect(document.querySelector('.agent-builder-split-main.is-agent-driving')).toBeInTheDocument()
     expect(document.querySelector('.agent-builder-doc.is-agent-driving')).toBeInTheDocument()
 
@@ -475,6 +476,15 @@ describe('AgentBuilderView intro composer', () => {
 
     await waitFor(() => expect(screen.getByDisplayValue('Slate')).toBeInTheDocument())
     await waitFor(() => expect(document.querySelector('.agent-builder-doc.is-agent-driving')).not.toBeInTheDocument())
+
+    // Settled, not gone: the arrow stays where the agent last worked.
+    expect(screen.getByLabelText('Updated name')).toBe(cursor)
+    expect(cursor.getAttribute('data-phase')).toBe('settled')
+
+    emitBuilderToolStarted('call-desc', 'SetAgentDescription')
+    await waitFor(() => expect(screen.getByLabelText('Updating description')).toBe(cursor))
+    expect(cursor.getAttribute('data-agent-builder-cursor-field')).toBe('description')
+    expect(cursor.getAttribute('data-phase')).toBe('editing')
   })
 
   it('persists the rerolled avatar when creating a profile', async () => {

@@ -18,17 +18,16 @@ Grant the permissions your enabled operations need, and nothing more:
 
 Then generate a private key for the App. You'll need the App ID and that key while configuring DotCraft.
 
-## Configure the GitHub connection
+## Connect the repository
 
-1. Open the Oratorio Board, select **Oratorio settings**, then choose **GitHub**.
-2. Keep the default endpoint for GitHub.com. For GitHub Enterprise, enter your own API endpoint.
-3. Enter the App ID, then add the private key or its path.
-4. Add an installation profile for each GitHub owner. Oratorio can detect the Installation ID once the project route is saved, or you can enter it yourself.
-5. Return to Oratorio settings, add each repository, and pick the matching DotCraft workspace for it.
-6. Enable **Source writes** only when Oratorio should publish comments, reviews, checks, branches, or pull requests.
-7. Select **Sync now** and confirm that the repository reports read access.
+1. Open the Oratorio Board and select **Connect GitHub**. The same flow starts from **Connect a source** in Oratorio settings.
+2. Enter the App ID and the private key. Keep the default endpoint for GitHub.com. For GitHub Enterprise, enter your own API endpoint.
+3. Enter the repository as `owner/repository`. Oratorio detects the App installation when you connect. Enter the installation ID yourself only if detection fails.
+4. Choose the DotCraft workspace that holds the repository's checkout.
+5. Keep the sync schedule and automatic review defaults. Leave writes off until the first reviews look right.
+6. Select **Connect and sync**. Oratorio saves the configuration, runs a first sync, and confirms read access.
 
-Private repositories need no extra setup. Oratorio fetches review targets into the mapped checkout with the App installation credentials, so that checkout doesn't need stored Git credentials of its own.
+Add more repositories by running the flow again. Private repositories need no extra setup. Oratorio fetches review targets into the mapped checkout with the App installation credentials, so that checkout doesn't need stored Git credentials of its own.
 
 ## Enable webhook delivery
 

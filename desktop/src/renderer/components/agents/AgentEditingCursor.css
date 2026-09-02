@@ -1,0 +1,94 @@
+.agent-builder-field-anchor {
+  position: relative;
+  min-width: 0;
+}
+
+.agent-builder-edit-cursor {
+  --agent-builder-cursor-x: 0px;
+  --agent-builder-cursor-y: 0px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  transform: translate(calc(var(--agent-builder-cursor-x) + 2px), calc(var(--agent-builder-cursor-y) - 50%));
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+/* The glide transition arms only after the first position has landed. */
+.agent-builder-edit-cursor[data-placed="true"] {
+  opacity: 1;
+  transition:
+    transform 460ms var(--ease-expand),
+    opacity var(--duration-base) var(--ease-standard);
+}
+
+.agent-builder-edit-cursor.is-marker-flipped {
+  flex-direction: row-reverse;
+  transform: translate(calc(var(--agent-builder-cursor-x) - 100% - 2px), calc(var(--agent-builder-cursor-y) - 50%));
+}
+
+.agent-builder-edit-cursor-arrow {
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  fill: var(--text-primary);
+  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--text-primary) 26%, transparent));
+  transform: rotate(-12deg);
+}
+
+.agent-builder-edit-cursor-pill {
+  position: relative;
+  overflow: hidden;
+  margin-top: 9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0;
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.agent-builder-edit-cursor[data-phase="editing"] .agent-builder-edit-cursor-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 32%,
+    color-mix(in srgb, var(--bg-primary) 26%, transparent) 50%,
+    transparent 68%
+  );
+  background-size: 220% 100%;
+  animation: agent-builder-cursor-sheen 1.8s linear infinite;
+}
+
+.agent-builder-edit-cursor[data-label="hidden"] .agent-builder-edit-cursor-pill {
+  opacity: 0;
+  transform: translateX(-3px);
+}
+
+@keyframes agent-builder-cursor-sheen {
+  from { background-position: 160% 0; }
+  to { background-position: -60% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-builder-edit-cursor,
+  .agent-builder-edit-cursor[data-placed="true"] {
+    transition: opacity var(--duration-base) var(--ease-standard);
+  }
+  .agent-builder-edit-cursor[data-phase="editing"] .agent-builder-edit-cursor-pill::after {
+    animation: none;
+  }
+}

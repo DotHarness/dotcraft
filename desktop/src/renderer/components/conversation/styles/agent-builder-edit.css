@@ -1,0 +1,68 @@
+.dc-profile-edit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.dc-profile-edit-text {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dc-profile-edit-markdown {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.dc-profile-edit-markdown .markdown-body {
+  font-size: var(--type-secondary-size);
+  line-height: 1.55;
+}
+
+.dc-profile-edit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.dc-profile-edit-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.dc-profile-edit-more,
+.dc-profile-edit-preview {
+  color: var(--text-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-profile-edit-rows {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.dc-profile-edit-row {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.dc-profile-edit-row dt {
+  color: var(--text-dimmed);
+}
+
+.dc-profile-edit-row dd {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.dc-profile-edit-rejected {
+  color: var(--warning);
+}

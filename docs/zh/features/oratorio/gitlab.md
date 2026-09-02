@@ -15,17 +15,16 @@
 
 每个接入的项目用自己的 profile 和 Token。
 
-## 配置 GitLab 连接
+## 接入项目
 
-1. 打开 Oratorio Board，选择 **Oratorio settings**，然后选择 **GitLab**。
-2. 启用 source read。GitLab.com 保持默认 endpoint，自托管实例填写实例根地址。
-3. 添加 project profile，填写实例和完整的 `group/project` 路径。subgroup 同样支持。
-4. 把项目 Token 添加到这个 profile。
-5. 回到 Oratorio 设置，添加项目，并为它选择对应的 DotCraft workspace。
-6. 需要 Oratorio 发布 note、状态、分支或 merge request 时，才启用 **来源写入**。
-7. 选择 **立即同步**，确认项目已经可读。
+1. 打开 Oratorio Board，选择 **Connect GitLab**。在 Oratorio 设置中选择 **Connect a source** 也会进入同一流程。
+2. 选择 Token 类型并粘贴 Token。GitLab.com 保持默认 endpoint，自托管实例填写实例根地址。
+3. 按 `group/project` 填写项目，subgroup 同样支持。
+4. 选择持有这个项目 checkout 的 DotCraft workspace。
+5. 同步计划和自动 review 保持默认，写回先关着，等最初几次 review 没问题再打开。
+6. 选择 **Connect and sync**。Oratorio 会保存配置，跑一次首次同步，并确认项目可读。
 
-私有项目不需要额外设置。Oratorio 用项目 profile 的 Token 把审阅目标取回映射的 checkout，这个 checkout 本身不必保存 Git 凭据。
+要接入更多项目，再走一遍这个流程即可。私有项目不需要额外设置。Oratorio 用项目 Token 把审阅目标取回映射的 checkout，这个 checkout 本身不必保存 Git 凭据。
 
 ## 启用 Webhook
 

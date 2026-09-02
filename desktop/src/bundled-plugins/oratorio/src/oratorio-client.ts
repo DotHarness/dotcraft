@@ -43,6 +43,9 @@ export const oratorioClient = {
   updateFollowUp(draftId: string, body: Body): Promise<ItemDetailResponse> { return request('PATCH', `/api/v1/follow-up-drafts/${encodeURIComponent(draftId)}`, body) },
   discardFollowUp(draftId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/follow-up-drafts/${encodeURIComponent(draftId)}/discard`) },
   createTaskFromFollowUp(draftId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/follow-up-drafts/${encodeURIComponent(draftId)}/create-local-task`) },
+  syncJob(provider: string, jobId: string): Promise<SourceSyncJobDto> {
+    return request('GET', `/api/v1/sources/sync-jobs/${encodeURIComponent(jobId)}?provider=${encodeURIComponent(provider)}`)
+  },
   sync(provider: string, mode: 'incremental' | 'full' = 'incremental', projects?: string[]): Promise<SourceSyncJobDto> {
     return request('POST', `/api/v1/sources/${encodeURIComponent(provider)}/sync-jobs`, { mode, projects })
   }
