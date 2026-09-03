@@ -69,6 +69,8 @@
 }
 
 .preview {
+  --channel-prompt-media-overlay: color-mix(in oklab, var(--bg-secondary) 70%, transparent);
+
   box-sizing: border-box;
   display: flex;
   min-height: 132px;
@@ -76,7 +78,12 @@
   justify-content: center;
   padding: 18px 24px;
   border-radius: 8px;
-  background: linear-gradient(120deg, #b6cdf5, #d9cef7 58%, #f3f0fb);
+  background-color: var(--bg-secondary);
+  background-image:
+    linear-gradient(var(--channel-prompt-media-overlay), var(--channel-prompt-media-overlay)),
+    url('../plugins/assets/plugin-prompt-background.webp');
+  background-position: center;
+  background-size: cover;
 }
 
 .prompt {
@@ -93,6 +100,12 @@
   color: #111;
   font-size: var(--type-ui-size);
   line-height: 1.35;
+}
+
+:global(html[data-theme='dark']) .prompt {
+  border-color: transparent;
+  color: var(--text-primary);
+  background: rgb(0 0 0 / 75%);
 }
 
 .promptPrefix {
