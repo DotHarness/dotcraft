@@ -5,8 +5,13 @@ export type ToastType = 'info' | 'success' | 'warning' | 'error'
 export interface ToastAction {
   label: string
   onClick: () => void
-  /** Optional host-resolved glyph name (currently 'undo'); unknown/omitted names render no icon. */
+  /** Named glyph resolved by the host; an unknown or omitted name renders none. */
   icon?: string
+}
+
+export interface ToastLeading {
+  src?: string
+  fallback: string
 }
 
 export interface Toast {
@@ -14,13 +19,13 @@ export interface Toast {
   message: string
   type: ToastType
   duration: number
+  description?: string
   /** Showing another toast with the same key replaces this one instead of stacking. */
   key?: string
-  /** When true, message is rendered as Markdown (job results). */
   markdown?: boolean
-  /** Optional inline action button (e.g. Undo). */
   action?: ToastAction
-  /** Fired once if the toast goes away without the action being taken (timeout, close, or replacement). */
+  leading?: ToastLeading
+  /** Fired once if the toast goes without the action being taken: timeout, close, or replacement. */
   onExpire?: () => void
 }
 
@@ -30,18 +35,15 @@ interface ToastState {
 
 interface ToastActions {
   addToast(message: string, type?: ToastType, duration?: number, markdown?: boolean): string
-  /** Low-level: push a fully-specified toast (without id). Returns the new id. */
   showToast(input: Omit<Toast, 'id'>): string
   /** Resolves an interactive toast exactly once; later calls for the same id are no-ops. */
   settleToast(id: string, via: 'action' | 'expire'): void
-  /** Dismiss without the action; an unsettled toast commits via onExpire first. */
   removeToast(id: string): void
 }
 
 type ToastStore = ToastState & ToastActions
 
 const DEFAULT_DURATION_MS = 5000
-/** A toast that offers an action needs time to be read and reached. */
 const ACTION_DURATION_MS = 8000
 const JOB_RESULT_DURATION_MS = 10000
 
@@ -69,7 +71,8 @@ function isSameNotice(existing: Toast, next: Omit<Toast, 'id'>): boolean {
     next.onExpire == null &&
     existing.markdown === next.markdown &&
     existing.type === next.type &&
-    existing.message === next.message
+    existing.message === next.message &&
+    existing.description === next.description
   )
 }
 
@@ -108,18 +111,18 @@ export const useToastStore = create<ToastStore>((set, get) => ({
   }
 }))
 
-/** Options for an interactive toast (action button and/or commit-on-expire callback). */
 export interface ShowToastOptions {
   message: string
   type?: ToastType
   durationMs?: number
+  description?: string
   key?: string
   markdown?: boolean
   action?: ToastAction
+  leading?: ToastLeading
   onExpire?: () => void
 }
 
-/** Convenience helpers for non-React callers */
 export const addToast = (
   message: string,
   type?: ToastType,
@@ -135,9 +138,11 @@ export const showToast = (options: ShowToastOptions): string =>
     message: options.message,
     type: options.type ?? 'info',
     duration: options.durationMs ?? (options.action ? ACTION_DURATION_MS : DEFAULT_DURATION_MS),
+    ...(options.description ? { description: options.description } : {}),
     ...(options.key ? { key: options.key } : {}),
     ...(options.markdown ? { markdown: true } : {}),
     ...(options.action ? { action: options.action } : {}),
+    ...(options.leading ? { leading: options.leading } : {}),
     ...(options.onExpire ? { onExpire: options.onExpire } : {})
   })
 

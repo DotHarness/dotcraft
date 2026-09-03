@@ -24,6 +24,9 @@ colors:
   success-bg: "var(--success-bg)"
   warning-bg: "var(--warning-bg)"
   error-bg: "var(--error-bg)"
+  success-text: "var(--success-text)"
+  warning-text: "var(--warning-text)"
+  error-text: "var(--error-text)"
   ref-skill: "var(--ref-skill)"
   permission-full-access: "var(--permission-full-access)"
   glass-surface-strong: "var(--glass-surface-strong)"
@@ -651,22 +654,50 @@ Button variants.
 
 ### Toasts
 
-Toasts are transient neutral cards in the top-right stack (`ui/ToastContainer.tsx`,
-`primitives/toast.css`). The surface is the elevated overlay tone plus shadow, and
-the only semantic color on the card is the level icon. A toast is either present or
-gone: there is no remaining-time bar, hovering or focusing the stack holds every
-card, and a repeated identical notice replaces its twin instead of stacking.
+Toasts are transient cards in the top-right stack (`ui/ToastContainer.tsx`,
+`ui/ToastCard.tsx`, `primitives/toast.css`). A toast is either present or gone:
+there is no remaining-time bar, hovering or focusing the stack holds every card,
+and a repeated identical notice replaces its twin instead of stacking.
 
 - Levels are `info`, `success`, `warning`, and `error`. Errors auto-dismiss like
   everything else; a toast that must persist passes duration `0`.
+- `info` is the neutral card: elevated overlay tone, neutral border, neutral text.
+  The other three tint the whole card — surface, border, title, icon, close, and
+  action all take that level's colour. An outcome you are meant to read in passing
+  should not depend on finding a small glyph to learn how it went.
+- The tint is mixed into the elevated surface rather than laid over it as a
+  transparent wash, so a toast stays opaque against whatever it covers.
+- Surface and border take the level's own colour (`--success` and friends); anything
+  readable on a tinted card takes that level's reading colour (`--success-text` and
+  friends). The two roles are separate tokens because a status colour chosen to
+  carry a 16px glyph does not clear AA as 13px running text on a tint of itself —
+  the yellow reads at 2.3:1 on a light surface. Use the `-text` token wherever a
+  status colour becomes prose, not only here.
 - Give a toast a `key` when it reports the outcome of something that already showed
   an in-flight toast, so the result replaces the notice rather than joining it.
+- An arrival is not an outcome. A toast that hands the user something newly possible
+  — a plugin just installed, offering Try now — stays the neutral `info` card and puts
+  that thing's `IdentityMark` in the leading slot: the mark says which thing, the
+  action says what it makes possible, and there is no verdict to colour. The tinted
+  levels report a finished outcome with nothing left to do — removed, failed, blocked
+  — and keep the level glyph, since the subject may no longer be there to have a mark.
+  Either way the title names the subject.
+- A card is `max-content` wide against the stack's right edge and caps at the column
+  width, so a short notice stays short instead of reserving the full 380px.
+- The title is one medium-weight line in a 24px box, matching the icon, the action,
+  and the close control, so one line of text is always a 42px card. `description`
+  adds a second, quieter line in the level's reading colour; with it present the
+  actions move to their own row below the text, since an inline action beside two
+  lines has no line to sit on.
+- The action is a filled `secondary` pill, tinted to the level on a tinted card. It
+  is the one thing on a card the user is invited to press, so it is the one thing
+  that may carry a fill. The close control stays a frameless `IconButton`.
 - Offer inline Undo only when a compensating server call exists, such as archive
   and unarchive. Perform the change immediately and let Undo reverse it; never
   defer the change until the toast expires. Permanent deletes keep their
   confirmation dialog and offer no Undo.
-- The action is a ghost `Button` and the close control an `IconButton`; neither
-  carries a border or a tinted fill.
+- Offer a forward action such as Try now only when the notice itself is what made
+  that destination reachable, and reaching it is this one press.
 - The stack is one polite live region; individual cards carry no `role="alert"`.
 
 ### Tooltips

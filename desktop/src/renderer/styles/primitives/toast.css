@@ -1,5 +1,6 @@
-/* Transient feedback stack (ui/ToastContainer.tsx). Offset, scale, opacity, z-order,
-   measured height, and the title-bar inset are computed per card and stay inline. */
+/* Transient feedback stack; see Toasts in specs/architecture/DESIGN.md. Offset, scale,
+   opacity, z-order, measured height, and the title-bar inset are computed per card and
+   stay inline. */
 .dc-toast-stack {
   position: fixed;
   right: 12px;
@@ -15,6 +16,9 @@
 .dc-toast {
   position: absolute;
   inset: 0 0 auto 0;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
   transform-origin: top right;
   transition:
     transform 360ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -22,17 +26,14 @@
   will-change: transform, opacity;
 }
 
-.dc-toast[data-behind="true"],
-.dc-toast[data-leaving="true"] {
-  pointer-events: none;
-}
-
 .dc-toast__surface {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: 8px;
-  padding: 10px 8px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: max-content;
+  max-width: 100%;
+  padding: 8px;
+  pointer-events: auto;
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   background: var(--glass-surface-strong);
@@ -43,8 +44,41 @@
   user-select: none;
 }
 
-.dc-toast__surface[data-has-action="true"] {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+.dc-toast__surface[data-tone] {
+  background: color-mix(in srgb, var(--dc-toast-tone) 13%, var(--glass-surface-strong));
+  border-color: color-mix(in srgb, var(--dc-toast-tone) 32%, transparent);
+  color: var(--dc-toast-ink);
+}
+
+html[data-theme="light"] .dc-toast__surface[data-tone] {
+  background: color-mix(in srgb, var(--dc-toast-tone) 9%, var(--glass-surface-strong));
+}
+
+.dc-toast__surface[data-tone="success"] {
+  --dc-toast-tone: var(--success);
+  --dc-toast-ink: var(--success-text);
+}
+
+.dc-toast__surface[data-tone="warning"] {
+  --dc-toast-tone: var(--warning);
+  --dc-toast-ink: var(--warning-text);
+}
+
+.dc-toast__surface[data-tone="error"] {
+  --dc-toast-tone: var(--error);
+  --dc-toast-ink: var(--error-text);
+}
+
+.dc-toast[data-behind="true"] .dc-toast__surface,
+.dc-toast[data-leaving="true"] .dc-toast__surface {
+  pointer-events: none;
+}
+
+.dc-toast__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
 }
 
 .dc-toast__icon {
@@ -57,21 +91,22 @@
   color: var(--info);
 }
 
-.dc-toast__icon[data-type="success"] {
-  color: var(--success);
+.dc-toast__surface[data-tone] .dc-toast__icon {
+  color: inherit;
 }
 
-.dc-toast__icon[data-type="warning"] {
-  color: var(--warning);
+.dc-toast__icon[data-mark="true"] {
+  color: inherit;
 }
 
-.dc-toast__icon[data-type="error"] {
-  color: var(--error);
+.dc-toast__surface[data-tone] .dc-toast__icon[data-mark="true"] {
+  --identity-mark-fallback-background: color-mix(in srgb, var(--dc-toast-tone) 20%, transparent);
+  --identity-mark-fallback-color: var(--dc-toast-ink);
 }
 
 .dc-toast__body {
+  flex: 1;
   min-width: 0;
-  padding: 3px 0;
   overflow-wrap: anywhere;
 }
 
@@ -79,16 +114,64 @@
   margin: 0;
 }
 
+.dc-toast__title {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 500;
+}
+
+.dc-toast__description {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.dc-toast__surface[data-tone] .dc-toast__description {
+  color: color-mix(in srgb, var(--dc-toast-ink) 78%, var(--text-secondary));
+}
+
 .dc-toast__markdown {
   max-height: 240px;
+  padding: 3px 0;
   overflow: auto;
   line-height: 1.5;
 }
 
-.dc-toast__action {
+.dc-toast__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dc-toast__action.dc-button[data-size="sm"] {
+  flex-shrink: 0;
+  height: 24px;
+  margin-left: 8px;
+  padding: 0 9px;
   white-space: nowrap;
+}
+
+.dc-toast__actions .dc-toast__action {
+  margin-left: 0;
+}
+
+.dc-toast__surface[data-tone] .dc-toast__action {
+  background: color-mix(in srgb, var(--dc-toast-tone) 14%, transparent);
+  color: inherit;
+}
+
+.dc-toast__surface[data-tone] .dc-toast__action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dc-toast-tone) 24%, transparent);
 }
 
 .dc-toast__close {
   color: var(--text-dimmed);
+}
+
+.dc-toast__surface[data-tone] .dc-toast__close {
+  color: color-mix(in srgb, var(--dc-toast-ink) 85%, transparent);
+}
+
+.dc-toast__surface[data-tone] .dc-toast__close:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dc-toast-tone) 16%, transparent);
+  color: inherit;
 }

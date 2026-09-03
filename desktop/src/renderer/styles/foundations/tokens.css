@@ -98,6 +98,12 @@
   --warning-bg: color-mix(in srgb, var(--warning) 18%, transparent);
   --error-bg: color-mix(in srgb, var(--error) 18%, transparent);
 
+  /* Reading colour for a status set as prose on a tint of itself; see Toasts in
+     specs/architecture/DESIGN.md. Only --error has to move on this theme. */
+  --success-text: var(--success);
+  --warning-text: var(--warning);
+  --error-text: #f87171;
+
   --diff-add-bg: color-mix(in srgb, var(--success) 15%, transparent);
   --diff-remove-bg: color-mix(in srgb, var(--error) 15%, transparent);
   --diff-add-word-bg: color-mix(in srgb, var(--success) 34%, transparent);

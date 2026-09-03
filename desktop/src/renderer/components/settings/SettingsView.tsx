@@ -64,6 +64,7 @@ import { SettingsPanelShell } from './SettingsPanelShell'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginCatalogItem, PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
+import { showPluginInstalledToast } from '../plugins/pluginToasts'
 import {
   EditableKeyValueList,
   EditableValueList,
@@ -2992,7 +2993,9 @@ export function SettingsView({
       await fetchPlugins()
       await fetchSkills()
       setBrowserUseInstallOpen(false)
-      addToast(t('plugins.installSuccess'), 'success')
+      showPluginInstalledToast(browserUsePlugin, {
+        message: t('plugins.installSuccess', { name: pluginTitle(browserUsePlugin) })
+      })
     } catch {
       addToast(t('plugins.installFailed'), 'error')
     } finally {
@@ -3009,7 +3012,9 @@ export function SettingsView({
       await fetchSkills()
       setChromeInstallOpen(false)
       setChromeDetailOpen(true)
-      addToast(t('plugins.installSuccess'), 'success')
+      showPluginInstalledToast(chromePlugin, {
+        message: t('plugins.installSuccess', { name: pluginTitle(chromePlugin) })
+      })
     } catch {
       addToast(t('plugins.installFailed'), 'error')
     } finally {

@@ -48,6 +48,12 @@ html[data-theme="light"] {
   --warning-bg: color-mix(in srgb, var(--warning) 14%, transparent);
   --error-bg: color-mix(in srgb, var(--error) 14%, transparent);
 
+  /* All three darken on the light surface; the status yellow in particular reads at
+     2.3:1 as text on a yellow tint of itself. */
+  --success-text: #15803d;
+  --warning-text: #8a6a10;
+  --error-text: #b91c1c;
+
   --diff-add-bg: color-mix(in srgb, var(--success) 12%, transparent);
   --diff-remove-bg: color-mix(in srgb, var(--error) 10%, transparent);
   --diff-add-word-bg: color-mix(in srgb, var(--success) 28%, transparent);

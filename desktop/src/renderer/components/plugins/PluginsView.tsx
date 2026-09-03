@@ -24,6 +24,7 @@ import { PluginDetailView } from './PluginDetailView'
 import { filterVisibleDiagnostics } from './PluginDiagnosticsBanner'
 import { PluginManageSurface } from './PluginManageSurface'
 import { PLUGIN_CREATOR_SKILL, stagePluginCreationInChat, stagePluginTryInChat } from './pluginDraft'
+import { showPluginInstalledToast, showPluginUninstalledToast } from './pluginToasts'
 import {
   buildCategoryOptions,
   buildSections,
@@ -151,7 +152,10 @@ export function PluginsView(): JSX.Element {
           setInstallTarget(keepOpenForSetup
             ? { ...installDialogPlugin, installed: true, enabled: true, installable: false }
             : null)
-          addToast(t('plugins.installSuccess'), 'success')
+          showPluginInstalledToast(installDialogPlugin, {
+            message: t('plugins.installSuccess', { name: pluginTitle(installDialogPlugin) }),
+            ...(keepOpenForSetup ? {} : { tryLabel: t('plugins.tryNow') })
+          })
         } catch {
           addToast(t('plugins.installFailed'), 'error')
         } finally {
@@ -257,7 +261,12 @@ export function PluginsView(): JSX.Element {
       // Only now is it known whether the folder carried in-process code, and the trust step
       // it owes is the same one a catalog install completes.
       if (installed?.dotnet) setInstallTarget(installed)
-      addToast(t('plugins.installLocal.success'), 'success')
+      if (installed) {
+        showPluginInstalledToast(installed, {
+          message: t('plugins.installLocal.success', { name: pluginTitle(installed) }),
+          ...(installed.dotnet ? {} : { tryLabel: t('plugins.tryNow') })
+        })
+      }
     } catch (err) {
       const detail = err instanceof Error ? extractInstallErrorDetail(err.message) : ''
       addToast(detail || t('plugins.installLocal.failed'), 'error')
@@ -302,8 +311,12 @@ export function PluginsView(): JSX.Element {
         addToast(t('plugins.installFailed'), 'error')
         return
       }
-      addToast(t('plugins.installSuccess'), 'success')
-      if ((installed.apps ?? []).length > 0 || installed.dotnet != null) setInstallTarget(installed)
+      const needsSetup = (installed.apps ?? []).length > 0 || installed.dotnet != null
+      showPluginInstalledToast(installed, {
+        message: t('plugins.installSuccess', { name: pluginTitle(installed) }),
+        ...(needsSetup ? {} : { tryLabel: t('plugins.tryNow') })
+      })
+      if (needsSetup) setInstallTarget(installed)
     } catch {
       addToast(t('plugins.installFailed'), 'error')
     } finally {
@@ -402,7 +415,10 @@ export function PluginsView(): JSX.Element {
               if (result.outcome === 'notApplied') {
                 addToast(operationFailureMessage(result) ?? t('plugins.uninstallFailed'), 'error')
               } else {
-                addToast(t('plugins.uninstallSuccess'), 'success')
+                showPluginUninstalledToast(
+                  selectedPlugin,
+                  t('plugins.uninstallSuccess', { name: pluginTitle(selectedPlugin) })
+                )
               }
             } catch {
               addToast(t('plugins.uninstallFailed'), 'error')
