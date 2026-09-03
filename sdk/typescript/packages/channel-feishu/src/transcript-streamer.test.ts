@@ -60,7 +60,15 @@ class FakeCardKitClient {
   failDelete = false;
 
   readonly patched: Array<{ cardId: string; elementId: string; element: Record<string, unknown>; sequence: number }> = [];
+  readonly appended: Array<{ cardId: string; element: Record<string, unknown>; sequence: number }> = [];
   failPatch = false;
+  failAppend = false;
+
+  async appendCardKitElement(cardId: string, element: Record<string, unknown>, sequence: number): Promise<void> {
+    if (this.failAppend) throw new Error("append rejected");
+    this.appended.push({ cardId, element, sequence });
+    this.sequenceLog.push({ cardId, sequence });
+  }
 
   async patchCardKitElement(
     cardId: string,
@@ -176,52 +184,69 @@ test("FeishuTranscriptStreamer finalizes a partial card when the turn stops", as
   assert.equal(client.finalized.length, 1);
 });
 
-test("FeishuTranscriptStreamer shows thinking, switches to working at the first tool call, and drops the row at the end", async () => {
+test("FeishuTranscriptStreamer keeps the status row at the tail and hides it while text streams", async () => {
   const client = new FakeCardKitClient();
   const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", { statusIconImgKey: "img_loading" });
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
 
   assert.equal(await streamer.begin(), true);
-  assert.equal(client.created.length, 1);
-  assert.equal(client.sent.length, 1);
-  assert.equal(client.updates.length, 0);
-  const status = statusElementOf(client.created[0]!);
-  assert.match(String((status?.i18n_content as Record<string, string>).zh_cn), /思考中/);
-  assert.equal((status?.icon as Record<string, unknown>).img_key, "img_loading");
+  const initial = client.created[0]!.body as { elements: Array<Record<string, unknown>> };
+  assert.deepEqual(initial.elements.map((element) => element.element_id), ["dotcraft_reply", "dotcraft_status"]);
+  const thinking = statusElementOf(client.created[0]!);
+  assert.match(String((thinking?.i18n_content as Record<string, string>).zh_cn), /思考中/);
+  assert.equal((thinking?.icon as Record<string, unknown>).img_key, "img_loading");
 
-  assert.equal(await streamer.update("Hello"), true);
-  await streamer.markWorking();
-  await streamer.markWorking();
-  assert.equal(client.patched.length, 1);
-  const working = client.patched[0]!;
-  assert.equal(working.elementId, "dotcraft_status");
-  assert.equal(working.element.tag, undefined);
-  assert.equal(working.element.icon, undefined);
-  assert.match(String((working.element.i18n_content as Record<string, string>).zh_cn), /工作中/);
-
-  assert.equal(await streamer.update("Hello world"), true);
-  assert.equal(await streamer.complete("Hello world"), true);
-
+  assert.equal(await streamer.update("First paragraph."), true);
+  await settle();
   assert.equal(client.deleted.length, 1);
   assert.equal(client.deleted[0]!.elementId, "dotcraft_status");
-  assert.ok(client.updates.at(-1)!.sequence < client.deleted[0]!.sequence);
-  assert.ok(client.deleted[0]!.sequence < client.finalized[0]!.sequence);
+
+  await streamer.markWorking();
+  await streamer.markWorking();
+  assert.equal(client.appended.length, 1);
+  const working = client.appended[0]!.element;
+  assert.equal(working.element_id, "dotcraft_status");
+  assert.match(String((working.i18n_content as Record<string, string>).zh_cn), /工作中/);
+  assert.equal((working.icon as Record<string, unknown>).img_key, "img_loading");
+  assert.equal(client.patched.length, 0);
+
+  assert.equal(await streamer.update("First paragraph.\n\nSecond paragraph."), true);
+  await settle();
+  assert.equal(client.deleted.length, 2);
+  assert.equal(await streamer.complete("First paragraph.\n\nSecond paragraph."), true);
+  assert.equal(client.deleted.length, 2);
+  assert.equal(client.finalized.length, 1);
   const sequences = client.sequencesFor("card-1");
   assert.deepEqual(sequences, [...sequences].sort((left, right) => left - right));
   assert.equal(new Set(sequences).size, sequences.length);
 });
 
-test("FeishuTranscriptStreamer keeps streaming when the working patch is rejected", async () => {
+test("FeishuTranscriptStreamer switches a visible thinking row to working in place", async () => {
   const client = new FakeCardKitClient();
-  client.failPatch = true;
+  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft");
+
+  await streamer.begin();
+  await streamer.markWorking();
+
+  assert.equal(client.appended.length, 0);
+  assert.equal(client.patched.length, 1);
+  assert.equal(client.patched[0]!.element.tag, undefined);
+  assert.match(String((client.patched[0]!.element.i18n_content as Record<string, string>).zh_cn), /工作中/);
+});
+
+test("FeishuTranscriptStreamer keeps streaming when the working row cannot be appended", async () => {
+  const client = new FakeCardKitClient();
+  client.failAppend = true;
   const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft");
 
   await streamer.begin();
   await streamer.update("Reply");
+  await new Promise((resolve) => setTimeout(resolve, 200));
   await streamer.markWorking();
   assert.equal(await streamer.complete("Reply"), true);
 
   assert.equal(client.finalized.length, 1);
-  assert.equal(client.deleted.length, 1);
+  assert.equal(client.updates.at(-1)?.content, "Reply");
 });
 
 test("FeishuTranscriptStreamer still finalizes when the status row cannot be deleted", async () => {
@@ -237,7 +262,7 @@ test("FeishuTranscriptStreamer still finalizes when the status row cannot be del
   assert.equal(client.finalized.length, 1);
 });
 
-test("FeishuTranscriptStreamer carries the status row across rollover cards", async () => {
+test("FeishuTranscriptStreamer hides the status row once text starts, including across rollover cards", async () => {
   const client = new FakeCardKitClient();
   const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", { maxElementChars: 1000 });
   const longReply = Array.from({ length: 30 }, (_, index) => `Paragraph ${index}: ${"x".repeat(70)}`).join("\n\n");
@@ -247,9 +272,9 @@ test("FeishuTranscriptStreamer carries the status row across rollover cards", as
   await streamer.complete(longReply);
 
   assert.ok(client.created.length > 1);
-  assert.ok(client.created.every((card) => statusElementOf(card) !== undefined));
-  assert.equal(client.deleted.length, client.created.length);
-  assert.equal(client.patched.length, 0);
+  assert.notEqual(statusElementOf(client.created[0]!), undefined);
+  assert.ok(client.created.slice(1).every((card) => statusElementOf(card) === undefined));
+  assert.deepEqual(client.deleted.map((deletion) => deletion.cardId), ["card-1"]);
 });
 
 test("FeishuTranscriptStreamer recalls a status-only card when the turn ends without text", async () => {

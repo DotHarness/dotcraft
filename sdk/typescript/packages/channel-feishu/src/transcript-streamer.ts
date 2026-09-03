@@ -1,5 +1,6 @@
 import { chunkMarkdown, normalizeMarkdownForFeishu } from "./formatting.js";
 import {
+  buildStatusElement,
   buildStatusPatch,
   buildStreamingTranscriptCard,
   buildReplySummary,
@@ -19,6 +20,7 @@ type CardKitClient = Pick<
   | "sendCardKitReference"
   | "updateCardKitElement"
   | "patchCardKitElement"
+  | "appendCardKitElement"
   | "deleteCardKitElement"
   | "finalizeCardKitInstance"
   | "replaceCardKitInstance"
@@ -77,7 +79,7 @@ export class FeishuTranscriptStreamer {
     return this.cardId.length > 0;
   }
 
-  /** Posts the card with a "thinking" status row; the row stays until the turn ends. */
+  /** Posts the card with a "thinking" row; the row is hidden while reply text streams. */
   async begin(): Promise<boolean> {
     if (this.status !== "idle") return this.status === "native";
     this.statusPhase = "thinking";
@@ -92,12 +94,12 @@ export class FeishuTranscriptStreamer {
     }
   }
 
-  /** Switches the status row to "working" once the agent starts calling tools. */
+  /** Shows "working" below the text while the agent runs tools between reply segments. */
   async markWorking(): Promise<void> {
-    if (this.status !== "native" || this.statusPhase !== "thinking") return;
+    if (this.status !== "native") return;
     this.statusPhase = "working";
     try {
-      await this.serialized(() => this.pushStatusIfChanged());
+      await this.serialized(() => this.showStatus());
     } catch (error) {
       this.onFailure?.("status", error);
     }
@@ -239,13 +241,17 @@ export class FeishuTranscriptStreamer {
       ++this.sequence,
     );
     this.contentPushed = true;
+    await this.removeStatus();
   }
 
-  private async pushStatusIfChanged(): Promise<void> {
-    if (this.visibleStatusPhase === "none" || this.statusPhase === "none") return;
-    if (this.visibleStatusPhase === this.statusPhase) return;
+  private async showStatus(): Promise<void> {
     const phase = this.statusPhase;
-    await this.client.patchCardKitElement(this.cardId, STREAMING_STATUS_ELEMENT_ID, { ...buildStatusPatch(phase) }, ++this.sequence);
+    if (phase === "none" || this.visibleStatusPhase === phase) return;
+    if (this.visibleStatusPhase !== "none") {
+      await this.client.patchCardKitElement(this.cardId, STREAMING_STATUS_ELEMENT_ID, { ...buildStatusPatch(phase) }, ++this.sequence);
+    } else {
+      await this.client.appendCardKitElement(this.cardId, buildStatusElement(phase, this.statusIconImgKey), ++this.sequence);
+    }
     this.visibleStatusPhase = phase;
   }
 
@@ -283,12 +289,11 @@ export class FeishuTranscriptStreamer {
   }
 
   private async startCard(initialText: string): Promise<void> {
-    const card = buildStreamingTranscriptCard(
-      normalizeMarkdownForFeishu(initialText),
-      false,
-      this.cardTitle,
-      { status: this.statusPhase === "none" ? undefined : this.statusPhase, statusIconImgKey: this.statusIconImgKey },
-    );
+    const status = this.contentPushed || this.statusPhase === "none" ? undefined : this.statusPhase;
+    const card = buildStreamingTranscriptCard(normalizeMarkdownForFeishu(initialText), false, this.cardTitle, {
+      status,
+      statusIconImgKey: this.statusIconImgKey,
+    });
     const cardId = await this.client.createCardKitInstance(card);
     const sent = this.deliverCard
       ? await this.deliverCard(cardId)
@@ -296,7 +301,7 @@ export class FeishuTranscriptStreamer {
     this.cardId = cardId;
     this.messageId = sent.messageId;
     this.sequence = 0;
-    this.visibleStatusPhase = this.statusPhase;
+    this.visibleStatusPhase = status ?? "none";
   }
 
   private serialized<T>(operation: () => Promise<T>): Promise<T> {

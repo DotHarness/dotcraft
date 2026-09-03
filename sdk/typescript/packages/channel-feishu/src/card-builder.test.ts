@@ -32,10 +32,10 @@ test("buildStreamingTranscriptCard exposes a stable markdown element and termina
   assert.equal(final.header, undefined);
 });
 
-test("buildStreamingTranscriptCard places the status row before the reply while streaming only", () => {
+test("buildStreamingTranscriptCard places the status row after the reply while streaming only", () => {
   const streaming = buildStreamingTranscriptCard("", false, "Bot", { status: "thinking" });
   const final = buildStreamingTranscriptCard("done", true, "Bot", { status: "thinking" });
-  const [status, reply] = elementsOf(streaming);
+  const [reply, status] = elementsOf(streaming);
   const i18n = status?.i18n_content as Record<string, string>;
   const icon = status?.icon as Record<string, unknown>;
 

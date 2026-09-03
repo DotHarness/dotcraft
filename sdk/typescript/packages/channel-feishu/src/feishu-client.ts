@@ -583,6 +583,22 @@ export class FeishuClient {
     );
   }
 
+  async appendCardKitElement(cardId: string, element: Record<string, unknown>, sequence: number): Promise<void> {
+    await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.cardElement.create({
+          path: { card_id: cardId },
+          data: {
+            type: "append",
+            elements: JSON.stringify([element]),
+            sequence,
+            uuid: `append_${cardId}_${sequence}`,
+          },
+        }),
+      "Failed to append Feishu CardKit element",
+    );
+  }
+
   async deleteCardKitElement(cardId: string, elementId: string, sequence: number): Promise<void> {
     await this.callSdk(
       () =>

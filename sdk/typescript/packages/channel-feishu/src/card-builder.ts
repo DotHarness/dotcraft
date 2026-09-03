@@ -21,7 +21,7 @@ export const STREAMING_STATUS_ELEMENT_ID = "dotcraft_status";
 export type TurnStatusPhase = "thinking" | "working";
 
 export interface StreamingCardOptions {
-  /** Status row above the reply: "thinking" until the first tool call, "working" afterwards. */
+  /** Status row below the reply; shown only while no reply text is streaming. */
   status?: TurnStatusPhase;
   /** Image key of the animated loading GIF; falls back to a static icon when absent. */
   statusIconImgKey?: string;
@@ -81,15 +81,16 @@ export function buildStreamingTranscriptCard(
   cardTitle?: string,
   options: StreamingCardOptions = {},
 ): Record<string, unknown> {
-  const elements: Array<Record<string, unknown>> = [];
+  const elements: Array<Record<string, unknown>> = [
+    {
+      tag: "markdown",
+      element_id: STREAMING_TRANSCRIPT_ELEMENT_ID,
+      content: normalizeMarkdownForFeishu(text),
+    },
+  ];
   if (!isFinal && options.status) {
     elements.push(buildStatusElement(options.status, options.statusIconImgKey));
   }
-  elements.push({
-    tag: "markdown",
-    element_id: STREAMING_TRANSCRIPT_ELEMENT_ID,
-    content: normalizeMarkdownForFeishu(text),
-  });
   return {
     schema: "2.0",
     config: {
