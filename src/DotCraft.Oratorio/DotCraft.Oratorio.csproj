@@ -11,8 +11,8 @@
     <!-- Headless API: no static web assets, so skip the .staticwebassets.*.json manifest. -->
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
     <PublishIISAssets>false</PublishIISAssets>
-    <AssemblyVersion>0.6.0</AssemblyVersion>
-    <Version>0.6.0</Version>
+    <AssemblyVersion>0.6.1</AssemblyVersion>
+    <Version>0.6.1</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
