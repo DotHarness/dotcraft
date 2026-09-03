@@ -523,6 +523,7 @@ Rules:
 - A child Function maps to `ToolName(parentNamespace.name, function.name)`.
 - `deferLoading: true` is valid only for a Function inside a Namespace. A top-level Function must be direct.
 - Qualified `(namespace, name)` identities must be unique; equal local names in different namespaces are valid.
+- Runtime Dynamic Tools are runtime-managed client capabilities and are not filtered by Agent Profile `tools.allow` / `tools.deny`; mode policy, approval policy, the owning connection lease, and Thread/Turn authority remain enforced.
 - `outputSchema`, `display`, `_meta`, `_meta.ui`, and generic `exposure` are invalid Runtime Dynamic declaration fields. Interactive result UI uses MCP Apps.
 - `approval`, when present, uses the same descriptive approval metadata as channel tools: `file`, `shell`, or `remoteResource`. DotCraft evaluates approval before dispatching `item/tool/call`.
 - A native SubAgent full-history fork snapshots the direct parent's current Runtime Dynamic Tool declarations and owning connection onto the child before its first model sampling. Fresh and bounded forks do not inherit them. The child receives an independent owner generation, and a later parent replacement does not propagate to it.

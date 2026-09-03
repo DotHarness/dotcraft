@@ -43,6 +43,20 @@ public sealed class EffectiveToolSnapshotTests
     }
 
     [Fact]
+    public void Build_TopLevelAndNamespacedSameLocalName_PreservesBoth()
+    {
+        var native = Registration(null, "SendMessage", "core", ToolSourceKind.CoreNative);
+        var universe = Registration("universe", "SendMessage", "thread:universe", ToolSourceKind.RuntimeDynamic);
+
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([native, universe], revision: 4);
+
+        Assert.Equal(2, snapshot.Registrations.Count);
+        Assert.Empty(snapshot.Diagnostics);
+        Assert.Equal("SendMessage", snapshot.ProviderFlatNames[native.Definition.Name]);
+        Assert.Equal("universe__SendMessage", snapshot.ProviderFlatNames[universe.Definition.Name]);
+    }
+
+    [Fact]
     public void Build_ProjectsDirectDeferredAndHiddenWithoutDroppingHiddenRuntime()
     {
         var direct = Registration(null, "direct", "core", ToolSourceKind.CoreNative);

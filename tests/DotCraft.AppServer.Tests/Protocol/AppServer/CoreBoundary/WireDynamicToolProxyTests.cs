@@ -305,9 +305,12 @@ public sealed class WireDynamicToolProxyTests
         var snapshot = await BuildSnapshotAsync(proxy);
 
         Assert.Equal(2, snapshot.Registrations.Count);
-        Assert.Equal(ToolExposure.Direct, snapshot.Registrations[new ToolName("desktop", "RefreshBoard")].Exposure);
+        var direct = snapshot.Registrations[new ToolName("desktop", "RefreshBoard")];
+        Assert.Equal(ToolExposure.Direct, direct.Exposure);
+        Assert.Equal(ToolPolicyScope.RuntimeManaged, direct.Definition.PolicyScope);
         var deferred = snapshot.Registrations[new ToolName("sampleboard", "RefreshBoard")];
         Assert.Equal(ToolExposure.Deferred, deferred.Exposure);
+        Assert.Equal(ToolPolicyScope.RuntimeManaged, deferred.Definition.PolicyScope);
         Assert.Equal("sampleboard tools.", deferred.Definition.NamespaceDescription);
         Assert.Equal("sampleboard tools.", deferred.Deferred?.NamespaceDescription);
     }

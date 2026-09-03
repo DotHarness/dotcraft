@@ -256,7 +256,8 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
             annotations: annotations,
             policyHints: new ToolPolicyHints(RequiresApproval: spec.Approval is not null),
             provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, sourceId, "thread"),
-            namespaceDescription: spec.NamespaceDescription);
+            namespaceDescription: spec.NamespaceDescription,
+            policyScope: ToolPolicyScope.RuntimeManaged);
         var runtimeBinding = new ToolRuntimeBinding(
             new RuntimeBindingId($"dynamic:{binding.ThreadId}:{binding.Generation}:{sourceToolId.Value}"),
             definitionId,

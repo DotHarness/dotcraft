@@ -203,6 +203,35 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public void RuntimeDynamicTools_BypassRestrictiveAgentProfilePolicy()
+    {
+        var config = new ThreadConfiguration
+        {
+            AgentProfileId = "builder",
+            ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] }
+        };
+        var registration = Registration(
+            new ToolName("universe", "SendMessage"),
+            ToolSourceKind.RuntimeDynamic,
+            "thread:universe",
+            ToolPolicyScope.RuntimeManaged);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        policy.SetRuntimeManagedTools(snapshot);
+
+        Assert.True(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
+            snapshot,
+            registration.Definition)));
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "universe__SendMessage",
+                new Dictionary<string, object?>())).Kind);
+        Assert.True(policy.EvaluateRegistration(registration, []).Allowed);
+    }
+
+    [Fact]
     public void EvaluateRegistration_EnforcesQualifiedMcpAndPlanPolicyAtDispatcherBoundary()
     {
         var config = new ThreadConfiguration

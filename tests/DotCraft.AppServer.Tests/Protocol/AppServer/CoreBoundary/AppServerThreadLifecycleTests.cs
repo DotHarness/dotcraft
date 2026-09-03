@@ -1210,7 +1210,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadResume_WithDynamicTools_BindsToolsAndRefreshesAgent()
+    public async Task ThreadResume_WithDynamicTools_BindsRefreshesAndRoundTripsNamespacedCall()
     {
         var dynamicToolProxy = new WireDynamicToolProxy();
         using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
@@ -1240,7 +1240,55 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 null,
                 [],
                 1)));
+        Assert.Equal("workflow", registration.Definition.Name.Namespace);
         Assert.Equal("SubmitReviewDraft", registration.Definition.Name.Name);
+        Assert.Equal(ToolPolicyScope.RuntimeManaged, registration.Definition.PolicyScope);
+
+        harness.Transport.ApprovalHandler = (method, parameters) =>
+        {
+            Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall, method);
+            var call = Assert.IsType<DotCraft.Protocol.AppServer.DynamicToolCallParams>(parameters);
+            Assert.Equal(thread.Id, call.ThreadId);
+            Assert.Equal("turn_dynamic", call.TurnId);
+            Assert.Equal("call_dynamic", call.CallId);
+            Assert.Equal("workflow", call.Namespace);
+            Assert.Equal("SubmitReviewDraft", call.Tool);
+            Assert.Equal("Ready", call.Arguments.GetProperty("body").GetString());
+            return InMemoryTransport.BuildClientResponse(
+                1,
+                new DotCraft.Protocol.AppServer.DynamicToolCallResult
+                {
+                    Success = true,
+                    ContentItems =
+                    [
+                        new DotCraft.Protocol.AppServer.DynamicToolContentItem
+                        {
+                            Type = "text",
+                            Text = "captured"
+                        }
+                    ]
+                });
+        };
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName("workflow", "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "Ready" },
+            new ToolInvocationRequest(
+                thread.Id,
+                "turn_dynamic",
+                "call_dynamic",
+                ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        Assert.Equal("captured", result.Content);
+        var callbackRequest = await harness.Transport.ReadNextSentAsync();
+        Assert.Equal(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall,
+            callbackRequest.RootElement.GetProperty("method").GetString());
+        var callbackParams = callbackRequest.RootElement.GetProperty("params");
+        Assert.Equal("workflow", callbackParams.GetProperty("namespace").GetString());
+        Assert.Equal("SubmitReviewDraft", callbackParams.GetProperty("tool").GetString());
     }
 
     [Fact]
