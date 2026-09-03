@@ -123,7 +123,7 @@ In Agent mode, prefer reasonable assumptions and execution; ask only when the us
         if (hasBlockingQuestion)
             rules.Add("- Use `RequestUserInput` when the answer is a prerequisite for further work and a short structured decision is appropriate.");
         if (hasAsyncMessage)
-            rules.Add("- Use `SendUserMessageAsync` to ask for missing information, preferences, constraints, clarification, or authorization when independent authorized work can continue.");
+            rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings that may change the task's direction, and replies to user questions or status requests during ongoing work. Use commentary for routine progress.");
         if (hasSleep)
             rules.Add("- Use `clock__Sleep` only after a question has been sent, no independent work remains, and this turn needs to wait for the reply.");
         if (hasAsyncMessage)
