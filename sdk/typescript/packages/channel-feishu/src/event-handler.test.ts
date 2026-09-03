@@ -506,6 +506,38 @@ test("Feishu event handler keeps processing when adding reaction fails", async (
   assert.equal(adapter.handledMessages[0]?.messageId, "om_message_123");
 });
 
+test("Feishu event handler reads flat post content and drops the bot's own mention", async () => {
+  const adapter = createAdapterMock();
+  const { handlers } = createHandlers({ adapter, config: { groupMentionRequired: false } });
+
+  await handlers.onMessage(
+    createTextEvent({
+      message: {
+        message_id: "om_post_flat",
+        chat_id: "oc_group_1",
+        chat_type: "group",
+        message_type: "post",
+        content: JSON.stringify({
+          title: "",
+          content: [[
+            { tag: "at", user_id: "@_user_1", user_name: "" },
+            { tag: "text", text: " help " },
+            { tag: "at", user_id: "@_user_2", user_name: "" },
+            { tag: "text", text: " with this" },
+          ]],
+        }),
+        mentions: [
+          { key: "@_user_1", id: { open_id: "ou_bot_123" }, name: "DotCraft Bot" },
+          { key: "@_user_2", id: { open_id: "ou_user_9" }, name: "Teammate" },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(adapter.handledMessages.length, 1);
+  assert.equal(adapter.handledMessages[0]?.text, "help Teammate with this");
+});
+
 test("Feishu event handler preserves metadata for post and image messages", async () => {
   const adapter = createAdapterMock();
   const client = {

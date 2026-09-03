@@ -4,7 +4,7 @@ import {
 } from "@dotcraft/channel";
 import { deriveConversationTarget } from "./conversation-target.js";
 import type { FeishuClient } from "./feishu-client.js";
-import type { FeishuMessageEvent, ParsedInboundMessage } from "./feishu-types.js";
+import type { FeishuMention, FeishuMessageEvent, ParsedInboundMessage } from "./feishu-types.js";
 import { logInfo, shortId } from "./logging.js";
 import { stripMentionKeys } from "./mention.js";
 
@@ -66,10 +66,11 @@ export async function parseInboundMessage(
   }
 
   if (event.message.message_type === "post") {
-    const text = extractPostText(event.message.content);
+    const text = extractPostText(event.message.content, event.message.mentions ?? [], botOpenId);
     logInfo("parse.post", {
       messageId: shortId(event.message.message_id),
       chatType: event.message.chat_type,
+      contentChars: event.message.content.length,
       textChars: text.length,
     });
     return {
@@ -109,29 +110,29 @@ export async function parseInboundMessage(
   return null;
 }
 
-function extractPostText(content: string): string {
-  const payload = safeParseJson(content);
-  const locales = Object.values(payload);
-  if (!locales.length) return "";
-  const locale = (locales[0] as { content?: unknown }).content;
-  if (!Array.isArray(locale)) return "";
+function extractPostText(content: string, mentions: FeishuMention[], botOpenId: string): string {
+  const post = resolvePostBody(safeParseJson(content));
+  if (!post) return "";
 
   const lines: string[] = [];
-  for (const paragraph of locale) {
+  const title = String(post.title ?? "").trim();
+  if (title) lines.push(title);
+  for (const paragraph of post.content) {
     if (!Array.isArray(paragraph)) continue;
     const parts: string[] = [];
     for (const item of paragraph) {
       if (!item || typeof item !== "object") continue;
-      const tag = String((item as Record<string, unknown>).tag ?? "");
-      if (tag === "text") {
-        parts.push(String((item as Record<string, unknown>).text ?? ""));
+      const record = item as Record<string, unknown>;
+      const tag = String(record.tag ?? "");
+      if (tag === "text" || tag === "md") {
+        parts.push(String(record.text ?? ""));
       } else if (tag === "a") {
-        const text = String((item as Record<string, unknown>).text ?? "link");
-        const href = String((item as Record<string, unknown>).href ?? "");
+        const text = String(record.text ?? "link");
+        const href = String(record.href ?? "");
         parts.push(href ? `[${text}](${href})` : text);
       } else if (tag === "at") {
-        const userName = String((item as Record<string, unknown>).user_name ?? "@user");
-        parts.push(userName);
+        const name = resolveAtName(record, mentions, botOpenId);
+        if (name) parts.push(name);
       } else if (tag === "img") {
         parts.push("[image]");
       }
@@ -140,8 +141,27 @@ function extractPostText(content: string): string {
     if (line) lines.push(line);
   }
 
-  const raw = lines.join("\n").trim();
-  return raw;
+  return lines.join("\n").trim();
+}
+
+/** Received post content is flat; the locale-wrapped shape is the send format. Both appear in the wild. */
+function resolvePostBody(payload: Record<string, unknown>): { title?: unknown; content: unknown[] } | null {
+  if (Array.isArray(payload.content)) return { title: payload.title, content: payload.content };
+  for (const value of Object.values(payload)) {
+    if (!value || typeof value !== "object") continue;
+    const locale = value as Record<string, unknown>;
+    if (Array.isArray(locale.content)) return { title: locale.title, content: locale.content };
+  }
+  return null;
+}
+
+/** Post `at` tags carry the mention key rather than a name; the bot's own mention is dropped. */
+function resolveAtName(record: Record<string, unknown>, mentions: FeishuMention[], botOpenId: string): string {
+  const reference = String(record.user_id ?? "").trim();
+  const mention = mentions.find((entry) => entry.key === reference || entry.id.open_id === reference);
+  const openId = mention?.id.open_id ?? (reference.startsWith("ou_") ? reference : "");
+  if (botOpenId && openId === botOpenId) return "";
+  return (mention?.name ?? String(record.user_name ?? "")).trim();
 }
 
 function safeParseJson(input: string): Record<string, unknown> {
