@@ -3,7 +3,7 @@ import { Settings } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { CatalogBreadcrumb, CatalogTopBar } from '../catalog/CatalogSurface'
 import { IconButton } from '../ui/IconButton'
-import { PluginInstallButton } from '../plugins/PluginInstallButton'
+import { MorphingActionPill } from '../plugins/MorphingActionPill'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 import { ChannelFormPage } from './ChannelFormPage'
 import styles from './ChannelModuleDetailPage.module.css'
@@ -93,14 +93,12 @@ export function ChannelModuleDetailPage({
                   tooltipLabel={t('plugins.manage')}
                   onClick={() => setMode('manage')}
                 />
-                <PluginInstallButton
-                  variant={active ? 'secondary' : 'primary'}
+                <MorphingActionPill
+                  label={t(active ? 'appBinding.disconnect' : 'appBinding.connect')}
                   loading={busy}
                   disabled={!controlsAvailable}
                   onClick={onToggleConnection}
-                >
-                  {t(active ? 'appBinding.disconnect' : 'appBinding.connect')}
-                </PluginInstallButton>
+                />
               </div>
             </div>
           </header>

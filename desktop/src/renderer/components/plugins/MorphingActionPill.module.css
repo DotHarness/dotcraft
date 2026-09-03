@@ -1,0 +1,37 @@
+.measure {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  width: max-content;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.slot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+.slot[data-transition-ready='true'] {
+  transition: width 180ms cubic-bezier(.77, 0, .175, 1);
+}
+
+.button {
+  width: 100%;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+:global(html[data-motion='reduced']) .slot,
+:global(html[data-reduce-motion='on']) .slot {
+  transition-duration: 0ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot {
+    transition-duration: 0ms !important;
+  }
+}

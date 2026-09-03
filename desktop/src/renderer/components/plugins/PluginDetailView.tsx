@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { Anchor, Box, Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
@@ -15,8 +15,8 @@ import { Button } from '../ui/Button'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
 import { AppBindingPanel } from './AppBindingPanel'
+import { MorphingActionPill } from './MorphingActionPill'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
-import { PluginInstallButton } from './PluginInstallButton'
 import { displayCategory } from './pluginCatalogModel'
 import styles from './PluginDetailView.module.css'
 
@@ -242,50 +242,14 @@ function PluginPrimaryAction({
           : t('plugins.enable')
   const showInstallIcon = !installed && !pending
   const showTryIcon = installed && enabled && !pending
-  const measureRef = useRef<HTMLSpanElement>(null)
-  const [width, setWidth] = useState<number | null>(null)
-  const [transitionReady, setTransitionReady] = useState(false)
-
-  useLayoutEffect(() => {
-    const nextWidth = measureRef.current?.getBoundingClientRect().width
-    if (nextWidth == null || nextWidth === 0) return
-    setWidth(nextWidth)
-    if (!transitionReady) {
-      const frame = window.requestAnimationFrame(() => setTransitionReady(true))
-      return () => window.cancelAnimationFrame(frame)
-    }
-  }, [enabled, installed, label, pending, transitionReady])
 
   return (
-    <>
-      <span ref={measureRef} className={styles.primaryMeasure} aria-hidden="true">
-        <PluginInstallButton
-          variant="primary"
-          loading={pending}
-          disabled
-          tabIndex={-1}
-          iconLeft={showInstallIcon ? <Plus size={14} /> : showTryIcon ? <MessageCircle size={14} /> : undefined}
-        >
-          {label}
-        </PluginInstallButton>
-      </span>
-      <span
-        className={styles.primarySlot}
-        data-transition-ready={transitionReady ? 'true' : 'false'}
-        style={width == null ? undefined : { width }}
-      >
-        <PluginInstallButton
-          variant="primary"
-          loading={pending}
-          aria-busy={pending}
-          onClick={!installed ? onInstall : enabled ? onTryInChat : onEnable}
-          iconLeft={showInstallIcon ? <Plus size={14} /> : showTryIcon ? <MessageCircle size={14} /> : undefined}
-          className={styles.primaryButton}
-        >
-          {label}
-        </PluginInstallButton>
-      </span>
-    </>
+    <MorphingActionPill
+      label={label}
+      loading={pending}
+      iconLeft={showInstallIcon ? <Plus size={14} /> : showTryIcon ? <MessageCircle size={14} /> : undefined}
+      onClick={!installed ? onInstall : enabled ? onTryInChat : onEnable}
+    />
   )
 }
 
