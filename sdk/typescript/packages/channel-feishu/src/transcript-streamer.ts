@@ -1,3 +1,4 @@
+import type { TurnItemActivity } from "@dotcraft/channel";
 import { chunkMarkdown, normalizeMarkdownForFeishu } from "./formatting.js";
 import {
   buildStatusElement,
@@ -13,6 +14,9 @@ import type { FeishuSendResult } from "./feishu-types.js";
 
 const DEFAULT_THROTTLE_MS = 150;
 const DEFAULT_MAX_ELEMENT_CHARS = 30000;
+// Same stall threshold Desktop uses before it stops treating a reply item as live.
+const DEFAULT_TEXT_STALL_MS = 2000;
+const DEFAULT_STATUS_SETTLE_MS = 300;
 
 type CardKitClient = Pick<
   FeishuClient,
@@ -41,11 +45,15 @@ export interface FeishuTranscriptStreamerOptions {
   onFailure?: (stage: TranscriptStreamFailureStage, error: unknown) => void;
   deliverCard?: (cardId: string) => Promise<FeishuSendResult>;
   statusIconImgKey?: string;
+  textStallMs?: number;
+  statusSettleMs?: number;
 }
 
 export class FeishuTranscriptStreamer {
   private readonly throttleMs: number;
   private readonly maxElementChars: number;
+  private readonly textStallMs: number;
+  private readonly statusSettleMs: number;
   private readonly onFailure?: (stage: TranscriptStreamFailureStage, error: unknown) => void;
   private readonly deliverCard?: (cardId: string) => Promise<FeishuSendResult>;
   private readonly statusIconImgKey?: string;
@@ -56,10 +64,13 @@ export class FeishuTranscriptStreamer {
   private activeChunkIndex = 0;
   private latestText = "";
   private contentPushed = false;
-  private statusPhase: TurnStatusPhase | "none" = "none";
   private visibleStatusPhase: TurnStatusPhase | "none" = "none";
+  private readonly openTools = new Set<string>();
+  private lastDeltaAt = 0;
   private lastPushAt = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private stallTimer: ReturnType<typeof setTimeout> | undefined;
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -70,6 +81,8 @@ export class FeishuTranscriptStreamer {
   ) {
     this.throttleMs = Math.max(100, options.throttleMs ?? DEFAULT_THROTTLE_MS);
     this.maxElementChars = Math.max(1000, options.maxElementChars ?? DEFAULT_MAX_ELEMENT_CHARS);
+    this.textStallMs = Math.max(100, options.textStallMs ?? DEFAULT_TEXT_STALL_MS);
+    this.statusSettleMs = Math.max(0, options.statusSettleMs ?? DEFAULT_STATUS_SETTLE_MS);
     this.onFailure = options.onFailure;
     this.deliverCard = options.deliverCard;
     this.statusIconImgKey = options.statusIconImgKey;
@@ -79,10 +92,9 @@ export class FeishuTranscriptStreamer {
     return this.cardId.length > 0;
   }
 
-  /** Posts the card with a "thinking" row; the row is hidden while reply text streams. */
+  /** Posts the card with a "thinking" row before any reply text exists. */
   async begin(): Promise<boolean> {
     if (this.status !== "idle") return this.status === "native";
-    this.statusPhase = "thinking";
     try {
       await this.serialized(() => this.startCard(""));
       this.status = "native";
@@ -94,20 +106,21 @@ export class FeishuTranscriptStreamer {
     }
   }
 
-  /** Shows "working" below the text while the agent runs tools between reply segments. */
-  async markWorking(): Promise<void> {
+  /** Feeds item lifecycle so the status row can follow the agent between reply segments. */
+  noteActivity(activity: TurnItemActivity): void {
     if (this.status !== "native") return;
-    this.statusPhase = "working";
-    try {
-      await this.serialized(() => this.showStatus());
-    } catch (error) {
-      this.onFailure?.("status", error);
+    if (activity.kind === "tool") {
+      if (activity.phase === "started") this.openTools.add(activity.itemId);
+      else this.openTools.delete(activity.itemId);
     }
+    this.requestStatusSync();
   }
 
   async update(text: string): Promise<boolean> {
     if (!text.trim() || this.status === "failed" || this.status === "completed") return false;
     this.latestText = text;
+    this.lastDeltaAt = Date.now();
+    this.armStallTimer();
     if (this.status === "idle") {
       try {
         await this.serialized(() => this.startCard(""));
@@ -125,6 +138,7 @@ export class FeishuTranscriptStreamer {
 
   async complete(text: string): Promise<boolean> {
     this.latestText = text;
+    this.clearStatusTimers();
     if (this.status === "idle" || this.status === "completed") return false;
 
     const flushed = this.status === "native" && await this.flushNow();
@@ -150,6 +164,7 @@ export class FeishuTranscriptStreamer {
 
   async abort(): Promise<void> {
     this.clearTimer();
+    this.clearStatusTimers();
     if (!this.cardId || this.status === "completed") return;
     if (this.status === "native" && this.latestText.trim()) await this.flushNow();
     if (!this.cardId) return;
@@ -244,15 +259,59 @@ export class FeishuTranscriptStreamer {
     await this.removeStatus();
   }
 
-  private async showStatus(): Promise<void> {
-    const phase = this.statusPhase;
-    if (phase === "none" || this.visibleStatusPhase === phase) return;
-    if (this.visibleStatusPhase !== "none") {
-      await this.client.patchCardKitElement(this.cardId, STREAMING_STATUS_ELEMENT_ID, { ...buildStatusPatch(phase) }, ++this.sequence);
-    } else {
-      await this.client.appendCardKitElement(this.cardId, buildStatusElement(phase, this.statusIconImgKey), ++this.sequence);
-    }
-    this.visibleStatusPhase = phase;
+  // Mirrors Desktop: streaming text hides the row, an open tool shows "working", anything else
+  // while the turn runs shows "thinking".
+  private desiredStatusPhase(): TurnStatusPhase | "none" {
+    if (this.lastDeltaAt > 0 && Date.now() - this.lastDeltaAt < this.textStallMs) return "none";
+    return this.openTools.size > 0 ? "working" : "thinking";
+  }
+
+  private requestStatusSync(): void {
+    if (this.settleTimer || this.status !== "native") return;
+    this.settleTimer = setTimeout(() => {
+      this.settleTimer = undefined;
+      void this.syncStatus();
+    }, this.statusSettleMs);
+  }
+
+  private armStallTimer(): void {
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    this.stallTimer = setTimeout(() => {
+      this.stallTimer = undefined;
+      void this.syncStatus();
+    }, this.textStallMs);
+  }
+
+  private async syncStatus(): Promise<void> {
+    if (this.status !== "native") return;
+    await this.serialized(async () => {
+      if (this.status !== "native") return;
+      const phase = this.desiredStatusPhase();
+      if (phase === this.visibleStatusPhase) return;
+      if (phase === "none") {
+        await this.removeStatus();
+        return;
+      }
+      try {
+        if (this.visibleStatusPhase === "none") {
+          await this.client.appendCardKitElement(
+            this.cardId,
+            buildStatusElement(phase, this.statusIconImgKey),
+            ++this.sequence,
+          );
+        } else {
+          await this.client.patchCardKitElement(
+            this.cardId,
+            STREAMING_STATUS_ELEMENT_ID,
+            { ...buildStatusPatch(phase) },
+            ++this.sequence,
+          );
+        }
+        this.visibleStatusPhase = phase;
+      } catch (error) {
+        this.onFailure?.("status", error);
+      }
+    });
   }
 
   private async removeStatus(): Promise<void> {
@@ -289,7 +348,8 @@ export class FeishuTranscriptStreamer {
   }
 
   private async startCard(initialText: string): Promise<void> {
-    const status = this.contentPushed || this.statusPhase === "none" ? undefined : this.statusPhase;
+    const phase = this.desiredStatusPhase();
+    const status = phase === "none" ? undefined : phase;
     const card = buildStreamingTranscriptCard(normalizeMarkdownForFeishu(initialText), false, this.cardTitle, {
       status,
       statusIconImgKey: this.statusIconImgKey,
@@ -314,5 +374,12 @@ export class FeishuTranscriptStreamer {
     if (!this.timer) return;
     clearTimeout(this.timer);
     this.timer = undefined;
+  }
+
+  private clearStatusTimers(): void {
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    if (this.settleTimer) clearTimeout(this.settleTimer);
+    this.stallTimer = undefined;
+    this.settleTimer = undefined;
   }
 }

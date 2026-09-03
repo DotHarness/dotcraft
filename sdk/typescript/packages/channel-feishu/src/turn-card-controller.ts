@@ -24,6 +24,7 @@ export interface TurnCardControllerDeps {
   cardTitle: () => string;
   deliverCard: (target: string, cardId: string) => Promise<FeishuSendResult>;
   statusIconImgKey: () => Promise<string | undefined>;
+  statusTimings?: () => { textStallMs?: number; statusSettleMs?: number } | undefined;
 }
 
 export class TurnCardController {
@@ -92,6 +93,7 @@ export class TurnCardController {
       onFailure: (stage, error) => this.logStreamingFallback(stage, error, threadId, turnId),
       deliverCard: (cardId) => this.deps.deliverCard(target, cardId),
       statusIconImgKey: await this.deps.statusIconImgKey(),
+      ...(this.deps.statusTimings?.() ?? {}),
     });
     return state.streamer;
   }

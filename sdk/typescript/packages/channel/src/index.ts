@@ -77,3 +77,4 @@ export type {
   UserInputQuestionRequest,
   UserInputResponse,
 } from "./userInput.js";
+export type { TurnItemActivity } from "./channelRuntime.js";

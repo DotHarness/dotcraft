@@ -526,6 +526,51 @@ test("TurnStreamReducer reports ordered reply progress and isolates progress hoo
   assert.deepEqual(completed, ["intro# Heading"]);
 });
 
+test("TurnStreamReducer reports item activity for every lifecycle edge and isolates hook failures", async () => {
+  const activity: string[] = [];
+  const completed: string[] = [];
+  let calls = 0;
+
+  await new TurnStreamReducer().consume(events([
+    { method: "item/started", params: { item: { id: "think-1", type: "reasoningContent" } } },
+    { method: "item/completed", params: { item: { id: "think-1", type: "reasoningContent" } } },
+    { method: "item/started", params: { item: { id: "tool-1", type: "toolCall" } } },
+    { method: "item/completed", params: { item: { id: "tool-1", type: "toolCall" } } },
+    { method: "item/started", params: { item: { id: "result-1", type: "toolResult" } } },
+    { method: "item/completed", params: { item: { id: "result-1", type: "toolResult" } } },
+    { method: "item/started", params: { item: { id: "tool-2", type: "toolCall" } } },
+    { method: "item/started", params: { item: { id: "note", type: "approvalRequest" } } },
+    { method: "item/started", params: { item: { id: "a", type: "agentMessage" } } },
+    { method: "item/agentMessage/delta", params: { itemId: "a", delta: "done" } },
+    { method: "item/completed", params: { item: { id: "a", type: "agentMessage", payload: { text: "done" } } } },
+    { method: "turn/completed", params: { turn: { items: [{ id: "a", type: "agentMessage", payload: { text: "done" } }] } } },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onActivity: async (_threadId, _turnId, item) => {
+      calls += 1;
+      if (calls === 1) throw new Error("activity sink unavailable");
+      activity.push(`${item.kind}:${item.phase}:${item.itemId}`);
+    },
+    onSegmentCompleted: async () => {},
+    onTurnCompleted: async (_threadId, _turnId, reply) => {
+      completed.push(reply);
+    },
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(activity, [
+    "reasoning:completed:think-1",
+    "tool:started:tool-1",
+    "tool:completed:tool-1",
+    "tool:started:result-1",
+    "tool:completed:result-1",
+    "tool:started:tool-2",
+    "text:started:a",
+    "text:completed:a",
+  ]);
+  assert.deepEqual(completed, ["done"]);
+});
+
 test("TurnStreamReducer aligns final progress by AgentMessage id when early deltas were missed", async () => {
   const finalProgress: Array<readonly string[]> = [];
 

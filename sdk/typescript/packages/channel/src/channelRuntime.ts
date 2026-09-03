@@ -646,7 +646,37 @@ export interface TurnStreamContext {
   channelContext: string;
 }
 
+/** Item lifecycle signal without payload: enough to know the agent is still working. */
+export interface TurnItemActivity {
+  kind: "text" | "reasoning" | "tool";
+  phase: "started" | "completed";
+  itemId: string;
+}
+
+export function activityKindForItemType(itemType: string): TurnItemActivity["kind"] | null {
+  switch (itemType) {
+    case "agentMessage":
+      return "text";
+    case "reasoningContent":
+      return "reasoning";
+    case "toolCall":
+    case "mcpToolCall":
+    case "dynamicToolCall":
+    case "toolResult":
+    case "commandExecution":
+      return "tool";
+    default:
+      return null;
+  }
+}
+
 export interface TurnStreamReducerHandlers {
+  onActivity?(
+    threadId: string,
+    turnId: string,
+    activity: TurnItemActivity,
+    channelContext: string,
+  ): Promise<void>;
   onReplyProgress?(
     threadId: string,
     turnId: string,
@@ -747,6 +777,19 @@ export class TurnStreamReducer {
         .filter((text) => text.length > 0);
       if (orphanDeltaTail.length > 0) parts.push(orphanDeltaTail);
       return parts;
+    };
+    const notifyActivity = async (itemType: string, phase: TurnItemActivity["phase"], itemId: string): Promise<void> => {
+      const kind = activityKindForItemType(itemType);
+      if (!handlers.onActivity || !kind || !itemId) return;
+      try {
+        await handlers.onActivity(threadId, turnId, { kind, phase, itemId }, channelContext);
+      } catch (error) {
+        this.log("activity.threw", () => ({
+          kind,
+          phase,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
     };
     const notifyReplyProgress = async (replyParts: readonly string[], isFinal: boolean): Promise<void> => {
       if (!handlers.onReplyProgress || replyParts.length === 0) return;
@@ -870,10 +913,12 @@ export class TurnStreamReducer {
             ...snapshotStreamState(),
           }));
         }
+        await notifyActivity(itemType, "started", itemId);
       } else if (event.method === "item/completed") {
         const params = (event.params as Record<string, unknown>) ?? {};
         const item = (params.item as Record<string, unknown>) ?? {};
         const itemType = String(item.type ?? "");
+        await notifyActivity(itemType, "completed", String(item.id ?? ""));
         if (itemType !== "agentMessage") {
           this.log("event.item/completed.skipped", () => ({
             itemType,

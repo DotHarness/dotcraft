@@ -7,7 +7,7 @@ import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuSendResult } from "./feishu-types.js";
 import { FeishuAdapter } from "./feishu-adapter.js";
 import { normalizeMarkdownForFeishu } from "./formatting.js";
-import { twoApprovalFileSendFixture, type WireEventFixture } from "./transcript-test-fixtures.js";
+import { silentToolBurstFixture, twoApprovalFileSendFixture, type WireEventFixture } from "./transcript-test-fixtures.js";
 
 class MockFeishuClient {
   readonly sentCards: Array<{ target: string; card: Record<string, unknown>; messageId: string }> = [];
@@ -63,6 +63,52 @@ class FailingCardKitClient extends MockFeishuClient {
   }
 }
 
+class RecordingCardKitClient extends MockFeishuClient {
+  readonly statusOps: string[] = [];
+  readonly contents: string[] = [];
+  private cardCount = 0;
+
+  async createCardKitInstance(card: Record<string, unknown>): Promise<string> {
+    const elements = (card.body as { elements: Array<Record<string, unknown>> }).elements;
+    const status = elements.find((element) => element.element_id === "dotcraft_status");
+    this.statusOps.push(status ? `create:${phaseOf(status)}` : "create:none");
+    return `card-${++this.cardCount}`;
+  }
+
+  async sendCardKitReference(target: string, _cardId: string): Promise<FeishuSendResult> {
+    return { messageId: `stream-${this.cardCount}`, chatId: target };
+  }
+
+  async updateCardKitElement(_cardId: string, _elementId: string, content: string): Promise<void> {
+    this.contents.push(content);
+  }
+
+  async patchCardKitElement(_cardId: string, _elementId: string, element: Record<string, unknown>): Promise<void> {
+    this.statusOps.push(`patch:${phaseOf(element)}`);
+  }
+
+  async appendCardKitElement(_cardId: string, element: Record<string, unknown>): Promise<void> {
+    this.statusOps.push(`append:${phaseOf(element)}`);
+  }
+
+  async deleteCardKitElement(): Promise<void> {
+    this.statusOps.push("delete");
+  }
+
+  async finalizeCardKitInstance(): Promise<void> {
+    this.statusOps.push("finalize");
+  }
+
+  async replaceCardKitInstance(): Promise<void> {}
+
+  async recallMessage(): Promise<void> {}
+}
+
+function phaseOf(element: Record<string, unknown>): string {
+  const zh = (element.i18n_content as Record<string, string> | undefined)?.zh_cn ?? "";
+  return zh.includes("工作中") ? "working" : "thinking";
+}
+
 function createTestAdapter(mockFeishu: MockFeishuClient): {
   adapter: FeishuAdapter;
   client: {
@@ -86,7 +132,13 @@ function createTestAdapter(mockFeishu: MockFeishuClient): {
 
 function asEventStream(events: WireEventFixture[]): AsyncIterableIterator<{ method: string; params: Record<string, unknown> }> {
   return (async function* () {
-    for (const event of events) yield event;
+    for (const event of events) {
+      if (event.method === "test/wait") {
+        await new Promise((resolve) => setTimeout(resolve, Number(event.params.ms ?? 0)));
+        continue;
+      }
+      yield event;
+    }
   })();
 }
 
@@ -155,6 +207,44 @@ test("Feishu adapter keeps one evolving transcript card across a multi-segment f
   assert.equal(mockFeishu.sentCards.length, 1);
   assert.ok(mockFeishu.updatedCards.length >= 1);
   assert.equal(latestTranscriptText(mockFeishu), normalizeMarkdownForFeishu(twoApprovalFileSendFixture.expectedFinalTranscript));
+});
+
+test("Feishu adapter drives the status row from item activity across a silent tool burst", async () => {
+  const mockFeishu = new RecordingCardKitClient();
+  const { adapter, client } = createTestAdapter(mockFeishu);
+  Object.assign(adapter as unknown as Record<string, unknown>, {
+    streamingEnabled: true,
+    statusTimings: { textStallMs: 300, statusSettleMs: 0 },
+  });
+  (adapter as unknown as { getOrCreateThread: (...args: unknown[]) => Promise<SessionThread> }).getOrCreateThread = async () =>
+    ({ id: silentToolBurstFixture.threadId, status: "active" } as SessionThread);
+  client.turnStart = async () => ({
+    id: silentToolBurstFixture.turnId,
+    threadId: silentToolBurstFixture.threadId,
+    status: "running",
+    startedAt: "2026-01-01T00:00:00.000Z",
+  });
+  client.streamEvents = () => asEventStream(silentToolBurstFixture.events);
+
+  await (adapter as unknown as { processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void> }).processMessage("u:c", {
+    userId: "u",
+    userName: "tester",
+    text: "run tools",
+    channelContext: silentToolBurstFixture.channelContext,
+  });
+
+  assert.deepEqual(mockFeishu.statusOps, [
+    "create:thinking",
+    "patch:working",
+    "patch:thinking",
+    "delete",
+    "append:working",
+    "patch:thinking",
+    "delete",
+    "finalize",
+  ]);
+  assert.equal(mockFeishu.contents.at(-1), normalizeMarkdownForFeishu(silentToolBurstFixture.expectedFinalTranscript));
+  assert.equal(mockFeishu.sentCards.length, 0);
 });
 
 test("Feishu adapter keeps approval card separate from transcript content", async () => {

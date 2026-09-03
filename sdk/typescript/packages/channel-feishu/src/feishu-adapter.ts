@@ -23,6 +23,7 @@ import {
   userInputResponseFromText,
   type ChannelToolDescriptor,
   type ChannelAdapterMessageOpts,
+  type TurnItemActivity,
   type ModuleError,
   type UserInputResponse,
   type WorkspaceContext,
@@ -109,6 +110,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private cliTool: FeishuCliTool | undefined;
   private eventAbortController: AbortController | undefined;
   private loadingIcon: FeishuLoadingIcon | undefined;
+  private statusTimings: { textStallMs?: number; statusSettleMs?: number } | undefined;
   private readonly router = new FeishuOutboundRouter(() => this.getFeishuClient());
   private readonly threadContextMap = new Map<string, string>();
   private readonly turnCards = new TurnCardController({
@@ -117,6 +119,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     cardTitle: () => this.cardTitle,
     deliverCard: (target, cardId) => this.router.sendCardKit(target, cardId),
     statusIconImgKey: () => this.loadingIcon?.imgKey() ?? Promise.resolve(undefined),
+    statusTimings: () => this.statusTimings,
   });
   private readonly approvalWaiters = new Map<
     string,
@@ -668,10 +671,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       isFinal,
     });
     const state = this.turnCards.getOrInit(threadId, turnId, channelContext);
-    if (state.mode === "native" || state.mode === "nativeFinalized") {
-      if (!isFinal) await state.streamer?.markWorking();
-      return;
-    }
+    if (state.mode === "native" || state.mode === "nativeFinalized") return;
     const transcriptText = state.hasProgress
       ? state.accumulatedText
       : composeTranscriptMarkdown([state.accumulatedText, segmentText]);
@@ -741,6 +741,17 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   protected override async onTurnCancelled(threadId: string, turnId: string): Promise<void> {
     await this.turnCards.endTurn(threadId, turnId);
     await super.onTurnCancelled(threadId, turnId);
+  }
+
+  protected override async onActivity(
+    threadId: string,
+    turnId: string,
+    activity: TurnItemActivity,
+    _channelContext: string,
+  ): Promise<void> {
+    const state = this.turnCards.get(threadId, turnId);
+    if (state?.mode !== "native") return;
+    state.streamer?.noteActivity(activity);
   }
 
   protected override onThreadContextBound(threadId: string, channelContext: string): void {

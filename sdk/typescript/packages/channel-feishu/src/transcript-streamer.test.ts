@@ -184,69 +184,113 @@ test("FeishuTranscriptStreamer finalizes a partial card when the turn stops", as
   assert.equal(client.finalized.length, 1);
 });
 
-test("FeishuTranscriptStreamer keeps the status row at the tail and hides it while text streams", async () => {
+const FAST_STATUS = { textStallMs: 300, statusSettleMs: 0, throttleMs: 100 };
+const STALL_STATUS = { textStallMs: 100, statusSettleMs: 0, throttleMs: 100 };
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const tool = (phase: "started" | "completed", itemId: string) => ({ kind: "tool" as const, phase, itemId });
+
+function statusOps(client: FakeCardKitClient): string[] {
+  return client.sequenceLog
+    .map((entry) => {
+      const appended = client.appended.find((call) => call.sequence === entry.sequence && call.cardId === entry.cardId);
+      if (appended) return `append:${(appended.element.i18n_content as Record<string, string>).zh_cn.includes("工作中") ? "working" : "thinking"}`;
+      const patched = client.patched.find((call) => call.sequence === entry.sequence && call.cardId === entry.cardId);
+      if (patched) return `patch:${(patched.element.i18n_content as Record<string, string>).zh_cn.includes("工作中") ? "working" : "thinking"}`;
+      const deleted = client.deleted.find((call) => call.sequence === entry.sequence && call.cardId === entry.cardId);
+      if (deleted) return "delete";
+      return null;
+    })
+    .filter((op): op is string => op !== null);
+}
+
+test("FeishuTranscriptStreamer follows Desktop: thinking, working while a tool runs, hidden while text streams", async () => {
   const client = new FakeCardKitClient();
-  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", { statusIconImgKey: "img_loading" });
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
+  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", { statusIconImgKey: "img_loading", ...FAST_STATUS });
 
   assert.equal(await streamer.begin(), true);
   const initial = client.created[0]!.body as { elements: Array<Record<string, unknown>> };
   assert.deepEqual(initial.elements.map((element) => element.element_id), ["dotcraft_reply", "dotcraft_status"]);
-  const thinking = statusElementOf(client.created[0]!);
-  assert.match(String((thinking?.i18n_content as Record<string, string>).zh_cn), /思考中/);
-  assert.equal((thinking?.icon as Record<string, unknown>).img_key, "img_loading");
+  assert.match(String((statusElementOf(client.created[0]!)?.i18n_content as Record<string, string>).zh_cn), /思考中/);
+
+  streamer.noteActivity(tool("started", "tool-1"));
+  streamer.noteActivity(tool("started", "tool-2"));
+  await sleep(20);
+  assert.deepEqual(statusOps(client), ["patch:working"]);
+
+  streamer.noteActivity(tool("completed", "tool-1"));
+  await sleep(20);
+  assert.deepEqual(statusOps(client), ["patch:working"]);
+  streamer.noteActivity(tool("completed", "tool-2"));
+  await sleep(20);
+  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking"]);
 
   assert.equal(await streamer.update("First paragraph."), true);
-  await settle();
-  assert.equal(client.deleted.length, 1);
-  assert.equal(client.deleted[0]!.elementId, "dotcraft_status");
+  await sleep(50);
+  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete"]);
 
-  await streamer.markWorking();
-  await streamer.markWorking();
-  assert.equal(client.appended.length, 1);
+  streamer.noteActivity(tool("started", "tool-3"));
+  await sleep(50);
+  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete"]);
+  await sleep(350);
+  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete", "append:working"]);
   const working = client.appended[0]!.element;
-  assert.equal(working.element_id, "dotcraft_status");
-  assert.match(String((working.i18n_content as Record<string, string>).zh_cn), /工作中/);
   assert.equal((working.icon as Record<string, unknown>).img_key, "img_loading");
-  assert.equal(client.patched.length, 0);
 
   assert.equal(await streamer.update("First paragraph.\n\nSecond paragraph."), true);
-  await settle();
-  assert.equal(client.deleted.length, 2);
+  await sleep(50);
+  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete", "append:working", "delete"]);
   assert.equal(await streamer.complete("First paragraph.\n\nSecond paragraph."), true);
-  assert.equal(client.deleted.length, 2);
+  await sleep(350);
+  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete", "append:working", "delete"]);
   assert.equal(client.finalized.length, 1);
   const sequences = client.sequencesFor("card-1");
   assert.deepEqual(sequences, [...sequences].sort((left, right) => left - right));
   assert.equal(new Set(sequences).size, sequences.length);
 });
 
-test("FeishuTranscriptStreamer switches a visible thinking row to working in place", async () => {
+test("FeishuTranscriptStreamer shows thinking again when streamed text stalls", async () => {
   const client = new FakeCardKitClient();
-  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft");
+  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", STALL_STATUS);
 
   await streamer.begin();
-  await streamer.markWorking();
-
-  assert.equal(client.appended.length, 0);
-  assert.equal(client.patched.length, 1);
-  assert.equal(client.patched[0]!.element.tag, undefined);
-  assert.match(String((client.patched[0]!.element.i18n_content as Record<string, string>).zh_cn), /工作中/);
+  await streamer.update("Partial");
+  await sleep(30);
+  assert.deepEqual(statusOps(client), ["delete"]);
+  await sleep(120);
+  assert.deepEqual(statusOps(client), ["delete", "append:thinking"]);
+  await streamer.update("Partial answer");
+  await sleep(30);
+  assert.deepEqual(statusOps(client), ["delete", "append:thinking", "delete"]);
 });
 
-test("FeishuTranscriptStreamer keeps streaming when the working row cannot be appended", async () => {
+test("FeishuTranscriptStreamer keeps streaming when the status row cannot be appended", async () => {
   const client = new FakeCardKitClient();
   client.failAppend = true;
-  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft");
+  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", FAST_STATUS);
 
   await streamer.begin();
   await streamer.update("Reply");
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  await streamer.markWorking();
+  await sleep(150);
+  streamer.noteActivity(tool("started", "tool-1"));
+  await sleep(150);
   assert.equal(await streamer.complete("Reply"), true);
 
   assert.equal(client.finalized.length, 1);
   assert.equal(client.updates.at(-1)?.content, "Reply");
+});
+
+test("FeishuTranscriptStreamer stops touching the card after the turn ends", async () => {
+  const client = new FakeCardKitClient();
+  const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", FAST_STATUS);
+
+  await streamer.begin();
+  await streamer.update("Reply");
+  streamer.noteActivity(tool("started", "late"));
+  assert.equal(await streamer.complete("Reply"), true);
+  const before = client.sequenceLog.length;
+  streamer.noteActivity(tool("completed", "late"));
+  await sleep(200);
+  assert.equal(client.sequenceLog.length, before);
 });
 
 test("FeishuTranscriptStreamer still finalizes when the status row cannot be deleted", async () => {

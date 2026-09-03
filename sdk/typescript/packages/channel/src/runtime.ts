@@ -37,6 +37,7 @@ export type {
   ThreadResolveEvent,
   ThreadResolveEventAction,
   ThreadResolverOptions,
+  TurnItemActivity,
   TurnStreamContext,
   TurnStreamDebugLogger,
   TurnStreamReducerHandlers,

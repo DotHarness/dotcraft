@@ -23,18 +23,32 @@ import type {
   SocialChannelTarget,
 } from "@dotcraft/sdk/contracts";
 import {
+
   ApprovalDispatcher,
+
   ChannelMessageQueue,
+
   ChannelToolDispatcher,
+
   CommandRouter,
+
   DeliveryDispatcher,
+
   ModuleLifecycleState,
+
   ThreadResolver,
+
   TurnStreamReducer,
+
   UserInputDispatcher,
+
   buildChannelSender,
+
   type ChannelAdapterMessageOptions,
+
   type ThreadResolveEvent,
+
+  type TurnItemActivity,
 } from "./channelRuntime.js";
 import type { LifecycleStatus, ModuleError } from "./lifecycle.js";
 
@@ -226,6 +240,14 @@ export abstract class ChannelAdapter {
   ): Promise<boolean | void> {
     // Default no-op; adapters can override for progressive delivery.
   }
+
+  /** Observes item lifecycle (text, reasoning, tool) so adapters can show a live status. */
+  protected async onActivity(
+    _threadId: string,
+    _turnId: string,
+    _activity: TurnItemActivity,
+    _channelContext: string,
+  ): Promise<void> {}
 
   /**
    * Observes the current ordered AgentMessage text without marking it delivered. Adapters may
@@ -647,6 +669,7 @@ export abstract class ChannelAdapter {
       eventStream,
       { threadId, turnId, channelContext },
       {
+        onActivity: (...args) => this.onActivity(...args),
         onReplyProgress: (...args) => this.onReplyProgress(...args),
         onSegmentCompleted: (...args) => this.onSegmentCompleted(...args),
         onTurnCompleted: (...args) => this.onTurnCompleted(...args),

@@ -164,6 +164,44 @@ export const prefixRepairFixture: TranscriptFixture = {
   expectedFinalTranscript: "文件存在，内容是一个Windows无人值守安装配置文件。现在使用文件发送将文件发送。\n\n",
 };
 
+/** `test/wait` entries pause the replay so timer-driven status changes can be observed. */
+export const silentToolBurstFixture: TranscriptFixture = {
+  turnId: "turn-fixture-2",
+  threadId: "thread-fixture-2",
+  channelContext: "dm:test-user",
+  events: [
+    { method: "item/started", params: { threadId: "thread-fixture-2", item: { id: "tool-1", type: "toolCall" } } },
+    { method: "test/wait", params: { ms: 40 } },
+    { method: "item/completed", params: { threadId: "thread-fixture-2", item: { id: "tool-1", type: "toolCall" } } },
+    { method: "item/started", params: { threadId: "thread-fixture-2", item: { id: "result-1", type: "toolResult" } } },
+    { method: "item/completed", params: { threadId: "thread-fixture-2", item: { id: "result-1", type: "toolResult" } } },
+    { method: "test/wait", params: { ms: 40 } },
+    { method: "item/started", params: { threadId: "thread-fixture-2", item: { id: "agent-1", type: "agentMessage" } } },
+    { method: "item/agentMessage/delta", params: { threadId: "thread-fixture-2", itemId: "agent-1", delta: "First." } },
+    { method: "test/wait", params: { ms: 100 } },
+    { method: "item/started", params: { threadId: "thread-fixture-2", item: { id: "tool-2", type: "toolCall" } } },
+    { method: "item/started", params: { threadId: "thread-fixture-2", item: { id: "tool-3", type: "toolCall" } } },
+    { method: "test/wait", params: { ms: 350 } },
+    { method: "item/completed", params: { threadId: "thread-fixture-2", item: { id: "tool-2", type: "toolCall" } } },
+    { method: "item/completed", params: { threadId: "thread-fixture-2", item: { id: "tool-3", type: "toolCall" } } },
+    { method: "test/wait", params: { ms: 40 } },
+    { method: "item/agentMessage/delta", params: { threadId: "thread-fixture-2", itemId: "agent-1", delta: " Second." } },
+    { method: "test/wait", params: { ms: 150 } },
+    {
+      method: "item/completed",
+      params: { threadId: "thread-fixture-2", item: { id: "agent-1", type: "agentMessage", payload: { text: "First. Second." } } },
+    },
+    {
+      method: "turn/completed",
+      params: {
+        threadId: "thread-fixture-2",
+        turn: { id: "turn-fixture-2", items: [{ id: "agent-1", type: "agentMessage", payload: { text: "First. Second." } }] },
+      },
+    },
+  ],
+  expectedFinalTranscript: "First. Second.",
+};
+
 export const fileCaptionFixture = {
   caption: "这是您请求的 Untitled.xml 文件",
   expectedCaptionLine: "这是您请求的 Untitled.xml 文件",
