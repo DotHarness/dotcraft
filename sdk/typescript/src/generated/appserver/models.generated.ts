@@ -3890,6 +3890,7 @@ export interface ThreadConfiguration {
   contextWindow?: ThreadContextWindowConfig | null;
   customTools?: string[] | null;
   cwd?: string | null;
+  developerInstructions?: string | null;
   executionWorkspaceOverride?: string | null;
   extensions?: string[] | null;
   mcpPolicy?: ThreadMcpPolicy | null;

@@ -5622,6 +5622,10 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Cwd { get; init; }
 
+    [JsonPropertyName("developerInstructions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> DeveloperInstructions { get; init; }
+
     [JsonPropertyName("executionWorkspaceOverride")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ExecutionWorkspaceOverride { get; init; }

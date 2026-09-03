@@ -2149,6 +2149,7 @@ ThreadConfiguration
 ├── ToolProfile: string?                         // Named tool profile to inject
 ├── UseToolProfileOnly: bool                     // Use only the profile tools when true
 ├── AgentInstructions: string?                   // Optional extra system instructions
+├── DeveloperInstructions: string?               // Starting application's instructions, final prompt section
 ├── ApprovalPolicy: default|autoApprove|interrupt// Thread-scoped approval behavior
 ├── AutomationTaskDirectory: string?             // Local automation task directory
 └── RequireApprovalOutsideWorkspace: bool?       // Overrides workspace file/shell boundary behavior

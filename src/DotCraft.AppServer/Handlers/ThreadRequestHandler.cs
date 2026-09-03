@@ -1023,6 +1023,8 @@ internal sealed class ThreadRequestHandler(
         return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
+    private const int MaxDeveloperInstructionsLength = 32768;
+
     private void ValidateRuntimeConfiguration(ThreadConfiguration? config)
     {
         if (config == null)
@@ -1049,6 +1051,8 @@ internal sealed class ThreadRequestHandler(
 
         if (config.ApprovalTimeoutSeconds is < 1 or > 86400)
             throw AppServerErrors.InvalidParams("'config.approvalTimeoutSeconds' must be between 1 and 86400.");
+        if (config.DeveloperInstructions is { Length: > MaxDeveloperInstructionsLength })
+            throw AppServerErrors.InvalidParams($"'config.developerInstructions' must be at most {MaxDeveloperInstructionsLength} characters.");
     }
 
     private static IReadOnlyList<string>? ResolveCrossChannelOriginsForThreadList(Contract.ThreadListParams p) =>

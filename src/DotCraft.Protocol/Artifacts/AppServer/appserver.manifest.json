@@ -19465,6 +19465,13 @@
           "const": null
         },
         {
+          "name": "developerInstructions",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "executionWorkspaceOverride",
           "type": "string",
           "required": false,

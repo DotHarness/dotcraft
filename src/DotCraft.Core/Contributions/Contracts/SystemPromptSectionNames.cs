@@ -65,4 +65,7 @@ public static class SystemPromptSectionNames
 
     /// <summary>The channel or automation role instructions.</summary>
     public const string RoleInstructions = "role-instructions";
+
+    /// <summary>Instructions from the application that started the thread, after role instructions.</summary>
+    public const string DeveloperInstructions = "developer-instructions";
 }

@@ -204,6 +204,14 @@ public sealed class ThreadConfiguration
     public string? RoleInstructions { get; set; }
 
     /// <summary>
+    /// Instructions from the application that started the thread, rendered as the final
+    /// system prompt section after <see cref="RoleInstructions"/>. Native SubAgent threads do
+    /// not inherit them.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? DeveloperInstructions { get; set; }
+
+    /// <summary>
     /// When true, <see cref="RoleInstructions"/> replaces the generated prompt for this thread.
     /// </summary>
     public bool OverrideBasePrompt { get; set; }

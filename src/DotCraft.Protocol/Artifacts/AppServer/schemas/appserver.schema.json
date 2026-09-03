@@ -15435,6 +15435,16 @@
             }
           ]
         },
+        "developerInstructions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "executionWorkspaceOverride": {
           "anyOf": [
             {

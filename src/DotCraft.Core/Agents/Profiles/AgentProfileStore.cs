@@ -654,6 +654,8 @@ public sealed partial class AgentProfileStore
             resolved.ContextWindow = CloneContextWindow(requested.ContextWindow);
         if (HasConfigProperty(configElement, "approvalTimeoutSeconds"))
             resolved.ApprovalTimeoutSeconds = requested.ApprovalTimeoutSeconds;
+        if (HasConfigProperty(configElement, "developerInstructions"))
+            resolved.DeveloperInstructions = NormalizeNullableString(requested.DeveloperInstructions);
 
         return resolved;
     }
@@ -737,7 +739,8 @@ public sealed partial class AgentProfileStore
         || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "speed", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "contextWindow", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "approvalTimeoutSeconds", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(name, "approvalTimeoutSeconds", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "developerInstructions", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBenignSerializedDefaultOverlay(JsonProperty property)
     {
@@ -1894,6 +1897,7 @@ public sealed partial class AgentProfileStore
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
         RoleInstructions = source.RoleInstructions,
+        DeveloperInstructions = source.DeveloperInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
         ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,

@@ -1245,6 +1245,7 @@ public sealed partial class SessionService(
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
         RoleInstructions = source.RoleInstructions,
+        DeveloperInstructions = source.DeveloperInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
         ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,
@@ -3037,6 +3038,10 @@ public sealed partial class SessionService(
                 // prefix it shares with its parent.
                 if (thread.Source.SubAgent == null)
                 {
+                    ThreadContextItems.ReconcileDeveloperInstructions(
+                        session,
+                        thread.Configuration?.DeveloperInstructions,
+                        threadContextCarrier);
                     ThreadContextItems.ReconcileClientContext(
                         session,
                         agentFactory.RuntimeContext.ThreadSystemPromptContextProviders,
@@ -5061,6 +5066,8 @@ public sealed partial class SessionService(
             return true;
         if (!string.IsNullOrWhiteSpace(config.RoleInstructions))
             return true;
+        if (!string.IsNullOrWhiteSpace(config.DeveloperInstructions))
+            return true;
         if (config.OverrideBasePrompt)
             return true;
         if (config.ApprovalPolicy != ApprovalPolicy.Default)
@@ -6083,7 +6090,8 @@ public sealed partial class SessionService(
                 AllowedAgentControlTools = ResolveAllowedAgentControlTools(config),
                 ToolAllowList = ToSet(config.ToolAllowList),
                 ToolDenyList = ToSet(config.ToolDenyList),
-                RoleInstructions = config.RoleInstructions
+                RoleInstructions = config.RoleInstructions,
+                DeveloperInstructions = config.DeveloperInstructions
             };
         }
 
@@ -6328,7 +6336,8 @@ public sealed partial class SessionService(
             AllowedAgentControlTools = thread == null ? source.AllowedAgentControlTools : ResolveAllowedAgentControlTools(thread.Configuration),
             ToolAllowList = thread == null ? source.ToolAllowList : ToSet(thread.Configuration?.ToolAllowList),
             ToolDenyList = thread == null ? source.ToolDenyList : ToSet(thread.Configuration?.ToolDenyList),
-            RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions
+            RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions,
+            DeveloperInstructions = thread?.Configuration?.DeveloperInstructions ?? source.DeveloperInstructions
         };
         return cloned;
     }

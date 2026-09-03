@@ -80,6 +80,7 @@ public sealed class AgentRuntimeContext
         ToolCallPolicy = source.ToolCallPolicy;
         ToolInvocationPolicy = source.ToolInvocationPolicy;
         RoleInstructions = source.RoleInstructions;
+        DeveloperInstructions = source.DeveloperInstructions;
         CurrentOriginChannel = source.CurrentOriginChannel;
         CurrentChannelContext = source.CurrentChannelContext;
         AcpExtensionProxy = source.AcpExtensionProxy;
@@ -341,6 +342,12 @@ public sealed class AgentRuntimeContext
     /// this as a thread context item instead of a base-instruction section.
     /// </summary>
     public string? RoleInstructions { get; init; }
+
+    /// <summary>
+    /// Instructions from the application that started the current thread, rendered after the role
+    /// instructions. Native SubAgent threads do not carry them.
+    /// </summary>
+    public string? DeveloperInstructions { get; init; }
 
     /// <summary>
     /// Origin channel of the current session-backed thread.

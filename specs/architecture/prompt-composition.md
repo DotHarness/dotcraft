@@ -19,7 +19,7 @@ DotCraft sends four layers to the model:
 |-------|-----------|-------|---------|
 | Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, skills, and app context. Derived only from configuration and workspace state. |
 | Project instructions | A plain `user` message before ordinary conversation history | Session runtime | Stable user- and repository-level `AGENTS.md` instructions with directory scope and source provenance. |
-| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Thread-scoped or connection-bound context that cannot be derived from configuration alone: native SubAgent role guidance and client-bound runtime context. |
+| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Thread-scoped or connection-bound context that cannot be derived from configuration alone: native SubAgent role guidance, client-bound runtime context, and developer instructions on developer-role protocols. |
 | Turn input | Current user-message content | Session runtime and client/app input | User text, materialized references, queued app/team input, mailbox input, and per-turn runtime reminders. |
 
 Base instructions must be reproducible from configuration alone: two threads with equal
@@ -68,6 +68,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 17 | Teams mission context | Stable `teams/mission` page for Mission threads only. |
 | 18 | Deferred capability discovery | Included only when deferred loading is active. |
 | 19 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
+| 20 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), as Codex places its developer instructions, and this section is omitted. |
 
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
 No section may depend on the identity of the running thread or on an attached client connection;
@@ -106,6 +107,7 @@ Rules:
 - Role instructions may specialize behavior, tone, task scope, and role boundaries.
 - Runtime policy wins over role text when they conflict.
 - App-provided context must not become role instructions unless a first-party runtime owns that role contract.
+- An application that starts a thread states its own contract through `developerInstructions` (section 20), which follows role instructions and never replaces them.
 
 Known writers:
 
@@ -166,6 +168,7 @@ Current writers:
 |--------|---------|
 | Native session-backed SubAgent | Child role text and role boundaries. |
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as inline visualizations (§9). |
+| Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 20. |
 
 Rules:
 

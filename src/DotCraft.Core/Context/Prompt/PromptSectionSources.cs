@@ -48,6 +48,9 @@ internal sealed class PromptSectionSources
     /// <summary>Gets the channel or automation role instructions.</summary>
     internal string? RoleInstructions { get; init; }
 
+    /// <summary>Gets the instructions supplied by the application that started the thread.</summary>
+    internal string? DeveloperInstructions { get; init; }
+
     /// <summary>Gets the manager that pins prompt-cache-stable pages, when one is active.</summary>
     internal IContextPageManager? ContextPageManager { get; init; }
 

@@ -136,6 +136,21 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
+    public void Prompt_WithDeveloperInstructions_AppendsThemAfterRoleInstructions()
+    {
+        var prompt = CreateBuilder(
+                ["ReadFile"],
+                roleInstructions: "Role-specific guidance.",
+                developerInstructions: "You are speaking through the host application.")
+            .BuildSystemPrompt();
+
+        var role = prompt.IndexOf("## Role Instructions", StringComparison.Ordinal);
+        var developer = prompt.IndexOf("## Developer Instructions", StringComparison.Ordinal);
+        Assert.True(role >= 0 && developer > role);
+        Assert.Contains("You are speaking through the host application.", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AgentPrompt_WithExistingTodoList_DoesNotInjectTodoState()
     {
         var planStore = new PlanStore(_craftDir);
@@ -216,7 +231,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             deferredMcpServerNames: ["example"],
             toolNamesProvider: () => toolNames);
 
-    private PromptBuilder CreateBuilder(IReadOnlyList<string> toolNames, string? roleInstructions) =>
+    private PromptBuilder CreateBuilder(IReadOnlyList<string> toolNames, string? roleInstructions, string? developerInstructions = null) =>
         new(
             new MemoryStore(_craftDir),
             new SkillsLoader(_craftDir),
@@ -225,5 +240,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             sandboxEnabled: false,
             deferredMcpServerNames: ["example"],
             toolNamesProvider: () => toolNames,
-            roleInstructions: roleInstructions);
+            roleInstructions: roleInstructions,
+            developerInstructions: developerInstructions);
 }

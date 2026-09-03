@@ -791,7 +791,9 @@ public sealed class AgentFactory : IAsyncDisposable
                 SkillVariantTarget = skillVariantTarget,
                 // Native SubAgent role text is a thread context item on every protocol so the
                 // child's instruction channel stays byte-identical to its parent's.
-                RoleInstructions = isNativeSubAgent ? null : ctx.RoleInstructions
+                RoleInstructions = isNativeSubAgent ? null : ctx.RoleInstructions,
+                // On a developer-role protocol the thread carries these as a developer item instead.
+                DeveloperInstructions = isNativeSubAgent || runtime.IsOpenAIResponses ? null : ctx.DeveloperInstructions
             };
             // Reads the same inputs a replacement of the memory target sees, so both compose from one set of facts.
             createBuiltInProvider = () => new MemoryContextProvider(
@@ -807,6 +809,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 skillVariantModeEnabled: promptInputs.SkillVariantModeEnabled,
                 skillVariantTarget: promptInputs.SkillVariantTarget,
                 roleInstructions: promptInputs.RoleInstructions,
+                developerInstructions: promptInputs.DeveloperInstructions,
                 contextPageManager: ctx.ContextPageManager,
                 dreamStore: ctx.DreamStore,
                 subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),

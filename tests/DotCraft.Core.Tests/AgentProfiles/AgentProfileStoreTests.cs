@@ -378,6 +378,37 @@ Review.
     }
 
     [Fact]
+    public void ResolveThreadStartConfiguration_DeveloperInstructionsOverlayKeepsProfileRole()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        store.Upsert(
+            "reviewer",
+            AgentProfileSources.Workspace,
+            """
+---
+name: reviewer
+description: Reviewer
+---
+
+Review.
+""");
+        using var document = JsonDocument.Parse(
+            """{"agentProfileId":"reviewer","developerInstructions":"Reply only through SendMessage."}""");
+
+        var resolved = store.ResolveThreadStartConfiguration(
+            new ThreadConfiguration
+            {
+                AgentProfileId = "reviewer",
+                DeveloperInstructions = "Reply only through SendMessage."
+            },
+            RuntimeConfig(),
+            document.RootElement);
+
+        Assert.Equal("Review.", resolved.RoleInstructions);
+        Assert.Equal("Reply only through SendMessage.", resolved.DeveloperInstructions);
+    }
+
+    [Fact]
     public void ResolveThreadStartConfiguration_ExplicitReasoningOutputOverridesCatalogDefault()
     {
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);

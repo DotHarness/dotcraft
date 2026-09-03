@@ -92,4 +92,13 @@ Currently connected external services: {{servers}}
             ? null
             : $"## Role Instructions\n\n{roleInstructions.Trim()}";
     }
+
+    /// <summary>Builds the <c>developer-instructions</c> section.</summary>
+    internal static string? DeveloperInstructions(SystemPromptSectionContext context)
+    {
+        var developerInstructions = context.RequireSources().DeveloperInstructions;
+        return string.IsNullOrWhiteSpace(developerInstructions)
+            ? null
+            : $"## Developer Instructions\n\n{developerInstructions.Trim()}";
+    }
 }

@@ -26,6 +26,7 @@ internal static class ThreadContextItems
     public const string KindMetadataKey = "dotcraft.thread_context_item";
     public const string SubAgentRoleKind = "subagent_role";
     public const string ClientContextKind = "client_context";
+    public const string DeveloperInstructionsKind = "developer_instructions";
 
     private const string ReminderOpenTag = "<system-reminder>";
     private const string ReminderCloseTag = "</system-reminder>";
@@ -135,6 +136,28 @@ internal static class ThreadContextItems
 
         var text = desired.Length > 0 ? desired : ClearedClientContext;
         history.Add(Create(carrier, ClientContextKind, text));
+        return true;
+    }
+
+    /// <summary>Appends the thread's developer instructions as a developer-role item on protocols that have that role; elsewhere they remain a base-instruction section.</summary>
+    public static bool ReconcileDeveloperInstructions(
+        IList<ChatMessage> history,
+        string? developerInstructions,
+        ThreadContextCarrier carrier)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+        if (carrier != ThreadContextCarrier.DeveloperMessage)
+            return false;
+
+        var desired = developerInstructions?.Trim() ?? string.Empty;
+        if (desired.Length == 0)
+            return false;
+
+        var previous = FindLast(history, DeveloperInstructionsKind);
+        if (previous != null && string.Equals(ReadText(previous), desired, StringComparison.Ordinal))
+            return false;
+
+        history.Add(Create(carrier, DeveloperInstructionsKind, desired));
         return true;
     }
 
