@@ -11,7 +11,7 @@ DotCraft hooks are lifecycle event triggers that run external shell commands at 
 
 ## Workflow
 
-1. Ask the user what they want to achieve (security guard, auto-format, logging, notification, etc.)
+1. Establish the goal (security guard, auto-format, logging, notification, etc.), asking only if the request leaves it ambiguous
 2. Determine which lifecycle event(s) to use
 3. Determine scope: workspace (`.craft/hooks.json`), global (`~/.craft/hooks.json`), or plugin (`<plugin-root>/hooks/hooks.json`)
 4. Generate the `hooks.json` config and any helper scripts
@@ -193,9 +193,7 @@ When generating hooks for the user:
 
 1. **Detect the OS from workspace context** — use PowerShell syntax on Windows, bash on Linux/macOS
 2. **For complex hooks, create script files** in the selected hooks directory and reference them in the `command` field
-3. **Always create the hooks script directory** before placing script files there
-4. **Merge with existing config** — if `.craft/hooks.json` already exists, read it first and merge new hooks into the existing config rather than overwriting
-5. **Validate event names** — use events from `specs/features/lifecycle-hooks.md`; common choices are `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PrePrompt`, and `Stop`
-6. **Validate matcher patterns** — ensure regex is valid
-7. **Ensure hooks are enabled** — check that `config.json` does not have `"Hooks": { "Enabled": false }`
-8. **Leave trust to the user** — mention that new or modified hooks must be trusted through Desktop Hooks settings or `hooks/setState`
+3. **Merge with existing config** — if `.craft/hooks.json` already exists, read it first and merge new hooks into the existing config rather than overwriting
+4. **Validate event names** — use an event name from the Lifecycle Events table above
+5. **Ensure hooks are enabled** — check that `config.json` does not have `"Hooks": { "Enabled": false }`
+6. **Leave trust to the user** — mention that new or modified hooks must be trusted through Desktop Hooks settings or `hooks/setState`

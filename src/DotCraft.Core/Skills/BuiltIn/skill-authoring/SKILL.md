@@ -101,12 +101,9 @@ Use `write_file` for supporting files. Use `patch` with `filePath` for targeted 
 
 ## Common Pitfalls
 
-1. Creating a skill before the workflow is proven. Wait until the task produced a reusable procedure.
-2. Writing a broad skill that tries to cover an entire domain. Split by trigger and workflow.
-3. Omitting exact commands, paths, or verification steps. Future use needs concrete instructions.
-4. Editing built-in or user-global skills directly. Use a workspace skill.
-5. Expecting a newly created skill to be available immediately in the current prompt. It is picked up on the next turn or session refresh.
-6. Using `edit` for a tiny correction. Prefer `patch` with enough context in `oldString`.
+1. Writing a broad skill that tries to cover an entire domain. Split by trigger and workflow.
+2. Omitting exact commands, paths, or verification steps. Future use needs concrete instructions.
+3. Expecting a newly created skill to be available immediately in the current prompt. It is picked up on the next turn or session refresh.
 
 ## Verification
 

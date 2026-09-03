@@ -237,7 +237,7 @@ Use `open-chrome-window.js` without `--dry-run` only after the user agrees. Do n
 - Claim an existing tab only by passing the exact returned tab object to `browser.user.claimTab(tab)`.
 - Do not guess tab IDs.
 - Prefer reusing an already selected or claimed tab over creating new tabs.
-- Before finishing, call `browser.tabs.finalize({ keep: [{ tab, status: "deliverable" }] })` exactly once as the final Chrome browser action of the turn. Use `status: "handoff"` when the user should continue in the tab, `status: "deliverable"` when the tab itself is part of the delivered result, and `keep: []` when no agent-created tabs should remain. Do not use legacy shapes such as `keep: [tab]`, `keep: [id]`, or `keep: true`.
+- Before finishing, call `browser.tabs.finalize({ keep: [{ tab, status: "deliverable" }] })` exactly once as the final Chrome browser action of the turn. Use `status: "handoff"` when the user should continue in the tab, `status: "deliverable"` when the tab itself is part of the delivered result, and `keep: []` when no agent-created tabs should remain.
 - Keep only tabs that are deliverables or explicit handoffs.
 
 ## Playwright Discipline

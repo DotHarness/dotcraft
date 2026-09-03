@@ -35,8 +35,8 @@ Write important facts to MEMORY.md immediately when you learn them:
 - Key relationships ("Alice is the project lead")
 - Recurring instructions ("Always write tests before merging")
 
-Use `EditFile` or `WriteFile` to update MEMORY.md. Keep it concise and well-organized.
+Use `EditFile` or `WriteFile` to update MEMORY.md.
 
 ## Auto-consolidation
 
-Old conversations are automatically summarized: long-term facts are extracted to MEMORY.md, and event entries are appended to HISTORY.md. You don't need to manage this process — just focus on writing important facts immediately when they come up.
+Old conversations are automatically summarized: long-term facts are extracted to MEMORY.md, and event entries are appended to HISTORY.md.

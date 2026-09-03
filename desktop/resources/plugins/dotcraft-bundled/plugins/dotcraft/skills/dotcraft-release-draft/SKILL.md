@@ -72,7 +72,7 @@ DotCraft vX.Y.Z is a major release focused on ...
 ## Writing Rules
 
 - Write the complete release body in English. Keep identifiers, product names, code, and URLs in their canonical form.
-- Match the reference release's tone, heading style, and level of detail. If the reference is v0.1.6, use concise copy with numbered feature sections.
+- Match the reference release's tone, heading style, and level of detail.
 - Lead with user-visible capabilities from What's New. Put reliability, tooling, and polish in "Infrastructure and Experience Improvements."
 - Use the GIF URLs exactly from the What's New catalog when available.
 - Expand terse What's New summaries with repo/docs evidence, not speculation.

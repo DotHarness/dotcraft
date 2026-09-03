@@ -93,7 +93,7 @@ https://github.com/DotHarness/dotcraft/issues/new?title=<url-encoded title>&body
 
 - URL-encode both the title and the body (encode spaces, newlines, `#`, `&`, etc.).
 - GitHub caps the URL length; if the encoded body is very long, trim the lowest-value details (long evidence lists) and tell the user the full draft is above so they can paste it if needed.
-- The Desktop composer mascot opens this URL with the system browser; outside Desktop, just present the URL and the raw title/body so the user can paste them.
+- Present the prefilled URL along with the raw title and body so the user can open it or paste it wherever they prefer.
 - Remind the user to review for anything sensitive before submitting.
 
 ## Composing With dotcraft-error-diagnosis

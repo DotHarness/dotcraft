@@ -30,7 +30,7 @@ Omit `--name` only when the frontmatter name is already the desired local instal
    - If the problem is a display/local-name mismatch such as `name: Git` but the local install name should be `git`, retry with `--name "git"`.
    - Do not move or rewrite files only because they are root markdown/json files, `docs/`, or `references/`.
    - Only make minimal candidate edits for real structural or safety problems: missing `SKILL.md`, missing required frontmatter, unsafe paths, path traversal, hidden control files, oversized files, or genuinely broken references that the skill itself requires.
-   - Never use `WriteFile` to regenerate a new `SKILL.md` just to make the skill look more like a DotCraft-native skill. Preserve the imported instructions.
+   - Preserve the imported instructions.
 5. Install after verification succeeds:
 
 ```powershell
@@ -52,36 +52,4 @@ Examples of useful checks:
 
 Only write a workspace adaptation when you find a concrete mismatch. If `SkillManage` is available, use it to patch the effective skill so future runs remember the workspace-specific fix.
 
-Use `SkillManage` with complete action-specific arguments. Do not call it with placeholder or null values. If a `SkillManage` call fails because a required argument is missing, retry with the required argument populated.
-
-Examples:
-
-```text
-SkillManage(
-  action: "patch",
-  name: "<installed-skill-name>",
-  oldString: "## Existing Section\nOriginal text that appears exactly once.",
-  newString: "## Existing Section\nOriginal text plus the workspace-specific adaptation."
-)
-```
-
-```text
-SkillManage(
-  action: "edit",
-  name: "<installed-skill-name>",
-  content: "<the complete updated SKILL.md content>"
-)
-```
-
-```text
-SkillManage(
-  action: "write_file",
-  name: "<installed-skill-name>",
-  filePath: "scripts/check-environment.ps1",
-  fileContent: "<complete helper script content>"
-)
-```
-
 Never use `EditFile`, `WriteFile`, or shell redirection to modify files under `.craft/skills/<installed-skill-name>/` for workspace adaptation. Those files are the installed source skill. Adaptations must go through `SkillManage`. If `SkillManage` is unavailable or keeps failing, report the mismatch and the suggested adaptation instead of editing the source skill.
-
-Do not invent compatibility rules that the skill does not imply. Do not rewrite a freshly installed skill just to summarize the installation.

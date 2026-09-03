@@ -5,7 +5,7 @@ description: Use Playwright CLI to inspect and interact with a running CDP-enabl
 
 # DotCraft Desktop Debugging
 
-Attach the official Playwright CLI to an existing DotCraft Desktop process without owning its lifecycle. Reuse one named session throughout the investigation; do not generate a TypeScript script for routine interaction.
+Attach the official Playwright CLI to an existing DotCraft Desktop process without owning its lifecycle. Reuse one named session throughout the investigation.
 
 ## Choose The Right Surface
 
@@ -56,7 +56,7 @@ npx --no-install playwright-cli -s=dotcraft run-code "async page => page.evaluat
 
 - Start with `snapshot` or `find`, then use returned element refs or accessible Playwright locators. Do not invent selectors without inspecting current state.
 - Reuse `-s=dotcraft` for every command. `snapshot`, `click`, `fill`, `type`, `press`, `console`, `requests`, and `screenshot` all operate on the same attached page.
-- For a stable multi-step sequence, use one inline `run-code` command instead of creating a file. Keep inline code short and limited to the requested UI flow.
+- For a stable multi-step sequence, use one inline `run-code` command. Keep inline code short and limited to the requested UI flow.
 - Operate on the workspace and profile already selected by Desktop. Do not seed, reset, or mutate private application stores unless the user explicitly authorizes a separate product-state change.
 - Store useful screenshots or traces under `.craft/attachments/`. Remove incidental CLI output after the investigation.
 - The Desktop plugin driver is deliberately narrow. Do not depend on private preload APIs, renderer stores, or application globals.
@@ -77,4 +77,4 @@ When interrupted, detach the named session if it remains available and leave Des
 
 Do not create a scenario file merely to click, type, inspect, or take a screenshot. A Playwright file is appropriate only when the user asks for a repeatable test or the observed failure should become a maintained regression case. That is a separate implementation task with its own ownership and test review.
 
-To verify the workflow itself, start one debug-enabled Desktop, attach once, run multiple CLI interactions, and detach. Reattach to the same instance to prove reuse. Each detach must leave the same Desktop and AppServer alive without an `EPIPE` error. Keep scenario-specific smoke scripts out of the repository.
+Keep scenario-specific smoke scripts out of the repository.

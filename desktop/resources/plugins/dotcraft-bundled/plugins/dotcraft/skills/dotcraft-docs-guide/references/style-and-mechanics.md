@@ -28,7 +28,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 ## 2. Sentences and word choice
 
-- Bigger ideas, fewer words. Shorter is almost always better. If a sentence runs past ~25 words, split it.
+- Bigger ideas, fewer words. When a sentence carries more than one idea, split it.
 - Front-load the point. Put the keyword or outcome first so a scanning reader catches it.
 - Active voice by default. Passive only when the actor is irrelevant.
 - Define a term on first use or avoid it. Don't expose internal file paths, class names, or infra jargon in user docs unless the reader will type them.
