@@ -113,14 +113,14 @@ The recurring ways docs lose readers, with worked fixes. The examples are illust
 
 ### 10.1 Internal mechanics on a user/feature page
 
-A feature page explains the idea. Keep a path, config key, tool name, or enum in the body when the reader must type or inspect it to complete the task; move implementation-only detail to the owning reference and link there.
+A feature page explains the idea in terms of what the reader does and what they get. Keep a path, config key, tool name, or enum in the body when the reader must type or inspect it to complete the task. How the product gets from the action to the outcome — the sequence of intermediate states, what triggers each transition, what happens when a step fails — is implementation even when the reader can watch it happen; move it to the owning reference and link there.
 
 > **Before** — a "what is memory" page whose first table reads:
 > `| Session history | internal/storage/path | Engine, automatically | Full Record/Turn/Item timeline |`
 >
 > **After:** "The agent keeps a full history of every session, plus long-term notes it writes as it learns your project." Move the storage path and the internal data model to the reference page and link: "See [how sessions are stored](…)."
 
-The test: does the reader need this token to understand or use the feature on this page? If not, it belongs in the owning reference behind a link.
+The test: does the reader need this token to understand or use the feature on this page? If not, it belongs in the owning reference behind a link. The same test applies to whole sentences: if removing one changes nothing the reader does, remove it.
 
 ### 10.2 Architecture before the reader needs it
 
