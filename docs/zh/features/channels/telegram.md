@@ -1,6 +1,6 @@
 # 将 DotCraft 接入 Telegram
 
-用 BotFather 签发的 token 把 Telegram Bot 接成 DotCraft 的一个[渠道](./)。DotCraft 通过 long polling 接收消息，不需要公网 webhook URL。
+用 BotFather 签发的 token 把 Telegram Bot 接成 DotCraft 的一个[渠道](./)。不需要公网 URL。
 
 ## 快速设置
 
@@ -19,7 +19,7 @@
 7. 保存渠道并启用。
 8. 给 Telegram Bot 发送一条消息。
 
-polling 启动后，Desktop 中的 Telegram 渠道应显示为 connected。
+连上 Telegram 后，Desktop 中的 Telegram 渠道应显示为 connected。
 
 ## 平台设置细节
 
@@ -41,11 +41,11 @@ Telegram 的平台设置主要在 BotFather 中完成：
 
 ## 设置后可用能力
 
-- Telegram 将私聊或群聊消息投递给 Bot 后，这些消息可以触发 DotCraft 回合。
-- `/new` 开启新的 DotCraft 会话，`/help` 列出可用命令。适配器还会把 workspace 中定义的斜杠命令一并注册到 Telegram 命令菜单。
+- Telegram 送达给 Bot 的私聊和群聊消息，DotCraft 都会回复。
+- `/new` 开启新的 DotCraft 会话，`/help` 列出可用命令。workspace 中定义的斜杠命令也会出现在 Telegram 命令菜单里。
 - 审批和用户输入请求会尽量使用 Telegram inline buttons。
 - 文件和图片投递可通过渠道投递工具使用。
-- 同一个 bot token 同一时间只能被一个 long-polling 进程使用。
+- 同一个 bot token 同一时间只能给一个 DotCraft 实例使用。
 
 ## 独立适配器
 

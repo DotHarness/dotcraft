@@ -20,14 +20,14 @@ Desktop hosts the channel process for you — nothing else to deploy. Which cred
 | **QQ** | NapCat or OneBot v11 reverse WebSocket | Private chats, groups, approval keywords, media delivery | [QQ setup](./qq) |
 | **WeCom** | Group bot callback URL, Token, EncodingAESKey | Enterprise group chats, approvals, file and image delivery | [WeCom setup](./wecom) |
 | **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional official CLI | [Feishu setup](./feishu) |
-| **Telegram** | BotFather token and long polling | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](./telegram) |
+| **Telegram** | BotFather token | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](./telegram) |
 | **WeChat / Weixin** | Tencent iLink QR login | Weixin chats, saved login session, plain-text replies, file and image delivery | [Weixin setup](./weixin) |
 
 ## How channel conversations work
 
 ![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
-- A message sent to the bot becomes a conversation turn, and the reply goes back to the same chat.
+- Messages you send to the bot continue one conversation, and replies go back to the same chat.
 - Approvals and follow-up questions appear in the chat where the platform supports them.
 - `/new` starts a fresh conversation in channels that support slash commands.
 - Open the same workspace in Desktop to read the history or keep the conversation going there.

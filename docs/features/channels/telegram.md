@@ -1,6 +1,6 @@
 # Connect DotCraft to Telegram
 
-Connect a Telegram bot to DotCraft as a [channel](./) with a BotFather token. DotCraft receives messages by long polling, so no public webhook URL is needed.
+Connect a Telegram bot to DotCraft as a [channel](./) with a BotFather token. No public URL is needed.
 
 ## Quick setup
 
@@ -19,7 +19,7 @@ Connect a Telegram bot to DotCraft as a [channel](./) with a BotFather token. Do
 7. Save the channel and turn it on.
 8. Send a message to the Telegram bot.
 
-Desktop should show the Telegram channel as connected after polling starts.
+Desktop should show the Telegram channel as connected once it reaches Telegram.
 
 ## Platform setup details
 
@@ -41,11 +41,11 @@ With Telegram privacy mode enabled, the bot may only receive commands, replies, 
 
 ## What works after setup
 
-- Direct messages and group messages can start DotCraft turns when Telegram delivers them to the bot.
-- `/new` starts a fresh DotCraft conversation and `/help` lists the available commands. The adapter also registers the workspace's own slash commands in the Telegram command menu.
+- DotCraft answers direct messages and group messages that Telegram delivers to the bot.
+- `/new` starts a fresh DotCraft conversation and `/help` lists the available commands. The workspace's own slash commands also appear in the Telegram command menu.
 - Approval and user-input prompts use Telegram inline buttons when possible.
 - File and image delivery are available through channel delivery tools.
-- Only one long-polling process can use the same bot token at a time.
+- Only one DotCraft instance can use the same bot token at a time.
 
 ## Standalone adapter
 

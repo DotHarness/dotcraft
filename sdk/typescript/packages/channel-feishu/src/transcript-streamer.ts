@@ -1,10 +1,14 @@
 import { chunkMarkdown, normalizeMarkdownForFeishu } from "./formatting.js";
 import {
+  buildStatusPatch,
   buildStreamingTranscriptCard,
   buildReplySummary,
+  STREAMING_STATUS_ELEMENT_ID,
   STREAMING_TRANSCRIPT_ELEMENT_ID,
+  type TurnStatusPhase,
 } from "./card-builder.js";
 import type { FeishuClient } from "./feishu-client.js";
+import type { FeishuSendResult } from "./feishu-types.js";
 
 const DEFAULT_THROTTLE_MS = 150;
 const DEFAULT_MAX_ELEMENT_CHARS = 30000;
@@ -14,13 +18,17 @@ type CardKitClient = Pick<
   | "createCardKitInstance"
   | "sendCardKitReference"
   | "updateCardKitElement"
+  | "patchCardKitElement"
+  | "deleteCardKitElement"
   | "finalizeCardKitInstance"
   | "replaceCardKitInstance"
+  | "recallMessage"
 >;
 
 export type TranscriptStreamFailureStage =
   | "start"
   | "update"
+  | "status"
   | "rollover"
   | "finalize"
   | "recover";
@@ -29,17 +37,25 @@ export interface FeishuTranscriptStreamerOptions {
   throttleMs?: number;
   maxElementChars?: number;
   onFailure?: (stage: TranscriptStreamFailureStage, error: unknown) => void;
+  deliverCard?: (cardId: string) => Promise<FeishuSendResult>;
+  statusIconImgKey?: string;
 }
 
 export class FeishuTranscriptStreamer {
   private readonly throttleMs: number;
   private readonly maxElementChars: number;
   private readonly onFailure?: (stage: TranscriptStreamFailureStage, error: unknown) => void;
+  private readonly deliverCard?: (cardId: string) => Promise<FeishuSendResult>;
+  private readonly statusIconImgKey?: string;
   private status: "idle" | "native" | "failed" | "completed" = "idle";
   private cardId = "";
+  private messageId = "";
   private sequence = 0;
   private activeChunkIndex = 0;
   private latestText = "";
+  private contentPushed = false;
+  private statusPhase: TurnStatusPhase | "none" = "none";
+  private visibleStatusPhase: TurnStatusPhase | "none" = "none";
   private lastPushAt = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private queue: Promise<void> = Promise.resolve();
@@ -53,10 +69,38 @@ export class FeishuTranscriptStreamer {
     this.throttleMs = Math.max(100, options.throttleMs ?? DEFAULT_THROTTLE_MS);
     this.maxElementChars = Math.max(1000, options.maxElementChars ?? DEFAULT_MAX_ELEMENT_CHARS);
     this.onFailure = options.onFailure;
+    this.deliverCard = options.deliverCard;
+    this.statusIconImgKey = options.statusIconImgKey;
   }
 
   get hasVisibleCard(): boolean {
     return this.cardId.length > 0;
+  }
+
+  /** Posts the card with a "thinking" status row; the row stays until the turn ends. */
+  async begin(): Promise<boolean> {
+    if (this.status !== "idle") return this.status === "native";
+    this.statusPhase = "thinking";
+    try {
+      await this.serialized(() => this.startCard(""));
+      this.status = "native";
+      return true;
+    } catch (error) {
+      this.status = "failed";
+      this.onFailure?.("start", error);
+      return false;
+    }
+  }
+
+  /** Switches the status row to "working" once the agent starts calling tools. */
+  async markWorking(): Promise<void> {
+    if (this.status !== "native" || this.statusPhase !== "thinking") return;
+    this.statusPhase = "working";
+    try {
+      await this.serialized(() => this.pushStatusIfChanged());
+    } catch (error) {
+      this.onFailure?.("status", error);
+    }
   }
 
   async update(text: string): Promise<boolean> {
@@ -64,7 +108,7 @@ export class FeishuTranscriptStreamer {
     this.latestText = text;
     if (this.status === "idle") {
       try {
-        await this.startCard("…");
+        await this.serialized(() => this.startCard(""));
         this.status = "native";
       } catch (error) {
         this.status = "failed";
@@ -85,6 +129,7 @@ export class FeishuTranscriptStreamer {
     if (flushed) {
       try {
         await this.serialized(async () => {
+          await this.removeStatus();
           await this.client.finalizeCardKitInstance(
             this.cardId,
             ++this.sequence,
@@ -106,14 +151,29 @@ export class FeishuTranscriptStreamer {
     if (!this.cardId || this.status === "completed") return;
     if (this.status === "native" && this.latestText.trim()) await this.flushNow();
     if (!this.cardId) return;
+    if (!this.contentPushed && !this.latestText.trim() && this.messageId) {
+      await this.recallEmptyCard();
+      return;
+    }
     try {
       await this.serialized(async () => {
+        await this.removeStatus();
         await this.client.finalizeCardKitInstance(
           this.cardId,
           ++this.sequence,
           buildReplySummary(this.cardTitle),
         );
       });
+    } catch (error) {
+      this.onFailure?.("finalize", error);
+    } finally {
+      this.status = "completed";
+    }
+  }
+
+  private async recallEmptyCard(): Promise<void> {
+    try {
+      await this.serialized(() => this.client.recallMessage(this.messageId));
     } catch (error) {
       this.onFailure?.("finalize", error);
     } finally {
@@ -146,7 +206,6 @@ export class FeishuTranscriptStreamer {
 
   private async pushSnapshot(): Promise<void> {
     const chunks = chunkMarkdown(this.latestText, this.maxElementChars);
-    if (chunks.length === 0) return;
 
     while (this.activeChunkIndex < chunks.length - 1) {
       try {
@@ -157,6 +216,8 @@ export class FeishuTranscriptStreamer {
           head,
           ++this.sequence,
         );
+        this.contentPushed = true;
+        await this.removeStatus();
         await this.client.finalizeCardKitInstance(
           this.cardId,
           ++this.sequence,
@@ -170,12 +231,32 @@ export class FeishuTranscriptStreamer {
       }
     }
 
+    if (chunks.length === 0) return;
     await this.client.updateCardKitElement(
       this.cardId,
       STREAMING_TRANSCRIPT_ELEMENT_ID,
       chunks[this.activeChunkIndex],
       ++this.sequence,
     );
+    this.contentPushed = true;
+  }
+
+  private async pushStatusIfChanged(): Promise<void> {
+    if (this.visibleStatusPhase === "none" || this.statusPhase === "none") return;
+    if (this.visibleStatusPhase === this.statusPhase) return;
+    const phase = this.statusPhase;
+    await this.client.patchCardKitElement(this.cardId, STREAMING_STATUS_ELEMENT_ID, { ...buildStatusPatch(phase) }, ++this.sequence);
+    this.visibleStatusPhase = phase;
+  }
+
+  private async removeStatus(): Promise<void> {
+    if (this.visibleStatusPhase === "none") return;
+    this.visibleStatusPhase = "none";
+    try {
+      await this.client.deleteCardKitElement(this.cardId, STREAMING_STATUS_ELEMENT_ID, ++this.sequence);
+    } catch (error) {
+      this.onFailure?.("status", error);
+    }
   }
 
   private async recoverFinalCard(): Promise<boolean> {
@@ -191,6 +272,7 @@ export class FeishuTranscriptStreamer {
           ++this.sequence,
         );
       });
+      this.visibleStatusPhase = "none";
       this.status = "completed";
       return true;
     } catch (error) {
@@ -202,14 +284,19 @@ export class FeishuTranscriptStreamer {
 
   private async startCard(initialText: string): Promise<void> {
     const card = buildStreamingTranscriptCard(
-      normalizeMarkdownForFeishu(initialText) || "…",
+      normalizeMarkdownForFeishu(initialText),
       false,
       this.cardTitle,
+      { status: this.statusPhase === "none" ? undefined : this.statusPhase, statusIconImgKey: this.statusIconImgKey },
     );
     const cardId = await this.client.createCardKitInstance(card);
-    await this.client.sendCardKitReference(this.target, cardId);
+    const sent = this.deliverCard
+      ? await this.deliverCard(cardId)
+      : await this.client.sendCardKitReference(this.target, cardId);
     this.cardId = cardId;
+    this.messageId = sent.messageId;
     this.sequence = 0;
+    this.visibleStatusPhase = this.statusPhase;
   }
 
   private serialized<T>(operation: () => Promise<T>): Promise<T> {

@@ -60,17 +60,6 @@ export function chunkMarkdown(markdown: string, limit = CARD_TEXT_LIMIT): string
   return chunks;
 }
 
-export function summarizeApprovalOperation(
-  approvalType: string,
-  operation: string,
-  target: string,
-): string {
-  if (approvalType === "shell") {
-    return `Command: \`${operation}\``;
-  }
-  return `Operation: \`${operation}\`\nTarget: \`${target || "(not provided)"}\``;
-}
-
 function normalizeHeadingLine(line: string): string {
   return line.replace(/^(\s{0,3})(#{1,6})([^\s#].*)$/, "$1$2 $3");
 }

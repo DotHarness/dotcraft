@@ -4,72 +4,100 @@ import {
   DECISION_CANCEL,
   DECISION_DECLINE,
 } from "@dotcraft/channel";
+import { canUseNativeSingleChoiceUserInput, normalizeUserInputQuestions } from "@dotcraft/channel";
 import {
-  buildUserInputPrompt,
-  canUseNativeSingleChoiceUserInput,
-  normalizeUserInputQuestions,
-} from "@dotcraft/channel";
-import { chunkMarkdown, normalizeMarkdownForFeishu, summarizeApprovalOperation } from "./formatting.js";
+  CARD_LOCALES,
+  cardText,
+  localizedText,
+  type CardMessageKey,
+  type LocalizedText,
+} from "./card-locales.js";
+import { chunkMarkdown, normalizeMarkdownForFeishu } from "./formatting.js";
 
 export const DEFAULT_CARD_TITLE = "DotCraft";
 export const STREAMING_TRANSCRIPT_ELEMENT_ID = "dotcraft_reply";
+export const STREAMING_STATUS_ELEMENT_ID = "dotcraft_status";
+
+export type TurnStatusPhase = "thinking" | "working";
+
+export interface StreamingCardOptions {
+  /** Status row above the reply: "thinking" until the first tool call, "working" afterwards. */
+  status?: TurnStatusPhase;
+  /** Image key of the animated loading GIF; falls back to a static icon when absent. */
+  statusIconImgKey?: string;
+}
+
+export interface QuestionPosition {
+  index: number;
+  count: number;
+}
+
+export function buildStatusElement(phase: TurnStatusPhase, iconImgKey?: string): Record<string, unknown> {
+  return {
+    tag: "markdown",
+    element_id: STREAMING_STATUS_ELEMENT_ID,
+    ...buildStatusPatch(phase),
+    text_size: "notation",
+    icon: iconImgKey
+      ? { tag: "custom_icon", img_key: iconImgKey, size: "16px 16px" }
+      : { tag: "standard_icon", token: "loading_outlined", color: "grey", size: "16px 16px" },
+  };
+}
+
+// The element patch API rejects `tag` and `element_id`, so phase changes only send the text fields.
+export function buildStatusPatch(phase: TurnStatusPhase): LocalizedText {
+  return localizedText((t) => `<font color="grey">${t(phase)}</font>`);
+}
 
 export function resolveCardTitle(cardTitle?: string): string {
   const trimmed = (cardTitle ?? "").trim();
   return trimmed.length > 0 && trimmed.length <= 48 ? trimmed : DEFAULT_CARD_TITLE;
 }
 
+export function buildReplySummary(cardTitle?: string): LocalizedText {
+  return cardText("replySummary", { title: resolveCardTitle(cardTitle) });
+}
+
 export function buildReplyCards(replyText: string, cardTitle?: string): Record<string, unknown>[] {
   const chunks = chunkMarkdown(replyText);
-  const title = resolveCardTitle(cardTitle);
+  const summary = buildReplySummary(cardTitle);
   return chunks.map((chunk, index) =>
-    buildV2Card(
-      chunks.length > 1 ? `${title} Reply (${index + 1}/${chunks.length})` : `${title} Reply`,
-      "blue",
-      [
-        {
-          tag: "markdown",
-          content: normalizeMarkdownForFeishu(chunk),
-        },
-      ],
+    buildReplyV2Card(
+      chunks.length > 1 ? mapLocalized(summary, (text) => `${text} (${index + 1}/${chunks.length})`) : summary,
+      [{ tag: "markdown", content: normalizeMarkdownForFeishu(chunk) }],
     ),
   );
 }
 
-export function buildProgressCard(text: string, cardTitle?: string): Record<string, unknown> {
-  return buildV2Card(resolveCardTitle(cardTitle), "turquoise", [
-    {
-      tag: "markdown",
-      content: normalizeMarkdownForFeishu(text),
-    },
-  ]);
-}
-
 export function buildTranscriptCard(text: string, isFinal: boolean, cardTitle?: string): Record<string, unknown> {
-  return buildV2Card(resolveCardTitle(cardTitle), isFinal ? "blue" : "turquoise", [
-    {
-      tag: "markdown",
-      content: normalizeMarkdownForFeishu(text),
-    },
+  return buildReplyV2Card(isFinal ? buildReplySummary(cardTitle) : cardText("generating"), [
+    { tag: "markdown", content: normalizeMarkdownForFeishu(text) },
   ]);
-}
-
-export function buildReplySummary(cardTitle?: string): string {
-  return `${resolveCardTitle(cardTitle)} Reply`.slice(0, 50);
 }
 
 export function buildStreamingTranscriptCard(
   text: string,
   isFinal: boolean,
   cardTitle?: string,
+  options: StreamingCardOptions = {},
 ): Record<string, unknown> {
+  const elements: Array<Record<string, unknown>> = [];
+  if (!isFinal && options.status) {
+    elements.push(buildStatusElement(options.status, options.statusIconImgKey));
+  }
+  elements.push({
+    tag: "markdown",
+    element_id: STREAMING_TRANSCRIPT_ELEMENT_ID,
+    content: normalizeMarkdownForFeishu(text),
+  });
   return {
     schema: "2.0",
     config: {
       update_multi: true,
       width_mode: "fill",
+      locales: CARD_LOCALES,
       streaming_mode: !isFinal,
-      summary: { content: isFinal ? buildReplySummary(cardTitle) : "Generating…" },
+      summary: summaryOf(isFinal ? buildReplySummary(cardTitle) : cardText("generating")),
       ...(isFinal
         ? {}
         : {
@@ -80,37 +108,15 @@ export function buildStreamingTranscriptCard(
             },
           }),
     },
-    header: {
-      title: {
-        tag: "plain_text",
-        content: resolveCardTitle(cardTitle),
-      },
-      template: isFinal ? "blue" : "turquoise",
-    },
-    body: {
-      elements: [
-        {
-          tag: "markdown",
-          element_id: STREAMING_TRANSCRIPT_ELEMENT_ID,
-          content: normalizeMarkdownForFeishu(text) || "…",
-        },
-      ],
-    },
+    body: { elements },
   };
 }
 
 export function buildFileCaptionCard(caption: string, fileName?: string): Record<string, unknown> {
   const normalizedCaption = normalizeMarkdownForFeishu(caption);
-  const normalizedFileName = (fileName ?? "").trim();
-  const content = normalizedFileName
-    ? `File: \`${normalizeMarkdownForFeishu(normalizedFileName)}\`\n\n${normalizedCaption}`
-    : normalizedCaption;
-
-  return buildV2Card("File Note", "indigo", [
-    {
-      tag: "markdown",
-      content,
-    },
+  const name = normalizeMarkdownForFeishu((fileName ?? "").trim());
+  return buildV2Card(cardText("fileNoteTitle"), "indigo", [
+    markdownElement(localizedText((t) => (name ? `${t("fileLine", { name })}\n\n${normalizedCaption}` : normalizedCaption))),
   ]);
 }
 
@@ -123,32 +129,33 @@ export function buildApprovalCard(params: {
   timeoutSeconds: number;
   cardTitle?: string;
 }): Record<string, unknown> {
-  const summary = summarizeApprovalOperation(params.approvalType, params.operation, params.target);
-  const reasonBlock = params.reason ? `\nReason: ${params.reason}` : "";
-  const requestHint = params.requestId ? `\nRequest: ${params.requestId}` : "";
-  const cardTitle = resolveCardTitle(params.cardTitle);
+  const title = resolveCardTitle(params.cardTitle);
+  const body = localizedText((t) => {
+    const lines = [t("approvalIntro", { title }), ""];
+    if (params.approvalType === "shell") {
+      lines.push(t("commandLine", { operation: params.operation }));
+    } else {
+      lines.push(t("operationLine", { operation: params.operation }));
+      lines.push(t("targetLine", { target: params.target || t("targetMissing") }));
+    }
+    if (params.reason) lines.push(t("reasonLine", { reason: params.reason }));
+    if (params.requestId) lines.push(t("requestLine", { requestId: params.requestId }));
+    lines.push("", t("timeoutLine", { seconds: params.timeoutSeconds }));
+    return lines.join("\n");
+  });
   const buttons = [
-    buildApprovalButton("Approve", "primary", `approval_accept_${params.requestId}`, params.requestId, DECISION_ACCEPT),
+    buildApprovalButton("approve", "primary", `approval_accept_${params.requestId}`, params.requestId, DECISION_ACCEPT),
     buildApprovalButton(
-      "Approve Session",
+      "approveSession",
       "default",
       `approval_accept_session_${params.requestId}`,
       params.requestId,
       DECISION_ACCEPT_FOR_SESSION,
     ),
-    buildApprovalButton("Decline", "danger", `approval_decline_${params.requestId}`, params.requestId, DECISION_DECLINE),
-    buildApprovalButton("Cancel", "default", `approval_cancel_${params.requestId}`, params.requestId, DECISION_CANCEL),
+    buildApprovalButton("decline", "danger", `approval_decline_${params.requestId}`, params.requestId, DECISION_DECLINE),
+    buildApprovalButton("cancel", "default", `approval_cancel_${params.requestId}`, params.requestId, DECISION_CANCEL),
   ];
-
-  return buildV2Card("Approval Required", "orange", [
-    {
-      tag: "markdown",
-      content:
-        `${cardTitle} needs approval before continuing.\n\n${summary}${reasonBlock}${requestHint}\n\n` +
-        `Timeout: ${params.timeoutSeconds}s`,
-    },
-    ...buttons,
-  ]);
+  return buildV2Card(cardText("approvalTitle"), "orange", [markdownElement(body), ...buttons]);
 }
 
 export function buildApprovalResolvedCard(params: {
@@ -156,74 +163,133 @@ export function buildApprovalResolvedCard(params: {
   decision: string;
   message?: string;
 }): Record<string, unknown> {
-  const detail = params.message ? `\n${params.message}` : "";
-  return buildV2Card("Approval Resolved", "green", [
-    {
-      tag: "markdown",
-      content: `Request: ${params.requestId}\nDecision: ${params.decision}${detail}`,
-    },
-  ]);
+  const body = localizedText((t) => {
+    const lines = [t("requestLine", { requestId: params.requestId }), t("decisionLine", { decision: params.decision })];
+    if (params.message) lines.push(params.message);
+    return lines.join("\n");
+  });
+  return buildV2Card(cardText("approvalResolvedTitle"), "green", [markdownElement(body)]);
 }
 
 export function buildApprovalTimeoutCard(params: { requestId: string; timeoutSeconds: number }): Record<string, unknown> {
-  return buildV2Card("Approval Timed Out", "red", [
-    {
-      tag: "markdown",
-      content: `Request: ${params.requestId}\nDecision: cancel\nTimeout: ${params.timeoutSeconds}s`,
-    },
-  ]);
+  const body = localizedText((t) =>
+    [
+      t("requestLine", { requestId: params.requestId }),
+      t("decisionLine", { decision: DECISION_CANCEL }),
+      t("timeoutLine", { seconds: params.timeoutSeconds }),
+    ].join("\n"),
+  );
+  return buildV2Card(cardText("approvalTimeoutTitle"), "red", [markdownElement(body)]);
 }
 
 export function buildUserInputCard(params: {
   request: Record<string, unknown>;
   cardTitle?: string;
-  promptTitle?: string;
+  questionPosition?: QuestionPosition;
 }): Record<string, unknown> {
   const requestId = String(params.request.requestId ?? "");
-  const prompt = buildUserInputPrompt(params.request, {
-    title: params.promptTitle ?? `${resolveCardTitle(params.cardTitle)} needs your input`,
+  const title = resolveCardTitle(params.cardTitle);
+  const questions = normalizeUserInputQuestions(params.request);
+  const position = params.questionPosition;
+  const body = localizedText((t) => {
+    const intro = t("inputIntro", { title });
+    const lines = [position && position.count > 1 ? `${intro} (${position.index + 1}/${position.count})` : intro];
+    if (requestId) lines.push(t("requestLine", { requestId }));
+    lines.push("");
+    if (questions.length === 0) {
+      lines.push(t("noQuestions"));
+      return lines.join("\n");
+    }
+    questions.forEach((question, questionIndex) => {
+      const prefix = questions.length > 1 ? `${questionIndex + 1}. ` : "";
+      lines.push(`${prefix}${question.header || t("questionHeading", { index: questionIndex + 1 })}`);
+      if (question.question) lines.push(question.question);
+      if (question.isSecret) lines.push(t("secretWarning"));
+      question.options.forEach((option, optionIndex) => {
+        const detail = option.description ? ` - ${option.description}` : "";
+        lines.push(`${optionIndex + 1}) ${option.label}${detail}`);
+      });
+      if (question.isOther) lines.push(t("otherOption"));
+      lines.push("");
+    });
+    const question = questions[0]!;
+    if (question.options.length > 0 && question.isOther) {
+      lines.push(t("replyWithOptionOrOther"));
+    } else if (question.options.length > 0) {
+      lines.push(t("replyWithOption"));
+    } else {
+      lines.push(t("replyWithText"));
+    }
+    return lines.join("\n").trim();
   });
   const elements: Array<Record<string, unknown>> = [
-    {
-      tag: "markdown",
-      content: normalizeMarkdownForFeishu(prompt),
-    },
+    markdownElement(mapLocalized(body, (text) => normalizeMarkdownForFeishu(text))),
   ];
-
   if (canUseNativeSingleChoiceUserInput(params.request)) {
-    const question = normalizeUserInputQuestions(params.request)[0]!;
-    question.options.forEach((option, index) => {
+    questions[0]!.options.forEach((option, index) => {
       elements.push(buildUserInputButton(option.label, `user_input_${requestId}_${index}`, requestId, index));
     });
   }
-
-  return buildV2Card("Input Required", "indigo", elements);
+  return buildV2Card(cardText("inputTitle"), "indigo", elements);
 }
 
 export function buildUserInputResolvedCard(params: {
   requestId: string;
   answerSummary?: string;
 }): Record<string, unknown> {
-  const detail = params.answerSummary ? `\nAnswer: ${params.answerSummary}` : "";
-  return buildV2Card("Input Received", "green", [
-    {
-      tag: "markdown",
-      content: `Request: ${params.requestId}${detail}`,
-    },
+  const body = localizedText((t) => {
+    const lines = [t("requestLine", { requestId: params.requestId })];
+    if (params.answerSummary) lines.push(t("answerLine", { answer: params.answerSummary }));
+    return lines.join("\n");
+  });
+  return buildV2Card(cardText("inputReceivedTitle"), "green", [markdownElement(body)]);
+}
+
+export function buildNewConversationCard(): Record<string, unknown> {
+  return buildV2Card(cardText("newConversationTitle"), "blue", [markdownElement(cardText("newConversationBody"))]);
+}
+
+export function buildUnsupportedMessageCard(messageType: string): Record<string, unknown> {
+  return buildV2Card(cardText("unsupportedTitle"), "red", [
+    markdownElement(cardText("unsupportedBody", { type: messageType })),
   ]);
 }
 
-export function buildErrorCard(title: string, message: string): Record<string, unknown> {
-  return buildV2Card(title, "red", [
-    {
-      tag: "markdown",
-      content: normalizeMarkdownForFeishu(message),
+function markdownElement(text: LocalizedText): Record<string, unknown> {
+  return { tag: "markdown", ...text };
+}
+
+function mapLocalized(text: LocalizedText, transform: (value: string) => string): LocalizedText {
+  return {
+    content: transform(text.content),
+    i18n_content: Object.fromEntries(
+      Object.entries(text.i18n_content).map(([locale, value]) => [locale, transform(value)]),
+    ) as LocalizedText["i18n_content"],
+  };
+}
+
+function summaryOf(text: LocalizedText): LocalizedText {
+  return mapLocalized(text, (value) => value.slice(0, 50));
+}
+
+// Headerless on purpose: reply cards should read like plain messages. `summary` only feeds notifications.
+function buildReplyV2Card(summary: LocalizedText, bodyElements: Array<Record<string, unknown>>): Record<string, unknown> {
+  return {
+    schema: "2.0",
+    config: {
+      update_multi: true,
+      width_mode: "fill",
+      locales: CARD_LOCALES,
+      summary: summaryOf(summary),
     },
-  ]);
+    body: {
+      elements: bodyElements,
+    },
+  };
 }
 
 function buildV2Card(
-  title: string,
+  title: LocalizedText,
   template: string,
   bodyElements: Array<Record<string, unknown>>,
 ): Record<string, unknown> {
@@ -232,12 +298,10 @@ function buildV2Card(
     config: {
       update_multi: true,
       width_mode: "fill",
+      locales: CARD_LOCALES,
     },
     header: {
-      title: {
-        tag: "plain_text",
-        content: title,
-      },
+      title: { tag: "plain_text", ...title },
       template,
     },
     body: {
@@ -252,55 +316,27 @@ function buildUserInputButton(
   requestId: string,
   optionIndex: number,
 ): Record<string, unknown> {
-  const callbackValue = {
-    kind: "userInput",
-    requestId,
-    optionIndex,
-  };
-
   return {
     tag: "button",
     element_id: elementId,
-    text: {
-      tag: "plain_text",
-      content: label.slice(0, 64),
-    },
+    text: { tag: "plain_text", content: label.slice(0, 64) },
     type: "primary",
-    behaviors: [
-      {
-        type: "callback",
-        value: callbackValue,
-      },
-    ],
+    behaviors: [{ type: "callback", value: { kind: "userInput", requestId, optionIndex } }],
   };
 }
 
 function buildApprovalButton(
-  label: string,
+  label: CardMessageKey,
   type: "default" | "primary" | "danger",
   elementId: string,
   requestId: string,
   decision: string,
 ): Record<string, unknown> {
-  const callbackValue = {
-    kind: "approval",
-    requestId,
-    decision,
-  };
-
   return {
     tag: "button",
     element_id: elementId,
-    text: {
-      tag: "plain_text",
-      content: label,
-    },
+    text: { tag: "plain_text", ...cardText(label) },
     type,
-    behaviors: [
-      {
-        type: "callback",
-        value: callbackValue,
-      },
-    ],
+    behaviors: [{ type: "callback", value: { kind: "approval", requestId, decision } }],
   };
 }

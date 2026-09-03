@@ -144,6 +144,12 @@ if %ERRORLEVEL% neq 0 (
     cd ..
     goto :failure
 )
+xcopy /E /I /Y "..\sdk\typescript\packages\channel-feishu\assets" "resources\modules\channel-feishu\assets" >nul
+if %ERRORLEVEL% neq 0 (
+    echo Failed to stage channel-feishu assets for Desktop build.
+    cd ..
+    goto :failure
+)
 copy /Y "..\sdk\typescript\packages\channel-weixin\manifest.json" "resources\modules\channel-weixin\manifest.json"
 if %ERRORLEVEL% neq 0 (
     echo Failed to stage channel-weixin manifest.json for Desktop build.

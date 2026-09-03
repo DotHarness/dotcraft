@@ -1,25 +1,18 @@
 import { buildReplyCards } from "./card-builder.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuSendResult } from "./feishu-types.js";
+import type { FeishuOutboundRouter } from "./outbound-router.js";
 
 export async function sendReplyCards(
-  client: FeishuClient,
+  router: FeishuOutboundRouter,
   target: string,
   replyText: string,
   cardTitle?: string,
 ): Promise<void> {
   const cards = buildReplyCards(replyText, cardTitle);
   for (const card of cards) {
-    await client.sendInteractiveCard(target, card);
+    await router.sendCard(target, card);
   }
-}
-
-export async function sendSingleCard(
-  client: FeishuClient,
-  target: string,
-  card: Record<string, unknown>,
-): Promise<FeishuSendResult> {
-  return await client.sendInteractiveCard(target, card);
 }
 
 export async function updateCard(
@@ -32,6 +25,7 @@ export async function updateCard(
 
 export async function createOrUpdateCard(
   client: FeishuClient,
+  router: FeishuOutboundRouter,
   target: string,
   card: Record<string, unknown>,
   messageId = "",
@@ -40,5 +34,7 @@ export async function createOrUpdateCard(
     await updateCard(client, messageId, card);
     return { messageId };
   }
-  return await sendSingleCard(client, target, card);
+  return await router.sendCard(target, card);
 }
+
+export type { FeishuSendResult };

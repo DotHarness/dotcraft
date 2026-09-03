@@ -104,14 +104,18 @@ function getCardTitle(card: Record<string, unknown>): string {
   return String(title.content ?? "");
 }
 
+function isTranscriptCard(card: Record<string, unknown>): boolean {
+  return card.header === undefined;
+}
+
 function latestTranscriptText(mock: MockFeishuClient): string {
   for (let idx = mock.updatedCards.length - 1; idx >= 0; idx -= 1) {
     const card = mock.updatedCards[idx]?.card;
-    if (card && getCardTitle(card) === "DotCraft") return getCardMarkdown(card);
+    if (card && isTranscriptCard(card)) return getCardMarkdown(card);
   }
   for (let idx = mock.sentCards.length - 1; idx >= 0; idx -= 1) {
     const card = mock.sentCards[idx]?.card;
-    if (card && getCardTitle(card) === "DotCraft") return getCardMarkdown(card);
+    if (card && isTranscriptCard(card)) return getCardMarkdown(card);
   }
   return "";
 }

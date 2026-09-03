@@ -104,6 +104,11 @@ export interface FeishuSendResult {
   chatId: string;
 }
 
+export interface FeishuChatInfo {
+  chatMode: string;
+  groupMessageType: string;
+}
+
 export type FeishuBotDiagnosticTag =
   | "missingToken"
   | "botCapabilityDisabled"
@@ -206,6 +211,8 @@ export interface ParsedInboundMessage {
   messageId: string;
   parentId?: string;
   rootId?: string;
+  /** Topic root message id when the message belongs to a Feishu topic. */
+  threadKey?: string;
   mentions: FeishuMention[];
   sender: ParsedInboundSender;
 }

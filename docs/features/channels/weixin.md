@@ -43,7 +43,7 @@ No public callback URL is required for the Desktop-managed Weixin channel.
 - `/new` starts a fresh DotCraft conversation in the current Weixin chat.
 - The login session is saved for normal restarts.
 - If the session expires, Desktop shows a new QR code.
-- Regular replies and media captions are flattened to plain text because iLink does not expose Markdown rendering.
+- Replies are plain text because Weixin does not render Markdown.
 - File and image delivery are available through channel delivery tools.
 - Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 

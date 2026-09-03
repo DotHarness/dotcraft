@@ -215,6 +215,9 @@ jobs:
           Copy-Item -Path "$src/manifest.json" -Destination "$dst/manifest.json" -Force
           Copy-Item -Path "$src/package.json" -Destination "$dst/package.json" -Force
           Copy-Item -Path "$src/dist" -Destination "$dst/dist" -Recurse -Force
+          if (Test-Path "$src/assets") {
+            Copy-Item -Path "$src/assets" -Destination "$dst/assets" -Recurse -Force
+          }
         }
 
     - name: Stage bundled modules for desktop - macOS
@@ -228,6 +231,9 @@ jobs:
           cp "$src/manifest.json" "$dst/manifest.json"
           cp "$src/package.json" "$dst/package.json"
           cp -r "$src/dist" "$dst/dist"
+          if [ -d "$src/assets" ]; then
+            cp -r "$src/assets" "$dst/assets"
+          fi
         done
 
     # Match build.bat: avoid stale dist confusing electron-builder; safe on fresh checkouts too.

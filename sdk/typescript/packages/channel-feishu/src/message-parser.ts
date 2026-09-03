@@ -2,16 +2,22 @@ import {
   localImagePart,
   textPart,
 } from "@dotcraft/channel";
+import { deriveConversationTarget } from "./conversation-target.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuMessageEvent, ParsedInboundMessage } from "./feishu-types.js";
 import { logInfo, shortId } from "./logging.js";
 import { stripMentionKeys } from "./mention.js";
+
+export interface ParseInboundOptions {
+  threadCapable?: boolean;
+}
 
 export async function parseInboundMessage(
   client: FeishuClient,
   event: FeishuMessageEvent,
   botOpenId: string,
   downloadDir?: string,
+  options: ParseInboundOptions = {},
 ): Promise<ParsedInboundMessage | null> {
   const senderId = event.sender.sender_id.open_id ?? "";
   if (!senderId || senderId === botOpenId) {
@@ -22,15 +28,13 @@ export async function parseInboundMessage(
     return null;
   }
 
+  const conversation = deriveConversationTarget(event, senderId, options.threadCapable === true);
   const base = {
     userId: senderId,
     userName: senderId,
-    threadUserId:
-      event.message.chat_type === "group" ? `group:${event.message.chat_id}` : senderId,
-    channelContext:
-      event.message.chat_type === "group"
-        ? `group:${event.message.chat_id}`
-        : `dm:${senderId}`,
+    threadUserId: conversation.threadUserId,
+    channelContext: conversation.channelContext,
+    ...(conversation.threadKey ? { threadKey: conversation.threadKey } : {}),
     chatId: event.message.chat_id,
     chatType: event.message.chat_type,
     messageId: event.message.message_id,

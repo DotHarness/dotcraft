@@ -20,14 +20,14 @@
 | **QQ** | NapCat 或 OneBot v11 反向 WebSocket | 私聊、群聊、审批关键词、媒体投递 | [QQ 设置](./qq) |
 | **企业微信 / WeCom** | 群机器人回调 URL、Token、EncodingAESKey | 企业微信群聊、审批、文件和图片投递 | [企业微信设置](./wecom) |
 | **飞书 / Lark** | 启用 Bot 和 WebSocket 事件订阅的自建应用 | 卡片回复、审批、reaction、可选官方 CLI | [飞书设置](./feishu) |
-| **Telegram** | BotFather token 和 long polling | 私聊、群聊、`/new`、`/help`、inline 审批 | [Telegram 设置](./telegram) |
+| **Telegram** | BotFather token | 私聊、群聊、`/new`、`/help`、inline 审批 | [Telegram 设置](./telegram) |
 | **微信 / Weixin** | 腾讯 iLink 二维码登录 | 微信聊天、保存登录状态、纯文本回复、文件和图片投递 | [微信设置](./weixin) |
 
 ## 渠道会话如何工作
 
 ![DotCraft 渠道适配器拓扑](/channel-adapter-topology.svg)
 
-- 发给 Bot 的消息就是一次会话回合，回复自动送回同一个聊天。
+- 发给 Bot 的消息都在同一个会话里，回复送回同一个聊天。
 - 平台支持时，审批和补充提问会直接出现在聊天里。
 - 支持斜杠命令的渠道里，`/new` 开一段新会话。
 - Desktop 打开同一个工作区，就能查看这些会话的历史或接着聊。

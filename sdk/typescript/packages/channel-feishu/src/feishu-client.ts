@@ -5,9 +5,12 @@ import { readFile } from "node:fs/promises";
 
 import * as Lark from "@larksuiteoapi/node-sdk";
 
+import type { LocalizedText } from "./card-locales.js";
+import { conversationTargetBase } from "./conversation-target.js";
 import type {
   FeishuApiErrorKind,
   FeishuBotDiagnosticTag,
+  FeishuChatInfo,
   FeishuChatMessageItem,
   FeishuChatMessagePage,
   FeishuConfig,
@@ -447,6 +450,99 @@ export class FeishuClient {
     };
   }
 
+  async replyInteractiveCard(
+    messageId: string,
+    card: Record<string, unknown>,
+    replyInThread: boolean,
+  ): Promise<FeishuSendResult> {
+    assertCardPayloadShape(card);
+    return await this.replyWithContent(messageId, "interactive", JSON.stringify(card), replyInThread);
+  }
+
+  async replyCardKitReference(messageId: string, cardId: string, replyInThread: boolean): Promise<FeishuSendResult> {
+    return await this.replyWithContent(
+      messageId,
+      "interactive",
+      JSON.stringify({ type: "card", data: { card_id: cardId } }),
+      replyInThread,
+    );
+  }
+
+  async replyFile(
+    messageId: string,
+    file: { fileName: string; data: Buffer; mediaType?: string },
+    replyInThread: boolean,
+  ): Promise<FeishuSendResult & { fileKey: string }> {
+    assertFilePayload(file);
+    const fileKey = await this.uploadFile(file.fileName, file.data, file.mediaType);
+    const result = await this.replyWithContent(messageId, "file", JSON.stringify({ file_key: fileKey }), replyInThread);
+    return { ...result, fileKey };
+  }
+
+  private async replyWithContent(
+    messageId: string,
+    msgType: string,
+    content: string,
+    replyInThread: boolean,
+  ): Promise<FeishuSendResult> {
+    const normalizedMessageId = messageId.trim();
+    if (!normalizedMessageId) {
+      throw new TypeError("Feishu reply requires a messageId.");
+    }
+    const response = await this.callSdk(
+      () =>
+        this.sdk.im.message.reply({
+          path: { message_id: normalizedMessageId },
+          data: {
+            content,
+            msg_type: msgType,
+            reply_in_thread: replyInThread,
+          },
+        }),
+      `Failed to reply to Feishu message with '${msgType}'.`,
+    );
+    return {
+      messageId: String(response.data?.message_id ?? ""),
+      chatId: String(response.data?.chat_id ?? ""),
+    };
+  }
+
+  // Feishu only lets a bot recall its own messages within 24 hours.
+  async recallMessage(messageId: string): Promise<void> {
+    const normalizedMessageId = messageId.trim();
+    if (!normalizedMessageId) {
+      throw new TypeError("Feishu message recall requires a messageId.");
+    }
+    await this.callSdk(
+      () => this.sdk.im.message.delete({ path: { message_id: normalizedMessageId } }),
+      "Failed to recall Feishu message",
+    );
+  }
+
+  async uploadImage(data: Buffer): Promise<string> {
+    if (data.length === 0) {
+      throw new TypeError("Feishu image upload does not support empty images.");
+    }
+    const response = await this.callSdk(
+      () => this.sdk.im.image.create({ data: { image_type: "message", image: data } }),
+      "Failed to upload Feishu image",
+    );
+    const imageKey = String(response?.image_key ?? "");
+    if (!imageKey) throw new Error("Feishu image upload response did not include image_key.");
+    return imageKey;
+  }
+
+  async getChatInfo(chatId: string): Promise<FeishuChatInfo> {
+    const response = await this.callSdk(
+      () => this.sdk.im.chat.get({ path: { chat_id: chatId } }),
+      "Failed to query Feishu chat info",
+    );
+    return {
+      chatMode: String(response.data?.chat_mode ?? ""),
+      groupMessageType: String(response.data?.group_message_type ?? ""),
+    };
+  }
+
   async updateCardKitElement(
     cardId: string,
     elementId: string,
@@ -467,7 +563,41 @@ export class FeishuClient {
     );
   }
 
-  async finalizeCardKitInstance(cardId: string, sequence: number, summary: string): Promise<void> {
+  async patchCardKitElement(
+    cardId: string,
+    elementId: string,
+    partialElement: Record<string, unknown>,
+    sequence: number,
+  ): Promise<void> {
+    await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.cardElement.patch({
+          path: { card_id: cardId, element_id: elementId },
+          data: {
+            partial_element: JSON.stringify(partialElement),
+            sequence,
+            uuid: `patch_${cardId}_${sequence}`,
+          },
+        }),
+      "Failed to patch Feishu CardKit element",
+    );
+  }
+
+  async deleteCardKitElement(cardId: string, elementId: string, sequence: number): Promise<void> {
+    await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.cardElement.delete({
+          path: { card_id: cardId, element_id: elementId },
+          data: {
+            sequence,
+            uuid: `delete_${cardId}_${sequence}`,
+          },
+        }),
+      "Failed to delete Feishu CardKit element",
+    );
+  }
+
+  async finalizeCardKitInstance(cardId: string, sequence: number, summary: LocalizedText): Promise<void> {
     await this.callSdk(
       () =>
         this.sdk.cardkit.v1.card.settings({
@@ -476,7 +606,7 @@ export class FeishuClient {
             settings: JSON.stringify({
               config: {
                 streaming_mode: false,
-                summary: { content: summary },
+                summary,
               },
             }),
             sequence,
@@ -558,16 +688,7 @@ export class FeishuClient {
       mediaType?: string;
     },
   ): Promise<FeishuSendResult & { fileKey: string }> {
-    if (!file.fileName.trim()) {
-      throw new TypeError("Feishu file delivery requires a fileName.");
-    }
-    if (file.data.length === 0) {
-      throw new TypeError("Feishu file delivery does not support empty files.");
-    }
-    if (file.data.length > 30 * 1024 * 1024) {
-      throw new TypeError("Feishu file delivery only supports files up to 30 MB.");
-    }
-
+    assertFilePayload(file);
     const fileKey = await this.uploadFile(file.fileName, file.data, file.mediaType);
     const { receiveId, receiveIdType } = this.resolveTarget(target);
     const response = await this.sendMessage(receiveId, receiveIdType, "file", {
@@ -606,7 +727,8 @@ export class FeishuClient {
     return filePath;
   }
 
-  private resolveTarget(target: string): { receiveId: string; receiveIdType: "chat_id" | "open_id" } {
+  private resolveTarget(rawTarget: string): { receiveId: string; receiveIdType: "chat_id" | "open_id" } {
+    const target = conversationTargetBase(rawTarget);
     if (target.startsWith("group:")) {
       return {
         receiveId: target.slice("group:".length),
@@ -943,6 +1065,18 @@ function mapMention(input: unknown): FeishuChatMessageItem["mentions"][number] |
     name: String(record.name ?? ""),
     tenant_key: record.tenant_key ? String(record.tenant_key) : undefined,
   };
+}
+
+function assertFilePayload(file: { fileName: string; data: Buffer }): void {
+  if (!file.fileName.trim()) {
+    throw new TypeError("Feishu file delivery requires a fileName.");
+  }
+  if (file.data.length === 0) {
+    throw new TypeError("Feishu file delivery does not support empty files.");
+  }
+  if (file.data.length > 30 * 1024 * 1024) {
+    throw new TypeError("Feishu file delivery only supports files up to 30 MB.");
+  }
 }
 
 function assertCardPayloadShape(card: Record<string, unknown>): void {

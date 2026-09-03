@@ -46,13 +46,12 @@ If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an addr
 ## What works after setup
 
 - Private chats keep a separate DotCraft conversation per QQ user.
-- A QQ group shares one conversation, with the actual sender recorded on each message.
+- A QQ group shares one conversation.
 - Group messages require an @mention by default.
 - Empty admin and allowlist settings mean the bot ignores QQ messages.
 - Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 - Voice, video, and file delivery are available through channel delivery tools.
-- Voice and video tools use `filePath` for local files, `fileUrl` for HTTP(S) URLs, and `fileBase64` for raw base64 payloads. The `file` argument accepts only URL and `base64://` sources; use `filePath` for local paths so DotCraft can request file-read approval.
-- For local voice, video, and file uploads, DotCraft reads the file before sending it to NapCat. Docker deployments do not need to mount the workspace into the NapCat container.
+- NapCat in Docker does not need access to the workspace files.
 
 ## Standalone adapter
 

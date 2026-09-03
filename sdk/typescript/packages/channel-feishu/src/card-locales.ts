@@ -1,0 +1,372 @@
+// Every user-facing card string lives here. Feishu renders the entry matching the viewer's
+// client language, so the channel never needs to know who is reading.
+
+export const CARD_LOCALES = ["en_us", "zh_cn", "ja_jp", "ko_kr", "es_es", "fr_fr", "de_de"] as const;
+export type CardLocale = (typeof CARD_LOCALES)[number];
+
+type Catalog = Record<CardLocale, string>;
+
+const MESSAGES = {
+  thinking: {
+    en_us: "Thinking…",
+    zh_cn: "思考中…",
+    ja_jp: "考え中…",
+    ko_kr: "생각 중…",
+    es_es: "Pensando…",
+    fr_fr: "Réflexion…",
+    de_de: "Denke nach…",
+  },
+  working: {
+    en_us: "Working…",
+    zh_cn: "工作中…",
+    ja_jp: "作業中…",
+    ko_kr: "작업 중…",
+    es_es: "Trabajando…",
+    fr_fr: "Travail en cours…",
+    de_de: "Arbeite…",
+  },
+  generating: {
+    en_us: "Generating…",
+    zh_cn: "生成中…",
+    ja_jp: "生成中…",
+    ko_kr: "생성 중…",
+    es_es: "Generando…",
+    fr_fr: "Génération…",
+    de_de: "Wird erstellt…",
+  },
+  replySummary: {
+    en_us: "{title} reply",
+    zh_cn: "{title} 的回复",
+    ja_jp: "{title} の返信",
+    ko_kr: "{title} 답변",
+    es_es: "Respuesta de {title}",
+    fr_fr: "Réponse de {title}",
+    de_de: "Antwort von {title}",
+  },
+  fileNoteTitle: {
+    en_us: "File Note",
+    zh_cn: "文件说明",
+    ja_jp: "ファイルの説明",
+    ko_kr: "파일 메모",
+    es_es: "Nota del archivo",
+    fr_fr: "Note de fichier",
+    de_de: "Dateihinweis",
+  },
+  fileLine: {
+    en_us: "File: `{name}`",
+    zh_cn: "文件：`{name}`",
+    ja_jp: "ファイル：`{name}`",
+    ko_kr: "파일: `{name}`",
+    es_es: "Archivo: `{name}`",
+    fr_fr: "Fichier : `{name}`",
+    de_de: "Datei: `{name}`",
+  },
+  approvalTitle: {
+    en_us: "Approval Required",
+    zh_cn: "需要审批",
+    ja_jp: "承認が必要です",
+    ko_kr: "승인 필요",
+    es_es: "Aprobación requerida",
+    fr_fr: "Approbation requise",
+    de_de: "Genehmigung erforderlich",
+  },
+  approvalIntro: {
+    en_us: "{title} needs approval before continuing.",
+    zh_cn: "{title} 需要你的审批才能继续。",
+    ja_jp: "{title} は続行するために承認が必要です。",
+    ko_kr: "{title}이(가) 계속하려면 승인이 필요합니다.",
+    es_es: "{title} necesita aprobación para continuar.",
+    fr_fr: "{title} a besoin d'une approbation pour continuer.",
+    de_de: "{title} benötigt eine Genehmigung, um fortzufahren.",
+  },
+  commandLine: {
+    en_us: "Command: `{operation}`",
+    zh_cn: "命令：`{operation}`",
+    ja_jp: "コマンド：`{operation}`",
+    ko_kr: "명령: `{operation}`",
+    es_es: "Comando: `{operation}`",
+    fr_fr: "Commande : `{operation}`",
+    de_de: "Befehl: `{operation}`",
+  },
+  operationLine: {
+    en_us: "Operation: `{operation}`",
+    zh_cn: "操作：`{operation}`",
+    ja_jp: "操作：`{operation}`",
+    ko_kr: "작업: `{operation}`",
+    es_es: "Operación: `{operation}`",
+    fr_fr: "Opération : `{operation}`",
+    de_de: "Vorgang: `{operation}`",
+  },
+  targetLine: {
+    en_us: "Target: `{target}`",
+    zh_cn: "目标：`{target}`",
+    ja_jp: "対象：`{target}`",
+    ko_kr: "대상: `{target}`",
+    es_es: "Destino: `{target}`",
+    fr_fr: "Cible : `{target}`",
+    de_de: "Ziel: `{target}`",
+  },
+  targetMissing: {
+    en_us: "(not provided)",
+    zh_cn: "（未提供）",
+    ja_jp: "（未指定）",
+    ko_kr: "(제공되지 않음)",
+    es_es: "(no indicado)",
+    fr_fr: "(non fourni)",
+    de_de: "(nicht angegeben)",
+  },
+  reasonLine: {
+    en_us: "Reason: {reason}",
+    zh_cn: "原因：{reason}",
+    ja_jp: "理由：{reason}",
+    ko_kr: "사유: {reason}",
+    es_es: "Motivo: {reason}",
+    fr_fr: "Motif : {reason}",
+    de_de: "Grund: {reason}",
+  },
+  requestLine: {
+    en_us: "Request: {requestId}",
+    zh_cn: "请求：{requestId}",
+    ja_jp: "リクエスト：{requestId}",
+    ko_kr: "요청: {requestId}",
+    es_es: "Solicitud: {requestId}",
+    fr_fr: "Demande : {requestId}",
+    de_de: "Anfrage: {requestId}",
+  },
+  timeoutLine: {
+    en_us: "Timeout: {seconds}s",
+    zh_cn: "超时：{seconds} 秒",
+    ja_jp: "タイムアウト：{seconds} 秒",
+    ko_kr: "제한 시간: {seconds}초",
+    es_es: "Tiempo límite: {seconds} s",
+    fr_fr: "Délai : {seconds} s",
+    de_de: "Zeitlimit: {seconds} s",
+  },
+  approve: {
+    en_us: "Approve",
+    zh_cn: "批准",
+    ja_jp: "承認",
+    ko_kr: "승인",
+    es_es: "Aprobar",
+    fr_fr: "Approuver",
+    de_de: "Genehmigen",
+  },
+  approveSession: {
+    en_us: "Approve for Session",
+    zh_cn: "本会话内批准",
+    ja_jp: "セッション内で承認",
+    ko_kr: "세션 동안 승인",
+    es_es: "Aprobar en la sesión",
+    fr_fr: "Approuver pour la session",
+    de_de: "Für Sitzung genehmigen",
+  },
+  decline: {
+    en_us: "Decline",
+    zh_cn: "拒绝",
+    ja_jp: "拒否",
+    ko_kr: "거부",
+    es_es: "Rechazar",
+    fr_fr: "Refuser",
+    de_de: "Ablehnen",
+  },
+  cancel: {
+    en_us: "Cancel",
+    zh_cn: "取消",
+    ja_jp: "キャンセル",
+    ko_kr: "취소",
+    es_es: "Cancelar",
+    fr_fr: "Annuler",
+    de_de: "Abbrechen",
+  },
+  approvalResolvedTitle: {
+    en_us: "Approval Resolved",
+    zh_cn: "审批已处理",
+    ja_jp: "承認が処理されました",
+    ko_kr: "승인 처리됨",
+    es_es: "Aprobación resuelta",
+    fr_fr: "Approbation traitée",
+    de_de: "Genehmigung erledigt",
+  },
+  decisionLine: {
+    en_us: "Decision: {decision}",
+    zh_cn: "决定：{decision}",
+    ja_jp: "決定：{decision}",
+    ko_kr: "결정: {decision}",
+    es_es: "Decisión: {decision}",
+    fr_fr: "Décision : {decision}",
+    de_de: "Entscheidung: {decision}",
+  },
+  approvalTimeoutTitle: {
+    en_us: "Approval Timed Out",
+    zh_cn: "审批超时",
+    ja_jp: "承認がタイムアウトしました",
+    ko_kr: "승인 시간 초과",
+    es_es: "Aprobación caducada",
+    fr_fr: "Approbation expirée",
+    de_de: "Genehmigung abgelaufen",
+  },
+  inputTitle: {
+    en_us: "Input Required",
+    zh_cn: "需要你的输入",
+    ja_jp: "入力が必要です",
+    ko_kr: "입력 필요",
+    es_es: "Se requiere una respuesta",
+    fr_fr: "Réponse requise",
+    de_de: "Eingabe erforderlich",
+  },
+  inputIntro: {
+    en_us: "{title} needs your input",
+    zh_cn: "{title} 需要你的输入",
+    ja_jp: "{title} は入力を必要としています",
+    ko_kr: "{title}이(가) 입력을 기다립니다",
+    es_es: "{title} necesita tu respuesta",
+    fr_fr: "{title} a besoin de votre réponse",
+    de_de: "{title} benötigt Ihre Eingabe",
+  },
+  questionHeading: {
+    en_us: "Question {index}",
+    zh_cn: "问题 {index}",
+    ja_jp: "質問 {index}",
+    ko_kr: "질문 {index}",
+    es_es: "Pregunta {index}",
+    fr_fr: "Question {index}",
+    de_de: "Frage {index}",
+  },
+  noQuestions: {
+    en_us: "No questions were provided.",
+    zh_cn: "没有提供问题。",
+    ja_jp: "質問がありません。",
+    ko_kr: "질문이 없습니다.",
+    es_es: "No se proporcionaron preguntas.",
+    fr_fr: "Aucune question fournie.",
+    de_de: "Keine Fragen angegeben.",
+  },
+  secretWarning: {
+    en_us: "This chat cannot hide secret answers; reply only if it is safe to share here.",
+    zh_cn: "此会话无法隐藏敏感回答，仅在可以安全分享时回复。",
+    ja_jp: "このチャットでは秘密の回答を隠せません。ここで共有しても安全な場合のみ返信してください。",
+    ko_kr: "이 대화에서는 비밀 답변을 숨길 수 없습니다. 여기서 공유해도 안전한 경우에만 답하세요.",
+    es_es: "Este chat no puede ocultar respuestas secretas; responde solo si es seguro compartirlas aquí.",
+    fr_fr: "Cette conversation ne peut pas masquer les réponses secrètes ; répondez seulement si le partage ici est sûr.",
+    de_de: "Dieser Chat kann geheime Antworten nicht verbergen; antworten Sie nur, wenn das Teilen hier sicher ist.",
+  },
+  otherOption: {
+    en_us: "0) Other / free text",
+    zh_cn: "0) 其他 / 自由输入",
+    ja_jp: "0) その他 / 自由入力",
+    ko_kr: "0) 기타 / 자유 입력",
+    es_es: "0) Otro / texto libre",
+    fr_fr: "0) Autre / texte libre",
+    de_de: "0) Sonstiges / Freitext",
+  },
+  replyWithOptionOrOther: {
+    en_us: "Reply with an option number, or reply `0 your answer` for other.",
+    zh_cn: "回复选项编号，或回复 `0 你的答案` 表示其他。",
+    ja_jp: "選択肢の番号で返信するか、その他の場合は `0 回答` と返信してください。",
+    ko_kr: "옵션 번호로 답하거나, 기타는 `0 답변` 형식으로 답하세요.",
+    es_es: "Responde con el número de una opción, o `0 tu respuesta` para otra.",
+    fr_fr: "Répondez avec le numéro d'une option, ou `0 votre réponse` pour autre.",
+    de_de: "Antworten Sie mit einer Optionsnummer oder mit `0 Ihre Antwort` für Sonstiges.",
+  },
+  replyWithOption: {
+    en_us: "Reply with an option number.",
+    zh_cn: "回复选项编号。",
+    ja_jp: "選択肢の番号で返信してください。",
+    ko_kr: "옵션 번호로 답하세요.",
+    es_es: "Responde con el número de una opción.",
+    fr_fr: "Répondez avec le numéro d'une option.",
+    de_de: "Antworten Sie mit einer Optionsnummer.",
+  },
+  replyWithText: {
+    en_us: "Reply with your answer.",
+    zh_cn: "直接回复你的答案。",
+    ja_jp: "回答を返信してください。",
+    ko_kr: "답변을 입력해 주세요.",
+    es_es: "Responde con tu respuesta.",
+    fr_fr: "Répondez avec votre réponse.",
+    de_de: "Antworten Sie mit Ihrer Antwort.",
+  },
+  inputReceivedTitle: {
+    en_us: "Input Received",
+    zh_cn: "已收到输入",
+    ja_jp: "入力を受け取りました",
+    ko_kr: "입력 접수됨",
+    es_es: "Respuesta recibida",
+    fr_fr: "Réponse reçue",
+    de_de: "Eingabe erhalten",
+  },
+  answerLine: {
+    en_us: "Answer: {answer}",
+    zh_cn: "回答：{answer}",
+    ja_jp: "回答：{answer}",
+    ko_kr: "답변: {answer}",
+    es_es: "Respuesta: {answer}",
+    fr_fr: "Réponse : {answer}",
+    de_de: "Antwort: {answer}",
+  },
+  newConversationTitle: {
+    en_us: "New Conversation",
+    zh_cn: "新会话",
+    ja_jp: "新しい会話",
+    ko_kr: "새 대화",
+    es_es: "Nueva conversación",
+    fr_fr: "Nouvelle conversation",
+    de_de: "Neue Unterhaltung",
+  },
+  newConversationBody: {
+    en_us: "Started a fresh DotCraft thread for this chat.",
+    zh_cn: "已为此会话开启新的 DotCraft 线程。",
+    ja_jp: "このチャット用に新しい DotCraft スレッドを開始しました。",
+    ko_kr: "이 대화를 위한 새 DotCraft 스레드를 시작했습니다.",
+    es_es: "Se inició un hilo nuevo de DotCraft para este chat.",
+    fr_fr: "Un nouveau fil DotCraft a été démarré pour cette discussion.",
+    de_de: "Ein neuer DotCraft-Thread wurde für diesen Chat gestartet.",
+  },
+  unsupportedTitle: {
+    en_us: "Unsupported Message",
+    zh_cn: "不支持的消息",
+    ja_jp: "未対応のメッセージ",
+    ko_kr: "지원되지 않는 메시지",
+    es_es: "Mensaje no compatible",
+    fr_fr: "Message non pris en charge",
+    de_de: "Nicht unterstützte Nachricht",
+  },
+  unsupportedBody: {
+    en_us: "Message type `{type}` is not supported yet.",
+    zh_cn: "暂不支持 `{type}` 类型的消息。",
+    ja_jp: "`{type}` タイプのメッセージはまだサポートされていません。",
+    ko_kr: "`{type}` 유형의 메시지는 아직 지원되지 않습니다.",
+    es_es: "El tipo de mensaje `{type}` aún no es compatible.",
+    fr_fr: "Le type de message `{type}` n'est pas encore pris en charge.",
+    de_de: "Der Nachrichtentyp `{type}` wird noch nicht unterstützt.",
+  },
+} satisfies Record<string, Catalog>;
+
+export type CardMessageKey = keyof typeof MESSAGES;
+export type CardTextParams = Record<string, string | number>;
+
+/** Text with the English `content` plus `i18n_content` for every supported locale. */
+export interface LocalizedText {
+  content: string;
+  i18n_content: Record<CardLocale, string>;
+}
+
+export function cardTextIn(key: CardMessageKey, locale: CardLocale, params: CardTextParams = {}): string {
+  return MESSAGES[key][locale].replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match,
+  );
+}
+
+export function cardText(key: CardMessageKey, params: CardTextParams = {}): LocalizedText {
+  return localizedText((t) => t(key, params));
+}
+
+/** Composes a multi-line text once per locale; `t` resolves catalog keys for the locale being built. */
+export function localizedText(
+  build: (t: (key: CardMessageKey, params?: CardTextParams) => string, locale: CardLocale) => string,
+): LocalizedText {
+  const i18n_content = Object.fromEntries(
+    CARD_LOCALES.map((locale) => [locale, build((key, params) => cardTextIn(key, locale, params), locale)]),
+  ) as Record<CardLocale, string>;
+  return { content: i18n_content.en_us, i18n_content };
+}

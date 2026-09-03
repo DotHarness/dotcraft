@@ -1,5 +1,6 @@
-import { buildErrorCard } from "./card-builder.js";
-import { sendSingleCard } from "./card-sender.js";
+import { buildUnsupportedMessageCard } from "./card-builder.js";
+import type { FeishuChatInfoCache } from "./chat-info-cache.js";
+import { deriveConversationTarget, needsThreadCapabilityLookup } from "./conversation-target.js";
 import type { FeishuAdapter } from "./feishu-adapter.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type {
@@ -20,11 +21,16 @@ export function createFeishuEventHandlers(params: {
   client: FeishuClient;
   bot: FeishuBotInfo;
   config: FeishuConfig["feishu"];
+  chatInfo?: FeishuChatInfoCache;
 }) {
   const dedup = new Map<string, number>();
   const dedupTtlMs = 5 * 60 * 1000;
   let loggedMissingBotIdentityWarning = false;
   const ackReactionEmoji = (params.config.ackReactionEmoji ?? DEFAULT_ACK_REACTION_EMOJI).trim() || DEFAULT_ACK_REACTION_EMOJI;
+  const resolveThreadCapable = async (event: FeishuMessageEvent): Promise<boolean> => {
+    if (!params.chatInfo || !needsThreadCapabilityLookup(event.message)) return false;
+    return await params.chatInfo.isThreadCapable(event.message.chat_id);
+  };
 
   const remember = (key: string): boolean => {
     const now = Date.now();
@@ -51,13 +57,19 @@ export function createFeishuEventHandlers(params: {
         });
         return;
       }
-      const pendingChannelContext = channelContextForMessage(event);
+      const threadCapable = await resolveThreadCapable(event);
+      const parseOptions = { threadCapable };
+      const senderOpenId = event.sender.sender_id.open_id ?? "";
+      const pendingChannelContext = senderOpenId
+        ? deriveConversationTarget(event, senderOpenId, threadCapable).channelContext
+        : "";
       if (pendingChannelContext && params.adapter.hasPendingUserInput(pendingChannelContext)) {
         const parsed = await parseInboundMessage(
           params.client,
           event,
           params.bot.openId,
           params.config.downloadDir,
+          parseOptions,
         );
         if (parsed && await params.adapter.tryHandlePendingUserInputMessage(parsed)) {
           logInfo("user_input.message.consumed", {
@@ -94,6 +106,7 @@ export function createFeishuEventHandlers(params: {
         event,
         params.bot.openId,
         params.config.downloadDir,
+        parseOptions,
       );
       if (!parsed) return;
 
@@ -110,11 +123,7 @@ export function createFeishuEventHandlers(params: {
           messageId: shortId(messageId),
           messageType: event.message.message_type,
         });
-        await sendSingleCard(
-          params.client,
-          parsed.channelContext,
-          buildErrorCard("Unsupported Message", `Message type \`${event.message.message_type}\` is not supported yet.`),
-        );
+        await params.adapter.sendCardToConversation(parsed, buildUnsupportedMessageCard(event.message.message_type));
         return;
       }
 
@@ -175,12 +184,6 @@ export function createFeishuEventHandlers(params: {
       }
     },
   };
-}
-
-function channelContextForMessage(event: FeishuMessageEvent): string {
-  const senderId = event.sender.sender_id.open_id ?? "";
-  if (event.message.chat_type === "group") return `group:${event.message.chat_id}`;
-  return senderId ? `dm:${senderId}` : "";
 }
 
 function looksLikeFeishuReactionEmojiType(value: string): boolean {

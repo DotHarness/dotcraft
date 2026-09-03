@@ -33,8 +33,6 @@ In the Feishu developer console:
 6. Grant chat metadata permission if the bot needs group context.
 7. Grant reaction permission if you want DotCraft to mark handled messages with a reaction.
 
-Native streaming is enabled by default. If the CardKit permission or API is unavailable, DotCraft automatically sends the completed reply with standard cards instead. Set `feishu.streaming.enabled` to `false` to always use standard progressive cards.
-
 Publish or release the app in the target tenant before testing in group chats. Tenant policy can still block events or message sends even when scopes are selected.
 
 ## Test the connection
@@ -49,8 +47,9 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 - Direct messages are handled without a mention.
 - Group messages require an @mention by default.
-- Replies stream into an evolving Feishu card when CardKit is available; standard cards remain the automatic fallback.
+- Mention the bot inside a topic and DotCraft replies in that topic; conversations in different topics stay separate.
 - DotCraft can acknowledge handled messages with the configured reaction.
+- Card text follows your Feishu display language: Chinese, English, Japanese, Korean, Spanish, French, and German.
 - Image and file input can be downloaded when the app has resource permission.
 
 ### Official Feishu CLI

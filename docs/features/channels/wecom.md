@@ -43,7 +43,7 @@ WeCom must reach the callback from the public internet. For local Desktop use, p
 
 ## What works after setup
 
-- WeCom messages from allowed users or chats can start DotCraft turns.
+- DotCraft answers messages from allowed users and chats.
 - Admin users can approve higher-risk actions from WeCom.
 - Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 - File and image delivery are available through channel delivery tools.

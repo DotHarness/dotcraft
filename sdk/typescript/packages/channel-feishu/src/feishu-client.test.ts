@@ -162,7 +162,7 @@ test("Feishu client uses CardKit create, content, settings, and replacement cont
     chatId: "chat-1",
   });
   await client.updateCardKitElement("card-1", "reply", "hello", 1);
-  await client.finalizeCardKitInstance("card-1", 2, "Bot Reply");
+  await client.finalizeCardKitInstance("card-1", 2, { content: "Bot reply", i18n_content: { en_us: "Bot reply" } as never });
   await client.replaceCardKitInstance("card-1", card, 3);
 
   assert.deepEqual(calls.map((call) => call.method), [
