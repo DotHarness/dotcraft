@@ -493,6 +493,10 @@ export const MESSAGES_JA = {
 
   'toast.threadNotFound': 'スレッドが見つかりません - 一覧から削除しました',
   'toast.threadArchived': 'この会話は別のクライアントでアーカイブされました',
+  'toast.regionLabel': '通知',
+  'threadArchive.toast.archived': '会話をアーカイブしました',
+  'threadArchive.toast.archiveFailed': '会話のアーカイブに失敗しました: {{error}}',
+  'threadArchive.toast.restoreFailed': '会話の復元に失敗しました: {{error}}',
   'toast.copied': 'クリップボードにコピーしました',
   'conversation.copyMessage': 'メッセージをコピー',
   'markdown.copyCode': 'コードをコピー',
@@ -1506,6 +1510,7 @@ export const MESSAGES_JA = {
   'auto.dnd.archivedCannotBind': 'アーカイブされたスレッドはバインドできません',
   'common.backToApp': 'アプリに戻る',
   'common.close': '閉じる',
+  'common.undo': '元に戻す',
 
   // Welcome composer coverage
   'interactiveTool.loading': 'アプリビューを読み込み中…',

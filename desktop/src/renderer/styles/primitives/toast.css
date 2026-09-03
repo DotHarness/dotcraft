@@ -1,0 +1,94 @@
+/* Transient feedback stack (ui/ToastContainer.tsx). Offset, scale, opacity, z-order,
+   measured height, and the title-bar inset are computed per card and stay inline. */
+.dc-toast-stack {
+  position: fixed;
+  right: 12px;
+  z-index: 30000;
+  width: min(380px, calc(100vw - 24px));
+  transition: height 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dc-toast-stack[data-empty="true"] {
+  pointer-events: none;
+}
+
+.dc-toast {
+  position: absolute;
+  inset: 0 0 auto 0;
+  transform-origin: top right;
+  transition:
+    transform 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms ease-out;
+  will-change: transform, opacity;
+}
+
+.dc-toast[data-behind="true"],
+.dc-toast[data-leaving="true"] {
+  pointer-events: none;
+}
+
+.dc-toast__surface {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 8px;
+  padding: 10px 8px 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.45;
+  user-select: none;
+}
+
+.dc-toast__surface[data-has-action="true"] {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.dc-toast__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--info);
+}
+
+.dc-toast__icon[data-type="success"] {
+  color: var(--success);
+}
+
+.dc-toast__icon[data-type="warning"] {
+  color: var(--warning);
+}
+
+.dc-toast__icon[data-type="error"] {
+  color: var(--error);
+}
+
+.dc-toast__body {
+  min-width: 0;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.dc-toast__body p {
+  margin: 0;
+}
+
+.dc-toast__markdown {
+  max-height: 240px;
+  overflow: auto;
+  line-height: 1.5;
+}
+
+.dc-toast__action {
+  white-space: nowrap;
+}
+
+.dc-toast__close {
+  color: var(--text-dimmed);
+}

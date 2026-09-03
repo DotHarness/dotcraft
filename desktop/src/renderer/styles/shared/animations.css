@@ -52,9 +52,3 @@
   60% { transform: translateX(3px); }
   75% { transform: translateX(-2px); }
 }
-
-/* Toast auto-dismiss progress bar (shrinks from full width to 0 over the toast duration). */
-@keyframes dotcraft-toast-progress {
-  from { transform: scaleX(1); }
-  to   { transform: scaleX(0); }
-}

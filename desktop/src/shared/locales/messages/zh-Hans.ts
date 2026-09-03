@@ -1196,6 +1196,10 @@ export const MESSAGES_ZH_HANS = {
 
   'toast.threadNotFound': '未找到会话 — 已从列表移除',
   'toast.threadArchived': '此会话已被其他客户端归档',
+  'toast.regionLabel': '通知',
+  'threadArchive.toast.archived': '会话已归档',
+  'threadArchive.toast.archiveFailed': '归档会话失败：{{error}}',
+  'threadArchive.toast.restoreFailed': '恢复会话失败：{{error}}',
   'toast.copied': '已复制到剪贴板',
   'toast.imageMessage': '图片消息',
   'toast.fileReferenceMessage': '文件引用消息',
@@ -2757,6 +2761,7 @@ export const MESSAGES_ZH_HANS = {
   'common.cancel': '取消',
   'common.backToApp': '返回应用',
   'common.close': '关闭',
+  'common.undo': '撤销',
   'common.refresh': '刷新',
   'common.retry': '重试',
   'common.showSecret': '显示密钥',

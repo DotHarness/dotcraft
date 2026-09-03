@@ -20,6 +20,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { getSubAgentDepth, isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
+import { archiveThreadWithUndo } from '../../utils/threadArchive'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
@@ -146,16 +147,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const statusSlotJustifySelf = showPendingSlot ? 'end' : 'center'
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
-    // One-click archive: archived threads are restorable anytime from
-    // Settings → Archived chats, so no extra confirmation is needed.
-    try {
-      await window.api.appServer.sendRequest('thread/archive', { threadId: thread.id })
-    } catch {
-      // Best-effort
-    }
-    if (activeThreadId === thread.id) setActiveThreadId(null)
-    useThreadStore.getState().removeThreadTree(thread.id)
-  }, [activeThreadId, setActiveThreadId, thread.id])
+    await archiveThreadWithUndo({ threadId: thread.id, t })
+  }, [t, thread.id])
 
   const resetArchiveActionState = useCallback((): void => {
     setArchiveButtonFocused(false)

@@ -493,6 +493,10 @@ export const MESSAGES_ES = {
 
   'toast.threadNotFound': 'Conversación no encontrada; se quitó de la lista',
   'toast.threadArchived': 'Esta conversación fue archivada por otro cliente',
+  'toast.regionLabel': 'Notificaciones',
+  'threadArchive.toast.archived': 'Conversación archivada',
+  'threadArchive.toast.archiveFailed': 'No se pudo archivar la conversación: {{error}}',
+  'threadArchive.toast.restoreFailed': 'No se pudo restaurar la conversación: {{error}}',
   'toast.copied': 'Copiado al portapapeles',
   'conversation.copyMessage': 'Copiar mensaje',
   'markdown.copyCode': 'Copiar código',
@@ -1511,6 +1515,7 @@ export const MESSAGES_ES = {
   'auto.dnd.archivedCannotBind': 'Los hilos archivados no se pueden vincular',
   'common.backToApp': 'Volver a la aplicación',
   'common.close': 'Cerrar',
+  'common.undo': 'Deshacer',
 
   // Welcome composer coverage
   'interactiveTool.loading': 'Cargando la vista de la app…',

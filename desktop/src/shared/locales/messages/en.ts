@@ -1236,6 +1236,10 @@ export const MESSAGES_EN = {
   // Common / toasts (App)
   'toast.threadNotFound': 'Thread not found — removed from list',
   'toast.threadArchived': 'This conversation was archived by another client',
+  'toast.regionLabel': 'Notifications',
+  'threadArchive.toast.archived': 'Chat archived',
+  'threadArchive.toast.archiveFailed': 'Failed to archive chat: {{error}}',
+  'threadArchive.toast.restoreFailed': 'Failed to restore chat: {{error}}',
   'toast.copied': 'Copied to clipboard',
   'toast.imageMessage': 'Image message',
   'toast.fileReferenceMessage': 'File reference message',
@@ -2866,6 +2870,7 @@ export const MESSAGES_EN = {
   'common.cancel': 'Cancel',
   'common.backToApp': 'Back to app',
   'common.close': 'Close',
+  'common.undo': 'Undo',
   'common.refresh': 'Refresh',
   'common.retry': 'Retry',
   'common.showSecret': 'Show secret',

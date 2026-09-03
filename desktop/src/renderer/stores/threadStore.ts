@@ -192,7 +192,7 @@ function mergeThreadSummary(existing: ThreadSummary, incoming: ThreadSummary): T
   return { ...existing, ...normalizeIncomingWorkspaceState(incoming, existing) }
 }
 
-function collectThreadTreeIds(threads: ThreadSummary[], rootThreadId: string): Set<string> {
+export function collectThreadTreeIds(threads: ThreadSummary[], rootThreadId: string): Set<string> {
   const ids = new Set<string>([rootThreadId])
   let changed = true
   while (changed) {

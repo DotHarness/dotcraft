@@ -649,6 +649,26 @@ cards. Those controls express progress or choice, not ordinary button hierarchy;
 only regular actions such as Start, Change folder, Login, and Retry use the shared
 Button variants.
 
+### Toasts
+
+Toasts are transient neutral cards in the top-right stack (`ui/ToastContainer.tsx`,
+`primitives/toast.css`). The surface is the elevated overlay tone plus shadow, and
+the only semantic color on the card is the level icon. A toast is either present or
+gone: there is no remaining-time bar, hovering or focusing the stack holds every
+card, and a repeated identical notice replaces its twin instead of stacking.
+
+- Levels are `info`, `success`, `warning`, and `error`. Errors auto-dismiss like
+  everything else; a toast that must persist passes duration `0`.
+- Give a toast a `key` when it reports the outcome of something that already showed
+  an in-flight toast, so the result replaces the notice rather than joining it.
+- Offer inline Undo only when a compensating server call exists, such as archive
+  and unarchive. Perform the change immediately and let Undo reverse it; never
+  defer the change until the toast expires. Permanent deletes keep their
+  confirmation dialog and offer no Undo.
+- The action is a ghost `Button` and the close control an `IconButton`; neither
+  carries a border or a tinted fill.
+- The stack is one polite live region; individual cards carry no `role="alert"`.
+
 ### Tooltips
 
 A tooltip is the one overlay that is pure annotation: `pointer-events: none`,

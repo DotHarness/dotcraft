@@ -493,6 +493,10 @@ export const MESSAGES_KO = {
 
   'toast.threadNotFound': '스레드를 찾을 수 없어 목록에서 제거했습니다',
   'toast.threadArchived': '이 대화는 다른 클라이언트에서 보관되었습니다',
+  'toast.regionLabel': '알림',
+  'threadArchive.toast.archived': '대화를 보관했습니다',
+  'threadArchive.toast.archiveFailed': '대화 보관 실패: {{error}}',
+  'threadArchive.toast.restoreFailed': '대화 복원 실패: {{error}}',
   'toast.copied': '클립보드에 복사됨',
   'conversation.copyMessage': '메시지 복사',
   'markdown.copyCode': '코드 복사',
@@ -1510,6 +1514,7 @@ export const MESSAGES_KO = {
   'auto.dnd.archivedCannotBind': '보관된 스레드는 바인딩할 수 없습니다.',
   'common.backToApp': '앱으로 돌아가기',
   'common.close': '닫기',
+  'common.undo': '실행 취소',
 
   // Welcome composer coverage
   'interactiveTool.loading': '앱 뷰를 불러오는 중…',

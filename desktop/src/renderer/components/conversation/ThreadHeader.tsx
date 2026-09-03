@@ -20,6 +20,7 @@ import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
+import { archiveThreadWithUndo } from '../../utils/threadArchive'
 
 interface ThreadHeaderProps {
   threadName: string
@@ -48,9 +49,6 @@ export function ThreadHeader({
   const activeThread = useThreadStore((s) => s.activeThread)
   const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
   const togglePinnedThread = useThreadStore((s) => s.togglePinnedThread)
-  const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId)
-  const removeThreadTree = useThreadStore((s) => s.removeThreadTree)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const ensureSourceControl = useSourceControlStore((s) => s.ensure)
@@ -141,16 +139,8 @@ export function ThreadHeader({
   }
 
   async function archiveThread(): Promise<void> {
-    // One-click archive: archived threads are restorable anytime from
-    // Settings → Archived chats, so no extra confirmation is needed.
     setMenuPosition(null)
-    try {
-      await window.api.appServer.sendRequest('thread/archive', { threadId })
-    } catch {
-      return
-    }
-    if (activeThreadId === threadId) setActiveThreadId(null)
-    removeThreadTree(threadId)
+    await archiveThreadWithUndo({ threadId, t })
   }
 
   function forkThread(mode: 'local' | 'worktree'): void {
