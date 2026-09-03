@@ -181,7 +181,7 @@ public sealed class RunProfileTests
         {
             jsonrpc = "2.0", id = 43, method = "item/tool/requestUserInput", @params = new UserInputRequestParams
             {
-                ThreadId = "thread_1", TurnId = "turn_1", ItemId = "item_2", RequestId = "input_1", Questions = []
+                ThreadId = "thread_1", TurnId = "turn_1", ItemId = "item_2", RequestId = "input_1", IsBlocking = true, Questions = []
             }
         });
         using (var outbound = await transport.ReadOutboundAsync())
@@ -192,6 +192,7 @@ public sealed class RunProfileTests
 
         Assert.Equal("approval_1", approval!.RequestId);
         Assert.Equal("input_1", input!.RequestId);
+        Assert.True(input.IsBlocking);
     }
 
     [Fact]
