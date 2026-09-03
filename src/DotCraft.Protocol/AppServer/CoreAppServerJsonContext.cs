@@ -70,7 +70,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.DreamsRunState))]
 [JsonSerializable(typeof(AppServer.DreamsStatusParams))]
 [JsonSerializable(typeof(AppServer.DreamsStatusResult))]
-[JsonSerializable(typeof(AppServer.HeartbeatTriggerResult))]
 [JsonSerializable(typeof(AppServer.HookErrorInfo))]
 [JsonSerializable(typeof(AppServer.HookMetadata))]
 [JsonSerializable(typeof(AppServer.HooksListParams))]

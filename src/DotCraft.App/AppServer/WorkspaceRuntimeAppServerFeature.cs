@@ -4,7 +4,6 @@ using DotCraft.Automations;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
-using DotCraft.Heartbeat;
 using DotCraft.Modules;
 using DotCraft.Sessions;
 using DotCraft.Runtime;
@@ -43,7 +42,6 @@ public sealed class WorkspaceRuntimeAppServerFeatureContext(
     ISessionService sessionService,
     AgentRunner agentRunner,
     CronService cronService,
-    HeartbeatService heartbeatService,
     DreamsService dreamsService,
     Action<CronJob?, string, bool> emitCronStateChanged,
     Action<BackgroundJobResult> emitBackgroundJobResult)
@@ -61,8 +59,6 @@ public sealed class WorkspaceRuntimeAppServerFeatureContext(
     public AgentRunner AgentRunner { get; } = agentRunner;
 
     public CronService CronService { get; } = cronService;
-
-    public HeartbeatService HeartbeatService { get; } = heartbeatService;
 
     public DreamsService DreamsService { get; } = dreamsService;
 

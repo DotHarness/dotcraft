@@ -7589,31 +7589,6 @@
       "variants": []
     },
     {
-      "id": "core.HeartbeatTriggerResult",
-      "name": "HeartbeatTriggerResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/HeartbeatTriggerResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "error",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "result",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.HookErrorInfo",
       "name": "HookErrorInfo",
       "module": "core",
@@ -14169,13 +14144,6 @@
         },
         {
           "name": "gitWorktrees",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "heartbeatManagement",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -27186,26 +27154,6 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "heartbeat/trigger",
-      "descriptorMember": "HeartbeatTrigger",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.RpcEmpty",
-      "resultType": "core.HeartbeatTriggerResult",
-      "module": "core",
-      "capability": "heartbeatManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
     },
     {

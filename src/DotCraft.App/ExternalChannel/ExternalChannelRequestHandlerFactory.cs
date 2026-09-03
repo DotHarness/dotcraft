@@ -3,7 +3,6 @@ using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Logging;
 using DotCraft.Modules;
 using DotCraft.Sessions;
@@ -36,19 +35,17 @@ internal sealed class ExternalChannelRequestHandlerFactory(
     public AppServerRequestHandler Create(
         AppServerConnection connection,
         IAppServerTransport transport,
-        CronService? cronService,
-        HeartbeatService? heartbeatService)
+        CronService? cronService)
     {
         return new AppServerRequestHandler(
             sessionService,
             connection,
             transport,
-            new ModuleRegistryChannelListContributor(moduleRegistry, cronService, heartbeatService),
+            new ModuleRegistryChannelListContributor(moduleRegistry, cronService),
             new AppServerConnectionServices
             {
                 ServerVersion = serverVersion,
                 CronService = cronService,
-                HeartbeatService = heartbeatService,
                 WorkspaceCraftPath = _workspaceCraftPath,
                 HostWorkspacePath = hostWorkspacePath,
                 StreamDebugLogger = streamDebugLogger,

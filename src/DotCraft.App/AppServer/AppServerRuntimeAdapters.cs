@@ -6,7 +6,6 @@ using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
-using DotCraft.Heartbeat;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
@@ -19,7 +18,6 @@ public interface IAppServerChannelRunner : IChannelStatusProvider, IExternalChan
 
     void Initialize(
         ISessionService sessionService,
-        HeartbeatService heartbeatService,
         CronService cronService,
         DreamsService dreamsService);
 
@@ -60,10 +58,9 @@ internal sealed class ChannelRunnerAdapter(ChannelRunner inner) : IAppServerChan
 
     public void Initialize(
         ISessionService sessionService,
-        HeartbeatService heartbeatService,
         CronService cronService,
         DreamsService dreamsService) =>
-        inner.Initialize(sessionService, heartbeatService, cronService, dreamsService);
+        inner.Initialize(sessionService, cronService, dreamsService);
 
     public Task StartWebPoolAsync() => inner.StartWebPoolAsync();
 

@@ -74,7 +74,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             service,
             connection,
             transport,
-            new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
+            new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
             new AppServerConnectionServices
             {
                 ServerVersion = "0.0.1-test",
@@ -183,7 +183,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             service,
             connection,
             transport,
-            new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
+            new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
             new AppServerConnectionServices
             {
                 ServerVersion = "0.0.1-test",

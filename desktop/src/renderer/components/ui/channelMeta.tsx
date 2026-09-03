@@ -4,7 +4,7 @@ import wecomIcon from '../../assets/channels/wecom.svg'
 import weixinIcon from '../../assets/channels/weixin.svg'
 import telegramIcon from '../../assets/channels/telegram.svg'
 import feishuIcon from '../../assets/channels/feishu.svg'
-import { AutomationIcon, ClockIcon, DesktopIcon, HeartbeatIcon, IDEIcon, SparkIcon, TerminalIcon } from './AppIcons'
+import { AutomationIcon, ClockIcon, DesktopIcon, IDEIcon, SparkIcon, TerminalIcon } from './AppIcons'
 
 export type ChannelVisualKind = 'brand' | 'system'
 type ChannelIconRenderer = (size: number) => ReactNode
@@ -58,7 +58,6 @@ const CHANNEL_META = new Map<string, ChannelVisualMeta>([
   ['cli', createSystemMeta('cli', 'CLI', 'CLI', (size) => <TerminalIcon size={size} />)],
   ['automations', createSystemMeta('automations', 'Automations', 'Automations', (size) => <AutomationIcon size={size} />)],
   ['cron', createSystemMeta('cron', 'Cron', 'Cron', (size) => <ClockIcon size={size} />)],
-  ['heartbeat', createSystemMeta('heartbeat', 'Heartbeat', 'Heartbeat', (size) => <HeartbeatIcon size={size} />)],
   ['dotcraft', createSystemMeta('dotcraft', 'DotCraft', 'DotCraft', (size) => <SparkIcon size={size} />)],
   ['dotcraft-desktop', createSystemMeta('dotcraft-desktop', 'Desktop', 'Desktop', (size) => <DesktopIcon size={size} />)]
 ])

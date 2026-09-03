@@ -94,7 +94,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
 
         Assert.Contains("## User Coordination", prompt, StringComparison.Ordinal);
         Assert.Contains("prerequisite for further work", prompt, StringComparison.Ordinal);
-        Assert.Contains("independent authorized work can continue", prompt, StringComparison.Ordinal);
+        Assert.Contains("continue every authorized task that does not depend on the answer", prompt, StringComparison.Ordinal);
         Assert.Contains("no independent work remains", prompt, StringComparison.Ordinal);
         Assert.Contains("Do not create a Goal implicitly", prompt, StringComparison.Ordinal);
     }

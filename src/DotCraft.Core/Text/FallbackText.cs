@@ -37,13 +37,6 @@ public static class FallbackText
     public static string DebugEnabled => Format("debug.enabled");
     public static string DebugDisabled => Format("debug.disabled");
 
-    // Heartbeat command
-    public static string HeartbeatUnavailable => Format("heartbeat.unavailable");
-    public static string TriggeringHeartbeat => Format("heartbeat.triggering");
-    public static string HeartbeatResult => Format("heartbeat.result");
-    public static string HeartbeatNoResponse => Format("heartbeat.no_response");
-    public static string HeartbeatUsage => Format("heartbeat.usage");
-
     // Cron command
     public static string CronUnavailable => Format("cron.unavailable");
     public static string NoCronJobs => Format("cron.no_jobs");
@@ -102,7 +95,6 @@ public static class FallbackText
   "cmd.init": "Create an AGENTS.md file with instructions for DotCraft",
   "cmd.new": "Create a new session",
   "cmd.debug": "Toggle debug mode",
-  "cmd.heartbeat": "Trigger heartbeat check immediately",
   "cmd.cron_list": "List cron jobs",
   "init.initializing": "Initializing DotCraft workspace...",
   "init.failed_short": "Initialization failed",
@@ -119,11 +111,6 @@ public static class FallbackText
   "init.ask_no": "No",
   "debug.enabled": "Debug mode enabled",
   "debug.disabled": "Debug mode disabled",
-  "heartbeat.unavailable": "Heartbeat service unavailable.",
-  "heartbeat.triggering": "Triggering heartbeat...",
-  "heartbeat.result": "Heartbeat result",
-  "heartbeat.no_response": "No heartbeat response (HEARTBEAT.md may be empty or missing).",
-  "heartbeat.usage": "Usage: /heartbeat trigger",
   "cron.unavailable": "Cron service unavailable.",
   "cron.no_jobs": "No cron jobs.",
   "cron.col_schedule": "Schedule",

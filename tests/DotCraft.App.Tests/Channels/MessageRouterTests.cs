@@ -1,6 +1,5 @@
 using DotCraft.Channels;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Security;
 using Xunit;
 
@@ -35,7 +34,7 @@ public sealed class MessageRouterTests
         var second = new CountingAdminChannel("wecom");
         router.RegisterChannel(first);
 
-        var broadcastTask = router.BroadcastToAdminsAsync("heartbeat");
+        var broadcastTask = router.BroadcastToAdminsAsync("scheduled result");
         await first.WaitUntilFirstDeliveryAsync();
         router.RegisterChannel(second);
         first.Release();
@@ -44,7 +43,7 @@ public sealed class MessageRouterTests
         Assert.Equal(1, first.DeliverCount);
         Assert.Equal(0, second.DeliverCount);
 
-        await router.BroadcastToAdminsAsync("heartbeat-2");
+        await router.BroadcastToAdminsAsync("scheduled result 2");
         Assert.Equal(1, second.DeliverCount);
     }
 
@@ -54,7 +53,6 @@ public sealed class MessageRouterTests
         ChannelDeliveryResult result) : IChannelService
     {
         public string Name => name;
-        public HeartbeatService? HeartbeatService { get; set; }
         public CronService? CronService { get; set; }
         public IApprovalService? ApprovalService => null;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -78,7 +76,6 @@ public sealed class MessageRouterTests
 
         public string Name => name;
         public int DeliverCount => _deliverCount;
-        public HeartbeatService? HeartbeatService { get; set; }
         public CronService? CronService { get; set; }
         public IApprovalService? ApprovalService => null;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -110,7 +107,6 @@ public sealed class MessageRouterTests
 
         public string Name => name;
         public int DeliverCount => _deliverCount;
-        public HeartbeatService? HeartbeatService { get; set; }
         public CronService? CronService { get; set; }
         public IApprovalService? ApprovalService => null;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;

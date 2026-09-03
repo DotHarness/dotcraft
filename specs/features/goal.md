@@ -588,7 +588,7 @@ Session Core may start a goal continuation turn when all conditions are true:
 - no guidance input is pending
 - no approval is waiting
 - no plan confirmation is waiting
-- no higher-priority automation or heartbeat trigger is pending for the same thread
+- no higher-priority automation trigger is pending for the same thread
 - the persisted goal still has the same `GoalId` immediately before launch
 
 Continuation must reserve the active turn slot before injecting input, then re-check that the goal is still current.

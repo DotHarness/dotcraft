@@ -6261,33 +6261,6 @@
       },
       "additionalProperties": true
     },
-    "HeartbeatTriggerResult": {
-      "title": "HeartbeatTriggerResult",
-      "type": "object",
-      "properties": {
-        "error": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "result": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
     "HookErrorInfo": {
       "title": "HookErrorInfo",
       "type": "object",
@@ -11280,9 +11253,6 @@
           "type": "boolean"
         },
         "gitWorktrees": {
-          "type": "boolean"
-        },
-        "heartbeatManagement": {
           "type": "boolean"
         },
         "hooksManagement": {

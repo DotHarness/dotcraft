@@ -6,7 +6,7 @@ using SessionThread = DotCraft.Sessions.SessionThread;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Result of a background agent run, such as Cron or Heartbeat work.
+/// Result of a background agent run, such as Cron work.
 /// </summary>
 public sealed record AgentRunResult(
     string? Result,
@@ -30,7 +30,7 @@ public delegate Task<AgentRunResult?> AgentRunSessionDelegate(
 
 /// <summary>
 /// Shared agent execution logic used across all channel modes for running an agent session
-/// via <see cref="ISessionService"/>. Used for heartbeat and cron-triggered runs.
+/// via <see cref="ISessionService"/>. Used for cron-triggered runs.
 /// </summary>
 public sealed class AgentRunner(
     string workspacePath,
@@ -56,8 +56,7 @@ public sealed class AgentRunner(
 
         var rawUserPrompt = prompt;
 
-        var tag = sessionKey.StartsWith("heartbeat") ? "Heartbeat"
-            : sessionKey.StartsWith("cron:") ? "Cron"
+        var tag = sessionKey.StartsWith("cron:") ? "Cron"
             : "Agent";
 
         if (sessionKey.StartsWith("cron:"))
@@ -73,8 +72,7 @@ public sealed class AgentRunner(
             onStatus?.Invoke($"[{tag}] Running: {TruncateStatus(prompt, 120)}");
 
         // Build identity for this session type
-        var channelName = sessionKey.StartsWith("heartbeat") ? "heartbeat"
-            : sessionKey.StartsWith("cron:") ? "cron"
+        var channelName = sessionKey.StartsWith("cron:") ? "cron"
             : "agent";
         var identity = new SessionIdentity
         {
@@ -109,11 +107,7 @@ public sealed class AgentRunner(
         // Mark automation-triggered turns so client UIs can render a
         // "Sent via automation" affordance on the synthesized user message.
         TurnTriggerInfo? triggerInfo = null;
-        if (sessionKey.StartsWith("heartbeat"))
-        {
-            triggerInfo = new TurnTriggerInfo { Kind = "heartbeat", Label = threadDisplayName };
-        }
-        else if (sessionKey.StartsWith("cron:"))
+        if (sessionKey.StartsWith("cron:"))
         {
             var jobId = sessionKey.Length > 5 ? sessionKey[5..] : null;
             triggerInfo = new TurnTriggerInfo

@@ -5,7 +5,6 @@ using DotCraft.Commands.Custom;
 using DotCraft.Context;
 using DotCraft.Contributions;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
@@ -42,7 +41,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         WelcomeSuggestionService welcomeSuggestionService,
         AgentRunner agentRunner,
         CronService cronService,
-        HeartbeatService heartbeatService,
         DreamsService dreamsService,
         DotNetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
@@ -64,8 +62,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         public AgentRunner AgentRunner { get; } = agentRunner;
 
         public CronService CronService { get; } = cronService;
-
-        public HeartbeatService HeartbeatService { get; } = heartbeatService;
 
         public DreamsService DreamsService { get; } = dreamsService;
 
@@ -140,8 +136,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public CronService CronService => EnsureStarted().CronService;
 
-    public HeartbeatService HeartbeatService => EnsureStarted().HeartbeatService;
-
     public DreamsService DreamsService => EnsureStarted().DreamsService;
 
     public AgentRunner AgentRunner => EnsureStarted().AgentRunner;
@@ -175,8 +169,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     public event Action<string>? ThreadGoalCleared;
 
     public event Action<string, string>? SubAgentGraphChanged;
-
-    public event Action<BackgroundJobResult>? BackgroundJobResultProduced;
 
     /// <summary>
     /// Provisions and starts the workspace kernel with the supplied compiled modules.
@@ -269,7 +261,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var effectiveToolSources = _contributionScope.RegisterToolSources(toolSources);
 
             AgentFactory? agentFactory = null;
-            HeartbeatService? heartbeatService = null;
             WelcomeSuggestionService? welcomeSuggestionService = null;
             DreamsService? dreamsService = null;
             DotNetPluginRuntimeManager? pluginRuntime = null;
@@ -374,33 +365,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     new ContributedWelcomeSuggestionService(contributionRegistry, welcomeSuggestionService);
                 var cronService = Services.GetRequiredService<CronService>();
                 var agentRunner = new AgentRunner(Paths.WorkspacePath, sessionService, quiet: true);
-                heartbeatService = new HeartbeatService(
-                    Paths.Data.RootPath,
-                    onHeartbeat: async (prompt, sessionKey, threadDisplayName, cancellationToken) =>
-                    {
-                        try
-                        {
-                            var run = await agentRunner.RunAsync(
-                                prompt,
-                                sessionKey,
-                                threadDisplayName,
-                                cancellationToken);
-                            var backgroundJobResult = CreateHeartbeatBackgroundJobResult(run);
-                            if (backgroundJobResult != null)
-                                BackgroundJobResultProduced?.Invoke(backgroundJobResult);
-                            return run;
-                        }
-                        catch (Exception ex)
-                        {
-                            loggerFactory?.CreateLogger<WorkspaceRuntime>()
-                                .LogError(ex, "Heartbeat run failed");
-                            return null;
-                        }
-                    },
-                    intervalSeconds: Config.Heartbeat.IntervalSeconds,
-                    enabled: Config.Heartbeat.Enabled,
-                    logger: Services.GetService<ILoggerFactory>()
-                        ?.CreateLogger<HeartbeatService>());
 
                 var configSchema = Services.GetService<IConfigSchemaProvider>()?.GetConfigSchema()
                     ?? throw new InvalidOperationException(
@@ -438,7 +402,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     welcomeSuggestionService,
                     agentRunner,
                     cronService,
-                    heartbeatService,
                     dreamsService,
                     pluginRuntime,
                     configSchema,
@@ -485,8 +448,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     }
                 }
 
-                heartbeatService?.Dispose();
-
                 if (agentFactory != null)
                 {
                     try
@@ -506,40 +467,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         {
             _lifecycleLock.Release();
         }
-    }
-
-    internal static BackgroundJobResult? CreateHeartbeatBackgroundJobResult(AgentRunResult? run)
-    {
-        if (run == null)
-            return null;
-
-        if (run.Error == null && run.Result != null)
-        {
-            return new BackgroundJobResult(
-                "heartbeat",
-                null,
-                null,
-                run.Result,
-                null,
-                run.ThreadId,
-                run.InputTokens,
-                run.OutputTokens);
-        }
-
-        if (run.Error != null)
-        {
-            return new BackgroundJobResult(
-                "heartbeat",
-                null,
-                null,
-                null,
-                run.Error,
-                run.ThreadId,
-                run.InputTokens,
-                run.OutputTokens);
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -598,17 +525,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             try
             {
                 await started.WelcomeSuggestionService.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                (errors ??= []).Add(ex);
-            }
-
-            try
-            {
-                started.HeartbeatService.Stop();
-                started.HeartbeatService.OnResult = null;
-                started.HeartbeatService.Dispose();
             }
             catch (Exception ex)
             {

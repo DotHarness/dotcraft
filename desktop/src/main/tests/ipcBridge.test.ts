@@ -1711,21 +1711,21 @@ describe('task completion notifications', () => {
     const win = createWindow(true)
 
     broadcastNotification(win, 'system/jobResult', {
-      jobName: 'Heartbeat',
+      jobName: 'Scheduled task',
       result: '**Done** with `task`'
     }, {
       notifications: { taskCompletionMode: 'always' }
     })
 
     expect(Notification).toHaveBeenCalledWith({
-      title: 'Heartbeat',
+      title: 'Scheduled task',
       body: 'Done with task'
     })
     expect(notificationShowMock).toHaveBeenCalledOnce()
     expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
       method: 'system/jobResult',
       params: {
-        jobName: 'Heartbeat',
+        jobName: 'Scheduled task',
         result: '**Done** with `task`'
       }
     })

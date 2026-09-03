@@ -1,6 +1,5 @@
 import type { CSSProperties, JSX } from 'react'
 import {
-  Activity,
   Bot,
   ChevronDown,
   CircleCheck,
@@ -165,10 +164,6 @@ export function TerminalBashIcon({ size = 16 }: { size?: number }): JSX.Element 
 
 export function ClockIcon({ size = 16 }: { size?: number }): JSX.Element {
   return <Clock size={size} strokeWidth={1.8} aria-hidden="true" />
-}
-
-export function HeartbeatIcon({ size = 16 }: { size?: number }): JSX.Element {
-  return <Activity size={size} strokeWidth={1.8} aria-hidden="true" />
 }
 
 export function SettingsIcon({ size = 16 }: { size?: number }): JSX.Element {

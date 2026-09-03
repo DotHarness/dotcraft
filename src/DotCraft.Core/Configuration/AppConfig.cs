@@ -158,9 +158,6 @@ public sealed class AppConfig
     public PermissionsConfig Permissions { get; set; } = new();
 
     [ConfigField(Ignore = true)]
-    public HeartbeatConfig Heartbeat { get; set; } = new();
-
-    [ConfigField(Ignore = true)]
     public CronConfig Cron { get; set; } = new();
 
     [ConfigField(Ignore = true)]
@@ -1065,17 +1062,6 @@ public sealed class AppConfig
         [ConfigField(Hint = "Workspace default approval policy for threads using the default policy. One of: default, autoApprove.")]
         [JsonConverter(typeof(ApprovalPolicyJsonConverter))]
         public ApprovalPolicy DefaultApprovalPolicy { get; set; } = ApprovalPolicy.Default;
-    }
-
-    [ConfigSection("Heartbeat", DisplayName = "Heartbeat", Order = 70)]
-    public sealed class HeartbeatConfig
-    {
-        public bool Enabled { get; set; }
-
-        [ConfigField(Min = 1)]
-        public int IntervalSeconds { get; set; } = 1800;
-
-        public bool NotifyAdmin { get; set; } = true;
     }
 
     [ConfigSection("Cron", DisplayName = "Cron", Order = 60)]

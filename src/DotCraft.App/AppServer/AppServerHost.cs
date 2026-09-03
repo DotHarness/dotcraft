@@ -66,8 +66,7 @@ public sealed class AppServerHost(
     private IAppServerChannelListContributor ChannelListContributor =>
         new ModuleRegistryChannelListContributor(
             _services.GetRequiredService<ModuleRegistry>(),
-            runtime.CronService,
-            runtime.HeartbeatService);
+            runtime.CronService);
 
     /// <summary>
     /// Thread-safe set of currently connected transports. Used to broadcast
@@ -131,7 +130,6 @@ public sealed class AppServerHost(
                             runtime.SessionService,
                             runtime.AgentRunner,
                             runtime.CronService,
-                            runtime.HeartbeatService,
                             runtime.DreamsService,
                             emitCronStateChanged: OnCronStateChanged,
                             emitBackgroundJobResult: OnBackgroundJobResultProduced),
@@ -257,7 +255,6 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
-        runtime.BackgroundJobResultProduced += OnBackgroundJobResultProduced;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged += BroadcastWorkflowRunUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
@@ -284,7 +281,6 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
-        runtime.BackgroundJobResultProduced -= OnBackgroundJobResultProduced;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged -= BroadcastWorkflowRunUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
@@ -320,7 +316,6 @@ public sealed class AppServerHost(
                 BroadcastPluginSnapshotUpdated = BroadcastPluginSnapshotUpdated,
                 ServerVersion = AppVersion.Informational,
                 CronService = runtime.CronService,
-                HeartbeatService = runtime.HeartbeatService,
                 SkillsLoader = runtime.SkillsLoader,
                 MemoryStore = runtime.MemoryStore,
                 WorkspaceCraftPath = runtime.Paths.Data.RootPath,
@@ -965,7 +960,7 @@ public sealed class AppServerHost(
 
     /// <summary>
     /// Broadcasts a <c>system/jobResult</c> JSON-RPC notification to all connected transports.
-    /// Called when a server-managed cron or heartbeat job completes and the job was created from
+    /// Called when a server-managed cron job completes and the job was created from
     /// a CLI (non-social-channel) context. See spec Section 6.9.
     /// </summary>
     private void BroadcastJobResult(

@@ -407,7 +407,7 @@ If the adapter does not respond within the configured timeout, `ExternalChannelH
 - Running the `AppServerRequestHandler` message loop for the adapter's connection, giving the adapter full access to `ISessionService`.
 - Composing that request handler with the owning workspace runtime's shared `ChatClientRegistry` and `ModelProviderRegistry`. A session-capable adapter connection must never fall back to an empty provider registry.
 - Implementing unified delivery via `ext/channel/send` for both text and media.
-- Forwarding injected `HeartbeatService` and `CronService` delivery events to the adapter through the negotiated delivery path.
+- Forwarding injected `CronService` delivery events to the adapter through the negotiated delivery path.
 - Monitoring adapter responsiveness via `ext/channel/heartbeat` and triggering restarts when the adapter becomes unresponsive.
 - Subprocess lifecycle management (subprocess mode only): spawning, monitoring exit, and restarting with backoff.
 
@@ -454,7 +454,6 @@ If the adapter process exits unexpectedly, `ExternalChannelHost` logs the exit c
 | `DeliverAsync(target, message, metadata)` | Structured delivery entry point used for text and media. |
 | `ApprovalService` | `null` — approval is handled end-to-end by the adapter via Wire Protocol. |
 | `ChannelClient` | `null` — platform client is out-of-process. |
-| `HeartbeatService` | Injected by the AppServer workspace runtime; delivery results are forwarded through the negotiated delivery path. |
 | `CronService` | Injected by the AppServer workspace runtime; job results are forwarded through the negotiated delivery path. |
 
 ---

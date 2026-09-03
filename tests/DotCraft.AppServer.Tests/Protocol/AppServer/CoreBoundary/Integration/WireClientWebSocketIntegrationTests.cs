@@ -52,7 +52,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             var connection = new AppServerConnection();
             var handler = new AppServerRequestHandler(
                 _service, connection, wsTransport,
-                new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
+                new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
                 new AppServerConnectionServices
                 {
                     ServerVersion = "0.0.1-test",
@@ -210,7 +210,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             var conn2 = new AppServerConnection();
             var handler2 = new AppServerRequestHandler(
                 _service, conn2, ws2Transport,
-                new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
+                new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
                 new AppServerConnectionServices
                 {
                     ServerVersion = "0.0.1-test",

@@ -9,7 +9,6 @@ using DotCraft.Cron;
 using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.ExternalChannel;
-using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Logging;
 using DotCraft.Modules;
@@ -42,7 +41,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     private readonly object _channelsLock = new();
 
     private ISessionService? _sessionService;
-    private HeartbeatService? _heartbeatService;
     private CronService? _cronService;
     private DreamsService? _dreamsService;
     private PathBlacklist? _pathBlacklist;
@@ -196,7 +194,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     /// </summary>
     public void CompleteAfterSession(
         ISessionService sessionService,
-        HeartbeatService heartbeatService,
         CronService cronService,
         DreamsService? dreamsService = null)
     {
@@ -207,7 +204,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         var tokenUsageStore = _sp.GetService<TokenUsageStore>();
         var orchestratorProviders = _sp.GetServices<IOrchestratorSnapshotProvider>().ToList();
         _sessionService = sessionService;
-        _heartbeatService = heartbeatService;
         _cronService = cronService;
         _dreamsService = dreamsService;
         _pathBlacklist = _sp.GetRequiredService<PathBlacklist>();
@@ -258,7 +254,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
         foreach (var ch in _allChannels)
         {
-            ch.HeartbeatService = heartbeatService;
             ch.CronService = cronService;
         }
 
@@ -300,12 +295,11 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     /// </summary>
     public void Initialize(
         ISessionService sessionService,
-        HeartbeatService heartbeatService,
         CronService cronService,
         DreamsService dreamsService)
     {
         BuildPoolThroughBuildAll();
-        CompleteAfterSession(sessionService, heartbeatService, cronService, dreamsService);
+        CompleteAfterSession(sessionService, cronService, dreamsService);
     }
 
     /// <summary>
@@ -318,7 +312,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         cancellationToken.ThrowIfCancellationRequested();
         UpsertExternalChannelConfig(entry);
 
-        if (_sessionService == null || _heartbeatService == null || _cronService == null || _pathBlacklist == null)
+        if (_sessionService == null || _cronService == null || _pathBlacklist == null)
             return;
 
         ExternalChannelHost? replacedHost = null;
@@ -481,7 +475,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
     /// <summary>
     /// Starts <see cref="IChannelService.StartAsync"/> for every channel (fire-and-forget tasks).
-    /// Call after shared Cron/Heartbeat services have been started when applicable.
+    /// Call after the shared Cron service has been started when applicable.
     /// </summary>
     public void BeginChannelLoops(CancellationToken cancellationToken)
     {

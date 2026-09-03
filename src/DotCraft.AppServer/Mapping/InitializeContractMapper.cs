@@ -61,7 +61,6 @@ internal static class InitializeContractMapper
         ConfigOverride = value.ConfigOverride,
         BackgroundTerminals = value.BackgroundTerminals,
         CronManagement = value.CronManagement,
-        HeartbeatManagement = value.HeartbeatManagement,
         SkillsManagement = value.SkillsManagement,
         PluginManagement = value.PluginManagement,
         PluginConfiguration = value.PluginConfiguration,

@@ -50,7 +50,6 @@ internal sealed class InitializeRequestHandler(
             ConfigOverride = true,
             BackgroundTerminals = services.BackgroundTerminalService != null,
             CronManagement = services.CronService != null,
-            HeartbeatManagement = services.HeartbeatService != null,
             SkillsManagement = services.SkillsLoader != null,
             PluginManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             PluginConfiguration = services.PluginConfigStore != null,

@@ -23,7 +23,6 @@ export interface ServerCapabilities {
   modeSwitch?: boolean
   configOverride?: boolean
   cronManagement?: boolean
-  heartbeatManagement?: boolean
   skillsManagement?: boolean
   toolCatalog?: boolean
   pluginManagement?: boolean

@@ -56,7 +56,7 @@ public sealed partial class SessionService
                     }
 
                     // userId and channelContext apply together for the native identity path only.
-                    // Cron/heartbeat threads use synthetic userIds (e.g. cron:jobId) while Desktop uses local;
+                    // Cron threads use synthetic userIds (e.g. cron:jobId) while Desktop uses local;
                     // they are included only via crossChannelOrigins (workspace + originChannel).
                     var identityMatch =
                         (identity.UserId == null || s.UserId == identity.UserId)

@@ -294,12 +294,6 @@ public sealed class CommandRegistry
             Name = "/init",
             DescriptionKey = "cmd.init"
         });
-        registry.RegisterHandler(new HeartbeatCommandHandler(), new CommandRegistration
-        {
-            Name = "/heartbeat",
-            DescriptionKey = "cmd.heartbeat",
-            RequiredService = "heartbeat"
-        });
         registry.RegisterHandler(new CronCommandHandler(), new CommandRegistration
         {
             Name = "/cron",
@@ -346,7 +340,6 @@ public sealed class CommandRegistry
 
         return registration.RequiredService.ToLowerInvariant() switch
         {
-            "heartbeat" => context.HeartbeatService != null,
             "cron" => context.CronService != null,
             _ => true
         };

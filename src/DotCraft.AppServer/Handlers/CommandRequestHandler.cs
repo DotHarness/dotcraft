@@ -1,6 +1,5 @@
 using DotCraft.Commands.Core;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -12,7 +11,6 @@ internal sealed class CommandRequestHandler(
     CommandRegistry commandRegistry,
     ISessionService sessionService,
     AppServerConnection connection,
-    HeartbeatService? heartbeatService,
     CronService? cronService,
     string? workspaceCraftPath,
     Func<SessionThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync) : IAppServerDomainHandler
@@ -111,7 +109,6 @@ internal sealed class CommandRequestHandler(
             ChannelContext = thread.ChannelContext,
             WorkspacePath = thread.WorkspacePath,
             SessionService = sessionService,
-            HeartbeatService = heartbeatService,
             CronService = cronService,
             CommandRegistry = commandRegistry
         };
@@ -150,7 +147,6 @@ internal sealed class CommandRequestHandler(
         return registration.RequiredService?.ToLowerInvariant() switch
         {
             "cron" => cronService != null,
-            "heartbeat" => heartbeatService != null,
             _ => true
         };
     }

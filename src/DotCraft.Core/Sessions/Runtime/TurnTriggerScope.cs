@@ -9,7 +9,7 @@ namespace DotCraft.Sessions;
 public sealed class TurnTriggerInfo
 {
     /// <summary>
-    /// Mechanism that synthesized this turn. Expected values include "heartbeat", "cron",
+    /// Mechanism that synthesized this turn. Expected values include "cron",
     /// "automation", "goal", and future app-specific values such as "app" or "team".
     /// </summary>
     public string Kind { get; init; } = "";

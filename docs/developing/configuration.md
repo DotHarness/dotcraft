@@ -363,9 +363,6 @@ OpenSandbox example:
 | `Hooks.Enabled` | Enables Hooks | `true` |
 | `Hooks.State` | Per-hook user state keyed by stable hook key. Stores `Enabled` and `TrustedHash` for Desktop toggle/trust actions | `{}` |
 | `Cron.Enabled` | Enables Cron scheduled tasks | `true` |
-| `Heartbeat.Enabled` | Enables heartbeat service | `false` |
-| `Heartbeat.IntervalSeconds` | Check interval in seconds | `1800` |
-| `Heartbeat.NotifyAdmin` | Sends results to admin in social channels | `true` |
 
 `Automations.WorktreeRetentionIdlePeriod` must be at least `14.00:00:00`. The retention sweep only removes managed automation task worktrees that are idle, clean, and have no commits ahead of their base.
 

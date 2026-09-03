@@ -545,6 +545,6 @@ Desktop requirements:
 - The Team panel must not present raw mailbox events as thread turns.
 - The Team panel must not be reachable from the sidebar before the `agent-teams` plugin is installed and enabled.
 - After the plugin is enabled, `teams/team/view` and Mission creation may idempotently initialize or repair the schema-v1 default roster.
-- While the `agent-teams` plugin is installed and enabled, Desktop includes the `teams` origin in `thread/list.crossChannelOrigins` so active Teams Mission threads appear in the ordinary conversation list. This does not imply that other `system` origins such as `cron` or `heartbeat` should be listed by default.
+- While the `agent-teams` plugin is installed and enabled, Desktop includes the `teams` origin in `thread/list.crossChannelOrigins` so active Teams Mission threads appear in the ordinary conversation list. This does not imply that other `system` origins such as `cron` should be listed by default.
 - Desktop must refresh ordinary thread discovery when it receives `teams/team/changed`, because Team operations such as Mission archive may archive mission-scoped teammate threads as a side effect.
 - The Team panel may observe `teams/team/changed`, `thread/queue/updated`, `thread/runtimeChanged`, and `turn/*` notifications for refresh, but must not replace, clear, or otherwise disrupt Desktop's global AppServer notification handling, active thread subscription, approval/user-input routing, or conversation streaming.

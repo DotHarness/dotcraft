@@ -68,8 +68,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<DreamsStatusParams, DreamsStatusResult> DreamsStatus = new("dreams/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
 
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, HeartbeatTriggerResult> HeartbeatTrigger = new("heartbeat/trigger", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "heartbeatManagement", errors: CommonErrors);
-
     public static readonly RpcRequest<HooksListParams, HooksListResult> HooksList = new("hooks/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<HooksSetStateParams, HooksSetStateResult> HooksSetState = new("hooks/setState", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);

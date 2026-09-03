@@ -1366,19 +1366,6 @@ public sealed class DreamsStatusResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HeartbeatTriggerResult.</summary>
-public sealed class HeartbeatTriggerResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("error")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Error { get; init; }
-
-    [JsonPropertyName("result")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Result { get; init; }
-
-}
-
 /// <summary>Executable wire contract for HookErrorInfo.</summary>
 public sealed class HookErrorInfo : ExtensibleJsonObject
 {

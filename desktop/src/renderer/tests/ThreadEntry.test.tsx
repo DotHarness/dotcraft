@@ -148,15 +148,15 @@ describe('ThreadEntry', () => {
 
   it('shows the origin channel beside the title in the details card, not in the row', async () => {
     useThreadStore.setState({ runningTurnThreadIds: new Set(['thread-1']) })
-    renderThreadEntry(makeThread({ originChannel: 'heartbeat' }))
+    renderThreadEntry(makeThread({ originChannel: 'cron' }))
 
     const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    expect(within(statusSlot).queryByLabelText('Origin channel: heartbeat')).not.toBeInTheDocument()
+    expect(within(statusSlot).queryByLabelText('Origin channel: cron')).not.toBeInTheDocument()
 
     fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
 
     const card = await screen.findByRole('tooltip')
-    const originIcon = within(card).getByLabelText('Origin channel: heartbeat')
+    const originIcon = within(card).getByLabelText('Origin channel: cron')
     const title = within(card).getByText('Optimize workspace cleanup')
 
     expect(title.compareDocumentPosition(originIcon) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)

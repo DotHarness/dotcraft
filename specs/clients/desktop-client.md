@@ -256,7 +256,7 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 | `subagent/progress` | The client may surface background worker progress if useful, but must not block the main conversation. |
 | `plan/updated` | Structured task progress becomes available in the current conversation context. |
 | `system/event` | Maintenance steps may be surfaced when relevant but must not overshadow core turn output. Provider stream retry events (`kind = "streamError"`) are shown as transient, tool-like rows at the active turn tail while the turn is running, then cleared on turn completion, failure, cancellation, or thread reload. |
-| `system/jobResult` | Automation or heartbeat output becomes visible as an out-of-band result associated with its source run. |
+| `system/jobResult` | Automation output becomes visible as an out-of-band result associated with its source run. |
 | `cron/stateChanged` | Automation status views refresh to reflect the current job state. |
 | `thread/goal/updated` | Goal-aware surfaces for the affected thread update from the server snapshot without forcing thread navigation. |
 | `thread/goal/cleared` | Goal-aware surfaces for the affected thread remove the current goal snapshot without forcing thread navigation. |
@@ -506,7 +506,7 @@ If the interruption request fails before it is accepted, Desktop clears the stop
 ### 5.10 Cross-Channel Visibility
 
 - Desktop requests workspace-scoped thread discovery for foreground, secondary-project, archived, and Desktop-tool thread lists.
-- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context. This includes cron, heartbeat, App Binding origins, and unknown external origins.
+- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context. This includes cron, App Binding origins, and unknown external origins.
 - App Binding origin declarations provide attribution and branding; they are not a thread-visibility allowlist.
 - The UX contract is that origin differences must not make the thread list confusing:
   - origin may be shown when useful

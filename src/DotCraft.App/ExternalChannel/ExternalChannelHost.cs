@@ -5,7 +5,6 @@ using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Modules;
 using DotCraft.Processes;
 using DotCraft.Logging;
@@ -283,8 +282,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
     AppServerConnection? IAdapterChannelToolRuntime.ChannelToolConnection =>
         Volatile.Read(ref _toolBinding)?.Connection;
-
-    public HeartbeatService? HeartbeatService { get; set; }
 
     public CronService? CronService { get; set; }
 
@@ -565,7 +562,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         _transport = transport;
         var connection = new AppServerConnection();
         _connection = connection;
-        var handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+        var handler = _requestHandlerFactory.Create(connection, transport, CronService);
 
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
@@ -828,7 +825,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
         _transport = transport;
         _connection = connection;
-        var handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+        var handler = _requestHandlerFactory.Create(connection, transport, CronService);
         PublishToolBinding(transport, connection);
 
         _logger.LogInformation(
@@ -875,7 +872,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
             _transport = transport;
             _connection = connection;
-            var handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+            var handler = _requestHandlerFactory.Create(connection, transport, CronService);
             PublishToolBinding(transport, connection);
 
             _logger.LogInformation(

@@ -402,7 +402,6 @@ The table below covers common method families used by AppServer clients.
 | Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | Conversation lifecycle, bounded history, and subscriptions. |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | User input, queues, and cancellation. |
 | Cron | `cron/list`, `cron/remove`, `cron/enable` | Scheduled task management. |
-| Heartbeat | `heartbeat/trigger` | Manual heartbeat trigger. |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, effective view, restore original, enablement, and removable skill deletion. |
 | Tools | `tool/list` | Built-in tool catalog (name, description, icon, Plan-mode availability) for agent profile tool pickers. |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | Plugin discovery, detail, installation, removal, enablement, and .NET trust management. |

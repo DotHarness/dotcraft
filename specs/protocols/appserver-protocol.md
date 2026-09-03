@@ -40,7 +40,6 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
   - [13.2 Standard wire turn (no ACP)](#132-standard-wire-turn-no-acp)
 - [15. WebSocket Transport](#15-websocket-transport)
 - [16. Cron Management Methods](#16-cron-management-methods)
-- [17. Heartbeat Management Methods](#17-heartbeat-management-methods)
 - [18. Skills Management Methods](#18-skills-management-methods)
 - [18A. Tool Catalog Methods](#18a-tool-catalog-methods)
 - [19. Command Management Methods](#19-command-management-methods)
@@ -81,7 +80,7 @@ The current contract is based on the Session Core. Features fall into three capa
 
 | Bucket | V1 Items |
 |-------|----------|
-| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP configuration methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/test`) and the MCP runtime methods in Section 22. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
+| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP configuration methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/test`) and the MCP runtime methods in Section 22. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
 | **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` returns only the current Thread header; historical Turns and Items are read through their dedicated paged methods. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
@@ -358,7 +357,6 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "modeSwitch": true,
     "configOverride": true,
     "cronManagement": true,
-    "heartbeatManagement": true,
     "skillsManagement": true,
     "pluginManagement": true,
     "pluginMarketplaces": true,
@@ -404,7 +402,6 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.modeSwitch` | boolean | Server supports `thread/mode/set`. |
 | `capabilities.configOverride` | boolean | Server supports `thread/config/update`. |
 | `capabilities.cronManagement` | boolean | Server supports cron job management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`). Absent or `false` when the cron service is not configured. |
-| `capabilities.heartbeatManagement` | boolean | Server supports heartbeat management methods (`heartbeat/trigger`). Absent or `false` when the heartbeat service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports the complete plugin discovery and lifecycle surface: `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, and `plugin/setTrusted`, plus the `plugin/snapshot/updated` notification. |
 | `capabilities.pluginConfiguration` | boolean | Server supports schema-backed plugin configuration through `plugin/config/get` and `plugin/config/mutate`. |
@@ -1538,7 +1535,7 @@ Before starting the agent or persisting a queued input, the server MUST normaliz
 Tag semantics:
 
 - `/command` denotes a custom command reference and is transmitted as `commandRef`.
-- Built-in slash commands such as `/new`, `/stop`, `/help`, `/debug`, `/heartbeat`, and `/cron` are not valid `commandRef` values. Clients must trigger them via `command/execute` or dedicated UI controls. If a client sends a built-in command as `commandRef` in `turn/start`, the server rejects the request with `InvalidParams`.
+- Built-in slash commands such as `/new`, `/stop`, `/help`, `/debug`, and `/cron` are not valid `commandRef` values. Clients must trigger them via `command/execute` or dedicated UI controls. If a client sends a built-in command as `commandRef` in `turn/start`, the server rejects the request with `InvalidParams`.
 - `$skill` denotes a skill reference and is transmitted as `skillRef`.
 - `@path` denotes a file reference and is transmitted as `fileRef`.
 - If a UI presents skills inside a slash-command picker, selecting a skill still produces a `skillRef`, not a `commandRef`.
@@ -1562,7 +1559,7 @@ Tag semantics:
 | `status` | string | `"queued"` or `"guidancePending"`. |
 | `createdAt` | string | UTC timestamp. |
 | `readyAfterTurnId` | string? | Active turn observed when the input was queued. |
-| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"heartbeat"`, `"cron"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, or `"subagentInput"`. |
+| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"cron"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, or `"subagentInput"`. |
 | `triggerLabel` | string? | Optional human-readable source label. |
 | `triggerRefId` | string? | Optional stable source id for client-side click-through or audit correlation. |
 
@@ -2062,7 +2059,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional `triggerKind` (`"heartbeat"` / `"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"team"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, team runner, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
+| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional `triggerKind` (`"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"team"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, team runner, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
 | `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. Optional `deliveryMode = "async"` identifies a model-initiated user message emitted during a running Turn. It is delivered immediately, does not complete the Turn, is excluded from final-text aggregation, and is not restored into model-visible assistant history. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
 | `toolCall` | Native, plugin, and managed social calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
@@ -2920,7 +2917,7 @@ The server uses bounded internal queues between transport ingress, request proce
 
 #### `system/jobResult`
 
-Emitted after a server-managed cron or heartbeat job completes. This allows connected wire clients to receive the agent's response as an out-of-band notification, without the client initiating a turn.
+Emitted after a server-managed cron job completes. This allows connected wire clients to receive the agent's response as an out-of-band notification, without the client initiating a turn.
 
 Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during `initialize`.
 
@@ -2940,8 +2937,8 @@ Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | `"cron"` or `"heartbeat"`. |
-| `jobId` | string? | Cron job ID. Present when `source` is `"cron"`; absent for heartbeat. |
+| `source` | string | `"cron"`. |
+| `jobId` | string? | Cron job ID. Present when `source` is `"cron"`. |
 | `jobName` | string? | Human-readable job name. |
 | `threadId` | string? | The thread ID used for execution. |
 | `result` | string? | Agent's text response. Null if the turn failed or produced no text output. |
@@ -2952,7 +2949,7 @@ Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during
 
 - Emitted to initialized protocol connections that are eligible to receive job-result notifications.
 - Server hosts that route job results through another delivery surface may omit `system/jobResult`.
-- Clients that do not wish to receive cron/heartbeat results can opt out via `optOutNotificationMethods: ["system/jobResult"]`.
+- Clients that do not wish to receive cron results can opt out via `optOutNotificationMethods: ["system/jobResult"]`.
 
 **Behavior notes**:
 
@@ -3044,7 +3041,7 @@ Clients can suppress specific notification methods per connection by listing exa
 | `item/usage/delta` | Client does not need real-time token consumption display; will use `turn/completed.tokenUsage` for final totals. |
 | `system/event` | Client does not need system maintenance status (compaction, consolidation). |
 | `plan/updated` | Client does not need real-time plan/todo progress display. |
-| `system/jobResult` | Client does not need cron/heartbeat result notifications (e.g. batch or headless client). |
+| `system/jobResult` | Client does not need cron result notifications (e.g. batch or headless client). |
 | `cron/stateChanged` | Client polls `cron/list` instead of reacting to server-push job state updates. |
 | `plugin/snapshot/updated` | Client refreshes plugin state with `plugin/list` on demand instead of reacting to snapshot invalidation. |
 
@@ -4123,7 +4120,7 @@ Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) 
 | Method | When to opt out |
 |--------|-----------------|
 | `cron/stateChanged` | Client polls `cron/list` instead of reacting to push updates. |
-| `system/jobResult` | Client does not need cron/heartbeat result notifications. |
+| `system/jobResult` | Client does not need cron result notifications. |
 
 ### 16.8 `cron/stateChanged` Notification
 
@@ -4198,61 +4195,6 @@ Server                                          Client
   |  removed: true                                |
   |---------------------------------------------> |
 ```
-
----
-
-## 17. Heartbeat Management Methods
-
-### 17.1 Scope
-
-Like cron management (Section 16), these methods cover a server-managed background service. The `heartbeat/trigger` method lets clients trigger a heartbeat run on demand.
-
-Clients must check `capabilities.heartbeatManagement` before calling any method in this section. If the capability is absent or `false`, the server returns `-32601` (Method not found).
-
-### 17.2 `heartbeat/trigger`
-
-Trigger an immediate heartbeat run on the server.
-
-**Direction**: client → server (request)
-
-**Params**: `{}` (empty object, no parameters required)
-
-**Result**:
-
-```json
-{
-  "result": "HEARTBEAT_OK",
-  "error": null
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `result` | string? | Agent response text. `null` if no `HEARTBEAT.md` was found or its content was empty. |
-| `error` | string? | Error message if the heartbeat run failed. `null` on success. |
-
-**Errors**:
-
-| Code | When |
-|------|------|
-| `-32601` | The heartbeat service is not configured on this server. |
-
-**Timeout note**: This is a **long-running request**. Clients should use a generous timeout. The result is also separately broadcast via `system/jobResult` with `source: "heartbeat"` to subscribed clients.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "heartbeat/trigger", "id": 60, "params": {} }
-
-{ "jsonrpc": "2.0", "id": 60, "result": {
-    "result": "Reviewed open issues and updated tracking.",
-    "error": null
-} }
-```
-
-### 17.3 Capability Advertisement
-
-Clients must check `capabilities.heartbeatManagement` before calling `heartbeat/trigger`.
 
 ---
 

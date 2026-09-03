@@ -1,5 +1,4 @@
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
@@ -10,7 +9,6 @@ namespace DotCraft.AppServer;
 /// </summary>
 internal sealed class CronRequestHandler(
     CronService? cronService,
-    HeartbeatService? heartbeatService,
     Action<Contract.CronJobWireInfo, bool>? broadcastCronStateChanged) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -19,7 +17,6 @@ internal sealed class CronRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.CronRemove, HandleCronRemoveAsync);
         table.Map(Protocol.AppServer.AppServerRpc.CronEnable, HandleCronEnableAsync);
         table.Map(Protocol.AppServer.AppServerRpc.CronRun, HandleCronRunAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
     }
 
     private Task<AppServerTypedResult<Contract.CronListResult>> HandleCronListAsync(
@@ -85,28 +82,6 @@ internal sealed class CronRequestHandler(
             Queued = true,
             Job = MapCronJob(job)
         }));
-    }
-
-    private async Task<AppServerTypedResult<Contract.HeartbeatTriggerResult>> HandleHeartbeatTriggerAsync(
-        AppServerTypedRequest<Protocol.RpcEmpty> request,
-        CancellationToken ct)
-    {
-        _ = request;
-        _ = ct;
-        if (heartbeatService == null)
-            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger);
-
-        try
-        {
-            var result = await heartbeatService.TriggerNowAsync();
-            return AppServerTypedResult<Contract.HeartbeatTriggerResult>.FromResult(
-                new Contract.HeartbeatTriggerResult { Result = result });
-        }
-        catch (Exception ex)
-        {
-            return AppServerTypedResult<Contract.HeartbeatTriggerResult>.FromResult(
-                new Contract.HeartbeatTriggerResult { Error = ex.Message });
-        }
     }
 
     private static Contract.CronJobWireInfo MapCronJob(CronJob job) => CronContractMapper.ToContract(job);

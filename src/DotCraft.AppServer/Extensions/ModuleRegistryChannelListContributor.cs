@@ -1,17 +1,15 @@
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Modules;
 
 namespace DotCraft.AppServer;
 
 /// <summary>
 /// Builds <c>channel/list</c> base entries from registered <see cref="DotCraft.Modules.IDotCraftModule"/> instances
-/// plus optional Core <see cref="CronService"/> / <see cref="HeartbeatService"/> (system channels).
+/// plus optional Core <see cref="CronService"/> (system channels).
 /// </summary>
 public sealed class ModuleRegistryChannelListContributor(
     ModuleRegistry moduleRegistry,
-    CronService? cronService,
-    HeartbeatService? heartbeatService) : IAppServerChannelListContributor
+    CronService? cronService) : IAppServerChannelListContributor
 {
     private readonly Lazy<IReadOnlyList<ChannelDescriptor>> _bundledTypeScriptChannels =
         new(BundledTypeScriptModuleScanner.ScanFromEnvironment);
@@ -37,8 +35,5 @@ public sealed class ModuleRegistryChannelListContributor(
 
         if (cronService != null)
             Add("cron", "system");
-
-        if (heartbeatService != null)
-            Add("heartbeat", "system");
     }
 }

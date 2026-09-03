@@ -3,7 +3,7 @@ namespace DotCraft.Security;
 /// <summary>
 /// Routes approval requests to the channel-specific approval service that matches the
 /// ApprovalContext.Source. Falls back to a default service when no match is found or
-/// when context is null (e.g. heartbeat tasks without a creator channel).
+/// when context is null (e.g. scheduled tasks without a creator channel).
 /// </summary>
 public sealed class ChannelRoutingApprovalService(
     IReadOnlyDictionary<string, IApprovalService> channelServices,

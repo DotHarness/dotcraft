@@ -362,9 +362,6 @@ OpenSandbox 示例：
 | `Hooks.Enabled` | 是否启用 Hooks | `true` |
 | `Hooks.State` | 按稳定 hook key 保存的用户态配置。Desktop toggle/trust 会写入 `Enabled` 和 `TrustedHash` | `{}` |
 | `Cron.Enabled` | 是否启用 Cron 定时任务服务 | `true` |
-| `Heartbeat.Enabled` | 是否启用心跳服务 | `false` |
-| `Heartbeat.IntervalSeconds` | 检查间隔（秒） | `1800` |
-| `Heartbeat.NotifyAdmin` | 社交渠道下是否将结果通知管理员 | `true` |
 
 `Automations.WorktreeRetentionIdlePeriod` 必须至少为 `14.00:00:00`。Retention sweep 只会移除空闲、干净、且没有领先基础版本提交的受管自动化任务 worktree。
 

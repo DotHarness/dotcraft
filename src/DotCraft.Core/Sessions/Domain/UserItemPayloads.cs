@@ -82,7 +82,7 @@ public sealed record UserMessagePayload
 
     /// <summary>
     /// Non-null when this user message was synthesized by an automation mechanism
-    /// (heartbeat, cron, automations) rather than typed by a human. Clients use this
+    /// (cron, automations) rather than typed by a human. Clients use this
     /// to render a "Sent via automation" affordance.
     /// </summary>
     public string? TriggerKind { get; init; }

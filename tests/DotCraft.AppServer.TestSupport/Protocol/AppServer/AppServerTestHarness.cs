@@ -111,7 +111,7 @@ public sealed class AppServerTestHarness : IDisposable
         Monitor.Current.GlobalConfigPath ??= Path.Combine(_tempDir, "user-data", "config.json");
         Handler = new AppServerRequestHandler(
             Service, Connection, Transport,
-            channelListContributor ?? new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
+            channelListContributor ?? new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
             new AppServerConnectionServices
             {
                 ServerVersion = "0.0.1-test",

@@ -8,7 +8,6 @@ internal static class ToolPlanningThreadClassifier
     private const string TeamsChannelName = "teams";
     private const string AutomationsChannelName = "automations";
     private const string CronChannelName = "cron";
-    private const string HeartbeatChannelName = "heartbeat";
 
     public static ToolPlanningThreadKind Classify(SessionThread thread)
     {
@@ -26,8 +25,7 @@ internal static class ToolPlanningThreadClassifier
 
         if (!string.IsNullOrWhiteSpace(thread.Configuration?.AutomationTaskDirectory)
             || IsOrigin(thread.OriginChannel, AutomationsChannelName)
-            || IsOrigin(thread.OriginChannel, CronChannelName)
-            || IsOrigin(thread.OriginChannel, HeartbeatChannelName))
+            || IsOrigin(thread.OriginChannel, CronChannelName))
         {
             return ToolPlanningThreadKind.Unattended;
         }

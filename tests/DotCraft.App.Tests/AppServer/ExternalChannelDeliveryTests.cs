@@ -487,7 +487,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var factory = Assert.IsType<ExternalChannelRequestHandlerFactory>(typeof(ExternalChannelHost)
             .GetField("_requestHandlerFactory", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(host));
-        var handler = factory.Create(connection, transport, cronService: null, heartbeatService: null);
+        var handler = factory.Create(connection, transport, cronService: null);
         var runLoop = typeof(ExternalChannelHost)
             .GetMethod("RunMessageLoopAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
         await Assert.IsAssignableFrom<Task>(
@@ -747,7 +747,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Contains("exit code 0", exception.Message, StringComparison.Ordinal);
     }
 
-
     [Fact]
     public async Task ExternalChannelToolSource_DispatchesWithQualifiedIdentityAndOriginalCallId()
     {
@@ -897,7 +896,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal(Contract.AppServerRpc.ExtChannelToolCall.Name, secondTransport.LastMethod);
         Assert.Equal(2, sessionService.AgentInvalidationCount);
     }
-
 
     [Fact]
     public void ExternalChannelToolSource_WhenPluginDisabled_ReturnsNoSources()

@@ -44,7 +44,7 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
             originPresentationProviders: [],
             loggerFactory: null,
             wireRuntimeAdditionalContextProvider: runtimeContextProvider);
-        var handler = factory.Create(connection, transport, cronService: null, heartbeatService: null);
+        var handler = factory.Create(connection, transport, cronService: null);
 
         await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
         {
@@ -126,7 +126,7 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
             appBindingService: null,
             originPresentationProviders: [],
             loggerFactory: null);
-        var handler = factory.Create(connection, transport, cronService: null, heartbeatService: null);
+        var handler = factory.Create(connection, transport, cronService: null);
 
         var initialize = InMemoryTransport.BuildRequest("initialize", new
         {

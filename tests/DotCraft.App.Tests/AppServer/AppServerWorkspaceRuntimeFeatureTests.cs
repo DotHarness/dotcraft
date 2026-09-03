@@ -6,9 +6,9 @@ using DotCraft.Automations;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
-using DotCraft.Heartbeat;
 using DotCraft.Memory;
 using DotCraft.Modules;
+using DotCraft.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
@@ -28,6 +28,46 @@ namespace DotCraft.Tests.AppServer;
 
 public sealed class AppServerWorkspaceRuntimeFeatureTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Scheduled task failed")]
+    public async Task CronRun_DeliversBackgroundResult_WithThreadAndTrigger(string? error)
+    {
+        using var fixture = new WorkspaceFixture();
+        await using var provider = CreateProvider(null, null);
+        var feature = CreateFeature(provider);
+        var sessionService = new FakeSessionService { RunError = error };
+        BackgroundJobResult? delivered = null;
+        var context = CreateContext(fixture, sessionService, result => delivered = result);
+        var job = context.CronService.AddJob(
+            "Scheduled check",
+            new CronSchedule { Kind = "every", EveryMs = 60_000 },
+            new CronPayload { Message = "Check status", Deliver = true, Channel = "cli" });
+
+        await feature.StartAsync(context);
+        try
+        {
+            var result = await context.CronService.OnJob!(job);
+
+            Assert.Equal(error == null, result.Ok);
+            Assert.NotNull(delivered);
+            Assert.Equal("cron", delivered.Source);
+            Assert.Equal(job.Id, delivered.JobId);
+            Assert.Equal(job.Name, delivered.JobName);
+            Assert.Equal("scheduled-thread", delivered.ThreadId);
+            Assert.Equal(error == null ? "Status checked" : null, delivered.Result);
+            Assert.Equal(error, delivered.Error);
+            Assert.Equal("cron", sessionService.LastIdentity?.ChannelName);
+            Assert.Equal($"cron:{job.Id}", sessionService.LastIdentity?.UserId);
+            Assert.Equal("cron", sessionService.LastTrigger?.Kind);
+            Assert.Equal(job.Id, sessionService.LastTrigger?.RefId);
+        }
+        finally
+        {
+            await feature.StopAsync();
+        }
+    }
+
     [Fact]
     public async Task StartStop_WiresLifecycleCallbacks_AndForwardsAutomationUpdates()
     {
@@ -52,7 +92,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         Assert.NotNull(context.CronService.CronJobPersistedAfterExecution);
         Assert.NotNull(context.CronService.OnJob);
-        Assert.NotNull(context.HeartbeatService.OnResult);
         Assert.Equal(1, automationFactory.Instance.StartCalls);
         Assert.Same(context, automationFactory.Instance.LastContext);
         Assert.Equal(1, runnerFactory.Instance!.InitializeCalls);
@@ -77,7 +116,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         Assert.Null(context.CronService.CronJobPersistedAfterExecution);
         Assert.Null(context.CronService.OnJob);
-        Assert.Null(context.HeartbeatService.OnResult);
         Assert.Equal(1, automationFactory.Instance.StopCalls);
         Assert.Equal(1, automationFactory.Instance.DisposeCalls);
         Assert.Equal(1, runnerFactory.Instance.DisposeCalls);
@@ -117,7 +155,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         Assert.Null(failingContext.CronService.CronJobPersistedAfterExecution);
         Assert.Null(failingContext.CronService.OnJob);
-        Assert.Null(failingContext.HeartbeatService.OnResult);
         Assert.Equal(1, failingAutomationFactory.Instance.StartCalls);
         Assert.Equal(1, failingAutomationFactory.Instance.StopCalls);
         Assert.Equal(1, failingAutomationFactory.Instance.DisposeCalls);
@@ -234,29 +271,22 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         return services.BuildServiceProvider();
     }
 
-    private static WorkspaceRuntimeAppServerFeatureContext CreateContext(WorkspaceFixture fixture)
+    private static WorkspaceRuntimeAppServerFeatureContext CreateContext(
+        WorkspaceFixture fixture,
+        FakeSessionService? sessionService = null,
+        Action<BackgroundJobResult>? emitBackgroundJobResult = null)
     {
         var config = new AppConfig
         {
             Cron = new AppConfig.CronConfig
             {
                 Enabled = false
-            },
-            Heartbeat = new AppConfig.HeartbeatConfig
-            {
-                Enabled = false,
-                NotifyAdmin = true,
-                IntervalSeconds = 300
             }
         };
 
         var paths = new DotCraftPaths(fixture.WorkspacePath, fixture.BotPath, userDataPath: null);
-        var sessionService = new FakeSessionService();
+        sessionService ??= new FakeSessionService();
         var cronService = new CronService(Path.Combine(fixture.BotPath, "cron-jobs.json"));
-        var heartbeatService = new HeartbeatService(
-            fixture.WorkspacePath,
-            (_, _, _, _) => Task.FromResult<AgentRunResult?>(null),
-            enabled: false);
         var dreamStore = new DreamStore(fixture.BotPath);
         var dreamsService = new DreamsService(
             config,
@@ -279,10 +309,9 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             sessionService,
             new AgentRunner(fixture.WorkspacePath, sessionService, quiet: true),
             cronService,
-            heartbeatService,
             dreamsService,
             emitCronStateChanged: (_, _, _) => { },
-            emitBackgroundJobResult: _ => { });
+            emitBackgroundJobResult: emitBackgroundJobResult ?? (_ => { }));
     }
 
     private sealed class WorkspaceFixture : IDisposable
@@ -348,12 +377,10 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         public void Initialize(
             ISessionService sessionService,
-            HeartbeatService heartbeatService,
             CronService cronService,
             DreamsService dreamsService)
         {
             _ = sessionService;
-            _ = heartbeatService;
             _ = cronService;
             _ = dreamsService;
             InitializeCalls++;
@@ -495,13 +522,20 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
     private sealed class FakeSessionService : ISessionService
     {
+        public string? RunError { get; init; }
+        public SessionIdentity? LastIdentity { get; private set; }
+        public TurnTriggerInfo? LastTrigger { get; private set; }
         public Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }
         public Action<string>? ThreadDeletedForBroadcast { get; set; }
         public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
         public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null) => throw new NotImplementedException();
+        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null)
+        {
+            LastIdentity = identity;
+            return Task.FromResult(new SessionThread { Id = "scheduled-thread" });
+        }
         public Task<ThreadResetResult> ResetConversationAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? displayName = null, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task PauseThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
@@ -513,7 +547,14 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public Task SetThreadSpawnEdgeStatusAsync(string parentThreadId, string childThreadId, string status, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<ThreadSpawnEdge>> ListSubAgentChildrenAsync(string parentThreadId, bool includeClosed = false, CancellationToken ct = default) => throw new NotImplementedException();
         public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(string threadId, bool replayRecent = false, CancellationToken ct = default) => throw new NotImplementedException();
-        public IAsyncEnumerable<SessionEvent> SubmitInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, ChatMessage[]? messages = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null) => throw new NotImplementedException();
+        public async IAsyncEnumerable<SessionEvent> SubmitInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, ChatMessage[]? messages = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null)
+        {
+            LastTrigger = TurnTriggerScope.Current;
+            await Task.CompletedTask;
+            yield return RunError == null
+                ? new SessionEvent { EventType = SessionEventType.ItemDelta, Payload = new AgentMessageDelta { TextDelta = "Status checked" } }
+                : new SessionEvent { EventType = SessionEventType.TurnFailed, Payload = new SessionTurn { Error = RunError } };
+        }
         public Task ResolveApprovalAsync(string threadId, string turnId, string requestId, SessionApprovalDecision decision, CancellationToken ct = default) => throw new NotImplementedException();
         public Task ResolveUserInputRequestAsync(string threadId, string turnId, string requestId, RequestUserInputResponse response, CancellationToken ct = default) => throw new NotImplementedException();
         public Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default) => throw new NotImplementedException();

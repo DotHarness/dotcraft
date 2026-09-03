@@ -73,7 +73,7 @@ public enum ToolPlanningThreadKind
     ModuleManaged,
     /// <summary>A child session created by the SubAgent runtime.</summary>
     SubAgentChild,
-    /// <summary>Unattended automation, cron, heartbeat, or equivalent background work.</summary>
+    /// <summary>Unattended automation, cron, or equivalent background work.</summary>
     Unattended,
     /// <summary>An internal or ephemeral DotCraft helper thread.</summary>
     Internal,

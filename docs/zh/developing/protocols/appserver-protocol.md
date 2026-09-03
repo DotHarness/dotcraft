@@ -402,7 +402,6 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | 会话生命周期、有界历史和订阅。 |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | 用户输入、队列和取消。 |
 | Cron | `cron/list`, `cron/remove`, `cron/enable` | 定时任务管理。 |
-| Heartbeat | `heartbeat/trigger` | 手动触发 heartbeat。 |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、有效内容查看、恢复原始技能、开关和可卸载 skill 删除。 |
 | Tools | `tool/list` | 内置工具目录（名称、描述、图标、Plan 模式可用性），用于 agent profile 的工具选择器。 |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | 插件发现、详情、安装、移除、启用状态与 .NET trust 管理。 |

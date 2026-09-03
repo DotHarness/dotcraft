@@ -67,11 +67,7 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
   if (!label) return translate(locale, 'automation.triggeredBy.generic')
   return translate(
     locale,
-    kind === 'heartbeat'
-      ? 'automation.triggeredBy.heartbeat'
-      : kind === 'cron'
-        ? 'automation.triggeredBy.cron'
-        : 'automation.triggeredBy.task',
+    kind === 'cron' ? 'automation.triggeredBy.cron' : 'automation.triggeredBy.task',
     { label }
   )
 }

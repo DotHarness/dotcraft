@@ -107,12 +107,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 return new CronOnJobResult(run?.ThreadId, run?.Result, run?.Error, ok, run?.InputTokens, run?.OutputTokens);
             };
 
-            if (context.Config.Heartbeat.NotifyAdmin)
-            {
-                context.HeartbeatService.OnResult = async result =>
-                    await messageRouter.BroadcastToAdminsAsync($"[Heartbeat] {result}");
-            }
-
             _channelRunner = _channelRunnerFactory?.Create(
                 services,
                 context.Config,
@@ -120,7 +114,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 context.ModuleRegistry);
             if (_channelRunner != null)
             {
-                _channelRunner.Initialize(context.SessionService, context.HeartbeatService, context.CronService, context.DreamsService);
+                _channelRunner.Initialize(context.SessionService, context.CronService, context.DreamsService);
                 await _channelRunner.StartWebPoolAsync();
             }
 
@@ -143,14 +137,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                     _logger.LogDebug("Cron service started with no jobs");
                 else
                     _logger.LogInformation("Cron service started with {JobCount} jobs", jobCount);
-            }
-
-            if (context.Config.Heartbeat.Enabled)
-            {
-                context.HeartbeatService.Start();
-                _logger.LogInformation(
-                    "Heartbeat service started with interval {IntervalSeconds}s",
-                    context.Config.Heartbeat.IntervalSeconds);
             }
 
             _channelRunner?.BeginChannelLoops(ct);
@@ -177,7 +163,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
         {
             _context.CronService.CronJobPersistedAfterExecution = null;
             _context.CronService.OnJob = null;
-            _context.HeartbeatService.OnResult = null;
 
             try
             {
@@ -188,14 +173,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 (errors ??= []).Add(ex);
             }
 
-            try
-            {
-                _context.HeartbeatService.Stop();
-            }
-            catch (Exception ex)
-            {
-                (errors ??= []).Add(ex);
-            }
         }
 
         if (_automationRuntime != null)

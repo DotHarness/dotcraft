@@ -1528,12 +1528,6 @@ export interface ExternalChannelUpsertResult {
   [key: string]: unknown;
 }
 
-export interface HeartbeatTriggerResult {
-  error?: string | null;
-  result?: string | null;
-  [key: string]: unknown;
-}
-
 export interface HookErrorInfo {
   message?: string;
   path?: string;
@@ -2856,7 +2850,6 @@ export interface ServerCapabilities {
   extensions?: ServerCapabilityExtensions | null;
   externalChannelManagement?: boolean;
   gitWorktrees?: boolean;
-  heartbeatManagement?: boolean;
   hooksManagement?: boolean;
   inlineVisualizations?: boolean;
   manualCompaction?: boolean;

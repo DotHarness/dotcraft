@@ -5,7 +5,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Contributions;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Hooks;
 using DotCraft.Logging;
 using DotCraft.Lsp;
@@ -48,7 +47,6 @@ public sealed record AppServerConnectionServices
     public SessionApprovalDecision DefaultApprovalDecision { get; init; } = SessionApprovalDecision.Reject;
 
     public CronService? CronService { get; init; }
-    public HeartbeatService? HeartbeatService { get; init; }
     public SkillsLoader? SkillsLoader { get; init; }
     public MemoryStore? MemoryStore { get; init; }
 

@@ -579,7 +579,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
             desktop,
             new SessionIdentity { ChannelName = "oratorio", UserId = "operator", WorkspacePath = workspace, ChannelContext = "oratorio:bridge" },
             new SessionIdentity { ChannelName = "cron", UserId = "cron:job", WorkspacePath = workspace },
-            new SessionIdentity { ChannelName = "heartbeat", UserId = "heartbeat:run", WorkspacePath = workspace },
+            new SessionIdentity { ChannelName = "cron", UserId = "cron:run", WorkspacePath = workspace },
             new SessionIdentity { ChannelName = "future-channel", UserId = "future:user", WorkspacePath = workspace, ChannelContext = "future:context" }
         };
 

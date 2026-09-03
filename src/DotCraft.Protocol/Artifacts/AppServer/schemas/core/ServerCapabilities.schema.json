@@ -62,9 +62,6 @@
     "gitWorktrees": {
       "type": "boolean"
     },
-    "heartbeatManagement": {
-      "type": "boolean"
-    },
     "hooksManagement": {
       "type": "boolean"
     },

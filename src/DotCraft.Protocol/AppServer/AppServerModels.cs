@@ -299,10 +299,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool CronManagement { get; init; }
 
-    [JsonPropertyName("heartbeatManagement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool HeartbeatManagement { get; init; }
-
     [JsonPropertyName("skillsManagement")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SkillsManagement { get; init; }

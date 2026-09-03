@@ -1,5 +1,4 @@
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Security;
 
 namespace DotCraft.Channels;
@@ -14,12 +13,6 @@ public interface IChannelService : IAsyncDisposable, IChannelRuntime
     /// Gets the unique name of this channel.
     /// </summary>
     new string Name { get; }
-
-    /// <summary>
-    /// The shared HeartbeatService injected by the channel host before the channel starts.
-    /// Allows slash commands (/heartbeat) to operate within this channel.
-    /// </summary>
-    HeartbeatService? HeartbeatService { get; set; }
 
     /// <summary>
     /// The shared CronService injected by the channel host before the channel starts.
@@ -45,7 +38,7 @@ public interface IChannelService : IAsyncDisposable, IChannelRuntime
     Task StopAsync();
 
     /// <summary>
-    /// Returns the list of delivery targets for admin notifications (e.g. Heartbeat results).
+    /// Returns the list of delivery targets for admin notifications (e.g. scheduled task results).
     /// Each target is passed to <see cref="IChannelRuntime.DeliverAsync(string,ChannelDeliveryMessage,object?,CancellationToken)"/>
     /// with a text message when broadcasting to admins.
     /// Return an empty list if this channel does not support admin notifications.

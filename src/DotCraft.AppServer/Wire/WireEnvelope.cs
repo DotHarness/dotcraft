@@ -281,13 +281,6 @@ public sealed class ServerCapabilitySnapshot
     public bool CronManagement { get; set; }
 
     /// <summary>
-    /// Server supports heartbeat management methods (heartbeat/trigger).
-    /// False when the heartbeat service is not configured. See spec Section 17.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool HeartbeatManagement { get; set; }
-
-    /// <summary>
     /// Server supports skills management methods (skills/list, skills/read, skills/view, skills/restoreOriginal, skills/setEnabled, skills/uninstall). See spec Section 18.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

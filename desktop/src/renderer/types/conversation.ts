@@ -168,7 +168,6 @@ export interface ConversationItem {
    * thread spawned by another thread (see thread.source.spawnedFromThreadId).
    */
   triggerKind?:
-    | 'heartbeat'
     | 'cron'
     | 'automation'
     | 'goal'
@@ -718,7 +717,6 @@ function normalizeTriggerKind(
   if (normalized === 'subagentmailbox') return 'subagentMailbox'
   if (normalized === 'subagentinput') return 'subagentInput'
   if (
-    normalized === 'heartbeat' ||
     normalized === 'cron' ||
     normalized === 'automation' ||
     normalized === 'goal' ||

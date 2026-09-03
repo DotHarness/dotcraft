@@ -60,7 +60,6 @@ public sealed class ToolPlanningThreadClassifierTests
     [Theory]
     [InlineData("automations")]
     [InlineData("cron")]
-    [InlineData("heartbeat")]
     public void Classify_UnattendedOrigin_ReturnsUnattended(string originChannel)
     {
         var thread = CreateThread(originChannel);

@@ -112,7 +112,6 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             Assert.DoesNotContain(commands, c => c.Name == "/help");
             Assert.DoesNotContain(commands, c => c.Name == "/stop");
             Assert.DoesNotContain(commands, c => c.Name == "/debug");
-            Assert.DoesNotContain(commands, c => c.Name == "/heartbeat");
             Assert.DoesNotContain(commands, c => c.Name == "/cron");
         }
         finally

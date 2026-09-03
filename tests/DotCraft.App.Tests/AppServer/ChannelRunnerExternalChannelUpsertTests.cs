@@ -7,7 +7,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.ExternalChannel;
-using DotCraft.Heartbeat;
 using DotCraft.Modules;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -69,15 +68,11 @@ public sealed class ChannelRunnerExternalChannelUpsertTests : IDisposable
 
         var sessionService = new TestableSessionService(new ThreadStore(craftPath));
         using var cronService = new CronService(Path.Combine(craftPath, "cron-jobs.json"));
-        using var heartbeatService = new HeartbeatService(
-            _workspacePath,
-            (_, _, _, _) => Task.FromResult<AgentRunResult?>(null),
-            enabled: false);
 
         try
         {
             runner.BuildPoolThroughBuildAll();
-            runner.CompleteAfterSession(sessionService, heartbeatService, cronService);
+            runner.CompleteAfterSession(sessionService, cronService);
             await runner.ApplyExternalChannelUpsertAsync(entry, CancellationToken.None);
 
             Assert.True(externalChannels.TryGet(ChannelName, out var host));
@@ -88,7 +83,7 @@ public sealed class ChannelRunnerExternalChannelUpsertTests : IDisposable
             var factory = Assert.IsType<ExternalChannelRequestHandlerFactory>(typeof(ExternalChannelHost)
                 .GetField("_requestHandlerFactory", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetValue(host));
-            var handler = factory.Create(connection, transport, cronService, heartbeatService);
+            var handler = factory.Create(connection, transport, cronService);
 
             await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
             {
