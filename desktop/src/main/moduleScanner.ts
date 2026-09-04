@@ -119,6 +119,7 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
     item.localizedDisplayLabel == null ? undefined : asLocalizedStringMap(item.localizedDisplayLabel)
   const localizedDescription =
     item.localizedDescription == null ? undefined : asLocalizedStringMap(item.localizedDescription)
+  const docsPath = item.docsPath == null ? undefined : asLocalizedStringMap(item.docsPath)
   const dataKind = asNonEmptyString(item.dataKind)
   const group = item.group == null ? undefined : asNonEmptyString(item.group)
   const enumValues = item.enumValues == null ? undefined : asStringArray(item.enumValues)
@@ -141,6 +142,7 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
     group === null ||
     localizedDisplayLabel === null ||
     localizedDescription === null ||
+    docsPath === null ||
     typeof item.required !== 'boolean' ||
     typeof item.masked !== 'boolean' ||
     typeof item.interactiveSetupOnly !== 'boolean' ||
@@ -165,7 +167,8 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
     defaultValue: item.defaultValue,
     options: optionsRaw === undefined ? undefined : options,
     allowCustomValue: item.allowCustomValue === true ? true : undefined,
-    enumValues: enumValues ?? undefined
+    enumValues: enumValues ?? undefined,
+    docsPath
   }
 }
 

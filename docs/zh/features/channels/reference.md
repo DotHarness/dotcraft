@@ -178,7 +178,6 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `feishu.groupMentionRequired` | 飞书群聊是否需要 @ 机器人。 | `true` |
 | `feishu.ackReactionEmoji` | 标记已处理消息的 emoji 类型。 | `GLANCE` |
 | `feishu.downloadDir` | 下载附件使用的本地目录。 | workspace 临时目录 |
-| `feishu.streaming.enabled` | 使用原生 CardKit 流式卡片，能力不可用时自动回退为普通卡片。需要 `cardkit:card:write`。 | `true` |
 | `feishu.cli.enabled` | 是否向此 Channel 创建的 Thread 提供内置官方飞书 CLI。 | `false` |
 | `feishu.cli.userScopes` | 授权账号只读访问个人资源时请求的飞书 scope。留空则所有命令都以机器人身份运行。 | 空 |
 | `feishu.debug.adapterStream` | 是否启用 adapter stream 调试日志。 | `false` |
@@ -188,7 +187,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 
 适配器会向飞书 Thread context 注入一份调用策略。已知该用哪个 Skill 时直接读取，不确定时才先调用 `skills list`。Skill 链接了参考文件时，先用 `skills read <skill-name> <relative-path>` 加载，再执行业务命令。身份来自工具的 `identity` 入参而非 `--as`，后者会被适配器拒绝。`whoami` 可以查看当前生效的身份和 token 状态。
 
-在 `feishu.cli.userScopes` 里列出 scope，CLI 就能同时读取机器人拿不到的个人资源，例如日历或云空间。只有应用后台已开通的 scope 才能授权成功。操作者私聊机器人发送 `/feishu-auth` 授权一个账号，并在同一个会话里用 `/feishu-auth status` 和 `/feishu-auth revoke` 管理。该账号服务于整个 Channel，因此 `identity: "user"` 只接受只读命令。授权信息以明文保存在 Channel 的模块状态目录，与已经存放在那里的 App Secret 同级。
+`feishu.cli.userScopes` 列出要请求的飞书 user scope，默认为空，需要操作者主动开启；只有应用后台已开通的 scope 才能授权成功。DotCraft 会追加 `offline_access` 并自行完成设备码授权，因此 CLI 自带的 `auth` 和 `config` 命令仍然不可用。一个授权账号服务于整个 Channel，所以 `identity: "user"` 只接受只读命令。授权信息以明文保存在 Channel 的模块状态目录，与已经存放在那里的 App Secret 同级。操作者一侧的流程见[个人资源访问](./feishu#个人资源访问)。
 
 内置 CLI 只能通过 `FeishuCli` 调用，不能从 Shell 启动。CLI 的文件参数必须位于 workspace 内。文档、知识库、文件、媒体和分页 token 属于业务资源标识，可以正常传入。`api` 原始命令、CLI 的 `auth`/`config`/`profile` 管理、`--profile`、调用方传入的 `--yes`、运行时安装和自更新都不可用。只有 DotCraft 审批通过、且固定版本 CLI 的风险分类判定操作为 `high-risk-write` 时，适配器才会追加 `--yes`。`--help` 不获取 tenant token，直接返回纯文本帮助。业务命令仍返回结构化 JSON。
 

@@ -93,10 +93,6 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
   if (brand && brand !== "feishu" && brand !== "lark") {
     throw new ConfigValidationError("feishu.brand must be either 'feishu' or 'lark'.", ["feishu.brand"]);
   }
-  const streaming = feishu.streaming as Record<string, unknown> | undefined;
-  if (streaming?.enabled !== undefined && typeof streaming.enabled !== "boolean") {
-    throw new ConfigValidationError("feishu.streaming.enabled must be a boolean.", ["feishu.streaming.enabled"]);
-  }
   if (feishu.cli !== undefined
       && (typeof feishu.cli !== "object" || feishu.cli === null || Array.isArray(feishu.cli))) {
     throw new ConfigValidationError("feishu.cli must be an object.", ["feishu.cli"]);
@@ -118,7 +114,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private feishu: FeishuClient | undefined;
   private cardTitle = "DotCraft";
   private approvalTimeoutMs = 120000;
-  private streamingEnabled = true;
   private cliTool: FeishuCliTool | undefined;
   private userIdentity: FeishuUserIdentity | undefined;
   private eventAbortController: AbortController | undefined;
@@ -127,7 +122,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private readonly router = new FeishuOutboundRouter(() => this.getFeishuClient());
   private readonly threadContextMap = new Map<string, string>();
   private readonly turnCards = new TurnCardController({
-    streamingEnabled: () => this.streamingEnabled,
     client: () => this.getFeishuClient(),
     cardTitle: () => this.cardTitle,
     deliverCard: (target, cardId) => this.router.sendCardKit(target, cardId),
@@ -195,7 +189,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     const config = this.loadedConfig;
     this.cardTitle = config.feishu.cardTitle ?? "DotCraft";
     this.approvalTimeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
-    this.streamingEnabled = config.feishu.streaming?.enabled !== false;
     configureTextMergeDebug(config.feishu.debug?.textMerge);
     this.feishu = new FeishuClient(config.feishu);
     const stateDir = resolveModuleStatePath(context);
@@ -713,7 +706,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     state.hasProgress = true;
     this.turnCards.markActive(threadId, turnId, channelContext);
 
-    if (!this.streamingEnabled || state.mode === "fallback" || !state.accumulatedText.trim()) return;
+    if (state.mode === "fallback" || !state.accumulatedText.trim()) return;
     if (isFinal) {
       if (state.mode !== "native" || !state.streamer) return;
       const completed = await state.streamer.complete(state.accumulatedText);

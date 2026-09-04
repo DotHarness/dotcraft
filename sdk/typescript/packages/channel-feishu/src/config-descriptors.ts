@@ -127,14 +127,14 @@ export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "feishu.cardTitle",
     displayLabel: "Reply Card Title",
-    description: 'Brand text shown on card headers. Leave empty to use "DotCraft".',
+    description: 'Name used in the chat list preview and on approval and question cards. Leave empty to use "DotCraft".',
     localizedDisplayLabel: {
       en: "Reply Card Title",
       "zh-Hans": "回复卡片标题",
     },
     localizedDescription: {
-      en: 'Brand text shown on reply/progress/transcript card headers. Leave empty to use "DotCraft".',
-      "zh-Hans": '回复、进度与流式卡片头部显示的品牌文本。留空则回退为 "DotCraft"。',
+      en: 'Name used in the chat list preview and on approval and question cards. Leave empty to use "DotCraft".',
+      "zh-Hans": '聊天列表预览以及审批、提问卡片上使用的名称。留空则用 "DotCraft"。',
     },
     required: false,
     dataKind: "string",
@@ -142,25 +142,6 @@ export const configDescriptors: ConfigDescriptor[] = [
     interactiveSetupOnly: false,
     group: "advanced",
     defaultValue: "DotCraft",
-  },
-  {
-    key: "feishu.streaming.enabled",
-    displayLabel: "Native Streaming Cards",
-    description: "Use Feishu CardKit typewriter updates and fall back to standard cards when unavailable.",
-    localizedDisplayLabel: {
-      en: "Native Streaming Cards",
-      "zh-Hans": "原生流式卡片",
-    },
-    localizedDescription: {
-      en: "Use Feishu CardKit typewriter updates and fall back to standard cards when unavailable.",
-      "zh-Hans": "使用飞书 CardKit 打字机式更新；能力不可用时自动回退为普通卡片。",
-    },
-    required: false,
-    dataKind: "boolean",
-    masked: false,
-    interactiveSetupOnly: false,
-    group: "advanced",
-    defaultValue: true,
   },
   {
     key: "feishu.approvalTimeoutMs",
@@ -274,49 +255,31 @@ export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "feishu.cli.userScopes",
     displayLabel: "Personal Access Scopes",
-    description:
-      "Feishu user scopes to request when authorizing an account for read-only personal access, "
-      + "such as calendar:calendar:readonly. Leave empty to keep every command on the bot identity. "
-      + "Only scopes already enabled for the Feishu app can be granted.",
+    description: "One Feishu scope per line. Leave empty to keep everything on the bot identity.",
     localizedDisplayLabel: {
       en: "Personal Access Scopes", "zh-Hans": "个人资源授权范围", ja: "個人リソースのスコープ",
       ko: "개인 리소스 범위", es: "Ámbitos de acceso personal", fr: "Portées d'accès personnel",
       de: "Bereiche für persönlichen Zugriff",
     },
     localizedDescription: {
-      en:
-        "Feishu user scopes to request when authorizing an account for read-only personal access, "
-        + "such as calendar:calendar:readonly. Leave empty to keep every command on the bot identity. "
-        + "Only scopes already enabled for the Feishu app can be granted.",
-      "zh-Hans":
-        "授权账号读取个人资源时请求的飞书 scope，例如 calendar:calendar:readonly。"
-        + "留空则所有命令都以机器人身份运行。只有应用后台已开通的 scope 才能授权成功。",
-      ja:
-        "個人リソースを読み取るアカウントを認可するときに要求する Feishu スコープ"
-        + "（例：calendar:calendar:readonly）。空にすると、すべてのコマンドがボット ID で実行されます。"
-        + "アプリで有効化済みのスコープのみ付与できます。",
-      ko:
-        "개인 리소스를 읽기 위해 계정을 인증할 때 요청할 Feishu 범위입니다"
-        + "(예: calendar:calendar:readonly). 비워 두면 모든 명령이 봇 ID로 실행됩니다. "
-        + "앱에 이미 활성화된 범위만 부여할 수 있습니다.",
-      es:
-        "Ámbitos de usuario de Feishu que se solicitan al autorizar una cuenta para lectura de recursos personales, "
-        + "por ejemplo calendar:calendar:readonly. Déjalo vacío para que todo se ejecute con la identidad del bot. "
-        + "Solo se pueden conceder los ámbitos ya habilitados en la app.",
-      fr:
-        "Portées utilisateur Feishu demandées lors de l'autorisation d'un compte en lecture seule, "
-        + "par exemple calendar:calendar:readonly. Laissez vide pour tout exécuter avec l'identité du bot. "
-        + "Seules les portées déjà activées pour l'application peuvent être accordées.",
-      de:
-        "Feishu-Benutzerbereiche, die beim Autorisieren eines Kontos für lesenden Zugriff angefordert werden, "
-        + "etwa calendar:calendar:readonly. Leer lassen, damit alles mit der Bot-Identität läuft. "
-        + "Nur bereits in der App aktivierte Bereiche können gewährt werden.",
+      en: "One Feishu scope per line. Leave empty to keep everything on the bot identity.",
+      "zh-Hans": "一行一个飞书 scope。留空则一切都以机器人身份运行。",
+      ja: "1 行に 1 つの Feishu スコープ。空にするとすべてボット ID で実行されます。",
+      ko: "한 줄에 하나의 Feishu 범위. 비워 두면 모두 봇 ID로 실행됩니다.",
+      es: "Un ámbito de Feishu por línea. Déjalo vacío para que todo use la identidad del bot.",
+      fr: "Une portée Feishu par ligne. Laissez vide pour tout exécuter avec l'identité du bot.",
+      de: "Ein Feishu-Bereich pro Zeile. Leer lassen, damit alles die Bot-Identität nutzt.",
+    },
+    docsPath: {
+      en: "/features/channels/feishu#personal-access",
+      "zh-Hans": "/features/channels/feishu#个人资源访问",
     },
     required: false,
     dataKind: "list",
     masked: false,
     interactiveSetupOnly: false,
     group: "configuration",
+    defaultValue: [],
   },
   {
     key: "feishu.debug.adapterStream",

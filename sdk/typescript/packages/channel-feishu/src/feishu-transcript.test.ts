@@ -125,7 +125,6 @@ function createTestAdapter(mockFeishu: MockFeishuClient): {
     client,
     feishu: mockFeishu as unknown as FeishuClient,
     approvalTimeoutMs: 2000,
-    streamingEnabled: false,
   });
   return { adapter, client };
 }
@@ -213,7 +212,6 @@ test("Feishu adapter drives the status row from item activity across a silent to
   const mockFeishu = new RecordingCardKitClient();
   const { adapter, client } = createTestAdapter(mockFeishu);
   Object.assign(adapter as unknown as Record<string, unknown>, {
-    streamingEnabled: true,
     statusTimings: { textStallMs: 300, statusSettleMs: 0 },
   });
   (adapter as unknown as { getOrCreateThread: (...args: unknown[]) => Promise<SessionThread> }).getOrCreateThread = async () =>
@@ -320,7 +318,6 @@ for (const failure of ["create", "update"] as const) {
   test(`Feishu adapter falls back to a complete standard card after CardKit ${failure} failure`, async () => {
     const mockFeishu = new FailingCardKitClient(failure);
     const { adapter } = createTestAdapter(mockFeishu);
-    Object.assign(adapter as unknown as Record<string, unknown>, { streamingEnabled: true });
     const hooks = adapter as unknown as {
       onReplyProgress: (
         threadId: string,

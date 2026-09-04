@@ -21,10 +21,6 @@ export interface FeishuConfig {
       /** Feishu user scopes to request; an empty list keeps the CLI on Bot identity only. */
       userScopes?: string[];
     };
-    streaming?: {
-      /** Use Feishu CardKit typewriter updates when available. Defaults to true. */
-      enabled?: boolean;
-    };
     /** Debug logging to stderr; only keys set to `true` enable tracing. */
     debug?: {
       /** Verbose `consumeTurnEventStream` traces (adapter stream). */

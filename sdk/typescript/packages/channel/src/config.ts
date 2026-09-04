@@ -49,6 +49,8 @@ export interface ConfigDescriptor {
   defaultValue?: unknown;
   options?: ConfigFieldOption[];
   allowCustomValue?: boolean;
+  /** Documentation route for a Learn more link, without the locale prefix. */
+  docsPath?: ConfigLocalizedText;
   /** @deprecated Use options for localized option metadata. */
   enumValues?: string[];
 }

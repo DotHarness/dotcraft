@@ -113,6 +113,32 @@ describe('ModuleConfigForm descriptors', () => {
     expect(onChange).toHaveBeenLastCalledWith({ example: { reaction: 'PARTY' } })
   })
 
+  it('opens the descriptor documentation route for the active locale', async () => {
+    const openExternal = vi.fn()
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      modules: { pickDirectory: vi.fn().mockResolvedValue(null) },
+      shell: { openExternal }
+    })
+    const module = createModule()
+    module.configDescriptors = [{
+      key: 'example.scopes',
+      displayLabel: 'Scopes',
+      description: 'One scope per line.',
+      required: false,
+      dataKind: 'list',
+      masked: false,
+      interactiveSetupOnly: false,
+      group: 'configuration',
+      docsPath: { en: '/features/channels/example#scopes' }
+    }]
+
+    renderForm(module)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Learn more about Scopes' }))
+    expect(openExternal).toHaveBeenCalledWith('https://www.dotcraft.net/features/channels/example#scopes')
+  })
+
   it('keeps legacy advanced fields visible', async () => {
     const module = createModule()
     module.configGroups = undefined

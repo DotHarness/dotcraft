@@ -16,6 +16,8 @@ import { Button } from '../ui/Button'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Select } from '../ui/Select'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
+import { SettingsDescriptionWithLearnMore } from '../settings/SettingsLearnMoreLink'
+import { SETTINGS_DOCS_BASE_URL } from '../settings/settingsDocs'
 import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
 import { IdentityMark } from '../ui/IdentityMark'
 import styles from './ModuleConfigForm.module.css'
@@ -219,6 +221,13 @@ export function ModuleConfigForm({
     descriptor: DiscoveredModule['configDescriptors'][number]
   ): string => descriptor.localizedDescription?.[locale] ?? descriptor.description
 
+  const resolveDescriptorDocsUrl = (
+    descriptor: DiscoveredModule['configDescriptors'][number]
+  ): string | undefined => {
+    const route = descriptor.docsPath?.[locale] ?? descriptor.docsPath?.en
+    return route ? `${SETTINGS_DOCS_BASE_URL}${locale === 'zh-Hans' ? '/zh' : ''}${route}` : undefined
+  }
+
   const resolveGroupLabel = (group: ConfigGroupDescriptorWire): string =>
     group.localizedDisplayLabel?.[locale] ?? group.displayLabel
 
@@ -226,7 +235,13 @@ export function ModuleConfigForm({
     const configuredValue = getNestedValue(config, descriptor.key)
     const value = configuredValue === undefined ? descriptor.defaultValue : configuredValue
     const displayLabel = resolveDescriptorLabel(descriptor)
-    const description = resolveDescriptorDescription(descriptor)
+    const descriptionText = resolveDescriptorDescription(descriptor)
+    const docsHref = resolveDescriptorDocsUrl(descriptor)
+    const description = docsHref === undefined ? descriptionText : (
+      <SettingsDescriptionWithLearnMore href={docsHref} aboutKey={displayLabel}>
+        {descriptionText}
+      </SettingsDescriptionWithLearnMore>
+    )
     const requiredSuffix = descriptor.required ? ` (${t('channels.modules.required')})` : ''
     const placeholder = descriptor.defaultValue === undefined ? undefined : String(descriptor.defaultValue)
 

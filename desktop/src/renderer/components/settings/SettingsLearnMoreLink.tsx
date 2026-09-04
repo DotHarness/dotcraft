@@ -4,16 +4,15 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
 import { resolveSettingsDocsUrl, type SettingsDocsTopic } from './settingsDocs'
 
-interface SettingsLearnMoreLinkProps {
-  topic: SettingsDocsTopic
+type SettingsLearnMoreLinkProps = {
   aboutKey?: MessageKey | string
-}
+} & ({ topic: SettingsDocsTopic; href?: never } | { href: string; topic?: never })
 
-interface SettingsDescriptionWithLearnMoreProps extends SettingsLearnMoreLinkProps {
+type SettingsDescriptionWithLearnMoreProps = SettingsLearnMoreLinkProps & {
   children: ReactNode
 }
 
-export function SettingsLearnMoreLink({ topic, aboutKey }: SettingsLearnMoreLinkProps): JSX.Element {
+export function SettingsLearnMoreLink({ topic, href, aboutKey }: SettingsLearnMoreLinkProps): JSX.Element {
   const locale = useLocale()
   const t = useT()
   const topicLabel = aboutKey ? t(aboutKey) : null
@@ -25,7 +24,7 @@ export function SettingsLearnMoreLink({ topic, aboutKey }: SettingsLearnMoreLink
     <button
       type="button"
       aria-label={ariaLabel}
-      onClick={() => void window.api.shell.openExternal(resolveSettingsDocsUrl(topic, locale))}
+      onClick={() => void window.api.shell.openExternal(href ?? resolveSettingsDocsUrl(topic, locale))}
       style={learnMoreButtonStyle}
     >
       {t('settings.learnMore')}
@@ -33,15 +32,13 @@ export function SettingsLearnMoreLink({ topic, aboutKey }: SettingsLearnMoreLink
   )
 }
 
-export function SettingsDescriptionWithLearnMore({
-  children,
-  topic,
-  aboutKey
-}: SettingsDescriptionWithLearnMoreProps): JSX.Element {
+export function SettingsDescriptionWithLearnMore(
+  { children, aboutKey, ...target }: SettingsDescriptionWithLearnMoreProps
+): JSX.Element {
   return (
     <>
       {children}{' '}
-      <SettingsLearnMoreLink topic={topic} aboutKey={aboutKey} />
+      <SettingsLearnMoreLink {...target} aboutKey={aboutKey} />
     </>
   )
 }

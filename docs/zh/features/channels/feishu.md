@@ -54,9 +54,26 @@ Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected�
 
 ### 官方飞书 CLI
 
-将 `feishu.cli.enabled` 设为 `true` 后，飞书来源的会话可以用当前配置的 Bot 身份调用内置官方飞书 CLI。只为应用授予计划使用的命令所需 scope。飞书要求时，还需把目标资源分享给应用 Bot。
+将 `feishu.cli.enabled` 设为 `true` 后，飞书来源的会话可以用当前配置的 Bot 身份调用内置官方飞书 CLI。只为应用授予计划使用的命令所需 scope。飞书要求时，还需把目标资源分享给应用 Bot。审批和命令限制见[渠道配置参考](./reference#飞书-lark)。
 
-日历、个人云空间这类资源属于个人而不属于 Bot。要访问它们，需要授权一个账号：私聊机器人发送 `/feishu-auth`，再打开它回复的链接同意授权。这个账号只会被读取，不会被写入。审批和命令限制见[渠道配置参考](./reference#飞书-lark)。
+### 个人资源访问
+
+日历、个人云空间、邮箱，这些属于某个人，Bot 打不开。授权一个账号，agent 就能代你读取它们。它只读，不会以你的名义新建、修改或发送任何东西。
+
+先在[飞书开发者后台](https://open.feishu.cn/document/server-docs/application-scope/scope-list)给应用开通对应权限，再把它们填进渠道设置的**个人资源授权范围**，一行一个：
+
+| 想让 agent 读什么 | 填哪个 scope |
+| --- | --- |
+| 日历、日程和忙闲 | `calendar:calendar:readonly` |
+| 云空间文件 | `drive:drive:readonly` |
+| 文档 | `docs:doc:readonly` |
+| 知识库 | `wiki:wiki:readonly` |
+| 多维表格 | `bitable:app:readonly` |
+| 企业邮箱 | `mail:user_mailbox:readonly` |
+
+同时给应用开通**持续访问已授权的数据**（`offline_access`）。DotCraft 会自己请求它来保持授权有效，所以不用填进输入框。
+
+然后私聊机器人发送 `/feishu-auth`，打开它回复的链接同意授权。你用哪个账号同意，agent 之后就以哪个账号读取，且对渠道里所有人生效。发送 `/feishu-auth status` 查看当前绑定的账号，`/feishu-auth revoke` 解除绑定。
 
 ## 独立适配器
 
