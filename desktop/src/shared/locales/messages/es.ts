@@ -60,7 +60,6 @@ export const MESSAGES_ES = {
   'update.latestVersion': 'Más reciente',
   'update.asset': 'Instalador',
   'update.size': 'Tamaño',
-  'update.releaseNotes': 'Notas de la versión',
   'update.noReleaseNotes': 'No se publicaron notas para esta versión.',
   'update.viewRelease': 'Ver versión',
   'update.download': 'Descargar',

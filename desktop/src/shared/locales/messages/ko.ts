@@ -60,7 +60,6 @@ export const MESSAGES_KO = {
   'update.latestVersion': '최신',
   'update.asset': '설치 프로그램',
   'update.size': '크기',
-  'update.releaseNotes': '릴리스 노트',
   'update.noReleaseNotes': '이 버전에 대한 릴리스 노트가 게시되지 않았습니다.',
   'update.viewRelease': '릴리스 보기',
   'update.download': '다운로드',

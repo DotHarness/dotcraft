@@ -174,7 +174,6 @@ export const MESSAGES_ZH_HANS = {
   'update.latestVersion': '最新版本',
   'update.asset': '安装包',
   'update.size': '大小',
-  'update.releaseNotes': 'Release notes',
   'update.noReleaseNotes': '此版本没有发布说明。',
   'update.viewRelease': '查看 Release',
   'update.download': '下载',

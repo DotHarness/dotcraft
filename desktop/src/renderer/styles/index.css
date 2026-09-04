@@ -28,6 +28,7 @@
 @import "../components/settings/profile/TokenActivityHeatmap.css";
 @import "./shared/animations.css";
 @import "../components/sidebar/styles/task-drag.css";
+@import "../components/update/styles/app-update.css";
 @import "./primitives/settings-group.css";
 @import "./primitives/select.css";
 @import "./primitives/slider.css";

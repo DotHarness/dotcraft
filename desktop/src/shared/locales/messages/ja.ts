@@ -60,7 +60,6 @@ export const MESSAGES_JA = {
   'update.latestVersion': '最新',
   'update.asset': 'インストーラー',
   'update.size': 'サイズ',
-  'update.releaseNotes': 'リリースノート',
   'update.noReleaseNotes': 'このバージョンのリリースノートは公開されていません。',
   'update.viewRelease': 'リリースを見る',
   'update.download': 'ダウンロード',

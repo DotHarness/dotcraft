@@ -1,0 +1,17 @@
+/* The markdown renderer sizes headings inline for conversation prose; inside the
+   update dialog they step down so they do not outrank the dialog title. */
+.app-update-notes h1,
+.app-update-notes h2 {
+  margin-top: 0 !important;
+  font-size: var(--type-heading-size) !important;
+  line-height: var(--type-heading-line-height) !important;
+}
+
+.app-update-notes h3 {
+  font-size: var(--type-ui-size) !important;
+  line-height: var(--type-ui-line-height) !important;
+}
+
+.app-update-notes .markdown-body > :last-child {
+  margin-bottom: 0 !important;
+}
