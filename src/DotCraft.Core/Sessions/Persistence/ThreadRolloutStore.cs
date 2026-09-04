@@ -82,7 +82,9 @@ internal sealed class ThreadRolloutStore
         ct.ThrowIfCancellationRequested();
         if (!File.Exists(path))
             return null;
-        return await ReplayAsync(File.ReadLinesAsync(path, ct), ct);
+        var replay = new ThreadReplay();
+        await Utf8JsonlReader.ReadAsync(path, replay.Apply, ct);
+        return replay.Build();
     }
 
     public IEnumerable<SessionThread> LoadAllThreads()
@@ -97,7 +99,9 @@ internal sealed class ThreadRolloutStore
                 SessionThread? thread = null;
                 try
                 {
-                    thread = Replay(File.ReadLines(path));
+                    var replay = new ThreadReplay();
+                    Utf8JsonlReader.Read(path, replay.Apply);
+                    thread = replay.Build();
                 }
                 catch
                 {
@@ -259,11 +263,10 @@ internal sealed class ThreadRolloutStore
             return [];
 
         var checkpoints = new List<ThreadCompactionCheckpoint>();
-        await foreach (var line in File.ReadLinesAsync(path, ct))
+        await Utf8JsonlReader.ReadAsync(path, line =>
         {
-            ct.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
+            if (Utf8JsonlReader.IsWhiteSpace(line))
+                return;
 
             ThreadRolloutRecord? record;
             try
@@ -272,13 +275,13 @@ internal sealed class ThreadRolloutStore
             }
             catch
             {
-                continue;
+                return;
             }
 
             if (record is not { Kind: "context_compacted", ContextCompacted: { } checkpoint } ||
                 !string.Equals(checkpoint.ThreadId, threadId, StringComparison.Ordinal))
             {
-                continue;
+                return;
             }
 
             checkpoints.Add(new ThreadCompactionCheckpoint(
@@ -291,7 +294,7 @@ internal sealed class ThreadRolloutStore
                 checkpoint.TokensAfter,
                 checkpoint.CreatedAt,
                 checkpoint.ReplacementHistory));
-        }
+        }, ct);
 
         return checkpoints;
     }
@@ -392,10 +395,10 @@ internal sealed class ThreadRolloutStore
             return [];
 
         var records = new List<ThreadRolloutRecord>();
-        await foreach (var line in File.ReadLinesAsync(path, ct).WithCancellation(ct))
+        await Utf8JsonlReader.ReadAsync(path, line =>
         {
-            if (!line.Contains("provider_history_", StringComparison.Ordinal))
-                continue;
+            if (line.IndexOf("provider_history_"u8) < 0)
+                return;
 
             ThreadRolloutRecord? record;
             try
@@ -415,7 +418,7 @@ internal sealed class ThreadRolloutStore
             {
                 records.Add(record);
             }
-        }
+        }, ct);
 
         return records;
     }
@@ -926,25 +929,6 @@ internal sealed class ThreadRolloutStore
         };
     }
 
-    private static SessionThread? Replay(IEnumerable<string> lines)
-    {
-        var replay = new ThreadReplay();
-
-        foreach (var line in lines)
-            replay.Apply(line);
-
-        return replay.Build();
-    }
-
-    private static async Task<SessionThread?> ReplayAsync(IAsyncEnumerable<string> lines, CancellationToken ct)
-    {
-        var replay = new ThreadReplay();
-        await foreach (var line in lines.WithCancellation(ct))
-            replay.Apply(line);
-
-        return replay.Build();
-    }
-
     private sealed class ThreadReplay
     {
         private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
@@ -952,9 +936,9 @@ internal sealed class ThreadRolloutStore
         private int _turnSequenceHighWatermark;
         private bool _hasCanonicalHeader;
 
-        public void Apply(string line)
+        public void Apply(ReadOnlySpan<byte> line)
         {
-            if (string.IsNullOrWhiteSpace(line))
+            if (Utf8JsonlReader.IsWhiteSpace(line))
                 return;
 
             ThreadRolloutRecord? record;

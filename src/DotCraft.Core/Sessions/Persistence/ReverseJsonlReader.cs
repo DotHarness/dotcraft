@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace DotCraft.Sessions;
 
@@ -8,7 +7,7 @@ internal sealed class ReverseJsonlReader(string path, int blockSize = 64 * 1024)
 {
     public long BytesRead { get; private set; }
 
-    public async IAsyncEnumerable<string> ReadLinesAsync(
+    public async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadLinesAsync(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await using var stream = new FileStream(
@@ -19,68 +18,107 @@ internal sealed class ReverseJsonlReader(string path, int blockSize = 64 * 1024)
             bufferSize: 1,
             FileOptions.Asynchronous | FileOptions.RandomAccess);
         var position = stream.Length;
-        byte[] carry = [];
-        var firstBlock = true;
-
-        while (position > 0)
+        var chunk = ArrayPool<byte>.Shared.Rent(blockSize);
+        using var record = new ReverseRecordBuffer();
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            var count = (int)Math.Min(blockSize, position);
-            var start = position - count;
-            var rented = ArrayPool<byte>.Shared.Rent(count);
-            try
+            var chunkPosition = 0;
+            while (true)
             {
-                stream.Seek(start, SeekOrigin.Begin);
-                var read = 0;
-                while (read < count)
+                ct.ThrowIfCancellationRequested();
+                if (chunkPosition == 0)
                 {
-                    var current = await stream.ReadAsync(rented.AsMemory(read, count - read), ct);
-                    if (current == 0)
-                        break;
-                    read += current;
+                    if (position == 0)
+                    {
+                        var finalRecord = record.Finish();
+                        if (finalRecord.HasValue)
+                            yield return finalRecord.Value;
+                        yield break;
+                    }
+
+                    var readSize = (int)Math.Min(blockSize, position);
+                    position -= readSize;
+                    stream.Seek(position, SeekOrigin.Begin);
+                    var read = 0;
+                    while (read < readSize)
+                    {
+                        var current = await stream.ReadAsync(chunk.AsMemory(read, readSize - read), ct);
+                        if (current == 0)
+                            throw new EndOfStreamException("The rollout ended during a reverse scan.");
+                        read += current;
+                    }
+
+                    BytesRead += read;
+                    chunkPosition = read;
                 }
 
-                BytesRead += read;
-                var data = new byte[read + carry.Length];
-                Buffer.BlockCopy(rented, 0, data, 0, read);
-                if (carry.Length > 0)
-                    Buffer.BlockCopy(carry, 0, data, read, carry.Length);
-
-                var end = data.Length;
-                if (firstBlock && end > 0 && data[end - 1] == (byte)'\n')
-                    end--;
-                firstBlock = false;
-
-                for (var index = end - 1; index >= 0; index--)
+                var newlinePosition = chunk.AsSpan(0, chunkPosition).LastIndexOf((byte)'\n');
+                if (newlinePosition >= 0)
                 {
-                    if (data[index] != (byte)'\n')
-                        continue;
-
-                    var lineStart = index + 1;
-                    var lineLength = end - lineStart;
-                    if (lineLength > 0 && data[end - 1] == (byte)'\r')
-                        lineLength--;
-                    if (lineLength > 0)
-                        yield return Encoding.UTF8.GetString(data, lineStart, lineLength);
-                    end = index;
+                    record.AppendReversed(chunk.AsSpan(newlinePosition + 1, chunkPosition - newlinePosition - 1));
+                    chunkPosition = newlinePosition;
+                    var completedRecord = record.Finish();
+                    if (completedRecord.HasValue)
+                        yield return completedRecord.Value;
+                    record.Reset();
                 }
+                else
+                {
+                    record.AppendReversed(chunk.AsSpan(0, chunkPosition));
+                    chunkPosition = 0;
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(chunk);
+        }
+    }
 
-                carry = data.AsSpan(0, end).ToArray();
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(rented);
-            }
-            position = start;
+    private sealed class ReverseRecordBuffer : IDisposable
+    {
+        private byte[] _buffer = ArrayPool<byte>.Shared.Rent(4 * 1024);
+
+        public int Count { get; private set; }
+
+        public void AppendReversed(ReadOnlySpan<byte> fragment)
+        {
+            EnsureCapacity(checked(Count + fragment.Length));
+            var destination = _buffer.AsSpan(Count, fragment.Length);
+            for (var index = 0; index < fragment.Length; index++)
+                destination[index] = fragment[fragment.Length - index - 1];
+            Count += fragment.Length;
         }
 
-        if (carry.Length > 0)
+        public ReadOnlyMemory<byte>? Finish()
         {
-            var length = carry.Length;
-            if (carry[length - 1] == (byte)'\r')
-                length--;
-            if (length > 0)
-                yield return Encoding.UTF8.GetString(carry, 0, length);
+            if (Count == 0)
+                return null;
+
+            _buffer.AsSpan(0, Count).Reverse();
+            var value = _buffer.AsMemory(0, Count);
+            return Utf8JsonlReader.IsWhiteSpace(value.Span) ? null : value;
+        }
+
+        public void Reset() => Count = 0;
+
+        public void Dispose()
+        {
+            var buffer = _buffer;
+            _buffer = [];
+            Count = 0;
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        private void EnsureCapacity(int required)
+        {
+            if (required <= _buffer.Length)
+                return;
+
+            var replacement = ArrayPool<byte>.Shared.Rent(Math.Max(required, checked(_buffer.Length * 2)));
+            _buffer.AsSpan(0, Count).CopyTo(replacement);
+            ArrayPool<byte>.Shared.Return(_buffer);
+            _buffer = replacement;
         }
     }
 }

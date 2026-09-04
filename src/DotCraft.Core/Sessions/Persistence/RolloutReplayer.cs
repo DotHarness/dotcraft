@@ -37,138 +37,129 @@ internal sealed class RolloutReplayer : IRolloutReplayer
 
         await foreach (var line in reader.ReadLinesAsync(ct))
         {
-            if (string.IsNullOrWhiteSpace(line))
+            if (Utf8JsonlReader.IsWhiteSpace(line.Span))
                 continue;
 
-            JsonDocument document;
+            ThreadRolloutRecord? record;
             try
             {
-                document = JsonDocument.Parse(line);
+                record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line.Span, JsonOptions);
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException or InvalidOperationException)
             {
-                Reject("malformed_json", "Skipped a malformed rollout record.", null);
-                continue;
-            }
-
-            using (document)
-            {
-                var root = document.RootElement;
-                var kind = TryGetString(root, "kind");
-                var envelopeTurnId = TryGetEnvelopeTurnId(root, kind);
-                if (!TryValidateTargetEnvelope(root, kind, out var envelopeError))
+                if (!TryReadEnvelope(line, out var failedKind, out var failedTurnId))
                 {
-                    Reject(
-                        string.Equals(kind, "context_compacted", StringComparison.Ordinal)
-                            ? "invalid_checkpoint"
-                            : "malformed_record",
-                        envelopeError!,
-                        envelopeTurnId,
-                        markFallback: !string.Equals(kind, "context_compacted", StringComparison.Ordinal));
+                    Reject("malformed_json", "Skipped a malformed rollout record.", null);
                     continue;
                 }
 
-                ThreadRolloutRecord? record;
+                var checkpointRecord = string.Equals(failedKind, "context_compacted", StringComparison.Ordinal);
+                Reject(
+                    checkpointRecord ? "invalid_checkpoint" : "malformed_record",
+                    checkpointRecord
+                        ? "Skipped an unreadable compaction checkpoint."
+                        : "Skipped an unreadable rollout record.",
+                    failedTurnId,
+                    markFallback: !checkpointRecord);
+                continue;
+            }
+
+            var kind = record?.Kind;
+            var envelopeTurnId = record == null ? null : TryGetEnvelopeTurnId(record, kind);
+            if (record == null)
+            {
+                Reject("empty_record", "Skipped an empty rollout record.", envelopeTurnId);
+                continue;
+            }
+
+            if (!TryValidateTargetEnvelope(record, kind, out var envelopeError))
+            {
+                Reject(
+                    string.Equals(kind, "context_compacted", StringComparison.Ordinal)
+                        ? "invalid_checkpoint"
+                        : "malformed_record",
+                    envelopeError!,
+                    envelopeTurnId,
+                    markFallback: !string.Equals(kind, "context_compacted", StringComparison.Ordinal));
+                continue;
+            }
+
+            recordsDecoded++;
+            if (string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal))
+            {
+                hasRecords = true;
+                var batch = record.ModelHistoryMessagesAppended;
+                if (!TryValidateModelBatch(batch, out var batchError))
+                {
+                    Reject("invalid_model_batch", batchError!, envelopeTurnId);
+                    continue;
+                }
+                var validBatch = batch!;
+                if (expectedThreadId != null
+                    && !string.Equals(validBatch.ThreadId, expectedThreadId, StringComparison.Ordinal))
+                {
+                    Reject("cross_thread_record", "Skipped a model-history batch belonging to another thread.", validBatch.TurnId);
+                    continue;
+                }
+                if (!survivingTurnIds.Contains(validBatch.TurnId))
+                    continue;
+
                 try
                 {
-                    record = root.Deserialize<ThreadRolloutRecord>(JsonOptions);
+                    var decodedMessages = validBatch.Messages
+                        .Select(message => codec.Decode(WithTurnId(message, validBatch.TurnId)))
+                        .ToList();
+                    reverseBatches.Add(new DecodedModelBatch(validBatch.TurnId, decodedMessages));
                 }
                 catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException or InvalidOperationException)
                 {
-                    var checkpointRecord = string.Equals(kind, "context_compacted", StringComparison.Ordinal);
+                    Reject("invalid_model_batch", "Skipped an undecodable model-history batch.", validBatch.TurnId);
+                }
+            }
+            else if (string.Equals(kind, "context_compacted", StringComparison.Ordinal))
+            {
+                hasRecords = true;
+                var checkpoint = record.ContextCompacted;
+                if (!TryValidateCheckpoint(checkpoint, out var checkpointError))
+                {
                     Reject(
-                        checkpointRecord ? "invalid_checkpoint" : "malformed_record",
-                        checkpointRecord
-                            ? "Skipped an unreadable compaction checkpoint."
-                            : "Skipped an unreadable rollout record.",
+                        "invalid_checkpoint",
+                        checkpointError!,
                         envelopeTurnId,
-                        markFallback: !checkpointRecord);
+                        markFallback: false);
+                    continue;
+                }
+                var validCheckpoint = checkpoint!;
+                if (expectedThreadId != null
+                    && !string.Equals(validCheckpoint.ThreadId, expectedThreadId, StringComparison.Ordinal))
+                {
+                    Reject(
+                        "cross_thread_record",
+                        "Skipped a compaction checkpoint belonging to another thread.",
+                        validCheckpoint.CoveredThroughTurnId,
+                        markFallback: false);
+                    continue;
+                }
+                if (!survivingTurnIds.Contains(validCheckpoint.CoveredThroughTurnId)
+                    || fallbackTurnIds.Contains(validCheckpoint.CoveredThroughTurnId))
+                {
                     continue;
                 }
 
-                if (record == null)
+                try
                 {
-                    Reject("empty_record", "Skipped an empty rollout record.", envelopeTurnId);
-                    continue;
+                    replacement = validCheckpoint.ReplacementHistory.Select(codec.Decode).ToList();
+                    selectedCheckpoint = validCheckpoint;
+                    break;
                 }
-
-                recordsDecoded++;
-                if (string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal))
+                catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException or InvalidOperationException)
                 {
-                    hasRecords = true;
-                    var batch = record.ModelHistoryMessagesAppended;
-                    if (!TryValidateModelBatch(batch, out var batchError))
-                    {
-                        Reject("invalid_model_batch", batchError!, envelopeTurnId);
-                        continue;
-                    }
-                    var validBatch = batch!;
-                    if (expectedThreadId != null
-                        && !string.Equals(validBatch.ThreadId, expectedThreadId, StringComparison.Ordinal))
-                    {
-                        Reject("cross_thread_record", "Skipped a model-history batch belonging to another thread.", validBatch.TurnId);
-                        continue;
-                    }
-                    if (!survivingTurnIds.Contains(validBatch.TurnId))
-                        continue;
-
-                    try
-                    {
-                        var decodedMessages = validBatch.Messages
-                            .Select(message => codec.Decode(WithTurnId(message, validBatch.TurnId)))
-                            .ToList();
-                        reverseBatches.Add(new DecodedModelBatch(validBatch.TurnId, decodedMessages));
-                    }
-                    catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException or InvalidOperationException)
-                    {
-                        Reject("invalid_model_batch", "Skipped an undecodable model-history batch.", validBatch.TurnId);
-                    }
-                }
-                else if (string.Equals(kind, "context_compacted", StringComparison.Ordinal))
-                {
-                    hasRecords = true;
-                    var checkpoint = record.ContextCompacted;
-                    if (!TryValidateCheckpoint(checkpoint, out var checkpointError))
-                    {
-                        Reject(
-                            "invalid_checkpoint",
-                            checkpointError!,
-                            envelopeTurnId,
-                            markFallback: false);
-                        continue;
-                    }
-                    var validCheckpoint = checkpoint!;
-                    if (expectedThreadId != null
-                        && !string.Equals(validCheckpoint.ThreadId, expectedThreadId, StringComparison.Ordinal))
-                    {
-                        Reject(
-                            "cross_thread_record",
-                            "Skipped a compaction checkpoint belonging to another thread.",
-                            validCheckpoint.CoveredThroughTurnId,
-                            markFallback: false);
-                        continue;
-                    }
-                    if (!survivingTurnIds.Contains(validCheckpoint.CoveredThroughTurnId)
-                        || fallbackTurnIds.Contains(validCheckpoint.CoveredThroughTurnId))
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        replacement = validCheckpoint.ReplacementHistory.Select(codec.Decode).ToList();
-                        selectedCheckpoint = validCheckpoint;
-                        break;
-                    }
-                    catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException or InvalidOperationException)
-                    {
-                        replacement = null;
-                        Reject(
-                            "invalid_checkpoint",
-                            "Skipped an undecodable compaction checkpoint.",
-                            validCheckpoint.CoveredThroughTurnId,
-                            markFallback: false);
-                    }
+                    replacement = null;
+                    Reject(
+                        "invalid_checkpoint",
+                        "Skipped an undecodable compaction checkpoint.",
+                        validCheckpoint.CoveredThroughTurnId,
+                        markFallback: false);
                 }
             }
         }
@@ -230,31 +221,27 @@ internal sealed class RolloutReplayer : IRolloutReplayer
     }
 
     private static bool TryValidateTargetEnvelope(
-        JsonElement root,
+        ThreadRolloutRecord record,
         string? kind,
         out string? error)
     {
         error = null;
-        var payloadNames = new[] { "contextCompacted", "modelHistoryMessagesAppended" };
-        var populatedPayloads = payloadNames
-            .Where(name => root.TryGetProperty(name, out var payload)
-                && payload.ValueKind != JsonValueKind.Null)
-            .ToList();
+        var populatedPayloads = (record.ContextCompacted == null ? 0 : 1)
+            + (record.ModelHistoryMessagesAppended == null ? 0 : 1);
 
         if (kind is not ("context_compacted" or "model_history_messages_appended"))
             return true;
 
-        var expectedPayload = kind == "context_compacted"
-            ? "contextCompacted"
-            : "modelHistoryMessagesAppended";
-        if (!root.TryGetProperty(expectedPayload, out var payload)
-            || payload.ValueKind != JsonValueKind.Object)
+        var hasExpectedPayload = kind == "context_compacted"
+            ? record.ContextCompacted != null
+            : record.ModelHistoryMessagesAppended != null;
+        if (!hasExpectedPayload)
         {
             error = $"Rollout record '{kind}' is missing its object payload.";
             return false;
         }
 
-        if (populatedPayloads.Count != 1)
+        if (populatedPayloads != 1)
         {
             error = $"Rollout record '{kind}' contains inconsistent payload fields.";
             return false;
@@ -317,6 +304,31 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
+
+    private static bool TryReadEnvelope(ReadOnlyMemory<byte> line, out string? kind, out string? turnId)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(line);
+            kind = TryGetString(document.RootElement, "kind");
+            turnId = TryGetEnvelopeTurnId(document.RootElement, kind);
+            return true;
+        }
+        catch (JsonException)
+        {
+            kind = null;
+            turnId = null;
+            return false;
+        }
+    }
+
+    private static string? TryGetEnvelopeTurnId(ThreadRolloutRecord record, string? kind) =>
+        kind switch
+        {
+            "model_history_messages_appended" => record.ModelHistoryMessagesAppended?.TurnId,
+            "context_compacted" => record.ContextCompacted?.CoveredThroughTurnId,
+            _ => null
+        };
 
     private static string? TryGetEnvelopeTurnId(JsonElement root, string? kind)
     {

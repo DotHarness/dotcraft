@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -126,6 +125,8 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
 
     private sealed class ThreadWriter
     {
+        private static readonly byte[] NewLine = "\n"u8.ToArray();
+
         private readonly Channel<WriterCommand> _channel = Channel.CreateBounded<WriterCommand>(
             new BoundedChannelOptions(Capacity)
             {
@@ -258,7 +259,7 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
         }
 
         private byte[] SerializeRecord(ThreadRolloutRecord record) =>
-            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(record, _jsonOptions) + "\n");
+            JsonSerializer.SerializeToUtf8Bytes(record, _jsonOptions);
 
         private async Task<RolloutWriteReceipt> WritePendingWithRecoveryAsync()
         {
@@ -320,6 +321,7 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
                 var record = _pending[i];
                 _stream!.Seek(0, SeekOrigin.End);
                 await _stream!.WriteAsync(record.Bytes);
+                await _stream.WriteAsync(NewLine);
                 _writtenPendingCount = i + 1;
             }
 
@@ -329,7 +331,7 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
             foreach (var record in _pending)
             {
                 var kind = record.Record.Kind;
-                bytesByKind[kind] = bytesByKind.GetValueOrDefault(kind) + record.Bytes.Length;
+                bytesByKind[kind] = bytesByKind.GetValueOrDefault(kind) + record.SerializedLength;
                 countsByKind[kind] = countsByKind.GetValueOrDefault(kind) + 1;
             }
             var written = _pending.Count;
@@ -355,10 +357,10 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
             var matched = 0;
             foreach (var pending in _pending)
             {
-                if (position + pending.Bytes.Length > _stream!.Length)
+                if (position + pending.SerializedLength > _stream!.Length)
                     break;
 
-                var actual = new byte[pending.Bytes.Length];
+                var actual = new byte[pending.SerializedLength];
                 _stream.Seek(position, SeekOrigin.Begin);
                 var read = 0;
                 while (read < actual.Length)
@@ -369,10 +371,12 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
                     read += count;
                 }
 
-                if (read != actual.Length || !actual.AsSpan().SequenceEqual(pending.Bytes))
+                if (read != actual.Length
+                    || !actual.AsSpan(0, pending.Bytes.Length).SequenceEqual(pending.Bytes)
+                    || actual[^1] != (byte)'\n')
                     break;
 
-                position += pending.Bytes.Length;
+                position += pending.SerializedLength;
                 matched++;
             }
 
@@ -437,7 +441,10 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
 
     private sealed record CloseCommand(TaskCompletionSource Completion) : WriterCommand;
 
-    private sealed record PendingRecord(ThreadRolloutRecord Record, byte[] Bytes, Exception? Error);
+    private sealed record PendingRecord(ThreadRolloutRecord Record, byte[] Bytes, Exception? Error)
+    {
+        public int SerializedLength => Bytes.Length + 1;
+    }
 }
 
 internal static class RolloutTelemetry
