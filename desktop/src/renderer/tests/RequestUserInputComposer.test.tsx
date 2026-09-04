@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { installDesktopApiMock } from './desktopApiMock'

@@ -112,7 +112,7 @@ internal sealed class WorkspaceRequestHandler(
 
         return Task.FromResult<object?>(new Contract.WorkspaceConfigSchemaResult
         {
-            Sections = configSchema.Select(ToContract).ToArray()
+            Sections = configSchema.Select(ConfigSchemaContractMapper.ToContract).ToArray()
         });
     }
 
@@ -394,50 +394,6 @@ internal sealed class WorkspaceRequestHandler(
         GeneratedAt = value.GeneratedAt,
         Fingerprint = value.Fingerprint
     };
-
-    private static Contract.ConfigSchemaSection ToContract(ConfigSchemaSection value) => new()
-    {
-        Section = value.Section,
-        Order = value.Order,
-        Path = OmitIfNull<IReadOnlyList<string>>(value.Path),
-        RootKey = OmitIfNull(value.RootKey),
-        ItemFields = value.ItemFields is null
-            ? default
-            : new Protocol.Optional<IReadOnlyList<Contract.ConfigSchemaField>?>(
-                value.ItemFields.Select(ToContract).ToArray()),
-        Fields = value.Fields.Select(ToContract).ToArray()
-    };
-
-    private static Contract.ConfigSchemaField ToContract(ConfigSchemaField value) => new()
-    {
-        Key = value.Key,
-        DisplayName = OmitIfNull(value.DisplayName),
-        Type = value.Type,
-        Sensitive = value.Sensitive,
-        Options = OmitIfNull<IReadOnlyList<string>>(value.Options),
-        Min = OmitIfNull(value.Min),
-        Max = OmitIfNull(value.Max),
-        Hint = OmitIfNull(value.Hint),
-        Reload = JsonNamingPolicy.CamelCase.ConvertName(value.Reload.ToString()),
-        SubsystemKey = OmitIfNull(value.SubsystemKey),
-        DefaultValue = ToOptionalJson(value.DefaultValue)
-    };
-
-    private static Protocol.Optional<JsonElement?> ToOptionalJson(object? value)
-    {
-        if (value is null)
-            return default;
-        if (value is JsonElement element)
-            return element.ValueKind == JsonValueKind.Undefined
-                ? default
-                : Protocol.Optional<JsonElement?>.FromValue(element.Clone());
-
-        return Protocol.Optional<JsonElement?>.FromValue(
-            JsonSerializer.SerializeToElement(value, AppConfig.SerializerOptions));
-    }
-
-    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : new Protocol.Optional<T?>(value);
 
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;

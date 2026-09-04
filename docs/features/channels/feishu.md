@@ -56,6 +56,25 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 Set `feishu.cli.enabled` to `true` to let Feishu-origin conversations use the bundled official Feishu CLI as the configured Bot. Grant the app only the scopes required by the commands you intend to use, and share target resources with the app Bot where Feishu requires it. See the [Channel configuration reference](./reference#feishu) for approvals and command restrictions.
 
+### Personal access
+
+A calendar, a personal drive, a mailbox — these belong to a person, and the Bot cannot open them. Authorize one account and the agent can read them on your behalf. It only ever reads; nothing is created, changed, or sent as you.
+
+Enable the matching permissions on your app in the [Feishu developer console](https://open.feishu.cn/document/server-docs/application-scope/scope-list), then list them in **Personal Access Scopes** in the channel settings, one per line:
+
+| To let the agent read | Add this scope |
+| --- | --- |
+| Calendars, events, and free/busy | `calendar:calendar:readonly` |
+| Files in Drive | `drive:drive:readonly` |
+| Docs | `docs:doc:readonly` |
+| Wiki | `wiki:wiki:readonly` |
+| Base tables | `bitable:app:readonly` |
+| Company mailbox | `mail:user_mailbox:readonly` |
+
+Also enable **持续访问已授权的数据** (`offline_access`) on the app. DotCraft requests it so the authorization keeps working, so leave it out of the field itself.
+
+Then send `/feishu-auth` to the bot in a direct message and approve the link it replies with. You can also just ask the agent for something personal and let it offer the link; either way the link arrives privately, because whoever opens it becomes the authorized account. That account is the one the agent reads as, for everyone in the channel. Send `/feishu-auth status` to see which account is bound, or `/feishu-auth revoke` to remove it.
+
 ## Standalone adapter
 
 Run the Feishu adapter yourself only when Desktop is not managing the channel process.

@@ -1,4 +1,5 @@
 ---
+name: memory
 description: "Reference for DotCraft memory files and history recall; use when the user asks about memory mechanics or when past events are needed."
 ---
 

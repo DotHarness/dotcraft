@@ -178,14 +178,16 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `feishu.groupMentionRequired` | Require @mention in Feishu groups. | `true` |
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
 | `feishu.downloadDir` | Local directory for downloaded attachments. | Workspace temp directory |
-| `feishu.streaming.enabled` | Use native CardKit streaming; automatically fall back to standard cards when unavailable. Requires `cardkit:card:write`. | `true` |
 | `feishu.cli.enabled` | Expose the bundled official Feishu CLI to Threads created by this Channel. | `false` |
+| `feishu.cli.userScopes` | Feishu user scopes requested when authorizing an account for read-only personal access. Empty keeps every command on the bot identity. | Empty |
 | `feishu.debug.adapterStream` | Enable adapter stream debug logs. | `false` |
 | `feishu.debug.textMerge` | Enable text merge debug logs. | `false` |
 
-When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI in forced Bot mode. The CLI child receives the App ID and tenant access token, not the App Secret, and does not use personal Feishu authorization.
+When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI as the bot. The CLI child receives the App ID and an access token, never the App Secret.
 
-The adapter injects a usage policy into the Feishu Thread context. Read a known Skill directly, and call `skills list` only when you do not know which Skill applies. When a Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. The Channel's Bot-only policy takes precedence over upstream recommendations to use a user identity, so omit `--as` or pass `--as bot`. `whoami` reports the effective identity and token status.
+The adapter injects a usage policy into the Feishu Thread context. Read a known Skill directly, and call `skills list` only when you do not know which Skill applies. When a Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. Identity comes from the tool's `identity` input rather than `--as`, which the adapter rejects. `whoami` reports the effective identity and token status.
+
+`feishu.cli.userScopes` lists the Feishu user scopes to request, and stays empty until an operator opts in; only scopes already enabled for the app can be granted. DotCraft appends `offline_access` and runs the device authorization itself, so the CLI's own `auth` and `config` commands stay unavailable. One authorized account serves the whole Channel, which is why `identity: "user"` is accepted only for read-only commands. The authorization is stored in the Channel's module state directory in plain text, alongside the App Secret already kept there. [Personal access](./feishu#personal-access) covers the operator's side.
 
 The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file arguments must stay inside the workspace. Document, wiki, file, media, and page tokens are business resource identifiers and are allowed. Raw `api`, CLI `auth`/`config`/`profile` management, `--profile`, caller-supplied `--yes`, runtime installation, and self-update are unavailable. The adapter appends `--yes` only after DotCraft approval and the pinned CLI's risk classification identify a `high-risk-write` operation. `--help` returns plain-text help without requesting a tenant token. Business commands still return structured JSON.
 

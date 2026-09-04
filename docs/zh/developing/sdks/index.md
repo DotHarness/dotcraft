@@ -12,6 +12,8 @@
 - [MCP 运行时](./mcp-runtime)——检查已配置 server、resource、tool 和认证。
 - [渠道适配器](./channels)——连接外部消息平台。
 
+在 DotCraft 对话里可以直接调用 `$dotcraft-api`。它会先判断你要做 client、进程内托管还是扩展，再对照生成的协议契约核对名称。
+
 ## 选择 API 层级
 
 | 层级 | 适用场景 |

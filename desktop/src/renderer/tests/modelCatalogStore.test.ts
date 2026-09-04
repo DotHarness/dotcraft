@@ -58,6 +58,20 @@ describe('modelCatalogStore', () => {
     })
   })
 
+  it('keeps loading after model/list fails before returning a promise', async () => {
+    appServerListModels.mockImplementation(() => {
+      throw new Error('bridge unavailable')
+    })
+
+    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-a')
+    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
+
+    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-b')
+
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
+    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', requestedProviderId: 'provider-b' })
+  })
+
   it('stores thrown model/list errors', async () => {
     appServerListModels.mockRejectedValueOnce(new Error('proxy unavailable'))
 

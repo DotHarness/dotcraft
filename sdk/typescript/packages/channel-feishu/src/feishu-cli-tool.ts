@@ -11,10 +11,13 @@ const FEISHU_CLI_RUNTIME_CONTEXT: Record<string, RuntimeAdditionalContextEntry> 
   "feishu.cli": {
     kind: "application",
     value:
-      "FeishuCli uses the bundled official CLI with adapter-managed Bot credentials. "
+      "FeishuCli uses the bundled official CLI with adapter-managed credentials. "
       + "Read a known Skill directly; use skills list only when the relevant Skill is unknown. "
       + "When a Skill links a reference, read it first with args=['read','<skill-name>','<relative-path>']; do not guess parameters. "
-      + "This Channel is Bot-only and overrides upstream recommendations to use user identity: omit --as or use --as bot, and do not try user OAuth, auth, config, or profiles. "
+      + "Identity comes from the identity input: leave it unset for the Bot, and pass identity='user' only for a personal resource the Bot cannot reach, such as a calendar, drive, or mailbox the operator owns. "
+      + "User identity is read-only. When a Bot call is denied for permissions, retry the same command once with identity='user' before giving up. "
+      + "If that reports no authorized account, call FeishuAuthorizeUser; if it reports that user identity is not enabled, say an administrator must configure its scopes in the channel settings. Never try auth, config, or profiles. "
+      + "GroupChatId names a live Feishu chat, a topic when it carries /thread:<id>; messages posted there before this turn are not in your context, so read them with FeishuCli before answering. "
       + "Call FeishuCli directly instead of locating lark-cli through Shell. Do not pass --yes. Document, wiki, file, media, and page tokens are valid resource identifiers.",
   },
 };
@@ -30,9 +33,8 @@ export function getFeishuCliToolDescriptors(enabled: boolean): ChannelToolDescri
   return [{
     name: "FeishuCli",
     description:
-      "Run one command from the pinned official Feishu CLI with adapter-managed credentials. "
-      + "Pass the subcommand in command and each following argv token in args. "
-      + "Use the Feishu Channel context for the Skill workflow and Bot-only policy. Every call requires approval.",
+      "Run one command from the pinned official Feishu CLI. "
+      + "Pass the subcommand in command and each following argv token in args.",
     requiresChatContext: false,
     approval: {
       kind: "remoteResource",
@@ -53,7 +55,12 @@ export function getFeishuCliToolDescriptors(enabled: boolean): ChannelToolDescri
         args: {
           type: "array",
           items: { type: "string" },
-          description: "Argument tokens following command. Do not include --profile or --yes. --as bot and business resource tokens are allowed.",
+          description: "Argument tokens following command. Do not include --as, --profile, or --yes. Business resource tokens are allowed.",
+        },
+        identity: {
+          type: "string",
+          enum: ["bot", "user"],
+          description: "Who the command acts as. Defaults to bot. Use user only for read-only access to a personal resource the bot cannot reach.",
         },
       },
       required: ["command", "args"],
@@ -73,10 +80,16 @@ export class FeishuCliTool {
     workspaceRoot: string,
     config: FeishuConfig["feishu"],
     getTenantAccessToken: () => Promise<string>,
+    getUserAccessToken: () => Promise<string>,
   ): Promise<FeishuCliTool> {
     try {
       return new FeishuCliTool({
-        runner: await FeishuCliRunner.fromModule(workspaceRoot, config, getTenantAccessToken),
+        runner: await FeishuCliRunner.fromModule(
+          workspaceRoot,
+          config,
+          getTenantAccessToken,
+          getUserAccessToken,
+        ),
       });
     } catch (error) {
       const failure = error instanceof FeishuCliRunnerError
@@ -99,8 +112,12 @@ export class FeishuCliTool {
 
     const command = typeof args.command === "string" ? args.command : "";
     const cliArgs = Array.isArray(args.args) ? args.args : [];
+    const identity = args.identity === "user" ? "user" : "bot";
     try {
-      const result = await this.state.runner.run(command, cliArgs as string[], this.abortController.signal);
+      const result = await this.state.runner.run(command, cliArgs as string[], {
+        identity,
+        signal: this.abortController.signal,
+      });
       return {
         success: true,
         contentItems: result.contentItems,

@@ -1,4 +1,5 @@
 using DotCraft.Contributions;
+using DotCraft.Plugins;
 
 namespace DotCraft.Context;
 
@@ -15,12 +16,13 @@ internal static class IdentityPromptSection
             ? GetSandboxEnvironmentSection()
             : GetHostEnvironmentSection();
         var workspaceRootsSection = GetWorkspaceRootsSection(sources);
+        var identity = GetIdentityLine();
 
         return
 $$"""
 # DotCraft
 
-You are DotCraft, a helpful AI assistant. You have access to tools that allow you to:
+{{identity}} You have access to tools that allow you to:
 - Read, write, and edit files
 - Execute shell commands
 - Complete user tasks efficiently
@@ -49,6 +51,15 @@ Use the available tools deliberately to gather context, make changes, validate w
 When creating git commits for the user, do not change git config. End commit messages with:
 Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
 """;
+    }
+
+    private static string GetIdentityLine()
+    {
+        // The entry assembly carries the product version; test hosts and embedding apps report 0.0.0 or their own.
+        var product = PluginHostVersion.Current.ProductText;
+        return product == "0.0.0"
+            ? "You are DotCraft, a helpful AI assistant."
+            : $"You are DotCraft, a helpful AI assistant running DotCraft {product}.";
     }
 
     private static string GetWorkspaceRootsSection(PromptSectionSources sources)

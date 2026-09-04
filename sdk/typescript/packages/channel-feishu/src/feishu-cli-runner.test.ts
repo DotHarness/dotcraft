@@ -11,6 +11,7 @@ import {
   type FeishuCliProcessExecutor,
   type FeishuCliProcessRequest,
 } from "./feishu-cli-runner.js";
+import { FeishuUserIdentityError } from "./feishu-user-identity.js";
 
 type RecordedCall = Pick<FeishuCliProcessRequest, "args" | "cwd" | "env">;
 
@@ -19,7 +20,9 @@ async function createRunner(options?: {
   shortcutRisk?: "read" | "write" | "high-risk-write";
   result?: { exitCode: number; stdout: string; stderr: string };
   tokenError?: Error;
+  userToken?: string | Error;
 }) {
+  const userToken = options?.userToken ?? new FeishuUserIdentityError("not_authorized", "no binding");
   const workspaceRoot = await mkdtemp(join(tmpdir(), "dotcraft-feishu-cli-"));
   const calls: RecordedCall[] = [];
   const execute: FeishuCliProcessExecutor = async (request) => {
@@ -53,6 +56,10 @@ async function createRunner(options?: {
       if (options?.tokenError) throw options.tokenError;
       return "tenant-token";
     },
+    getUserAccessToken: async () => {
+      if (userToken instanceof Error) throw userToken;
+      return userToken;
+    },
     execute,
   });
   return { runner, calls, workspaceRoot, get tokenRequests() { return tokenRequests; } };
@@ -85,6 +92,45 @@ test("passes structured argv directly and injects only adapter-managed Bot crede
     delete process.env.LARKSUITE_CLI_USER_ACCESS_TOKEN;
     delete process.env.LARKSUITE_CLI_PROFILE;
   }
+});
+
+test("runs a user-identity command with only the user token and a locked user strict mode", async () => {
+  const fixture = await createRunner({ userToken: "user-token" });
+  await fixture.runner.run("calendar", ["events", "list"], { identity: "user" });
+
+  assert.equal(fixture.tokenRequests, 0);
+  const invocation = fixture.calls[1];
+  assert.equal(invocation?.env.LARKSUITE_CLI_USER_ACCESS_TOKEN, "user-token");
+  assert.equal(invocation?.env.LARKSUITE_CLI_TENANT_ACCESS_TOKEN, undefined);
+  assert.equal(invocation?.env.LARKSUITE_CLI_APP_SECRET, undefined);
+  assert.equal(invocation?.env.LARKSUITE_CLI_DEFAULT_AS, "user");
+  assert.equal(invocation?.env.LARKSUITE_CLI_STRICT_MODE, "user");
+  assert.equal(fixture.calls[0]?.env.LARKSUITE_CLI_STRICT_MODE, "bot");
+});
+
+test("keeps user identity read-only and reports when no account is authorized", async () => {
+  const write = await createRunner({ risk: "write", userToken: "user-token" });
+  await assert.rejects(
+    () => write.runner.run("calendar", ["events", "create"], { identity: "user" }),
+    errorCode("FeishuCliUserWriteRejected"),
+  );
+  assert.equal(write.calls.length, 1);
+
+  const unauthorized = await createRunner({
+    userToken: new FeishuUserIdentityError("not_authorized", "no binding"),
+  });
+  await assert.rejects(
+    () => unauthorized.runner.run("calendar", ["events", "list"], { identity: "user" }),
+    errorCode("FeishuCliUserAuthorizationRequired"),
+  );
+
+  const unconfigured = await createRunner({
+    userToken: new FeishuUserIdentityError("not_configured", "scopes missing"),
+  });
+  await assert.rejects(
+    () => unconfigured.runner.run("calendar", ["events", "list"], { identity: "user" }),
+    errorCode("FeishuCliUserIdentityUnavailable"),
+  );
 });
 
 test("uses the pinned shortcut catalog and appends --yes only for high-risk commands", async () => {
@@ -148,12 +194,29 @@ test("rejects raw API, managed commands, profiles, caller confirmation, and unkn
   );
 });
 
-test("passes identity flags and business resource tokens to the pinned CLI", async () => {
-  const { runner, calls } = await createRunner();
-  await runner.run("docs", ["+fetch", "--as", "bot", "--doc", "doc-token", "--page-token", "page-token"]);
-  assert.deepEqual(calls[0]?.args, [
-    "docs", "+fetch", "--as", "bot", "--doc", "doc-token", "--page-token", "page-token",
+test("drops a redundant identity flag and rejects one that disagrees with the chosen identity", async () => {
+  const matching = await createRunner({ userToken: "user-token" });
+  await matching.runner.run("docs", ["+fetch", "--as", "bot", "--doc", "doc-token"]);
+  await matching.runner.run("docs", ["+fetch", "--as=user"], { identity: "user" });
+  assert.deepEqual(matching.calls.map((call) => call.args), [
+    ["docs", "+fetch", "--doc", "doc-token"],
+    ["docs", "+fetch"],
   ]);
+
+  const mismatched = await createRunner({ userToken: "user-token" });
+  await assert.rejects(
+    () => mismatched.runner.run("docs", ["+fetch", "--as", "user"]),
+    errorCode("FeishuCliCommandRejected"),
+  );
+});
+
+test("rejects a shortcut supplied as the command", async () => {
+  const { runner, calls } = await createRunner();
+  await assert.rejects(
+    () => runner.run("+fetch", ["--doc", "doc-token"]),
+    errorCode("FeishuCliCommandRejected"),
+  );
+  assert.equal(calls.length, 0);
 });
 
 test("logs only the classified operation and never positional resource values", async () => {
@@ -198,7 +261,7 @@ test("preserves safe official strict-mode and authentication error details", asy
     },
   });
   await assert.rejects(
-    () => strict.runner.run("docs", ["+fetch", "--as", "user"]),
+    () => strict.runner.run("docs", ["+fetch"]),
     (error) => {
       assert.ok(error instanceof FeishuCliRunnerError);
       assert.equal(error.code, "FeishuCliValidationFailed");
@@ -263,6 +326,7 @@ test("maps timeout, cancellation, output overflow, and invalid output to stable 
       brand: "lark",
       version: "1.0.87",
       getTenantAccessToken: async () => "tenant-token",
+      getUserAccessToken: async () => "user-token",
       execute: async () => result,
     });
     await assert.rejects(() => runner.run("docs", ["+fetch"]), errorCode(code));

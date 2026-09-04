@@ -16,6 +16,7 @@ export interface ConfigDescriptorWire {
   options?: ConfigFieldOptionWire[]
   allowCustomValue?: boolean
   enumValues?: string[]
+  docsPath?: LocalizedTextMap
 }
 
 export interface ConfigFieldOptionWire {

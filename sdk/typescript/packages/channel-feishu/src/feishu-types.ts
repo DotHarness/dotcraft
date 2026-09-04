@@ -18,10 +18,8 @@ export interface FeishuConfig {
     downloadDir?: string;
     cli?: {
       enabled?: boolean;
-    };
-    streaming?: {
-      /** Use Feishu CardKit typewriter updates when available. Defaults to true. */
-      enabled?: boolean;
+      /** Feishu user scopes to request; an empty list keeps the CLI on Bot identity only. */
+      userScopes?: string[];
     };
     /** Debug logging to stderr; only keys set to `true` enable tracing. */
     debug?: {

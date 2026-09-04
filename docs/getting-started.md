@@ -16,7 +16,7 @@ If this machine already has a Claude Code configuration, the wizard adds a step 
 
 ## 3. Configure a model
 
-Choose a model provider and model in the wizard. Enter an API key when the provider requires one, or choose **Sign in with ChatGPT** and sign in after setup.
+Choose a model provider and model in the wizard. Enter an API key when the provider requires one, or choose **Sign in with ChatGPT** and sign in after setup. To change models later, go back to Settings or ask `$dotcraft-guide` in a conversation to switch for you.
 
 Check the summary on the last page, then select **Create Workspace**.
 

@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'

@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { DesktopPluginHost } from '@dotcraft/plugin'

@@ -343,9 +343,9 @@ public static class DashBoardMiddleware
                 hasApiKey = !string.IsNullOrWhiteSpace(apiKeyVal.ToString());
 
             // Mask all sensitive fields in all three views
-            MaskSensitiveFields(globalObj, sensitivePaths);
-            MaskSensitiveFields(workspaceObj, sensitivePaths);
-            MaskSensitiveFields(mergedObj, sensitivePaths);
+            ConfigSchemaUtilities.MaskSensitiveValues(globalObj, sensitivePaths);
+            ConfigSchemaUtilities.MaskSensitiveValues(workspaceObj, sensitivePaths);
+            ConfigSchemaUtilities.MaskSensitiveValues(mergedObj, sensitivePaths);
 
             // Check if authentication is enabled (Username and Password configured)
             bool authEnabled = false;
@@ -606,33 +606,9 @@ public static class DashBoardMiddleware
         await ctx.Response.WriteAsJsonAsync(new { success = true, path = targetPath });
     }
 
-    private static void MaskSensitiveFields(JsonObject obj, string[][] sensitivePaths)
-    {
-        foreach (var path in sensitivePaths)
-            MaskAtPath(obj, path, 0);
-    }
-
     // Case-insensitive key lookup for JsonObject (config files may use camelCase or PascalCase)
     private static string? FindKey(JsonObject obj, string key) =>
         obj.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)).Key;
-
-    private static void MaskAtPath(JsonObject obj, string[] path, int depth)
-    {
-        var actualKey = FindKey(obj, path[depth]);
-        if (actualKey == null) return;
-
-        if (depth == path.Length - 1)
-        {
-            // Leaf: mask if non-empty string
-            if (obj[actualKey] is JsonValue val && val.ToString().Length > 0)
-                obj[actualKey] = "***";
-        }
-        else
-        {
-            if (obj[actualKey] is JsonObject nested)
-                MaskAtPath(nested, path, depth + 1);
-        }
-    }
 
     // For each sensitive path: if posted value is "***", restore from existing (or remove)
     private static void RestoreSentinels(JsonObject posted, JsonObject existing, string[][] sensitivePaths)

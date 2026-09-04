@@ -1,0 +1,6 @@
+interface:
+  display_name: "DotCraft Guide"
+  short_description: "Ask about DotCraft and configure this installation"
+  icon_small: "./assets/dotcraft-guide-small.svg"
+  icon_large: "./assets/dotcraft-guide.svg"
+  default_prompt: "Use $dotcraft-guide to answer a question about DotCraft itself or change this workspace's DotCraft settings."

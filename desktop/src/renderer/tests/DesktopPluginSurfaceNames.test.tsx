@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import type { DesktopPluginHost, DesktopPluginSurfaceComponent } from '@dotcraft/plugin'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

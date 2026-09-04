@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import type { DesktopPluginHost, DesktopPluginSessionSnapshot } from '@dotcraft/plugin'
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

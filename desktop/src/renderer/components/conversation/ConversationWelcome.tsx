@@ -53,10 +53,9 @@ import {
   ComposerPlanModeLabel,
   ComposerSendButton,
   ComposerShell,
-  SendIcon,
-  SendProcessingIcon,
   composerModelPillStyle
 } from './ComposerShell'
+import { ComposerSubmitGlyphs } from './ComposerSubmitButton'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
@@ -2072,7 +2071,7 @@ function ConversationWelcomeCore({
                         aria-label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
                         aria-busy={starting ? 'true' : undefined}
                       >
-                        {starting ? <SendProcessingIcon /> : <SendIcon />}
+                        <ComposerSubmitGlyphs glyph={starting ? 'stopping' : 'send'} />
                       </ComposerSendButton>
                     </ActionTooltip>
                   )}

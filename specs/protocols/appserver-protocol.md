@@ -4208,11 +4208,12 @@ These methods expose skill discovery and control to wire clients. Skills are mar
 
 | Priority | Source | Location | Description |
 |----------|--------|----------|-------------|
-| 1 (highest) | `builtin` | Server-defined | Server-provided built-in skill. |
-| 2 | `workspace` | Server-defined | Workspace-scoped skill. |
-| 3 (lowest) | `user` | Server-defined | User-scoped skill. |
+| 1 (highest) | `workspace` | Workspace skills root, directories without a `.builtin` marker | User-owned workspace skill. |
+| 2 | `plugin` | Enabled plugin bundle `skills/` directory | Plugin-contributed skill. |
+| 3 | `builtin` | Workspace skills root, directories with a `.builtin` marker | Server-deployed built-in skill. |
+| 4 (lowest) | `user` | User data `skills/` directory | User-global skill. |
 
-When the same skill name exists in multiple sources, the higher-priority source takes precedence.
+When the same skill name exists in multiple sources, the higher-priority source takes precedence. Only the `user` pass deduplicates by name; a `builtin` entry is suppressed only when a disabled plugin declares a skill of the same name.
 
 Skills may declare requirements (executables, environment variables) in their frontmatter. A skill whose requirements are not met is reported as `available: false` with a diagnostic reason.
 

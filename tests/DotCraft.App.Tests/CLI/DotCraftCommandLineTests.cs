@@ -77,6 +77,7 @@ public sealed class DotCraftCommandLineTests
     [InlineData("app-server", "--listen", "http://localhost:9100")]
     [InlineData("tool-host", "register")]
     [InlineData("tool-host", "policy", "set", "Exec", "sometimes")]
+    [InlineData("config", "schema", "--section")]
     public async Task InvalidInput_IsRejected(string first, params string[] remaining)
     {
         using var output = new StringWriter();

@@ -58,6 +58,8 @@ await host.StopAsync();
 - [Model providers](./model-providers) configures OpenAI, Anthropic, and compatible endpoints.
 - [NuGet package](./nuget-package) covers installation and the assemblies the package ships.
 
+`$dotcraft-api` covers the in-process hosting path as well. Ask it in a DotCraft conversation when you embed Harness.
+
 ## See a desktop integration sample
 
 The repository includes **DotCraft Trace Viewer**, a WinUI 3 sample that embeds `DotCraft.Harness` to review persisted Agent traces. It presents execution as a chronological Timeline, links evidence through Findings, and keeps the inspected workspace read-only.

@@ -16,6 +16,10 @@ A skill teaches the agent how to do something once, so the next time a similar j
 
 When you write a skill yourself, `~/.craft/skills/` makes it personal and the workspace's `.craft/skills/` makes it project-specific. Every source is switched on or off from the Skills page, and a skill you find in a marketplace has to be installed before it joins the local list.
 
+### Let DotCraft explain and configure itself
+
+No need to read the docs or hand-edit config files. Ask in the conversation: "what can you do", "switch to Claude", "which MCP servers do you have". DotCraft answers, and when a setting has to change it makes the change for you and tells you when it takes effect. To integrate DotCraft into your own application, ask it to walk you through that too; it writes code against the SDK version you actually have installed.
+
 ## Let the agent save its own skills
 
 Turn on **Settings → Personalization → Enable self-learning** in Desktop, and the agent can turn a procedure that worked into a workspace skill, or patch steps in an existing skill that turned out to be stale or wrong. Creating a skill and any destructive change ask you first.

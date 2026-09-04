@@ -4,6 +4,18 @@
 
 DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位。变量不存在时保留原始占位符。
 
+## 从 CLI 查看配置
+
+`dotcraft config schema` 打印当前构建认识的全部配置节和字段，包括类型、默认值、是否敏感和重载方式。`dotcraft config show` 打印某个工作区合并后的配置，其中 `ApiKey`、`Password`、`Token` 的值会被遮蔽为 `***`。
+
+```bash
+dotcraft config schema --section Tools.Web
+dotcraft config schema --json
+dotcraft config show --json
+```
+
+`--section` 接受配置节的显示名或 JSON 路径。`--json` 输出机器可读的格式，`config show` 无论是否加 `--json` 都是缩进的 JSON。`config show` 默认读取当前目录的工作区，用 `--workspace` 指定其他目录。
+
 ## 基础模型与 Provider
 
 | 配置项 | 说明 | 默认值 |

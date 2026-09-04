@@ -12,6 +12,8 @@ Use a DotCraft SDK to connect an application to AppServer. Start with the high-l
 - [MCP runtime](./mcp-runtime) — inspect configured servers, resources, tools, and authentication.
 - [Channel adapters](./channels) — connect an external messaging platform.
 
+Inside a DotCraft conversation, `$dotcraft-api` picks the right shape for your integration (client, in-process host, or extension) and checks names against the generated protocol contract.
+
 ## Choose an API layer
 
 | Layer | Use it for |

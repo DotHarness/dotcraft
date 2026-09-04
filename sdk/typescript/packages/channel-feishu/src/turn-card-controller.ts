@@ -19,7 +19,6 @@ export interface TurnTranscriptState {
 }
 
 export interface TurnCardControllerDeps {
-  streamingEnabled: () => boolean;
   client: () => FeishuClient;
   cardTitle: () => string;
   deliverCard: (target: string, cardId: string) => Promise<FeishuSendResult>;
@@ -31,6 +30,8 @@ export class TurnCardController {
   private readonly states = new Map<string, TurnTranscriptState>();
   private readonly activeTurnByThread = new Map<string, string>();
   private readonly activeTurnByChannelTarget = new Map<string, string>();
+  /** A permission failure means CardKit will not work for this app, so stop retrying it every turn. */
+  private cardKitUnavailable = false;
 
   constructor(private readonly deps: TurnCardControllerDeps) {}
 
@@ -48,7 +49,7 @@ export class TurnCardController {
       messageId: "",
       accumulatedText: "",
       hasProgress: false,
-      mode: this.deps.streamingEnabled() ? "pending" : "fallback",
+      mode: this.cardKitUnavailable ? "fallback" : "pending",
     };
     this.states.set(key, created);
     return created;
@@ -60,7 +61,6 @@ export class TurnCardController {
   }
 
   async beginTurn(threadId: string, turnId: string, channelTarget: string): Promise<void> {
-    if (!this.deps.streamingEnabled()) return;
     const state = this.getOrInit(threadId, turnId, channelTarget);
     if (state.mode !== "pending") return;
     this.markActive(threadId, turnId, channelTarget);
@@ -132,6 +132,7 @@ export class TurnCardController {
     turnId: string,
   ): void {
     const apiError = error instanceof FeishuApiError ? error : undefined;
+    if (apiError?.kind === "permission" || apiError?.kind === "auth") this.cardKitUnavailable = true;
     logWarn("turn.streaming_fallback", {
       failureCode: "feishuCardKitStreamingFailed",
       stage,
