@@ -35,8 +35,11 @@ import {
   buildFileCaptionCard,
   buildNewConversationCard,
   buildTranscriptCard,
+  buildUserAuthCard,
+  buildUserAuthNoticeCard,
   buildUserInputCard,
   buildUserInputResolvedCard,
+  type FeishuUserAuthNotice,
   type QuestionPosition,
 } from "./card-builder.js";
 import { createOrUpdateCard, sendReplyCards, updateCard } from "./card-sender.js";
@@ -50,6 +53,11 @@ import {
   type ParsedInboundMessage,
 } from "./feishu-types.js";
 import { FeishuClient } from "./feishu-client.js";
+import {
+  FeishuUserIdentity,
+  FeishuUserIdentityError,
+  type FeishuDeviceAuthorization,
+} from "./feishu-user-identity.js";
 import { FeishuLoadingIcon } from "./loading-icon.js";
 import { FeishuOutboundRouter } from "./outbound-router.js";
 import { TurnCardController } from "./turn-card-controller.js";
@@ -97,6 +105,10 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
   if (cli?.enabled !== undefined && typeof cli.enabled !== "boolean") {
     throw new ConfigValidationError("feishu.cli.enabled must be a boolean.", ["feishu.cli.enabled"]);
   }
+  if (cli?.userScopes !== undefined
+      && (!Array.isArray(cli.userScopes) || cli.userScopes.some((scope) => typeof scope !== "string"))) {
+    throw new ConfigValidationError("feishu.cli.userScopes must be a string array.", ["feishu.cli.userScopes"]);
+  }
   if (fields.length > 0) {
     throw new ConfigValidationError(`Missing required fields: ${fields.join(", ")}`, fields);
   }
@@ -108,6 +120,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private approvalTimeoutMs = 120000;
   private streamingEnabled = true;
   private cliTool: FeishuCliTool | undefined;
+  private userIdentity: FeishuUserIdentity | undefined;
   private eventAbortController: AbortController | undefined;
   private loadingIcon: FeishuLoadingIcon | undefined;
   private statusTimings: { textStallMs?: number; statusSettleMs?: number } | undefined;
@@ -185,12 +198,22 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     this.streamingEnabled = config.feishu.streaming?.enabled !== false;
     configureTextMergeDebug(config.feishu.debug?.textMerge);
     this.feishu = new FeishuClient(config.feishu);
-    this.loadingIcon = new FeishuLoadingIcon(this.feishu, { stateDir: resolveModuleStatePath(context) });
+    const stateDir = resolveModuleStatePath(context);
+    this.loadingIcon = new FeishuLoadingIcon(this.feishu, { stateDir });
+    const userIdentity = new FeishuUserIdentity({
+      appId: config.feishu.appId,
+      appSecret: config.feishu.appSecret,
+      brand: config.feishu.brand ?? "feishu",
+      scopes: config.feishu.cli?.userScopes ?? [],
+      stateDir,
+    });
+    this.userIdentity = userIdentity;
     if (config.feishu.cli?.enabled === true) {
       this.cliTool = await FeishuCliTool.create(
         context.workspaceRoot,
         config.feishu,
         () => this.getFeishuClient().getTenantAccessToken(),
+        () => userIdentity.getAccessToken(),
       );
     }
 
@@ -793,6 +816,10 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (await this.tryResolvePendingUserInputFromText(message.channelContext, message.text)) {
       return;
     }
+    if (isUserAuthCommand(message.text)) {
+      await this.handleUserAuthCommand(message);
+      return;
+    }
     if (isNewCommand(message.text)) {
       await this.newThread(message.threadUserId, message.channelContext);
       await this.router.sendCard(
@@ -820,6 +847,80 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       inputParts: message.parts.length ? message.parts : undefined,
       omitSenderGroupId: message.chatType !== "group",
     });
+  }
+
+  /** Authorization binds one operator account, so it only runs where the sender is unambiguous. */
+  private async handleUserAuthCommand(message: ParsedInboundMessage): Promise<void> {
+    const identity = this.userIdentity;
+    const target = message.channelContext;
+    const notice = async (
+      kind: FeishuUserAuthNotice,
+      params: Record<string, string> = {},
+    ): Promise<void> => {
+      await this.router.sendCard(target, buildUserAuthNoticeCard(kind, params));
+    };
+    if (!identity?.isConfigured()) {
+      await notice("authDisabledBody");
+      return;
+    }
+    if (message.chatType !== "p2p") {
+      await notice("authDirectOnlyBody");
+      return;
+    }
+
+    const action = userAuthAction(message.text);
+    if (action === "revoke") {
+      identity.clearBinding();
+      logInfo("user_identity.binding.cleared", {});
+      await notice("authRevokedBody");
+      return;
+    }
+    if (action === "status") {
+      const binding = identity.getBinding();
+      await (binding
+        ? notice("authStatusBound", { name: binding.name || binding.openId })
+        : notice("authStatusUnbound"));
+      return;
+    }
+
+    let authorization: FeishuDeviceAuthorization;
+    try {
+      authorization = await identity.requestAuthorization();
+    } catch (error) {
+      logWarn("user_identity.authorization.request_failed", {
+        code: error instanceof FeishuUserIdentityError ? error.code : "unknown",
+      });
+      await notice("authFailedBody");
+      return;
+    }
+    await this.router.sendCard(
+      target,
+      buildUserAuthCard(authorization.verificationUriComplete, authorization.userCode),
+    );
+    const signal = this.eventAbortController?.signal;
+    void this.awaitUserAuthorization(identity, authorization, target, signal).catch(() => {});
+  }
+
+  private async awaitUserAuthorization(
+    identity: FeishuUserIdentity,
+    authorization: FeishuDeviceAuthorization,
+    target: string,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    try {
+      const record = await identity.waitForAuthorization(authorization, signal);
+      logInfo("user_identity.binding.created", { scopes: record.scopes.length });
+      await this.router.sendCard(
+        target,
+        buildUserAuthNoticeCard("authSuccessBody", { name: record.name || record.openId }),
+      );
+    } catch (error) {
+      if (signal?.aborted) return;
+      logWarn("user_identity.authorization.failed", {
+        code: error instanceof FeishuUserIdentityError ? error.code : "unknown",
+      });
+      await this.router.sendCard(target, buildUserAuthNoticeCard("authFailedBody"));
+    }
   }
 
   handleCardAction(event: FeishuCardActionEvent): boolean {
@@ -1060,6 +1161,17 @@ function parseFeishuSocialTarget(channelContext: string): {
 
 function isNewCommand(text: string): boolean {
   return /^\s*\/new\s*$/i.test(text.trim());
+}
+
+function isUserAuthCommand(text: string): boolean {
+  return /^\/feishu-auth(?:\s+\S+)?$/i.test(text.trim());
+}
+
+function userAuthAction(text: string): "start" | "status" | "revoke" {
+  const argument = text.trim().split(/\s+/)[1]?.toLowerCase();
+  if (argument === "revoke") return "revoke";
+  if (argument === "status") return "status";
+  return "start";
 }
 
 function parseActionValue(value: Record<string, unknown> | string | undefined): Record<string, unknown> | null {

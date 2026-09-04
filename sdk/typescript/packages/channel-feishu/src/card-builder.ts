@@ -250,6 +250,31 @@ export function buildNewConversationCard(): Record<string, unknown> {
   return buildV2Card(cardText("newConversationTitle"), "blue", [markdownElement(cardText("newConversationBody"))]);
 }
 
+const AUTH_NOTICE_TEMPLATES = {
+  authSuccessBody: "green",
+  authFailedBody: "red",
+  authRevokedBody: "grey",
+  authStatusBound: "blue",
+  authStatusUnbound: "blue",
+  authDirectOnlyBody: "orange",
+  authDisabledBody: "orange",
+} as const;
+
+export type FeishuUserAuthNotice = keyof typeof AUTH_NOTICE_TEMPLATES;
+
+export function buildUserAuthCard(url: string, code: string): Record<string, unknown> {
+  return buildV2Card(cardText("authTitle"), "blue", [markdownElement(cardText("authBody", { url, code }))]);
+}
+
+export function buildUserAuthNoticeCard(
+  notice: FeishuUserAuthNotice,
+  params: Record<string, string> = {},
+): Record<string, unknown> {
+  return buildV2Card(cardText("authTitle"), AUTH_NOTICE_TEMPLATES[notice], [
+    markdownElement(cardText(notice, params)),
+  ]);
+}
+
 export function buildUnsupportedMessageCard(messageType: string): Record<string, unknown> {
   return buildV2Card(cardText("unsupportedTitle"), "red", [
     markdownElement(cardText("unsupportedBody", { type: messageType })),

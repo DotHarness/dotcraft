@@ -5,6 +5,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { FeishuConfig } from "./feishu-types.js";
+import { FeishuUserIdentityError } from "./feishu-user-identity.js";
 import { logInfo, logWarn } from "./logging.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -22,6 +23,7 @@ const FORBIDDEN_COMMANDS = new Set([
   "update",
 ]);
 const FORBIDDEN_FLAGS = [
+  "--as",
   "--profile",
   "--yes",
 ];
@@ -43,6 +45,7 @@ const PATH_FLAGS = new Set([
 ]);
 
 export type FeishuCliRisk = "read" | "write" | "high-risk-write";
+export type FeishuCliIdentity = "bot" | "user";
 
 type FeishuCliClassification = {
   risk: FeishuCliRisk;
@@ -102,6 +105,11 @@ export class FeishuCliRunnerError extends Error {
   }
 }
 
+export type FeishuCliRunOptions = {
+  identity?: FeishuCliIdentity;
+  signal?: AbortSignal;
+};
+
 export type FeishuCliRunnerOptions = {
   executable: string;
   shortcutCatalog: ShortcutCatalog;
@@ -110,6 +118,7 @@ export type FeishuCliRunnerOptions = {
   brand: "feishu" | "lark";
   version: string;
   getTenantAccessToken: () => Promise<string>;
+  getUserAccessToken: () => Promise<string>;
   timeoutMs?: number;
   outputLimit?: number;
   execute?: FeishuCliProcessExecutor;
@@ -136,6 +145,7 @@ export class FeishuCliRunner {
     workspaceRoot: string,
     config: FeishuConfig["feishu"],
     getTenantAccessToken: () => Promise<string>,
+    getUserAccessToken: () => Promise<string>,
   ): Promise<FeishuCliRunner> {
     const moduleRoot = fileURLToPath(new URL("../", import.meta.url));
     const executable = resolve(
@@ -168,48 +178,47 @@ export class FeishuCliRunner {
       brand: config.brand ?? "feishu",
       version: "1.0.87",
       getTenantAccessToken,
+      getUserAccessToken,
     });
   }
 
-  async run(command: string, args: string[], signal?: AbortSignal): Promise<FeishuCliRunResult> {
+  async run(command: string, args: string[], options: FeishuCliRunOptions = {}): Promise<FeishuCliRunResult> {
+    const identity = options.identity ?? "bot";
+    const { signal } = options;
     const normalizedCommand = validateCommand(command);
     const normalizedArgs = validateArguments(args, this.options.workspaceRoot);
     const startedAt = Date.now();
     const classification = await this.classify(normalizedCommand, normalizedArgs, signal);
     const { risk } = classification;
+    if (identity === "user" && risk !== "read") {
+      throw new FeishuCliRunnerError(
+        "FeishuCliUserWriteRejected",
+        "User identity is limited to read-only commands. Use the default Bot identity to make changes.",
+      );
+    }
     const invocationArgs = [normalizedCommand, ...normalizedArgs];
     if (risk === "high-risk-write") invocationArgs.push("--yes");
 
-    let tenantAccessToken: string | undefined;
+    let accessToken: string | undefined;
     const isHelp = normalizedArgs.includes("--help");
     if (!LOCAL_COMMANDS.has(normalizedCommand) && !isHelp) {
-      try {
-        tenantAccessToken = await this.options.getTenantAccessToken();
-      } catch {
-        throw new FeishuCliRunnerError(
-          "FeishuCliAuthenticationFailed",
-          "Unable to obtain an adapter-managed Feishu tenant access token.",
-          {
-            type: "authentication",
-            subtype: "token_unavailable",
-            message: "Unable to obtain an adapter-managed Feishu tenant access token.",
-            identity: "bot",
-          },
-        );
-      }
+      accessToken = identity === "user"
+        ? await this.resolveUserAccessToken()
+        : await this.resolveTenantAccessToken();
     }
 
     const result = await this.execute({
       executable: this.options.executable,
       args: invocationArgs,
       cwd: this.options.workspaceRoot,
-      env: createChildEnvironment(this.options, tenantAccessToken),
+      env: createChildEnvironment(this.options, identity, accessToken),
       timeoutMs: this.timeoutMs,
       outputLimit: this.outputLimit,
       signal,
     });
     logInfo("cli.invocation.completed", {
       command: classification.operation,
+      identity,
       risk,
       durationMs: Date.now() - startedAt,
       exitCode: result.exitCode ?? -1,
@@ -217,6 +226,47 @@ export class FeishuCliRunner {
     });
     throwForProcessFailure(result);
     return parseCliResult(result.stdout, result.stderr, risk, normalizedCommand, normalizedArgs);
+  }
+
+  private async resolveTenantAccessToken(): Promise<string> {
+    try {
+      return await this.options.getTenantAccessToken();
+    } catch {
+      throw new FeishuCliRunnerError(
+        "FeishuCliAuthenticationFailed",
+        "Unable to obtain an adapter-managed Feishu tenant access token.",
+        {
+          type: "authentication",
+          subtype: "token_unavailable",
+          message: "Unable to obtain an adapter-managed Feishu tenant access token.",
+          identity: "bot",
+        },
+      );
+    }
+  }
+
+  private async resolveUserAccessToken(): Promise<string> {
+    try {
+      return await this.options.getUserAccessToken();
+    } catch (error) {
+      const code = error instanceof FeishuUserIdentityError ? error.code : "authorization_failed";
+      if (code === "not_configured") {
+        throw new FeishuCliRunnerError(
+          "FeishuCliUserIdentityUnavailable",
+          "User identity is not enabled for this Channel. Use the default Bot identity.",
+        );
+      }
+      const message = code === "authorization_failed"
+        ? "The authorized Feishu account could not be used right now. Try again shortly."
+        : "No authorized Feishu account is available. "
+          + "Ask the operator to send /feishu-auth to this bot in a direct message.";
+      throw new FeishuCliRunnerError("FeishuCliUserAuthorizationRequired", message, {
+        type: "authentication",
+        subtype: "user_authorization_required",
+        message,
+        identity: "user",
+      });
+    }
   }
 
   private async classify(
@@ -259,7 +309,7 @@ export class FeishuCliRunner {
       executable: this.options.executable,
       args: ["schema", schemaId, "--format", "json"],
       cwd: this.options.workspaceRoot,
-      env: createChildEnvironment(this.options),
+      env: createChildEnvironment(this.options, "bot"),
       timeoutMs: this.timeoutMs,
       outputLimit: this.outputLimit,
       signal,
@@ -316,12 +366,7 @@ function validateArguments(args: string[], workspaceRoot: string): string[] {
     }
     const flag = arg.split("=", 1)[0]?.toLowerCase() ?? "";
     if (FORBIDDEN_FLAGS.includes(flag)) {
-      throw new FeishuCliRunnerError(
-        "FeishuCliCommandRejected",
-        flag === "--yes"
-          ? "Caller-supplied confirmation is unavailable; DotCraft controls confirmation after risk classification."
-          : "Host-local Feishu CLI profile selection is unavailable.",
-      );
+      throw new FeishuCliRunnerError("FeishuCliCommandRejected", forbiddenFlagMessage(flag));
     }
     return arg;
   });
@@ -375,19 +420,35 @@ function generatedCommandId(command: string, args: string[]): string {
   return path.join(".");
 }
 
+function forbiddenFlagMessage(flag: string): string {
+  switch (flag) {
+    case "--yes":
+      return "Caller-supplied confirmation is unavailable; DotCraft controls confirmation after risk classification.";
+    case "--as":
+      return "Identity is selected with the identity input, not with --as.";
+    default:
+      return "Host-local Feishu CLI profile selection is unavailable.";
+  }
+}
+
+/** The two identities are mutually exclusive: one token and one locked strict mode per run. */
 function createChildEnvironment(
   options: FeishuCliRunnerOptions,
-  tenantAccessToken?: string,
+  identity: FeishuCliIdentity,
+  accessToken?: string,
 ): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (/^LARKSUITE_CLI_/i.test(key)) delete env[key];
   }
   env.LARKSUITE_CLI_APP_ID = options.appId;
-  if (tenantAccessToken) env.LARKSUITE_CLI_TENANT_ACCESS_TOKEN = tenantAccessToken;
+  if (accessToken) {
+    if (identity === "user") env.LARKSUITE_CLI_USER_ACCESS_TOKEN = accessToken;
+    else env.LARKSUITE_CLI_TENANT_ACCESS_TOKEN = accessToken;
+  }
   env.LARKSUITE_CLI_BRAND = options.brand;
-  env.LARKSUITE_CLI_DEFAULT_AS = "bot";
-  env.LARKSUITE_CLI_STRICT_MODE = "bot";
+  env.LARKSUITE_CLI_DEFAULT_AS = identity;
+  env.LARKSUITE_CLI_STRICT_MODE = identity;
   env.LARKSUITE_CLI_NO_UPDATE_NOTIFIER = "1";
   return env;
 }

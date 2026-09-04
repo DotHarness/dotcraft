@@ -272,6 +272,53 @@ export const configDescriptors: ConfigDescriptor[] = [
     defaultValue: false,
   },
   {
+    key: "feishu.cli.userScopes",
+    displayLabel: "Personal Access Scopes",
+    description:
+      "Feishu user scopes to request when authorizing an account for read-only personal access, "
+      + "such as calendar:calendar:readonly. Leave empty to keep every command on the bot identity. "
+      + "Only scopes already enabled for the Feishu app can be granted.",
+    localizedDisplayLabel: {
+      en: "Personal Access Scopes", "zh-Hans": "个人资源授权范围", ja: "個人リソースのスコープ",
+      ko: "개인 리소스 범위", es: "Ámbitos de acceso personal", fr: "Portées d'accès personnel",
+      de: "Bereiche für persönlichen Zugriff",
+    },
+    localizedDescription: {
+      en:
+        "Feishu user scopes to request when authorizing an account for read-only personal access, "
+        + "such as calendar:calendar:readonly. Leave empty to keep every command on the bot identity. "
+        + "Only scopes already enabled for the Feishu app can be granted.",
+      "zh-Hans":
+        "授权账号读取个人资源时请求的飞书 scope，例如 calendar:calendar:readonly。"
+        + "留空则所有命令都以机器人身份运行。只有应用后台已开通的 scope 才能授权成功。",
+      ja:
+        "個人リソースを読み取るアカウントを認可するときに要求する Feishu スコープ"
+        + "（例：calendar:calendar:readonly）。空にすると、すべてのコマンドがボット ID で実行されます。"
+        + "アプリで有効化済みのスコープのみ付与できます。",
+      ko:
+        "개인 리소스를 읽기 위해 계정을 인증할 때 요청할 Feishu 범위입니다"
+        + "(예: calendar:calendar:readonly). 비워 두면 모든 명령이 봇 ID로 실행됩니다. "
+        + "앱에 이미 활성화된 범위만 부여할 수 있습니다.",
+      es:
+        "Ámbitos de usuario de Feishu que se solicitan al autorizar una cuenta para lectura de recursos personales, "
+        + "por ejemplo calendar:calendar:readonly. Déjalo vacío para que todo se ejecute con la identidad del bot. "
+        + "Solo se pueden conceder los ámbitos ya habilitados en la app.",
+      fr:
+        "Portées utilisateur Feishu demandées lors de l'autorisation d'un compte en lecture seule, "
+        + "par exemple calendar:calendar:readonly. Laissez vide pour tout exécuter avec l'identité du bot. "
+        + "Seules les portées déjà activées pour l'application peuvent être accordées.",
+      de:
+        "Feishu-Benutzerbereiche, die beim Autorisieren eines Kontos für lesenden Zugriff angefordert werden, "
+        + "etwa calendar:calendar:readonly. Leer lassen, damit alles mit der Bot-Identität läuft. "
+        + "Nur bereits in der App aktivierte Bereiche können gewährt werden.",
+    },
+    required: false,
+    dataKind: "list",
+    masked: false,
+    interactiveSetupOnly: false,
+    group: "configuration",
+  },
+  {
     key: "feishu.debug.adapterStream",
     displayLabel: "Debug Adapter Stream",
     description: "Enable detailed adapter stream diagnostics.",

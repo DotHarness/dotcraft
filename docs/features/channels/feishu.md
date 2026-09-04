@@ -54,7 +54,9 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 ### Official Feishu CLI
 
-Set `feishu.cli.enabled` to `true` to let Feishu-origin conversations use the bundled official Feishu CLI as the configured Bot. Grant the app only the scopes required by the commands you intend to use, and share target resources with the app Bot where Feishu requires it. See the [Channel configuration reference](./reference#feishu) for approvals and command restrictions.
+Set `feishu.cli.enabled` to `true` to let Feishu-origin conversations use the bundled official Feishu CLI as the configured Bot. Grant the app only the scopes required by the commands you intend to use, and share target resources with the app Bot where Feishu requires it.
+
+Some things belong to a person rather than to the Bot, such as a calendar or a personal drive. To reach those, authorize one account: send `/feishu-auth` to the bot in a direct message and approve the link it replies with. That account is only ever read from, never written to. See the [Channel configuration reference](./reference#feishu) for approvals and command restrictions.
 
 ## Standalone adapter
 

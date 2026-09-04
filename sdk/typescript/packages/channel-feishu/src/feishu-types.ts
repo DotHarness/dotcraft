@@ -18,6 +18,8 @@ export interface FeishuConfig {
     downloadDir?: string;
     cli?: {
       enabled?: boolean;
+      /** Feishu user scopes to request; an empty list keeps the CLI on Bot identity only. */
+      userScopes?: string[];
     };
     streaming?: {
       /** Use Feishu CardKit typewriter updates when available. Defaults to true. */
