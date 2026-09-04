@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './setupPluginRuntime'
 import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopPluginHost } from '@dotcraft/plugin'

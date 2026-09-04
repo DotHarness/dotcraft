@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import type {
   DesktopPluginActivation,
   DesktopPluginEnvironmentSnapshot,

@@ -1,3 +1,4 @@
+import '../../renderer/tests/setupPluginRuntime'
 import type {
   DesktopPluginHost,
   DesktopPluginSurfaceComponent

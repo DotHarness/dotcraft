@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import type {
   DesktopPluginHost,
   DesktopPluginSurfaceComponent,

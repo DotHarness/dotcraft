@@ -1,3 +1,4 @@
+import './setupPluginRuntime'
 import type { DesktopPluginIconProps } from '@dotcraft/plugin'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
