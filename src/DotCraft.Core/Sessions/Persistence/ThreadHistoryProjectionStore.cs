@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Text;
 using System.Text.Json;
 using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
@@ -302,18 +301,19 @@ internal sealed class ThreadHistoryProjectionStore(
     {
         if (lineBuffer.Length == 0)
             return;
-        var line = Encoding.UTF8.GetString(lineBuffer.GetBuffer(), 0, checked((int)lineBuffer.Length));
-        using var document = JsonDocument.Parse(line);
-        if (!document.RootElement.TryGetProperty("kind", out var kindElement)
-            || kindElement.ValueKind != JsonValueKind.String
-            || string.IsNullOrWhiteSpace(kindElement.GetString()))
+        var line = lineBuffer.GetBuffer().AsSpan(0, checked((int)lineBuffer.Length));
+        var kind = RolloutJsonEnvelopeReader.ReadKind(line);
+        if (string.IsNullOrWhiteSpace(kind))
         {
             throw new InvalidDataException("A rollout record has no kind envelope.");
         }
 
-        var kind = kindElement.GetString()!;
         if (DomainKinds.Contains(kind))
-            projector.Apply(kind, line);
+        {
+            var record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions)
+                ?? throw new InvalidDataException("The rollout record is empty.");
+            projector.Apply(record);
+        }
         else if (!IgnoredKinds.Contains(kind))
             throw new InvalidDataException($"Unsupported domain rollout record kind '{kind}'.");
     }

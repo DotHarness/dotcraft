@@ -333,6 +333,42 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadThread_ReadsLargeUtf8RecordsWithCrLfAndNoFinalNewline()
+    {
+        var thread = CreateThread();
+        await _store.SaveThreadAsync(thread);
+        var firstName = "跨块-" + new string('界', 64 * 1024);
+        var finalName = "最终名称-🤖";
+        var firstRecord = new ThreadRolloutRecord
+        {
+            Kind = "thread_name_updated",
+            ThreadNameUpdated = new ThreadNameUpdatedPayload
+            {
+                ThreadId = thread.Id,
+                DisplayName = firstName
+            }
+        };
+        var finalRecord = new ThreadRolloutRecord
+        {
+            Kind = "thread_name_updated",
+            ThreadNameUpdated = new ThreadNameUpdatedPayload
+            {
+                ThreadId = thread.Id,
+                DisplayName = finalName
+            }
+        };
+        var suffix = JsonSerializer.Serialize(firstRecord, SessionJsonOptions.Default)
+            + "\r\n"
+            + JsonSerializer.Serialize(finalRecord, SessionJsonOptions.Default);
+        await File.AppendAllTextAsync(GetCanonicalPath(thread.Id, archived: false), suffix);
+
+        var loaded = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(finalName, loaded.DisplayName);
+    }
+
+    [Fact]
     public async Task SaveThread_PreservesMetadata()
     {
         var thread = CreateThread();
@@ -1973,6 +2009,37 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(["exact request", "exact answer"], replay.Messages.Select(static message => message.Text));
         Assert.Equal(1, replay.RejectedRecords);
         Assert.Contains(replay.Warnings!, warning => warning.Code == "malformed_json");
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_UnreadablePayloadRecoversEnvelopeForFallback()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var unreadableBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = thread.Id,
+                turnId = thread.Turns[0].Id,
+                messages = "not-an-array"
+            }
+        };
+        await File.AppendAllTextAsync(
+            path,
+            JsonSerializer.Serialize(unreadableBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, replay.FallbackTurnIds!);
+        Assert.Contains(replay.Warnings!, warning =>
+            warning.Code == "malformed_record" && warning.TurnId == thread.Turns[0].Id);
     }
 
     [Fact]

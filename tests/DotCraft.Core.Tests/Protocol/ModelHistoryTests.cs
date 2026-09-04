@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Protocol;
@@ -397,6 +398,59 @@ public sealed class ModelHistoryTests : IDisposable
             ["turn_state_replaced", "context_compacted", "model_history_messages_appended"],
             observed);
         Assert.Equal(3, receipt.RecordCount);
+    }
+
+    [Fact]
+    public async Task OrderedWriter_WritesCanonicalUtf8JsonAndCountsLineTerminator()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "utf8-rollout.jsonl");
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "thread_name_updated",
+            Timestamp = new DateTimeOffset(2026, 9, 5, 1, 2, 3, TimeSpan.Zero),
+            ThreadNameUpdated = new ThreadNameUpdatedPayload
+            {
+                ThreadId = "thread-utf8",
+                DisplayName = "中文 🤖 " + new string('x', 128 * 1024)
+            }
+        };
+        var expected = Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(record, SessionJsonOptions.Default) + "\n");
+        var writer = new OrderedRolloutWriter();
+
+        await writer.AddBatchAsync("thread-utf8", path, [record]);
+        var receipt = await writer.FlushAsync("thread-utf8");
+        await writer.CloseAsync("thread-utf8");
+
+        Assert.Equal(expected, await File.ReadAllBytesAsync(path));
+        Assert.Equal(expected.Length, receipt.ConfirmedOffset);
+        Assert.Equal(expected.Length, receipt.BytesByKind[record.Kind]);
+    }
+
+    [Fact]
+    public async Task ReverseReplay_ReadsUtf8LinesAcrossBlocksAndWithoutFinalNewline()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "reverse-boundaries.jsonl");
+        var largeRecord = JsonSerializer.Serialize(new
+        {
+            kind = "large_unknown",
+            padding = new string('界', 256 * 1024)
+        });
+        var contents = string.Join(
+            "\r\n",
+            "\u3000",
+            "{\"kind\":\"first_unknown\"}",
+            largeRecord,
+            "{\"kind\":\"last_unknown\"}");
+        await File.WriteAllTextAsync(path, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, []);
+
+        Assert.Equal(3, replay.RecordsDecoded);
+        Assert.Equal(0, replay.RejectedRecords);
+        Assert.Equal(new FileInfo(path).Length, replay.BytesRead);
     }
 
     [Fact]

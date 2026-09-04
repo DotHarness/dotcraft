@@ -18,55 +18,56 @@ internal sealed class ThreadHistoryProjector(
 
     public long NextOrdinal { get; private set; } = nextOrdinal;
 
-    public void Apply(string kind, string line)
+    public void Apply(ThreadRolloutRecord record)
     {
+        var kind = record.Kind;
         switch (kind)
         {
             case "thread_opened":
-                ApplyThreadOpened(Deserialize(line).ThreadOpened
+                ApplyThreadOpened(record.ThreadOpened
                     ?? throw InvalidRecord(kind));
                 break;
             case "thread_name_updated":
-                EnsureSnapshot().DisplayName = Deserialize(line).ThreadNameUpdated?.DisplayName;
+                EnsureSnapshot().DisplayName = record.ThreadNameUpdated?.DisplayName;
                 break;
             case "thread_status_changed":
-                ApplyStatus(Deserialize(line).ThreadStatusChanged
+                ApplyStatus(record.ThreadStatusChanged
                     ?? throw InvalidRecord(kind));
                 break;
             case "queued_input_added":
-                ApplyQueueAdded(Deserialize(line).QueuedInputAdded
+                ApplyQueueAdded(record.QueuedInputAdded
                     ?? throw InvalidRecord(kind));
                 break;
             case "queued_input_removed":
-                ApplyQueueRemoved(Deserialize(line).QueuedInputRemoved
+                ApplyQueueRemoved(record.QueuedInputRemoved
                     ?? throw InvalidRecord(kind));
                 break;
             case "queued_input_updated":
-                ApplyQueueUpdated(Deserialize(line).QueuedInputUpdated
+                ApplyQueueUpdated(record.QueuedInputUpdated
                     ?? throw InvalidRecord(kind));
                 break;
             case "queued_input_reordered":
-                ApplyQueueReordered(Deserialize(line).QueuedInputReordered
+                ApplyQueueReordered(record.QueuedInputReordered
                     ?? throw InvalidRecord(kind));
                 break;
             case "turn_started":
-                ApplyTurnStarted(Deserialize(line).TurnStarted?.Turn
+                ApplyTurnStarted(record.TurnStarted?.Turn
                     ?? throw InvalidRecord(kind));
                 break;
             case "turn_completed":
-                ApplyTurnCompleted(Deserialize(line).TurnCompleted
+                ApplyTurnCompleted(record.TurnCompleted
                     ?? throw InvalidRecord(kind));
                 break;
             case "item_appended":
-                ApplyItem(Deserialize(line).ItemAppended
+                ApplyItem(record.ItemAppended
                     ?? throw InvalidRecord(kind));
                 break;
             case "turn_state_replaced":
-                ApplyTurnReplacement(Deserialize(line).TurnStateReplaced
+                ApplyTurnReplacement(record.TurnStateReplaced
                     ?? throw InvalidRecord(kind));
                 break;
             case "thread_rolled_back":
-                ApplyRollback(Deserialize(line).ThreadRolledBack
+                ApplyRollback(record.ThreadRolledBack
                     ?? throw InvalidRecord(kind));
                 break;
         }
@@ -390,10 +391,6 @@ internal sealed class ThreadHistoryProjector(
 
     private SessionThread EnsureSnapshot() => Snapshot
         ?? throw new InvalidDataException("The rollout does not begin with a canonical Thread header.");
-
-    private static ThreadRolloutRecord Deserialize(string line) =>
-        JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions)
-        ?? throw new InvalidDataException("The rollout record is empty.");
 
     private static InvalidDataException InvalidRecord(string kind) =>
         new($"The '{kind}' rollout record is incomplete.");
