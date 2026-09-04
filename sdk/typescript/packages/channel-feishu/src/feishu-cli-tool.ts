@@ -14,10 +14,10 @@ const FEISHU_CLI_RUNTIME_CONTEXT: Record<string, RuntimeAdditionalContextEntry> 
       "FeishuCli uses the bundled official CLI with adapter-managed credentials. "
       + "Read a known Skill directly; use skills list only when the relevant Skill is unknown. "
       + "When a Skill links a reference, read it first with args=['read','<skill-name>','<relative-path>']; do not guess parameters. "
-      + "Identity comes from the identity input, never from --as: leave it unset for the Bot, and pass identity='user' only for a personal resource the Bot cannot reach, such as a calendar, drive, or mailbox the operator owns. "
+      + "Identity comes from the identity input: leave it unset for the Bot, and pass identity='user' only for a personal resource the Bot cannot reach, such as a calendar, drive, or mailbox the operator owns. "
       + "User identity is read-only. When a Bot call is denied for permissions, retry the same command once with identity='user' before giving up. "
       + "If that reports no authorized account, call FeishuAuthorizeUser; if it reports that user identity is not enabled, say an administrator must configure its scopes in the channel settings. Never try auth, config, or profiles. "
-      + "A conversation target shaped group:<chat>/thread:<id> is a Feishu topic, and messages posted in it before this turn are not in your context; when the request depends on them, read the topic before answering. "
+      + "GroupChatId names a live Feishu chat, a topic when it carries /thread:<id>; messages posted there before this turn are not in your context, so read them with FeishuCli before answering. "
       + "Call FeishuCli directly instead of locating lark-cli through Shell. Do not pass --yes. Document, wiki, file, media, and page tokens are valid resource identifiers.",
   },
 };
@@ -33,9 +33,8 @@ export function getFeishuCliToolDescriptors(enabled: boolean): ChannelToolDescri
   return [{
     name: "FeishuCli",
     description:
-      "Run one command from the pinned official Feishu CLI with adapter-managed credentials. "
-      + "Pass the subcommand in command and each following argv token in args. "
-      + "Use the Feishu Channel context for the Skill workflow and identity policy. Every call requires approval.",
+      "Run one command from the pinned official Feishu CLI. "
+      + "Pass the subcommand in command and each following argv token in args.",
     requiresChatContext: false,
     approval: {
       kind: "remoteResource",
