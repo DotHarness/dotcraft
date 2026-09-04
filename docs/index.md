@@ -68,9 +68,10 @@ lastUpdated: false
     <article class="dc-story">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">One project, one runtime</p>
-          <h2>The project is the workspace.</h2>
+          <p class="dc-story__eyebrow">DotCraft Desktop</p>
+          <h2>Plan, build, review, and automate in one app.</h2>
           <div class="dc-story__links">
+            <a class="dc-link" href="./features/entry-points/desktop">Desktop</a>
             <a class="dc-link" href="./getting-started">Getting Started</a>
           </div>
         </div>
@@ -82,8 +83,8 @@ lastUpdated: false
     <article class="dc-story dc-story--flip">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">Your Agent team</p>
-          <h2>Shape specialists through conversation, then build the team your work needs.</h2>
+          <p class="dc-story__eyebrow">Agent Builder + Profiles</p>
+          <h2>Build your own Agent team through conversation.</h2>
           <div class="dc-story__links">
             <a class="dc-link" href="./features/agent-system/agent-profiles">Agent Profiles</a>
             <a class="dc-link" href="./features/agent-system/subagents">Subagents</a>

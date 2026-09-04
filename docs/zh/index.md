@@ -68,9 +68,10 @@ lastUpdated: false
     <article class="dc-story">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">一个项目，一个运行时</p>
-          <h2>项目就是工作区。</h2>
+          <p class="dc-story__eyebrow">DotCraft Desktop</p>
+          <h2>规划、执行、审阅和自动化，都在一个桌面应用里完成。</h2>
           <div class="dc-story__links">
+            <a class="dc-link" href="./features/entry-points/desktop">Desktop</a>
             <a class="dc-link" href="./getting-started">快速开始</a>
           </div>
         </div>
@@ -82,8 +83,8 @@ lastUpdated: false
     <article class="dc-story dc-story--flip">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">你的 Agent 团队</p>
-          <h2>通过对话塑造各有所长的 Agent，组建属于你的团队。</h2>
+          <p class="dc-story__eyebrow">Agent Builder + Profiles</p>
+          <h2>通过对话，打造属于你的 Agent 团队。</h2>
           <div class="dc-story__links">
             <a class="dc-link" href="./features/agent-system/agent-profiles">Agent Profiles</a>
             <a class="dc-link" href="./features/agent-system/subagents">Subagents</a>
