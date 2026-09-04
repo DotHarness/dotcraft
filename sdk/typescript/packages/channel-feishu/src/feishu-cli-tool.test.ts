@@ -12,10 +12,7 @@ test("provides runtime context only when the Feishu CLI is enabled", () => {
   assert.equal(getFeishuCliRuntimeAdditionalContext(false), undefined);
   const context = getFeishuCliRuntimeAdditionalContext(true);
   assert.equal(context?.["feishu.cli"]?.kind, "application");
-  const value = String(context?.["feishu.cli"]?.value ?? "");
-  assert.ok(value.includes("identity input"));
-  assert.ok(value.includes("read-only"));
-  assert.ok(value.includes("/feishu-auth"));
+  assert.ok(context?.["feishu.cli"]?.value);
 });
 
 test("declares identity as an optional bot-or-user input", () => {

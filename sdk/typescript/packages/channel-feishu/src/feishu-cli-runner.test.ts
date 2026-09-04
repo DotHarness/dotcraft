@@ -121,9 +121,7 @@ test("keeps user identity read-only and reports when no account is authorized", 
   });
   await assert.rejects(
     () => unauthorized.runner.run("calendar", ["events", "list"], { identity: "user" }),
-    (error) => error instanceof FeishuCliRunnerError
-      && error.code === "FeishuCliUserAuthorizationRequired"
-      && error.message.includes("/feishu-auth"),
+    errorCode("FeishuCliUserAuthorizationRequired"),
   );
 
   const unconfigured = await createRunner({
@@ -196,16 +194,29 @@ test("rejects raw API, managed commands, profiles, caller confirmation, and unkn
   );
 });
 
-test("rejects caller-supplied identity flags and passes business resource tokens through", async () => {
-  const { runner, calls } = await createRunner();
+test("drops a redundant identity flag and rejects one that disagrees with the chosen identity", async () => {
+  const matching = await createRunner({ userToken: "user-token" });
+  await matching.runner.run("docs", ["+fetch", "--as", "bot", "--doc", "doc-token"]);
+  await matching.runner.run("docs", ["+fetch", "--as=user"], { identity: "user" });
+  assert.deepEqual(matching.calls.map((call) => call.args), [
+    ["docs", "+fetch", "--doc", "doc-token"],
+    ["docs", "+fetch"],
+  ]);
+
+  const mismatched = await createRunner({ userToken: "user-token" });
   await assert.rejects(
-    () => runner.run("docs", ["+fetch", "--as", "user"]),
+    () => mismatched.runner.run("docs", ["+fetch", "--as", "user"]),
     errorCode("FeishuCliCommandRejected"),
   );
-  await runner.run("docs", ["+fetch", "--doc", "doc-token", "--page-token", "page-token"]);
-  assert.deepEqual(calls[0]?.args, [
-    "docs", "+fetch", "--doc", "doc-token", "--page-token", "page-token",
-  ]);
+});
+
+test("rejects a shortcut supplied as the command", async () => {
+  const { runner, calls } = await createRunner();
+  await assert.rejects(
+    () => runner.run("+fetch", ["--doc", "doc-token"]),
+    errorCode("FeishuCliCommandRejected"),
+  );
+  assert.equal(calls.length, 0);
 });
 
 test("logs only the classified operation and never positional resource values", async () => {

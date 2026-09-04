@@ -15,7 +15,10 @@ const AUTHORIZATION: FeishuDeviceAuthorization = {
   expiresAt: Date.now() + 60_000,
 };
 
-type AuthCommandTarget = { handleUserAuthCommand: (message: ParsedInboundMessage) => Promise<void> };
+type AuthCommandTarget = {
+  handleUserAuthCommand: (message: ParsedInboundMessage) => Promise<void>;
+  authorizeUserFromTool: (senderId: string) => Promise<Record<string, unknown>>;
+};
 
 function createAdapter(identity: Record<string, unknown>) {
   const cards: SentCard[] = [];
@@ -103,6 +106,43 @@ test("a direct message starts the device flow and reports the bound account", as
   assert.ok(cards[0]?.body.includes("https://example.invalid/device?code=ABCD-1234"));
   assert.ok(cards[0]?.body.includes("ABCD-1234"));
   assert.ok(cards[1]?.body.includes("Operator"));
+});
+
+test("the tool delivers the link to the requester rather than the current chat", async () => {
+  const { adapter, cards } = createAdapter({
+    isConfigured: () => true,
+    getBinding: () => null,
+    requestAuthorization: async () => AUTHORIZATION,
+    waitForAuthorization: async () => new Promise(() => {}),
+  });
+
+  const result = await adapter.authorizeUserFromTool("ou_requester");
+
+  assert.equal(result.success, true);
+  assert.deepEqual(cards.map((card) => card.target), ["dm:ou_requester"]);
+});
+
+test("the tool starts no device flow without a known requester or with an account already bound", async () => {
+  let requested = 0;
+  const identity = {
+    isConfigured: () => true,
+    getBinding: () => null,
+    requestAuthorization: async () => { requested += 1; return AUTHORIZATION; },
+  };
+
+  const unknown = createAdapter(identity);
+  for (const senderId of ["", "group:oc_team"]) {
+    assert.equal(
+      (await unknown.adapter.authorizeUserFromTool(senderId)).errorCode,
+      "FeishuAuthorizeUserSenderUnknown",
+    );
+  }
+
+  const bound = createAdapter({ ...identity, getBinding: () => ({ openId: "ou_operator", name: "Operator" }) });
+  assert.equal((await bound.adapter.authorizeUserFromTool("ou_requester")).success, true);
+
+  assert.equal(requested, 0);
+  assert.deepEqual([...unknown.cards, ...bound.cards], []);
 });
 
 test("a failed device flow tells the operator to try again", async () => {

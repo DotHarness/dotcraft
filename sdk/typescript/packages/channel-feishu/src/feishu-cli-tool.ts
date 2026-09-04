@@ -15,7 +15,9 @@ const FEISHU_CLI_RUNTIME_CONTEXT: Record<string, RuntimeAdditionalContextEntry> 
       + "Read a known Skill directly; use skills list only when the relevant Skill is unknown. "
       + "When a Skill links a reference, read it first with args=['read','<skill-name>','<relative-path>']; do not guess parameters. "
       + "Identity comes from the identity input, never from --as: leave it unset for the Bot, and pass identity='user' only for a personal resource the Bot cannot reach, such as a calendar, drive, or mailbox the operator owns. "
-      + "User identity is read-only and needs an authorized account; when a call reports that none is available, tell the operator to send /feishu-auth to this bot in a direct message rather than trying auth, config, or profiles. "
+      + "User identity is read-only. When a Bot call is denied for permissions, retry the same command once with identity='user' before giving up. "
+      + "If that reports no authorized account, call FeishuAuthorizeUser; if it reports that user identity is not enabled, say an administrator must configure its scopes in the channel settings. Never try auth, config, or profiles. "
+      + "A conversation target shaped group:<chat>/thread:<id> is a Feishu topic, and messages posted in it before this turn are not in your context; when the request depends on them, read the topic before answering. "
       + "Call FeishuCli directly instead of locating lark-cli through Shell. Do not pass --yes. Document, wiki, file, media, and page tokens are valid resource identifiers.",
   },
 };

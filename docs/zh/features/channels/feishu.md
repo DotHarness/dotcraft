@@ -73,7 +73,7 @@ Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected�
 
 同时给应用开通**持续访问已授权的数据**（`offline_access`）。DotCraft 会自己请求它来保持授权有效，所以不用填进输入框。
 
-然后私聊机器人发送 `/feishu-auth`，打开它回复的链接同意授权。你用哪个账号同意，agent 之后就以哪个账号读取，且对渠道里所有人生效。发送 `/feishu-auth status` 查看当前绑定的账号，`/feishu-auth revoke` 解除绑定。
+然后私聊机器人发送 `/feishu-auth`，打开它回复的链接同意授权。也可以直接让 agent 去做需要个人资源的事，由它给出链接。两种方式链接都只会私聊送达——谁打开谁就成为被授权的账号。你用哪个账号同意，agent 之后就以哪个账号读取，且对渠道里所有人生效。发送 `/feishu-auth status` 查看当前绑定的账号，`/feishu-auth revoke` 解除绑定。
 
 ## 独立适配器
 

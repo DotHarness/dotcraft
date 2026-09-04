@@ -23,10 +23,10 @@ const FORBIDDEN_COMMANDS = new Set([
   "update",
 ]);
 const FORBIDDEN_FLAGS = [
-  "--as",
   "--profile",
   "--yes",
 ];
+const IDENTITY_FLAG = "--as";
 const PATH_FLAGS = new Set([
   "--attachment",
   "--body-file",
@@ -186,7 +186,7 @@ export class FeishuCliRunner {
     const identity = options.identity ?? "bot";
     const { signal } = options;
     const normalizedCommand = validateCommand(command);
-    const normalizedArgs = validateArguments(args, this.options.workspaceRoot);
+    const normalizedArgs = validateArguments(args, this.options.workspaceRoot, identity);
     const startedAt = Date.now();
     const classification = await this.classify(normalizedCommand, normalizedArgs, signal);
     const { risk } = classification;
@@ -345,6 +345,12 @@ function validateCommand(command: string): string {
       "CLI profile access is unavailable because this Channel does not use host-local Feishu CLI profiles.",
     );
   }
+  if (normalized.startsWith("+")) {
+    throw new FeishuCliRunnerError(
+      "FeishuCliCommandRejected",
+      "A shortcut goes in args after its parent command, as command='im' with args=['+threads-messages-list', ...].",
+    );
+  }
   if (!/^[a-z][a-z0-9-]*$/.test(normalized)
       || FORBIDDEN_COMMANDS.has(normalized)
       || (!LOCAL_COMMANDS.has(normalized) && normalized.length > 64)) {
@@ -356,20 +362,33 @@ function validateCommand(command: string): string {
   return normalized;
 }
 
-function validateArguments(args: string[], workspaceRoot: string): string[] {
+function validateArguments(args: string[], workspaceRoot: string, identity: FeishuCliIdentity): string[] {
   if (!Array.isArray(args) || args.length > MAX_ARGUMENTS || args.some((arg) => typeof arg !== "string")) {
     throw new FeishuCliRunnerError("FeishuCliInputInvalid", "args must be a bounded string array.");
   }
-  const normalized = args.map((arg) => {
+  const normalized: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
     if (arg.length > MAX_ARGUMENT_LENGTH || arg.includes("\0")) {
       throw new FeishuCliRunnerError("FeishuCliInputInvalid", "A Feishu CLI argument is invalid.");
     }
-    const flag = arg.split("=", 1)[0]?.toLowerCase() ?? "";
-    if (FORBIDDEN_FLAGS.includes(flag)) {
+    const [flag, inlineValue] = splitFlag(arg);
+    if (flag && FORBIDDEN_FLAGS.includes(flag)) {
       throw new FeishuCliRunnerError("FeishuCliCommandRejected", forbiddenFlagMessage(flag));
     }
-    return arg;
-  });
+    if (flag === IDENTITY_FLAG) {
+      const declared = (inlineValue ?? args[index + 1] ?? "").trim().toLowerCase();
+      if (declared !== identity) {
+        throw new FeishuCliRunnerError(
+          "FeishuCliCommandRejected",
+          "Identity is selected with the identity input, not with --as.",
+        );
+      }
+      if (inlineValue === undefined) index += 1;
+      continue;
+    }
+    normalized.push(arg);
+  }
 
   for (let index = 0; index < normalized.length; index += 1) {
     const arg = normalized[index]!;
@@ -421,14 +440,9 @@ function generatedCommandId(command: string, args: string[]): string {
 }
 
 function forbiddenFlagMessage(flag: string): string {
-  switch (flag) {
-    case "--yes":
-      return "Caller-supplied confirmation is unavailable; DotCraft controls confirmation after risk classification.";
-    case "--as":
-      return "Identity is selected with the identity input, not with --as.";
-    default:
-      return "Host-local Feishu CLI profile selection is unavailable.";
-  }
+  return flag === "--yes"
+    ? "Caller-supplied confirmation is unavailable; DotCraft controls confirmation after risk classification."
+    : "Host-local Feishu CLI profile selection is unavailable.";
 }
 
 /** The two identities are mutually exclusive: one token and one locked strict mode per run. */

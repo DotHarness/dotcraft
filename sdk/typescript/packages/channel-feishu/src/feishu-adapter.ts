@@ -349,6 +349,25 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       },
     ];
     tools.push(...getFeishuCliToolDescriptors(this.loadedConfig?.feishu.cli?.enabled === true));
+    if (this.userIdentity?.isConfigured() === true) {
+      tools.push({
+        name: "FeishuAuthorizeUser",
+        description:
+          "Start Feishu user-identity authorization when a call fails with FeishuCliUserAuthorizationRequired. "
+          + "The link is delivered privately to whoever asked, never to the current group. "
+          + "Does not help with FeishuCliUserIdentityUnavailable, which needs an administrator to configure scopes.",
+        requiresChatContext: true,
+        display: {
+          icon: "\u{1F511}",
+          title: "Authorize Feishu account",
+        },
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        },
+      });
+    }
     return tools;
   }
 
@@ -392,6 +411,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
           errorCode: "FeishuCliDisabled",
           errorMessage: "The official Feishu CLI is disabled for this Channel.",
         };
+    }
+    if (tool === "FeishuAuthorizeUser") {
+      return await this.authorizeUserFromTool(String(context.senderId ?? ""));
     }
     if (tool !== "FeishuSendFileToCurrentChat") {
       return {
@@ -876,6 +898,12 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       return;
     }
 
+    if (!(await this.startUserAuthorization(identity, target))) {
+      await notice("authFailedBody");
+    }
+  }
+
+  private async startUserAuthorization(identity: FeishuUserIdentity, target: string): Promise<boolean> {
     let authorization: FeishuDeviceAuthorization;
     try {
       authorization = await identity.requestAuthorization();
@@ -883,8 +911,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       logWarn("user_identity.authorization.request_failed", {
         code: error instanceof FeishuUserIdentityError ? error.code : "unknown",
       });
-      await notice("authFailedBody");
-      return;
+      return false;
     }
     await this.router.sendCard(
       target,
@@ -892,6 +919,51 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     );
     const signal = this.eventAbortController?.signal;
     void this.awaitUserAuthorization(identity, authorization, target, signal).catch(() => {});
+    return true;
+  }
+
+  /** The link binds whoever opens it, so it is only ever delivered to the requester's own chat. */
+  private async authorizeUserFromTool(senderId: string): Promise<Record<string, unknown>> {
+    const identity = this.userIdentity;
+    if (!identity?.isConfigured()) {
+      return {
+        success: false,
+        errorCode: "FeishuCliUserIdentityUnavailable",
+        errorMessage: "User identity is not enabled for this Channel. An administrator configures its scopes in the channel settings.",
+      };
+    }
+    const binding = identity.getBinding();
+    if (binding) {
+      return {
+        success: true,
+        contentItems: [{
+          type: "text",
+          text: `Feishu user identity is already authorized as ${binding.name || binding.openId}.`,
+        }],
+      };
+    }
+    if (!/^ou_[A-Za-z0-9]+$/.test(senderId)) {
+      return {
+        success: false,
+        errorCode: "FeishuAuthorizeUserSenderUnknown",
+        errorMessage: "Could not tell who is asking. Ask them to send /feishu-auth to this bot in a direct message.",
+      };
+    }
+    if (!(await this.startUserAuthorization(identity, `dm:${senderId}`))) {
+      return {
+        success: false,
+        errorCode: "FeishuAuthorizeUserFailed",
+        errorMessage: "Feishu did not return an authorization link. Try again shortly.",
+      };
+    }
+    logInfo("user_identity.authorization.tool_started", {});
+    return {
+      success: true,
+      contentItems: [{
+        type: "text",
+        text: "Sent the authorization link to the requester in a direct message. It is not shown here because whoever opens it becomes the authorized account.",
+      }],
+    };
   }
 
   private async awaitUserAuthorization(

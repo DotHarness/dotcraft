@@ -73,7 +73,7 @@ Enable the matching permissions on your app in the [Feishu developer console](ht
 
 Also enable **持续访问已授权的数据** (`offline_access`) on the app. DotCraft requests it so the authorization keeps working, so leave it out of the field itself.
 
-Then send `/feishu-auth` to the bot in a direct message and approve the link it replies with. The account you approve with is the one the agent reads as, for everyone in the channel. Send `/feishu-auth status` to see which account is bound, or `/feishu-auth revoke` to remove it.
+Then send `/feishu-auth` to the bot in a direct message and approve the link it replies with. You can also just ask the agent for something personal and let it offer the link; either way the link arrives privately, because whoever opens it becomes the authorized account. That account is the one the agent reads as, for everyone in the channel. Send `/feishu-auth status` to see which account is bound, or `/feishu-auth revoke` to remove it.
 
 ## Standalone adapter
 
