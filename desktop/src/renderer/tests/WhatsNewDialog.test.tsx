@@ -93,7 +93,7 @@ describe('WhatsNewDialog', () => {
     })
 
     expect(screen.getByText('Highlights from v0.1.7')).toBeInTheDocument()
-    expect(screen.getByText('Agent Teams')).toBeInTheDocument()
+    expect(screen.getByText('Agent Builder')).toBeInTheDocument()
     expect(screen.queryByText('Background Channels')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Newer/ })).not.toBeInTheDocument()
 
@@ -101,13 +101,13 @@ describe('WhatsNewDialog', () => {
 
     expect(screen.getByText('Highlights from v0.1.6')).toBeInTheDocument()
     expect(screen.getByText('Background Channels')).toBeInTheDocument()
-    expect(screen.queryByText('Agent Teams')).not.toBeInTheDocument()
+    expect(screen.queryByText('Agent Builder')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Older/ })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Newer (v0.1.7)' }))
 
     expect(screen.getByText('Highlights from v0.1.7')).toBeInTheDocument()
-    expect(screen.getByText('Agent Teams')).toBeInTheDocument()
+    expect(screen.getByText('Agent Builder')).toBeInTheDocument()
   })
 
   it('renders no pagination buttons for a single release', () => {

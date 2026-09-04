@@ -35,14 +35,6 @@ public sealed class ToolPlanningThreadClassifierTests
     }
 
     [Fact]
-    public void Classify_TeamsMission_ReturnsModuleManaged()
-    {
-        var thread = CreateThread("teams");
-
-        Assert.Equal(ToolPlanningThreadKind.ModuleManaged, ToolPlanningThreadClassifier.Classify(thread));
-    }
-
-    [Fact]
     public void Classify_SubAgentSourceOrOrigin_ReturnsSubAgentChild()
     {
         var sourceThread = CreateThread("dotcraft-desktop");

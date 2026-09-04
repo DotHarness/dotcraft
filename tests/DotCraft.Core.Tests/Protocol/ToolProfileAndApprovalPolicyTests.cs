@@ -97,7 +97,7 @@ public class ToolProfileAndApprovalPolicyTests
             PluginPolicy = new ThreadPluginPolicy
             {
                 Allow = ["github"],
-                Deny = ["agent-teams"]
+                Deny = ["sample-plugin"]
             },
             SkillsPolicy = new ThreadSkillsPolicy
             {
@@ -127,7 +127,7 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.Equal(["mcp__github-readonly__get_*"], roundTrip.McpPolicy.Tools!.Allow!);
         Assert.Equal(["*write*"], roundTrip.McpPolicy.Tools.Deny!);
         Assert.Equal(["github"], roundTrip.PluginPolicy!.Allow!);
-        Assert.Equal(["agent-teams"], roundTrip.PluginPolicy.Deny!);
+        Assert.Equal(["sample-plugin"], roundTrip.PluginPolicy.Deny!);
         Assert.Equal(["code-review"], roundTrip.SkillsPolicy!.Preload!);
         Assert.False(roundTrip.SkillsPolicy?.AllowManage);
     }

@@ -28,7 +28,6 @@ App Binding does not own:
 - executable tool catalogs, per-tool scopes, or tool-selection consent;
 - tool dispatch, result schemas, Session item lifecycle, or approval policy;
 - private iframe resources, UI calls, or context blocks;
-- Teams roles or runtime behavior.
 
 An app descriptor contains product identity, installation and connection UX, branding, and safe links. Execution declarations such as tool namespaces, scopes, and catalogs are invalid.
 

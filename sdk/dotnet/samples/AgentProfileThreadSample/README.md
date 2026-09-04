@@ -5,7 +5,7 @@ console REPL open so you can manually test whether the resolved profile affects
 the agent.
 
 It is intentionally narrow: it validates ordinary profile-backed threads, not
-Teams mission threads or Desktop profile-editing UI.
+Desktop profile-editing UI or another product-specific runtime.
 
 ## What It Does
 

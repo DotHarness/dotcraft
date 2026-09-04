@@ -183,10 +183,10 @@ const needsSetupWorkspaceStatus: WorkspaceStatusPayload = {
   providers: []
 }
 
-const agentTeamsPlugin: PluginEntry = {
-  id: 'agent-teams',
-  displayName: 'Agent Teams',
-  description: 'Run a small team of DotCraft agents.',
+const testDesktopPlugin: PluginEntry = {
+  id: 'example-desktop',
+  displayName: 'Example Desktop Plugin',
+  description: 'Adds an example Desktop view.',
   version: '0.1.0',
   enabled: true,
   installed: true,
@@ -195,8 +195,8 @@ const agentTeamsPlugin: PluginEntry = {
   source: 'builtin',
   rootPath: '',
   interface: {
-    displayName: 'Agent Teams',
-    shortDescription: 'Run a small team of DotCraft agents.'
+    displayName: 'Example Desktop Plugin',
+    shortDescription: 'Adds an example Desktop view.'
   },
   functions: [],
   skills: [],
@@ -1331,93 +1331,6 @@ describe('App initial workspace status bootstrap', () => {
     })
   })
 
-  it('uses workspace scope without channel discovery after the Agent Teams plugin becomes available', async () => {
-    const appServerSendRequest = vi.fn(async (method: string) => {
-      if (method === 'plugin/list') {
-        return { plugins: [agentTeamsPlugin], diagnostics: [], snapshotRevision: 1 }
-      }
-      if (method === 'thread/list') {
-        return { data: [] }
-      }
-      return {}
-    })
-    installApi(readyWorkspaceStatus, {
-      appServerSendRequest,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
-      settingsGet: vi.fn().mockResolvedValue({})
-    })
-    useConnectionStore.getState().setStatus({
-      status: 'connected',
-      capabilities: { pluginManagement: true }
-    })
-
-    renderApp()
-
-    await waitFor(() => {
-      const threadListCalls = appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/list')
-      expect(threadListCalls.length).toBeGreaterThan(0)
-    })
-
-    const listCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'thread/list')
-    const params = listCall?.[1] as {
-      scope?: string
-      crossChannelOrigins?: string[]
-      includeSubAgents?: boolean
-    } | undefined
-    expect(params?.scope).toBe('workspace')
-    expect(params?.crossChannelOrigins).toBeUndefined()
-    expect(params?.includeSubAgents).toBe(true)
-    expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'channel/list')).toBe(false)
-  })
-
-  it('reloads the workspace-scoped thread list when Team state changes', async () => {
-    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
-    const onNotification = vi.fn((handler: (payload: { method: string; params?: unknown }) => void) => {
-      notificationHandler = handler
-      return vi.fn()
-    })
-    const appServerSendRequest = vi.fn(async (method: string) => {
-      if (method === 'thread/list') {
-        return { data: [] }
-      }
-      return {}
-    })
-    installApi(readyWorkspaceStatus, {
-      appServerSendRequest,
-      onNotification,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
-      settingsGet: vi.fn().mockResolvedValue({})
-    })
-    useConnectionStore.getState().setStatus({
-      status: 'connected',
-      capabilities: { pluginManagement: true }
-    })
-
-    renderApp()
-
-    await waitFor(() => {
-      expect(onNotification).toHaveBeenCalled()
-    })
-    appServerSendRequest.mockClear()
-    await act(async () => {
-      usePluginStore.setState({ plugins: [agentTeamsPlugin] })
-    })
-
-    await act(async () => {
-      notificationHandler?.({ method: 'teams/team/changed', params: {} })
-    })
-
-    await waitFor(() => {
-      const threadListCalls = appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/list')
-      expect(threadListCalls.some((call) => {
-        const params = call[1] as { scope?: string; crossChannelOrigins?: string[] } | undefined
-        return params?.scope === 'workspace' && params.crossChannelOrigins === undefined
-      })).toBe(true)
-    })
-  })
-
   it('keeps the Core Agent Builder available without a plugin', async () => {
     installApi(readyWorkspaceStatus, {
       settingsGet: vi.fn().mockResolvedValue({}),
@@ -1444,7 +1357,7 @@ describe('App initial workspace status bootstrap', () => {
       if (method === 'thread/list') return { data: [] }
       if (method === 'plugin/list') {
         return {
-          plugins: [{ ...agentTeamsPlugin, enabled: revision > 1 }],
+          plugins: [{ ...testDesktopPlugin, enabled: revision > 1 }],
           diagnostics: [],
           snapshotRevision: revision
         }
@@ -1471,7 +1384,7 @@ describe('App initial workspace status bootstrap', () => {
     await act(async () => {
       notificationHandler?.({
         method: 'plugin/snapshot/updated',
-        params: { snapshotRevision: 2, pluginIds: ['agent-teams'] }
+        params: { snapshotRevision: 2, pluginIds: ['example-desktop'] }
       })
     })
 

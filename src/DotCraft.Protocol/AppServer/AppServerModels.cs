@@ -221,9 +221,6 @@ public sealed class ServerCapabilityExtensions : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DynamicWorkflowCapabilities? DynamicWorkflows { get; init; }
 
-    [JsonPropertyName("teams")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public TeamsCapabilities? Teams { get; init; }
 }
 
 /// <summary>Capabilities advertised by AppServer.</summary>

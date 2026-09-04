@@ -121,7 +121,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         Assert.Equal(failOnWriteAttempt, transport.WriteAttempts);
     }
 
-    // Regression: server-originated threads (e.g. Teams mission members) reach the client only via the
+    // Regression: server-originated threads reach the client only via the
     // ThreadCreated event stream. The dispatcher must apply the thread-wire enricher so the notification
     // carries origin-app branding — otherwise the desktop falls back to the generic channel icon.
     [Fact]

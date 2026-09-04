@@ -9,7 +9,6 @@ using DotCraft.Automations.DashBoard;
 using DotCraft.Automations.Protocol;
 using DotCraft.Automations;
 using DotCraft.DynamicWorkflows;
-using DotCraft.Teams;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -40,7 +39,6 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
             services.TryAddSingleton<IAutomationsRequestHandler>(sp => sp.GetRequiredService<AutomationsRequestHandler>());
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IOrchestratorSnapshotProvider, AutomationsDashboardSnapshotProvider>());
         }
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, TeamsProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, DynamicWorkflowProtocolExtension>());
 
         // AppServer owns channel routing, external channels, cron delivery, and channel tool discovery.

@@ -10,7 +10,7 @@
 
 ## 1. Purpose
 
-This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, Teams, social channels, and client presentation boundaries.
+This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, social channels, and client presentation boundaries.
 
 The architecture has four goals:
 
@@ -92,7 +92,7 @@ Canonical sources are:
 | Source kind | Lifecycle | Executor owner | Typical examples |
 |---|---|---|---|
 | Core Native | process/workspace | DotCraft server | file, web, subagent |
-| Plugin Native | plugin enablement | trusted in-process plugin | Agent Teams, plugin-contributed functions, managed social tools |
+| Plugin Native | plugin enablement | trusted in-process plugin | plugin-contributed functions, managed social tools |
 | MCP | MCP connection/session | MCP server | workspace, thread, plugin, or binding MCP |
 | Runtime Dynamic | AppServer connection + thread | connected AppServer client | Desktop thread management, client-owned run callbacks |
 
@@ -116,7 +116,7 @@ The runtime registry MUST retain executable registrations that are hidden from t
 
 ### 5.3 Binding and authority
 
-Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Authority inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants, such as Teams Mission membership and task assignment, remain the native service's execution-boundary responsibility and are not required to become a generic authority record.
+Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Authority inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility and are not required to become a generic authority record.
 
 Authorization MUST be server-authoritative. Arguments, renderer metadata, an iframe, or a remote source MUST NOT expand authority.
 
@@ -241,7 +241,7 @@ The following conceptual contracts have separate responsibilities:
 | `ToolPresentationDescriptor` | Trusted local `PresentationId` plus bounded renderer options. It contains no free-form renderer selector. |
 | `ProviderHostedCapabilityPlan` | Provider-adapter declarations that are not local `IToolRuntime` tools. |
 
-`ToolPlanningThreadKind` is a trusted Session-derived classification with values `UserTopLevel`, `ModuleManaged`, `SubAgentChild`, `Unattended`, `Internal`, and `Unknown`. It is derived once when constructing `ToolPlanningContext` from persisted thread origin/source/visibility/configuration. Sources MUST treat `Unknown` as ineligible for privileged entrypoint tools and MUST NOT replace this classification with source-local channel-name denylists.
+`ToolPlanningThreadKind` is a trusted Session-derived classification with values `UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, and `Unknown`. It is derived once when constructing `ToolPlanningContext` from persisted thread origin/source/visibility/configuration. Sources MUST treat `Unknown` as ineligible for privileged entrypoint tools and MUST NOT replace this classification with source-local channel-name denylists.
 
 Modules contribute tools through `GetToolSources()` and the typed source, definition, binding, registration, and runtime contracts. Production modules MUST NOT use `IAgentToolProvider` or a source-local dispatcher.
 
@@ -264,7 +264,6 @@ The following changes invalidate the next snapshot:
 - Runtime Dynamic declaration replacement;
 - binding capability snapshot acceptance;
 - external channel tool connection publication, disconnection, or replacement;
-- Teams mission-thread role-surface changes derived from Teams state;
 - mode or profile changes that truly alter the runtime surface.
 
 Immediate safety checks are not frozen. Revocation, disconnect, expired authority, binding removal, and execution-policy invalidation MUST block dispatch immediately, including an invocation named in an older snapshot.
@@ -483,7 +482,6 @@ App Binding does not own:
 - executable static tool catalogs or per-tool scope pickers;
 - private iframe resource protocols;
 - model result audience semantics;
-- Teams runtime roles.
 
 ### 15.1 Enablement and capability changes
 
@@ -518,13 +516,7 @@ App Binding requests contain connection and authority data only. Executable cata
 
 ## 16. Product-specific mappings
 
-### 16.1 Agent Teams
-
-Agent Teams is a Plugin Native tool source (`sourceId = agent-teams`). Plugin enablement is the workspace product switch. When enabled, direct `teams.CreateTeam` is available only to trusted `UserTopLevel` planning contexts. Module-managed, SubAgent, unattended, internal, ephemeral, and unknown contexts do not receive it.
-
-Mission/member threads receive role-specific direct native tools selected from the current `MissionThreadRecord`; `MemberId == "leader"` selects the Leader surface. `TeamsService` owns live membership, role, assignee, reference, and mission-lifecycle validation. Scheduling invokes `ISessionService` directly. Immutable mission context is supplied through the stable `teams/mission` context page. Branding uses generic channel/presentation metadata.
-
-### 16.2 Social channels
+### 16.1 Social channels
 
 App Binding retains conversation identity, bind-code lifecycle, routing authority, revoke, and audit. Social tool registrations and execution become managed native sources/runtimes. The server injects `socialTarget`/`deliveryTarget`; model arguments MUST NOT override the bound address. The runtime MAY delegate actual delivery through the external channel adapter.
 
@@ -532,7 +524,7 @@ Origin-channel tools remain independent from a Desktop thread's optional social 
 
 Social binding uses a dedicated channel-principal resolve/accept/rebind flow, not ordinary app Binding MCP activation. The verified channel/account/conversation target is the authority input to the managed native runtime.
 
-### 16.3 External application integrations
+### 16.2 External application integrations
 
 Ordinary external integrations MAY expose tools through standard workspace, thread, or plugin MCP without App Binding. App Binding is used only when a product needs per-thread application authorization, connection handoff, capability confirmation, revoke, or rebind; those authorized tools use an independent binding MCP session. Interactive UI uses MCP Apps. Run-specific submission callbacks use Runtime Dynamic Tools because they are ephemeral callbacks owned by the active run/client connection. When one integration supports both shared and binding MCP, binding authentication and per-binding session state MUST remain isolated from shared MCP clients.
 
@@ -570,7 +562,7 @@ Core, Desktop, and the .NET and TypeScript SDKs use the same canonical tool iden
 3. Model content, structured client content, and host-private metadata never cross audience boundaries implicitly.
 4. Remote metadata cannot select trusted local code.
 5. Binding MCP cannot launch local executables supplied by an app.
-6. Conversation targets and Teams mission/member/thread identity are server-derived and cannot be overridden by tool arguments.
+6. Conversation targets are server-derived and cannot be overridden by tool arguments.
 7. Persisted diagnostics contain no bearer, credential, live executor, or sensitive `_meta`.
 8. Interactive UI is optional; text/model fallback remains sufficient for correctness.
 
@@ -604,7 +596,6 @@ The architecture requires behavior-level coverage for:
 - MCP three-state configuration and source-aware status;
 - MCP Apps visibility, approval, isolation, and one-shot model context;
 - inline visualization directive authorization, workspace isolation, transient-file semantics, and handle-scoped follow-up identity;
-- Teams role-specific native snapshots plus live `TeamsService` business validation without App Binding;
 - App Binding enable/rebind/revoke/capability-expansion state transitions;
 - managed social target injection;
 - cross-SDK and first-party conformance for supported wire contracts.

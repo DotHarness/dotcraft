@@ -121,38 +121,6 @@ export const workflowPlugin: PluginEntry = {
   lspServers: []
 }
 
-export const agentTeamsPlugin: PluginEntry = {
-  id: 'agent-teams',
-  displayName: 'Agent Teams',
-  description: 'Unlock the DotCraft Team card board with robot teammates, missions, planning, and task dispatch.',
-  version: '0.1.0',
-  enabled: false,
-  installed: false,
-  installable: true,
-  removable: false,
-  source: 'builtin',
-  rootPath: '',
-  interface: {
-    displayName: 'Agent Teams',
-    shortDescription: 'Run missions with a small robot team',
-    longDescription: 'Agent Teams opens a DotCraft Team card board where robot teammates plan missions, split work into tasks, and keep progress visible as stackable cards.',
-    developerName: 'Example Labs',
-    category: 'Productivity',
-    capabilities: ['Team', 'Missions', 'Card Board']
-  },
-  functions: [],
-  skills: [],
-  apps: [],
-  mcpServers: [],
-  lspServers: [],
-  desktop: {
-    description: 'Adds the Team board to DotCraft Desktop.',
-    entry: './desktop/dist/index.mjs',
-    revision: 'a'.repeat(64),
-    styles: []
-  }
-}
-
 export function workflowAppInfo({
   nativeStatus = 'missing',
   connectionState = 'notConnected',

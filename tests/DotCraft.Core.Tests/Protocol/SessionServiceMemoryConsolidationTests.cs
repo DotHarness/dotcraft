@@ -393,9 +393,9 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
 
         using (TurnTriggerScope.Set(new TurnTriggerInfo
                {
-                   Kind = "team",
-                   Label = "Worker assignment",
-                   RefId = "task-42"
+                   Kind = "workflow",
+                   Label = "Workflow continuation",
+                   RefId = "run-42"
                }))
         {
             await svc.EnqueueTurnInputAsync(thread.Id, [new TextContent("second")]);
@@ -412,9 +412,9 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
         var input = thread.Turns[1].Input?.AsUserMessage;
         Assert.NotNull(input);
         Assert.Equal("queued", input.DeliveryMode);
-        Assert.Equal("team", input.TriggerKind);
-        Assert.Equal("Worker assignment", input.TriggerLabel);
-        Assert.Equal("task-42", input.TriggerRefId);
+        Assert.Equal("workflow", input.TriggerKind);
+        Assert.Equal("Workflow continuation", input.TriggerLabel);
+        Assert.Equal("run-42", input.TriggerRefId);
     }
 
     [Fact]

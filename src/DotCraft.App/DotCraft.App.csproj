@@ -62,7 +62,6 @@
     <ProjectReference Include="..\DotCraft.Automations\DotCraft.Automations.csproj" />
     <ProjectReference Include="..\DotCraft.DynamicWorkflows\DotCraft.DynamicWorkflows.csproj" />
     <ProjectReference Include="..\DotCraft.OpenSandbox\DotCraft.OpenSandbox.csproj" />
-    <ProjectReference Include="..\DotCraft.Teams\DotCraft.Teams.csproj" />
     <ProjectReference Include="..\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" />
   </ItemGroup>
 

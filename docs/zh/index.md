@@ -82,19 +82,19 @@ lastUpdated: false
     <article class="dc-story dc-story--flip">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">Agent 与团队</p>
-          <h2>一个 Agent 独当一面，或一支团队协同作战。</h2>
+          <p class="dc-story__eyebrow">你的 Agent 团队</p>
+          <h2>通过对话塑造各有所长的 Agent，组建属于你的团队。</h2>
           <div class="dc-story__links">
             <a class="dc-link" href="./features/agent-system/agent-profiles">Agent Profiles</a>
-            <a class="dc-link" href="./features/agent-system/teams">Teams</a>
+            <a class="dc-link" href="./features/agent-system/subagents">Subagents</a>
             <a class="dc-link" href="./features/agent-system/automations">自动化</a>
           </div>
-          <div class="dc-story__team" aria-hidden="true">
-            <figure><LiveMascot uid="team-leader" role="leader" state="idle" interactive /><figcaption>领队</figcaption></figure>
-            <figure><LiveMascot uid="team-explorer" role="explorer" state="watching" interactive /><figcaption>探索</figcaption></figure>
-            <figure><LiveMascot uid="team-builder" role="builder" state="working" interactive /><figcaption>构建</figcaption></figure>
-            <figure><LiveMascot uid="team-reviewer" role="reviewer" state="thinking" interactive /><figcaption>评审</figcaption></figure>
-            <figure><LiveMascot uid="team-operator" role="operator" state="operating" interactive /><figcaption>运维</figcaption></figure>
+          <div class="dc-story__profiles" aria-hidden="true">
+            <figure><LiveMascot uid="profile-leader" role="leader" state="idle" interactive /><figcaption>领队</figcaption></figure>
+            <figure><LiveMascot uid="profile-explorer" role="explorer" state="watching" interactive /><figcaption>探索</figcaption></figure>
+            <figure><LiveMascot uid="profile-builder" role="builder" state="working" interactive /><figcaption>构建</figcaption></figure>
+            <figure><LiveMascot uid="profile-reviewer" role="reviewer" state="thinking" interactive /><figcaption>评审</figcaption></figure>
+            <figure><LiveMascot uid="profile-operator" role="operator" state="operating" interactive /><figcaption>运维</figcaption></figure>
           </div>
         </div>
         <figure class="dc-story__media">

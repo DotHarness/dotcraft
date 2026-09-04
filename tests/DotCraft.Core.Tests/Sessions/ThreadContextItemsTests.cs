@@ -90,7 +90,7 @@ public sealed class ThreadContextItemsTests
     {
         var baseInstructionsProvider = new FakeProvider
         {
-            Section = "# Teams Mission",
+            Section = "# Runtime Context",
             Placement = ThreadPromptPlacement.BaseInstructions
         };
         var history = new List<ChatMessage> { new(ChatRole.User, "task") };

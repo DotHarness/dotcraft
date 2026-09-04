@@ -24,7 +24,7 @@ Each line is a starting page, not a summary to recite. Fetch before quoting.
 **Entry points.** Desktop app, IDE and editor integration over ACP, the `dotcraft` CLI, chat bots, GitHub and GitLab workflows through Oratorio, and self-hosted server deployment. All of them connect to one workspace and share its sessions, memory, skills, and tools.
 `/features/entry-points/`
 
-**Agent system.** Memory and Dreams, skills and self-learning, plugins and tools, Remote Tool Host, plugin marketplaces, connected apps, automations and goals, Dynamic Workflows, lifecycle hooks, agent profiles, subagents, teams, and workspace handoff.
+**Agent system.** Memory and Dreams, skills and self-learning, plugins and tools, Remote Tool Host, plugin marketplaces, connected apps, automations and goals, Dynamic Workflows, lifecycle hooks, Agent Builder, agent profiles, subagents, and workspace handoff.
 `/features/agent-system/`
 
 **Channels and bots.** QQ, WeCom, Feishu, Telegram, and Weixin adapters, configured through Desktop Settings > Channels.

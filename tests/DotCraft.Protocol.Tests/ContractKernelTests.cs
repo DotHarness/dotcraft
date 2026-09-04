@@ -111,14 +111,13 @@ public sealed class ContractKernelTests
             .GroupBy(static descriptor => descriptor.Module, StringComparer.Ordinal)
             .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
 
-        Assert.Equal(263, AppServerRpcCatalog.All.Count);
+        Assert.Equal(257, AppServerRpcCatalog.All.Count);
         Assert.Equal(7, modules["acp"]);
         Assert.Equal(29, modules["app-binding"]);
         Assert.Equal(11, modules["automations"]);
         Assert.Equal(194, modules["core"]);
         Assert.Equal(8, modules["external-channel"]);
         Assert.Equal(2, modules["node-repl"]);
-        Assert.Equal(6, modules["teams"]);
         Assert.Equal(6, modules["dynamic-workflows"]);
     }
 

@@ -27,7 +27,7 @@ public static class DynamicToolSchemaGenerator
     }
 
     /// <summary>
-    /// Generates an object schema from a set of flat method parameters (Teams-style).
+    /// Generates an object schema from a set of flat method parameters.
     /// Each parameter becomes a property (camelCase); parameters without a default value and
     /// not nullable become <c>required</c>; the object is closed (<c>additionalProperties:false</c>).
     /// </summary>

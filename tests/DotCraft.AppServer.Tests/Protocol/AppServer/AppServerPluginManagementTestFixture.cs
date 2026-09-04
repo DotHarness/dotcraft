@@ -258,7 +258,6 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private static void WriteBundledPluginFixtures(string root)
     {
         WriteBrowserFixture(Path.Combine(root, "browser"));
-        WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
     }
 
     private static void WriteBrowserFixture(string pluginRoot)
@@ -276,38 +275,6 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
   "description": "Test browser plugin.",
   "capabilities": ["skill"],
   "skills": "./skills/"
-}
-""");
-    }
-
-    private static void WriteAgentTeamsFixture(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop", "dist"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "desktop", "dist", "index.mjs"),
-            "export function activate() { return {}; }");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "agent-teams",
-  "version": "1.0.0",
-  "displayName": "Agent Teams",
-  "description": "Test agent teams plugin.",
-  "capabilities": ["metadata", "desktop"],
-  "desktop": {
-    "description": "Adds the Team board to DotCraft Desktop.",
-    "entry": "./desktop/dist/index.mjs"
-  },
-  "interface": {
-    "displayName": "Agent Teams",
-    "shortDescription": "Test agent teams",
-    "developerName": "DotCraft",
-    "category": "Testing",
-    "capabilities": ["Team"]
-  }
 }
 """);
     }

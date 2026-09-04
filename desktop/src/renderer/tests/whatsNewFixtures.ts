@@ -7,18 +7,18 @@ export const WHATS_NEW_TEST_RELEASE_0_1_7: WhatsNewRelease = {
   version: '0.1.7',
   cards: [
     {
-      id: 'agent-teams',
+      id: 'agent-builder',
       title: {
-        en: 'Agent Teams',
-        'zh-Hans': 'Agent Teams'
+        en: 'Agent Builder',
+        'zh-Hans': 'Agent Builder'
       },
       summary: {
-        en: 'Compose teams of specialized agents that collaborate on complex tasks.',
-        'zh-Hans': 'Compose teams of specialized agents that collaborate on complex tasks.'
+        en: 'Create a specialized Agent Profile through conversation.',
+        'zh-Hans': '通过对话创建专门用途的 Agent Profile。'
       },
       media: {
-        fileName: 'teams.gif',
-        url: `${WHATS_NEW_REMOTE_MEDIA_BASE_URL}teams.gif`,
+        fileName: 'agent-builder.gif',
+        url: `${WHATS_NEW_REMOTE_MEDIA_BASE_URL}agent-builder.gif`,
         sizeBytes: 4180309,
         sha256: '57DF3E8605B9DE58A5BE6B0F8ABEFEFCEB9F10284095852569FEC7B34ECF690D'
       }

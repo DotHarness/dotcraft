@@ -42,7 +42,7 @@ export const DEFAULT_MASCOT_PALETTE: MascotPaintPalette = {
   accent: '#5f82f7'
 }
 
-/** 12 role palettes. The first five mirror the shipped Teams role avatars. */
+/** 12 role palettes. The first five define the built-in Agent Profile roles. */
 export const PALETTE: PaletteEntry[] = [
   { key: 'blue', bodyD: '#2563eb', bodyM: '#4f7cf6', bodyL: '#8198f5', markD: '#2563eb', markL: '#6f8df5', shadow: '#07307c', accent: '#4f7cf6' },
   { key: 'indigo', bodyD: '#4f46e5', bodyM: '#6366f1', bodyL: '#8b8ff8', markD: '#3730a3', markL: '#818cf8', shadow: '#1e1b4b', accent: '#6366f1' },

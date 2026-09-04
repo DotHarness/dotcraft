@@ -82,7 +82,6 @@ import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseO
 import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
-import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
 import { FindOverlay } from './find/FindOverlay'
@@ -708,12 +707,8 @@ export function App(): JSX.Element {
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
   const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
-  const plugins = usePluginStore((s) => s.plugins)
   const activeDesktopPluginView = useDesktopPluginRegistry((state) =>
     state.mainViews.find((entry) => entry.viewKey === activeMainView) ?? null)
-  const agentTeamsAvailable = isAgentTeamsPluginEnabled(plugins)
-  const agentTeamsAvailableRef = useRef(agentTeamsAvailable)
-  agentTeamsAvailableRef.current = agentTeamsAvailable
   const whatsNewOpenRequestSeq = useUIStore((s) => s.whatsNewOpenRequestSeq)
   const setQuickOpenVisible = useUIStore((s) => s.setQuickOpenVisible)
   const pendingRestartVisible = usePendingRestartStore((s) => s.visible)
@@ -1585,7 +1580,6 @@ export function App(): JSX.Element {
   }, [status, workspacePath])
 
   const prevStatusRef = useRef<string>('')
-  const prevAgentTeamsAvailableRef = useRef(agentTeamsAvailable)
   const prevForegroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
 
   useEffect(() => {
@@ -1649,14 +1643,6 @@ export function App(): JSX.Element {
       void usePluginStore.getState().fetchPlugins()
     }
   }, [capabilities?.pluginManagement, status])
-
-  useEffect(() => {
-    const becameAvailable = agentTeamsAvailable && !prevAgentTeamsAvailableRef.current
-    prevAgentTeamsAvailableRef.current = agentTeamsAvailable
-    if (status === 'connected' && becameAvailable) {
-      void reloadThreadList()
-    }
-  }, [agentTeamsAvailable, reloadThreadList, status])
 
   useEffect(() => {
     if (!isDesktopPluginMainView(activeMainView) || activeDesktopPluginView) return
@@ -1764,11 +1750,6 @@ export function App(): JSX.Element {
             } else {
               doUpdateStatus(pp.threadId, pp.newStatus as 'active' | 'paused' | 'archived')
             }
-            break
-          }
-
-          case 'teams/team/changed': {
-            void reloadThreadList()
             break
           }
 

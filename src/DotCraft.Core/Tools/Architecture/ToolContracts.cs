@@ -69,8 +69,6 @@ public enum ToolPlanningThreadKind
     Unknown,
     /// <summary>A user-facing top-level conversation, including ordinary forks and siblings.</summary>
     UserTopLevel,
-    /// <summary>A thread owned by a product module, such as an Agent Teams mission thread.</summary>
-    ModuleManaged,
     /// <summary>A child session created by the SubAgent runtime.</summary>
     SubAgentChild,
     /// <summary>Unattended automation, cron, or equivalent background work.</summary>

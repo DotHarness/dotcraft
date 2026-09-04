@@ -12,9 +12,9 @@ DotCraft 的核心是一个随项目持续演进的 Agent。这一组页面介�
 
 [长期记忆与梦境](./memory)让 Agent 跨会话保留项目背景、偏好和决策。记忆以明文 Markdown 保存在工作区里，可以随时查看和修改。
 
-## 分派工作
+## 组建 Agent 团队并分派工作
 
-[Subagents](./subagents) 在独立的上下文中执行你交派的任务，保持主对话简洁。[Agent 团队](./teams)让多个 Agent 协同完成同一项工作。[动态工作流](./dynamic-workflows)用可复用的编排脚本在后台并行处理大任务。[Agent 预设](./agent-profiles)用于创建具有不同专长设定的 Agent，供上述场景复用。需要交给 DotCraft 之外的 coding agent 接手时，[外部 Agent 协作](./workspace-handoff)可以把会话导出为一份交接文档。
+[Agent 预设](./agent-profiles)为可复用的专门 Agent 保存指令、工具、技能和默认模型，Agent Builder 则让你通过对话完成定制。[Subagents](./subagents)在独立上下文中执行范围明确的任务，保持主对话简洁。[动态工作流](./dynamic-workflows)把可重复的编排保存成脚本，并行运行多个 subagent。需要交给 DotCraft 之外的 coding agent 接手时，[外部 Agent 协作](./workspace-handoff)可以把会话导出为一份交接文档。
 
 ## 无人值守运行
 

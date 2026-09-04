@@ -23,7 +23,7 @@ public sealed class AppServerProtocolBaselineTests
             "turn-enqueue-and-interrupt", "turn-failed", "turn-cancelled",
             "approval-callback", "user-input-callback", "dynamic-tool-callback",
             "structured-error", "unknown-notification", "opaque-mcp-result",
-            "app-binding", "automation", "teams"
+            "app-binding", "automation"
         };
         var cases = fixtures.RootElement.GetProperty("cases").EnumerateArray().ToArray();
         var caseNames = cases.Select(static item => item.GetProperty("name").GetString()!).ToHashSet(StringComparer.Ordinal);

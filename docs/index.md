@@ -82,19 +82,19 @@ lastUpdated: false
     <article class="dc-story dc-story--flip">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">Agents and teams</p>
-          <h2>Work with one agent, or a team of them.</h2>
+          <p class="dc-story__eyebrow">Your Agent team</p>
+          <h2>Shape specialists through conversation, then build the team your work needs.</h2>
           <div class="dc-story__links">
             <a class="dc-link" href="./features/agent-system/agent-profiles">Agent Profiles</a>
-            <a class="dc-link" href="./features/agent-system/teams">Teams</a>
+            <a class="dc-link" href="./features/agent-system/subagents">Subagents</a>
             <a class="dc-link" href="./features/agent-system/automations">Automations</a>
           </div>
-          <div class="dc-story__team" aria-hidden="true">
-            <figure><LiveMascot uid="team-leader" role="leader" state="idle" interactive /><figcaption>Leader</figcaption></figure>
-            <figure><LiveMascot uid="team-explorer" role="explorer" state="watching" interactive /><figcaption>Explorer</figcaption></figure>
-            <figure><LiveMascot uid="team-builder" role="builder" state="working" interactive /><figcaption>Builder</figcaption></figure>
-            <figure><LiveMascot uid="team-reviewer" role="reviewer" state="thinking" interactive /><figcaption>Reviewer</figcaption></figure>
-            <figure><LiveMascot uid="team-operator" role="operator" state="operating" interactive /><figcaption>Operator</figcaption></figure>
+          <div class="dc-story__profiles" aria-hidden="true">
+            <figure><LiveMascot uid="profile-leader" role="leader" state="idle" interactive /><figcaption>Leader</figcaption></figure>
+            <figure><LiveMascot uid="profile-explorer" role="explorer" state="watching" interactive /><figcaption>Explorer</figcaption></figure>
+            <figure><LiveMascot uid="profile-builder" role="builder" state="working" interactive /><figcaption>Builder</figcaption></figure>
+            <figure><LiveMascot uid="profile-reviewer" role="reviewer" state="thinking" interactive /><figcaption>Reviewer</figcaption></figure>
+            <figure><LiveMascot uid="profile-operator" role="operator" state="operating" interactive /><figcaption>Operator</figcaption></figure>
           </div>
         </div>
         <figure class="dc-story__media">

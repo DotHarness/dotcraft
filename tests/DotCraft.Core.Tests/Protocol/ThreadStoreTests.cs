@@ -761,9 +761,9 @@ public sealed class ThreadStoreTests : IDisposable
         var thread = CreateThread();
         var queued = CreateQueuedInput(thread.Id, "app work") with
         {
-            TriggerKind = "team",
-            TriggerLabel = "Review round",
-            TriggerRefId = "round-7"
+            TriggerKind = "workflow",
+            TriggerLabel = "Workflow run",
+            TriggerRefId = "run-7"
         };
         thread.QueuedInputs.Add(queued);
         await _store.SaveThreadAsync(thread);
@@ -773,9 +773,9 @@ public sealed class ThreadStoreTests : IDisposable
 
         Assert.NotNull(loaded);
         var reloaded = Assert.Single(loaded.QueuedInputs);
-        Assert.Equal("team", reloaded.TriggerKind);
-        Assert.Equal("Review round", reloaded.TriggerLabel);
-        Assert.Equal("round-7", reloaded.TriggerRefId);
+        Assert.Equal("workflow", reloaded.TriggerKind);
+        Assert.Equal("Workflow run", reloaded.TriggerLabel);
+        Assert.Equal("run-7", reloaded.TriggerRefId);
     }
 
     [Fact]

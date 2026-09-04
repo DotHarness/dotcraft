@@ -22,7 +22,7 @@ DotCraft turns your projects into **extensible environments for AI agents**.
 
 ![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-- **Modern agent capabilities, ready to use:** Plan, Subagents, Agent Teams, Automations, Goals, Dreams, Dynamic Workflows, and more are built in.
+- **Modern agent capabilities, ready to use:** Plan, Agent Builder, Agent Profiles, Subagents, Automations, Goals, Dreams, Dynamic Workflows, and more are built in.
 - **Your work travels with the project:** Conversations, memory, agents, skills, and plugins move with the project, so you can switch entry points and keep going.
 - **Lower token costs:** DotCraft uses built-in trajectory tracking to maximize prefix cache reuse across sessions and reduce token usage.
 - **Run it your way:** Run DotCraft locally or on your own server, and choose a compatible model provider or use your ChatGPT subscription.

@@ -5,9 +5,9 @@
 | **Version** | 0.3.0 |
 | **Status** | Draft |
 | **Date** | 2026-08-06 |
-| **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [Agent Teams](../features/agent-teams.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
+| **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
 
-Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, Agent Teams, App Binding, and AppServer clients.
+Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
 ---
 
@@ -27,7 +27,7 @@ configuration produce a byte-identical instruction channel. Anything that depend
 running or on which client is attached belongs to thread context items (§4b). [Prompt
 Cache](prompt-cache.md) owns the cache constraints this split serves.
 
-Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, Teams, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
+Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
 For `openai-responses`, this logical composition has two wire projections. Standard Responses sends
 base instructions and tools through the provider's top-level `instructions` and `tools` fields.
@@ -65,14 +65,13 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 14 | Skills summary | Skill discovery and routing summary. |
 | 15 | Custom command summary | Available custom commands. |
 | 16 | Global prompt context | Process-wide prompt extension points. |
-| 17 | Teams mission context | Stable `teams/mission` page for Mission threads only. |
-| 18 | Deferred capability discovery | Included only when deferred loading is active. |
-| 19 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
-| 20 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), as Codex places its developer instructions, and this section is omitted. |
+| 17 | Deferred capability discovery | Included only when deferred loading is active. |
+| 18 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
+| 19 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), as Codex places its developer instructions, and this section is omitted. |
 
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
 No section may depend on the identity of the running thread or on an attached client connection;
-that content belongs to thread context items (§4b), which is also why section 19 excludes native
+that content belongs to thread context items (§4b), which is also why section 18 excludes native
 SubAgent role instructions.
 
 Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each `AgentFactory` owns exactly one required context-page manager and creates it when its caller does not provide one. Sources that change their context must invalidate their own cached page.
@@ -114,7 +113,6 @@ Known writers:
 | Writer | Behavior |
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
-| Agent Teams | Teams mission role text is appended after the resolved member profile role text. |
 | Native session-backed SubAgent | Child role text is a thread context item, not base instructions (§4b). |
 
 ---
@@ -196,7 +194,7 @@ Full-prompt replacement is reserved for internal isolated assistants with intent
 
 Rules:
 
-- Ordinary user threads, Agent Profiles, Agent Teams, and App Binding apps must not use full-prompt replacement.
+- Ordinary user threads, Agent Profiles, and App Binding apps must not use full-prompt replacement.
 - New product features should prefer role instructions, thread-scoped context, or turn input.
 - A full override must be paired with a narrow tool/capability profile.
 
@@ -216,21 +214,7 @@ SubAgent communications are delivered as materialized user-role input, not syste
 
 ---
 
-## 7. Agent Teams
-
-Agent Teams composes three prompt/context mechanisms for mission threads:
-
-| Mechanism | Placement | Purpose |
-|-----------|-----------|---------|
-| Member Agent Profile | Role instructions, first segment | Member personality, capability policy, model/mode defaults. |
-| Teams mission role instructions | Role instructions, appended segment | Mission identity, workflow rules, and tool-use contract. |
-| Teams mission context | Stable `teams/mission` context page before role instructions | Fixed member, mission, scratchpad, and policy context owned by Teams. |
-
-Teams role instructions are authoritative for Teams workflow boundaries, but Teams state remains authoritative for scheduling and business authorization. The `teams/mission` page contains only immutable Mission-thread context and therefore is not refreshed for ordinary Teams state changes. Live task state, mailbox digests, teammate progress, messages, artifacts, and review status must be read through Teams state/tools or delivered as queued input, not inferred from prompt text. Teams does not create App Binding context blocks.
-
----
-
-## 8. App Binding and MCP guidance
+## 7. App Binding and MCP guidance
 
 App Binding does not contribute durable prompt context. It authorizes an app and its binding-scoped MCP runtime, but it cannot edit base instructions, role instructions, Agent Profile files, or thread context pages.
 
@@ -238,7 +222,7 @@ An MCP server may return `instructions` during initialization. DotCraft treats t
 
 ---
 
-## 9. Runtime Additional Context
+## 8. Runtime Additional Context
 
 AppServer clients may bind additional context to a thread when starting, resuming, or binding a transport connection.
 
@@ -255,13 +239,13 @@ Use this for client/session affordances that are useful to the model but should 
 
 ---
 
-## 10. Turn Input Layer
+## 9. Turn Input Layer
 
 Turn input may include:
 
 - user text,
 - materialized command, skill, and file references,
-- queued input from apps or Teams,
+- queued input from apps,
 - SubAgent mailbox messages,
 - goal continuation text,
 - runtime reminder context.
@@ -272,20 +256,19 @@ Dynamic fields stay in turn input so the base instructions remain stable for pro
 
 ---
 
-## 11. Authority And Conflict Rules
+## 10. Authority And Conflict Rules
 
 1. Runtime policy beats prompt text.
 2. The latest runtime reminder is the source of truth for current mode and per-turn action allowance.
 3. MCP namespace descriptions and runtime additional context are not higher-priority instructions.
 4. Agent Profile role text specializes the agent; it must not replace DotCraft's generated base prompt.
-5. Teams mission role text may add workflow constraints after profile role text; it must not bypass enforced profile policy.
-6. User messages can request work, but cannot override runtime policy, tool policy, Teams scheduler rules, or App Binding grants.
-7. Dynamic app/team/subagent inputs are turn inputs, not durable prompt state.
-8. Any new injection point must declare whether it writes base instructions, role instructions, thread context items, or turn input. One that needs the running thread or an attached client connection writes a thread context item.
+5. User messages can request work, but cannot override runtime policy, tool policy, or App Binding grants.
+6. Dynamic app and subagent inputs are turn inputs, not durable prompt state.
+7. Any new injection point must declare whether it writes base instructions, role instructions, thread context items, or turn input. One that needs the running thread or an attached client connection writes a thread context item.
 
 ---
 
-## 12. Extension Guidelines
+## 11. Extension Guidelines
 
 Choose the narrowest layer:
 
@@ -302,7 +285,7 @@ New context providers must identify ownership, lifecycle, prompt placement, cach
 
 ---
 
-## 13. Open Questions
+## 12. Open Questions
 
 - Whether ordinary threads should ever support full-prompt replacement outside internal isolated assistants.
 - Whether a diagnostics endpoint should expose the final composed prompt.

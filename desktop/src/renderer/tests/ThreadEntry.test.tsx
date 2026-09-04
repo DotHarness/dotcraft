@@ -803,13 +803,13 @@ describe('ThreadEntry', () => {
     const presentationIcon = 'data:image/svg+xml;base64,PHN2ZyBpZD0icHJlc2VudGF0aW9uIi8+'
     renderThreadEntry(
       makeThread({
-        originChannel: 'teams',
+        originChannel: 'workflow-runtime',
         originPresentation: {
-          sourceId: 'agent-teams',
-          displayName: 'Builder',
+          sourceId: 'example-workflow',
+          displayName: 'Workflow worker',
           icon: presentationIcon,
-          subjectId: 'builder',
-          subjectKind: 'member'
+          subjectId: 'worker',
+          subjectKind: 'runtime'
         },
         originApp: {
           appId: 'com.example.secondary',
@@ -820,7 +820,7 @@ describe('ThreadEntry', () => {
     )
 
     const card = await openDetailsCard()
-    const badge = within(card).getByLabelText('Origin: Builder')
+    const badge = within(card).getByLabelText('Origin: Workflow worker')
     expect(badge.querySelector('img')?.getAttribute('src')).toBe(presentationIcon)
     expect(screen.queryByLabelText('Origin app: Secondary origin')).not.toBeInTheDocument()
   })

@@ -104,18 +104,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ExternalChannelUpsertParams, ExternalChannelUpsertResult> ExternalChannelUpsert = new("externalChannel/upsert", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<TeamsMemberOpenThreadParams, TeamsMemberOpenThreadResult> TeamsMemberOpenThread = new("teams/member/openThread", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "teams", scope: "workspace", capability: "extensions.teams", errors: CommonErrors);
-
-    public static readonly RpcRequest<TeamsMissionArchiveParams, TeamsTeamViewResult> TeamsMissionArchive = new("teams/mission/archive", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "teams", scope: "workspace", capability: "extensions.teams", errors: CommonErrors);
-
-    public static readonly RpcRequest<TeamsMissionCancelParams, TeamsTeamViewResult> TeamsMissionCancel = new("teams/mission/cancel", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "teams", scope: "workspace", capability: "extensions.teams", errors: CommonErrors);
-
-    public static readonly RpcRequest<TeamsMissionCreateParams, TeamsMissionCreateResult> TeamsMissionCreate = new("teams/mission/create", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "teams", scope: "workspace", capability: "extensions.teams", errors: CommonErrors);
-
-    public static readonly RpcNotification<TeamsTeamChangedNotification> TeamsTeamChanged = new("teams/team/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "teams", scope: "workspace", capability: "extensions.teams");
-
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, TeamsTeamViewResult> TeamsTeamView = new("teams/team/view", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "teams", scope: "workspace", capability: "extensions.teams", errors: CommonErrors);
-
     public static readonly RpcNotification<ThreadAppBindingsChangedNotification> ThreadAppBindingsChanged = new("thread/appBindings/changed", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1");
 
     public static readonly RpcRequest<ThreadAppBindingConfirmCapabilitiesParams, AppBinding> ThreadAppBindingConfirmCapabilities = new("thread/appBindings/confirmCapabilities", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);

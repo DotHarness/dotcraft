@@ -1383,21 +1383,21 @@ div.VPSidebarItem.is-active > .item {
 
 /* The five team mascots — each alive with its role's temperament (rig in
  * liveMascot.ts); hover keeps the light lift with the bouncy return. */
-.dc-story__team {
+.dc-story__profiles {
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
   margin-top: 28px;
 }
 
-.dc-story__team figure {
+.dc-story__profiles figure {
   margin: 0;
   display: grid;
   justify-items: center;
   gap: 6px;
 }
 
-.dc-story__team .dc-mascot {
+.dc-story__profiles .dc-mascot {
   width: 46px;
   height: 46px;
   /* Rest transition carries the bouncy ease so the return springs; hover
@@ -1405,19 +1405,19 @@ div.VPSidebarItem.is-active > .item {
   transition: transform var(--duration-medium) var(--ease-bounce-strong);
 }
 
-.dc-story__team figure:hover .dc-mascot {
+.dc-story__profiles figure:hover .dc-mascot {
   transform: translateY(-4px);
   transition: transform var(--duration-fast) var(--ease-smooth-out);
 }
 
-.dc-story__team figcaption {
+.dc-story__profiles figcaption {
   font-size: 11px;
   letter-spacing: 0.05em;
   color: var(--dc-dimmed);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dc-story__team .dc-mascot { transition: none; }
+  .dc-story__profiles .dc-mascot { transition: none; }
 }
 
 /* ── Thesis — the positioning statement as a quiet pull-quote ─────────────── */

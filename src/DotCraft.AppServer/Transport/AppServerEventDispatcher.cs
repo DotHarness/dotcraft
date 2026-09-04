@@ -41,7 +41,7 @@ public sealed class AppServerEventDispatcher
     /// <summary>
     /// Optional enricher applied to full thread wires before they are sent as <c>thread/started</c>
     /// (ThreadCreated) and <c>thread/resumed</c> notifications, so server-originated threads (e.g.
-    /// created by a managed runtime such as Teams) carry the same App Binding / origin-app attribution
+    /// created by a managed runtime) carry the same App Binding / origin-app attribution
     /// as <c>thread/list</c>. Without it, event-delivered threads fall back to the generic channel icon.
     /// </summary>
     private readonly Func<SessionWireThread, SessionWireThread>? _enrichThreadWire;

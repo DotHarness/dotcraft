@@ -732,19 +732,6 @@
       ]
     },
     {
-      "name": "teams",
-      "tags": ["clientRequest", "serverNotification", "firstPartyExtension", "teams"],
-      "messages": [
-        { "jsonrpc": "2.0", "id": 13, "method": "teams/team/view", "params": {} },
-        { "jsonrpc": "2.0", "id": 13, "result": { "team": null, "missions": [] } },
-        {
-          "jsonrpc": "2.0",
-          "method": "teams/team/changed",
-          "params": { "reason": "missionCreated", "missionId": "mission_fixture" }
-        }
-      ]
-    },
-    {
       "name": "acp-callbacks",
       "tags": ["serverRequest", "firstPartyExtension", "acp"],
       "messages": [

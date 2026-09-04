@@ -212,38 +212,6 @@ describe('UserMessageBlock trigger source pills', () => {
     expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: state.tabs[0].id })
   })
 
-  it('renders team-triggered native display text without runtime envelope tags', () => {
-    renderWithLocale(
-      <UserMessageBlock
-        text='<team-notification type="mission.finalize">hidden model envelope</team-notification>'
-        nativeInputParts={[
-          { type: 'text', text: 'Mission ready for Leader finalization: Ship Teams' }
-        ]}
-        triggerKind="team"
-        triggerLabel="Finalize mission: Ship Teams"
-        triggerRefId="mission-1"
-      />
-    )
-
-    expect(screen.getByText('Mission ready for Leader finalization: Ship Teams')).toBeInTheDocument()
-    expect(screen.queryByText(/team-notification/)).toBeNull()
-    expect(screen.getByText('Sent by Teams')).toBeInTheDocument()
-  })
-
-  it('leaves team origins inert, since Teams has no built-in main view to open', () => {
-    renderWithLocale(
-      <UserMessageBlock
-        text="Mission ready"
-        triggerKind="team"
-        triggerLabel="Ship Teams"
-        triggerRefId="mission-1"
-      />
-    )
-
-    expect(screen.getByText('Sent by Teams')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Sent by Teams/ })).toBeNull()
-  })
-
   it('renders SubAgent follow-up origins with thread-style copy', async () => {
     renderWithLocale(
       <UserMessageBlock

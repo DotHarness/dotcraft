@@ -5,7 +5,6 @@ namespace DotCraft.Sessions;
 /// <summary>Derives the trusted tool-planning thread kind from persisted Session state.</summary>
 internal static class ToolPlanningThreadClassifier
 {
-    private const string TeamsChannelName = "teams";
     private const string AutomationsChannelName = "automations";
     private const string CronChannelName = "cron";
 
@@ -29,9 +28,6 @@ internal static class ToolPlanningThreadClassifier
         {
             return ToolPlanningThreadKind.Unattended;
         }
-
-        if (IsOrigin(thread.OriginChannel, TeamsChannelName))
-            return ToolPlanningThreadKind.ModuleManaged;
 
         if (string.Equals(thread.Source?.Kind, ThreadSourceKinds.User, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(thread.OriginChannel))

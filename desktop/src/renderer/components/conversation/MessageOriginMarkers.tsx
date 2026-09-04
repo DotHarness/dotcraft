@@ -1,4 +1,4 @@
-import { Bot, CornerDownRight, MessagesSquare, Target, UsersRound, Workflow } from 'lucide-react'
+import { Bot, CornerDownRight, MessagesSquare, Target, Workflow } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useCronStore } from '../../stores/cronStore'
@@ -22,7 +22,6 @@ function isSubAgentKind(kind: TriggerKind): boolean {
 
 function badgeTextFor(locale: AppLocale, kind: TriggerKind): string {
   if (kind === 'goal') return translate(locale, 'goal.triggeredBy.badge')
-  if (kind === 'team') return translate(locale, 'teams.triggeredBy.badge')
   if (kind === 'app') return translate(locale, 'app.triggeredBy.badge')
   if (kind === 'thread') return translate(locale, 'thread.triggeredBy.badge')
   if (kind === 'workflow') return translate(locale, 'workflow.triggeredBy.badge')
@@ -32,11 +31,6 @@ function badgeTextFor(locale: AppLocale, kind: TriggerKind): string {
 
 function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): string {
   if (kind === 'goal') return label || translate(locale, 'goal.triggeredBy.generic')
-  if (kind === 'team') {
-    return label
-      ? translate(locale, 'teams.triggeredBy.detail', { label })
-      : translate(locale, 'teams.triggeredBy.generic')
-  }
   if (kind === 'app') {
     return label
       ? translate(locale, 'app.triggeredBy.detail', { label })
@@ -74,7 +68,6 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
 
 function OriginIcon({ kind }: { kind: TriggerKind }): JSX.Element {
   if (kind === 'goal') return <Target size={13} strokeWidth={1.8} aria-hidden />
-  if (kind === 'team') return <UsersRound size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'workflow') return <Workflow size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'thread' || isSubAgentKind(kind)) {
     return <MessagesSquare size={13} strokeWidth={1.8} aria-hidden />
@@ -105,8 +98,6 @@ export function MessageOriginLine({
   // would push the originating thread or job name past the clamp.
   const hint = label ? detailText : null
 
-  // Teams is a Desktop Plugin main view, so a team origin has no stable built-in route
-  // and stays inert rather than offering a target that goes nowhere.
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
   const canNavigate = (kind === 'cron' || kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId
 
