@@ -27,7 +27,7 @@ describe('Token HUD settings preview', () => {
       mutate,
       onChange: () => () => undefined
     }
-    const module = await import('../../../../sdk/typescript/samples/desktop-plugins/token-hud/desktop/src/settings')
+    const module = await import('./settings')
     const listener = vi.fn()
 
     await module.initializeSettings(settings)
@@ -58,7 +58,7 @@ describe('Token HUD settings preview', () => {
       mutate,
       onChange: () => () => undefined
     }
-    const module = await import('../../../../sdk/typescript/samples/desktop-plugins/token-hud/desktop/src/settings')
+    const module = await import('./settings')
 
     await module.initializeSettings(settings)
     module.setSettings({ visible: false })

@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   formatTokens,
   formatTokensPerSecond
-} from '../../../../sdk/typescript/samples/desktop-plugins/token-hud/desktop/src/TokenHud'
+} from './TokenHud'
 import {
   getUsage,
   startUsageFeed
-} from '../../../../sdk/typescript/samples/desktop-plugins/token-hud/desktop/src/usage'
+} from './usage'
 
 afterEach(() => {
   vi.useRealTimers()
