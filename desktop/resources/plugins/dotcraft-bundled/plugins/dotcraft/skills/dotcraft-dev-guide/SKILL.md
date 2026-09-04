@@ -1,6 +1,6 @@
 ---
 name: dotcraft-dev-guide
-description: DotCraft development conventions. Use when changing protocols or shipping user-facing functionality.
+description: Development conventions for the DotCraft repository. Use when changing its C#, TypeScript, protocol artifacts, or specs.
 ---
 
 # DotCraft Development Guide

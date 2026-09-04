@@ -25,6 +25,7 @@ public sealed class AcpConfig
     /// <summary>
     /// Optional bearer token for WebSocket AppServer authentication.
     /// </summary>
+    [ConfigField(Sensitive = true)]
     public string? AppServerToken { get; set; }
 
     /// <summary>

@@ -4,6 +4,18 @@ Configuration fields, defaults, and JSON examples, grouped by subsystem. For fir
 
 DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.craft/config.json`. Workspace fields win. String values support `$VAR` and `${VAR}` environment variable placeholders. An unset variable keeps its placeholder unchanged.
 
+## Inspect configuration from the CLI
+
+`dotcraft config schema` prints every section and field this build understands, with its type, default, sensitivity, and reload behavior. `dotcraft config show` prints the merged configuration of one workspace with `ApiKey`, `Password`, and `Token` values masked as `***`.
+
+```bash
+dotcraft config schema --section Tools.Web
+dotcraft config schema --json
+dotcraft config show --json
+```
+
+`--section` accepts a section's display name or its JSON path. `--json` writes machine-readable output, and `config show` is indented JSON either way. `config show` reads the workspace in the current directory; pass `--workspace` for another one.
+
 ## Basic model and provider
 
 | Field | Description | Default |

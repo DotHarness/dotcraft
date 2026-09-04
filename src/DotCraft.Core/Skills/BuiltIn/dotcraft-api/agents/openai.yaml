@@ -1,0 +1,6 @@
+interface:
+  display_name: "DotCraft API"
+  short_description: "Build apps on the DotCraft SDKs and AppServer protocol"
+  icon_small: "./assets/dotcraft-api-small.svg"
+  icon_large: "./assets/dotcraft-api.svg"
+  default_prompt: "Use $dotcraft-api to build or debug an application against the DotCraft SDK or AppServer protocol."

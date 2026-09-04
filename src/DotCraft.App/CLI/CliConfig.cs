@@ -30,5 +30,6 @@ public sealed class CliConfig
     /// Optional bearer token used when connecting to a WebSocket AppServer that requires
     /// authentication (appserver-protocol.md §15.4). Only relevant when <see cref="AppServerUrl"/> is set.
     /// </summary>
+    [ConfigField(Sensitive = true)]
     public string? AppServerToken { get; set; }
 }
