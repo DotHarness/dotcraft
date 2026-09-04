@@ -277,7 +277,7 @@ public sealed class SessionContractParityTests
             },
             OriginPresentation = new ThreadOriginPresentationSnapshot
             {
-                SourceId = "teams",
+                SourceId = "example-runtime",
                 DisplayName = "Scout",
                 Icon = "fixture-avatar",
                 SubjectId = "member_001",

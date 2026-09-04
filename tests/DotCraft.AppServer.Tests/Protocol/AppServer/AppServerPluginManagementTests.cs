@@ -174,47 +174,6 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginList_ReturnsInstallableAgentTeamsMetadata()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == PluginIds.AgentTeams);
-        Assert.Equal("Agent Teams", plugin.GetProperty("displayName").GetString());
-        Assert.False(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(plugin.GetProperty("installable").GetBoolean());
-        Assert.Empty(plugin.GetProperty("apps").EnumerateArray());
-        Assert.Empty(plugin.GetProperty("skills").EnumerateArray());
-    }
-
-    [Fact]
-    public async Task PluginList_ReturnsDesktopModuleDeclaration()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
-        var teams = Assert.Single(plugins, item => item.GetProperty("id").GetString() == PluginIds.AgentTeams);
-        var desktop = teams.GetProperty("desktop");
-        Assert.Equal("Adds the Team board to DotCraft Desktop.", desktop.GetProperty("description").GetString());
-        Assert.Equal("./desktop/dist/index.mjs", desktop.GetProperty("entry").GetString());
-        Assert.Empty(desktop.GetProperty("styles").EnumerateArray());
-        Assert.Matches("^[0-9a-f]{64}$", desktop.GetProperty("revision").GetString());
-    }
-
-    [Fact]
     public async Task PluginList_ReturnsSkillOnlyPluginWithEmptyFunctions()
     {
         WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));

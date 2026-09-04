@@ -1,25 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft Builder</title>
-  <desc id="desc">A DotCraft robot with a violet body, focused symbol face, and modular blocks.</desc>
+  <title id="title">DotCraft Operator Agent Profile</title>
+  <desc id="desc">The built-in Operator Agent Profile, shown as an amber DotCraft robot with a running face and control panel.</desc>
   <defs>
     <linearGradient id="role-body" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6d28d9"/>
-      <stop offset=".5" stop-color="#8b5cf6"/>
-      <stop offset="1" stop-color="#a78bfa"/>
+      <stop offset="0" stop-color="#d97706"/>
+      <stop offset=".5" stop-color="#eab308"/>
+      <stop offset="1" stop-color="#fbbf24"/>
     </linearGradient>
     <linearGradient id="role-mark" x1="366" y1="694" x2="658" y2="560" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5b21b6"/>
-      <stop offset="1" stop-color="#a78bfa"/>
+      <stop offset="0" stop-color="#92400e"/>
+      <stop offset="1" stop-color="#f59e0b"/>
     </linearGradient>
     <linearGradient id="yellow" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#ffcf11"/>
       <stop offset="1" stop-color="#f6b500"/>
     </linearGradient>
     <filter id="soft-shadow" x="-12%" y="-12%" width="124%" height="124%">
-      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#4c1d95" flood-opacity=".16"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#78350f" flood-opacity=".16"/>
     </filter>
     <filter id="inner-lift" x="-8%" y="-8%" width="116%" height="116%">
-      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#4c1d95" flood-opacity=".1"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#78350f" flood-opacity=".1"/>
     </filter>
     <filter id="accessory-lift" x="-18%" y="-18%" width="136%" height="136%">
       <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020617" flood-opacity=".18"/>
@@ -45,15 +45,17 @@
     <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
     <circle cx="512" cy="229" r="73" fill="url(#yellow)"/>
 
-    <path d="M379 585 452 622 379 659" stroke="url(#role-mark)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M645 585 572 622 645 659" stroke="url(#role-mark)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M482 704c18 11 42 11 60 0" stroke="url(#role-mark)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <rect x="381" y="581" width="45" height="87" rx="16" fill="url(#role-mark)"/>
+    <rect x="598" y="581" width="45" height="87" rx="16" fill="url(#role-mark)"/>
+    <path d="M487 700h50" stroke="url(#role-mark)" stroke-width="22" stroke-linecap="round"/>
   </g>
 
-  <g transform="translate(122 -140) rotate(-18 826 706)" filter="url(#accessory-lift)">
-    <path d="M756 595c30-30 74-39 113-23l-56 56 46 46 56-56c16 39 7 83-23 113-32 32-80 39-119 20L674 850c-18 18-47 18-65 0s-18-47 0-65l99-99c-19-39-12-87 20-119Z" fill="#fff" stroke="#fff" stroke-width="34" stroke-linejoin="round"/>
-    <path d="M756 595c30-30 74-39 113-23l-56 56 46 46 56-56c16 39 7 83-23 113-32 32-80 39-119 20L674 850c-18 18-47 18-65 0s-18-47 0-65l99-99c-19-39-12-87 20-119Z" fill="#fff" stroke="url(#role-mark)" stroke-width="13" stroke-linejoin="round"/>
-    <circle cx="642" cy="817" r="17" fill="url(#yellow)"/>
-    <path d="M706 752 774 684" stroke="url(#role-mark)" stroke-width="20" stroke-linecap="round" opacity=".78"/>
+  <g transform="rotate(7 839 686)" filter="url(#accessory-lift)">
+    <rect x="714" y="592" width="250" height="190" rx="38" fill="#fff" stroke="#fff" stroke-width="30"/>
+    <rect x="714" y="592" width="250" height="190" rx="38" fill="#fff" stroke="url(#role-mark)" stroke-width="11"/>
+    <path d="M765 650h148" stroke="#202124" stroke-width="14" stroke-linecap="round" opacity=".62"/>
+    <path d="M765 718h148" stroke="#202124" stroke-width="14" stroke-linecap="round" opacity=".62"/>
+    <circle cx="818" cy="650" r="23" fill="url(#role-mark)" stroke="#fff" stroke-width="8"/>
+    <circle cx="872" cy="718" r="23" fill="url(#yellow)" stroke="#fff" stroke-width="8"/>
   </g>
 </svg>

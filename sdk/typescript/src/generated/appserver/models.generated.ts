@@ -650,23 +650,6 @@ export interface ApprovalResponseResult {
   [key: string]: unknown;
 }
 
-export interface ArtifactRefRecord {
-  alias?: string;
-  artifactId?: string;
-  createdAt?: string;
-  format?: string | null;
-  kind?: string;
-  memberId?: string;
-  metadata?: JsonValue;
-  sourceMessageId?: string | null;
-  sourceTaskId?: string | null;
-  summary?: string | null;
-  taskId?: string;
-  title?: string;
-  uri?: string;
-  [key: string]: unknown;
-}
-
 export interface AuthOpenAiAuthorizeUrlNotification {
   callbackPort?: number;
   url?: string;
@@ -1701,14 +1684,6 @@ export interface ItemWidgetStateSetResult {
   [key: string]: unknown;
 }
 
-export interface MailboxDigestRecord {
-  content?: string;
-  digestId?: string;
-  memberId?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
-
 export interface MarketplaceAddParams {
   marketplacePath?: string | null;
   ref?: string | null;
@@ -2152,44 +2127,6 @@ export interface McpUpsertResult {
 }
 
 export interface MemoryResetResult {
-  [key: string]: unknown;
-}
-
-export interface MissionRecord {
-  archivedAt?: string | null;
-  completedAt?: string | null;
-  completionNotifiedAt?: string | null;
-  completionQueuedInputId?: string | null;
-  completionSummary?: string | null;
-  createdAt?: string;
-  finalResponse?: string | null;
-  leaderContinuationQueuedInputId?: string | null;
-  leaderThreadId?: string;
-  missionId?: string;
-  originThreadId?: string | null;
-  plan?: string;
-  prompt?: string;
-  scratchpadPath?: string | null;
-  status?: string;
-  title?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
-
-export interface MissionThreadView {
-  archivedAt?: string | null;
-  createdAt?: string;
-  currentTaskId?: string | null;
-  memberId?: string;
-  missionId?: string;
-  queuedInputCount?: number;
-  queuedInputId?: string | null;
-  running?: boolean;
-  status?: string;
-  threadId?: string;
-  updatedAt?: string;
-  waitingOnApproval?: boolean;
-  waitingOnInput?: boolean;
   [key: string]: unknown;
 }
 
@@ -2887,7 +2824,6 @@ export interface ServerCapabilities {
 
 export interface ServerCapabilityExtensions {
   dynamicWorkflows?: DynamicWorkflowCapabilities | null;
-  teams?: TeamsCapabilities | null;
   [key: string]: unknown;
 }
 
@@ -3550,171 +3486,6 @@ export interface SystemNoticePayload {
   tokensAfter: number;
   tokensBefore: number;
   trigger: string;
-  [key: string]: unknown;
-}
-
-export interface TeamMemberAgentProfileDiagnostic {
-  code?: string;
-  message?: string;
-  severity?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamMemberAgentProfileView {
-  activeId?: string | null;
-  diagnostics?: TeamMemberAgentProfileDiagnostic[];
-  fallbackUsed?: boolean;
-  fingerprint?: string | null;
-  missing?: boolean;
-  requestedId?: string | null;
-  source?: string | null;
-  valid?: boolean;
-  [key: string]: unknown;
-}
-
-export interface TeamMemberView {
-  agentProfile?: TeamMemberAgentProfileView | null;
-  agentProfileId?: string | null;
-  avatarAccent?: string;
-  currentTaskId?: string | null;
-  description?: string;
-  deskX?: number;
-  deskY?: number;
-  displayName?: string;
-  memberId?: string;
-  queuedInputCount?: number;
-  role?: string;
-  running?: boolean;
-  status?: string;
-  waitingOnApproval?: boolean;
-  waitingOnInput?: boolean;
-  [key: string]: unknown;
-}
-
-export interface TeamMessageRecord {
-  artifactIds?: string[];
-  content?: string;
-  createdAt?: string;
-  deliveredAt?: string | null;
-  deliveredQueuedInputId?: string | null;
-  fromMemberId?: string;
-  kind?: string;
-  messageId?: string;
-  metadata?: JsonValue;
-  missionId?: string;
-  requiresAction?: boolean;
-  status?: string;
-  taskId?: string | null;
-  toMemberId?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamRecord {
-  createdAt?: string;
-  teamId?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamTaskRecord {
-  alias?: string;
-  assigneeMemberId?: string;
-  blockedOnTaskIds?: string[];
-  blockedReason?: string | null;
-  completionRecoveryAttempts?: number;
-  completionRecoveryPending?: boolean;
-  completionRecoveryQueuedInputId?: string | null;
-  createdAt?: string;
-  dependsOnTaskIds?: string[];
-  digest?: string;
-  kind?: string;
-  latestUpdate?: string | null;
-  leaderNotifiedAt?: string | null;
-  metadata?: JsonValue;
-  missionId?: string;
-  outputSummary?: string | null;
-  prompt?: string;
-  queuedInputId?: string | null;
-  requiredForMission?: boolean;
-  requiresLeaderSynthesis?: boolean;
-  status?: string;
-  synthesisMessageId?: string | null;
-  taskId?: string;
-  title?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsCapabilities {
-  missions?: boolean;
-  team?: boolean;
-  [key: string]: unknown;
-}
-
-export interface TeamsMemberOpenThreadParams {
-  memberId?: string;
-  missionId?: string;
-  taskId?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsMemberOpenThreadResult {
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsMissionArchiveParams {
-  missionId?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsMissionCancelParams {
-  missionId?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsMissionCreateParams {
-  prompt?: string;
-  title?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsMissionCreateResult {
-  mission?: MissionRecord;
-  queuedInput?: QueuedTurnInput | null;
-  team?: TeamsTeamViewResult;
-  [key: string]: unknown;
-}
-
-export interface TeamsTeamChangedNotification {
-  missionId?: string;
-  reason?: string;
-  [key: string]: unknown;
-}
-
-export interface TeamsTeamStats {
-  cachedInputTokens?: number;
-  completedTasks?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  queuedInputs?: number;
-  runningMembers?: number;
-  totalTasks?: number;
-  totalTokens?: number;
-  [key: string]: unknown;
-}
-
-export interface TeamsTeamViewResult {
-  archivedMissions?: MissionRecord[];
-  artifacts?: ArtifactRefRecord[];
-  mailboxDigests?: MailboxDigestRecord[];
-  members?: TeamMemberView[];
-  messages?: TeamMessageRecord[];
-  missionThreads?: MissionThreadView[];
-  missions?: MissionRecord[];
-  stats?: TeamsTeamStats;
-  tasks?: TeamTaskRecord[];
-  team?: TeamRecord | null;
   [key: string]: unknown;
 }
 

@@ -99,7 +99,7 @@ export interface ThreadOriginPresentation {
   displayName: string
   /** Data URL or safe URL for the origin icon; optional — clients fall back to the channel badge. */
   icon?: string | null
-  /** Optional provider-owned subject identity, such as a Teams member id. */
+  /** Optional provider-owned subject identity, such as a workflow worker id. */
   subjectId?: string | null
   /** Optional provider-owned subject category, such as `member`. */
   subjectKind?: string | null

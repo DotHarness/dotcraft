@@ -256,25 +256,6 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginInstall_DeploysAgentTeamsMetadataPlugin()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = PluginIds.AgentTeams });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal(PluginIds.AgentTeams, plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.False(plugin.GetProperty("installable").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", PluginIds.AgentTeams, ".builtin")));
-    }
-
-    [Fact]
     public async Task PluginInstall_EmitsLspConfigRegion()
     {
         var changes = new List<AppConfigChangedEventArgs>();

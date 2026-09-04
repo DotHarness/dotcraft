@@ -408,9 +408,9 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         {
             identity = new
             {
-                channelName = "teams",
-                userId = "dotcraft-teams",
-                channelContext = "mission_1:builder",
+                channelName = "workflow-runtime",
+                userId = "runtime-user",
+                channelContext = "run_1:worker",
                 workspacePath = harness.Identity.WorkspacePath
             }
         });
@@ -428,9 +428,9 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         {
             identity = new
             {
-                channelName = "teams",
-                userId = "dotcraft-teams",
-                channelContext = "mission_1:builder",
+                channelName = "workflow-runtime",
+                userId = "runtime-user",
+                channelContext = "run_1:worker",
                 workspacePath = harness.Identity.WorkspacePath
             }
         }));
@@ -653,7 +653,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var previousTransport = AppServerRequestContext.CurrentTransport;
         var previousMethod = AppServerRequestContext.CurrentMethod;
         AppServerRequestContext.CurrentTransport = _h.Transport;
-        AppServerRequestContext.CurrentMethod = "teams/mission/create";
+        AppServerRequestContext.CurrentMethod = "workflow/run/create";
         try
         {
             _h.Service.ThreadCreatedForBroadcast = thread =>
@@ -673,10 +673,10 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
             var thread = await _h.Service.CreateThreadAsync(new SessionIdentity
             {
-                ChannelName = "teams",
-                UserId = "dotcraft-teams",
+                ChannelName = "workflow-runtime",
+                UserId = "runtime-user",
                 WorkspacePath = _h.Identity.WorkspacePath,
-                ChannelContext = "mission_1:leader"
+                ChannelContext = "run_1:worker"
             });
 
             using var notification = await _h.Transport.ReadNextSentAsync();
@@ -2254,30 +2254,30 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     private static void AssertOriginPresentation(JsonElement thread)
     {
         var presentation = thread.GetProperty("originPresentation");
-        Assert.Equal("agent-teams", presentation.GetProperty("sourceId").GetString());
-        Assert.Equal("Builder", presentation.GetProperty("displayName").GetString());
+        Assert.Equal("example-workflow", presentation.GetProperty("sourceId").GetString());
+        Assert.Equal("Workflow worker", presentation.GetProperty("displayName").GetString());
         Assert.Equal("data:image/svg+xml;base64,dGVzdA==", presentation.GetProperty("icon").GetString());
-        Assert.Equal("builder", presentation.GetProperty("subjectId").GetString());
-        Assert.Equal("member", presentation.GetProperty("subjectKind").GetString());
+        Assert.Equal("worker", presentation.GetProperty("subjectId").GetString());
+        Assert.Equal("runtime", presentation.GetProperty("subjectKind").GetString());
     }
 
     private sealed class TestOriginPresentationProvider : IThreadOriginPresentationProvider
     {
         public ThreadOriginPresentationSnapshot? Resolve(ThreadOriginPresentationContext context)
         {
-            if (!string.Equals(context.OriginChannel, "teams", StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(context.ChannelContext, "mission_1:builder", StringComparison.Ordinal))
+            if (!string.Equals(context.OriginChannel, "workflow-runtime", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(context.ChannelContext, "run_1:worker", StringComparison.Ordinal))
             {
                 return null;
             }
 
             return new ThreadOriginPresentationSnapshot
             {
-                SourceId = "agent-teams",
-                DisplayName = "Builder",
+                SourceId = "example-workflow",
+                DisplayName = "Workflow worker",
                 Icon = "data:image/svg+xml;base64,dGVzdA==",
-                SubjectId = "builder",
-                SubjectKind = "member"
+                SubjectId = "worker",
+                SubjectKind = "runtime"
             };
         }
     }

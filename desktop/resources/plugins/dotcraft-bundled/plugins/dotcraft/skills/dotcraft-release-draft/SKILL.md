@@ -76,7 +76,7 @@ DotCraft vX.Y.Z is a major release focused on ...
 - Lead with user-visible capabilities from What's New. Put reliability, tooling, and polish in "Infrastructure and Experience Improvements."
 - Use the GIF URLs exactly from the What's New catalog when available.
 - Expand terse What's New summaries with repo/docs evidence, not speculation.
-- Preserve established product terminology. Examples (e.g., not an exhaustive list) include `Agent Teams`, `Mission`, `Team Leader`, `App Binding`, `ChatGPT subscription`, and `What's New`; inspect current product and documentation sources for additional terms.
+- Preserve established product terminology. Examples (e.g., not an exhaustive list) include `Agent Builder`, `Agent Profiles`, `App Binding`, `ChatGPT subscription`, and `What's New`; inspect current product and documentation sources for additional terms.
 - Mention plan tiers only when supported by docs/code or existing release copy.
 - Preserve generated "What's Changed" links and attribution. Translate any non-English entry titles faithfully so the release body remains English; do not add unsupported claims.
 - Never run commands that create, edit, publish, delete, or upload assets to a GitHub Release, such as `gh release create`, `gh release edit`, `gh release delete`, or `gh release upload`.

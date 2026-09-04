@@ -152,16 +152,6 @@ public sealed class AppServerWireDtoSerializationTests
         Assert.Equal(
             "{\"ok\":true}",
             Serialize(new Contract.AutomationTaskDeleteResult { Ok = true }));
-        Assert.Equal(
-            "{\"team\":true,\"missions\":true}",
-            Serialize(new Contract.TeamsCapabilities { Team = true, Missions = true }));
-        Assert.Equal(
-            "{\"reason\":\"missionCreated\",\"missionId\":\"mission-1\"}",
-            Serialize(new Contract.TeamsTeamChangedNotification
-            {
-                Reason = "missionCreated",
-                MissionId = "mission-1"
-            }));
     }
 
     private static string Serialize<T>(T value) =>

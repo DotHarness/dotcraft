@@ -12,9 +12,9 @@ At the center of DotCraft is one agent that keeps growing with your project. The
 
 [Memory & Dreams](./memory) keeps project context, preferences, and decisions available from one conversation to the next. Memory is stored as plain Markdown in your workspace, so you can read and change it at any time.
 
-## Delegate work
+## Build your agent team and delegate work
 
-[Subagents](./subagents) run the tasks you hand them in their own context, keeping the main conversation clean. [Teams](./teams) puts several agents on one piece of work together. [Dynamic Workflows](./dynamic-workflows) uses reusable orchestration scripts to run large jobs in parallel in the background. [Agent Profiles](./agent-profiles) creates agents with different specialties, ready to reuse in all of the above. When a coding agent outside DotCraft should take over, [Workspace Handoff](./workspace-handoff) exports the conversation as a handoff document.
+[Agent Profiles](./agent-profiles) gives reusable specialists their own instructions, tools, skills, and model defaults, while Agent Builder lets you shape them through conversation. [Subagents](./subagents) run focused assignments in their own context, keeping the main conversation clean. [Dynamic Workflows](./dynamic-workflows) turns repeatable orchestration into scripts that can run several subagents in parallel. When a coding agent outside DotCraft should take over, [Workspace Handoff](./workspace-handoff) exports the conversation as a handoff document.
 
 ## Run unattended
 

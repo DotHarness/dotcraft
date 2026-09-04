@@ -28,7 +28,7 @@ DotCraft.App（官方组合根）
 | **`DotCraft.Protocol`** | AppServer 与协议客户端共用的传输契约 |
 | **`DotCraft.AppServer`** | JSON-RPC 请求处理、契约映射、连接状态，以及 stdio 和 WebSocket 传输 |
 | **`DotCraft.App`** | 官方组合根，负责进程入口、模型提供商、可选功能、日志与进程策略 |
-| **功能程序集** | 基于 Core 契约实现 Automations、Teams、Dynamic Workflows、渠道等功能行为 |
+| **功能程序集** | 基于 Core 契约实现 Automations、Dynamic Workflows、渠道等功能行为 |
 
 Core 构建在与模型提供商无关的 Agents 基础之上。Runtime 与功能程序集构建在 Core 之上。AppServer 把 Core 的领域能力映射为 Protocol 契约。官方 App 挑选这些组件，并在组合边界接上各功能专用的协议适配器。Runtime 与 AppServer 共用宿主持有的同一个 `ISessionService`。
 

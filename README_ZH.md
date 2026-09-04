@@ -22,7 +22,7 @@ DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 
 ![同一个 Agent Runtime，三种接入方式 —— 桌面应用、AppServer + SDK、Harness 包](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-- **现代 Agent 能力开箱即用：** 原生的 Plan、Subagents、Agent Teams、Automations、Goals、Dreams、Dynamic Workflows 等能力，开箱即用。
+- **现代 Agent 能力开箱即用：** 原生的 Plan、Agent Builder、Agent Profiles、Subagents、Automations、Goals、Dreams、Dynamic Workflows 等能力，开箱即用。
 - **项目走到哪，工作就跟到哪：** 会话、记忆、Agent、Skills 和 Plugins 随项目迁移，换个入口也能继续。
 - **更少的 Token 消耗：** DotCraft 内置轨迹跟踪，跨会话最大化利用前缀缓存减少 Token 开销。
 - **部署和模型都由你决定：** 可在本地或自己的服务器运行，并自由选择兼容的模型服务以及你的 ChatGPT 订阅。

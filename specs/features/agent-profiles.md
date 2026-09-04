@@ -5,7 +5,7 @@
 | **Version** | 0.4.0 |
 | **Status** | Draft |
 | **Date** | 2026-08-10 |
-| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Agent Teams](agent-teams.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
 
@@ -18,7 +18,7 @@ Agent Profiles define:
 - Markdown profile documents with YAML frontmatter and a Markdown role body.
 - Deterministic source resolution across built-in, plugin, user, workspace, and managed profiles.
 - Compilation into a persisted thread configuration snapshot.
-- Profile-backed ordinary threads and Agent Teams mission threads.
+- Profile-backed ordinary threads and unattended tasks.
 - Management APIs for profile authoring, validation, readback, and explicit thread refresh.
 - Policy rules for tools, MCP, plugins/apps, skills, and approvals.
 
@@ -40,7 +40,7 @@ Out of scope:
 - Profiles specialize the generated DotCraft prompt through role instructions. They must not replace the base prompt.
 - Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete Profile model preset; canonical profiles do not merge individual model-option fields with workspace defaults.
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
-- Teams owns coordination. Team profiles define member capability and role style; Teams state, scheduler rules, runtime-managed tools, and mission context remain owned by Teams.
+- Runtime-owned capabilities remain outside profile policy. Profiles specialize a thread without taking ownership of scheduling or runtime lifecycle.
 
 ---
 
@@ -207,14 +207,13 @@ Rules:
 - The profile body is appended as role instructions near the end of the base instruction pipeline.
 - App Binding context and runtime additional context remain context, not higher-priority instructions.
 - Runtime reminders such as current time, mode, goal, and wakeup context belong to the turn-input layer.
-- Full-prompt replacement is reserved for isolated internal assistants with intentionally narrow tool surfaces; profiles, Teams, and App Binding must not use it.
+- Full-prompt replacement is reserved for isolated internal assistants with intentionally narrow tool surfaces; profiles and App Binding must not use it.
 
 Role instruction writers:
 
 | Writer | Role-instruction behavior |
 |--------|---------------------------|
 | Agent Profile | Profile body becomes the base role text for the thread. |
-| Agent Teams | Teams mission role text is appended after the member profile role text. |
 | Native session-backed SubAgent | Child role text is carried as a thread context item instead of generated base instructions, so the child's instruction channel stays identical to its parent's. |
 
 ---
@@ -234,7 +233,7 @@ The resolved profile policy affects:
 
 Invocation enforcement is mandatory even when discovery filtering is also present. A stale or hidden call to a denied capability must fail safely.
 
-Runtime-managed capabilities are contributed by the runtime that owns the thread and do not participate in Agent Profile tool allow/deny policy. Teams contributes only the coordination tools valid for the current Teams role and mission thread. Ordinary threads never receive those registrations, and profiles cannot enable, disable, or impersonate them.
+Runtime-managed capabilities are contributed by the runtime that owns the thread and do not participate in Agent Profile tool allow/deny policy. Profiles cannot enable, disable, or impersonate those registrations.
 
 ---
 
@@ -263,32 +262,7 @@ Rules:
 
 ---
 
-## 10. Agent Teams Integration
-
-Teams members may reference an Agent Profile. Default role mapping:
-
-| Team role | Default profile |
-|-----------|-----------------|
-| Leader | `leader` |
-| Explorer | `explorer` |
-| Builder | `builder` |
-| Reviewer | `reviewer` |
-| Operator | `operator` |
-
-Mission-thread creation and repair follow this order:
-
-1. Resolve the member profile, falling back to the role default when allowed.
-2. Compile the profile into the thread configuration snapshot.
-3. Append Teams-owned role instructions after profile role instructions.
-4. Bind Teams app context blocks for mission, role, and policy context.
-5. Register the Teams-owned tools required for the member's current mission role.
-6. Report missing, invalid, fallback, and stale profile diagnostics to Teams views.
-
-Profiles affect member capability and role style. They do not replace Teams scheduling, mailbox, task state, artifact, review-gate, or mission-finalization rules.
-
----
-
-## 11. Governance And Diagnostics
+## 10. Governance And Diagnostics
 
 Governance features:
 
@@ -312,7 +286,7 @@ Audit records should exist for profile writes, removals, and explicit thread ref
 
 ---
 
-## 12. Authoring And UX Process
+## 11. Authoring And UX Process
 
 Profile authoring tools should:
 
@@ -327,7 +301,7 @@ Agent-profile generation tools may propose or modify Markdown profiles, but they
 
 ---
 
-## 12A. Conversational Builder
+## 11A. Conversational Builder
 
 The conversational builder lets a user create or refine an Agent Profile by talking to a dedicated **profile-builder agent** instead of (or alongside) the structured editor. It is a normal Session Core thread reusing the standard turn, streaming, and tool-call machinery. The only Agent Builder-specific AppServer methods are transient working-draft synchronization methods; conversation itself still uses ordinary thread/turn APIs.
 
@@ -374,7 +348,7 @@ Prompt composition for a builder thread additionally injects, through the normal
 
 ---
 
-## 13. Acceptance
+## 12. Acceptance
 
 The Agent Profiles system is complete when:
 
@@ -384,5 +358,4 @@ The Agent Profiles system is complete when:
 - denied capabilities are hidden and rejected at invocation,
 - profile CRUD and validation are available through the management API,
 - refresh is explicit and updates stale profile-backed threads predictably,
-- Teams mission threads can resolve member profiles while preserving Teams-owned workflow rules,
 - diagnostics explain invalid profiles, shadowing, stale threads, locks, and trust restrictions.

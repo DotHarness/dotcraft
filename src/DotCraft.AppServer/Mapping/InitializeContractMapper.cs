@@ -100,17 +100,9 @@ internal static class InitializeContractMapper
         if (extensions is null)
             return null;
 
-        Contract.TeamsCapabilities? teams = null;
         Dictionary<string, JsonElement>? extensionData = null;
         foreach (var (key, value) in extensions)
         {
-            if (string.Equals(key, "teams", StringComparison.OrdinalIgnoreCase)
-                && value is Contract.TeamsCapabilities typedTeams)
-            {
-                teams = typedTeams;
-                continue;
-            }
-
             extensionData ??= new Dictionary<string, JsonElement>(StringComparer.Ordinal);
             extensionData[key] = JsonSerializer.SerializeToElement(
                 value,
@@ -119,7 +111,6 @@ internal static class InitializeContractMapper
 
         return new Contract.ServerCapabilityExtensions
         {
-            Teams = teams,
             ExtensionData = extensionData
         };
     }

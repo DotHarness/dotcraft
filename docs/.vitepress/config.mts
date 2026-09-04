@@ -82,7 +82,6 @@ const redirectMap: Record<string, string> = {
   'features/plugins-tools.md': 'features/agent-system/plugins-tools.md',
   'features/automations.md': 'features/agent-system/automations.md',
   'features/subagents.md': 'features/agent-system/subagents.md',
-  'features/teams.md': 'features/agent-system/teams.md',
   'features/observability.md': 'features/self-hosted/observability.md',
   'features/security.md': 'features/self-hosted/security.md',
   'features/session-core.md': 'developing/architecture/session-core.md',

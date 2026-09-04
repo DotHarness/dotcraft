@@ -337,10 +337,6 @@ function dispatchThreadLifecycle(
       }
       break
     }
-    case 'teams/team/changed': {
-      options.reloadThreadList?.()
-      break
-    }
     default:
       break
   }
@@ -1832,19 +1828,6 @@ describe('thread lifecycle notification dispatch', () => {
     expect(useThreadStore.getState().threadList).toEqual([])
   })
 
-  it('reloads thread discovery when Team state changes', () => {
-    let reloads = 0
-    dispatchThreadLifecycle({
-      method: 'teams/team/changed',
-      params: {}
-    }, {
-      reloadThreadList: () => {
-        reloads += 1
-      }
-    })
-
-    expect(reloads).toBe(1)
-  })
 })
 
 describe('full turn lifecycle via notification dispatch', () => {

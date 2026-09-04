@@ -93,13 +93,13 @@ public sealed class ProtocolArtifactTests
     public void Module_Selection_Preserves_Shared_Type_Identities()
     {
         var complete = ContractIrBuilder.Build(RepositoryRoot);
-        var teams = ContractIrBuilder.SelectModules(complete, ["teams"]);
+        var automations = ContractIrBuilder.SelectModules(complete, ["automations"]);
 
-        Assert.NotEmpty(teams.Methods);
-        Assert.All(teams.Methods, static method => Assert.Equal("teams", method.Module));
-        Assert.Contains(teams.Modules, static module => module.Name == "teams");
-        Assert.DoesNotContain(teams.Methods, static method => method.Module == "app-binding");
-        Assert.All(teams.Types, type =>
+        Assert.NotEmpty(automations.Methods);
+        Assert.All(automations.Methods, static method => Assert.Equal("automations", method.Module));
+        Assert.Contains(automations.Modules, static module => module.Name == "automations");
+        Assert.DoesNotContain(automations.Methods, static method => method.Module == "app-binding");
+        Assert.All(automations.Types, type =>
             Assert.Contains(complete.Types, candidate => candidate.Id == type.Id && candidate.SchemaPath == type.SchemaPath));
     }
 

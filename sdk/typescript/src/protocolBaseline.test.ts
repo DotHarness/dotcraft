@@ -68,7 +68,6 @@ test("shared AppServer fixtures expose portable lifecycle and callback cases", (
     "mcp-elicitation-callback",
     "app-binding",
     "automation",
-    "teams",
     "acp-callbacks",
     "node-repl-callback",
     "external-channel",

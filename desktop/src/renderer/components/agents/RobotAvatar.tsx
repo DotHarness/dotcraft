@@ -9,7 +9,7 @@ interface RobotAvatarProps {
 }
 
 /**
- * Terminal-screen face marks (the same vocabulary as MascotRobot / Teams avatars).
+ * Terminal-screen face marks shared with MascotRobot and Agent Profile avatars.
  * `mark` = role-mark gradient ref, `yellow` = brand yellow gradient ref.
  */
 function Face({ kind, mark, yellow }: { kind: number; mark: string; yellow: string }): JSX.Element {
@@ -56,7 +56,7 @@ function Face({ kind, mark, yellow }: { kind: number; mark: string; yellow: stri
   }
 }
 
-/** Corner accessory (same lift + line vocabulary as the Teams role avatars). */
+/** Corner accessory shared by the Agent Profile role avatars. */
 function Accessory({ kind, mark, yellow, lift }: { kind: number; mark: string; yellow: string; lift: string }): JSX.Element | null {
   // "Create" sparkle — used only by the explicit Agent Builder character (AGENT_BUILDER_AVATAR).
   // avatarFromSeed/randomAvatar use `% ACCESSORY_COUNT` (0–5), so seeded avatars never get this.

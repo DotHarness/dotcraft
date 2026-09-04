@@ -133,11 +133,6 @@ export interface ClientRequestMethods {
   "subagent/profiles/upsert": { params: Models.SubAgentProfileUpsertParams; result: Models.SubAgentProfileUpsertResult };
   "subagent/sendMessage": { params: Models.SubAgentTargetMessageParams; result: Models.SubAgentControlResult };
   "subagent/settings/update": { params: Models.SubAgentSettingsUpdateParams; result: Models.SubAgentSettingsUpdateResult };
-  "teams/member/openThread": { params: Models.TeamsMemberOpenThreadParams; result: Models.TeamsMemberOpenThreadResult };
-  "teams/mission/archive": { params: Models.TeamsMissionArchiveParams; result: Models.TeamsTeamViewResult };
-  "teams/mission/cancel": { params: Models.TeamsMissionCancelParams; result: Models.TeamsTeamViewResult };
-  "teams/mission/create": { params: Models.TeamsMissionCreateParams; result: Models.TeamsMissionCreateResult };
-  "teams/team/view": { params: Models.RpcEmpty; result: Models.TeamsTeamViewResult };
   "terminal/clean": { params: Models.TerminalCleanParams; result: Models.TerminalCleanResult };
   "terminal/list": { params: Models.TerminalListParams; result: Models.TerminalListResult };
   "terminal/read": { params: Models.TerminalReadParams; result: Models.TerminalReadResult };

@@ -1,25 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft Operator</title>
-  <desc id="desc">A DotCraft robot with an amber body, running symbol face, and control panel.</desc>
+  <title id="title">DotCraft Leader Agent Profile</title>
+  <desc id="desc">The built-in Leader Agent Profile, shown as a blue DotCraft robot with a terminal face and planning board.</desc>
   <defs>
     <linearGradient id="role-body" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#d97706"/>
-      <stop offset=".5" stop-color="#eab308"/>
-      <stop offset="1" stop-color="#fbbf24"/>
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset=".5" stop-color="#4f7cf6"/>
+      <stop offset="1" stop-color="#8198f5"/>
     </linearGradient>
-    <linearGradient id="role-mark" x1="366" y1="694" x2="658" y2="560" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#92400e"/>
-      <stop offset="1" stop-color="#f59e0b"/>
+    <linearGradient id="role-mark" x1="366" y1="644" x2="658" y2="572" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#6f8df5"/>
     </linearGradient>
     <linearGradient id="yellow" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#ffcf11"/>
       <stop offset="1" stop-color="#f6b500"/>
     </linearGradient>
     <filter id="soft-shadow" x="-12%" y="-12%" width="124%" height="124%">
-      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#78350f" flood-opacity=".16"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#07307c" flood-opacity=".16"/>
     </filter>
     <filter id="inner-lift" x="-8%" y="-8%" width="116%" height="116%">
-      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#78350f" flood-opacity=".1"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#07307c" flood-opacity=".1"/>
     </filter>
     <filter id="accessory-lift" x="-18%" y="-18%" width="136%" height="136%">
       <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020617" flood-opacity=".18"/>
@@ -45,17 +45,17 @@
     <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
     <circle cx="512" cy="229" r="73" fill="url(#yellow)"/>
 
-    <rect x="381" y="581" width="45" height="87" rx="16" fill="url(#role-mark)"/>
-    <rect x="598" y="581" width="45" height="87" rx="16" fill="url(#role-mark)"/>
-    <path d="M487 700h50" stroke="url(#role-mark)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M387 568 477 634 387 700" stroke="url(#role-mark)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M531 696h116" stroke="url(#yellow)" stroke-width="27" stroke-linecap="round"/>
   </g>
 
-  <g transform="rotate(7 839 686)" filter="url(#accessory-lift)">
-    <rect x="714" y="592" width="250" height="190" rx="38" fill="#fff" stroke="#fff" stroke-width="30"/>
-    <rect x="714" y="592" width="250" height="190" rx="38" fill="#fff" stroke="url(#role-mark)" stroke-width="11"/>
-    <path d="M765 650h148" stroke="#202124" stroke-width="14" stroke-linecap="round" opacity=".62"/>
-    <path d="M765 718h148" stroke="#202124" stroke-width="14" stroke-linecap="round" opacity=".62"/>
-    <circle cx="818" cy="650" r="23" fill="url(#role-mark)" stroke="#fff" stroke-width="8"/>
-    <circle cx="872" cy="718" r="23" fill="url(#yellow)" stroke="#fff" stroke-width="8"/>
+  <g transform="rotate(6 838 665)" filter="url(#accessory-lift)">
+    <rect x="718" y="562" width="244" height="194" rx="36" fill="#fff" stroke="#fff" stroke-width="30"/>
+    <rect x="718" y="562" width="244" height="194" rx="36" fill="#fff" stroke="url(#role-mark)" stroke-width="11"/>
+    <path d="M760 620h114" stroke="url(#role-mark)" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="775" cy="689" r="14" fill="url(#role-mark)"/>
+    <circle cx="842" cy="661" r="14" fill="url(#yellow)"/>
+    <circle cx="907" cy="708" r="14" fill="url(#role-mark)"/>
+    <path d="M789 683 828 667 893 699" stroke="#202124" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>
   </g>
 </svg>

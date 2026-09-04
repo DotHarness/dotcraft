@@ -2,7 +2,7 @@
 
 A dynamic workflow turns one large task into a reusable orchestration script. The script runs several subagents in the background, keeps the intermediate work out of your main conversation, and sends the finished result back to it.
 
-Reach for a workflow when the order, branching, and fan-out of a job should be the same every time. For a single delegation, one [subagent](./subagents) is simpler. When members need to coordinate with each other as they work, use [Teams](./teams).
+Reach for a workflow when the order, branching, and fan-out of a job should be the same every time. For a single delegation, one [subagent](./subagents) is simpler.
 
 ![A reusable workflow script runs in the background, fans the task out to several subagents at once, and returns one finished result to the conversation](/dynamic-workflows-overview.svg)
 
@@ -115,5 +115,5 @@ Every `agent()` call starts with fresh context while inheriting the parent conve
 ## Related docs
 
 - [Subagents](./subagents) — for a single delegation, one subagent is enough
-- [Teams](./teams) — the alternative when members coordinate with each other while working
+- [Agent Profiles](./agent-profiles) — create reusable specialists before assigning them work
 - [Plugins & Tools](./plugins-tools) — package a workflow into a plugin and share it further

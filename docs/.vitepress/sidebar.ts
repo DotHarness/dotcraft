@@ -47,7 +47,6 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'Subagents'), link: '/features/agent-system/subagents' },
-          { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' },
           { text: withIcon('share', 'Workspace Handoff'), link: '/features/agent-system/workspace-handoff' },
           { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
           { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
@@ -200,7 +199,6 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent 预设'), link: '/zh/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'Subagents'), link: '/zh/features/agent-system/subagents' },
-          { text: withIcon('network', 'Agent 团队'), link: '/zh/features/agent-system/teams' },
           { text: withIcon('share', '外部 Agent 协作'), link: '/zh/features/agent-system/workspace-handoff' },
           { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
           { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }

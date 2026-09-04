@@ -23,7 +23,6 @@
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Generators\DotCraft.Generators.csproj" />
-    <ProjectReference Include="..\..\src\DotCraft.Teams\DotCraft.Teams.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" />
     <ProjectReference Include="..\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj" />
     <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />

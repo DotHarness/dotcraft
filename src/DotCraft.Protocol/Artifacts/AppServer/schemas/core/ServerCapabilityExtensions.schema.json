@@ -13,16 +13,6 @@
           "type": "null"
         }
       ]
-    },
-    "teams": {
-      "anyOf": [
-        {
-          "$ref": "./TeamsCapabilities.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
   "additionalProperties": true

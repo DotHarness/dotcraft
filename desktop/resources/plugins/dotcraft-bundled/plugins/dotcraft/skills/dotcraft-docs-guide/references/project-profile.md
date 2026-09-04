@@ -77,7 +77,7 @@ When changing the theme to match a reference design, F12-measure the reference a
 
 ## Protected terms (examples, not an exhaustive list)
 
-Preserve established product terminology exactly. Examples include `workspace`, `.craft/`, `Agent Teams`, `Mission`, `Team Leader`, `AppServer`, `Hub`, `Dreams`, `App Binding`, and `Unified Session Core`. Before writing, inspect current UI copy, specs, code, and nearby docs rather than treating this list as a product catalog. Keep code, commands, identifiers, and product names unchanged unless the current project explicitly localizes them.
+Preserve established product terminology exactly. Examples include `workspace`, `.craft/`, `Agent Builder`, `Agent Profiles`, `AppServer`, `Hub`, `Dreams`, `App Binding`, and `Unified Session Core`. Before writing, inspect current UI copy, specs, code, and nearby docs rather than treating this list as a product catalog. Keep code, commands, identifiers, and product names unchanged unless the current project explicitly localizes them.
 
 ## Cross-platform shells
 

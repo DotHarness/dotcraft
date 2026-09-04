@@ -1161,7 +1161,6 @@ export const RichInputArea = forwardRef(function RichInputArea(
           autoCorrect="off"
           autoCapitalize="off"
           contentEditable={!disabled}
-          spellCheck={false}
           suppressContentEditableWarning
           data-placeholder={placeholder}
           data-empty={showPh ? 'true' : 'false'}

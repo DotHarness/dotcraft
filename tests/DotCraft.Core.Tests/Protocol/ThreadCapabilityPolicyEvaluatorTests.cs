@@ -128,14 +128,14 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             }
         };
         var runtimeManaged = Registration(
-            new ToolName("teams", "AssignTask"),
+            new ToolName("runtime", "Execute"),
             ToolSourceKind.PluginNative,
-            "agent-teams",
+            "sample-runtime",
             ToolPolicyScope.RuntimeManaged);
         var profileManaged = Registration(
-            new ToolName("teams", "AssignTask"),
+            new ToolName("runtime", "Execute"),
             ToolSourceKind.PluginNative,
-            "agent-teams");
+            "sample-runtime");
         var runtimeSnapshot = new EffectiveToolSnapshotBuilder().Build([runtimeManaged], revision: 1);
         var profileSnapshot = new EffectiveToolSnapshotBuilder().Build([profileManaged], revision: 1);
         var runtimeProviderName = runtimeSnapshot.ProviderFlatNames[runtimeManaged.Definition.Name];
@@ -157,7 +157,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             profileProviderName,
             new Dictionary<string, object?>()));
 
-        Assert.Equal("teams__AssignTask", runtimeProviderName);
+        Assert.Equal("runtime__Execute", runtimeProviderName);
         Assert.Equal(ModeToolPolicyDecisionKind.Allow, runtimeDecision.Kind);
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, unqualifiedDecision.Kind);
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, ordinaryDecision.Kind);
@@ -179,11 +179,11 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] }
         };
         var registration = Registration(
-            new ToolName("teams", "AssignTask"),
+            new ToolName("runtime", "Execute"),
             ToolSourceKind.PluginNative,
-            "agent-teams",
+            "sample-runtime",
             ToolPolicyScope.RuntimeManaged,
-            providerFlatNameOverride: "teams_runtime_assign");
+            providerFlatNameOverride: "runtime_execute");
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
         var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
         policy.SetRuntimeManagedTools(snapshot);
@@ -192,13 +192,13 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             ModeToolPolicyDecisionKind.Allow,
             policy.EvaluateCall(new FunctionCallContent(
                 "call-1",
-                "teams_runtime_assign",
+                "runtime_execute",
                 new Dictionary<string, object?>())).Kind);
         Assert.Equal(
             ModeToolPolicyDecisionKind.DenyRecoverable,
             policy.EvaluateCall(new FunctionCallContent(
                 "call-2",
-                "teams__AssignTask",
+                "runtime__Execute",
                 new Dictionary<string, object?>())).Kind);
     }
 

@@ -270,7 +270,7 @@ Generation order is independent of source-file order. Methods sort by wire name,
 
 Each descriptor has a stable module identifier. Core and bundled first-party contracts live in the pure Contracts assembly but remain separate modules in the Manifest.
 
-The bundled module set includes core AppServer, App Binding, Automations, Teams, ACP, Node REPL, and External Channel contracts. Dynamic third-party extensions remain outside generated coverage and use the existing raw extension interface.
+The bundled module set includes core AppServer, App Binding, Automations, ACP, Node REPL, and External Channel contracts. Dynamic third-party extensions remain outside generated coverage and use the existing raw extension interface.
 
 ## 8. Contract IR
 
@@ -585,7 +585,7 @@ CI workflows do not enforce these commands. Automated drift and compatibility ga
 
 ## 18. Implementation state
 
-The repository implements the complete bundled AppServer contract surface across core, App Binding, Automations, Teams, ACP, Node REPL, and External Channel modules. The checked-in Manifest is the authoritative machine-readable method inventory; generated schemas, OpenRPC, and TypeScript bindings are projections of the same IR.
+The repository implements the complete bundled AppServer contract surface across core, App Binding, Automations, ACP, Node REPL, and External Channel modules. The checked-in Manifest is the authoritative machine-readable method inventory; generated schemas, OpenRPC, and TypeScript bindings are projections of the same IR.
 
 Server dispatch uses typed descriptors for bundled methods while preserving the generic JSON-RPC envelope and raw third-party extension path. Portable fixtures remain durable conformance assets. CI enforcement, Hub OpenAPI generation, external artifact publication, and dynamic third-party contract generation remain outside this specification.
 

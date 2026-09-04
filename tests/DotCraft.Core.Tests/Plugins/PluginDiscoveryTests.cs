@@ -819,9 +819,6 @@ public sealed class PluginDiscoveryTests
         var browser = PluginManifestParser.Load(Path.Combine(root, "browser"));
         Assert.Equal("browser", browser.Manifest?.Id);
         Assert.NotNull(browser.Manifest?.SkillsPath);
-        var agentTeams = PluginManifestParser.Load(Path.Combine(root, PluginIds.AgentTeams));
-        Assert.Equal(PluginIds.AgentTeams, agentTeams.Manifest?.Id);
-        Assert.NotNull(agentTeams.Manifest?.Desktop);
     }
 
     [Fact]
@@ -845,12 +842,6 @@ public sealed class PluginDiscoveryTests
         Assert.True(browser.Installable);
         Assert.Equal("Browser", browser.Manifest.DisplayName);
 
-        var agentTeams = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == PluginIds.AgentTeams);
-        Assert.Equal(PluginDiscoverySourceKind.BuiltIn, agentTeams.SourceKind);
-        Assert.False(agentTeams.Installed);
-        Assert.True(agentTeams.Installable);
-        Assert.Equal("Agent Teams", agentTeams.Manifest.DisplayName);
-        Assert.Equal("Agent Teams", agentTeams.Manifest.Interface?.DisplayName);
     }
 
     [Fact]
@@ -1504,43 +1495,12 @@ description: Test skill
         Directory.CreateDirectory(chromeScripts);
         File.WriteAllText(Path.Combine(chromeScripts, "extension-id.json"), "fixture-extension");
 
-        WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
-
         WriteNamedSkillPlugin(
             Path.Combine(root, "dotcraft"),
             "dotcraft",
             "DotCraft",
             "dotcraft-error-diagnosis");
         return root;
-    }
-
-    private static void WriteAgentTeamsFixture(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop", "dist"));
-        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "dist", "index.mjs"), "export function activate() { return {}; }");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "agent-teams",
-  "version": "1.0.0",
-  "displayName": "Agent Teams",
-  "description": "Test agent teams plugin.",
-  "capabilities": ["metadata", "desktop"],
-  "desktop": {
-    "entry": "./desktop/dist/index.mjs"
-  },
-  "interface": {
-    "displayName": "Agent Teams",
-    "shortDescription": "Test agent teams",
-    "developerName": "DotCraft",
-    "category": "Testing",
-    "capabilities": ["Team"]
-  }
-}
-""");
     }
 
     private static void WriteNamedSkillPlugin(string pluginRoot, string id, string displayName, string skillName)
