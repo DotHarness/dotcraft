@@ -1192,6 +1192,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
           <div className="agent-builder-id-main">
             <FieldAnchor field="name" className="agent-builder-field-anchor-name">
               <input
+                spellCheck={false}
                 className={`agent-builder-id-name${nameMissing ? ' is-empty' : ''}`}
                 value={draft.name}
                 placeholder="agent name"
@@ -1203,6 +1204,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             </FieldAnchor>
             <FieldAnchor field="description" className="agent-builder-field-anchor-description">
               <input
+                spellCheck={false}
                 className="agent-builder-id-desc"
                 value={draft.description}
                 placeholder="One line about this agent…"

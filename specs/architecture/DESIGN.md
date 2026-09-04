@@ -824,6 +824,11 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
   action row; project, work location, source-control branch or changelist, and
   provider subscription status form the context row below the card, with
   subscription status immediately following the branch or changelist control;
+- the send control is one 32px button whose glyph follows the turn: Send at rest
+  or with a draft to steer or queue, Stop while a turn runs with an empty draft,
+  and a spinner while stopping. The glyphs stack in one cell and crossfade on
+  opacity alone, the incoming one after the mascot's 70ms blank beat, so the
+  control never moves or scales; reduced motion collapses the fade and the beat;
 - use `--border-default` for rest state; the primary message composer uses
   `--composer-input-rest-border` so the light theme has a subtle frame while the
   dark theme can remain effectively frameless, shows a soft brand-gradient glow

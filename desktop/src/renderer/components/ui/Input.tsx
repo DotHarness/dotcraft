@@ -61,6 +61,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
       data-mono={mono ? '' : undefined}
       aria-invalid={invalid || undefined}
       className={className ? `dc-field ${className}` : 'dc-field'}
+      spellCheck={false}
       {...props}
     />
   )
@@ -87,6 +88,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       data-mono={mono ? '' : undefined}
       aria-invalid={invalid || undefined}
       className={className ? `dc-field ${className}` : 'dc-field'}
+      spellCheck={false}
       {...props}
     />
   )

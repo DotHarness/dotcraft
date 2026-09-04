@@ -58,14 +58,11 @@ import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
   ComposerCustomProfileLabel,
   ComposerPlanModeLabel,
-  ComposerSendButton,
   ComposerShell,
-  SendIcon,
-  SendProcessingIcon,
-  StopIcon,
   composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
+import { ComposerSubmitButton } from './ComposerSubmitButton'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
 import { type AvatarSpec } from '../agents/agentAvatar'
@@ -1925,50 +1922,23 @@ function InputComposerCore({
             submit={!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
-                  <ActionTooltip label={t(isRunning ? 'composer.steerSendTitle' : 'composer.queueSendTitle')} placement="top">
-                    <ComposerSendButton
-                      tone="enabled"
-                      onClick={() => {
-                        void sendMessage()
-                      }}
-                      aria-label={t(isRunning ? 'composer.steerSendAria' : 'composer.queueSendAria')}
-                    >
-                      <SendIcon />
-                    </ComposerSendButton>
-                  </ActionTooltip>
+                  <ComposerSubmitButton mode={isRunning ? 'steer' : 'queue'} onClick={sendMessage} />
                 ) : (
-                  <ActionTooltip
-                    label={t(interruptingTurnId ? 'composer.stoppingTitle' : 'composer.stopTitle')}
-                    shortcut={interruptingTurnId ? undefined : ACTION_SHORTCUTS.cancel}
-                    placement="top"
-                  >
-                    <ComposerSendButton
-                      tone="enabled"
-                      onClick={stopTurn}
-                      disabled={Boolean(interruptingTurnId)}
-                      aria-label={t(interruptingTurnId ? 'composer.stoppingAria' : 'composer.stopAria')}
-                      aria-busy={Boolean(interruptingTurnId)}
-                    >
-                      {interruptingTurnId ? <SendProcessingIcon /> : <StopIcon />}
-                    </ComposerSendButton>
-                  </ActionTooltip>
+                  <ComposerSubmitButton
+                    mode={interruptingTurnId ? 'stopping' : 'stop'}
+                    tone="enabled"
+                    disabled={Boolean(interruptingTurnId)}
+                    onClick={stopTurn}
+                  />
                 )
               ) : (
-                <ActionTooltip
-                  label={t('composer.sendAriaAlt')}
-                  shortcut={canSendWithVoice ? ACTION_SHORTCUTS.send : undefined}
-                  placement="top"
-                >
-                  <ComposerSendButton
-                    tone={canSendWithVoice ? 'enabled' : 'disabled'}
-                    onClick={submitOrStopVoice}
-                    disabled={!canSendWithVoice}
-                    aria-label={t('composer.sendAriaAlt')}
-                  >
-                    <SendIcon />
-                  </ComposerSendButton>
-                </ActionTooltip>
-                )
+                <ComposerSubmitButton
+                  mode="send"
+                  tone={canSendWithVoice ? 'enabled' : 'disabled'}
+                  disabled={!canSendWithVoice}
+                  onClick={submitOrStopVoice}
+                />
+              )
             ) : null}
           />
         }

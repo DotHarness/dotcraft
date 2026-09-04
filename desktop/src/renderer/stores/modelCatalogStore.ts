@@ -252,7 +252,7 @@ export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
     }
 
     set({ status: 'loading', requestedProviderId: normalizedProviderId })
-    inFlightLoad = (async () => {
+    const load = (async () => {
       try {
         const result = await window.api.appServer.listModels(normalizedProviderId)
         if (result == null) {
@@ -306,12 +306,15 @@ export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
           errorCode: null,
           errorMessage: err instanceof Error ? err.message : String(err)
         })
-      } finally {
-        inFlightLoad = null
       }
     })()
+    inFlightLoad = load
 
-    await inFlightLoad
+    try {
+      await load
+    } finally {
+      if (inFlightLoad === load) inFlightLoad = null
+    }
   },
 
   reset() {

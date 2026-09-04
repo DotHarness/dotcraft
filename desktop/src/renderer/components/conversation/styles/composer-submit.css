@@ -1,0 +1,37 @@
+.composer-submit-glyphs {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+}
+
+/* The incoming glyph waits out the same ~70ms blank beat as the mascot's faces, so
+   Send and Stop never blend into a double exposure. */
+.composer-submit-glyph {
+  display: grid;
+  grid-area: 1 / 1;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.composer-submit-glyphs[data-glyph='send'] .composer-submit-glyph--send,
+.composer-submit-glyphs[data-glyph='stop'] .composer-submit-glyph--stop,
+.composer-submit-glyphs[data-glyph='stopping'] .composer-submit-glyph--stopping {
+  opacity: 1;
+  transition: opacity 150ms ease 70ms;
+}
+
+.composer-submit-glyphs:not([data-glyph='stopping']) .composer-submit-glyph--stopping .animate-spin-custom {
+  animation-play-state: paused;
+}
+
+html[data-reduce-motion="on"] .composer-submit-glyph {
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduce-motion="off"]) .composer-submit-glyph {
+    transition-delay: 0s;
+  }
+}
