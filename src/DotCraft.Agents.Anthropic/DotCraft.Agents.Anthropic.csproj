@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Anthropic" Version="12.42.0" />
+    <PackageReference Include="Anthropic" Version="12.45.0" />
   </ItemGroup>
 
   <ItemGroup>
