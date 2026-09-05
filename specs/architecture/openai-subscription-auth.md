@@ -213,11 +213,11 @@ ChatGPT OAuth model metadata describes eligibility for two internal HTTP dialect
 `/models` entry with `use_responses_lite=true` marks a model as Responses Lite capable; `false`, a
 missing field, or an unknown model selects the standard Responses SDK path. The latest matching
 endpoint/account/client-version cache entry takes precedence over the bundled catalog, and catalog
-refresh remains outside the sampling boundary. The bundled catalog marks GPT-5.6 Sol, Terra, and
-Luna as Lite capable. An internal developer gate currently keeps Lite disabled so these models retain
-parallel tool execution through standard Responses. Enabling that gate makes the metadata selection
-effective. This is not a user-configurable setting and never enables Lite for API-key Responses
-runtimes.
+refresh remains outside the sampling boundary. The bundled catalog marks GPT-6 Astra and GPT-5.6
+Sol, Terra, and Luna as Lite capable. An internal developer gate currently keeps Lite disabled so
+these models retain parallel tool execution through standard Responses. Enabling that gate makes the
+metadata selection effective. This is not a user-configurable setting and never enables Lite for
+API-key Responses runtimes.
 
 Both dialects share the canonical Responses history, OAuth routing headers, `store=false`, encrypted
 reasoning inclusion, stable item IDs, and prompt-cache identity described below. The standard dialect

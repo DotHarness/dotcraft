@@ -43,17 +43,15 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
         Assert.DoesNotContain(client.LastMessages, message => message.Role.Value == "developer");
     }
 
-    [Theory]
-    [InlineData("gpt-5.6-sol")]
-    [InlineData("gpt-5.3-codex")]
-    [InlineData("unknown-model")]
-    public async Task ChatGptOAuthResponses_EnablesParallelToolCalls(string model)
+    [Fact]
+    public async Task ChatGptOAuthResponses_EnablesParallelToolCalls()
     {
+        const string Model = "test-model";
         var client = new RecordingChatClient();
         await using var factory = CreateFactory(
             ModelProviderProtocols.OpenAIResponses,
             client,
-            model,
+            Model,
             ModelProviderAuthMethods.ChatGptOAuth);
         var agent = factory.CreateAgentWithTools([], modeManager: null, factory.RuntimeContext);
 

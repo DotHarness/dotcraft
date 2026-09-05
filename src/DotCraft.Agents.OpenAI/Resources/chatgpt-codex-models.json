@@ -1,10 +1,26 @@
 {
   "models": [
     {
+      "slug": "gpt-6-astra",
+      "display_name": "GPT-6-Astra",
+      "visibility": "list",
+      "priority": 1,
+      "minimal_client_version": "0.153.0",
+      "use_responses_lite": true,
+      "supported_reasoning_levels": [
+        { "effort": "low", "description": "Fast responses with lighter reasoning" },
+        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
+        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" },
+        { "effort": "max", "description": "Maximum reasoning depth for the hardest problems" },
+        { "effort": "ultra", "description": "Maximum reasoning with automatic task delegation" }
+      ]
+    },
+    {
       "slug": "gpt-5.6-sol",
       "display_name": "GPT-5.6-Sol",
       "visibility": "list",
-      "priority": 1,
+      "priority": 6,
       "minimal_client_version": "0.144.0",
       "use_responses_lite": true,
       "supported_reasoning_levels": [
@@ -18,7 +34,7 @@
       "slug": "gpt-5.6-terra",
       "display_name": "GPT-5.6-Terra",
       "visibility": "list",
-      "priority": 2,
+      "priority": 7,
       "minimal_client_version": "0.144.0",
       "use_responses_lite": true,
       "supported_reasoning_levels": [
@@ -32,7 +48,7 @@
       "slug": "gpt-5.6-luna",
       "display_name": "GPT-5.6-Luna",
       "visibility": "list",
-      "priority": 3,
+      "priority": 8,
       "minimal_client_version": "0.144.0",
       "use_responses_lite": true,
       "supported_reasoning_levels": [
@@ -46,7 +62,7 @@
       "slug": "gpt-5.5",
       "display_name": "GPT-5.5",
       "visibility": "list",
-      "priority": 7,
+      "priority": 12,
       "minimal_client_version": "0.124.0",
       "use_responses_lite": false,
       "supported_reasoning_levels": [

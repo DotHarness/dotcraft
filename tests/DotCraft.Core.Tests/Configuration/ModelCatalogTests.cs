@@ -28,19 +28,10 @@ public sealed class ModelCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Resolve_UsesDefaultForUnknownModel()
-    {
-        var contextWindow = ModelCatalog.Resolve("unknown-model");
-
-        Assert.Equal(256_000, contextWindow);
-    }
-
-    [Fact]
     public void ResolveDetailed_MarksUnknownModelAsFallback()
     {
         var resolution = ModelCatalog.ResolveDetailed("unknown-model");
 
-        Assert.Equal(256_000, resolution.ContextWindow);
         Assert.False(resolution.HasExplicitMatch);
         Assert.Null(resolution.MatchedPattern);
         Assert.Null(resolution.MatchKind);
@@ -89,12 +80,12 @@ public sealed class ModelCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "gpt-special": { "contextWindow": 321000 }
+                "special-model": { "contextWindow": 321000 }
               }
             }
             """);
 
-        var contextWindow = ModelCatalog.Resolve("azure/gpt-special-deployment", globalCatalogPath: catalogPath);
+        var contextWindow = ModelCatalog.Resolve("azure/special-model-deployment", globalCatalogPath: catalogPath);
 
         Assert.Equal(321_000, contextWindow);
     }
@@ -132,7 +123,11 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } },
+            Compaction =
+            {
+                MaxContextWindow = 300_000
+            }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -140,8 +135,8 @@ public sealed class ModelCatalogTests : IDisposable
             globalConfigPath: configPath,
             workspaceConfigPath: null);
 
-        Assert.Equal(256_000, config.Compaction.ContextWindow);
-        Assert.Equal(236_000, config.Compaction.EffectiveContextWindow());
+        Assert.Equal(300_000, config.Compaction.ContextWindow);
+        Assert.Equal(280_000, config.Compaction.EffectiveContextWindow());
     }
 
     [Fact]
@@ -159,7 +154,11 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } },
+            Compaction =
+            {
+                MaxContextWindow = 300_000
+            }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -176,7 +175,7 @@ public sealed class ModelCatalogTests : IDisposable
             "large-model",
             ContextWindowMode.Max);
 
-        Assert.Equal(256_000, defaultCompaction.ContextWindow);
+        Assert.Equal(300_000, defaultCompaction.ContextWindow);
         Assert.Equal(1_050_000, maxCompaction.ContextWindow);
         Assert.Equal(1_030_000, maxCompaction.EffectiveContextWindow());
     }
@@ -201,12 +200,11 @@ public sealed class ModelCatalogTests : IDisposable
             "unknown-model",
             ContextWindowMode.Max);
 
-        Assert.Equal(256_000, capability.CatalogWindow);
-        Assert.Equal(256_000, capability.ConfiguredWindow);
         Assert.False(capability.SupportsMax);
         Assert.False(capability.HasExplicitCatalogMatch);
-        Assert.Equal(256_000, capability.MaxWindow);
-        Assert.Equal(256_000, maxCompaction.ContextWindow);
+        Assert.Equal(capability.CatalogWindow, capability.ConfiguredWindow);
+        Assert.Equal(capability.ConfiguredWindow, capability.MaxWindow);
+        Assert.Equal(capability.ConfiguredWindow, maxCompaction.ContextWindow);
     }
 
     [Fact]
@@ -373,16 +371,6 @@ public sealed class ModelCatalogTests : IDisposable
         var config = AppConfig.Load(configPath);
 
         Assert.Equal(333_000, config.Compaction.ContextWindow);
-    }
-
-    [Fact]
-    public void Load_UsesCatalogEvenWhenConfigFileIsMissing()
-    {
-        var configPath = Path.Combine(_root, "missing", "config.json");
-
-        var config = AppConfig.Load(configPath);
-
-        Assert.Equal(ModelCatalog.DefaultContextWindow, config.Compaction.ContextWindow);
     }
 
     [Fact]

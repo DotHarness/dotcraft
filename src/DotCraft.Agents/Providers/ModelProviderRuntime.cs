@@ -45,7 +45,7 @@ public static class ModelProviderDefaults
     public const string DefaultOpenAIEndpoint = "https://api.openai.com/v1";
     public const string DefaultAnthropicEndpoint = "https://api.anthropic.com";
     public const string ChatGptBackendEndpoint = "https://chatgpt.com/backend-api/codex";
-    public const string DefaultChatGptCodexModel = "gpt-5.6-sol";
+    public const string DefaultChatGptCodexModel = "gpt-6-astra";
     public const int DefaultStreamMaxRetries = 5;
     public const int MaxStreamMaxRetries = 100;
     public const int DefaultStreamIdleTimeoutMs = 300_000;
