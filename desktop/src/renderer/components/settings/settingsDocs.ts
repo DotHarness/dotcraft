@@ -3,7 +3,6 @@ import type { AppLocale } from '../../../shared/locales'
 export const SETTINGS_DOCS_BASE_URL = 'https://www.dotcraft.net'
 
 export type SettingsDocsTopic =
-  | 'connection'
   | 'hooks'
   | 'mcp'
   | 'memory'
@@ -24,9 +23,6 @@ const SETTINGS_DOCS_ROUTES: Record<SettingsDocsTopic, SettingsDocsRoute> = {
   servers: {
     en: '/features/self-hosted/server-deployment#connect-from-desktop',
     zhHans: '/features/self-hosted/server-deployment#从-desktop-连接'
-  },
-  connection: {
-    en: '/features/entry-points/desktop'
   },
   modelProviders: {
     en: '/features/entry-points/desktop#model-providers'

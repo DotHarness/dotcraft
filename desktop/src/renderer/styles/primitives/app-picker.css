@@ -8,7 +8,7 @@
   height: var(--button-height);
   padding: 0 10px;
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   background: color-mix(in srgb, var(--text-primary) 6%, transparent);
   color: var(--text-primary);
   font: inherit;

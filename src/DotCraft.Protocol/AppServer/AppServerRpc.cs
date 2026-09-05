@@ -27,6 +27,16 @@ public static partial class AppServerRpc
         "PluginConfigurationWriteFailed"
     ];
 
+    /// <summary>The errors remoteToolHost/connect returns beyond the common set.</summary>
+    private static readonly string[] RemoteToolHostErrors =
+    [
+        .. CommonErrors,
+        "ThreadNotFound",
+        "TurnInProgress",
+        "RemoteToolHostUnavailable",
+        "RemoteToolWorkspaceBusy"
+    ];
+
     /// <summary>initialize request.</summary>
     public static readonly RpcRequest<InitializeParams, InitializeResult> Initialize =
         new("initialize", RpcDirection.ClientToServer, "1", Spec, errors: CommonErrors);

@@ -1483,7 +1483,7 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
-    const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
+    const modeSelect = await screen.findByRole('combobox', { name: 'Mode' }) as HTMLSelectElement
     await chooseValueIn(modeSelect, 'remote')
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {
       target: { value: 'ws://127.0.0.1:9100/ws' }
@@ -1525,7 +1525,7 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
-    const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
+    const modeSelect = await screen.findByRole('combobox', { name: 'Mode' }) as HTMLSelectElement
     await chooseValueIn(modeSelect, 'remote')
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {
       target: { value: 'ws://127.0.0.1:9100/ws' }

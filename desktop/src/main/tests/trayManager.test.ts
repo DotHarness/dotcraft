@@ -32,6 +32,7 @@ const trayLockMocks = vi.hoisted(() => {
 const hubClientMocks = vi.hoisted(() => {
   const getStatus = vi.fn(async () => ({}))
   const listAppServers = vi.fn(async () => [])
+  const listSatellites = vi.fn(async () => [])
   const subscribeEvents = vi.fn(async () => {})
   const shutdownHub = vi.fn(async () => {})
   const restartAppServer = vi.fn(async () => {})
@@ -39,6 +40,7 @@ const hubClientMocks = vi.hoisted(() => {
   const createDesktopHubClient = vi.fn().mockImplementation(() => ({
     getStatus,
     listAppServers,
+    listSatellites,
     subscribeEvents,
     shutdownHub,
     restartAppServer,
@@ -48,6 +50,7 @@ const hubClientMocks = vi.hoisted(() => {
     createDesktopHubClient,
     getStatus,
     listAppServers,
+    listSatellites,
     subscribeEvents,
     shutdownHub,
     restartAppServer,
@@ -169,6 +172,7 @@ beforeEach(() => {
   trayLockMocks.requestTrayShutdown.mockResolvedValue(false)
   hubClientMocks.getStatus.mockResolvedValue({})
   hubClientMocks.listAppServers.mockResolvedValue([])
+  hubClientMocks.listSatellites.mockResolvedValue([])
   hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
   hubClientMocks.shutdownHub.mockResolvedValue(undefined)
 })
@@ -675,5 +679,90 @@ describe('trayManager process launches', () => {
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform })
     }
+  })
+})
+
+describe('trayManager Hub refresh', () => {
+  const appServer = {
+    workspacePath: 'E:/examples/workspace',
+    canonicalWorkspacePath: 'E:/examples/workspace',
+    state: 'running',
+    endpoints: {},
+    serviceStatus: {}
+  }
+
+  const lastMenuTemplate = (): Array<Record<string, unknown>> => {
+    const calls = electronMocks.setContextMenu.mock.calls
+    return (calls[calls.length - 1]?.[0] as { template: Array<Record<string, unknown>> }).template
+  }
+
+  const workspaceSubmenu = (): Array<Record<string, unknown>> => {
+    const entry = lastMenuTemplate().find((item) => item.label === 'Workspace')
+    return (entry?.submenu ?? []) as Array<Record<string, unknown>>
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    settingsMocks.loadSettings.mockReturnValue({})
+    hubClientMocks.getStatus.mockResolvedValue({})
+    hubClientMocks.listAppServers.mockResolvedValue([appServer])
+    hubClientMocks.listSatellites.mockResolvedValue([])
+    hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
+    trayLockMocks.tryAcquireTrayLock.mockResolvedValue({ release: trayLockMocks.release })
+  })
+
+  it('keeps the workspace submenu when a Hub without the satellite surface rejects', async () => {
+    hubClientMocks.listSatellites.mockRejectedValue(new Error('HTTP 404 Not Found'))
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+
+    expect(workspaceSubmenu()[0]?.label).toContain('workspace')
+  })
+
+  it('still builds a menu when every Hub call fails', async () => {
+    hubClientMocks.getStatus.mockRejectedValue(new Error('hub down'))
+    hubClientMocks.listAppServers.mockRejectedValue(new Error('hub down'))
+    hubClientMocks.listSatellites.mockRejectedValue(new Error('hub down'))
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+
+    expect(workspaceSubmenu()[0]?.label).toBe('No managed workspaces')
+    expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
+  })
+
+  const satelliteLine = (): Record<string, unknown> | undefined =>
+    lastMenuTemplate().find((item) => String(item.label ?? '').includes('satellite'))
+
+  it('omits the satellite line when no machine is online', async () => {
+    hubClientMocks.listSatellites.mockResolvedValue([{ peerId: 'sat_qa', online: false }])
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+
+    expect(satelliteLine()).toBeUndefined()
+  })
+
+  it('counts the online satellites in one disabled line', async () => {
+    hubClientMocks.listSatellites.mockResolvedValue([
+      { peerId: 'sat_studio', online: true },
+      { peerId: 'sat_art', online: true },
+      { peerId: 'sat_qa', online: false }
+    ])
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+
+    expect(satelliteLine()).toMatchObject({ label: '2 satellites online', enabled: false })
+  })
+
+  it('uses the singular satellite line for one online machine', async () => {
+    hubClientMocks.listSatellites.mockResolvedValue([{ peerId: 'sat_studio', online: true }])
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+
+    expect(satelliteLine()).toMatchObject({ label: '1 satellite online', enabled: false })
   })
 })

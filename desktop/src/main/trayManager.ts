@@ -24,6 +24,7 @@ import { requestWorkspaceActivation, requestWorkspaceWindowState } from './deskt
 import { getDesktopActivationEndpoint } from './desktopActivationLock'
 import {
   buildWorkspaceOpenDeepLink,
+  parseSatelliteJoinDeepLink,
   parseWorkspaceOpenDeepLink
 } from '../shared/desktopDeepLink'
 import { NO_WORKSPACE_ARG } from './workspaceArgs'
@@ -34,6 +35,8 @@ interface TrayState {
   appServers: HubAppServerResponse[]
   recentWorkspaces: RecentWorkspace[]
   locale: AppLocale
+  /** Machines currently connected to Hub. */
+  satellites: number
 }
 
 const REFRESH_INTERVAL_MS = 5_000
@@ -155,7 +158,8 @@ function baseDesktopArgs(): string[] {
         process.argv.slice(1).filter((arg) => (
           arg !== '--tray' &&
           arg !== NO_WORKSPACE_ARG &&
-          !parseWorkspaceOpenDeepLink(arg)
+          !parseWorkspaceOpenDeepLink(arg) &&
+          !parseSatelliteJoinDeepLink(arg)
         )),
         '--workspace'
       ),
@@ -328,6 +332,16 @@ function buildTrayMenu(
       label: L('tray.appServers'),
       submenu: appServerItems
     },
+    ...(state.satellites > 0
+      ? [{
+          label: translate(
+            state.locale,
+            state.satellites === 1 ? 'tray.satellitesOnline.one' : 'tray.satellitesOnline.other',
+            { count: state.satellites }
+          ),
+          enabled: false
+        } satisfies MenuItemConstructorOptions]
+      : []),
     { type: 'separator' },
     {
       label: L('tray.refresh'),
@@ -501,23 +515,22 @@ export async function runTrayProcess(): Promise<void> {
       return
     }
     applyTrayNativeThemeSource(settings)
-    try {
-      const [, appServers] = await Promise.all([
-        hubClient.getStatus(),
-        hubClient.listAppServers()
-      ])
-      setMenu({
-        appServers,
-        recentWorkspaces: getRecentWorkspaces(settings),
-        locale: normalizeLocale(settings.locale)
-      })
+    // Settled individually so a Hub without the satellite surface still fills the menu.
+    const [status, appServers, satellites] = await Promise.allSettled([
+      hubClient.getStatus(),
+      hubClient.listAppServers(),
+      hubClient.listSatellites()
+    ])
+    setMenu({
+      appServers: appServers.status === 'fulfilled' ? appServers.value : [],
+      satellites: satellites.status === 'fulfilled'
+        ? satellites.value.filter((satellite) => satellite.online).length
+        : 0,
+      recentWorkspaces: getRecentWorkspaces(settings),
+      locale: normalizeLocale(settings.locale)
+    })
+    if (status.status === 'fulfilled' || appServers.status === 'fulfilled') {
       subscribeEvents()
-    } catch {
-      setMenu({
-        appServers: [],
-        recentWorkspaces: getRecentWorkspaces(settings),
-        locale: normalizeLocale(settings.locale)
-      })
     }
   }
 
@@ -568,6 +581,7 @@ export async function runTrayProcess(): Promise<void> {
 
   setMenu({
     appServers: [],
+    satellites: 0,
     recentWorkspaces: getRecentWorkspaces(settings),
     locale: normalizeLocale(settings.locale)
   })

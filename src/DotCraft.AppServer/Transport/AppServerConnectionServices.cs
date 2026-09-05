@@ -12,6 +12,7 @@ using DotCraft.Mcp;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Skills;
+using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
 using DotCraft.InlineVisualizations;
@@ -90,6 +91,11 @@ public sealed record AppServerConnectionServices
     public ChatClientRegistry? ChatClientRegistry { get; init; }
     public ModelProviderRegistry? ModelProviderRegistry { get; init; }
     public IBackgroundTerminalService? BackgroundTerminalService { get; init; }
+
+    public IRemoteToolHostClient? RemoteToolHostClient { get; init; }
+
+    /// <summary>Fans a route change out to every connection that accepts the notification.</summary>
+    public Action<Contract.RemoteToolHostRouteChangedNotification>? BroadcastRemoteToolHostRouteChanged { get; init; }
     public IContextPageManager? ContextPageManager { get; init; }
     public DreamStore? DreamStore { get; init; }
     public DreamsService? DreamsService { get; init; }

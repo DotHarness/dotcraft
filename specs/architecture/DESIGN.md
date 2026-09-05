@@ -1,5 +1,5 @@
 ---
-version: "0.10.0"
+version: "0.13.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -483,10 +483,22 @@ radius, shorter and rounder than the standard band. Every control in that bar �
 text actions, icon actions, compound triggers, and search fields — takes it, so the
 row reads as one strip and the band does not change as the user moves between
 catalog surfaces.
-This is the only sanctioned alternative band; elsewhere the `32px` / `8px` standard
-holds. Catalog top bars prefer icon-only actions with tooltips for repeated
-management commands such as Refresh and Manage, keeping the labelled action for the
-one principal command.
+Settings surfaces run that same compact band. Inside the settings scroll
+container (`.dc-settings-surface`) the control tokens are rescoped so every
+button, select, and icon button is `28px` tall with a `10px` radius, while type
+stays `13px` / 500 and side padding tightens to `10px`. Nothing opts in per
+control: the token scope is what keeps a page's header actions, row controls,
+and pickers on one band, and it is why a group's header action fits inside a
+header that carries one instead of overhanging the gap to the card below. Header actions carry
+their glyph when the verb has one — Plus for create, a trash glyph for Delete,
+the refresh glyph for Refresh — at `15px` with the shared `6px` gap, so the label
+never has to do the work of the icon. Dialogs open outside the settings
+container and keep the `32px` standard.
+
+These two are the only sanctioned alternative bands; elsewhere the `32px` / `8px`
+standard holds. Catalog top bars prefer icon-only actions with tooltips for
+repeated management commands such as Refresh and Manage, keeping the labelled
+action for the one principal command.
 
 These action rules are implemented by the shared `Button` component and its
 `.dc-button` styles. Route new text and icon actions through it instead of
@@ -821,9 +833,12 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
   `--composer-top-accessory-separator` hairline on the shared edge so the two
   surfaces remain distinct in both light and dark themes;
 - the composer card keeps model, context-window, and send controls in its primary
-  action row; project, work location, source-control branch or changelist, and
-  provider subscription status form the context row below the card, with
-  subscription status immediately following the branch or changelist control;
+  action row; project, the machine tools run on (Run on), work location,
+  source-control branch or changelist, and provider subscription status form the
+  context row below the card, with subscription status immediately following the
+  branch or changelist control. Context-row chips share one footer pill (28px,
+  pill radius, `--composer-footer-text`) and open their menus upward from the
+  row; the work-location chip names the branch it works on in a hover tooltip;
 - the send control is one 32px button whose glyph follows the turn: Send at rest
   or with a draft to steer or queue, Stop while a turn runs with an empty draft,
   and a spinner while stopping. The glyphs stack in one cell and crossfade on
@@ -1014,6 +1029,36 @@ surface that owns them, for the same reason a dialog does not carry them (see
 Dialog Headers). Plugin detail uses one task-oriented primary CTA slot rather
 than a standing management switch: Install and Enable show in-control progress,
 then the same slot becomes Try in chat when the plugin is ready.
+
+### Settings Groups
+
+A settings group is a heading over a card, not a card with a heading in it. The
+title, its optional description, and any group-level actions sit above the card as
+a frameless header: the title in the `--type-heading` tier, the description one
+line of `--text-secondary` 4px beneath it, actions right-aligned and centred on the
+title line; when a header carries an action, its row is never shorter than the
+settings control band (`28px`), so the action sits inside the header rather than
+overhanging the gap below it, while a title-only header keeps the height of its
+text. The card follows 8px below and holds rows only — `--bg-secondary`,
+`1px solid var(--border-default)`, radius 12, hairline dividers between rows and
+no rule above the first — and groups stand 20px apart. A header painted inside
+the card's border, under its own rule, turns the frame into a decorative section
+box and separates groups with lines instead of space (see Layout).
+
+Explanatory text belongs to the row it explains: a control row is label, hint,
+control, with the hint in the `--type-hint` tier under the label and the control
+on the right. A group description is reserved for list groups whose rows are
+items — paired PCs, servers, people — and so have nowhere else to say what the
+group is; it defines the feature in one sentence rather than describing a
+scenario or a benefit. A row never repeats its group's title.
+
+Each page or segment has one principal action, and it carries the primary neutral
+inversion wherever it sits in the header; refresh and other quiet actions beside
+it stay frameless icon buttons. Option cards show their choice through the
+selected state alone and carry no status pill. An inline error banner uses the
+shared banner geometry — 14px padding, 12px gap, a 20px `--error` glyph, a
+13px/600 title with an optional secondary line — and has no dismiss control: its
+height follows its content, and the header's refresh is the retry.
 
 ### Interactive Tool UI
 

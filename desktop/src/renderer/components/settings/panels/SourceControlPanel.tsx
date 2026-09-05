@@ -721,7 +721,7 @@ function TestResultView({
         </ul>
       )}
 
-      <Button variant="ghost" size="sm" onClick={onToggleDetails} style={{ alignSelf: 'flex-start' }}>
+      <Button variant="ghost" onClick={onToggleDetails} style={{ alignSelf: 'flex-start' }}>
         {showDetails ? t('settings.sourceControl.test.hideDetails') : t('settings.sourceControl.test.showDetails')}
       </Button>
 

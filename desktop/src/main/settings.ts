@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
 import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
+import type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
+export type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
 import {
   isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
@@ -150,6 +152,10 @@ export interface AppSettings {
   /** Desktop-local pinned project identities (normalized local paths or remote ids). */
   pinnedProjectIds?: string[]
   remoteHosts?: RemoteHost[]
+  /** Last explicit satellite route per thread, keyed `<workspace>::<threadId>`. */
+  satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
+  /** Invitations this Desktop minted, so an arriving machine can be announced. */
+  createdSatelliteInviteIds?: CreatedSatelliteInvite[]
 }
 
 const MAX_RECENT = 20
@@ -354,6 +360,66 @@ export function normalizeRemoteHostsSetting(settings: AppSettings): RemoteHost[]
   return hosts.length > 0 ? hosts : undefined
 }
 
+const SATELLITE_ROUTE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+const SATELLITE_ROUTE_MAX_ENTRIES = 200
+const CREATED_SATELLITE_INVITE_MAX_ENTRIES = 20
+
+function satelliteRouteEntry(value: unknown): SatelliteThreadRoute | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Partial<SatelliteThreadRoute>
+  const hostId = typeof raw.hostId === 'string' ? raw.hostId.trim() : ''
+  const workspaceId = typeof raw.workspaceId === 'string' ? raw.workspaceId.trim() : ''
+  const at = typeof raw.at === 'string' ? raw.at.trim() : ''
+  if (!hostId || !workspaceId || !Number.isFinite(Date.parse(at))) return null
+  return { hostId, workspaceId, at }
+}
+
+export function normalizeSatelliteRouteByThread(
+  settings: AppSettings,
+  now: number = Date.now()
+): Record<string, SatelliteThreadRoute> | undefined {
+  const raw = settings.satelliteRouteByThread
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+
+  const entries: Array<[string, SatelliteThreadRoute]> = []
+  for (const [key, value] of Object.entries(raw)) {
+    const trimmedKey = key.trim()
+    if (!trimmedKey || !trimmedKey.includes('::')) continue
+    const route = satelliteRouteEntry(value)
+    if (!route || now - Date.parse(route.at) > SATELLITE_ROUTE_MAX_AGE_MS) continue
+    entries.push([trimmedKey, route])
+  }
+  if (entries.length === 0) return undefined
+
+  // Newest choices win when the map is over the cap.
+  entries.sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+  return Object.fromEntries(entries.slice(0, SATELLITE_ROUTE_MAX_ENTRIES))
+}
+
+export function normalizeCreatedSatelliteInviteIds(
+  settings: AppSettings,
+  now: number = Date.now()
+): CreatedSatelliteInvite[] | undefined {
+  const raw = settings.createdSatelliteInviteIds
+  if (!Array.isArray(raw)) return undefined
+
+  const seen = new Set<string>()
+  const normalized: CreatedSatelliteInvite[] = []
+  for (const value of raw) {
+    if (value == null || typeof value !== 'object' || Array.isArray(value)) continue
+    const entry = value as Partial<CreatedSatelliteInvite>
+    const inviteId = typeof entry.inviteId === 'string' ? entry.inviteId.trim() : ''
+    const expiresAt = typeof entry.expiresAt === 'string' ? entry.expiresAt.trim() : ''
+    const expiry = Date.parse(expiresAt)
+    if (!inviteId || seen.has(inviteId) || !Number.isFinite(expiry) || expiry <= now) continue
+    seen.add(inviteId)
+    normalized.push({ inviteId, expiresAt })
+  }
+  return normalized.length > 0
+    ? normalized.slice(-CREATED_SATELLITE_INVITE_MAX_ENTRIES)
+    : undefined
+}
+
 function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSettings | undefined {
   const raw = settings.activeRemoteStack
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -495,6 +561,8 @@ export function loadSettings(): AppSettings {
       raw.pinnedProjectIds = normalizePinnedProjectIds(raw)
       raw.recentWorkspaces = normalizeRecentWorkspaces(raw)
       raw.remoteHosts = normalizeRemoteHostsSetting(raw)
+      raw.satelliteRouteByThread = normalizeSatelliteRouteByThread(raw)
+      raw.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(raw)
       raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
@@ -547,6 +615,8 @@ export function saveSettings(settings: AppSettings): void {
     settings.pinnedProjectIds = normalizePinnedProjectIds(settings)
     settings.recentWorkspaces = normalizeRecentWorkspaces(settings)
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
+    settings.satelliteRouteByThread = normalizeSatelliteRouteByThread(settings)
+    settings.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(settings)
     settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {

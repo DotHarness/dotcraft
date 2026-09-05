@@ -20,6 +20,11 @@ public sealed record HubPaths(
     public string RuntimeToolsPath => Path.Combine(HubStatePath, "runtime.json");
 
     /// <summary>
+    /// Paired Remote Tool Hosts and pending invitations.
+    /// </summary>
+    public string SatellitesPath => Path.Combine(HubStatePath, "satellites.json");
+
+    /// <summary>
     /// Default local workspace used for projectless Chat entry points.
     /// </summary>
     public string DefaultChatWorkspacePath => Path.Combine(CraftHomePath, "workspaces", "chats");

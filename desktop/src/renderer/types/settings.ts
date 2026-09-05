@@ -7,8 +7,7 @@ export type SettingsTab =
   | 'voice'
   | 'personalization'
   | 'dreams'
-  | 'connection'
-  | 'servers'
+  | 'connections'
   | 'llmService'
   | 'browserUse'
   | 'computerControl'
@@ -19,3 +18,13 @@ export type SettingsTab =
   | 'mcp'
   | 'subAgents'
   | DesktopPluginSettingsTab
+
+/** Ids a persisted or deep-linked location may still name after a page merge. */
+const REPLACED_SETTINGS_TABS: Record<string, SettingsTab> = {
+  connection: 'connections',
+  servers: 'connections'
+}
+
+export function normalizeSettingsTab(tab: string): SettingsTab {
+  return REPLACED_SETTINGS_TABS[tab] ?? (tab as SettingsTab)
+}

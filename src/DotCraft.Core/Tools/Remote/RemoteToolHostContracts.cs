@@ -52,12 +52,16 @@ public sealed record RemoteToolHostCatalog(
     IReadOnlyList<RemoteToolHostDescriptor> Hosts,
     RemoteToolRoute? ConnectedRoute = null);
 
+/// <summary>Names why one mirrored tool cannot run on the connected Remote Tool Host.</summary>
+public sealed record RemoteToolUnavailableReason(string ToolName, string Code, string Detail);
+
 /// <summary>Model-safe result returned after connecting to a remote workspace.</summary>
 public sealed record RemoteToolConnectResult(
     RemoteToolRoute Route,
     RemoteToolEnvironment Environment,
     IReadOnlyList<string> MatchedTools,
     IReadOnlyList<string> UnavailableTools,
+    IReadOnlyList<RemoteToolUnavailableReason> UnavailableReasons,
     bool AlreadyConnected = false);
 
 /// <summary>Model-safe result returned after disconnecting one thread route.</summary>
@@ -121,7 +125,6 @@ public static class RemoteToolErrorCodes
     public const string HostNotRegistered = "remote_host_not_registered";
     public const string HostOffline = "remote_host_offline";
     public const string AuthenticationFailed = "remote_authentication_failed";
-    public const string CertificateMismatch = "remote_certificate_mismatch";
     public const string ProtocolMismatch = "remote_protocol_mismatch";
     public const string WorkspaceNotFound = "remote_workspace_not_found";
     public const string WorkspaceBusy = "remote_workspace_busy";
@@ -132,6 +135,25 @@ public static class RemoteToolErrorCodes
     public const string ApprovalDeclined = "remote_approval_declined";
     public const string RemoteOutcomeUnknown = "remote_outcome_unknown";
     public const string RemoteResultMaterializationFailed = "remote_result_materialization_failed";
+    public const string SatelliteOffline = "remote_satellite_offline";
+    public const string SatelliteSessionFailed = "remote_satellite_session_failed";
+    public const string HubUnavailable = "remote_hub_unavailable";
+    public const string InviteInvalid = "remote_invite_invalid";
+}
+
+/// <summary>A Remote Tool Host failure carrying one <see cref="RemoteToolErrorCodes"/> value.</summary>
+public sealed class RemoteToolHostException : Exception
+{
+    public RemoteToolHostException(string code, string message, string? invocationId = null, Exception? inner = null)
+        : base(message, inner)
+    {
+        Code = code;
+        InvocationId = invocationId;
+    }
+
+    public string Code { get; }
+
+    public string? InvocationId { get; }
 }
 
 /// <summary>JSON metadata attached to successful remote tool results for safe observability.</summary>

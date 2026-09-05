@@ -5,7 +5,7 @@
   display: flex;
   align-items: stretch;
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   background: var(--bg-primary);
   transition: border-color 120ms ease, opacity 120ms ease;
 }

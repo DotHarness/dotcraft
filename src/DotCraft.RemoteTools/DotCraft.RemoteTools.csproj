@@ -16,8 +16,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
@@ -25,6 +23,9 @@
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>DotCraft.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotCraft.App.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>dotcraft</_Parameter1>

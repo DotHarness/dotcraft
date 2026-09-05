@@ -183,6 +183,15 @@ html[data-theme="light"] {
   --font-sans: var(--font-sans-ko);
 }
 
+/* Settings run the compact control band (see DESIGN.md → Actions); `sm` collapses onto
+   the default height so the two sizes are one band here. */
+.dc-settings-surface {
+  --button-height: 28px;
+  --button-height-sm: 28px;
+  --button-radius: 10px;
+  --button-padding-x: 10px;
+}
+
 /* CJK glyphs carry more strokes per em than Latin, so the two smallest tiers lift
    one step (hint 11→12, secondary 12→13). Scoped to the settings surface on purpose:
    composer, sidebar, and list chrome have fixed-height rows a global lift would

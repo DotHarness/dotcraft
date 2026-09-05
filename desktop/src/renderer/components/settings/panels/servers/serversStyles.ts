@@ -1,53 +1,12 @@
 import type { CSSProperties } from 'react'
 
-export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'neutral'
-
-export function dotStyle(tone: StatusTone): CSSProperties {
-  if (tone === 'neutral') {
-    return {
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      flexShrink: 0,
-      border: '1.5px solid var(--text-dimmed)',
-      boxSizing: 'border-box'
-    }
-  }
-  return {
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    flexShrink: 0,
-    marginTop: 1,
-    background: `var(--${tone})`
-  }
-}
-
-export function statusTextStyle(tone: StatusTone): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 7,
-    fontSize: 12.5,
-    lineHeight: 1,
-    color: tone === 'neutral' ? 'var(--text-secondary)' : `var(--${tone})`
-  }
-}
+export { dotStyle, statusTextStyle, type StatusTone } from '../settingsStatusStyles'
 
 export const card: CSSProperties = {
   border: '1px solid var(--border-default)',
   borderRadius: 12,
   background: 'var(--bg-secondary)',
   overflow: 'hidden'
-}
-
-export const groupHead: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '13px 14px',
-  borderBottom: '1px solid var(--border-default)'
 }
 
 export const serverRow: CSSProperties = {
@@ -133,19 +92,6 @@ export const logsBody: CSSProperties = {
   whiteSpace: 'pre-wrap'
 }
 
-export const pillInfo: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  height: 20,
-  padding: '0 8px',
-  borderRadius: 999,
-  fontSize: 11,
-  fontWeight: 600,
-  border: '1px solid color-mix(in srgb, var(--info) 35%, transparent)',
-  background: 'color-mix(in srgb, var(--info) 14%, transparent)',
-  color: 'var(--info)'
-}
-
 export const banner: CSSProperties = {
   display: 'flex',
   gap: 12,
@@ -165,44 +111,6 @@ export const emptyBox: CSSProperties = {
   border: '1px dashed var(--border-active)',
   borderRadius: 12,
   background: 'var(--bg-secondary)'
-}
-
-export const modalScrim: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 10000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'var(--overlay-scrim)'
-}
-
-export const modal: CSSProperties = {
-  width: 460,
-  maxWidth: 'calc(100vw - 48px)',
-  maxHeight: 'calc(100vh - 80px)',
-  overflowY: 'auto',
-  border: '1px solid var(--border-active)',
-  borderRadius: 14,
-  background: 'var(--bg-elevated)',
-  boxShadow: 'var(--shadow-level-3)'
-}
-
-export const modalHead: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '16px 18px 12px'
-}
-
-export const modalBody: CSSProperties = { padding: '4px 18px 6px' }
-
-export const modalFoot: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: 8,
-  padding: '14px 18px 18px'
 }
 
 export const fieldLabel: CSSProperties = {

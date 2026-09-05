@@ -1,6 +1,10 @@
-namespace DotCraft.Hub;
+namespace DotCraft.Processes;
 
-internal sealed class CrossProcessFileLock : IDisposable
+/// <summary>
+/// Exclusive lock file whose ownership is held by the operating system for the lifetime of the
+/// owning process, so an abandoned file left by a crashed process is reclaimed instead of blocking.
+/// </summary>
+public sealed class CrossProcessFileLock : IDisposable
 {
     private readonly string _lockPath;
     private readonly FileStream _stream;
@@ -12,6 +16,7 @@ internal sealed class CrossProcessFileLock : IDisposable
         _stream = stream;
     }
 
+    /// <summary>Attempts to take the lock, reclaiming a stale file that no process still holds.</summary>
     public static bool TryAcquire(string lockPath, out CrossProcessFileLock? fileLock)
     {
         fileLock = null;
@@ -45,6 +50,7 @@ internal sealed class CrossProcessFileLock : IDisposable
         return false;
     }
 
+    /// <summary>Reports whether another live process currently holds the lock file.</summary>
     public static bool IsHeld(string lockPath)
     {
         if (!File.Exists(lockPath))
@@ -65,6 +71,7 @@ internal sealed class CrossProcessFileLock : IDisposable
         }
     }
 
+    /// <summary>Replaces the lock file payload that other processes may read while it is held.</summary>
     public void Write(ReadOnlySpan<byte> bytes)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -74,12 +81,14 @@ internal sealed class CrossProcessFileLock : IDisposable
         _stream.Flush(flushToDisk: true);
     }
 
+    /// <summary>Releases the lock and removes the file when no other process took it meanwhile.</summary>
     public void DeleteAfterDispose()
     {
         Dispose();
         RemoveUnheldFile(_lockPath);
     }
 
+    /// <summary>Releases the lock, leaving the file for the next acquirer to reclaim.</summary>
     public void Dispose()
     {
         if (_disposed)

@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
 
@@ -126,14 +126,17 @@ internal sealed class RemoteToolHostStorage
         var home = craftHome ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".craft");
-        _root = Path.Combine(Path.GetFullPath(home), "remote-tool-host");
+        CraftHomePath = Path.GetFullPath(home);
+        _root = Path.Combine(CraftHomePath, "remote-tool-host");
         _credentials = credentials ?? new WindowsRemoteToolCredentialStore();
     }
 
+    public string CraftHomePath { get; }
+    public string GlobalConfigPath => Path.Combine(CraftHomePath, "config.json");
     public string RootPath => _root;
     public string HostStatePath => Path.Combine(_root, "host.json");
-    public string CertificatePath => Path.Combine(_root, "host.pfx");
-    public string RegistrationsPath => Path.Combine(_root, "registrations.json");
+    public string ServeLockPath => Path.Combine(_root, "serve.lock");
+    public string ArtifactsRootPath => Path.Combine(_root, "artifacts");
 
     internal void AppendAudit(RemoteToolAuditEntry entry)
     {
@@ -151,73 +154,46 @@ internal sealed class RemoteToolHostStorage
 
     public void SaveHostState(RemoteToolHostState state) => Write(HostStatePath, state);
 
-    public IReadOnlyList<RemoteToolHostRegistration> LoadRegistrations() =>
-        Read<List<RemoteToolHostRegistration>>(RegistrationsPath) ?? [];
+    public static string PeerCredentialReference(string peerId) => CredentialPrefix + "peer/" + peerId;
 
-    public void Register(RemoteToolPairingBundle bundle)
+    public RemoteToolHubPeer AddPeer(RemoteToolHubPeer peer, string rawCredential)
     {
-        if (!string.Equals(bundle.ProfileVersion, RemoteToolHostProtocol.ProfileVersion, StringComparison.Ordinal))
-            throw new RemoteToolHostException(
-                Tools.RemoteToolErrorCodes.ProtocolMismatch,
-                $"Unsupported Remote Tool Host profile '{bundle.ProfileVersion}'.");
-        if (!Uri.TryCreate(bundle.Endpoint, UriKind.Absolute, out var endpoint)
-            || endpoint.Scheme != Uri.UriSchemeHttps)
+        var state = LoadHostState()
+            ?? throw new RemoteToolHostException(
+                Tools.RemoteToolErrorCodes.HostNotRegistered,
+                "Remote Tool Host is not set up.");
+        _credentials.Write(peer.CredentialReference, rawCredential);
+        SaveHostState(state with
         {
-            throw new ArgumentException("Pairing endpoint must be an absolute HTTPS URL.", nameof(bundle));
-        }
-
-        var registrations = LoadRegistrations().ToList();
-        var reference = CredentialPrefix + bundle.HostId;
-        _credentials.Write(reference, bundle.Token);
-        registrations.RemoveAll(item => string.Equals(item.HostId, bundle.HostId, StringComparison.Ordinal));
-        registrations.Add(new RemoteToolHostRegistration
-        {
-            HostId = bundle.HostId,
-            DisplayName = bundle.DisplayName,
-            Endpoint = endpoint.ToString().TrimEnd('/'),
-            CertificateFingerprint = NormalizeFingerprint(bundle.CertificateFingerprint),
-            CredentialReference = reference
+            Peers =
+            [
+                .. state.Peers.Where(item => !string.Equals(item.PeerId, peer.PeerId, StringComparison.Ordinal)),
+                peer
+            ]
         });
-        Write(RegistrationsPath, registrations.OrderBy(item => item.HostId, StringComparer.Ordinal).ToArray());
+        return peer;
     }
 
-    public bool Unregister(string hostId)
+    public bool RemovePeer(string peerId)
     {
-        var registrations = LoadRegistrations().ToList();
-        var registration = registrations.FirstOrDefault(
-            item => string.Equals(item.HostId, hostId, StringComparison.Ordinal));
-        if (registration is null)
+        var state = LoadHostState();
+        var peer = state?.Peers.FirstOrDefault(
+            item => string.Equals(item.PeerId, peerId, StringComparison.Ordinal));
+        if (state is null || peer is null)
             return false;
-        registrations.Remove(registration);
-        _credentials.Delete(registration.CredentialReference);
-        Write(RegistrationsPath, registrations);
+        _credentials.Delete(peer.CredentialReference);
+        SaveHostState(state with
+        {
+            Peers = [.. state.Peers.Where(item => !ReferenceEquals(item, peer))]
+        });
         return true;
     }
 
-    public string GetToken(RemoteToolHostRegistration registration) =>
-        _credentials.Read(registration.CredentialReference)
+    public string GetPeerCredential(RemoteToolHubPeer peer) =>
+        _credentials.Read(peer.CredentialReference)
         ?? throw new RemoteToolHostException(
             Tools.RemoteToolErrorCodes.AuthenticationFailed,
-            $"Credential '{registration.CredentialReference}' is missing.");
-
-    public RemoteToolPairingBundle RotateToken(RemoteToolHostState state)
-    {
-        var token = TokenUtilities.GenerateToken();
-        SaveHostState(state with { TokenHash = TokenUtilities.HashToken(token) });
-        return new RemoteToolPairingBundle
-        {
-            HostId = state.HostId,
-            DisplayName = state.DisplayName,
-            Endpoint = state.ListenEndpoint,
-            CertificateFingerprint = state.CertificateFingerprint,
-            Token = token
-        };
-    }
-
-    public static string NormalizeFingerprint(string value) =>
-        value.Replace(":", string.Empty, StringComparison.Ordinal)
-            .Replace(" ", string.Empty, StringComparison.Ordinal)
-            .ToUpperInvariant();
+            $"Credential '{peer.CredentialReference}' is missing.");
 
     private T? Read<T>(string path)
     {
@@ -269,44 +245,4 @@ internal static class TokenUtilities
         }
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
-}
-
-internal static class RemoteToolCertificate
-{
-    public static X509Certificate2 Create(string endpoint, string path)
-    {
-        var uri = new Uri(endpoint, UriKind.Absolute);
-        using var rsa = RSA.Create(3072);
-        var request = new CertificateRequest(
-            $"CN={uri.Host}",
-            rsa,
-            HashAlgorithmName.SHA256,
-            RSASignaturePadding.Pkcs1);
-        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
-        request.CertificateExtensions.Add(new X509KeyUsageExtension(
-            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
-            false));
-        var san = new SubjectAlternativeNameBuilder();
-        if (System.Net.IPAddress.TryParse(uri.Host, out var address))
-            san.AddIpAddress(address);
-        else
-            san.AddDnsName(uri.Host);
-        request.CertificateExtensions.Add(san.Build());
-        request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
-
-        using var certificate = request.CreateSelfSigned(
-            DateTimeOffset.UtcNow.AddDays(-1),
-            DateTimeOffset.UtcNow.AddYears(5));
-        var bytes = certificate.Export(X509ContentType.Pfx);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllBytes(path, bytes);
-        CryptographicOperations.ZeroMemory(bytes);
-        return X509CertificateLoader.LoadPkcs12FromFile(
-            path,
-            password: null,
-            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
-    }
-
-    public static string Fingerprint(X509Certificate2 certificate) =>
-        Convert.ToHexString(SHA256.HashData(certificate.RawData));
 }

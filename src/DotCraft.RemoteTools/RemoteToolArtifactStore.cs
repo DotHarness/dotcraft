@@ -6,10 +6,8 @@ namespace DotCraft.RemoteTools;
 
 internal static class RemoteToolArtifactStore
 {
-    private static readonly string[] ArtifactSegments = [".craft", "remote-tool-host", "artifacts"];
-
     public static RemoteMaterializedResult Materialize(
-        string workspacePath,
+        string artifactsRoot,
         RemoteInvocationMeta invocation,
         string toolName,
         ToolExecutionResult result)
@@ -23,21 +21,23 @@ internal static class RemoteToolArtifactStore
 
         try
         {
-            var leaseDataPath = GetLeaseDataPath(workspacePath, invocation.LeaseId);
-            EnsureWorkspaceBound(workspacePath, leaseDataPath);
+            var leaseDataPath = GetLeaseDataPath(artifactsRoot, invocation.LeaseId);
+            EnsureArtifactBound(artifactsRoot, leaseDataPath);
             Directory.CreateDirectory(leaseDataPath);
 
-            var relativePath = ToolResultProcessor.SpillToDisk(
-                content,
-                workspacePath,
+            var artifactPath = Path.Combine(
                 leaseDataPath,
-                invocation.ThreadId,
-                toolName,
-                invocation.InvocationId);
+                ToolResultProcessor.SpillToDisk(
+                    content,
+                    leaseDataPath,
+                    leaseDataPath,
+                    invocation.ThreadId,
+                    toolName,
+                    invocation.InvocationId).Replace('/', Path.DirectorySeparatorChar));
             var preview = BuildBoundedPreview(
                 content,
                 Math.Clamp(invocation.SpillPreviewLines, 1, 500),
-                relativePath,
+                artifactPath,
                 limit);
             var materialized = new ToolExecutionResult(
                 result.Success,
@@ -51,7 +51,7 @@ internal static class RemoteToolArtifactStore
                 result.Directive);
             return new RemoteMaterializedResult(
                 materialized,
-                new RemoteToolArtifactMeta(relativePath, content.Length));
+                new RemoteToolArtifactMeta(artifactPath, content.Length));
         }
         catch (Exception ex) when (ex is IOException
                                    or UnauthorizedAccessException
@@ -60,22 +60,19 @@ internal static class RemoteToolArtifactStore
         {
             throw new RemoteToolHostException(
                 RemoteToolErrorCodes.RemoteResultMaterializationFailed,
-                "The Remote Tool Host could not store the oversized tool result in the leased workspace.",
+                "The Remote Tool Host could not store the oversized tool result under its state directory.",
                 invocation.InvocationId,
                 ex);
         }
     }
 
-    public static bool CleanupLeaseArtifacts(string workspacePath, string leaseId) =>
-        DeleteArtifactDirectory(workspacePath, GetLeaseDataPath(workspacePath, leaseId));
+    public static bool CleanupLeaseArtifacts(string artifactsRoot, string leaseId) =>
+        DeleteArtifactDirectory(GetLeaseDataPath(artifactsRoot, leaseId));
 
-    public static bool CleanupStaleArtifacts(string workspacePath) =>
-        DeleteArtifactDirectory(workspacePath, GetArtifactsRoot(workspacePath));
+    public static bool CleanupStaleArtifacts(string artifactsRoot) =>
+        DeleteArtifactDirectory(Path.GetFullPath(artifactsRoot));
 
-    private static string GetArtifactsRoot(string workspacePath) =>
-        Path.GetFullPath(Path.Combine(workspacePath, Path.Combine(ArtifactSegments)));
-
-    private static string GetLeaseDataPath(string workspacePath, string leaseId)
+    private static string GetLeaseDataPath(string artifactsRoot, string leaseId)
     {
         if (string.IsNullOrWhiteSpace(leaseId)
             || leaseId is "." or ".."
@@ -84,14 +81,25 @@ internal static class RemoteToolArtifactStore
             throw new InvalidOperationException("The workspace lease identifier is invalid.");
         }
 
-        return Path.GetFullPath(Path.Combine(GetArtifactsRoot(workspacePath), leaseId));
+        return Path.GetFullPath(Path.Combine(artifactsRoot, leaseId));
     }
 
-    private static bool DeleteArtifactDirectory(string workspacePath, string directory)
+    /// <summary>Rejects a lease directory that leaves the artifact root through a link or reparse point.</summary>
+    private static void EnsureArtifactBound(string artifactsRoot, string path)
+    {
+        var root = Path.GetFullPath(artifactsRoot);
+        var guard = new FileAccessGuard(
+            root,
+            requireApprovalOutsideWorkspace: false,
+            workspaceRoots: [root]);
+        if (guard.RequiresOutsideWorkspaceApproval(path, "write"))
+            throw new InvalidOperationException("Remote tool artifacts must remain inside the Host state root.");
+    }
+
+    private static bool DeleteArtifactDirectory(string directory)
     {
         try
         {
-            EnsureWorkspaceBound(workspacePath, directory);
             if (Directory.Exists(directory))
                 Directory.Delete(directory, recursive: true);
             return true;
@@ -100,16 +108,6 @@ internal static class RemoteToolArtifactStore
         {
             return false;
         }
-    }
-
-    private static void EnsureWorkspaceBound(string workspacePath, string path)
-    {
-        var guard = new FileAccessGuard(
-            workspacePath,
-            requireApprovalOutsideWorkspace: false,
-            workspaceRoots: [workspacePath]);
-        if (guard.RequiresOutsideWorkspaceApproval(path, "write"))
-            throw new InvalidOperationException("Remote tool artifacts must remain inside the workspace.");
     }
 
     private static IReadOnlyList<AIContent>? ReplaceTextContent(
@@ -137,18 +135,18 @@ internal static class RemoteToolArtifactStore
     private static string BuildBoundedPreview(
         string content,
         int previewLines,
-        string relativePath,
+        string artifactPath,
         int limit)
     {
         var preview = ToolResultProcessor.BuildPreview(
             content,
             previewLines,
-            relativePath,
+            artifactPath,
             Math.Max(1, limit - 512));
         if (preview.Length <= limit)
             return preview;
 
-        var marker = $"\n\n... (full output at: {relativePath})";
+        var marker = $"\n\n... (full output at: {artifactPath})";
         if (marker.Length >= limit)
             return marker.Length <= RemoteToolHostProtocol.MaxTransportResultChars
                 ? marker

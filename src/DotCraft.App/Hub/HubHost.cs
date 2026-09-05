@@ -26,6 +26,7 @@ public sealed class HubHost : IDotCraftHost
     private HubEventBus? _eventBus;
     private ManagedAppServerRegistry? _registry;
     private ManagedLocalServiceRegistry? _serviceRegistry;
+    private SatelliteConnectionManager? _satellites;
     private int _cleanupStarted;
 
     /// <summary>
@@ -92,10 +93,16 @@ public sealed class HubHost : IDotCraftHost
             _serviceRegistry = new ManagedLocalServiceRegistry(
                 ManagedLocalServiceDefinitions.CreateBuiltIns(_paths),
                 _loggerFactory.CreateLogger<ManagedLocalServiceRegistry>());
+            _satellites = new SatelliteConnectionManager(
+                new SatelliteRegistry(_paths.SatellitesPath),
+                _config,
+                _eventBus,
+                _loggerFactory);
             _registry.StartHealthChecks();
             _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
             _app.Urls.Add(apiBaseUrl);
             await _app.StartAsync(cancellationToken);
+            await _satellites.StartForExistingPeersAsync(cancellationToken);
 
             var lockInfo = new HubLockInfo(
                 Pid: Environment.ProcessId,
@@ -138,6 +145,7 @@ public sealed class HubHost : IDotCraftHost
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new NonOwningLoggerProvider(_loggerFactory));
         var app = builder.Build();
+        app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
         app.MapGet("/v1/status", () => Results.Json(CreateStatus(apiBaseUrl, startedAt, binaryPath), HubJson.Options));
         app.MapPost("/v1/shutdown", (HttpRequest request) =>
@@ -258,6 +266,13 @@ public sealed class HubHost : IDotCraftHost
                 return Results.Json(new { accepted = true }, HubJson.Options);
             });
         });
+        HubSatelliteApi.Map(
+            app,
+            _config,
+            _satellites!,
+            events,
+            request => Unauthorized(request, token),
+            ProtectedAsync);
 
         return app;
     }
@@ -276,7 +291,8 @@ public sealed class HubHost : IDotCraftHost
                 PortManagement: true,
                 Events: true,
                 Notifications: true,
-                Tray: false));
+                Tray: false,
+                Satellites: true));
 
     private static bool IsAuthorized(HttpRequest request, string token)
     {
@@ -425,6 +441,12 @@ public sealed class HubHost : IDotCraftHost
             _serviceRegistry = null;
         }
 
+        if (_satellites is not null)
+        {
+            await _satellites.DisposeAsync();
+            _satellites = null;
+        }
+
         _lockFile?.DeleteAfterDispose();
         _lockFile = null;
         _shutdownCts.Dispose();
@@ -432,36 +454,3 @@ public sealed class HubHost : IDotCraftHost
         _logger.LogInformation("Hub stopped");
     }
 }
-
-/// <summary>
-/// Hub status response.
-/// </summary>
-public sealed record HubStatusResponse(
-    string HubVersion,
-    int Pid,
-    DateTimeOffset StartedAt,
-    string StatePath,
-    string ApiBaseUrl,
-    string? BinaryPath,
-    HubCapabilities Capabilities);
-
-/// <summary>
-/// Hub capability flags.
-/// </summary>
-public sealed record HubCapabilities(
-    bool AppServerManagement,
-    bool ManagedServiceManagement,
-    bool PortManagement,
-    bool Events,
-    bool Notifications,
-    bool Tray);
-
-/// <summary>
-/// Hub API error response.
-/// </summary>
-public sealed record HubErrorResponse(HubError Error);
-
-/// <summary>
-/// Hub API error payload.
-/// </summary>
-public sealed record HubError(string Code, string Message, object? Details);

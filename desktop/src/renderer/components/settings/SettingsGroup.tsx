@@ -17,6 +17,8 @@ interface SettingsGroupProps {
    * Useful for groups whose body is a custom layout (e.g. grid of channel icons).
    */
   flush?: boolean
+  /** Off when the body paints its own box, such as an empty state, so frames do not nest. */
+  framed?: boolean
   style?: CSSProperties
 }
 
@@ -26,20 +28,24 @@ export function SettingsGroup({
   headerAction,
   children,
   flush = false,
+  framed = true,
   style
 }: SettingsGroupProps): JSX.Element {
   return (
     <section style={{ ...groupStyle(), ...style }}>
       {(title || description || headerAction) && (
-        <header style={headerStyle()}>
+        <header style={headerStyle(Boolean(headerAction), Boolean(description))}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {title && <h2 style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
             {description && <div style={settingsDescriptionStyle()}>{description}</div>}
           </div>
-          {headerAction && <div style={{ flexShrink: 0 }}>{headerAction}</div>}
+          {headerAction && <div style={headerActionStyle(Boolean(description))}>{headerAction}</div>}
         </header>
       )}
-      <div className="dc-settings-group__body" style={flush ? flushBodyStyle() : bodyStyle()}>
+      <div
+        className="dc-settings-group__body"
+        style={framed ? (flush ? flushBodyStyle() : bodyStyle()) : undefined}
+      >
         {children}
       </div>
     </section>
@@ -123,6 +129,36 @@ export function SettingsRow({
 
 function groupStyle(): CSSProperties {
   return {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  }
+}
+
+/** A header carrying an action is never shorter than the control band, so the action
+ *  cannot overhang the gap to the card below. */
+function headerStyle(hasAction: boolean, described: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: hasAction && !described ? 'center' : 'flex-start',
+    gap: '12px',
+    ...(hasAction ? { minHeight: 'var(--button-height)' } : null)
+  }
+}
+
+/** Boxed to the title's own line so a taller control stays centred on the title
+ *  instead of drifting down beside the description. */
+function headerActionStyle(described: boolean): CSSProperties {
+  return {
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    height: described ? 'var(--type-heading-line-height)' : undefined
+  }
+}
+
+function cardStyle(): CSSProperties {
+  return {
     border: '1px solid var(--border-default)',
     borderRadius: '12px',
     background: 'var(--bg-secondary)',
@@ -130,19 +166,9 @@ function groupStyle(): CSSProperties {
   }
 }
 
-function headerStyle(): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '14px 16px',
-    borderBottom: '1px solid var(--border-default)',
-    background: 'transparent'
-  }
-}
-
 function bodyStyle(): CSSProperties {
   return {
+    ...cardStyle(),
     display: 'flex',
     flexDirection: 'column'
   }
@@ -150,6 +176,7 @@ function bodyStyle(): CSSProperties {
 
 function flushBodyStyle(): CSSProperties {
   return {
+    ...cardStyle(),
     padding: '14px 16px'
   }
 }

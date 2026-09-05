@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildSettingsTabs } from '../components/settings/settingsTabs'
+import { normalizeSettingsTab } from '../types/settings'
 
 describe('buildSettingsTabs', () => {
   it('keeps every settings group contiguous when all optional tabs are available', () => {
@@ -23,8 +24,7 @@ describe('buildSettingsTabs', () => {
       'browserUse',
       'computerControl',
       'hooks',
-      'connection',
-      'servers',
+      'connections',
       'llmService',
       'sourceControl',
       'subAgents',
@@ -33,8 +33,22 @@ describe('buildSettingsTabs', () => {
     expect(tabs.map(({ group }) => group)).toEqual([
       ...Array(6).fill('personal'),
       ...Array(3).fill('integrations'),
-      ...Array(6).fill('coding'),
+      ...Array(5).fill('coding'),
       'archived'
     ])
+  })
+})
+
+describe('normalizeSettingsTab', () => {
+  it('resolves the tabs that were merged into Connections', () => {
+    expect(normalizeSettingsTab('servers')).toBe('connections')
+    expect(normalizeSettingsTab('connection')).toBe('connections')
+  })
+
+  it('leaves every other tab id alone', () => {
+    expect(normalizeSettingsTab('general')).toBe('general')
+    expect(normalizeSettingsTab('desktop-plugin-settings:acme:general')).toBe(
+      'desktop-plugin-settings:acme:general'
+    )
   })
 })

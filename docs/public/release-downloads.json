@@ -39,6 +39,14 @@
                    "cli-linux-x64":  {
                                          "fileName":  "DotCraft-v0.6.2-linux-x64.tar.gz",
                                          "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-linux-x64.tar.gz"
-                                     }
+                                     },
+                   "satellite-win-x64":  {
+                                             "fileName":  "DotCraft-Satellite-v0.6.2-win-x64-Setup.exe",
+                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-Satellite-v0.6.2-win-x64-Setup.exe"
+                                         },
+                   "satellite-win-arm64":  {
+                                               "fileName":  "DotCraft-Satellite-v0.6.2-win-arm64-Setup.exe",
+                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-Satellite-v0.6.2-win-arm64-Setup.exe"
+                                           }
                }
 }

@@ -34,7 +34,7 @@ Both are read-only, so they are available in Plan mode. `config show --json` on 
 | `dotcraft skill verify \| install` | Verify and install a skill candidate. Use through `$skill-installer` |
 | `dotcraft context export \| search` | Export one thread as Markdown, or search saved thread context |
 | `dotcraft stack init \| add-project \| doctor \| status \| logs \| restart \| upgrade \| webhook` | Self-hosted Stack deployment |
-| `dotcraft tool-host setup \| workspace \| policy \| autostart \| token \| status \| serve \| register \| unregister \| list \| test` | Remote Tool Host |
+| `dotcraft tool-host setup \| workspace \| policy \| autostart \| status \| serve \| invite \| join \| revoke \| list \| test` | Remote Tool Host |
 | `dotcraft --version` | Version |
 
 Hidden, for tooling rather than users: `dotcraft model-catalog --provider-id <id>` and `dotcraft workflow-worker`.

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 
 namespace DotCraft.AppServer;
 
@@ -113,6 +114,8 @@ public static class AppServerErrors
     public const int ThreadRecoveryFailedCode = -32097;
     public const int WorkflowRunErrorCode = -32098;
     public const int PluginConfigurationErrorCode = -32099;
+    public const int RemoteToolHostUnavailableCode = -32100;
+    public const int RemoteToolWorkspaceBusyCode = -32101;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -378,4 +381,43 @@ public static class AppServerErrors
     public static AppServerException TaskInvalidStatus(string detail) =>
         Create(TaskInvalidStatusCode, "TaskInvalidStatus", "errors.taskInvalidStatus", detail, detail: detail);
 
+    /// <summary>
+    /// Maps a Remote Tool Host failure onto its JSON-RPC error, carrying the stable code verbatim
+    /// so clients localize without parsing text and no lease, endpoint, or credential detail from
+    /// the failure reaches the wire.
+    /// </summary>
+    public static AppServerException RemoteToolHost(string code, string busyOwner = "other")
+    {
+        var busy = string.Equals(code, RemoteToolErrorCodes.WorkspaceBusy, StringComparison.Ordinal);
+        return Create(
+            busy ? RemoteToolWorkspaceBusyCode : RemoteToolHostUnavailableCode,
+            code,
+            $"error.remoteToolHost.{ToCamelCase(code)}",
+            RemoteToolHostFallbackText(code),
+            busy ? new RemoteToolBusyErrorParams(busyOwner) : null);
+    }
+
+    private static string RemoteToolHostFallbackText(string code) => code switch
+    {
+        RemoteToolErrorCodes.HostNotRegistered => "That machine is not paired with this computer.",
+        RemoteToolErrorCodes.HostOffline or RemoteToolErrorCodes.SatelliteOffline => "That machine is offline.",
+        RemoteToolErrorCodes.AuthenticationFailed => "That machine rejected this computer's credentials.",
+        RemoteToolErrorCodes.ProtocolMismatch => "That machine runs an incompatible DotCraft version.",
+        RemoteToolErrorCodes.SatelliteSessionFailed => "That machine did not open the requested session.",
+        RemoteToolErrorCodes.HubUnavailable => "The local Hub is not reachable.",
+        RemoteToolErrorCodes.WorkspaceNotFound => "That machine no longer shares this folder.",
+        RemoteToolErrorCodes.WorkspaceBusy => "This folder is already in use.",
+        RemoteToolErrorCodes.LeaseLost => "The connection to this folder was lost.",
+        _ => "That machine is unavailable."
+    };
+
+    private static string ToCamelCase(string snakeCase)
+    {
+        var segments = snakeCase.Split('_', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+            return snakeCase;
+        return string.Concat(
+            segments[0],
+            string.Concat(segments.Skip(1).Select(static segment => char.ToUpperInvariant(segment[0]) + segment[1..])));
+    }
 }

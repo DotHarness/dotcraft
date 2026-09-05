@@ -146,6 +146,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public PlanStore? PlanStore => EnsureStarted().AgentFactory.PlanStore;
 
+    public IRemoteToolHostClient? RemoteToolHostClient => EnsureStarted().AgentFactory.RemoteToolHostClient;
+
     public event Action<AppConfigChangedEventArgs>? WorkspaceConfigChanged;
 
     public event Action<McpServerStatusChangedEventArgs>? McpStatusChanged;

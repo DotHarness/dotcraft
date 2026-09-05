@@ -2718,6 +2718,85 @@ export interface ReasoningContentPayload {
   [key: string]: unknown;
 }
 
+export interface RemoteToolEnvironmentInfo {
+  hostName: string;
+  operatingSystem: string;
+  userName: string;
+  workspacePath: string;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostConnectParams {
+  hostId: string;
+  threadId: string;
+  workspaceId: string;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostConnectResult {
+  alreadyConnected?: boolean;
+  matchedTools: string[];
+  route: RemoteToolRouteInfo;
+  unavailableTools: string[];
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostDisconnectParams {
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostDisconnectResult {
+  disconnected: boolean;
+  previousRoute?: RemoteToolRouteInfo | null;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostInfo {
+  displayName: string;
+  errorCode?: string | null;
+  hostId: string;
+  online: boolean;
+  workspaces: RemoteToolHostWorkspaceInfo[];
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostListParams {
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostListResult {
+  hosts: RemoteToolHostInfo[];
+  route?: RemoteToolRouteInfo | null;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostRouteChangedNotification {
+  reason: string;
+  route?: RemoteToolRouteInfo | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolHostWorkspaceInfo {
+  available: boolean;
+  busyOwner?: string | null;
+  displayName: string;
+  leaseExpiresAt?: string | null;
+  workspaceId: string;
+  [key: string]: unknown;
+}
+
+export interface RemoteToolRouteInfo {
+  environment?: RemoteToolEnvironmentInfo | null;
+  hostId: string;
+  status: string;
+  threadId: string;
+  workspaceId: string;
+  [key: string]: unknown;
+}
+
 export interface RpcEmpty {
   [key: string]: unknown;
 }
@@ -2804,6 +2883,7 @@ export interface ServerCapabilities {
   pluginManagement?: boolean;
   pluginMarketplaces?: boolean;
   providerManagement?: boolean;
+  remoteToolHost?: boolean;
   requestUserInput?: boolean;
   runtimeAdditionalContext?: boolean;
   skillVariants?: boolean;

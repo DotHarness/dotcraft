@@ -163,6 +163,10 @@ public sealed class AppServerRequestHandler(
         new InitializeRequestHandler(connection, services, _capabilityContributors, SkillVariants, ThreadProjector),
         new CronRequestHandler(services.CronService, services.BroadcastCronStateChanged),
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
+        new RemoteToolHostRequestHandler(
+            services.RemoteToolHostClient,
+            sessionService,
+            services.BroadcastRemoteToolHostRouteChanged),
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
         new ToolRequestHandler(),

@@ -39,6 +39,28 @@ public sealed class HubLockFileTests : IDisposable
     }
 
     [Fact]
+    public void HubLockFile_PublishedPayload_IsReadableByRemoteToolsProvider()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        Assert.True(HubLockFile.TryAcquire(paths, out var lockFile, out _));
+        lockFile!.Publish(new HubLockInfo(
+            Pid: Environment.ProcessId,
+            ApiBaseUrl: "http://127.0.0.1:43010",
+            Token: "hub-token",
+            StartedAt: DateTimeOffset.UtcNow,
+            Version: "test",
+            BinaryPath: CurrentProcessBinaryPath()));
+
+        var resolved = new RemoteTools.HubEndpointProvider(paths.CraftHomePath).TryResolve();
+
+        Assert.NotNull(resolved);
+        Assert.Equal(new Uri("http://127.0.0.1:43010"), resolved!.BaseUrl);
+        Assert.Equal("hub-token", resolved.Token);
+
+        lockFile.DeleteAfterDispose();
+    }
+
+    [Fact]
     public void TryAcquire_ActiveLockWithoutMetadataBlocksSecondOwner()
     {
         var paths = HubPaths.Resolve(_userProfile);

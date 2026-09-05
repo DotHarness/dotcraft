@@ -1,8 +1,17 @@
-/* Frameless by default, with the 1px border reserved but transparent. Sizing stays
-   inline because it is dynamic; every other state lives here. */
+/* Frameless by default, with the 1px border reserved but transparent. The square and its
+   radius come from the control-band tokens; `size`/`radius` props override them inline. */
 .dc-icon-button {
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--button-height);
+  height: var(--button-height);
+  min-width: var(--button-height);
+  padding: 0;
   border: 1px solid transparent;
+  border-radius: var(--button-radius);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;

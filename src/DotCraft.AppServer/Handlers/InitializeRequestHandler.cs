@@ -81,7 +81,8 @@ internal sealed class InitializeRequestHandler(
             SubAgentSessions = true,
             McpStatus = services.McpClientManager != null,
             HooksManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            UsageTelemetry = services.TraceStore != null
+            UsageTelemetry = services.TraceStore != null,
+            RemoteToolHost = services.RemoteToolHostClient != null
         };
 
         var capabilityBuilder = new AppServerCapabilityBuilder(capabilities, workspaceCraftPath);

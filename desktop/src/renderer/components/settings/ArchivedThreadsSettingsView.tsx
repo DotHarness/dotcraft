@@ -184,6 +184,7 @@ export function ArchivedThreadsSettingsView({
         !loading && !error ? (
           <Button
             variant="danger"
+            iconLeft={<Trash2 size={15} />}
             onClick={() => {
               void confirmDeleteAll()
             }}

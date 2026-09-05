@@ -29,6 +29,18 @@ export function settingsHeadingStyle(): CSSProperties {
   }
 }
 
+/** 12px label above a field stack inside a row. */
+export function settingsSectionLabelStyle(): CSSProperties {
+  return {
+    display: 'block',
+    fontSize: 'var(--type-secondary-size)',
+    lineHeight: 'var(--type-secondary-line-height)',
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    marginBottom: '6px'
+  }
+}
+
 /** 13px row label. */
 export function settingsLabelStyle(): CSSProperties {
   return {

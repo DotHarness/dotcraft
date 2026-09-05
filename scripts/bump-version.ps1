@@ -126,6 +126,8 @@ function Update-ReleaseDownloadsManifest {
         "cli-macos-x64" = "DotCraft-$tag-macos-x64.tar.gz"
         "cli-macos-arm64" = "DotCraft-$tag-macos-arm64.tar.gz"
         "cli-linux-x64" = "DotCraft-$tag-linux-x64.tar.gz"
+        "satellite-win-x64" = "DotCraft-Satellite-$tag-win-x64-Setup.exe"
+        "satellite-win-arm64" = "DotCraft-Satellite-$tag-win-arm64-Setup.exe"
     }
 
     $assets = [ordered]@{}
@@ -245,6 +247,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
     @{ Type = "xml"; Path = "src/DotCraft.Oratorio/DotCraft.Oratorio.csproj" },
+    @{ Type = "xml"; Path = "src/DotCraft.Satellite/DotCraft.Satellite.csproj" },
     @{ Type = "dotnetPackage"; Path = "src/DotCraft.Harness/DotCraft.Harness.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },

@@ -46,3 +46,6 @@ internal sealed record AgentProfileDiagnosticsErrorParams(
 
 /// <summary>Error parameters identifying an automation task.</summary>
 internal sealed record TaskErrorParams([property: JsonPropertyName("taskId")] string TaskId);
+
+/// <summary>Error parameters naming who holds a busy remote workspace lease.</summary>
+internal sealed record RemoteToolBusyErrorParams([property: JsonPropertyName("owner")] string Owner);

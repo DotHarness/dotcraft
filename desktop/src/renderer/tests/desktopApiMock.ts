@@ -22,8 +22,19 @@ function strictApi<T extends object>(overrides: T, path = 'window.api'): T {
   })
 }
 
+/** The app shell, Settings and the composer all mount the bridge, so it is never strict. */
+const SATELLITES_DEFAULT: ApiOverrides<Api>['satellites'] = {
+  list: () => Promise.resolve({ supported: false, satellites: [] }),
+  shareStatus: () => Promise.resolve({ installed: false, peers: [] }),
+  onEvent: () => () => undefined,
+  onJoinLink: () => () => undefined
+}
+
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
-  const api = strictApi(overrides) as Api
+  const api = strictApi({
+    ...overrides,
+    satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites }
+  }) as Api
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   return api
 }

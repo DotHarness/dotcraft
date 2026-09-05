@@ -5,8 +5,9 @@ import type { ShortcutSpec } from './shortcutKeys'
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: ReactNode
   label: string
+  /** Square edge in px. Omit to follow the surface's control band. */
   size?: number
-  /** Corner radius in px. Defaults to the standard 8px control-band radius. */
+  /** Corner radius in px. Omit to follow the surface's control band. */
   radius?: number
   active?: boolean
   /** Active-state color treatment. Explorer/view toggles use neutral chrome. */
@@ -25,8 +26,8 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({
   icon,
   label,
-  size = 32,
-  radius = 8,
+  size,
+  radius,
   active = false,
   activeTone = 'accent',
   tone = 'neutral',
@@ -77,18 +78,10 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   )
 })
 
-// Sizing and layout only: color, border, hover, active, and disabled states belong to
-// the shared `.dc-icon-button` class so they stay consistent app-wide.
-function iconButtonSizeStyle(size: number, radius: number): CSSProperties {
+// Per-call overrides only: the defaults and every visual state live on `.dc-icon-button`.
+function iconButtonSizeStyle(size?: number, radius?: number): CSSProperties {
   return {
-    width: `${size}px`,
-    height: `${size}px`,
-    minWidth: `${size}px`,
-    borderRadius: `${radius}px`,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    flexShrink: 0
+    ...(size != null ? { width: `${size}px`, height: `${size}px`, minWidth: `${size}px` } : null),
+    ...(radius != null ? { borderRadius: `${radius}px` } : null)
   }
 }

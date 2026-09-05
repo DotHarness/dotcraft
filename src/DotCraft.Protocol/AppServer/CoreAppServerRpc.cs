@@ -166,6 +166,14 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ProviderUpdateParams, ProviderMutationResult> ProviderUpdate = new("provider/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "providerManagement", errors: CommonErrors);
 
+    public static readonly RpcRequest<RemoteToolHostConnectParams, RemoteToolHostConnectResult> RemoteToolHostConnect = new("remoteToolHost/connect", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "remoteToolHost", errors: RemoteToolHostErrors);
+
+    public static readonly RpcRequest<RemoteToolHostDisconnectParams, RemoteToolHostDisconnectResult> RemoteToolHostDisconnect = new("remoteToolHost/disconnect", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "remoteToolHost", errors: CommonErrors);
+
+    public static readonly RpcRequest<RemoteToolHostListParams, RemoteToolHostListResult> RemoteToolHostList = new("remoteToolHost/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "remoteToolHost", errors: CommonErrors);
+
+    public static readonly RpcNotification<RemoteToolHostRouteChangedNotification> RemoteToolHostRouteChanged = new("remoteToolHost/route/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "remoteToolHost", notificationOptOut: true);
+
     public static readonly RpcRequest<SkillsListParams, SkillsListResult> SkillsList = new("skills/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<SkillsReadParams, SkillsReadResult> SkillsRead = new("skills/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);

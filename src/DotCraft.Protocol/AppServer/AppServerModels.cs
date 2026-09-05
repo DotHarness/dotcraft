@@ -408,6 +408,10 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsageTelemetry { get; init; }
 
+    [JsonPropertyName("remoteToolHost")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RemoteToolHost { get; init; }
+
     [JsonPropertyName("authOpenAiOAuth")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool AuthOpenAiOAuth { get; init; }

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/RemoteToolHostWorkspaceInfo.schema.json",
+  "title": "RemoteToolHostWorkspaceInfo",
+  "type": "object",
+  "properties": {
+    "available": {
+      "type": "boolean"
+    },
+    "busyOwner": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "leaseExpiresAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspaceId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "available",
+    "displayName",
+    "workspaceId"
+  ]
+}

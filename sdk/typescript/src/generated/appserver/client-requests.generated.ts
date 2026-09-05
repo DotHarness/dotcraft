@@ -110,6 +110,9 @@ export interface ClientRequestMethods {
   "provider/list": { params: Models.ProviderListParams; result: Models.ProviderListResult };
   "provider/test": { params: Models.ProviderTestParams; result: Models.ProviderTestResult };
   "provider/update": { params: Models.ProviderUpdateParams; result: Models.ProviderMutationResult };
+  "remoteToolHost/connect": { params: Models.RemoteToolHostConnectParams; result: Models.RemoteToolHostConnectResult };
+  "remoteToolHost/disconnect": { params: Models.RemoteToolHostDisconnectParams; result: Models.RemoteToolHostDisconnectResult };
+  "remoteToolHost/list": { params: Models.RemoteToolHostListParams; result: Models.RemoteToolHostListResult };
   "skills/list": { params: Models.SkillsListParams; result: Models.SkillsListResult };
   "skills/read": { params: Models.SkillsReadParams; result: Models.SkillsReadResult };
   "skills/restoreOriginal": { params: Models.SkillsRestoreOriginalParams; result: Models.SkillsRestoreOriginalResult };

@@ -6,7 +6,7 @@ At the center of DotCraft is one agent that keeps growing with your project. The
 
 ## Extend what it can do
 
-[Skills & Self-Learning](./skills) turns a workflow that already worked into a reusable skill, ready for the next task of the same kind. [Plugins & Tools](./plugins-tools) covers the built-in tools, plugins, and MCP servers that give the agent its capabilities, and the trust boundary around each. [Remote Tool Host](./remote-tool-host) runs eligible built-in tools in a workspace on another device without moving the Agent session. When you need more, [Plugin Marketplaces](./plugin-marketplaces) adds plugin catalogs you trust, and [Connected Apps](./connected-apps) lets a conversation work directly with the products and services you already use.
+[Skills & Self-Learning](./skills) turns a workflow that already worked into a reusable skill, ready for the next task of the same kind. [Plugins & Tools](./plugins-tools) covers the built-in tools, plugins, and MCP servers that give the agent its capabilities, and the trust boundary around each. [Remote Tool Host](./remote-tool-host) runs eligible built-in tools in a workspace on another device without moving the Agent session, and [DotCraft Satellite](./satellite) is what the owner of that device installs to approve and watch it. When you need more, [Plugin Marketplaces](./plugin-marketplaces) adds plugin catalogs you trust, and [Connected Apps](./connected-apps) lets a conversation work directly with the products and services you already use.
 
 ## Keep context across conversations
 

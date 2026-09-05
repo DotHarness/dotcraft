@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -18,26 +21,54 @@ internal static class RemoteToolHostProtocol
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    /// <summary>The DotCraft build both sides compare when a catalog or profile does not match.</summary>
+    public static string BuildVersion { get; } =
+        ReadInformationalVersion(Assembly.GetEntryAssembly())
+        ?? ReadInformationalVersion(typeof(RemoteToolHostProtocol).Assembly)
+        ?? "unknown";
+
+    public static string ComputeCatalogDigest(IReadOnlyList<RemoteToolContractSummary> contracts)
+    {
+        var canonical = string.Join(
+            '\n',
+            contracts
+                .Select(contract => $"{contract.DefinitionId}:{contract.ContractHash}")
+                .OrderBy(entry => entry, StringComparer.Ordinal));
+        return Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string? ReadInformationalVersion(Assembly? assembly)
+    {
+        var value = assembly?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var separator = value.IndexOf('+', StringComparison.Ordinal);
+        return separator < 0 ? value : value[..separator];
+    }
 }
 
-internal sealed record RemoteToolPairingBundle
+internal sealed record RemoteToolHubPeer
 {
-    public string ProfileVersion { get; init; } = RemoteToolHostProtocol.ProfileVersion;
-    public required string HostId { get; init; }
-    public required string DisplayName { get; init; }
-    public required string Endpoint { get; init; }
-    public required string CertificateFingerprint { get; init; }
-    public required string Token { get; init; }
-}
-
-internal sealed record RemoteToolHostRegistration
-{
-    public string ProfileVersion { get; init; } = RemoteToolHostProtocol.ProfileVersion;
-    public required string HostId { get; init; }
-    public required string DisplayName { get; init; }
-    public required string Endpoint { get; init; }
-    public required string CertificateFingerprint { get; init; }
+    public required string PeerId { get; init; }
+    public required string HubHost { get; init; }
+    public required int HubPort { get; init; }
     public required string CredentialReference { get; init; }
+    public string HubLabel { get; init; } = string.Empty;
+    public string WorkspaceId { get; init; } = string.Empty;
+    public DateTimeOffset PairedAt { get; init; }
+
+    public Uri ControlUri => BuildUri(SatelliteWire.ControlPath, $"?peer={Uri.EscapeDataString(PeerId)}");
+
+    public Uri DataUri(string sessionId) => BuildUri(
+        SatelliteWire.DataPath,
+        $"?peer={Uri.EscapeDataString(PeerId)}&session={Uri.EscapeDataString(sessionId)}");
+
+    private Uri BuildUri(string path, string query) =>
+        new($"ws://{HubHost}:{HubPort}{path}{query}", UriKind.Absolute);
 }
 
 internal sealed record RemoteToolHostState
@@ -45,11 +76,8 @@ internal sealed record RemoteToolHostState
     public string ProfileVersion { get; init; } = RemoteToolHostProtocol.ProfileVersion;
     public required string HostId { get; init; }
     public required string DisplayName { get; init; }
-    public required string ListenEndpoint { get; init; }
-    public required string CertificatePath { get; init; }
-    public required string CertificateFingerprint { get; init; }
-    public required string TokenHash { get; init; }
     public long CatalogRevision { get; init; } = 1;
+    public IReadOnlyList<RemoteToolHubPeer> Peers { get; init; } = [];
     public Dictionary<string, string> Workspaces { get; init; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> ToolPolicies { get; init; } = new(StringComparer.Ordinal);
 }
@@ -64,8 +92,21 @@ internal sealed record WorkspaceListResponse(
     string Os,
     string Username,
     long CatalogRevision,
+    string BuildVersion,
+    string CatalogDigest,
+    IReadOnlyList<RemoteToolContractSummary> Contracts,
     IReadOnlyList<WorkspaceCatalogEntry> Workspaces);
-internal sealed record WorkspaceCatalogEntry(string WorkspaceId, string Path, bool Busy);
+internal sealed record RemoteToolContractSummary(
+    string DefinitionId,
+    string ToolName,
+    string ContractHash);
+internal sealed record WorkspaceCatalogEntry(
+    string WorkspaceId,
+    string Path,
+    bool Busy,
+    string? BusyOwner = null,
+    DateTimeOffset? LeaseExpiresAt = null);
+internal sealed record RemoteCatalogScope(string LeaseId, string WorkspaceId);
 internal sealed record WorkspaceAcquireRequest(
     string ProfileVersion,
     string ClientInstanceId,

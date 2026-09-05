@@ -803,6 +803,98 @@
         { "jsonrpc": "2.0", "id": "channel_heartbeat_fixture", "method": "ext/channel/heartbeat", "params": {} },
         { "jsonrpc": "2.0", "id": "channel_heartbeat_fixture", "result": {} }
       ]
+    },
+    {
+      "name": "remote-tool-host-list-empty",
+      "tags": ["clientRequest", "remoteToolHost"],
+      "messages": [
+        { "jsonrpc": "2.0", "id": 60, "method": "remoteToolHost/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 60, "result": { "hosts": [] } }
+      ]
+    },
+    {
+      "name": "remote-tool-host-connect-success",
+      "tags": ["clientRequest", "remoteToolHost"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 61,
+          "method": "remoteToolHost/connect",
+          "params": { "threadId": "thread_001", "hostId": "peer_001", "workspaceId": "workspace_001" }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 61,
+          "result": {
+            "route": {
+              "threadId": "thread_001",
+              "hostId": "peer_001",
+              "workspaceId": "workspace_001",
+              "status": "connected",
+              "environment": {
+                "hostName": "fixture-machine",
+                "operatingSystem": "Windows",
+                "userName": "fixture-user",
+                "workspacePath": "D:/example/game-client"
+              }
+            },
+            "matchedTools": ["Exec", "ReadFile"],
+            "unavailableTools": ["LSP"],
+            "alreadyConnected": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "remote-tool-host-connect-workspace-busy",
+      "tags": ["clientRequest", "error", "errorData"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 62,
+          "method": "remoteToolHost/connect",
+          "params": { "threadId": "thread_002", "hostId": "peer_001", "workspaceId": "workspace_001" }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 62,
+          "error": {
+            "code": -32101,
+            "message": "This folder is already in use.",
+            "data": {
+              "code": "remote_workspace_busy",
+              "messageKey": "error.remoteToolHost.remoteWorkspaceBusy",
+              "params": { "owner": "other" },
+              "fallbackText": "This folder is already in use."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "remote-tool-host-route-changed-notification",
+      "tags": ["serverNotification", "remoteToolHost"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "remoteToolHost/route/changed",
+          "params": {
+            "threadId": "thread_001",
+            "reason": "leaseLost",
+            "route": {
+              "threadId": "thread_001",
+              "hostId": "peer_001",
+              "workspaceId": "workspace_001",
+              "status": "leaseLost"
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "remoteToolHost/route/changed",
+          "params": { "threadId": "thread_001", "reason": "disconnected", "route": null }
+        }
+      ]
     }
   ]
 }

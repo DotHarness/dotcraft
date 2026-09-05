@@ -10,7 +10,6 @@ import {
   Monitor,
   Mic,
   Palette,
-  Server,
   Settings as SettingsIcon,
   SlidersHorizontal,
   UserRound
@@ -77,8 +76,7 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
     })
   }
   tabs.push(
-    { id: 'connection', label: t('settings.tab.connection'), icon: Cable, group: 'coding' },
-    { id: 'servers', label: t('settings.tab.servers'), icon: Server, group: 'coding' },
+    { id: 'connections', label: t('settings.tab.connections'), icon: Cable, group: 'coding' },
     { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'coding' }
   )
   if (options.sourceControlEnabled) {

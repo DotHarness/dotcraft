@@ -38,7 +38,9 @@ Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它�
 
 默认情况下 Desktop 在本机启动或接管当前工作区的 AppServer，其他入口共用同一个进程，不用你操心。在这里开的会话也不会被锁在 Desktop 里，换个[入口](./)可以接着聊。
 
-要连服务器上的 DotCraft，在**设置 → 连接**里填远程 AppServer 地址。保存前 Desktop 会先试连一次，连不上就不保存，下次启动也不会卡在一个坏地址上。整套服务端部署见[服务器部署](../self-hosted/server-deployment)。
+要连服务器上的 DotCraft，在**设置 → 连接 → 工作区**里填远程 AppServer 地址。保存前 Desktop 会先试连一次，连不上就不保存，下次启动也不会卡在一个坏地址上。整套服务端部署见[服务器部署](../self-hosted/server-deployment)。
+
+除了服务器，同事也可以把自己的电脑借给你。在**设置 → 连接 → 卫星**里完成配对，再到输入框的**执行位置**里选中它，当前对话的文件、Shell 和 LSP 工具就会在那台机器上执行，详见 [Remote Tool Host](../agent-system/remote-tool-host)。
 
 ## 跟上新版本
 

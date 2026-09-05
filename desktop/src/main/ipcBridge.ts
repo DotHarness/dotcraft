@@ -25,6 +25,13 @@ import {
   registerRemoteServersHandlers,
   REMOTE_SERVERS_CHANNELS
 } from './remoteServers/remoteServersIpc'
+import {
+  registerSatellitesHandlers,
+  SATELLITES_CHANNELS
+} from './satellites/satellitesIpc'
+import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
+import type { DesktopHubClient } from './desktopHub'
+import { toAppServerErrorEnvelope } from '../shared/appServerError'
 import { checkWorkspaceLock } from './workspaceLock'
 import { applyNativeChromeTheme, resolveThemeSurface } from './windowTheme'
 import {
@@ -906,6 +913,8 @@ export interface IpcHandlerCallbacks {
   onDisconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
   onDisconnectRemoteProject?: () => Promise<void>
   getSettings: () => AppSettings
+  /** Absent leaves the satellite channels unregistered. */
+  getHubClient?: () => DesktopHubClient
   /** Null unless the AppServer is a Hub-managed local one. */
   getAppServerWsConfig?: () => { wsUrl: string; token?: string } | null
   updateSettings: (partial: Partial<AppSettings>) => void | Promise<void>
@@ -1145,9 +1154,19 @@ export function registerIpcHandlers(
     }
   })
 
-  handleSafe(
-    'appserver:send-request',
-    async (_event, method: string, params?: unknown, timeoutMs?: number) => {
+  // Failures answer with an envelope rather than throwing: Electron would otherwise
+  // flatten the JSON-RPC code and `data` to a message.
+  const sendAppServerRequest = async (
+    method: string,
+    params: unknown,
+    timeoutMs: number | undefined,
+    onCompleted?: (
+      client: DesktopAppServerClient,
+      requestParams: unknown,
+      result: unknown
+    ) => void
+  ): Promise<unknown> => {
+    try {
       const client = getWireClient()
       if (!client) {
         throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
@@ -1160,28 +1179,28 @@ export function registerIpcHandlers(
       const result = await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
         supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
       })
-      callbacks?.onAppServerRequestCompleted?.(client, method, requestParams, result)
+      onCompleted?.(client, requestParams, result)
       return result
+    } catch (error) {
+      return toAppServerErrorEnvelope(error)
     }
+  }
+
+  handleSafe(
+    'appserver:send-request',
+    (_event, method: string, params?: unknown, timeoutMs?: number) => (
+      sendAppServerRequest(method, params, timeoutMs, (client, requestParams, result) => {
+        callbacks?.onAppServerRequestCompleted?.(client, method, requestParams, result)
+      })
+    )
   )
 
   // Explicit escape hatch for third-party and dynamically discovered extension methods.
   handleSafe(
     'appserver:send-request-raw',
-    async (_event, method: AppServerRequestMethod, params?: unknown, timeoutMs?: number) => {
-      const client = getWireClient()
-      if (!client) {
-        throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
-      }
-      const requestParams = withDesktopRequestIdentity(
-        method,
-        params ?? {},
-        callbacks?.getWorkspaceStatus().workspacePath
-      )
-      return await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
-        supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
-      })
-    }
+    (_event, method: AppServerRequestMethod, params?: unknown, timeoutMs?: number) => (
+      sendAppServerRequest(method, params, timeoutMs)
+    )
   )
 
   handleSafe('appserver:model-list', async (_event, providerId?: string | null) => {
@@ -2145,6 +2164,18 @@ export function registerIpcHandlers(
     manager: getRemoteServersManager()
   })
 
+  const hubCallbacks = callbacks
+  if (hubCallbacks?.getHubClient) {
+    const getHubClient = hubCallbacks.getHubClient
+    registerSatellitesHandlers({
+      handleSafe,
+      getHubClient,
+      bridge: getSatellitesHubBridge({ getHubClient }),
+      getSettings: () => hubCallbacks.getSettings(),
+      updateSettings: (partial) => hubCallbacks.updateSettings(partial)
+    })
+  }
+
   handleSafe('modules:list', async () => {
     if (cachedModules !== null) {
       return cachedModules
@@ -2513,6 +2544,9 @@ export function broadcastServerRequest(
 /** Must run before re-registering handlers on a workspace switch. */
 export function unregisterIpcHandlers(): void {
   for (const channel of REMOTE_SERVERS_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
+  for (const channel of SATELLITES_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
   ipcMain.removeHandler('appserver:send-request')

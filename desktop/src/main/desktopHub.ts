@@ -2,16 +2,19 @@ import {
   HubClient,
   HubClientError,
   type HubAppServerResponse,
+  type HubCreateSatelliteInviteOptions,
   type HubEnsureAppServerOptions,
   type HubEvent,
   type HubManagedServiceResponse,
   type HubRuntimeToolsRequest,
+  type HubSatellite,
+  type HubSatelliteInvite,
   type HubStatusResponse
 } from '@dotcraft/sdk/hub'
 import { resolveBinaryLocation } from './AppServerManager'
 import type { AppSettings, BinarySource } from './settings'
 
-export type { HubAppServerResponse, HubEvent, HubManagedServiceResponse, HubRuntimeToolsRequest, HubStatusResponse } from '@dotcraft/sdk/hub'
+export type { HubAppServerResponse, HubCreateSatelliteInviteOptions, HubEvent, HubManagedServiceResponse, HubRuntimeToolsRequest, HubSatellite, HubSatelliteInvite, HubStatusResponse } from '@dotcraft/sdk/hub'
 
 export interface DesktopHubPolicyOptions {
   preferDevBuild?: boolean
@@ -63,6 +66,18 @@ export class DesktopHubClient {
 
   getStatus(): Promise<HubStatusResponse> {
     return this.run(() => this.inner.getStatus())
+  }
+
+  listSatellites(): Promise<HubSatellite[]> {
+    return this.run(() => this.inner.listSatellites())
+  }
+
+  createSatelliteInvite(options: HubCreateSatelliteInviteOptions = {}): Promise<HubSatelliteInvite> {
+    return this.run(() => this.inner.createSatelliteInvite(options))
+  }
+
+  revokeSatellite(peerId: string): Promise<void> {
+    return this.run(() => this.inner.revokeSatellite(peerId))
   }
 
   subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal): Promise<void> {
