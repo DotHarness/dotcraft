@@ -35,7 +35,8 @@ internal static partial class RemoteToolHostCliRunner
             $"Single use, valid until {response.ExpiresAt.ToLocalTime():yyyy-MM-dd HH:mm}.")
             .ConfigureAwait(false);
         await output.WriteLineAsync(
-            "The other machine runs: dotcraft tool-host join " + response.Url).ConfigureAwait(false);
+            "The other machine runs: dotcraft tool-host join " + response.Url + " --workspace <folder>")
+            .ConfigureAwait(false);
         return 0;
     }
 
@@ -55,16 +56,10 @@ internal static partial class RemoteToolHostCliRunner
 
         var invite = RemoteToolHostRuntime.ParseInvite(inviteUrl);
         if (string.IsNullOrWhiteSpace(workspacePath))
-            invite = await RemoteToolHostRuntime.ResolveInviteAsync(invite, cancellationToken).ConfigureAwait(false);
-        var folder = string.IsNullOrWhiteSpace(workspacePath)
-            ? invite.SuggestedWorkspacePath
-            : workspacePath.Trim();
-        if (string.IsNullOrWhiteSpace(folder))
-            throw new ArgumentException(
-                "The invitation proposes no folder. Pass --workspace <absolute-path> to choose one.");
-
+            throw new ArgumentException("No tray client answered. Pass --workspace <absolute-path> to choose the folder to share.");
         await using var runtime = RemoteToolHostRuntime.Create();
-        var peer = await runtime.AcceptInviteAsync(new RemoteToolJoinDecision(invite, folder), cancellationToken)
+        var peer = await runtime
+            .AcceptInviteAsync(new RemoteToolJoinDecision(invite, workspacePath.Trim()), cancellationToken)
             .ConfigureAwait(false);
         await output.WriteLineAsync($"Joined {peer.DisplayName} as {peer.PeerId}.").ConfigureAwait(false);
         await output.WriteLineAsync($"Sharing {peer.WorkspacePath} as workspace '{peer.WorkspaceId}'.")

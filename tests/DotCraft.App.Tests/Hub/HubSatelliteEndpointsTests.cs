@@ -50,7 +50,7 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
     public async Task InvitePage_ServesJsonDetailsAndHtmlWithoutConsumingTheInvitation()
     {
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-        var invite = await hub.CreateInviteAsync("Ann", "Fix the build", "C:\\repo");
+        var invite = await hub.CreateInviteAsync("Ann", "Fix the build");
 
         using var jsonRequest = new HttpRequestMessage(HttpMethod.Get, invite.Url);
         jsonRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -60,7 +60,6 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         Assert.Equal(invite.InviteId, details.RootElement.GetProperty("inviteId").GetString());
         Assert.Equal("Ann", details.RootElement.GetProperty("inviterDisplayName").GetString());
         Assert.Equal("Fix the build", details.RootElement.GetProperty("purpose").GetString());
-        Assert.Equal("C:\\repo", details.RootElement.GetProperty("suggestedFolder").GetString());
         Assert.Equal(
             new Uri(invite.Url).GetLeftPart(UriPartial.Authority),
             details.RootElement.GetProperty("hubEndpoint").GetString());
@@ -252,14 +251,11 @@ internal sealed class SatelliteHubFixture : IAsyncDisposable
         throw new TimeoutException("Hub did not publish its lock file.");
     }
 
-    public async Task<CreatedInvite> CreateInviteAsync(
-        string name,
-        string? purpose = null,
-        string? folder = null)
+    public async Task<CreatedInvite> CreateInviteAsync(string name, string? purpose = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{ApiBaseUrl}/v1/satellites/invites")
         {
-            Content = JsonContent.Create(new { name, host = "127.0.0.1", purpose, folder })
+            Content = JsonContent.Create(new { name, host = "127.0.0.1", purpose })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         using var response = await Http.SendAsync(request);

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using DotCraft.RemoteTools;
 using DotCraft.Tools;
 using Xunit;
@@ -48,8 +49,7 @@ public sealed class RemoteToolHostPairingTests
             var body = Encoding.UTF8.GetBytes(
                 """
                 {"inviteId":"inv_abcdefgh","inviterDisplayName":"Ann","purpose":"Fix the build",
-                "suggestedFolder":"C:\\repo","expiresAt":"2030-01-01T00:00:00+00:00",
-                "hubEndpoint":"http://127.0.0.1"}
+                "expiresAt":"2030-01-01T00:00:00+00:00","hubEndpoint":"http://127.0.0.1"}
                 """);
             context.Response.ContentType = "application/json";
             await context.Response.OutputStream.WriteAsync(body);
@@ -62,7 +62,6 @@ public sealed class RemoteToolHostPairingTests
 
         Assert.Equal("Ann", resolved.InviterDisplayName);
         Assert.Equal("Fix the build", resolved.Purpose);
-        Assert.Equal("C:\\repo", resolved.SuggestedWorkspacePath);
         Assert.Equal(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero), resolved.ExpiresAt);
         Assert.Equal(parsed.InviteId, resolved.InviteId);
         Assert.Equal(parsed.HubEndpoint, resolved.HubEndpoint);
@@ -76,6 +75,42 @@ public sealed class RemoteToolHostPairingTests
         var parsed = RemoteToolHostRuntime.ParseInvite($"http://127.0.0.1:{port}/i/inv_abcdefgh");
 
         Assert.Equal(parsed, await RemoteToolHostRuntime.ResolveInviteAsync(parsed));
+    }
+
+    [Fact]
+    public void Runtime_PeerConnections_FollowTheInvitationScheme()
+    {
+        var secure = RemoteToolHostRuntime.ParseInvite("https://hub.example.com:47600/i/inv_abcdefgh");
+        var plain = RemoteToolHostRuntime.ParseInvite("http://192.168.1.5:47600/i/inv_abcdefgh");
+
+        var securePeer = PairedWith(secure.HubEndpoint);
+        Assert.Equal(
+            new Uri("wss://hub.example.com:47600/satellite/control?peer=sat_1"),
+            securePeer.ControlUri);
+        Assert.Equal(
+            new Uri("wss://hub.example.com:47600/satellite/data?peer=sat_1&session=s1"),
+            securePeer.DataUri("s1"));
+
+        var plainPeer = PairedWith(plain.HubEndpoint);
+        Assert.Equal(new Uri("ws://192.168.1.5:47600/satellite/control?peer=sat_1"), plainPeer.ControlUri);
+        Assert.Equal(
+            new Uri("ws://192.168.1.5:47600/satellite/data?peer=sat_1&session=s1"),
+            plainPeer.DataUri("s1"));
+    }
+
+    [Fact]
+    public void Storage_PeerRecordWithoutScheme_ReadsBackAsPlainHttp()
+    {
+        var state = JsonSerializer.Deserialize<RemoteToolHostState>(
+            """
+            {"hostId":"rth_test","displayName":"test-host","peers":[
+              {"peerId":"sat_1","hubHost":"192.168.1.5","hubPort":47600,
+               "credentialReference":"remote-tool-host/peer/sat_1"}]}
+            """,
+            RemoteToolHostProtocol.JsonOptions);
+
+        var peer = Assert.Single(state!.Peers);
+        Assert.Equal(new Uri("ws://192.168.1.5:47600/satellite/control?peer=sat_1"), peer.ControlUri);
     }
 
     [Fact]
@@ -149,6 +184,16 @@ public sealed class RemoteToolHostPairingTests
         await serving;
     }
 
+    private static RemoteToolHubPeer PairedWith(Uri hub) => new()
+    {
+        PeerId = "sat_1",
+        HubHost = hub.Host,
+        HubPort = hub.Port,
+        HubScheme = hub.Scheme,
+        CredentialReference = RemoteToolHostStorage.PeerCredentialReference("sat_1"),
+        PairedAt = DateTimeOffset.UtcNow
+    };
+
     private static async Task ServeAsync(HttpListener listener, List<string> requests)
     {
         const string body = """
@@ -206,4 +251,16 @@ public sealed class RemoteToolHostPairingTests
             Environment.SetEnvironmentVariable(TokenVariable, _token);
         }
     }
+    [Fact]
+    public async Task Join_WithoutWorkspace_AndNoTrayClient_AsksForWorkspace()
+    {
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => RemoteToolHostCliRunner.JoinAsync(
+            "http://ann-pc:47600/i/inv_abcdefgh",
+            workspacePath: null,
+            TextWriter.Null,
+            CancellationToken.None));
+
+        Assert.Contains("--workspace", error.Message, StringComparison.Ordinal);
+    }
+
 }

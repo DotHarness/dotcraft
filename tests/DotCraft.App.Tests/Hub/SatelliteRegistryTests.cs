@@ -16,7 +16,7 @@ public sealed class SatelliteRegistryTests : IDisposable
     {
         var registry = NewRegistry();
 
-        var (inviteId, expiresAt) = registry.CreateInvite("Ann", purpose: null, folder: null, TimeSpan.FromHours(24));
+        var (inviteId, expiresAt) = registry.CreateInvite("Ann", purpose: null, TimeSpan.FromHours(24));
 
         Assert.True(expiresAt > DateTimeOffset.UtcNow.AddHours(23));
         Assert.NotNull(registry.FindInvite(inviteId));
@@ -31,7 +31,7 @@ public sealed class SatelliteRegistryTests : IDisposable
     {
         var registry = NewRegistry();
 
-        var (inviteId, _) = registry.CreateInvite("Ann", purpose: null, folder: null, TimeSpan.FromMilliseconds(-1));
+        var (inviteId, _) = registry.CreateInvite("Ann", purpose: null, TimeSpan.FromMilliseconds(-1));
 
         Assert.Null(registry.FindInvite(inviteId));
         Assert.False(registry.TryConsumeInvite(inviteId, out _));
@@ -44,7 +44,6 @@ public sealed class SatelliteRegistryTests : IDisposable
         var (inviteId, _) = registry.CreateInvite(
             "Ann",
             purpose: "Fix the build",
-            folder: "C:\\repo",
             TimeSpan.FromHours(24));
         Assert.True(registry.TryConsumeInvite(inviteId, out _));
 

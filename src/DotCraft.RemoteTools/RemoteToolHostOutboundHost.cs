@@ -75,7 +75,8 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
             if (state.Peers.Count == 0)
                 throw new RemoteToolHostException(
                     RemoteToolErrorCodes.HostNotRegistered,
-                    "This machine is not paired with a Hub. Run 'dotcraft tool-host join <invite-url>' first.");
+                    "This machine is not paired with a Hub. "
+                    + "Run 'dotcraft tool-host join <invite-url> --workspace <folder>' first.");
             RemoteToolArtifactStore.CleanupStaleArtifacts(_storage.ArtifactsRootPath);
             _pairings = state.Peers;
             _serveLock = serveLock;

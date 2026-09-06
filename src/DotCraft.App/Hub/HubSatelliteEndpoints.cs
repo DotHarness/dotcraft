@@ -82,7 +82,9 @@ internal sealed class HubSatelliteListener : IAsyncDisposable
             if (accept.Contains("text/html", StringComparison.OrdinalIgnoreCase))
                 return Results.Content(SatelliteInvitePage.RenderHtml(details, url), "text/html; charset=utf-8");
             return Results.Text(
-                SatelliteWire.DescribeInvitePage($"dotcraft tool-host join {url}", invite.ExpiresAt),
+                SatelliteWire.DescribeInvitePage(
+                    $"dotcraft tool-host join {url} --workspace <folder>",
+                    invite.ExpiresAt),
                 "text/plain");
         });
 

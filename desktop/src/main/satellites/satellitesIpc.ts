@@ -102,17 +102,15 @@ export function registerSatellitesHandlers(deps: SatellitesIpcDeps): void {
       ? Math.trunc(raw.ttlHours)
       : undefined
     const purpose = optionalText(raw.purpose)
-    const folder = optionalText(raw.folder)
     const minted = await deps.getHubClient().createSatelliteInvite({
       ...(optionalText(raw.name) ? { name: optionalText(raw.name) as string } : {}),
       ...(optionalText(raw.host) ? { host: optionalText(raw.host) as string } : {}),
       ...(purpose ? { purpose } : {}),
-      ...(folder ? { folder } : {}),
       ...(ttlHours != null ? { ttlHours } : {})
     })
 
     // Only the invitation's own fields cross to the renderer; the Hub token never does.
-    const invite = normalizeSatelliteInvite(minted, { purpose, proposedFolder: folder })
+    const invite = normalizeSatelliteInvite(minted, purpose)
     if (!invite) throw new Error('Hub returned an unusable invitation.')
     await rememberInvite(deps, invite)
     return invite

@@ -85,7 +85,7 @@ internal sealed class HubRemoteToolHostDirectory(IHubEndpointProvider endpoints)
         var hub = RequireHub();
         var uri = new UriBuilder(hub.BaseUrl)
         {
-            Scheme = "ws",
+            Scheme = SatelliteWire.WebSocketScheme(hub.BaseUrl.Scheme),
             Path = $"/v1/satellites/{Uri.EscapeDataString(hostId)}/bridge",
             Query = "session=" + Guid.NewGuid().ToString("N")
         }.Uri;

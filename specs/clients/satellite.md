@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Status | Draft |
-| Date | 2026-09-05 |
+| Date | 2026-09-06 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Desktop Client](desktop-client.md) |
 
@@ -65,8 +65,8 @@ Satellite and `dotcraft tool-host *` MUST resolve the same state root
 the machine MUST reflect state written by Satellite and vice versa. Satellite MUST NOT introduce a
 second state root or an environment override.
 
-When Satellite is running, `dotcraft tool-host join <url>` MUST forward the invitation to the
-running Satellite instead of pairing directly, so the consent window is always the path by which a
+When Satellite is running, `dotcraft tool-host join` MUST forward the invitation to the running
+Satellite instead of pairing directly, so the consent window is always the path by which a
 credential is stored. The hand-off is the user-level named pipe `DotCraft.Satellite.<user SID>`,
 carrying one JSON line `{"kind":"join","url":"<invite-url>"}`. When no listener answers within a
 short probe, the CLI pairs directly.
@@ -77,16 +77,18 @@ Satellite MUST show a consent window before storing any peer credential. The win
 
 - the inviter's display name and the Hub machine it comes from;
 - the purpose text carried by the invitation;
-- the proposed workspace folder, which the owner MAY change before accepting;
+- the folder to share, which the owner chooses on this machine; nothing is pre-filled, and Allow
+  stays unavailable until an existing folder that is neither a whole drive nor the user profile
+  has been chosen;
 - an explicit list of what acceptance grants: reading and changing files inside that folder,
   running commands on this machine, and that access exists only while this machine stays signed in.
 
 Parsing an invitation link MUST be a pure operation. Filling the window costs exactly one `GET` of
-the invitation URL, which reads the inviter, purpose, proposed folder, and expiry and writes
-nothing on either machine; a failed or unanswered fetch MUST still show the window with whatever
-the link itself carries. Nothing is stored and no pairing exists until the owner chooses Allow.
-Decline leaves no trace beyond an audit entry. Purpose and inviter name are attacker-influenced
-text: they MUST be rendered as plain text and MUST be length-capped.
+the invitation URL, which reads the inviter, purpose, and expiry and writes nothing on either
+machine; a failed or unanswered fetch MUST still show the window with whatever the link itself
+carries. Nothing is stored and no pairing exists until the owner chooses Allow. Decline leaves no
+trace beyond an audit entry. Purpose and inviter name are attacker-influenced text: they MUST be
+rendered as plain text and MUST be length-capped.
 
 The consent window uses a standard title bar and the DotCraft accent color regardless of the
 operating-system accent, so a security prompt looks the same on every machine.

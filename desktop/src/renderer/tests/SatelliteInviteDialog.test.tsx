@@ -91,17 +91,14 @@ async function openFromHeader(satellites: Satellite[] = [MACHINE]): Promise<HTML
 }
 
 describe('SatelliteInviteDialog', () => {
-  it('opens from the header action and mints a link from the optional fields', async () => {
+  it('opens from the header action and mints a link from the optional purpose', async () => {
     createInvite.mockResolvedValue(LIVE)
     await openFromHeader()
 
     fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'perf run' } })
-    fireEvent.change(screen.getByLabelText('Suggested folder'), { target: { value: 'D:\\Perf' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
 
-    await waitFor(() =>
-      expect(createInvite).toHaveBeenCalledWith({ purpose: 'perf run', folder: 'D:\\Perf' })
-    )
+    await waitFor(() => expect(createInvite).toHaveBeenCalledWith({ purpose: 'perf run' }))
     expect(await screen.findByLabelText('Invite link')).toHaveValue(LIVE.url)
   })
 

@@ -23,7 +23,7 @@ Both machines must stay signed in: Remote Tool Host runs as the signed-in user, 
 
 ## Invite the machine that owns the workspace
 
-In Desktop, open **Settings → Connections → Satellites** and choose **Invite**. A dialog asks what you need the machine for and which folder you would like to work in on it — both are optional, and both are shown to the person you invite. Create the link, copy it from the same dialog and send it to them, then choose **Done**. To invite a second machine, choose **Create another** without leaving the dialog. The link works once and expires after 24 hours.
+In Desktop, open **Settings → Connections → Satellites** and choose **Invite**. A dialog asks what you need the machine for. That is optional and is shown to the person you invite, who picks the folder to share on their own PC. Create the link, copy it from the same dialog and send it to them, then choose **Done**. To invite a second machine, choose **Create another** without leaving the dialog. The link works once and expires after 24 hours.
 
 Outside Desktop, run this on the Agent device:
 

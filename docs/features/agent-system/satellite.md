@@ -19,7 +19,7 @@ The invitation page keeps trying to hand the link to Satellite, so the approval 
 
 The approval window is the only place a connection is created. It shows who is asking, the PC the invitation came from, and why they want access.
 
-Check the folder before you allow anything. Satellite proposes the folder your colleague suggested; use **Change…** to pick a different one. Pick the project folder itself, not a whole drive and not your user folder.
+You choose the folder, and nothing is filled in for you. Use **Choose…** and pick the project folder itself, not a whole drive and not your user folder.
 
 Allowing access lets that person read and change files inside that folder, and run commands on your PC. Access lasts only while you stay signed in.
 

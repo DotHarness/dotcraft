@@ -180,7 +180,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             segments[1],
             invite.Host,
             string.Empty,
-            string.Empty,
             new Uri($"{invite.Scheme}://{invite.Authority}"),
             null);
     }
@@ -208,7 +207,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             {
                 InviterDisplayName = details.InviterDisplayName ?? parsed.InviterDisplayName,
                 Purpose = details.Purpose ?? parsed.Purpose,
-                SuggestedWorkspacePath = details.SuggestedFolder ?? parsed.SuggestedWorkspacePath,
                 ExpiresAt = details.ExpiresAt ?? parsed.ExpiresAt
             };
         }
@@ -237,7 +235,9 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         using var socket = new ClientWebSocket();
         socket.Options.SetRequestHeader("Authorization", "Bearer " + decision.Invite.InviteId);
         await socket.ConnectAsync(
-            new Uri($"ws://{hub.Authority}{SatelliteWire.ControlPath}", UriKind.Absolute),
+            new Uri(
+                $"{SatelliteWire.WebSocketScheme(hub.Scheme)}://{hub.Authority}{SatelliteWire.ControlPath}",
+                UriKind.Absolute),
             cancellationToken).ConfigureAwait(false);
         await SatelliteWire.SendAsync(
             socket,
@@ -274,6 +274,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
                 HubHost = hub.Host,
                 HubPort = hub.Port,
                 CredentialReference = RemoteToolHostStorage.PeerCredentialReference(welcome.PeerId),
+                HubScheme = hub.Scheme,
                 HubLabel = welcome.HubLabel ?? decision.Invite.InviterDisplayName,
                 WorkspaceId = workspaceId,
                 PairedAt = DateTimeOffset.UtcNow
@@ -463,7 +464,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     private sealed record InviteDetails(
         string? InviterDisplayName,
         string? Purpose,
-        string? SuggestedFolder,
         DateTimeOffset? ExpiresAt);
 
     [GeneratedRegex("[^A-Za-z0-9._-]+", RegexOptions.CultureInvariant)]

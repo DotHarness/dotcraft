@@ -49,7 +49,6 @@ export interface SatelliteInvite {
   url: string
   expiresAt: string
   purpose?: string
-  proposedFolder?: string
 }
 
 export interface SatelliteEvent {
@@ -183,25 +182,22 @@ export function satelliteState(satellite: Pick<Satellite, 'connected' | 'activeL
   return satellite.activeLease ? 'inUse' : 'ready'
 }
 
-export function normalizeSatelliteInvite(value: unknown, request?: {
-  purpose?: string
-  proposedFolder?: string
-}): SatelliteInvite | null {
+export function normalizeSatelliteInvite(
+  value: unknown,
+  statedPurpose?: string
+): SatelliteInvite | null {
   if (value == null || typeof value !== 'object') return null
   const raw = value as Partial<HubSatelliteInvite>
   const inviteId = text(raw.inviteId)
   const url = text(raw.url)
   const expiresAt = timestamp(raw.expiresAt)
   if (!inviteId || !url || !expiresAt) return null
-  const purpose = text(request?.purpose)
-  // The Hub echo wins over what was asked for; it is what the invited machine sees.
-  const proposedFolder = text(raw.folder) ?? text(request?.proposedFolder)
+  const purpose = text(statedPurpose)
   return {
     inviteId,
     url,
     expiresAt,
-    ...(purpose ? { purpose } : {}),
-    ...(proposedFolder ? { proposedFolder } : {})
+    ...(purpose ? { purpose } : {})
   }
 }
 

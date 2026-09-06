@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, Loader2, Monitor } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Monitor, SatelliteDish } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { bootstrapSatellites, useSatellitesStore } from '../../stores/satellitesStore'
@@ -220,7 +220,7 @@ export function RunOnPicker({
           {connecting ? (
             <Loader2 size={15} className="animate-spin-custom" aria-hidden />
           ) : chosen ? (
-            <span className={styles.dot} data-testid="run-on-routed-dot" aria-hidden />
+            <SatelliteDish size={15} strokeWidth={1.8} aria-hidden data-testid="run-on-routed-glyph" />
           ) : (
             <Monitor size={15} strokeWidth={1.8} aria-hidden />
           )}

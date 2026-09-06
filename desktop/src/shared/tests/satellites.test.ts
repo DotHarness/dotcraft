@@ -102,32 +102,18 @@ describe('invitations', () => {
         inviteId: 'inv_1',
         url: 'http://192.168.1.20:47600/i/inv_1',
         expiresAt: '2026-09-06T12:00:00.000Z',
-        token: 'secret'
+        token: 'secret',
+        folder: 'D:/example/work'
       },
-      { purpose: 'Render check', proposedFolder: 'D:/shots' }
+      'Render check'
     )
 
     expect(invite).toEqual({
       inviteId: 'inv_1',
       url: 'http://192.168.1.20:47600/i/inv_1',
       expiresAt: '2026-09-06T12:00:00.000Z',
-      purpose: 'Render check',
-      proposedFolder: 'D:/shots'
+      purpose: 'Render check'
     })
-  })
-
-  it('prefers the folder the Hub echoed over the one that was asked for', () => {
-    const wire = {
-      inviteId: 'inv_1',
-      url: 'http://192.168.1.20:47600/i/inv_1',
-      expiresAt: '2026-09-06T12:00:00.000Z',
-      folder: 'D:/shots/approved'
-    }
-
-    expect(normalizeSatelliteInvite(wire, { proposedFolder: 'D:/shots' })?.proposedFolder)
-      .toBe('D:/shots/approved')
-    expect(normalizeSatelliteInvite(wire)?.proposedFolder).toBe('D:/shots/approved')
-    expect(normalizeSatelliteInvite({ ...wire, folder: '  ' })?.proposedFolder).toBeUndefined()
   })
 
   it('rejects an invitation missing any required field', () => {

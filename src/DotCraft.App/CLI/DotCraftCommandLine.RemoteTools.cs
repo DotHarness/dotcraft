@@ -165,7 +165,7 @@ public static partial class DotCraftCommandLine
         var url = RequiredArgument("invite-url", "Invitation link received from the other machine.");
         var workspace = new Option<string?>("--workspace")
         {
-            Description = "Absolute folder to share when the invitation proposes none."
+            Description = "Absolute folder on this machine to share; required unless the DotCraft tray client is running and takes the invitation."
         };
         var command = new Command("join", "Accept an invitation and pair this machine.") { url, workspace };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(

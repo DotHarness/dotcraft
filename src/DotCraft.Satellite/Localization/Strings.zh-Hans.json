@@ -6,7 +6,7 @@
   "consent.hub": "邀请来自 {0}",
   "consent.purposeHeading": "用途",
   "consent.folderHeading": "共享的文件夹",
-  "consent.folderChange": "更改…",
+  "consent.folderChange": "选择…",
   "consent.grantsHeading": "允许后，{0} 可以",
   "consent.grantFiles": "读取和修改这个文件夹里的文件",
   "consent.grantCommands": "在这台电脑上运行命令",

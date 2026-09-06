@@ -322,7 +322,6 @@ test("Satellite methods list, invite, and revoke through the authorized Hub API"
           inviteId: "invite_001",
           url: "http://studio-pc:47600/satellite/join/invite_001",
           expiresAt: "2026-01-02T00:00:00+00:00",
-          folder: "D:/example/game-client",
         }), { status: 200 });
       }
       return new Response(JSON.stringify({ revoked: true }), { status: 200 });
@@ -340,10 +339,8 @@ test("Satellite methods list, invite, and revoke through the authorized Hub API"
       name: "Studio PC",
       ttlHours: 24,
       purpose: "art review",
-      folder: "D:/example/game-client",
     });
     assert.equal(invite.inviteId, "invite_001");
-    assert.equal(invite.folder, "D:/example/game-client");
 
     await client.createSatelliteInvite({ name: "Studio PC" });
     await client.revokeSatellite("peer/001");
@@ -353,7 +350,7 @@ test("Satellite methods list, invite, and revoke through the authorized Hub API"
     const inviteCalls = satelliteCalls.filter((call) => call.path === "/v1/satellites/invites");
     assert.deepEqual(
       JSON.parse(inviteCalls[0]?.body ?? "{}"),
-      { name: "Studio PC", ttlHours: 24, purpose: "art review", folder: "D:/example/game-client" },
+      { name: "Studio PC", ttlHours: 24, purpose: "art review" },
     );
     assert.deepEqual(JSON.parse(inviteCalls[1]?.body ?? "{}"), { name: "Studio PC" });
     const revoke = satelliteCalls.find((call) => call.method === "DELETE");

@@ -47,6 +47,12 @@ internal static class SatelliteWire
         return baseDelay * (1 + jitter);
     }
 
+    /// <summary>An <c>https</c> invitation must never be downgraded to plain <c>ws</c>.</summary>
+    public static string WebSocketScheme(string httpScheme) =>
+        string.Equals(httpScheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            ? "wss"
+            : "ws";
+
     public static async Task SendAsync(WebSocket socket, SatelliteFrame frame, CancellationToken cancellationToken)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(frame, RemoteToolHostProtocol.JsonOptions);

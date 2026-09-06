@@ -175,13 +175,12 @@ describe('satellites:list', () => {
 })
 
 describe('satellites:create-invite', () => {
-  it('forwards the folder and returns only invitation fields, never a Hub secret', async () => {
+  it('forwards the purpose and returns only invitation fields, never a Hub secret', async () => {
     const app = harness()
     app.hub.createSatelliteInvite.mockResolvedValue({
       inviteId: 'inv_1',
       url: 'http://192.168.1.20:47600/i/inv_1',
       expiresAt: '2999-01-01T00:00:00.000Z',
-      folder: 'D:/shots',
       token: HUB_TOKEN,
       credentialReference: 'DotCraft/RemoteToolHost/peer/sat_1'
     })
@@ -189,33 +188,28 @@ describe('satellites:create-invite', () => {
     const invite = await app.invoke<Record<string, unknown>>('satellites:create-invite', {
       name: '  Ann PC  ',
       purpose: 'Render check',
-      folder: '  D:/shots  ',
       ttlHours: 12.7
     })
 
-    expect(Object.keys(invite).sort()).toEqual([
-      'expiresAt', 'inviteId', 'proposedFolder', 'purpose', 'url'
-    ])
-    expect(invite.proposedFolder).toBe('D:/shots')
+    expect(Object.keys(invite).sort()).toEqual(['expiresAt', 'inviteId', 'purpose', 'url'])
     expect(JSON.stringify(invite)).not.toContain(HUB_TOKEN)
     expect(app.hub.createSatelliteInvite).toHaveBeenCalledWith({
       name: 'Ann PC',
       purpose: 'Render check',
-      folder: 'D:/shots',
       ttlHours: 12
     })
   })
 
-  it('omits the folder entirely when none was chosen', async () => {
+  it('omits the purpose entirely when none was written', async () => {
     const app = harness()
 
     const invite = await app.invoke<Record<string, unknown>>('satellites:create-invite', {
       name: 'Ann PC',
-      folder: '   '
+      purpose: '   '
     })
 
     expect(app.hub.createSatelliteInvite).toHaveBeenCalledWith({ name: 'Ann PC' })
-    expect(invite.proposedFolder).toBeUndefined()
+    expect(invite.purpose).toBeUndefined()
   })
 
   it('remembers only the invitation id and expiry, replacing any same-id entry', async () => {
@@ -292,7 +286,7 @@ describe('satellites:share-status', () => {
         { hubLabel: 'no peer id' },
         null
       ],
-      workspaces: { 'ws-1': 'D:/shots' }
+      workspaces: { 'ws-1': 'D:/example/work' }
     })
     const app = harness()
 
@@ -304,7 +298,7 @@ describe('satellites:share-status', () => {
         {
           peerId: 'sat_1',
           hubLabel: "Bo's DotCraft",
-          folderPath: 'D:/shots',
+          folderPath: 'D:/example/work',
           pairedAt: '2026-09-01T08:00:00.000Z'
         }
       ]

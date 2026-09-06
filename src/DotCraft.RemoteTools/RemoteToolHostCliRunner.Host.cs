@@ -21,7 +21,7 @@ internal static partial class RemoteToolHostCliRunner
         storage.SaveHostState(state);
         await output.WriteLineAsync($"Remote Tool Host created: {state.DisplayName}").ConfigureAwait(false);
         await output.WriteLineAsync(
-            "Ask for an invitation link, then run 'dotcraft tool-host join <invite-url>'.")
+            "Ask for an invitation link, then run 'dotcraft tool-host join <invite-url> --workspace <folder>'.")
             .ConfigureAwait(false);
         return 0;
     }

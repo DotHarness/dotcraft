@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.6.0 |
 | **Status** | Living |
-| **Date** | 2026-09-05 |
+| **Date** | 2026-09-06 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [Remote Tool Host](remote-tool-host.md), [Satellite](../clients/satellite.md) |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each execution session to a local AppServer as an opaque byte stream.
@@ -145,7 +145,7 @@ Required endpoints:
 | `GET /v1/events` | Stream Hub lifecycle events as SSE. |
 | `POST /v1/notifications/request` | Accept a local notification request and emit a Hub event. |
 | `GET /v1/satellites` | List paired Remote Tool Hosts with their online state and last reported workspaces. |
-| `POST /v1/satellites/invites` | Mint a one-time pairing invitation, optionally carrying a purpose and a folder proposed on the remote machine, and start the satellite listener when it is not running. |
+| `POST /v1/satellites/invites` | Mint a one-time pairing invitation, optionally carrying a purpose, and start the satellite listener when it is not running. |
 | `DELETE /v1/satellites/{peerId}` | Revoke a pairing and close its live connections. |
 | `GET /v1/satellites/{peerId}/bridge?session=...` | WebSocket. Open one relayed Remote Tool Host session for a local AppServer. |
 
@@ -182,7 +182,7 @@ The satellite listener is a second, opt-in HTTP application that Hub binds to a 
 
 | `Accept` | Representation |
 |----------|----------------|
-| `application/json` | `{ inviteId, inviterDisplayName, purpose, suggestedFolder, expiresAt, hubEndpoint }`, the details a client needs to ask the machine owner for consent. |
+| `application/json` | `{ inviteId, inviterDisplayName, purpose, expiresAt, hubEndpoint }`, the details a client needs to ask the machine owner for consent. |
 | `text/html` | A page naming the inviter and the purpose, offering the installer download and an **Open in Satellite** action for `dotcraft://satellite/join?invite=<url-encoded invite URL>`, which it retries while the page stays open. It carries no external asset reference. |
 | anything else | The plain-text join command, for a terminal. |
 
@@ -235,7 +235,7 @@ If Hub restarts and sees an old live workspace lock, it may display or return th
 - peer id, display name, and the hash of the peer credential.
 - machine name, operating system, user, and build version reported by the peer.
 - last reported workspaces and last-seen time.
-- pending invitations as the hash of the invite id, its label, its optional purpose, its optional proposed folder, and its expiry.
+- pending invitations as the hash of the invite id, its label, its optional purpose, and its expiry.
 
 Raw peer credentials and raw invite ids are never written to disk. Online state and open sessions are in-memory and Hub-lifetime scoped.
 

@@ -53,9 +53,6 @@ public sealed class CreateSatelliteInviteRequest
 
     public string? Purpose { get; set; }
 
-    /// <summary>Folder proposed on the invited machine; the owner may choose another one.</summary>
-    public string? Folder { get; set; }
-
     /// <summary>Validity in hours; defaults to the configured invitation lifetime.</summary>
     public int? TtlHours { get; set; }
 }

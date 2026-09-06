@@ -40,7 +40,7 @@ interface SatellitesState {
 interface SatellitesStore extends SatellitesState {
   load(): Promise<void>
   select(peerId: string | null): void
-  createInvite(input: { purpose?: string; folder?: string }): Promise<SatelliteInvite | null>
+  createInvite(input: { purpose?: string }): Promise<SatelliteInvite | null>
   clearInvite(): void
   revoke(peerId: string): Promise<boolean>
   loadActivity(peerId: string): Promise<void>

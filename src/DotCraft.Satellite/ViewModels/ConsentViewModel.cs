@@ -17,7 +17,7 @@ internal sealed partial class ConsentViewModel : ObservableObject
     private readonly SatelliteStrings _strings;
 
     [ObservableProperty]
-    public partial string FolderPath { get; set; }
+    public partial string FolderPath { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial string Warning { get; set; } = string.Empty;
@@ -35,7 +35,6 @@ internal sealed partial class ConsentViewModel : ObservableObject
         _picker = picker;
         _accept = accept;
         _strings = strings;
-        FolderPath = invite.SuggestedWorkspacePath ?? string.Empty;
         InviterName = Sanitize(invite.InviterDisplayName, MaxNameLength);
         Purpose = Sanitize(invite.Purpose, MaxPurposeLength);
         if (IsExpired)
@@ -115,16 +114,20 @@ internal sealed partial class ConsentViewModel : ObservableObject
     partial void OnFolderPathChanged(string value)
     {
         if (!IsExpired)
-        {
-            Warning = value.Length == 0 || !IsExistingDirectory(value)
-                ? _strings["consent.warningFolder"]
-                : IsTooBroad(value)
-                    ? _strings["consent.warningRoot"]
-                    : string.Empty;
-        }
+            Warning = FolderWarning(value);
         OnPropertyChanged(nameof(HasWarning));
         OnPropertyChanged(nameof(CanAllow));
         AllowCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Nothing is pre-filled, so an empty folder is where the owner starts, not a mistake.</summary>
+    private string FolderWarning(string value)
+    {
+        if (value.Length == 0)
+            return string.Empty;
+        if (!IsExistingDirectory(value))
+            return _strings["consent.warningFolder"];
+        return IsTooBroad(value) ? _strings["consent.warningRoot"] : string.Empty;
     }
 
     partial void OnWarningChanged(string value) => OnPropertyChanged(nameof(HasWarning));

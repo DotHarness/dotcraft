@@ -1587,8 +1587,6 @@ const api = {
       name?: string
       host?: string
       purpose?: string
-      /** Folder proposed on the invited machine; its owner may choose another one. */
-      folder?: string
       ttlHours?: number
     }): Promise<SatelliteInvite> {
       return ipcRenderer.invoke('satellites:create-invite', input ?? {})

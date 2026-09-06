@@ -20,7 +20,6 @@ internal static class SatelliteInvitePage
         inviteId,
         invite.Label,
         invite.Purpose ?? string.Empty,
-        invite.Folder ?? string.Empty,
         invite.ExpiresAt,
         hubEndpoint);
 
@@ -40,11 +39,6 @@ internal static class SatelliteInvitePage
             .Append("You approve the folder first, and you can stop sharing at any time.</p>");
         if (details.Purpose.Length > 0)
             builder.Append("<p class=\"purpose\">“").Append(Escape(details.Purpose)).Append("”</p>");
-        if (details.SuggestedFolder.Length > 0)
-        {
-            builder.Append("<p class=\"folder\">Suggested folder: <code>")
-                .Append(Escape(details.SuggestedFolder)).Append("</code></p>");
-        }
         builder.Append("<div class=\"actions\"><a class=\"primary\" href=\"").Append(InstallerPath)
             .Append("\">Download DotCraft Satellite</a>");
         builder.Append("<a class=\"secondary\" href=\"").Append(Escape(deepLink))
@@ -75,8 +69,6 @@ internal static class SatelliteInvitePage
         .lead{margin:0 0 20px;color:#55585e}
         .purpose{margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#ebecef;
         white-space:pre-wrap;overflow-wrap:anywhere}
-        .folder{margin:0 0 20px;color:#55585e}
-        code{font:13px ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
         .actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
         a{display:inline-block;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600}
         .primary{background:#1a1c1f;color:#fff}
@@ -84,7 +76,7 @@ internal static class SatelliteInvitePage
         .hint,.expiry{margin:0 0 8px;font-size:13px;color:#71747a}
         @media (prefers-color-scheme:dark){
         body{background:#111214;color:#f1f1f2}
-        .lead,.folder,.hint,.expiry{color:#a0a3a9}
+        .lead,.hint,.expiry{color:#a0a3a9}
         .purpose{background:#1d1f22}
         .primary{background:#f1f1f2;color:#1a1c1f}
         .secondary{color:#f1f1f2;box-shadow:inset 0 0 0 1px #3a3d42}}
@@ -95,6 +87,5 @@ internal sealed record SatelliteInviteDetails(
     string InviteId,
     string InviterDisplayName,
     string Purpose,
-    string SuggestedFolder,
     DateTimeOffset ExpiresAt,
     string HubEndpoint);

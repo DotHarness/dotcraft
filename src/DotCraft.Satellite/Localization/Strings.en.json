@@ -6,7 +6,7 @@
   "consent.hub": "Invitation from {0}",
   "consent.purposeHeading": "Why",
   "consent.folderHeading": "Folder to share",
-  "consent.folderChange": "Change…",
+  "consent.folderChange": "Choose…",
   "consent.grantsHeading": "This will allow {0} to",
   "consent.grantFiles": "Read and change files inside this folder",
   "consent.grantCommands": "Run commands on this PC",

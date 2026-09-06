@@ -198,7 +198,7 @@ describe('RunOnPicker', () => {
     )
     expect(sendRequest.mock.calls.some(([method]) => method === 'remoteToolHost/connect')).toBe(false)
     expect(trigger).toHaveTextContent('Studio PC')
-    expect(screen.getByTestId('run-on-routed-dot')).toBeInTheDocument()
+    expect(screen.getByTestId('run-on-routed-glyph')).toBeInTheDocument()
   })
 
   it('drops the pending route when the welcome chip goes back to This PC', async () => {
@@ -257,6 +257,6 @@ describe('RunOnPicker', () => {
 
     await waitFor(() => expect(trigger).toHaveTextContent('Studio PC'))
     expect(trigger).not.toHaveTextContent('shaders')
-    expect(screen.getByTestId('run-on-routed-dot')).toBeInTheDocument()
+    expect(screen.getByTestId('run-on-routed-glyph')).toBeInTheDocument()
   })
 })

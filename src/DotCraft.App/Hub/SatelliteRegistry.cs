@@ -33,7 +33,6 @@ internal sealed class SatelliteRegistry(string filePath)
     public (string InviteId, DateTimeOffset ExpiresAt) CreateInvite(
         string label,
         string? purpose,
-        string? folder,
         TimeSpan validity)
     {
         var inviteId = "inv_" + TokenUtilities.GenerateToken();
@@ -46,7 +45,6 @@ internal sealed class SatelliteRegistry(string filePath)
                 TokenUtilities.HashToken(inviteId),
                 label,
                 purpose,
-                folder,
                 expiresAt));
             Save(file);
         }
@@ -210,7 +208,6 @@ internal sealed record SatelliteInviteRecord(
     string InviteIdHash,
     string Label,
     string? Purpose,
-    string? Folder,
     DateTimeOffset ExpiresAt);
 
 internal sealed record SatelliteRegistryFile

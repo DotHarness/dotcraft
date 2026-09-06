@@ -57,6 +57,7 @@ internal sealed record RemoteToolHubPeer
     public required string HubHost { get; init; }
     public required int HubPort { get; init; }
     public required string CredentialReference { get; init; }
+    public string HubScheme { get; init; } = Uri.UriSchemeHttp;
     public string HubLabel { get; init; } = string.Empty;
     public string WorkspaceId { get; init; } = string.Empty;
     public DateTimeOffset PairedAt { get; init; }
@@ -68,7 +69,9 @@ internal sealed record RemoteToolHubPeer
         $"?peer={Uri.EscapeDataString(PeerId)}&session={Uri.EscapeDataString(sessionId)}");
 
     private Uri BuildUri(string path, string query) =>
-        new($"ws://{HubHost}:{HubPort}{path}{query}", UriKind.Absolute);
+        new(
+            $"{SatelliteWire.WebSocketScheme(HubScheme)}://{HubHost}:{HubPort}{path}{query}",
+            UriKind.Absolute);
 }
 
 internal sealed record RemoteToolHostState

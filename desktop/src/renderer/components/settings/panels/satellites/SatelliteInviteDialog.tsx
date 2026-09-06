@@ -23,11 +23,9 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
   const createInvite = useSatellitesStore((state) => state.createInvite)
   const clearInvite = useSatellitesStore((state) => state.clearInvite)
   const [purpose, setPurpose] = useState('')
-  const [folder, setFolder] = useState('')
   const [copied, setCopied] = useState(false)
   const titleId = useId()
   const purposeId = useId()
-  const folderId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const purposeRef = useRef<HTMLInputElement>(null)
 
@@ -77,16 +75,12 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
   }, [dismissable, onClose])
 
   const create = useCallback(() => {
-    void createInvite({
-      ...(purpose.trim() ? { purpose: purpose.trim() } : {}),
-      ...(folder.trim() ? { folder: folder.trim() } : {})
-    })
-  }, [createInvite, folder, purpose])
+    void createInvite(purpose.trim() ? { purpose: purpose.trim() } : {})
+  }, [createInvite, purpose])
 
   function another(): void {
     clearInvite()
     setPurpose('')
-    setFolder('')
   }
 
   const dialog = (
@@ -123,6 +117,7 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
               </label>
               <Input
                 id={purposeId}
+                placeholder={t('settings.satellites.invite.purposePlaceholder')}
                 ref={purposeRef}
                 disabled={creating}
                 maxLength={PURPOSE_MAX_LENGTH}
@@ -130,20 +125,6 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
                 onChange={(event) => setPurpose(event.target.value)}
               />
               <p className="dc-satellite-field__hint">{t('settings.satellites.invite.purposeHint')}</p>
-            </div>
-
-            <div className="dc-satellite-field">
-              <label className="dc-satellite-field__label" htmlFor={folderId}>
-                {t('settings.satellites.invite.folder')}
-              </label>
-              <Input
-                id={folderId}
-                mono
-                disabled={creating}
-                value={folder}
-                onChange={(event) => setFolder(event.target.value)}
-              />
-              <p className="dc-satellite-field__hint">{t('settings.satellites.invite.folderHint')}</p>
             </div>
 
             {inviteError != null && (

@@ -121,7 +121,6 @@ export interface HubSatelliteInvite {
   inviteId: string;
   url: string;
   expiresAt: string;
-  folder?: string;
 }
 
 export interface HubCreateSatelliteInviteOptions {
@@ -129,8 +128,6 @@ export interface HubCreateSatelliteInviteOptions {
   host?: string;
   ttlHours?: number;
   purpose?: string;
-  /** Folder proposed on the invited machine; its owner may choose another one. */
-  folder?: string;
 }
 
 export interface HubRuntimeToolsRequest {
@@ -379,7 +376,6 @@ export class HubClient {
         host: options.host,
         ttlHours: options.ttlHours,
         purpose: options.purpose,
-        folder: options.folder,
       }),
     });
   }

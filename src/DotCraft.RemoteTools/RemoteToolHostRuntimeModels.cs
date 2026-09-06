@@ -43,7 +43,6 @@ public sealed record RemoteToolInvite(
     string InviteId,
     string InviterDisplayName,
     string Purpose,
-    string SuggestedWorkspacePath,
     Uri HubEndpoint,
     DateTimeOffset? ExpiresAt);
 
