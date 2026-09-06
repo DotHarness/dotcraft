@@ -1,52 +1,52 @@
 {
     "schemaVersion":  1,
     "repository":  "DotHarness/dotcraft",
-    "version":  "0.6.2",
-    "tag":  "v0.6.2",
+    "version":  "0.6.3",
+    "tag":  "v0.6.3",
     "assets":  {
                    "desktop-win-x64":  {
-                                           "fileName":  "DotCraft-v0.6.2-win-x64-Setup.exe",
-                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-win-x64-Setup.exe"
+                                           "fileName":  "DotCraft-v0.6.3-win-x64-Setup.exe",
+                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-win-x64-Setup.exe"
                                        },
                    "desktop-win-arm64":  {
-                                             "fileName":  "DotCraft-v0.6.2-win-arm64-Setup.exe",
-                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-win-arm64-Setup.exe"
+                                             "fileName":  "DotCraft-v0.6.3-win-arm64-Setup.exe",
+                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-win-arm64-Setup.exe"
                                          },
                    "desktop-macos-x64":  {
-                                             "fileName":  "DotCraft-v0.6.2-macos-x64.dmg",
-                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-macos-x64.dmg"
+                                             "fileName":  "DotCraft-v0.6.3-macos-x64.dmg",
+                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-macos-x64.dmg"
                                          },
                    "desktop-macos-arm64":  {
-                                               "fileName":  "DotCraft-v0.6.2-macos-arm64.dmg",
-                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-macos-arm64.dmg"
+                                               "fileName":  "DotCraft-v0.6.3-macos-arm64.dmg",
+                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-macos-arm64.dmg"
                                            },
                    "cli-win-x64":  {
-                                       "fileName":  "DotCraft-v0.6.2-win-x64.zip",
-                                       "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-win-x64.zip"
+                                       "fileName":  "DotCraft-v0.6.3-win-x64.zip",
+                                       "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-win-x64.zip"
                                    },
                    "cli-win-arm64":  {
-                                         "fileName":  "DotCraft-v0.6.2-win-arm64.zip",
-                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-win-arm64.zip"
+                                         "fileName":  "DotCraft-v0.6.3-win-arm64.zip",
+                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-win-arm64.zip"
                                      },
                    "cli-macos-x64":  {
-                                         "fileName":  "DotCraft-v0.6.2-macos-x64.tar.gz",
-                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-macos-x64.tar.gz"
+                                         "fileName":  "DotCraft-v0.6.3-macos-x64.tar.gz",
+                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-macos-x64.tar.gz"
                                      },
                    "cli-macos-arm64":  {
-                                           "fileName":  "DotCraft-v0.6.2-macos-arm64.tar.gz",
-                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-macos-arm64.tar.gz"
+                                           "fileName":  "DotCraft-v0.6.3-macos-arm64.tar.gz",
+                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-macos-arm64.tar.gz"
                                        },
                    "cli-linux-x64":  {
-                                         "fileName":  "DotCraft-v0.6.2-linux-x64.tar.gz",
-                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-v0.6.2-linux-x64.tar.gz"
+                                         "fileName":  "DotCraft-v0.6.3-linux-x64.tar.gz",
+                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-v0.6.3-linux-x64.tar.gz"
                                      },
                    "satellite-win-x64":  {
-                                             "fileName":  "DotCraft-Satellite-v0.6.2-win-x64-Setup.exe",
-                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-Satellite-v0.6.2-win-x64-Setup.exe"
+                                             "fileName":  "DotCraft-Satellite-v0.6.3-win-x64-Setup.exe",
+                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-Satellite-v0.6.3-win-x64-Setup.exe"
                                          },
                    "satellite-win-arm64":  {
-                                               "fileName":  "DotCraft-Satellite-v0.6.2-win-arm64-Setup.exe",
-                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.2/DotCraft-Satellite-v0.6.2-win-arm64-Setup.exe"
+                                               "fileName":  "DotCraft-Satellite-v0.6.3-win-arm64-Setup.exe",
+                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.6.3/DotCraft-Satellite-v0.6.3-win-arm64-Setup.exe"
                                            }
                }
 }

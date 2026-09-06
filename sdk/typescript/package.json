@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/sdk",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "TypeScript SDK for DotCraft applications, AppServer wire clients, Hub bootstrap, and external channel modules",
   "repository": {
     "type": "git",

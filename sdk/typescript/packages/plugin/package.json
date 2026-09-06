@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/plugin",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "TypeScript and React authoring tools for DotCraft Plugin desktop modules",
   "repository": {
     "type": "git",
@@ -38,7 +38,7 @@
     "test": "npm run typecheck && npm run build && node --test scripts/runtime.test.mjs && node scripts/build-plugin.test.mjs"
   },
   "dependencies": {
-    "@dotcraft/sdk": "0.6.2",
+    "@dotcraft/sdk": "0.6.3",
     "esbuild": "^0.25.11"
   },
   "peerDependencies": {
