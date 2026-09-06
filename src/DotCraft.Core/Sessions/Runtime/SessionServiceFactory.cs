@@ -14,8 +14,8 @@ namespace DotCraft.Sessions;
 
 /// <summary>
 /// Factory helper that constructs a <see cref="SessionService"/> from an already-built
-/// <see cref="DotCraft.Agents.AgentFactory"/> and <see cref="ChatClientAgent"/> plus shared DI services.
-/// Avoids boilerplate across channel hosts that each build their own AgentFactory.
+/// <see cref="DotCraft.Agents.AgentFactory"/>, an optional default <see cref="ChatClientAgent"/>,
+/// and shared DI services. When omitted, the default agent is built on first use.
 /// </summary>
 public static class SessionServiceFactory
 {
@@ -26,7 +26,7 @@ public static class SessionServiceFactory
     /// </summary>
     public static SessionService Create(
         AgentFactory agentFactory,
-        ChatClientAgent agent,
+        ChatClientAgent? agent,
         IServiceProvider sp,
         TimeSpan? approvalTimeout = null)
     {

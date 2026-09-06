@@ -99,7 +99,7 @@ internal sealed class ThreadMaintenanceRegistration(
 /// </summary>
 public sealed partial class SessionService(
     AgentFactory agentFactory,
-    ChatClientAgent defaultAgent,
+    ChatClientAgent? defaultAgent,
     SessionPersistenceService persistence,
     SessionGate sessionGate,
     HookRunner? hookRunner = null,
@@ -155,6 +155,8 @@ public sealed partial class SessionService(
     private MaintenanceCoordinator? _maintenanceCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
+    private readonly bool _hasExplicitDefaultAgent = defaultAgent != null;
+    private ChatClientAgent? _defaultAgent = defaultAgent;
     private string DataPath => persistence.DataPath;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
 
@@ -325,7 +327,8 @@ public sealed partial class SessionService(
 
     private McpAppTransientContextStore? McpAppTransientContexts => mcpAppTransientContextStore;
 
-    private ChatClientAgent DefaultAgent => defaultAgent;
+    private ChatClientAgent DefaultAgent =>
+        _defaultAgent ??= agentFactory.CreateAgentForMode(AgentMode.Agent);
 
     private AgentFactory AgentFactory => agentFactory;
 
@@ -337,7 +340,7 @@ public sealed partial class SessionService(
     private ChatClientAgent GetThreadAgentOrDefault(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null
             ? runtime.Agent
-            : defaultAgent;
+            : DefaultAgent;
 
     private bool HasThreadAgent(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null;
@@ -1735,12 +1738,14 @@ public sealed partial class SessionService(
         ThreadRuntime runtime,
         CancellationToken ct)
     {
+        if (!_hasExplicitDefaultAgent || _forcePerThreadAgents)
+            await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct).ConfigureAwait(false);
         using (await AcquireThreadAgentLockAsync(runtime.Thread.Id, ct).ConfigureAwait(false))
         {
             if (!_runtimeRegistry.IsCurrent(runtime.Thread.Id, runtime))
                 throw new InvalidOperationException($"Thread '{runtime.Thread.Id}' runtime was replaced during Turn admission.");
             return new TurnExecutionResources(
-                runtime.Agent ?? defaultAgent,
+                runtime.Agent ?? DefaultAgent,
                 runtime.LatestToolSnapshot);
         }
     }
@@ -1906,7 +1911,6 @@ public sealed partial class SessionService(
 
             IDisposable? gateLock = null;
             IDisposable? approvalOverride = null;
-            var agent = defaultAgent;
             List<ChatMessage>? session = null;
             TokenTracker? tokenTracker = null;
             var itemProjector = new TurnItemProjector(
@@ -2683,7 +2687,7 @@ public sealed partial class SessionService(
                 // Resource capture was ordered at admission. It may wait for an in-flight
                 // publication, but later configuration changes cannot overtake it.
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
-                agent = executionResources.Agent;
+                var agent = executionResources.Agent;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
 
                 // Bind tracing and token tracking before model history reconstruction.
@@ -6342,11 +6346,12 @@ public sealed partial class SessionService(
 
     private static IChatClient ResolveThreadChatClient(AgentRuntimeContext baseContext, EffectiveModelRuntime runtime)
     {
-        if (string.Equals(runtime.ProviderId, baseContext.EffectiveProviderId, StringComparison.OrdinalIgnoreCase)
+        if (baseContext.ChatClient is { } chatClient
+            && string.Equals(runtime.ProviderId, baseContext.EffectiveProviderId, StringComparison.OrdinalIgnoreCase)
             && string.Equals(runtime.Protocol, baseContext.EffectiveProviderProtocol, StringComparison.OrdinalIgnoreCase)
             && string.Equals(runtime.Model, baseContext.EffectiveMainModel, StringComparison.Ordinal))
         {
-            return baseContext.ChatClient;
+            return chatClient;
         }
 
         return baseContext.ChatClientRegistry.GetChatClient(runtime);

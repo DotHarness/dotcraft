@@ -37,7 +37,7 @@ public sealed class DreamsSessionRunner(
     DreamStore dreamStore,
     ILogger<DreamsSessionRunner>? logger = null) : IDreamsRunner
 {
-    public string ModelId { get; } = chatClientRegistry.ResolveConsolidationModel(config);
+    public string ModelId => chatClientRegistry.ResolveConsolidationModel(config);
 
     public async Task<DreamsGenerationResult> GenerateAsync(
         DreamsRunInput input,
@@ -55,9 +55,9 @@ public sealed class DreamsSessionRunner(
         var turnIds = new List<string>();
         var usage = new TokenUsageInfo();
         DreamStoreDescriptor? outputStore = null;
-        var effectiveModelId = string.IsNullOrWhiteSpace(modelId) ? ModelId : modelId.Trim();
         try
         {
+            var effectiveModelId = string.IsNullOrWhiteSpace(modelId) ? ModelId : modelId.Trim();
             outputStore = string.IsNullOrWhiteSpace(outputStoreId)
                 ? dreamStore.CreateOutputStore(runId, DateTimeOffset.UtcNow)
                 : dreamStore.GetStoreDescriptor(outputStoreId);

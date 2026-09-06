@@ -7,6 +7,7 @@ using DotCraft.Skills;
 using DotCraft.Commands.Custom;
 using DotCraft.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 
@@ -65,7 +66,36 @@ public sealed class WorkspaceRuntimeTests
     }
 
     [Fact]
-    public async Task GenericHost_StartupFailure_DoesNotExposeReadyRuntime()
+    public async Task GenericHost_StartsWithoutConfiguredProvider()
+    {
+        var root = NewTemporaryPath();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddDotCraftRuntime(new DotCraftRuntimeOptions
+        {
+            Config = new AppConfig(),
+            WorkspacePath = root,
+            DataPath = Path.Combine(root, ".craft")
+        });
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+
+        using (var host = builder.Build())
+        {
+            await host.StartAsync();
+            var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
+            Assert.True(runtime.IsStarted);
+            Assert.Empty(runtime.ConfigSchema);
+            Assert.NotNull(new AgentProfileStore(runtime.Paths).List());
+            Assert.Empty(await runtime.Sessions.FindThreadsAsync(CreateIdentity(root)));
+
+            await host.StopAsync();
+            Assert.False(runtime.IsStarted);
+        }
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task GenericHost_DefersMissingProviderImplementationUntilAgentBuild()
     {
         var root = NewTemporaryPath();
         var builder = Host.CreateApplicationBuilder();
@@ -79,9 +109,94 @@ public sealed class WorkspaceRuntimeTests
 
         using (var host = builder.Build())
         {
+            await host.StartAsync();
             var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
-            await Assert.ThrowsAsync<ModelProviderNotRegisteredException>(() => host.StartAsync());
-            Assert.False(runtime.IsStarted);
+
+            await Assert.ThrowsAsync<ModelProviderNotRegisteredException>(
+                () => runtime.Sessions.CreateThreadAsync(CreateIdentity(root)));
+
+            await host.StopAsync();
+        }
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task GenericHost_DefersMissingModelUntilAgentBuild()
+    {
+        var root = NewTemporaryPath();
+        var config = CreateConfig();
+        config.ProviderPreferences.Clear();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddOpenAIModelProvider();
+        builder.Services.AddDotCraftRuntime(new DotCraftRuntimeOptions
+        {
+            Config = config,
+            WorkspacePath = root,
+            DataPath = Path.Combine(root, ".craft")
+        });
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+
+        using (var host = builder.Build())
+        {
+            await host.StartAsync();
+            var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
+
+            var error = await Assert.ThrowsAsync<ArgumentException>(
+                () => runtime.Sessions.CreateThreadAsync(CreateIdentity(root)));
+            Assert.Equal("Model must be configured. (Parameter 'config')", error.Message);
+
+            await host.StopAsync();
+        }
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task ProviderConfigurationAddedAfterStartup_IsUsedWithoutRestart()
+    {
+        var root = NewTemporaryPath();
+        var config = new AppConfig();
+        var provider = new RecordingModelProvider();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddSingleton<IModelProvider>(provider);
+        builder.Services.AddDotCraftRuntime(new DotCraftRuntimeOptions
+        {
+            Config = config,
+            WorkspacePath = root,
+            DataPath = Path.Combine(root, ".craft")
+        });
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+
+        using (var host = builder.Build())
+        {
+            await host.StartAsync();
+            var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
+            var monitor = host.Services.GetRequiredService<IAppConfigMonitor>();
+
+            ConfigureProvider(monitor.Current, "key-a");
+            monitor.NotifyChanged("test/provider-added", [
+                ConfigChangeRegions.ProviderRegistry,
+                ConfigChangeRegions.WorkspaceProviderPreferences
+            ]);
+
+            var thread = await runtime.Sessions.CreateThreadAsync(CreateIdentity(root));
+            var firstTurnEvents = await DrainAsync(
+                runtime.Sessions.SubmitInputAsync(thread.Id, [new TextContent("first")]));
+            Assert.Contains(firstTurnEvents, item => item.EventType == SessionEventType.TurnCompleted);
+            Assert.DoesNotContain(firstTurnEvents, item => item.EventType == SessionEventType.TurnFailed);
+            Assert.Contains("key-a", provider.CreatedApiKeys);
+
+            monitor.Current.Providers["test-provider"].ApiKey = "key-b";
+            monitor.NotifyChanged("test/provider-updated", [ConfigChangeRegions.ProviderRegistry]);
+
+            var secondTurnEvents = await DrainAsync(
+                runtime.Sessions.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+            Assert.Contains(secondTurnEvents, item => item.EventType == SessionEventType.TurnCompleted);
+            Assert.DoesNotContain(secondTurnEvents, item => item.EventType == SessionEventType.TurnFailed);
+            Assert.Contains("key-b", provider.CreatedApiKeys);
+
+            await host.StopAsync();
         }
 
         Directory.Delete(root, recursive: true);
@@ -139,6 +254,21 @@ public sealed class WorkspaceRuntimeTests
     private static string NewTemporaryPath() =>
         Path.Combine(Path.GetTempPath(), $"dotcraft-runtime-{Guid.NewGuid():N}");
 
+    private static SessionIdentity CreateIdentity(string workspacePath) => new()
+    {
+        ChannelName = "embedded",
+        UserId = "test-user",
+        WorkspacePath = workspacePath
+    };
+
+    private static async Task<IReadOnlyList<SessionEvent>> DrainAsync(IAsyncEnumerable<SessionEvent> events)
+    {
+        var collected = new List<SessionEvent>();
+        await foreach (var item in events)
+            collected.Add(item);
+        return collected;
+    }
+
     private static void AddRuntimeTestServices(
         IServiceCollection services,
         string workspacePath,
@@ -154,27 +284,72 @@ public sealed class WorkspaceRuntimeTests
         services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
     }
 
-    private static AppConfig CreateConfig() => new()
+    private static AppConfig CreateConfig()
     {
-        ProviderId = "test-provider",
-        ProviderPreferences = new Dictionary<string, ModelPreference>(StringComparer.OrdinalIgnoreCase)
+        var config = new AppConfig();
+        ConfigureProvider(config, "test-key");
+        return config;
+    }
+
+    private static void ConfigureProvider(AppConfig config, string apiKey)
+    {
+        config.ProviderId = "test-provider";
+        config.ProviderPreferences = new Dictionary<string, ModelPreference>(StringComparer.OrdinalIgnoreCase)
         {
             ["test-provider"] = new ModelPreference { Model = "test-model" }
-        },
-        Providers =
+        };
+        config.Providers = new Dictionary<string, AppConfig.ModelProviderConfig>(StringComparer.OrdinalIgnoreCase)
         {
             ["test-provider"] = new AppConfig.ModelProviderConfig
             {
                 DisplayName = "Test Provider",
                 Protocol = ModelProviderProtocols.OpenAI,
-                ApiKey = "test-key",
+                ApiKey = apiKey,
                 EndPoint = "https://127.0.0.1:9/v1"
             }
-        }
-    };
+        };
+    }
 
     private sealed class TestConfigSchemaProvider : IConfigSchemaProvider
     {
         public IReadOnlyList<ConfigSchemaSection> GetConfigSchema() => [];
+    }
+
+    private sealed class RecordingModelProvider : IModelProvider
+    {
+        public IReadOnlyCollection<string> Protocols { get; } = [ModelProviderProtocols.OpenAI];
+
+        public List<string> CreatedApiKeys { get; } = [];
+
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime)
+        {
+            CreatedApiKeys.Add(runtime.ApiKey);
+            return new RecordingChatClient(runtime.ApiKey);
+        }
+    }
+
+    private sealed class RecordingChatClient(string response) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, response)));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield return new ChatResponseUpdate(ChatRole.Assistant, response);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
     }
 }

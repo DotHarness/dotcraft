@@ -192,8 +192,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var cronTools = Services.GetService<CronTools>();
             var backgroundTerminalService = Services.GetRequiredService<IBackgroundTerminalService>();
             var chatClientRegistry = Services.GetRequiredService<ChatClientRegistry>();
-            var mainRuntime = chatClientRegistry.ResolveMainRuntime(Config);
-            var mainModel = mainRuntime.Model;
             var contextPageManager = new ContextPageManager();
             var threadSystemPromptContextProviders = Services.GetServices<IThreadSystemPromptContextProvider>().ToArray();
             var runtimeContextContributors = Services.GetServices<IRuntimeContextContributor>().ToArray();
@@ -278,11 +276,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     runtimeContext: new AgentRuntimeContext
                     {
                         Config = Config,
-                        ChatClient = chatClientRegistry.GetChatClient(mainRuntime),
                         ChatClientRegistry = chatClientRegistry,
-                        EffectiveProviderId = mainRuntime.ProviderId,
-                        EffectiveProviderProtocol = mainRuntime.Protocol,
-                        EffectiveMainModel = mainModel,
                         WorkspacePath = Paths.WorkspacePath,
                         BotPath = Paths.Data.RootPath,
                         UserDataPath = Paths.UserData.RootPath,
@@ -315,8 +309,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
                 _contributionScope.RegisterAgentContributions(agentFactory);
 
-                var agent = agentFactory.CreateAgentForMode(AgentMode.Agent);
-                var sessionService = SessionServiceFactory.Create(agentFactory, agent, Services);
+                var sessionService = SessionServiceFactory.Create(agentFactory, null, Services);
                 _contributionScope.AttachPropagation(sessionService, contextPageManager);
                 sessionService.ThreadCreatedForBroadcast = thread => ThreadStarted?.Invoke(thread);
                 sessionService.ThreadDeletedForBroadcast = threadId => ThreadDeleted?.Invoke(threadId);
@@ -617,6 +610,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     private void OnAppConfigChanged(object? sender, AppConfigChangedEventArgs e)
     {
         _ = sender;
+        if (_started?.SessionService is IThreadAgentRefreshService refreshService
+            && (e.Regions.Contains(ConfigChangeRegions.ProviderRegistry)
+                || e.Regions.Contains(ConfigChangeRegions.WorkspaceProvider)
+                || e.Regions.Contains(ConfigChangeRegions.WorkspaceProviderPreferences)))
+        {
+            refreshService.InvalidateThreadAgents();
+        }
         WorkspaceConfigChanged?.Invoke(e);
     }
 
