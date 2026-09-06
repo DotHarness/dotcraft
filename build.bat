@@ -253,6 +253,37 @@ for %%f in (desktop\dist\*Setup*.exe) do (
 
 echo.
 echo =====================================
+echo  Building Satellite (tray client)...
+echo =====================================
+echo.
+
+call dotnet tool restore
+if %ERRORLEVEL% neq 0 (
+    echo Restoring the Velopack CLI failed with exit code %ERRORLEVEL%.
+    goto :failure
+)
+set SATELLITE_PUBLISH=src\DotCraft.Satellite\bin\publish\win-x64
+set SATELLITE_RELEASE=src\DotCraft.Satellite\bin\velopack
+if exist "%SATELLITE_RELEASE%" rmdir /s /q "%SATELLITE_RELEASE%"
+call dotnet publish "src\DotCraft.Satellite\DotCraft.Satellite.csproj" -c Release -r win-x64 -o "%SATELLITE_PUBLISH%"
+if %ERRORLEVEL% neq 0 (
+    echo Satellite publish failed with exit code %ERRORLEVEL%.
+    goto :failure
+)
+call dotnet vpk pack --packId DotCraft.Satellite --packVersion %VERSION% --packDir "%SATELLITE_PUBLISH%" --mainExe dotcraft-satellite.exe --packTitle "DotCraft Satellite" --icon "src\DotCraft.Satellite\Assets\satellite.ico" --noPortable --delta none --outputDir "%SATELLITE_RELEASE%"
+if %ERRORLEVEL% neq 0 (
+    echo Satellite packaging failed with exit code %ERRORLEVEL%.
+    goto :failure
+)
+REM Hub serves this copy at /satellite/installer, so it must sit beside dotcraft.exe.
+copy /Y "%SATELLITE_RELEASE%\DotCraft.Satellite-win-Setup.exe" "build\dotcraft\DotCraft-Satellite-Setup.exe" >nul
+if %ERRORLEVEL% neq 0 (
+    echo Satellite installer was not produced.
+    goto :failure
+)
+
+echo.
+echo =====================================
 echo  Packaging...
 echo =====================================
 echo.

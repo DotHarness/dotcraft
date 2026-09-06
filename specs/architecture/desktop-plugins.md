@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.13 |
+| Version | 1.15 |
 | Status | Accepted |
-| Date | 2026-08-30 |
+| Date | 2026-09-06 |
 | Parent Specs | `specs/architecture/plugin-architecture.md`, `specs/architecture/tools-architecture.md`, `specs/clients/desktop-client.md` |
 
 ## Overview
@@ -230,7 +230,7 @@ The formal Core surfaces are:
 | `composer.toolbar.voice` | The voice input control. |
 | `composer.toolbar.submit` | The current submit, queue, stop, approval, or reply action. |
 | `composer.status` | The status row below the Composer card. Core supplies the workspace row when applicable. |
-| `composer.status.workspace` | The workspace, project, branch, worktree, or changelist controls. |
+| `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. The row is Core content; its individual chips are not surfaces. |
 | `composer.status.subscription` | The ChatGPT subscription indicator when applicable. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay mounts after the application, so its content paints over the shell without a plugin having to consume the single `app` wrapper. The seat sets `pointer-events: none`, and the property inherits, so a floating readout stays click-through by default and a plugin that wants clicks opts back in with `pointer-events: auto` on its own element. That default keeps a decorative overlay from swallowing the interface underneath it, which is the failure a plugin cannot recover from once shipped.

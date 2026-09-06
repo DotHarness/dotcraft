@@ -15,6 +15,10 @@ public sealed partial class RemoteToolsModule : ModuleBase
     public override void ConfigureServices(IServiceCollection services, ModuleContext context)
     {
         services.TryAddSingleton(_ => new RemoteToolHostStorage(context.Paths.UserData.RootPath));
+        services.TryAddSingleton<IHubEndpointProvider>(provider =>
+            new HubEndpointProvider(provider.GetRequiredService<RemoteToolHostStorage>().CraftHomePath));
+        services.TryAddSingleton<IRemoteToolHostDirectory>(provider =>
+            new HubRemoteToolHostDirectory(provider.GetRequiredService<IHubEndpointProvider>()));
         services.TryAddSingleton<IRemoteToolHostClientFactory, RemoteToolHostClientFactory>();
     }
 }

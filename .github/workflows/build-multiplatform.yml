@@ -38,6 +38,26 @@ jobs:
     - name: Run tests
       run: dotnet test dotcraft.sln --configuration Release --no-restore
 
+  # The Satellite solution is Windows-only, so it cannot ride along with the Linux test job.
+  satellite:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Build Satellite
+      run: dotnet build src/DotCraft.Satellite/DotCraft.Satellite.sln --configuration Release
+
+    - name: Run Satellite tests
+      run: dotnet test tests/DotCraft.Satellite.Tests/DotCraft.Satellite.Tests.csproj --configuration Release --no-build
+
   build:
     needs: test
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
@@ -271,6 +291,48 @@ jobs:
         name: ${{ matrix.output_name }}-dmg
         path: desktop/dist/*.dmg
 
+    # ── Satellite (WinUI tray client) ─────────────────────────────────────────
+
+    - name: Build Satellite
+      if: runner.os == 'Windows'
+      run: dotnet publish src/DotCraft.Satellite/DotCraft.Satellite.csproj -c Release -r ${{ matrix.runtime_id }} -o ./publish/satellite-${{ matrix.runtime_id }}
+
+    - name: Package Satellite installer
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+        WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      run: |
+        dotnet tool restore
+        $version = (Select-Xml -Path src/DotCraft.App/DotCraft.App.csproj -XPath '//Version').Node.InnerText
+        $arguments = @(
+          'vpk', 'pack',
+          '--packId', 'DotCraft.Satellite',
+          '--packVersion', $version,
+          '--packDir', "./publish/satellite-${{ matrix.runtime_id }}",
+          '--mainExe', 'dotcraft-satellite.exe',
+          '--packTitle', 'DotCraft Satellite',
+          '--icon', 'src/DotCraft.Satellite/Assets/satellite.ico',
+          '--noPortable', '--delta', 'none',
+          '--outputDir', "./satellite-installer/${{ matrix.runtime_id }}"
+        )
+        if ($env:WINDOWS_CERT_BASE64) {
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP/signing.pfx", [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $arguments += @('--signParams', "/fd sha256 /f `"$env:RUNNER_TEMP/signing.pfx`" /p `"$env:WINDOWS_CERT_PASSWORD`" /tr http://timestamp.digicert.com /td sha256")
+        }
+        else {
+          Write-Host 'No signing certificate is configured; the installer ships unsigned.'
+        }
+        dotnet @arguments
+
+    - name: Upload Satellite installer
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v6
+      with:
+        name: DotCraft-Satellite-${{ matrix.runtime_id }}
+        path: satellite-installer/${{ matrix.runtime_id }}/*Setup.exe
+
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
@@ -322,6 +384,16 @@ jobs:
           target=$(basename "$(dirname "$file")")
           target=${target#DotCraft-Installer-}
           new_name="DotCraft-${VERSION}-${target}-Setup.exe"
+          cp "$file" "release/$new_name"
+          echo "Renamed: $(basename "$file") -> $new_name"
+        done
+
+        # Rename Satellite installers
+        for file in artifacts/DotCraft-Satellite-win-*/*Setup.exe; do
+          [ -f "$file" ] || continue
+          target=$(basename "$(dirname "$file")")
+          target=${target#DotCraft-Satellite-}
+          new_name="DotCraft-Satellite-${VERSION}-${target}-Setup.exe"
           cp "$file" "release/$new_name"
           echo "Renamed: $(basename "$file") -> $new_name"
         done

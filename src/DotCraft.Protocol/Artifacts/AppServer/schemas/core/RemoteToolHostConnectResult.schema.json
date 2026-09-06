@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/RemoteToolHostConnectResult.schema.json",
+  "title": "RemoteToolHostConnectResult",
+  "type": "object",
+  "properties": {
+    "alreadyConnected": {
+      "type": "boolean"
+    },
+    "matchedTools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "route": {
+      "$ref": "./RemoteToolRouteInfo.schema.json"
+    },
+    "unavailableTools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "matchedTools",
+    "route",
+    "unavailableTools"
+  ]
+}

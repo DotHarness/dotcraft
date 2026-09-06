@@ -8,7 +8,7 @@
   gap: 10px;
   padding: 7px 9px 7px 11px;
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 13px;
@@ -21,6 +21,12 @@
     border-color 120ms ease,
     box-shadow 120ms ease,
     opacity 120ms ease;
+}
+
+/* The default padding is taller than the compact settings band, so it yields here and
+   `min-height` sets the height. */
+.dc-settings-surface .dc-settings-select {
+  padding-block: 4px;
 }
 
 .dc-adaptive-select {

@@ -16,6 +16,7 @@ import { useViewerTabStore } from './stores/viewerTabStore'
 import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
+import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
@@ -31,6 +32,8 @@ import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
+import { showThreadRouteFailureToast, useThreadRouteStore } from './stores/threadRouteStore'
+import { bootstrapSatellites } from './stores/satellitesStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
 import {
@@ -420,6 +423,8 @@ function resetWorkspaceScopedRendererState(): void {
     useUIStore.getState().setActiveMainView('conversation')
   }
   useUIStore.getState().setPendingWelcomeTurn(null)
+  // A machine chosen on one workspace's welcome composer means nothing in the next.
+  useThreadRouteStore.getState().setPendingRoute(null)
 }
 
 function runtimeSnapshotFromThread(thread: Thread): ThreadRuntimeSnapshot {
@@ -617,6 +622,8 @@ function WindowFrame({
 
 export function App(): JSX.Element {
   useUserInputAutoResolutionBridge()
+  useSatelliteNotices()
+  useEffect(() => bootstrapSatellites(), [])
   const locale = useLocale()
   const localeRef = useRef(locale)
   localeRef.current = locale
@@ -1605,6 +1612,8 @@ export function App(): JSX.Element {
       performance.mark('app:connected')
       performance.measure('app:startup', 'app:bootstrap-start', 'app:connected')
       void reloadThreadList()
+      // Routes are runtime-only, so a new connection starts with none.
+      useThreadRouteStore.getState().resetForConnection()
 
       const caps = useConnectionStore.getState().capabilities
       if (caps?.automations) {
@@ -2276,6 +2285,11 @@ export function App(): JSX.Element {
           case 'app/connection/changed':
           case 'thread/appBindings/changed': {
             useAppBindingStore.getState().handleNotification(method, p)
+            break
+          }
+
+          case 'remoteToolHost/route/changed': {
+            useThreadRouteStore.getState().handleRouteChanged(p)
             break
           }
 
@@ -3110,6 +3124,13 @@ export function App(): JSX.Element {
             if (pendingInputParts.length === 0) {
               useConversationStore.getState().removeOptimisticTurn(optimisticTurnId)
             } else {
+              // Must land before `turn/start`: the thread now exists but has no turn yet.
+              const routeFailure = await useThreadRouteStore.getState().applyPendingRoute(threadId)
+              if (routeFailure) {
+                showThreadRouteFailureToast(routeFailure.hostName, routeFailure.error, (key, vars) =>
+                  translate(localeRef.current, key, vars)
+                )
+              }
               void window.api.appServer
                 .sendRequest('turn/start', {
                   threadId,
@@ -3476,7 +3497,7 @@ export function App(): JSX.Element {
             useConnectionStore.getState().setStatus({ status: 'disconnected' })
             const ui = useUIStore.getState()
             ui.setActiveMainView('settings')
-            ui.setActiveSettingsTab('connection')
+            ui.setActiveSettingsTab('connections')
           }}
         />
       </>

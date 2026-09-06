@@ -448,6 +448,13 @@ public sealed class ServerCapabilitySnapshot
     public bool UsageTelemetry { get; set; }
 
     /// <summary>
+    /// Server supports client-driven Remote Tool Host routing (<c>remoteToolHost/*</c>) and the
+    /// <c>remoteToolHost/route/changed</c> notification.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RemoteToolHost { get; set; }
+
+    /// <summary>
     /// Server supports the OpenAI ChatGPT subscription auth methods (<c>auth/openai/login</c>, etc.).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

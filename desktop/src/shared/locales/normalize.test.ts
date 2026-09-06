@@ -74,4 +74,17 @@ describe('desktop locales', () => {
     expect(missing).toEqual([])
   })
 
+  // A key only a translated catalog carries is unreachable: `translate` resolves
+  // against English first, so it never renders and never fails loudly either.
+  it('carries no key English does not define', () => {
+    const english = new Set(Object.keys(MESSAGES_EN))
+    const extra = Object.entries(NON_ENGLISH_CATALOGS).flatMap(([locale, catalog]) =>
+      Object.keys(catalog)
+        .filter((key) => !english.has(key))
+        .map((key) => `${locale}:${key}`)
+    )
+
+    expect(extra).toEqual([])
+  })
+
 })

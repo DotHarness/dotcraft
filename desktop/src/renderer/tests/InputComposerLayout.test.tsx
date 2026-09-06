@@ -9,6 +9,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
+import { useSatellitesStore } from '../stores/satellitesStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
@@ -49,6 +50,23 @@ function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>
       />
     </LocaleProvider>
   )
+}
+
+/** One enrolled machine plus the capability bit, so the Run on chip has something to offer. */
+function withSatellites(): void {
+  useConnectionStore.setState({ capabilities: { remoteToolHost: true } })
+  useSatellitesStore.setState({
+    satellites: [{
+      peerId: 'sat_studio',
+      hostId: 'sat_studio',
+      displayName: 'Studio PC',
+      connected: true,
+      workspaces: []
+    }],
+    supported: true,
+    loaded: true,
+    bootstrapped: true
+  })
 }
 
 function setCaretToEnd(element: HTMLElement): void {
@@ -107,6 +125,7 @@ describe('InputComposer layout', () => {
     useProvidersStore.getState().reset()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
+    useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
     useGitStore.getState().reset()
     useGitStore.setState({
       branchesByPath: {
@@ -1156,6 +1175,54 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i }))
       .toBeInTheDocument()
     act(disposeWorkspace)
+  })
+
+  it('opens the Run on chip in the workspace status row, ahead of the branch and the plan badge', async () => {
+    withSatellites()
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'remoteToolHost/list') {
+        return {
+          hosts: [{
+            hostId: 'sat_studio',
+            displayName: 'Studio PC',
+            online: true,
+            workspaces: [{ workspaceId: 'ws_shaders', displayName: 'shaders', available: true }]
+          }],
+          route: null
+        }
+      }
+      return {}
+    })
+
+    renderComposer()
+
+    const trigger = await screen.findByTestId('run-on-trigger')
+    const branch = await screen.findByRole('button', { name: 'main' })
+    expect(trigger.closest('[data-dotcraft-plugin-surface="composer.status.workspace"]')).not.toBeNull()
+    expect(Boolean(trigger.compareDocumentPosition(branch) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    fireEvent.click(trigger)
+    expect(await screen.findByTestId('run-on-option-sat_studio:ws_shaders')).toBeInTheDocument()
+  })
+
+  it('disables the Run on chip while a turn runs', async () => {
+    withSatellites()
+    useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-1' })
+
+    renderComposer()
+
+    const trigger = await screen.findByTestId('run-on-trigger')
+    expect(trigger).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'main' })).not.toBeDisabled()
+  })
+
+  it('leaves the Run on chip out of a minimal-chrome composer', async () => {
+    withSatellites()
+
+    renderComposer({ minimalChrome: true })
+
+    await waitFor(() => expect(screen.getByRole('textbox')).toBeInTheDocument())
+    expect(screen.queryByTestId('run-on-trigger')).toBeNull()
   })
 
   it('matches the running stop button to the enabled send button style and shows Esc as a shortcut keycap', async () => {

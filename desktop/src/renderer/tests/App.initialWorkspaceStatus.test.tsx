@@ -792,7 +792,7 @@ describe('App initial workspace status bootstrap', () => {
     expect(await screen.findByTestId('settings-view')).toBeInTheDocument()
     expect(useConnectionStore.getState().status).toBe('disconnected')
     expect(useUIStore.getState().activeMainView).toBe('settings')
-    expect(useUIStore.getState().activeSettingsTab).toBe('connection')
+    expect(useUIStore.getState().activeSettingsTab).toBe('connections')
   })
 
   it('uses remote stack metadata for the sidebar and AppServer thread identity', async () => {

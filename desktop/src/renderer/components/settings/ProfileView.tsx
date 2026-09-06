@@ -136,7 +136,7 @@ function ActivityBody({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ ...dimmedTextStyle, color: 'var(--error)' }}>{t('settings.usage.loadError')}</div>
-        <Button variant="secondary" size="sm" onClick={onRetry}>
+        <Button variant="secondary" onClick={onRetry}>
           {t('settings.usage.retry')}
         </Button>
       </div>
@@ -268,10 +268,10 @@ function ProfileHeader({
               frameless
               style={{ height: '42px', padding: '0 12px', background: 'var(--bg-tertiary)' }}
             />
-            <Button variant="primary" size="sm" onClick={commit}>
+            <Button variant="primary" onClick={commit}>
               {t('settings.profile.save')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               {t('common.cancel')}
             </Button>
           </div>

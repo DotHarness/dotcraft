@@ -19,7 +19,7 @@ export function SettingsPanelShell({
   children
 }: SettingsPanelShellProps): JSX.Element {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <SettingsPageHeader title={title} description={description} action={action} breadcrumb={breadcrumb}>
         {headerChildren}
       </SettingsPageHeader>

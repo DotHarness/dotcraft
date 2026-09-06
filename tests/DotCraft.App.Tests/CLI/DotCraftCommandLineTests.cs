@@ -55,7 +55,11 @@ public sealed class DotCraftCommandLineTests
         var exitCode = await DotCraftCommandLine.RunAsync(["tool-host"], output, error);
 
         Assert.Equal(1, exitCode);
-        Assert.Contains("workspace", output.ToString());
+        var help = output.ToString();
+        Assert.Contains("workspace", help);
+        Assert.Contains("invite", help);
+        Assert.Contains("join", help);
+        Assert.Contains("revoke", help);
     }
 
     [Fact]
@@ -68,14 +72,16 @@ public sealed class DotCraftCommandLineTests
             ["tool-host", "setup", "--help"], output, error);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("https-endpoint", output.ToString());
+        Assert.Contains("--name", output.ToString());
         Assert.Equal(string.Empty, error.ToString());
     }
 
     [Theory]
     [InlineData("setup", "--unknown")]
     [InlineData("app-server", "--listen", "http://localhost:9100")]
-    [InlineData("tool-host", "register")]
+    [InlineData("tool-host", "join")]
+    [InlineData("tool-host", "revoke")]
+    [InlineData("tool-host", "invite", "--expires", "notanumber")]
     [InlineData("tool-host", "policy", "set", "Exec", "sometimes")]
     [InlineData("config", "schema", "--section")]
     public async Task InvalidInput_IsRejected(string first, params string[] remaining)

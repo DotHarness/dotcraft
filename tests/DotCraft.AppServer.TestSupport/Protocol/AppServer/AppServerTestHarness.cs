@@ -90,7 +90,9 @@ public sealed class AppServerTestHarness : IDisposable
         Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
             broadcastPluginSnapshotUpdated = null,
         LspServerManager? lspServerManager = null,
-        PluginConfigStore? pluginConfigStore = null)
+        PluginConfigStore? pluginConfigStore = null,
+        DotCraft.Tools.IRemoteToolHostClient? remoteToolHostClient = null,
+        Action<Contract.RemoteToolHostRouteChangedNotification>? broadcastRemoteToolHostRouteChanged = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -158,6 +160,8 @@ public sealed class AppServerTestHarness : IDisposable
                 PluginConfigStore = pluginConfigStore,
                 PluginManagementState = pluginManagementState ?? new AppServerPluginManagementState(),
                 BroadcastPluginSnapshotUpdated = broadcastPluginSnapshotUpdated,
+                RemoteToolHostClient = remoteToolHostClient,
+                BroadcastRemoteToolHostRouteChanged = broadcastRemoteToolHostRouteChanged,
                 Contributions = contributions,
             });
 

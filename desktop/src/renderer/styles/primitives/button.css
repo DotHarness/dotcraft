@@ -7,9 +7,9 @@
   justify-content: center;
   gap: 6px;
   height: var(--button-height);
-  padding: 0 12px;
+  padding: 0 var(--button-padding-x);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   background: transparent;
   color: var(--text-primary);
   font-family: inherit;

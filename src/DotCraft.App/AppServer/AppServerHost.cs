@@ -314,6 +314,8 @@ public sealed class AppServerHost(
                 PluginConfigStore = runtime.Services.GetService<DotCraft.Plugins.PluginConfigStore>(),
                 PluginManagementState = _services.GetRequiredService<AppServerPluginManagementState>(),
                 BroadcastPluginSnapshotUpdated = BroadcastPluginSnapshotUpdated,
+                RemoteToolHostClient = runtime.RemoteToolHostClient,
+                BroadcastRemoteToolHostRouteChanged = BroadcastRemoteToolHostRouteChanged,
                 ServerVersion = AppVersion.Informational,
                 CronService = runtime.CronService,
                 SkillsLoader = runtime.SkillsLoader,
@@ -919,6 +921,30 @@ public sealed class AppServerHost(
             {
                 queue.Value.Enqueue(Contract.AppServerRpc.PluginSnapshotUpdated.Name, parameters);
             }
+        }
+    }
+
+    private void BroadcastRemoteToolHostRouteChanged(Contract.RemoteToolHostRouteChangedNotification parameters)
+    {
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.RemoteToolHostRouteChanged.Name))
+                continue;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await transport.NotifyContractAsync(
+                        Contract.AppServerRpc.RemoteToolHostRouteChanged,
+                        parameters,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    _activeTransports.TryRemove(transport, out _);
+                }
+            });
         }
     }
 

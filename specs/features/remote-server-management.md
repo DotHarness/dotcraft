@@ -218,7 +218,7 @@ The visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md
 
 ### 9.1 Placement and Navigation
 
-- The surface is a dedicated **Servers** tab in Settings (single-column, consistent with the settings grammar). It is separate from the existing Connections group.
+- The surface is the **SSH** segment of the Connections settings page (single-column, consistent with the settings grammar), beside the Workspace, Satellites, and Share this PC segments defined in [desktop-client.md §6.7](../clients/desktop-client.md#67-settings-surface). Segments share the page and its grammar, not state.
 - Navigation is **list → detail drill-in**: a list of saved servers; selecting one opens that server's detail view; a back affordance returns to the list. No new top-level navigation is introduced.
 
 ### 9.2 Server List

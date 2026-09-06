@@ -38,7 +38,9 @@ The model you pick here only sets the default for new threads. An existing threa
 
 By default Desktop starts or takes over the AppServer for the current workspace on this machine, and other entries share that same process without any work from you. Threads you start here aren't locked to Desktop either — pick one up from another [entry point](./).
 
-To reach a DotCraft running on a server, enter the remote AppServer address under **Settings → Connections**. Desktop probes the connection before saving it, so a bad address is never stored and never traps you on the next start. For the full server-side setup, see [Server Deployment](../self-hosted/server-deployment).
+To reach a DotCraft running on a server, enter the remote AppServer address under **Settings → Connections → Workspace**. Desktop probes the connection before saving it, so a bad address is never stored and never traps you on the next start. For the full server-side setup, see [Server Deployment](../self-hosted/server-deployment).
+
+A colleague can lend you their PC instead of a server. Pair it under **Settings → Connections → Satellites**, then pick it in the composer’s **Run on** control and this conversation’s file, Shell, and LSP tools run over there — see [Remote Tool Host](../agent-system/remote-tool-host).
 
 ## Stay on the latest version
 

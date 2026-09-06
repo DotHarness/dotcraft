@@ -24,6 +24,7 @@ export interface ServerNotificationMethods {
   "mcpServer/startupStatus/updated": { params: Models.McpServerStartupStatusUpdatedNotification; result: Models.RpcEmpty };
   "plan/updated": { params: Models.PlanUpdatedNotification; result: Models.RpcEmpty };
   "plugin/snapshot/updated": { params: Models.PluginSnapshotUpdatedNotification; result: Models.RpcEmpty };
+  "remoteToolHost/route/changed": { params: Models.RemoteToolHostRouteChangedNotification; result: Models.RpcEmpty };
   "subagent/graphChanged": { params: Models.SubAgentGraphChangedNotification; result: Models.RpcEmpty };
   "subagent/progress": { params: Models.SubAgentProgressNotification; result: Models.RpcEmpty };
   "system/event": { params: Models.SystemEventNotification; result: Models.RpcEmpty };

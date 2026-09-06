@@ -9,6 +9,8 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
+import { useSatellitesStore } from '../stores/satellitesStore'
+import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useSkillsStore } from '../stores/skillsStore'
@@ -158,6 +160,25 @@ function renderWelcome({
   )
 }
 
+/** One enrolled machine plus the capability bit, so the Run on chip has something to offer. */
+function withSatellites(): void {
+  useConnectionStore.setState({
+    capabilities: { ...useConnectionStore.getState().capabilities, remoteToolHost: true }
+  })
+  useSatellitesStore.setState({
+    satellites: [{
+      peerId: 'sat_studio',
+      hostId: 'sat_studio',
+      displayName: 'Studio PC',
+      connected: true,
+      workspaces: []
+    }],
+    supported: true,
+    loaded: true,
+    bootstrapped: true
+  })
+}
+
 function makeGoal(threadId = 'thread-welcome', objective = 'Build feature'): ThreadGoal {
   return {
     threadId,
@@ -250,6 +271,16 @@ describe('ConversationWelcome composer', () => {
       }
     })
     useThreadStore.getState().reset()
+    useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
+    useThreadRouteStore.setState({
+      supported: false,
+      hosts: [],
+      routes: {},
+      pendingRoute: null,
+      connecting: null,
+      attempted: new Set<string>(),
+      generation: 0
+    })
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })
     useModelCatalogStore.getState().reset()
@@ -415,6 +446,41 @@ describe('ConversationWelcome composer', () => {
 
   afterEach(() => {
     act(() => clearDesktopPluginRegistry())
+  })
+
+  it('offers Run on ahead of Work locally and holds the machine as a pending route', async () => {
+    withSatellites()
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'remoteToolHost/list') {
+        return {
+          hosts: [{
+            hostId: 'sat_studio',
+            displayName: 'Studio PC',
+            online: true,
+            workspaces: [{ workspaceId: 'ws_shaders', displayName: 'shaders', available: true }]
+          }],
+          route: null
+        }
+      }
+      return {}
+    })
+
+    renderWelcome()
+
+    const trigger = await screen.findByTestId('run-on-trigger')
+    const workLocation = await screen.findByRole('button', { name: /Work locally/ })
+    expect(Boolean(trigger.compareDocumentPosition(workLocation) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    fireEvent.click(trigger)
+    fireEvent.click(await screen.findByTestId('run-on-option-sat_studio:ws_shaders'))
+
+    await waitFor(() => {
+      expect(useThreadRouteStore.getState().pendingRoute).toEqual({
+        hostId: 'sat_studio',
+        workspaceId: 'ws_shaders'
+      })
+    })
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'remoteToolHost/connect')).toBe(false)
   })
 
   it('mounts the public Composer surfaces before a thread exists', async () => {

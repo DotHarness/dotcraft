@@ -1,0 +1,52 @@
+<Application
+    x:Class="DotCraft.Satellite.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <controls:XamlControlsResources />
+            </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <Color x:Key="SystemAccentColor">#4566CC</Color>
+                    <Color x:Key="SystemAccentColorLight1">#5B7AD6</Color>
+                    <Color x:Key="SystemAccentColorLight2">#718DE0</Color>
+                    <Color x:Key="SystemAccentColorLight3">#8BA2E8</Color>
+                    <Color x:Key="SystemAccentColorDark1">#3E5BB8</Color>
+                    <Color x:Key="SystemAccentColorDark2">#354F9F</Color>
+                    <Color x:Key="SystemAccentColorDark3">#2C4387</Color>
+                    <SolidColorBrush x:Key="SatelliteSurfaceBrush" Color="#0C0C0C" />
+                    <SolidColorBrush x:Key="SatelliteQuoteBrush" Color="#1D1F22" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="SystemAccentColor">#4566CC</Color>
+                    <Color x:Key="SystemAccentColorLight1">#5B7AD6</Color>
+                    <Color x:Key="SystemAccentColorLight2">#718DE0</Color>
+                    <Color x:Key="SystemAccentColorLight3">#8BA2E8</Color>
+                    <Color x:Key="SystemAccentColorDark1">#3E5BB8</Color>
+                    <Color x:Key="SystemAccentColorDark2">#354F9F</Color>
+                    <Color x:Key="SystemAccentColorDark3">#2C4387</Color>
+                    <SolidColorBrush x:Key="SatelliteSurfaceBrush" Color="#F9F9F9" />
+                    <SolidColorBrush x:Key="SatelliteQuoteBrush" Color="#EBECEF" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <Style x:Key="ConsentTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+                <Setter Property="FontSize" Value="20" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <Style x:Key="ConsentBodyStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <Style x:Key="ConsentSecondaryStyle" TargetType="TextBlock" BasedOn="{StaticResource ConsentBodyStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="ConsentHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource ConsentBodyStyle}">
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

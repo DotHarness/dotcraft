@@ -1,12 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Configuration;
-using DotCraft.Lsp;
-using DotCraft.Security;
 using DotCraft.Tools;
-using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Workspaces;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -18,24 +12,31 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
 {
     private readonly RemoteToolHostStorage _storage;
     private readonly WorkspaceLeaseManager _leases;
-    private readonly AppConfig _config;
+    private readonly LeaseTerminalRegistry _leaseTerminals;
+    private readonly RemoteToolHostActivityMonitor? _activity;
     private readonly string _hostInstanceId = "host_" + Guid.NewGuid().ToString("N");
     private readonly object _gate = new();
     private readonly Dictionary<string, HostWorkspaceRuntime> _runtimes = new(StringComparer.Ordinal);
+    private Task<IReadOnlyList<RemoteToolContractSummary>>? _contracts;
 
     public RemoteToolHostMcpHandlers(
         RemoteToolHostStorage storage,
         WorkspaceLeaseManager leases,
-        AppConfig? config = null)
+        LeaseTerminalRegistry leaseTerminals,
+        RemoteToolHostActivityMonitor? activity = null)
     {
         _storage = storage;
         _leases = leases;
-        _config = config ?? new AppConfig();
+        _leaseTerminals = leaseTerminals;
+        _activity = activity;
     }
 
-    public IReadOnlyList<McpServerRequestHandler> CreateExtensionHandlers() =>
+    /// <summary>The Hub-assigned peer id is the host identity every Agent-side surface sees.</summary>
+    public IReadOnlyList<McpServerRequestHandler> CreateExtensionHandlers(string peerId) =>
     [
-        Raw(RemoteToolHostProtocol.WorkspacesList, HandleWorkspaceListAsync),
+        Raw(
+            RemoteToolHostProtocol.WorkspacesList,
+            (request, ct) => HandleWorkspaceListAsync(request, peerId, ct)),
         Raw(RemoteToolHostProtocol.WorkspacesAcquire, HandleWorkspaceAcquireAsync),
         Raw(RemoteToolHostProtocol.WorkspacesRelease, HandleWorkspaceReleaseAsync),
         Raw(RemoteToolHostProtocol.WorkspacesHeartbeat, HandleWorkspaceHeartbeatAsync)
@@ -45,12 +46,16 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
         RequestContext<ListToolsRequestParams> request,
         CancellationToken cancellationToken)
     {
-        var state = RequireState();
-        if (state.Workspaces.Count == 0)
-            return new ListToolsResult();
+        var scope = request.Params?.Meta?["dotcraft"]?
+            .Deserialize<RemoteCatalogScope>(RemoteToolHostProtocol.JsonOptions);
+        if (scope is null || string.IsNullOrWhiteSpace(scope.LeaseId) || string.IsNullOrWhiteSpace(scope.WorkspaceId))
+            throw new RemoteToolHostException(
+                RemoteToolErrorCodes.ProtocolMismatch,
+                "tools/list requires an active workspace lease.");
 
-        var workspace = state.Workspaces.OrderBy(pair => pair.Key, StringComparer.Ordinal).First();
-        var runtime = await GetRuntimeAsync(workspace.Key, workspace.Value, state, cancellationToken)
+        var workspacePath = _leases.Validate(scope.LeaseId, scope.WorkspaceId);
+        var state = RequireState();
+        var runtime = await GetRuntimeAsync(scope.WorkspaceId, workspacePath, state, cancellationToken)
             .ConfigureAwait(false);
         return new ListToolsResult
         {
@@ -60,6 +65,7 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
 
     public async ValueTask<CallToolResult> CallToolAsync(
         RequestContext<CallToolRequestParams> request,
+        string peerId,
         CancellationToken cancellationToken)
     {
         var started = DateTimeOffset.UtcNow;
@@ -102,6 +108,9 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
                     invocation.InvocationId);
             }
 
+            var toolName = registration.Definition.Name.Name;
+            using var activity = _activity?.Begin(peerId, toolName, ReadCommandPreview(request.Params.Arguments));
+            RequireBoundTerminal(toolName, request.Params.Arguments, invocation);
             await EnforcePolicyAsync(request, state, invocation, cancellationToken).ConfigureAwait(false);
 
             var arguments = new JsonObject();
@@ -119,13 +128,23 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
                 started,
                 new ToolInvocationOrigin("remoteToolHost", invocation.InvocationId),
                 workspacePath);
-            using var scope = HostInvocationApprovalService.BeginApprovedInvocation();
+            var terminalsBeforeExec = string.Equals(toolName, "Exec", StringComparison.Ordinal)
+                ? await SnapshotTerminalIdsAsync(runtime, cancellationToken).ConfigureAwait(false)
+                : null;
+            using var approvalScope = HostInvocationApprovalService.BeginApprovedInvocation();
             var result = await registration.Binding.Runtime.InvokeAsync(context, arguments, cancellationToken)
                 .ConfigureAwait(false);
+            if (terminalsBeforeExec is not null)
+            {
+                var current = await SnapshotTerminalIdsAsync(runtime, cancellationToken).ConfigureAwait(false);
+                _leaseTerminals.Bind(
+                    invocation.LeaseId,
+                    current.Where(sessionId => !terminalsBeforeExec.Contains(sessionId)));
+            }
             var materialized = RemoteToolArtifactStore.Materialize(
-                workspacePath,
+                _storage.ArtifactsRootPath,
                 invocation,
-                registration.Definition.Name.Name,
+                toolName,
                 result);
             result = materialized.Result;
             Audit(
@@ -192,25 +211,27 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
 
     private async ValueTask<JsonNode?> HandleWorkspaceListAsync(
         JsonRpcRequest request,
+        string peerId,
         CancellationToken cancellationToken)
     {
         var parameters = Deserialize<WorkspaceListRequest>(request);
         ValidateProfile(parameters.ProfileVersion);
         var state = RequireState();
+        var contracts = await GetContractsAsync().ConfigureAwait(false);
         var response = new WorkspaceListResponse(
             state.ProfileVersion,
-            state.HostId,
+            peerId,
             state.DisplayName,
             _hostInstanceId,
             Environment.MachineName,
             System.Runtime.InteropServices.RuntimeInformation.OSDescription,
             Environment.UserName,
             state.CatalogRevision,
+            RemoteToolHostProtocol.BuildVersion,
+            RemoteToolHostProtocol.ComputeCatalogDigest(contracts),
+            contracts,
             state.Workspaces.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                .Select(pair => new WorkspaceCatalogEntry(
-                    pair.Key,
-                    Path.GetFullPath(pair.Value),
-                    _leases.IsBusy(pair.Key)))
+                .Select(pair => ToCatalogEntry(pair.Key, pair.Value, parameters.ClientInstanceId))
                 .ToArray());
         return JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions);
     }
@@ -283,7 +304,7 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             workspaceId,
             workspacePath,
             state.CatalogRevision,
-            _config,
+            _storage.GlobalConfigPath,
             _storage.RootPath,
             cancellationToken).ConfigureAwait(false);
         HostWorkspaceRuntime? retired = null;
@@ -305,6 +326,82 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
         if (retired is not null)
             await retired.DisposeAsync().ConfigureAwait(false);
         return runtime;
+    }
+
+    private WorkspaceCatalogEntry ToCatalogEntry(string workspaceId, string path, string clientInstanceId)
+    {
+        var status = _leases.GetStatus(workspaceId);
+        return new WorkspaceCatalogEntry(
+            workspaceId,
+            Path.GetFullPath(path),
+            status is not null,
+            status is null
+                ? null
+                : string.Equals(status.OwnerId, clientInstanceId, StringComparison.Ordinal) ? "self" : "other",
+            status?.ExpiresAt);
+    }
+
+    /// <summary>The exported catalog is shared by every session, so one caller cannot cancel it.</summary>
+    private Task<IReadOnlyList<RemoteToolContractSummary>> GetContractsAsync()
+    {
+        lock (_gate)
+        {
+            return _contracts ??= DescribeContractsAsync();
+        }
+    }
+
+    private async Task<IReadOnlyList<RemoteToolContractSummary>> DescribeContractsAsync()
+    {
+        var definitions = await HostWorkspaceRuntime.DescribeExportedToolsAsync(
+            _storage.GlobalConfigPath,
+            _storage.RootPath,
+            CancellationToken.None).ConfigureAwait(false);
+        return
+        [
+            .. definitions
+                .Select(definition => new RemoteToolContractSummary(
+                    definition.Id.ToString(),
+                    definition.Name.ToString(),
+                    RemoteToolContractHasher.Compute(definition)))
+                .OrderBy(summary => summary.DefinitionId, StringComparer.Ordinal)
+        ];
+    }
+
+    private static string? ReadCommandPreview(IDictionary<string, JsonElement>? arguments)
+    {
+        if (arguments is null
+            || !arguments.TryGetValue("command", out var value)
+            || value.ValueKind != JsonValueKind.String)
+            return null;
+        var command = value.GetString() ?? string.Empty;
+        return command.Length <= 120 ? command : command[..120];
+    }
+
+    private void RequireBoundTerminal(
+        string toolName,
+        IDictionary<string, JsonElement>? arguments,
+        RemoteInvocationMeta invocation)
+    {
+        if (!string.Equals(toolName, "WriteStdin", StringComparison.Ordinal))
+            return;
+        var sessionId = arguments is not null
+            && arguments.TryGetValue("sessionId", out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+        if (sessionId is null || !_leaseTerminals.IsBound(invocation.LeaseId, sessionId))
+            throw new RemoteToolHostException(
+                RemoteToolErrorCodes.RemotePolicyDenied,
+                "WriteStdin accepts only background terminals created by an approved Exec in this lease.",
+                invocation.InvocationId);
+    }
+
+    private static async Task<IReadOnlyCollection<string>> SnapshotTerminalIdsAsync(
+        HostWorkspaceRuntime runtime,
+        CancellationToken cancellationToken)
+    {
+        var terminals = await runtime.Terminals.ListAsync(ct: cancellationToken).ConfigureAwait(false);
+        return terminals.Select(terminal => terminal.SessionId).ToHashSet(StringComparer.Ordinal);
     }
 
     private async Task DisposeRuntimeAsync(string workspaceId)
@@ -360,7 +457,6 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
     private static string DefaultPolicy(string toolName) => toolName switch
     {
         "Exec" or "WriteFile" or "EditFile" => "needsApproval",
-        "WriteStdin" => "allow",
         _ => "allow"
     };
 
@@ -541,116 +637,4 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     private sealed record RemoteExecutionApproval(bool Approved);
-}
-
-internal sealed class HostWorkspaceRuntime : IAsyncDisposable
-{
-    private readonly BackgroundTerminalService _terminals;
-    private readonly LspServerManager? _lsp;
-
-    private HostWorkspaceRuntime(
-        string workspacePath,
-        long catalogRevision,
-        IReadOnlyList<ToolRegistration> registrations,
-        BackgroundTerminalService terminals,
-        LspServerManager? lsp)
-    {
-        WorkspacePath = workspacePath;
-        CatalogRevision = catalogRevision;
-        Registrations = registrations;
-        _terminals = terminals;
-        _lsp = lsp;
-    }
-
-    public string WorkspacePath { get; }
-    public long CatalogRevision { get; }
-    public IReadOnlyList<ToolRegistration> Registrations { get; }
-
-    public static async Task<HostWorkspaceRuntime> CreateAsync(
-        string workspaceId,
-        string workspacePath,
-        long catalogRevision,
-        AppConfig config,
-        string hostDataPath,
-        CancellationToken cancellationToken)
-    {
-        var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId);
-        Directory.CreateDirectory(workspaceData);
-        var terminals = new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background);
-        LspServerManager? lsp = null;
-        if (config.Tools.Lsp.Enabled)
-        {
-            var paths = DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath);
-            lsp = new LspServerManager(config, paths);
-            await lsp.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        }
-        var source = new WorkspaceExecutionToolSource(
-            config,
-            terminals,
-            lspServerManager: lsp,
-            userDataPath: hostDataPath,
-            approvalService: new HostInvocationApprovalService());
-        var planningContext = new ToolPlanningContext(
-            $"remote-host:{workspaceId}",
-            turnId: null,
-            workspacePath,
-            workspaceData,
-            mode: "remote-tool-host",
-            profile: null,
-            providerCapabilities: [],
-            revision: catalogRevision,
-            workspaceRoots: [workspacePath],
-            requireApprovalOutsideWorkspace: true);
-        var registrations = await source.GetRegistrationsAsync(planningContext, cancellationToken)
-            .ConfigureAwait(false);
-        var exported = registrations
-            .Where(registration => RemoteToolMetadata.IsRpcEligible(registration.Definition))
-            .ToArray();
-        return new HostWorkspaceRuntime(workspacePath, catalogRevision, exported, terminals, lsp);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var terminal in await _terminals.ListAsync().ConfigureAwait(false))
-        {
-            if (string.Equals(terminal.Status, BackgroundTerminalStatus.Running, StringComparison.Ordinal))
-                await _terminals.StopAsync(terminal.SessionId).ConfigureAwait(false);
-        }
-        await _terminals.DisposeAsync().ConfigureAwait(false);
-        if (_lsp is not null)
-            await _lsp.DisposeAsync().ConfigureAwait(false);
-    }
-}
-
-internal sealed class HostInvocationApprovalService : IApprovalService
-{
-    private static readonly AsyncLocal<bool> Approved = new();
-
-    public static IDisposable BeginApprovedInvocation()
-    {
-        var previous = Approved.Value;
-        Approved.Value = true;
-        return new Scope(previous);
-    }
-
-    public Task<bool> RequestFileApprovalAsync(
-        string operation,
-        string path,
-        ApprovalContext? context = null) => Task.FromResult(Approved.Value);
-
-    public Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
-        ApprovalContext? context = null) => Task.FromResult(Approved.Value);
-
-    public Task<bool> RequestResourceApprovalAsync(
-        string kind,
-        string operation,
-        string target,
-        ApprovalContext? context = null) => Task.FromResult(Approved.Value);
-
-    private sealed class Scope(bool previous) : IDisposable
-    {
-        public void Dispose() => Approved.Value = previous;
-    }
 }

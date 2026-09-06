@@ -43,6 +43,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [18. Skills Management Methods](#18-skills-management-methods)
 - [18A. Tool Catalog Methods](#18a-tool-catalog-methods)
 - [19. Command Management Methods](#19-command-management-methods)
+- [19B. Remote Tool Host Routing Methods](#19b-remote-tool-host-routing-methods)
 - [20. Channel Status Methods](#20-channel-status-methods)
 - [21. Model Catalog Methods](#21-model-catalog-methods)
 - [22. MCP Management Methods](#22-mcp-management-methods)
@@ -426,6 +427,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.subAgentManagement` | boolean | Server supports SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `capabilities.mcpStatus` | boolean | Compatibility capability for `mcp/test`; runtime status is provided by `capabilities.mcpRuntime` and `mcpServerStatus/list`. |
 | `capabilities.usageTelemetry` | boolean | Server supports the aggregate usage telemetry method (`usage/summary`). Absent or `false` when tracing is disabled (no trace store is available). |
+| `capabilities.remoteToolHost` | boolean | Server supports client-driven Remote Tool Host routing (`remoteToolHost/list`, `remoteToolHost/connect`, `remoteToolHost/disconnect`) and the `remoteToolHost/route/changed` notification (Section 19B). Absent or `false` when the workspace runtime has no Remote Tool Host client. |
 | `capabilities.extensions` | object | Optional module capability registry keyed by extension name. Each value is extension-defined metadata; boolean `true` means the extension methods are available. Example: `capabilities.extensions.welcomeSuggestions = true` advertises support for `welcome/suggestions`. |
 
 When Dynamic Workflows are available, `capabilities.extensions.dynamicWorkflows` is:
@@ -2866,6 +2868,8 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32055` | Thread binding invalid | `automation/task/updateBinding` / `automation/task/create`: the target `threadId` does not exist or is archived. |
 | `-32097` | Thread recovery failed | A recovery package is invalid or incompatible, its workspace/Thread/Turn binding mismatches, or the target already exists. Inspect `error.data.code`. |
 | `-32099` | Plugin configuration | `plugin/config/*`: the plugin declares no settings schema, or the document, scope, or an operation is invalid. Inspect `error.data.code`. |
+| `-32100` | Remote Tool Host unavailable | `remoteToolHost/connect`: the machine is not paired, offline, failed authentication, or speaks an incompatible profile. `error.data.code` carries the Remote Tool Host error code (Section 19B). |
+| `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
 
 Automation task methods are defined in full in [automations-lifecycle.md §13](../features/automations-lifecycle.md). Summary of the v1 wire surface:
 
@@ -5639,6 +5643,125 @@ Notifications use the same terminal snapshot shape. `terminal/outputDelta` addit
 Clients with terminal rendering support, such as Desktop, use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
 
 If `terminal.backgroundReason = "runInBackground"`, the client must not keep appending later process output into the inline foreground `Exec` card. The inline card may show the returned session/status/final summary, while the background terminal UI owns ongoing process output.
+
+---
+
+## 19B. Remote Tool Host Routing Methods
+
+These methods let a client route a thread's eligible native tools to a paired remote machine, as defined in [Remote Tool Host](../architecture/remote-tool-host.md). They are the client counterpart of the model tools `RemoteToolHost.List`, `RemoteToolHost.Connect`, and `RemoteToolHost.Disconnect`: both surfaces drive the same per-workspace client and obey the same lease, catalog, and safety rules. A client-driven route change is not a turn and is not recorded as tool use.
+
+Enrollment of machines (listing pairings, minting invitations, revoking) is not part of this protocol; clients perform it against the Hub Local API described in [Hub Architecture](../architecture/hub-architecture.md) §6. The `hostId` values below are Hub peer ids, so the two surfaces join on one identifier.
+
+Invariants:
+
+- Routes are runtime-only. These methods persist nothing, and a thread resumed after a cold start is disconnected until a client or the model connects it again.
+- The wire surface never carries lease ids, Host instance ids, endpoints, tokens, certificates, or credential references.
+- A failed `remoteToolHost/connect` is a JSON-RPC error, never a partial-success result; either the route is published or nothing changed.
+
+Server capability: `capabilities.remoteToolHost`.
+
+#### `remoteToolHost/list`
+
+Returns the safe catalog of paired machines with their online state and folders, plus the current route of one thread when requested. It never opens a remote session.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | no | When present, `route` reports this thread's current route. |
+
+**Result**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hosts` | `RemoteToolHostInfo[]` | Paired machines. |
+| `route` | `RemoteToolRouteInfo \| null` | The thread's current route, or `null`. Omitted when `threadId` was not given. |
+
+`RemoteToolHostInfo`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hostId` | string | Hub peer id. |
+| `displayName` | string | Machine display name. |
+| `online` | boolean | Whether the machine currently has a live control connection to Hub. |
+| `workspaces` | `RemoteToolHostWorkspaceInfo[]` | Folders the machine exports. |
+| `errorCode` | string \| null | Optional Remote Tool Host error code explaining why the machine cannot be used right now. |
+
+`RemoteToolHostWorkspaceInfo`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workspaceId` | string | Stable folder id on the remote machine. |
+| `displayName` | string | Folder display name. |
+| `available` | boolean | `true` when no other Agent Host holds the lease. |
+| `busyOwner` | string \| null | `self` when this server holds the lease, `other` when another Agent Host does, otherwise `null`. |
+| `leaseExpiresAt` | string \| null | ISO-8601 UTC expiry of the current lease, when one exists. |
+
+`RemoteToolRouteInfo`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Thread the route belongs to. |
+| `hostId` | string | Hub peer id. |
+| `workspaceId` | string | Remote folder id. |
+| `status` | string | `connected` or `leaseLost`. |
+| `environment` | object | Optional `{ hostName, operatingSystem, userName, workspacePath }` execution summary. |
+
+#### `remoteToolHost/connect`
+
+Connects one thread to a remote folder. On success the route is published immediately and a `remoteToolHost/route/changed` notification with `reason: "connected"` is broadcast.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Thread to route. |
+| `hostId` | string | yes | Hub peer id. |
+| `workspaceId` | string | yes | Remote folder id. |
+
+**Result**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `route` | `RemoteToolRouteInfo` | The published route with its execution summary. |
+| `matchedTools` | string[] | Tool names now executed remotely. |
+| `unavailableTools` | string[] | Tool names that stay unavailable while routed, because the machine does not export them or their contract differs. |
+| `alreadyConnected` | boolean | `true` when the thread was already routed to this folder and nothing changed. |
+
+Errors: `-32100` (Remote Tool Host unavailable) with `error.data.code` set to one of the Remote Tool Host codes `remote_host_not_registered`, `remote_host_offline`, `remote_authentication_failed`, `remote_protocol_mismatch`, `remote_satellite_offline`, `remote_satellite_session_failed`, `remote_workspace_not_found`, `remote_lease_lost`, or `remote_hub_unavailable`; `-32101` (Remote workspace busy) with `error.data.code = "remote_workspace_busy"` and `error.data.params.owner`; `-32012` when a turn is in progress on the thread; `-32010` for an unknown thread; `-32602` for malformed params. Every error carries `messageKey`, `params`, and an English `fallbackText` so clients localize without parsing text. `messageKey` is `error.remoteToolHost.` followed by the camel-case form of `error.data.code`, for example `error.remoteToolHost.remoteWorkspaceBusy`.
+
+#### `remoteToolHost/disconnect`
+
+Returns one thread to local execution.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Thread to disconnect. |
+
+**Result**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `disconnected` | boolean | `true` when a route was removed. |
+| `previousRoute` | `RemoteToolRouteInfo \| null` | The route that was removed, when one existed. |
+
+A successful disconnect broadcasts `remoteToolHost/route/changed` with `reason: "disconnected"`.
+
+#### `remoteToolHost/route/changed`
+
+Server-to-client notification. Honors notification opt-out.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Thread whose route changed. |
+| `reason` | string | `connected`, `disconnected`, or `leaseLost`. |
+| `route` | `RemoteToolRouteInfo \| null` | The new route, or `null` after a disconnect. |
+
+The server does not push lease loss detected between calls; clients learn a lost lease from `remoteToolHost/list` (`status: "leaseLost"`), from a `remoteToolHost/route/changed` emitted when the server itself observes the loss, or from the next turn's runtime context.
+
+Fixture cases: `remote-tool-host-list-empty`, `remote-tool-host-connect-success`, `remote-tool-host-connect-workspace-busy`, and `remote-tool-host-route-changed-notification`.
 
 ---
 

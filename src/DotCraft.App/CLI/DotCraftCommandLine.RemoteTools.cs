@@ -12,11 +12,11 @@ public static partial class DotCraftCommandLine
         toolHost.Subcommands.Add(CreateToolHostWorkspaceCommand());
         toolHost.Subcommands.Add(CreateToolHostPolicyCommand());
         toolHost.Subcommands.Add(CreateToolHostAutostartCommand());
-        toolHost.Subcommands.Add(CreateToolHostTokenCommand());
         toolHost.Subcommands.Add(CreateToolHostStatusCommand());
         toolHost.Subcommands.Add(CreateToolHostServeCommand());
-        toolHost.Subcommands.Add(CreateToolHostRegisterCommand());
-        toolHost.Subcommands.Add(CreateToolHostUnregisterCommand());
+        toolHost.Subcommands.Add(CreateToolHostInviteCommand());
+        toolHost.Subcommands.Add(CreateToolHostJoinCommand());
+        toolHost.Subcommands.Add(CreateToolHostRevokeCommand());
         toolHost.Subcommands.Add(CreateToolHostListCommand());
         toolHost.Subcommands.Add(CreateToolHostTestCommand());
         return toolHost;
@@ -24,23 +24,12 @@ public static partial class DotCraftCommandLine
 
     private static Command CreateToolHostSetupCommand()
     {
-        var endpoint = RequiredArgument("https-endpoint", "HTTPS endpoint advertised by this Host.");
-        var output = new Option<string?>("--output", "-o")
-        {
-            Description = "Pairing file to create."
-        };
-        var command = new Command("setup", "Create the Host identity, token, and TLS certificate.")
-        {
-            endpoint,
-            output
-        };
+        var name = new Option<string?>("--name") { Description = "Name shown to paired machines." };
+        var command = new Command("setup", "Create this machine's Remote Tool Host identity.") { name };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,
-            writer => RemoteToolHostCliRunner.SetupAsync(
-                parseResult.GetRequiredValue(endpoint),
-                parseResult.GetValue(output),
-                writer)));
+            writer => RemoteToolHostCliRunner.SetupAsync(parseResult.GetValue(name), writer)));
         return command;
     }
 
@@ -124,23 +113,10 @@ public static partial class DotCraftCommandLine
         return autostart;
     }
 
-    private static Command CreateToolHostTokenCommand()
-    {
-        var token = new Command("token", "Manage the Host pairing token.");
-        var output = new Option<string?>("--output", "-o") { Description = "Pairing file to create." };
-        var rotate = new Command("rotate", "Replace the active token and create a pairing file.") { output };
-        rotate.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
-            parseResult,
-            cancellationToken,
-            writer => RemoteToolHostCliRunner.RotateTokenAsync(parseResult.GetValue(output), writer)));
-        token.Subcommands.Add(rotate);
-        return token;
-    }
-
     private static Command CreateToolHostStatusCommand()
     {
         var json = Flag("--json", "Write Host status as JSON.");
-        var command = new Command("status", "Show local Host configuration.") { json };
+        var command = new Command("status", "Show local Host configuration and pairings.") { json };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,
@@ -150,40 +126,77 @@ public static partial class DotCraftCommandLine
 
     private static Command CreateToolHostServeCommand()
     {
-        var command = new Command("serve", "Run the provider-free Remote Tool Host server.");
+        var command = new Command("serve", "Connect this machine to its paired Hubs and stay available.");
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,
-            _ => RemoteToolHostCliRunner.ServeAsync(cancellationToken)));
+            writer => RemoteToolHostCliRunner.ServeAsync(writer, cancellationToken)));
         return command;
     }
 
-    private static Command CreateToolHostRegisterCommand()
+    private static Command CreateToolHostInviteCommand()
     {
-        var file = RequiredArgument("pairing-file", "Pairing file exported by a Remote Tool Host.");
-        var command = new Command("register", "Register a paired Host on this Agent machine.") { file };
+        var name = new Option<string?>("--name") { Description = "Label shown to the invited machine." };
+        var host = new Option<string?>("--host") { Description = "Address the invited machine should dial." };
+        var expires = new Option<int?>("--expires") { Description = "Invitation validity in hours." };
+        var json = Flag("--json", "Write the invitation as JSON.");
+        var command = new Command("invite", "Create an invitation for another machine.")
+        {
+            name,
+            host,
+            expires,
+            json
+        };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,
-            writer => RemoteToolHostCliRunner.RegisterAsync(parseResult.GetRequiredValue(file), writer)));
+            writer => RemoteToolHostCliRunner.InviteAsync(
+                parseResult.GetValue(name),
+                parseResult.GetValue(host),
+                parseResult.GetValue(expires),
+                parseResult.GetValue(json),
+                writer,
+                cancellationToken)));
         return command;
     }
 
-    private static Command CreateToolHostUnregisterCommand()
+    private static Command CreateToolHostJoinCommand()
     {
-        var hostId = RequiredArgument("host-id", "Registered Host id.");
-        var command = new Command("unregister", "Remove a registered Host and its stored credential.") { hostId };
+        var url = RequiredArgument("invite-url", "Invitation link received from the other machine.");
+        var workspace = new Option<string?>("--workspace")
+        {
+            Description = "Absolute folder on this machine to share; required unless the DotCraft tray client is running and takes the invitation."
+        };
+        var command = new Command("join", "Accept an invitation and pair this machine.") { url, workspace };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,
-            writer => RemoteToolHostCliRunner.UnregisterAsync(parseResult.GetRequiredValue(hostId), writer)));
+            writer => RemoteToolHostCliRunner.JoinAsync(
+                parseResult.GetRequiredValue(url),
+                parseResult.GetValue(workspace),
+                writer,
+                cancellationToken)));
+        return command;
+    }
+
+    private static Command CreateToolHostRevokeCommand()
+    {
+        var id = RequiredArgument("id", "Paired machine id.");
+        var command = new Command("revoke", "End a pairing on this machine or on its Hub.") { id };
+        command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
+            parseResult,
+            cancellationToken,
+            writer => RemoteToolHostCliRunner.RevokeAsync(
+                parseResult.GetRequiredValue(id),
+                writer,
+                cancellationToken)));
         return command;
     }
 
     private static Command CreateToolHostListCommand()
     {
-        var json = Flag("--json", "Write registered Hosts and workspaces as JSON.");
-        var command = new Command("list", "List registered Hosts and their online state.") { json };
+        var json = Flag("--json", "Write paired machines and workspaces as JSON.");
+        var command = new Command("list", "List machines paired with this Hub.") { json };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,
@@ -193,8 +206,8 @@ public static partial class DotCraftCommandLine
 
     private static Command CreateToolHostTestCommand()
     {
-        var hostId = RequiredArgument("host-id", "Registered Host id.");
-        var command = new Command("test", "Test one registered Host connection.") { hostId };
+        var hostId = RequiredArgument("id", "Paired machine id.");
+        var command = new Command("test", "Check whether one paired machine is online.") { hostId };
         command.SetAction((parseResult, cancellationToken) => RunRemoteAsync(
             parseResult,
             cancellationToken,

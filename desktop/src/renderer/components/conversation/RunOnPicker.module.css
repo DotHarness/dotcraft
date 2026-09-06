@@ -1,0 +1,82 @@
+.label {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.option[data-highlighted='true'] {
+  background: var(--bg-tertiary);
+}
+
+.option[data-disabled='true'] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.option[data-disabled='true'][data-highlighted='true'] {
+  background: transparent;
+}
+
+.optionIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.optionText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.optionTitle {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-ui-emphasis-weight);
+  line-height: var(--type-secondary-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionMeta {
+  overflow: hidden;
+  color: var(--text-dimmed);
+  font-size: 11px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionCheck {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--text-primary);
+  opacity: 0;
+}
+
+.optionCheck[data-selected='true'] {
+  opacity: 1;
+}

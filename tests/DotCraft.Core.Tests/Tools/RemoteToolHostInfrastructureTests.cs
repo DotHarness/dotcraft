@@ -1,9 +1,7 @@
-using System.Net;
-using System.Net.Sockets;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.RemoteTools;
-using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Xunit;
@@ -12,6 +10,66 @@ namespace DotCraft.Tests.Tools;
 
 public sealed class RemoteToolHostInfrastructureTests
 {
+    [Fact]
+    public void ServeLock_SecondAcquisitionFails_AndRecoversStaleFile()
+    {
+        using var home = new TemporaryDirectory();
+        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+
+        Assert.True(RemoteToolHostServeLock.TryAcquire(storage, out var held));
+        Assert.False(RemoteToolHostServeLock.TryAcquire(storage, out var blocked));
+        Assert.Null(blocked);
+        held!.Dispose();
+        Assert.False(File.Exists(storage.ServeLockPath));
+
+        Directory.CreateDirectory(storage.RootPath);
+        File.WriteAllText(storage.ServeLockPath, "4242");
+        Assert.True(RemoteToolHostServeLock.TryAcquire(storage, out var recovered));
+        recovered!.Dispose();
+    }
+
+    [Fact]
+    public void CleanupLeaseArtifacts_RemovesOnlyThatLease()
+    {
+        using var hostState = new TemporaryDirectory();
+        var artifactsRoot = Path.Combine(hostState.Path, "artifacts");
+        var fullText = string.Join('\n', Enumerable.Range(0, 200).Select(index => $"line-{index:D3}"));
+        var first = RemoteToolArtifactStore.Materialize(
+            artifactsRoot,
+            NewInvocation("lease_first", "first"),
+            "ReadFile",
+            ToolExecutionResult.Succeeded(fullText));
+        var second = RemoteToolArtifactStore.Materialize(
+            artifactsRoot,
+            NewInvocation("lease_second", "second"),
+            "ReadFile",
+            ToolExecutionResult.Succeeded(fullText));
+
+        Assert.True(RemoteToolArtifactStore.CleanupLeaseArtifacts(artifactsRoot, "lease_first"));
+
+        Assert.False(File.Exists(first.Artifact!.Path));
+        Assert.True(File.Exists(second.Artifact!.Path));
+    }
+
+    [Fact]
+    public void ParseRemoteArtifact_RejectsControlCharacters()
+    {
+        var valid = JsonSerializer.SerializeToNode(
+            new RemoteToolArtifactMeta(Path.Combine(Path.GetTempPath(), "artifact.txt"), 10),
+            RemoteToolHostProtocol.JsonOptions);
+        Assert.NotNull(RemoteToolHostClient.ParseRemoteArtifact(valid));
+
+        var control = JsonSerializer.SerializeToNode(
+            new RemoteToolArtifactMeta("artifacts/lease\u0007/result.txt", 10),
+            RemoteToolHostProtocol.JsonOptions);
+        Assert.Throws<JsonException>(() => RemoteToolHostClient.ParseRemoteArtifact(control));
+
+        var overlong = JsonSerializer.SerializeToNode(
+            new RemoteToolArtifactMeta(new string('a', 1025), 10),
+            RemoteToolHostProtocol.JsonOptions);
+        Assert.Throws<JsonException>(() => RemoteToolHostClient.ParseRemoteArtifact(overlong));
+    }
+
     [Fact]
     public void WorkspaceLeaseManager_SharesWithinOwnerAndRejectsOtherOwner()
     {
@@ -32,34 +90,50 @@ public sealed class RemoteToolHostInfrastructureTests
     }
 
     [Fact]
-    public void Registration_PersistsOnlyCredentialReference()
+    public void Storage_PeerCredential_IsNotWrittenToHostJson()
     {
         using var directory = new TemporaryDirectory();
         var credentials = new MemoryCredentialStore();
         var storage = new RemoteToolHostStorage(directory.Path, credentials);
-        const string token = "raw-secret-token";
+        RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string>(StringComparer.Ordinal));
+        const string credential = "raw-secret-credential";
 
-        storage.Register(new RemoteToolPairingBundle
-        {
-            HostId = "rth_test",
-            DisplayName = "test-host",
-            Endpoint = "https://127.0.0.1:7443",
-            CertificateFingerprint = new string('A', 64),
-            Token = token
-        });
+        var peer = storage.AddPeer(NewPeer("sat_alpha"), credential);
 
-        var persisted = File.ReadAllText(storage.RegistrationsPath);
-        Assert.DoesNotContain(token, persisted, StringComparison.Ordinal);
-        var registration = Assert.Single(storage.LoadRegistrations());
-        Assert.Equal(token, storage.GetToken(registration));
+        var persisted = File.ReadAllText(storage.HostStatePath);
+        Assert.DoesNotContain(credential, persisted, StringComparison.Ordinal);
+        Assert.Contains(peer.CredentialReference, persisted, StringComparison.Ordinal);
+        Assert.Equal(credential, storage.GetPeerCredential(peer));
     }
 
     [Fact]
-    public async Task Empty_registration_store_keeps_control_operations_live()
+    public void Storage_RemovePeer_DeletesCredential()
+    {
+        using var directory = new TemporaryDirectory();
+        var credentials = new MemoryCredentialStore();
+        var storage = new RemoteToolHostStorage(directory.Path, credentials);
+        RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string>(StringComparer.Ordinal));
+        storage.AddPeer(NewPeer("sat_alpha"), "credential-alpha");
+        storage.AddPeer(NewPeer("sat_beta"), "credential-beta");
+
+        Assert.True(storage.RemovePeer("sat_alpha"));
+        Assert.False(storage.RemovePeer("sat_alpha"));
+
+        var remaining = Assert.Single(storage.LoadHostState()!.Peers);
+        Assert.Equal("sat_beta", remaining.PeerId);
+        Assert.DoesNotContain(
+            credentials.Values,
+            pair => pair.Key.EndsWith("sat_alpha", StringComparison.Ordinal));
+        Assert.Equal("credential-beta", storage.GetPeerCredential(remaining));
+    }
+
+    [Fact]
+    public async Task Empty_pairing_store_keeps_control_operations_live()
     {
         using var directory = new TemporaryDirectory();
         var storage = new RemoteToolHostStorage(directory.Path, new MemoryCredentialStore());
-        await using var client = new RemoteToolHostClient(storage, new ApproveService());
+        await using var server = new RemoteToolHostTestServer(storage);
+        await using var client = server.CreateClient(new ApproveService());
 
         var catalog = await client.ListAsync("thread");
         Assert.Empty(catalog.Hosts);
@@ -70,19 +144,14 @@ public sealed class RemoteToolHostInfrastructureTests
         Assert.Equal(RemoteToolErrorCodes.HostNotRegistered, error.Code);
         Assert.False((await client.DisconnectAsync("thread")).Disconnected);
 
-        storage.Register(new RemoteToolPairingBundle
-        {
-            HostId = "rth_added_later",
-            DisplayName = "added-later",
-            Endpoint = "https://127.0.0.1:1",
-            CertificateFingerprint = new string('A', 64),
-            Token = "test-token"
-        });
+        RemoteToolHostTestHost.Setup(
+            storage,
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = directory.Path });
 
         var updatedCatalog = await client.ListAsync("thread");
         var registered = Assert.Single(updatedCatalog.Hosts);
-        Assert.Equal("rth_added_later", registered.HostId);
-        Assert.False(registered.Online);
+        Assert.Equal(server.PeerId, registered.HostId);
+        Assert.True(registered.Online);
     }
 
     [Fact]
@@ -113,13 +182,13 @@ public sealed class RemoteToolHostInfrastructureTests
     [Fact]
     public void RemoteResultArtifacts_FollowLeaseLifetime()
     {
+        using var hostState = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
+        var artifactsRoot = Path.Combine(hostState.Path, "artifacts");
         var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
         var leases = new WorkspaceLeaseManager(
             clock,
-            released => RemoteToolArtifactStore.CleanupLeaseArtifacts(
-                released.WorkspacePath,
-                released.LeaseId));
+            released => RemoteToolArtifactStore.CleanupLeaseArtifacts(artifactsRoot, released.LeaseId));
         var lease = leases.Acquire("agent", "workspace", workspace.Path, "host", 1);
         leases.Acquire("agent", "workspace", workspace.Path, "host", 1);
         var fullText = string.Join('\n', Enumerable.Range(0, 100).Select(index => $"line-{index:D3}-value"));
@@ -135,15 +204,13 @@ public sealed class RemoteToolHostInfrastructureTests
             1);
 
         var materialized = RemoteToolArtifactStore.Materialize(
-            workspace.Path,
+            artifactsRoot,
             invocation,
             "ReadFile",
             ToolExecutionResult.Succeeded(fullText));
 
         var artifact = Assert.IsType<RemoteToolArtifactMeta>(materialized.Artifact);
-        var artifactPath = Path.Combine(
-            workspace.Path,
-            artifact.Path.Replace('/', Path.DirectorySeparatorChar));
+        var artifactPath = artifact.Path;
         Assert.Equal(fullText.Length, artifact.CharacterCount);
         Assert.Contains(artifact.Path, materialized.Result.Content, StringComparison.Ordinal);
         Assert.True(materialized.Result.Content?.Length <= 512);
@@ -155,62 +222,32 @@ public sealed class RemoteToolHostInfrastructureTests
 
         var expiring = leases.Acquire("agent", "workspace", workspace.Path, "host", 1);
         var expiringResult = RemoteToolArtifactStore.Materialize(
-            workspace.Path,
+            artifactsRoot,
             invocation with { LeaseId = expiring.LeaseId, InvocationId = "expiring" },
             "ReadFile",
             ToolExecutionResult.Succeeded(fullText));
         var expiringArtifact = Assert.IsType<RemoteToolArtifactMeta>(expiringResult.Artifact);
-        var expiringPath = Path.Combine(
-            workspace.Path,
-            expiringArtifact.Path.Replace('/', Path.DirectorySeparatorChar));
+        var expiringPath = expiringArtifact.Path;
         clock.Advance(TimeSpan.FromSeconds(61));
-        Assert.False(leases.IsBusy("workspace"));
+        Assert.Null(leases.GetStatus("workspace"));
         Assert.False(File.Exists(expiringPath));
     }
 
     [Fact]
-    public async Task RealHttpsMcpRoundTrip_EnforcesPolicyAndDisconnects()
+    public async Task RemoteRoundTrip_EnforcesPolicyAndDisconnects()
     {
         using var hostDirectory = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         await File.WriteAllTextAsync(Path.Combine(workspace.Path, "remote.txt"), "remote-value");
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(hostDirectory.Path, credentials);
-        var port = GetAvailablePort();
-        var endpoint = $"https://127.0.0.1:{port}";
-        using var certificate = RemoteToolCertificate.Create(endpoint, storage.CertificatePath);
-        var token = TokenUtilities.GenerateToken();
-        var state = new RemoteToolHostState
-        {
-            HostId = "rth_e2e",
-            DisplayName = "e2e",
-            ListenEndpoint = endpoint,
-            CertificatePath = storage.CertificatePath,
-            CertificateFingerprint = RemoteToolCertificate.Fingerprint(certificate),
-            TokenHash = TokenUtilities.HashToken(token),
-            Workspaces = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["repo"] = workspace.Path
-            }
-        };
-        storage.SaveHostState(state);
-        storage.Register(new RemoteToolPairingBundle
-        {
-            HostId = state.HostId,
-            DisplayName = state.DisplayName,
-            Endpoint = endpoint,
-            CertificateFingerprint = state.CertificateFingerprint,
-            Token = token
-        });
-
-        using var serverCts = new CancellationTokenSource();
-        var serverTask = RemoteToolHostServer.RunAsync(
+        var storage = new RemoteToolHostStorage(hostDirectory.Path, new MemoryCredentialStore());
+        var state = RemoteToolHostTestHost.Setup(
             storage,
-            new AppConfig(),
-            cancellationToken: serverCts.Token);
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path },
+            hostId: "rth_e2e");
+
+        await using var server = new RemoteToolHostTestServer(storage);
         var approvals = new ApproveService();
-        await using var client = new RemoteToolHostClient(storage, approvals);
-        await WaitUntilOnlineAsync(client, serverTask);
+        await using var client = server.CreateClient(approvals);
 
         var config = new AppConfig();
         await using var terminals = new BackgroundTerminalService(
@@ -222,13 +259,13 @@ public sealed class RemoteToolHostInfrastructureTests
             workspaceRoots: [workspace.Path]));
         client.UpdateRemoteToolDefinitions(registrations.Select(item => item.Definition).ToArray());
 
-        var connected = await client.ConnectAsync("agent-thread", state.HostId, "repo");
+        var connected = await client.ConnectAsync("agent-thread", server.PeerId, "repo");
         Assert.Contains("ReadFile", connected.MatchedTools);
         Assert.True(client.TryGetConnectionSnapshot("agent-thread", out var connection));
         Assert.Equal(
             new RemoteToolConnectionSnapshot(
                 RemoteToolConnectionStatus.Connected,
-                state.HostId,
+                server.PeerId,
                 "repo",
                 connected.Environment),
             connection);
@@ -292,74 +329,28 @@ public sealed class RemoteToolHostInfrastructureTests
         Assert.True(client.TryGetConnectionSnapshot("child-thread", out _));
         Assert.True((await client.DisconnectAsync("child-thread")).Disconnected);
         Assert.False(client.TryGetConnectionSnapshot("child-thread", out _));
-
-        serverCts.Cancel();
-        await serverTask;
     }
 
-    private static async Task WaitUntilOnlineAsync(RemoteToolHostClient client, Task serverTask)
+
+    private static RemoteToolHubPeer NewPeer(string peerId) => new()
     {
-        RemoteToolHostDescriptor? last = null;
-        for (var attempt = 0; attempt < 50; attempt++)
-        {
-            if (serverTask.IsFaulted)
-                await serverTask;
-            var catalog = await client.ListAsync("probe");
-            last = catalog.Hosts.Single();
-            if (last.Online)
-                return;
-            await Task.Delay(100);
-        }
-        throw new TimeoutException($"Remote Tool Host did not become ready: {last?.ErrorCode}");
-    }
+        PeerId = peerId,
+        HubHost = "127.0.0.1",
+        HubPort = 47600,
+        CredentialReference = RemoteToolHostStorage.PeerCredentialReference(peerId),
+        HubLabel = "test-hub",
+        WorkspaceId = "repo",
+        PairedAt = DateTimeOffset.UtcNow
+    };
 
-    private static int GetAvailablePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
-    }
-
-    private sealed class MemoryCredentialStore : IRemoteToolCredentialStore
-    {
-        private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
-        public void Write(string reference, string secret) => _values[reference] = secret;
-        public string? Read(string reference) => _values.GetValueOrDefault(reference);
-        public void Delete(string reference) => _values.Remove(reference);
-    }
-
-    private sealed class ApproveService : IApprovalService
-    {
-        public int RequestCount { get; private set; }
-        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) => Task.FromResult(true);
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) => Task.FromResult(true);
-        public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)
-        {
-            RequestCount++;
-            return Task.FromResult(true);
-        }
-    }
-
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
-        public void Advance(TimeSpan duration) => utcNow += duration;
-    }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dotcraft-rth-tests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(Path);
-        }
-
-        public string Path { get; }
-
-        public void Dispose()
-        {
-            try { Directory.Delete(Path, recursive: true); }
-            catch { }
-        }
-    }
+    private static RemoteInvocationMeta NewInvocation(string leaseId, string invocationId) => new(
+        leaseId,
+        "workspace",
+        invocationId,
+        "definition",
+        "contract",
+        "thread",
+        "turn",
+        512,
+        1);
 }

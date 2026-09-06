@@ -13404,6 +13404,372 @@
       "variants": []
     },
     {
+      "id": "core.RemoteToolEnvironmentInfo",
+      "name": "RemoteToolEnvironmentInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolEnvironmentInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "hostName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operatingSystem",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "userName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspacePath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostConnectParams",
+      "name": "RemoteToolHostConnectParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostConnectParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "hostId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspaceId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostConnectResult",
+      "name": "RemoteToolHostConnectResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostConnectResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "alreadyConnected",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "matchedTools",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "route",
+          "type": "core.RemoteToolRouteInfo",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "unavailableTools",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostDisconnectParams",
+      "name": "RemoteToolHostDisconnectParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostDisconnectParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostDisconnectResult",
+      "name": "RemoteToolHostDisconnectResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostDisconnectResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "disconnected",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "previousRoute",
+          "type": "core.RemoteToolRouteInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostInfo",
+      "name": "RemoteToolHostInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "errorCode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "hostId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "online",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspaces",
+          "type": "array<core.RemoteToolHostWorkspaceInfo>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostListParams",
+      "name": "RemoteToolHostListParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostListResult",
+      "name": "RemoteToolHostListResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "hosts",
+          "type": "array<core.RemoteToolHostInfo>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "route",
+          "type": "core.RemoteToolRouteInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostRouteChangedNotification",
+      "name": "RemoteToolHostRouteChangedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostRouteChangedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "route",
+          "type": "core.RemoteToolRouteInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolHostWorkspaceInfo",
+      "name": "RemoteToolHostWorkspaceInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolHostWorkspaceInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "available",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "busyOwner",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "leaseExpiresAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "workspaceId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.RemoteToolRouteInfo",
+      "name": "RemoteToolRouteInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/RemoteToolRouteInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "environment",
+          "type": "core.RemoteToolEnvironmentInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "hostId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspaceId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.RpcEmpty",
       "name": "RpcEmpty",
       "module": "core",
@@ -13886,6 +14252,13 @@
         },
         {
           "name": "providerManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "remoteToolHost",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -27076,6 +27449,86 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "remoteToolHost/connect",
+      "descriptorMember": "RemoteToolHostConnect",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.RemoteToolHostConnectParams",
+      "resultType": "core.RemoteToolHostConnectResult",
+      "module": "core",
+      "capability": "remoteToolHost",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "RemoteToolHostUnavailable",
+        "RemoteToolWorkspaceBusy",
+        "ThreadNotFound",
+        "TurnInProgress"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "remoteToolHost/disconnect",
+      "descriptorMember": "RemoteToolHostDisconnect",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.RemoteToolHostDisconnectParams",
+      "resultType": "core.RemoteToolHostDisconnectResult",
+      "module": "core",
+      "capability": "remoteToolHost",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "remoteToolHost/list",
+      "descriptorMember": "RemoteToolHostList",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.RemoteToolHostListParams",
+      "resultType": "core.RemoteToolHostListResult",
+      "module": "core",
+      "capability": "remoteToolHost",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "remoteToolHost/route/changed",
+      "descriptorMember": "RemoteToolHostRouteChanged",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.RemoteToolHostRouteChangedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "remoteToolHost",
+      "scope": "connection",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useAutomationsStore, type AutomationTask } from '../stores/automationsStore'
@@ -298,6 +299,11 @@ function dispatch(payload: { method: string; params: unknown }): void {
     case 'automation/task/updated': {
       const task = (p.task ?? {}) as AutomationTask
       useAutomationsStore.getState().upsertTask(task)
+      break
+    }
+
+    case 'remoteToolHost/route/changed': {
+      useThreadRouteStore.getState().handleRouteChanged(p)
       break
     }
 
@@ -1992,5 +1998,30 @@ describe('pending message auto-send', () => {
 
     expect(turnStartCalled).toBe(false)
     expect(s().pendingMessage).toBeNull()
+  })
+
+  it('routes remoteToolHost/route/changed to the thread route store', () => {
+    useThreadRouteStore.setState({ routes: {} })
+
+    dispatch({
+      method: 'remoteToolHost/route/changed',
+      params: {
+        threadId: 'thread_route',
+        reason: 'connected',
+        route: {
+          threadId: 'thread_route',
+          hostId: 'sat_studio',
+          workspaceId: 'ws_shaders',
+          status: 'connected'
+        }
+      }
+    })
+    expect(useThreadRouteStore.getState().routes.thread_route?.hostId).toBe('sat_studio')
+
+    dispatch({
+      method: 'remoteToolHost/route/changed',
+      params: { threadId: 'thread_route', reason: 'disconnected', route: null }
+    })
+    expect(useThreadRouteStore.getState().routes.thread_route).toBeUndefined()
   })
 })

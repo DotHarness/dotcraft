@@ -121,9 +121,12 @@
   --shadow-lg: var(--shadow-level-3);
 
   /* Shared action-button sizing (see specs/architecture/DESIGN.md → Actions).
-     One standard so buttons, selects, and icon buttons share a control band. */
+     One standard so buttons, selects, and icon buttons share a control band.
+     Rescoping these three is how a surface moves to an alternative band. */
   --button-height: 32px;
   --button-height-sm: 28px;
+  --button-radius: 8px;
+  --button-padding-x: 12px;
   /* Catalog top bars run their own shorter, rounder control band. */
   --toolbar-control-height: 28px;
   --toolbar-control-radius: 10px;

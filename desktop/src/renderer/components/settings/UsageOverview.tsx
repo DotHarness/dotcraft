@@ -59,7 +59,7 @@ export function UsageOverview(): JSX.Element | null {
       description={t('settings.usage.overviewHint')}
       headerAction={
         <IconButton
-          icon={refreshing ? <RunningSpinner size={14} /> : <RefreshIcon size={16} />}
+          icon={refreshing ? <RunningSpinner size={15} /> : <RefreshIcon size={15} />}
           label={t('settings.usage.refresh')}
           tooltipLabel={t('settings.usage.refresh')}
           onClick={() => void handleRefresh()}
@@ -80,7 +80,7 @@ export function UsageOverview(): JSX.Element | null {
             <div style={{ ...dimmedTextStyle, color: 'var(--error)' }}>
               {t('settings.usage.loadError')}
             </div>
-            <Button variant="secondary" size="sm" onClick={() => void handleRefresh()} style={{ alignSelf: 'flex-start' }}>
+            <Button variant="secondary" onClick={() => void handleRefresh()} style={{ alignSelf: 'flex-start' }}>
               {t('settings.usage.retry')}
             </Button>
           </div>

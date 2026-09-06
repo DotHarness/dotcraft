@@ -59,7 +59,7 @@ GitLab 项目用 `--provider gitlab`。每个要接受派发的项目都需要�
 ssh -o BatchMode=yes user@host "echo ok"
 ```
 
-然后打开 **设置 → 服务器 → 添加服务器**，填写 SSH 目标，把部署目录设为 `/opt/dotcraft-stack`，端口保持默认（AppServer `9100`、Oratorio `5087`、Dashboard `8080`）。最后选择 **在 Desktop 中打开**。
+然后打开 **设置 → 连接 → SSH → 添加服务器**，填写 SSH 目标，把部署目录设为 `/opt/dotcraft-stack`，端口保持默认（AppServer `9100`、Oratorio `5087`、Dashboard `8080`）。最后选择 **在 Desktop 中打开**。
 
 ## 管理插件
 

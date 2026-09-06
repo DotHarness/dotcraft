@@ -13,7 +13,7 @@
   color: var(--text-primary);
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   outline: none;
   transition: border-color 120ms ease;
 }

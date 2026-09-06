@@ -6,6 +6,11 @@ import {
   WebSocketTransport,
   type Transport
 } from '@dotcraft/sdk/wire'
+import {
+  fromAppServerErrorEnvelope,
+  toAppServerErrorEnvelope,
+  type AppServerRequestError
+} from '../shared/appServerError'
 
 export interface ServerInfo {
   name: string
@@ -246,8 +251,9 @@ function isTransport(value: Readable | Transport): value is Transport {
   return typeof (value as Transport).readMessage === 'function'
 }
 
-function normalizeDesktopRpcError(error: unknown): Error {
-  return error instanceof Error ? new Error(error.message) : new Error(String(error))
+/** Keeps the JSON-RPC code and `data` while dropping the wire error's cause chain. */
+function normalizeDesktopRpcError(error: unknown): AppServerRequestError {
+  return fromAppServerErrorEnvelope(toAppServerErrorEnvelope(error))
 }
 
 function buildInitializeCapabilities(_profile: InitializeProfile): Record<string, unknown> {

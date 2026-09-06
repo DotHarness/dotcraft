@@ -212,6 +212,7 @@ public sealed class RemoteToolHostCoreTests
                 route,
                 new RemoteToolEnvironment("host", "test", "user", "workspace"),
                 ["ReadFile"],
+                [],
                 []));
         }
 

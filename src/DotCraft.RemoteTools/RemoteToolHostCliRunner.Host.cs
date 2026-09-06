@@ -1,55 +1,28 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Reflection;
-using DotCraft.Configuration;
-using DotCraft.Security;
 using Microsoft.Win32;
 
 namespace DotCraft.RemoteTools;
 
 internal static partial class RemoteToolHostCliRunner
 {
-    internal static async Task<int> SetupAsync(
-        string listen,
-        string? pairingPath,
-        TextWriter output)
+    internal static async Task<int> SetupAsync(string? displayName, TextWriter output)
     {
         var storage = new RemoteToolHostStorage();
-        if (!Uri.TryCreate(listen, UriKind.Absolute, out var endpoint)
-            || endpoint.Scheme != Uri.UriSchemeHttps
-            || endpoint.Port <= 0)
-            throw new ArgumentException("The endpoint must be an absolute HTTPS URL with a port.");
         if (storage.LoadHostState() is not null)
             throw new InvalidOperationException("Remote Tool Host is already set up.");
 
-        var certificate = RemoteToolCertificate.Create(endpoint.ToString(), storage.CertificatePath);
-        var token = TokenUtilities.GenerateToken();
-        var hostId = "rth_" + Guid.NewGuid().ToString("N");
         var state = new RemoteToolHostState
         {
-            HostId = hostId,
-            DisplayName = Environment.MachineName,
-            ListenEndpoint = endpoint.ToString().TrimEnd('/'),
-            CertificatePath = storage.CertificatePath,
-            CertificateFingerprint = RemoteToolCertificate.Fingerprint(certificate),
-            TokenHash = TokenUtilities.HashToken(token)
+            HostId = "rth_" + Guid.NewGuid().ToString("N"),
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? Environment.MachineName : displayName.Trim()
         };
-        certificate.Dispose();
         storage.SaveHostState(state);
-        var bundle = new RemoteToolPairingBundle
-        {
-            HostId = hostId,
-            DisplayName = state.DisplayName,
-            Endpoint = state.ListenEndpoint,
-            CertificateFingerprint = state.CertificateFingerprint,
-            Token = token
-        };
-        pairingPath ??= DefaultPairingPath(hostId);
-        WritePairingFile(pairingPath, bundle);
-        await output.WriteLineAsync($"Remote Tool Host created: {hostId}").ConfigureAwait(false);
-        await output.WriteLineAsync($"TLS fingerprint: {state.CertificateFingerprint}").ConfigureAwait(false);
-        await output.WriteLineAsync($"Pairing file: {Path.GetFullPath(pairingPath)}").ConfigureAwait(false);
-        await output.WriteLineAsync("The pairing file contains a bearer token. Transfer it securely and delete it after registration.").ConfigureAwait(false);
+        await output.WriteLineAsync($"Remote Tool Host created: {state.DisplayName}").ConfigureAwait(false);
+        await output.WriteLineAsync(
+            "Ask for an invitation link, then run 'dotcraft tool-host join <invite-url> --workspace <folder>'.")
+            .ConfigureAwait(false);
         return 0;
     }
 
@@ -147,18 +120,6 @@ internal static partial class RemoteToolHostCliRunner
         return 0;
     }
 
-    internal static async Task<int> RotateTokenAsync(string? pairingPath, TextWriter output)
-    {
-        var storage = new RemoteToolHostStorage();
-        var state = RequireState(storage);
-        var path = pairingPath ?? DefaultPairingPath(state.HostId);
-        var bundle = storage.RotateToken(state);
-        WritePairingFile(path, bundle);
-        await output.WriteLineAsync($"Token rotated; pairing file written to {Path.GetFullPath(path)}.").ConfigureAwait(false);
-        await output.WriteLineAsync("All previously paired Agent Hosts are now revoked.").ConfigureAwait(false);
-        return 0;
-    }
-
     internal static async Task<int> StatusAsync(bool json, TextWriter output)
     {
         var storage = new RemoteToolHostStorage();
@@ -167,96 +128,55 @@ internal static partial class RemoteToolHostCliRunner
         {
             await WriteJsonAsync(output, new
             {
-                hostId = state.HostId,
                 displayName = state.DisplayName,
-                endpoint = state.ListenEndpoint,
-                certificateFingerprint = state.CertificateFingerprint,
                 workspaceCount = state.Workspaces.Count,
-                catalogRevision = state.CatalogRevision
+                catalogRevision = state.CatalogRevision,
+                pairings = state.Peers.Select(peer => new
+                {
+                    peerId = peer.PeerId,
+                    hub = $"{peer.HubHost}:{peer.HubPort}",
+                    label = peer.HubLabel,
+                    workspaceId = peer.WorkspaceId,
+                    pairedAt = peer.PairedAt
+                })
             }).ConfigureAwait(false);
             return 0;
         }
 
-        await output.WriteLineAsync($"HostId: {state.HostId}").ConfigureAwait(false);
         await output.WriteLineAsync($"DisplayName: {state.DisplayName}").ConfigureAwait(false);
-        await output.WriteLineAsync($"Endpoint: {state.ListenEndpoint}").ConfigureAwait(false);
-        await output.WriteLineAsync($"Certificate fingerprint: {state.CertificateFingerprint}").ConfigureAwait(false);
         await output.WriteLineAsync($"Workspaces: {state.Workspaces.Count}").ConfigureAwait(false);
         await output.WriteLineAsync($"Catalog revision: {state.CatalogRevision}").ConfigureAwait(false);
-        return 0;
-    }
-
-    internal static async Task<int> ServeAsync(CancellationToken cancellationToken)
-    {
-        var storage = new RemoteToolHostStorage();
-        await RemoteToolHostServer.RunAsync(
-            storage,
-            new AppConfig(),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        return 0;
-    }
-
-    internal static async Task<int> RegisterAsync(string path, TextWriter output)
-    {
-        var storage = new RemoteToolHostStorage();
-        var bundle = JsonSerializer.Deserialize<RemoteToolPairingBundle>(
-            File.ReadAllText(path),
-            RemoteToolHostProtocol.JsonOptions)
-            ?? throw new InvalidOperationException("Pairing file is invalid.");
-        storage.Register(bundle);
-        await output.WriteLineAsync($"Registered {bundle.DisplayName} ({bundle.HostId}).").ConfigureAwait(false);
-        return 0;
-    }
-
-    internal static async Task<int> UnregisterAsync(string hostId, TextWriter output)
-    {
-        var storage = new RemoteToolHostStorage();
-        var removed = storage.Unregister(hostId);
-        await output.WriteLineAsync(removed ? $"Unregistered {hostId}." : $"Host {hostId} was not registered.")
-            .ConfigureAwait(false);
-        return removed ? 0 : 1;
-    }
-
-    internal static async Task<int> ListAsync(
-        bool json,
-        TextWriter output,
-        CancellationToken cancellationToken)
-    {
-        var storage = new RemoteToolHostStorage();
-        await using var client = new RemoteToolHostClient(storage, new DenyApprovalService());
-        var catalog = await client.ListAsync("cli", cancellationToken).ConfigureAwait(false);
-        if (json)
-        {
-            await WriteJsonAsync(output, catalog).ConfigureAwait(false);
-            return 0;
-        }
-
-        foreach (var host in catalog.Hosts)
-        {
-            await output.WriteLineAsync(
-                $"{host.HostId}\t{host.DisplayName}\t{(host.Online ? "online" : host.ErrorCode)}")
+        await output.WriteLineAsync($"Pairings: {state.Peers.Count}").ConfigureAwait(false);
+        foreach (var peer in state.Peers)
+            await output.WriteLineAsync($"  {peer.PeerId}\t{peer.HubHost}:{peer.HubPort}\t{peer.HubLabel}")
                 .ConfigureAwait(false);
-            foreach (var workspace in host.Workspaces)
-                await output.WriteLineAsync($"  {workspace.WorkspaceId}\t{workspace.DisplayName}\t{(workspace.Available ? "available" : "busy")}")
-                    .ConfigureAwait(false);
-        }
         return 0;
     }
 
-    internal static async Task<int> TestAsync(
-        string hostId,
-        TextWriter output,
-        CancellationToken cancellationToken)
+    internal static async Task<int> ServeAsync(TextWriter output, CancellationToken cancellationToken)
     {
-        var storage = new RemoteToolHostStorage();
-        await using var client = new RemoteToolHostClient(storage, new DenyApprovalService());
-        var catalog = await client.ListAsync("cli", cancellationToken).ConfigureAwait(false);
-        var host = catalog.Hosts.FirstOrDefault(item => string.Equals(item.HostId, hostId, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"Host '{hostId}' is not registered.");
-        await output.WriteLineAsync(host.Online
-            ? $"Connected to {host.DisplayName}; {host.Workspaces.Count} workspace(s)."
-            : $"Connection failed: {host.ErrorCode}").ConfigureAwait(false);
-        return host.Online ? 0 : 1;
+        await using var runtime = RemoteToolHostRuntime.Create();
+        Task running;
+        try
+        {
+            running = runtime.RunAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await output.WriteLineAsync(ex.Message).ConfigureAwait(false);
+            return 1;
+        }
+
+        await output.WriteLineAsync($"Sharing with {runtime.Peers.Count} paired machine(s).")
+            .ConfigureAwait(false);
+        try
+        {
+            await running.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        return 0;
     }
 
     internal static Task<int> InstallAutostartAsync(TextWriter output) =>
@@ -275,6 +195,10 @@ internal static partial class RemoteToolHostCliRunner
             ?? throw new InvalidOperationException("Unable to open the current user's autostart registry key.");
         if (install)
         {
+            if (key.GetValue("DotCraftSatellite") is not null)
+                throw new InvalidOperationException(
+                    "The DotCraft tray client already starts a Remote Tool Host at sign-in. "
+                    + "A machine runs at most one Remote Tool Host.");
             var executable = Environment.ProcessPath
                 ?? throw new InvalidOperationException("Cannot resolve the DotCraft executable path.");
             var entryAssembly = Assembly.GetEntryAssembly()?.Location;
@@ -310,16 +234,6 @@ internal static partial class RemoteToolHostCliRunner
         return fullPath;
     }
 
-    private static void WritePairingFile(string path, RemoteToolPairingBundle bundle)
-    {
-        var fullPath = Path.GetFullPath(path);
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        File.WriteAllText(fullPath, JsonSerializer.Serialize(bundle, RemoteToolHostProtocol.JsonOptions));
-    }
-
-    private static string DefaultPairingPath(string hostId) =>
-        Path.Combine(Directory.GetCurrentDirectory(), $"dotcraft-tool-host-{hostId}.pairing.json");
-
     private static string ToCliPolicy(string value) => value == "needsApproval" ? "needs-approval" : value;
 
     private static Task WriteJsonAsync(TextWriter output, object value) =>
@@ -327,11 +241,4 @@ internal static partial class RemoteToolHostCliRunner
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
     private static partial Regex WorkspaceIdPattern();
-
-    private sealed class DenyApprovalService : IApprovalService
-    {
-        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) => Task.FromResult(false);
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) => Task.FromResult(false);
-        public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) => Task.FromResult(false);
-    }
 }

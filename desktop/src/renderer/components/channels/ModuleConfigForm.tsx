@@ -571,7 +571,6 @@ export function ModuleConfigForm({
           )}
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={onLoadLogs}
               loading={logsLoading}
@@ -580,7 +579,6 @@ export function ModuleConfigForm({
             </Button>
             {localControlsAvailable && (
               <Button
-                size="sm"
                 variant="primary"
                 onClick={onStart}
               >
@@ -703,7 +701,6 @@ export function ModuleConfigForm({
                   {t('channels.modules.qr.error')}
                 </div>
                 <Button
-                  size="sm"
                   variant="primary"
                   onClick={onStart}
                 >

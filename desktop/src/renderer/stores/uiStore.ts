@@ -3,7 +3,7 @@ import type { ComposerFileAttachment, ImageAttachment, InputPart, ThreadMode } f
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ApprovalPolicyWire, ContextWindowConfigurationWire } from '../types/thread'
 import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
-import type { SettingsTab } from '../types/settings'
+import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
@@ -419,7 +419,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   },
 
   setActiveSettingsTab(tab) {
-    set({ activeSettingsTab: tab })
+    set({ activeSettingsTab: normalizeSettingsTab(tab) })
   },
 
   setSelectedChannelKey(key) {

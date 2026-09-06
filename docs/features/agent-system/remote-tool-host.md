@@ -6,42 +6,54 @@ Remote Tool Host lets an Agent on one device run eligible file, Shell, and LSP t
 
 ## When to use it
 
-Use Remote Tool Host when the Agent device should not contain the project checkout or its local toolchain. A common setup is an Agent device for conversation and model access, plus a developer workstation that already has the repository, build tools, Shell environment, and language servers.
+Use Remote Tool Host when the Agent device should not contain the project checkout or its local toolchain. A common setup is an Agent device for conversation and model access, plus a colleague's workstation that already has the repository, build tools, Shell environment, and language servers.
+
+The workspace machine only dials out. Nobody opens an inbound port, moves a certificate, or edits a configuration file there.
 
 ## Before you start
 
 You need:
 
 - DotCraft on both Windows devices, with compatible Remote Tool Host protocol and tool contracts.
-- An HTTPS endpoint on the Tool Host that the Agent device can reach, including its explicit port.
-- An existing absolute workspace directory on the Tool Host.
-- A secure way to transfer one pairing file from the Tool Host to the Agent device.
+- DotCraft Hub running on the Agent device (`dotcraft hub`). It is the meeting point for both machines.
+- Network access from the workspace machine to the Agent device on port 47600.
+- An existing folder on the workspace machine to share.
 
-The v1 autostart command runs for the current Windows user. The user must be signed in for the Tool Host to stay available.
+Both machines must stay signed in: Remote Tool Host runs as the signed-in user, not as a service.
 
-## Configure the Tool Host device
+## Invite the machine that owns the workspace
 
-Run setup once on the device that owns the workspace. Replace the endpoint and path with values for that device:
+In Desktop, open **Settings → Connections → Satellites** and choose **Invite**. A dialog asks what you need the machine for. That is optional and is shown to the person you invite, who picks the folder to share on their own PC. Create the link, copy it from the same dialog and send it to them, then choose **Done**. To invite a second machine, choose **Create another** without leaving the dialog. The link works once and expires after 24 hours.
+
+Outside Desktop, run this on the Agent device:
 
 ```powershell
-dotcraft tool-host setup https://tool-host.example:7443 --output .\tool-host.pairing.json
-dotcraft tool-host workspace add sample-project C:\workspaces\sample-project
-dotcraft tool-host status
+dotcraft tool-host invite --name "Ann's workstation"
 ```
 
-The endpoint is required because it determines the address advertised to Agent devices and the identity in the generated TLS certificate. The workspace id, `sample-project` here, is the stable name Agents use; it is not inferred from the directory name.
+The command prints the same link plus the exact command to run on the other machine.
 
-To start the Host automatically at the next sign-in:
+The first invitation opens the pairing port, so Windows asks once whether to allow DotCraft through the firewall — allow it on your private network.
+
+An invitation names this device by its host name. If the other machine cannot resolve that name, mint it with the address to dial instead: `dotcraft tool-host invite --host 192.168.1.20`.
+
+## Join and stay available
+
+Run this on the machine that owns the workspace, replacing the link and the folder:
+
+```powershell
+dotcraft tool-host setup --name "Ann's workstation"
+dotcraft tool-host join http://ann-pc:47600/i/inv_x1y2z3 --workspace C:\workspaces\sample-project
+dotcraft tool-host serve
+```
+
+`join` stores a long-lived credential in the operating-system credential store and prints the workspace id that Agents will use. `serve` keeps the connection open; leave it running, or start it at sign-in:
 
 ```powershell
 dotcraft tool-host autostart install
 ```
 
-For an immediate test, keep this command running in a terminal:
-
-```powershell
-dotcraft tool-host serve
-```
+Restarting the Hub on the Agent device does not need any action here — the connection comes back within seconds.
 
 Use `dotcraft tool-host policy list` to inspect local policy. A Tool Host administrator can change one eligible tool with:
 
@@ -51,46 +63,36 @@ dotcraft tool-host policy set Exec needs-approval
 
 Policies are enforced on the Tool Host. The Agent cannot weaken a `deny` rule or create a permanent approval.
 
-## Pair the Agent device
+The colleague can skip these commands entirely: [DotCraft Satellite](./satellite) installs from the invitation link and replaces `join`, `serve`, and `autostart install` with one approval window and a tray icon.
 
-Transfer `tool-host.pairing.json` through a secure channel, then register it on the device that runs the Agent:
+## See the machines you can use
 
-```powershell
-dotcraft tool-host register .\tool-host.pairing.json
-dotcraft tool-host list
-dotcraft tool-host test <host-id>
-```
+**Settings → Connections → Satellites** lists every machine that has joined, each marked **Ready**, **In use**, or **Offline**. Open one for the folders it shares and what has happened on it recently. Outside Desktop, `dotcraft tool-host list` prints the same machines and their ids.
 
-Setup prints the host id, and `tool-host list` shows it again. The pairing file contains a bearer token. Delete every transferred copy after registration; the Agent stores the token in the operating-system credential store.
+## Choose where a conversation runs
 
-If no output path is supplied to `setup` or `token rotate`, DotCraft writes a pairing file named from the generated host id in the current directory. Rotating the token immediately revokes all previous registrations, so distribute and register the new pairing file before relying on the Host again.
+The **Run on** control in the composer says where this conversation's tools run. It offers **This PC** and one entry per paired machine and folder, marking the folders someone else is using and the machines that are offline. Choose one and the existing file, Shell, and LSP tool names route there — the model does not see duplicate local and remote tools. Desktop remembers the choice for that conversation and puts it back the next time you open it, when the machine is online and the folder is free.
 
-## Connect a conversation
-
-Ask the Agent to list registered Hosts and connect the current conversation to the workspace:
+Outside Desktop, ask the Agent to route the conversation:
 
 ```text
 Call RemoteToolHost.List, then connect this conversation to workspace
-sample-project on <host-id> with RemoteToolHost.Connect.
+sample-project on <machine-id> with RemoteToolHost.Connect.
 ```
 
-After `Connect` succeeds, the existing file, Shell, and LSP tool names route to that workspace. The model does not see duplicate local and remote tools. The route applies only to the current conversation and is not restored after DotCraft restarts.
+A workspace serves one Agent Host at a time. If the folder is already in use, another Agent Host holds it; disconnect it there, or wait for its lease to expire. There is no queue and no takeover.
 
-Verify the target reported by `Connect`, then ask the Agent to read a known file or run a harmless workspace command. To return to local execution, ask it to call `RemoteToolHost.Disconnect`. A network failure does not silently retry the operation locally.
+To go back to local execution, choose **This PC**, or ask the Agent to call `RemoteToolHost.Disconnect`. A network failure does not silently retry the operation locally.
 
-## Troubleshooting
+## End the pairing
 
-### Host is offline
+Either side can end it, and the stored credential goes with it. In Desktop, open the machine under **Settings → Connections → Satellites** and choose **Remove** from its status menu. Outside Desktop:
 
-On the Tool Host, run `dotcraft tool-host status`, then start `dotcraft tool-host serve`. Confirm that the configured HTTPS hostname and port are reachable through the local firewall. If you installed autostart, confirm the configured user is signed in.
+```powershell
+dotcraft tool-host revoke <machine-id>
+```
 
-### Workspace is busy
-
-Another Agent Host currently holds that workspace. Disconnect it there, or wait for its lost lease to expire. Remote Tool Host does not queue or take over a workspace owned by another Agent Host.
-
-### Certificate mismatch
-
-Do not bypass the warning. Compare the fingerprint shown by `dotcraft tool-host status` on the Tool Host with the expected pairing information. If the Host was intentionally set up again, unregister the old host id and register a newly transferred pairing file.
+On the Agent device this removes the machine from the Hub and closes its connections. On the workspace machine it deletes the local pairing and stops `serve`.
 
 ## Related docs
 

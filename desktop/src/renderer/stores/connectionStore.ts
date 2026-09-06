@@ -44,6 +44,7 @@ export interface ServerCapabilities {
   subAgentSessions?: boolean
   manualCompaction?: boolean
   manualMemoryConsolidation?: boolean
+  remoteToolHost?: boolean
   appBindingVersion?: number
   extensions?: Record<string, unknown>
   [key: string]: unknown

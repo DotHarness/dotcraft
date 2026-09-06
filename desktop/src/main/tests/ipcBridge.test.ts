@@ -136,6 +136,7 @@ import {
   getRemoteServersManager
 } from '../ipcBridge'
 import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
+import { unwrapAppServerResult } from '../../shared/appServerError'
 
 type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
 type ExecFileCallback = (
@@ -380,6 +381,83 @@ describe('registerIpcHandlers', () => {
     existsSyncMock.mockReturnValue(true)
   })
 
+  it('carries a JSON-RPC code and data through to the preload-side Error', async () => {
+    const rpcError = Object.assign(new Error('Workspace is busy.'), {
+      name: 'JsonRpcError',
+      code: 'jsonRpcError',
+      rpcCode: -32101,
+      data: {
+        code: 'remote_workspace_busy',
+        messageKey: 'error.remoteToolHost.workspaceBusy',
+        params: { owner: 'other' },
+        fallbackText: 'That folder is in use.'
+      }
+    })
+    const sendRequest = vi.fn().mockRejectedValue(rpcError)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+
+    const outcome = await handlers.get('appserver:send-request')?.({}, 'thread/list', {})
+
+    try {
+      unwrapAppServerResult(outcome)
+      expect.unreachable('the envelope must reject')
+    } catch (error) {
+      const failure = error as Error & { code?: string; rpcCode?: number; data?: Record<string, unknown> }
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure.message).toBe('Workspace is busy.')
+      expect(failure.name).toBe('JsonRpcError')
+      expect(failure.code).toBe('jsonRpcError')
+      expect(failure.rpcCode).toBe(-32101)
+      expect(failure.data).toEqual({
+        code: 'remote_workspace_busy',
+        messageKey: 'error.remoteToolHost.workspaceBusy',
+        params: { owner: 'other' },
+        fallbackText: 'That folder is in use.'
+      })
+    }
+  })
+
+  it('rejects a plain failure with the same message and no structured fields', async () => {
+    const sendRequest = vi.fn().mockRejectedValue(new Error('Thread already has a running turn.'))
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+
+    const outcome = await handlers.get('appserver:send-request')?.({}, 'turn/start', { threadId: 't1' })
+
+    try {
+      unwrapAppServerResult(outcome)
+      expect.unreachable('the envelope must reject')
+    } catch (error) {
+      const failure = error as Error & { code?: string; rpcCode?: number; data?: unknown }
+      expect(failure.message).toBe('Thread already has a running turn.')
+      expect(failure.name).toBe('Error')
+      expect(failure.code).toBeUndefined()
+      expect(failure.rpcCode).toBeUndefined()
+      expect(failure.data).toBeUndefined()
+    }
+  })
+
+  it('drops a cyclic cause that could not cross the IPC boundary', async () => {
+    const data: Record<string, unknown> = { code: 'remote_host_unavailable' }
+    data.self = data
+    const sendRequest = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Machine is offline.'), { rpcCode: -32100, data })
+    )
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+
+    const outcome = await handlers.get('appserver:send-request')?.({}, 'thread/list', {})
+
+    expect(() => structuredClone(outcome)).not.toThrow()
+    try {
+      unwrapAppServerResult(outcome)
+      expect.unreachable('the envelope must reject')
+    } catch (error) {
+      const failure = error as Error & { rpcCode?: number; data?: unknown }
+      expect(failure.message).toBe('Machine is offline.')
+      expect(failure.rpcCode).toBe(-32100)
+      expect(failure.data).toBeUndefined()
+    }
+  })
+
   it('proxies Desktop Plugin App Surface GET requests through the resolved endpoint', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       appId: 'com.example.workflow',
@@ -606,9 +684,12 @@ describe('registerIpcHandlers', () => {
   it('identifies an AppServer request rejected before connection', async () => {
     const handlers = registerHandlersForTest('/workspace', () => null)
 
-    await expect(
-      handlers.get('appserver:send-request')?.({}, 'command/list', { privateValue: 'hidden' })
-    ).rejects.toThrow('AppServer is not connected (command/list)')
+    const outcome = await handlers.get('appserver:send-request')?.({}, 'command/list', {
+      privateValue: 'hidden'
+    })
+
+    expect(() => unwrapAppServerResult(outcome))
+      .toThrow('AppServer is not connected (command/list)')
   })
 
   it('defers model listing until AppServer is connected', async () => {

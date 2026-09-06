@@ -90,10 +90,17 @@ import {
   type WorkspaceActivationHandle
 } from './desktopActivation'
 import {
+  findSatelliteJoinDeepLink,
   findWorkspaceOpenDeepLink,
+  parseSatelliteJoinDeepLink,
   parseWorkspaceOpenDeepLink,
   type WorkspaceOpenDeepLink
 } from '../shared/desktopDeepLink'
+import {
+  flushPendingSatelliteJoinLink,
+  forwardSatelliteJoinDeepLink,
+  shouldQuitAfterSatelliteJoin
+} from './satellites/satelliteJoinLink'
 import {
   NO_WORKSPACE_ARG,
   hasRemoteEndpointArg,
@@ -1266,6 +1273,10 @@ function openChromeSettingsFromDeepLink(): void {
   sendOpenChromeSettings(win)
 }
 
+function satelliteJoinLinkWindow(): BrowserWindow | null {
+  return BrowserWindow.getFocusedWindow() ?? mainWindow
+}
+
 function stopWorkspaceActivation(): void {
   workspaceActivationGeneration++
   workspaceActivationStartingFor = ''
@@ -1615,7 +1626,11 @@ function stripWorkspaceArgs(argv: string[]): string[] {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--workspace') {
       i++ // skip the value too
-    } else if (argv[i] === NO_WORKSPACE_ARG || parseWorkspaceOpenDeepLink(argv[i])) {
+    } else if (
+      argv[i] === NO_WORKSPACE_ARG ||
+      parseWorkspaceOpenDeepLink(argv[i]) ||
+      parseSatelliteJoinDeepLink(argv[i])
+    ) {
       continue
     } else {
       result.push(argv[i])
@@ -2432,6 +2447,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
     updateSettings: async (partial) => {
       await updateSharedSettings(partial)
     },
+    getHubClient: () => createHubClient(sharedSettings),
     getAppServerWsConfig: () => lastAppServerWsUrl ? { wsUrl: lastAppServerWsUrl } : null,
     getRecentWorkspaces: () => getRecentWorkspaces(sharedSettings),
     getWorkspaceProjects: getWorkspaceProjectsPayload,
@@ -2942,6 +2958,14 @@ app.on('open-url', (event, url) => {
     return
   }
 
+  const satelliteJoin = parseSatelliteJoinDeepLink(url)
+  if (satelliteJoin) {
+    // Consumed even with no Satellite installed, so the link never falls through.
+    event.preventDefault()
+    void forwardSatelliteJoinDeepLink(satelliteJoin, satelliteJoinLinkWindow)
+    return
+  }
+
   if (!isChromeSettingsDeepLink(url)) return
   event.preventDefault()
   openChromeSettingsFromDeepLink()
@@ -2966,6 +2990,14 @@ app.whenReady().then(async () => {
     app.setAsDefaultProtocolClient('dotcraft')
   } catch (error) {
     console.warn('[desktop] failed to register dotcraft protocol handler', error)
+  }
+  const satelliteJoinArgument = findSatelliteJoinDeepLink(process.argv)
+  if (satelliteJoinArgument) {
+    const forwarded = await forwardSatelliteJoinDeepLink(satelliteJoinArgument, satelliteJoinLinkWindow)
+    if (shouldQuitAfterSatelliteJoin(process.argv, forwarded)) {
+      app.quit()
+      return
+    }
   }
   startChromeSettingsDeepLinkServer()
 
@@ -3077,6 +3109,7 @@ app.whenReady().then(async () => {
     if (pendingChromeSettingsDeepLink) {
       openChromeSettingsFromDeepLink()
     }
+    flushPendingSatelliteJoinLink(satelliteJoinLinkWindow)
     if (workspacePath && initialWorkspaceStatus.status === 'ready') {
       connectWorkspaceForLoadedWindow(win, workspacePath)
     } else {
@@ -3140,6 +3173,7 @@ app.whenReady().then(async () => {
         if (pendingChromeSettingsDeepLink) {
           openChromeSettingsFromDeepLink()
         }
+        flushPendingSatelliteJoinLink(satelliteJoinLinkWindow)
         if (wsPath && workspaceStatus.status === 'ready') {
           connectWorkspaceForLoadedWindow(newWin, wsPath)
         } else {

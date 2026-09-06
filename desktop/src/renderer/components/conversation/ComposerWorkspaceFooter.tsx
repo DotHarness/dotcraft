@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, ChevronDown, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Search, Server } from 'lucide-react'
+import { ArrowRightLeft, ChevronDown, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { Input, Textarea } from '../ui/Input'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
 import { changelistLabel, usePerforceChangelistStore, type PerforceChangelistEntry, type PerforceChangelistSnapshot } from '../../stores/perforceChangelistStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
@@ -16,7 +15,22 @@ import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChat
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { useAddProjectFlow } from '../projects/AddProject'
-import { Button } from '../ui/Button'
+import { ActionTooltip } from '../ui/ActionTooltip'
+import { RunOnPicker, useRunOnVisible } from './RunOnPicker'
+import {
+  FooterMenuButton,
+  FooterMenuDivider,
+  FooterMenuSearchField,
+  WorkspaceFooterPill,
+  WorkspaceMenuItem,
+  menuStyle
+} from './composerFooterPrimitives'
+import {
+  CreateBranchDialog,
+  CreateChangelistDialog,
+  branchNameError,
+  normalizeBranchName
+} from './ComposerWorkspaceFooterDialogs'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
 
@@ -35,9 +49,11 @@ interface ComposerWorkspaceFooterProps {
   // Perforce changelist pre-selected on the welcome screen; applied to the thread the first message creates.
   welcomeChangelist?: string | null
   onWelcomeChangelistChange?: (changelist: string) => void
+  /** True while a turn runs; only the Run on chip refuses input, git controls stay live. */
+  turnRunning?: boolean
 }
 
-type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | null
+type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | 'runOn' | null
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
@@ -51,153 +67,8 @@ const footerStyle: CSSProperties = {
   lineHeight: 'var(--type-secondary-line-height)'
 }
 
-const pillStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  height: '28px',
-  maxWidth: '240px',
-  padding: '0 8px',
-  border: 'none',
-  borderRadius: '999px',
-  background: 'transparent',
-  color: 'var(--composer-footer-text)',
-  font: 'inherit',
-  cursor: 'pointer',
-  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease'
-}
-
-const menuStyle: CSSProperties = {
-  position: 'absolute',
-  left: 0,
-  bottom: 'calc(100% + 6px)',
-  zIndex: 100,
-  width: '280px',
-  padding: '8px',
-  borderRadius: '10px',
-  background: 'var(--glass-surface-strong)',
-  border: 'none',
-  boxShadow: 'var(--glass-shadow-soft)',
-  backdropFilter: 'var(--glass-blur)',
-  WebkitBackdropFilter: 'var(--glass-blur)',
-  color: 'var(--text-primary)'
-}
-
-const menuButtonStyle: CSSProperties = {
-  width: '100%',
-  minHeight: '32px',
-  border: 'none',
-  borderRadius: '6px',
-  background: 'transparent',
-  color: 'inherit',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '0 8px',
-  font: 'inherit',
-  cursor: 'pointer',
-  textAlign: 'left',
-  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease'
-}
-
 function currentBranchLabel(branches: GitBranchListSnapshot | null): string | null {
   return branches?.current || branches?.detachedHead || null
-}
-
-function normalizeBranchName(value: string): string {
-  return value.trim().replace(/^\/+/, '')
-}
-
-function branchNameError(value: string, t: ReturnType<typeof useT>): string | null {
-  const branch = normalizeBranchName(value)
-  if (!branch) return t('workspaceFooter.branchRequired')
-  if (branch.endsWith('/')) return t('workspaceFooter.branchCannotEndSlash')
-  return null
-}
-
-interface InteractiveState {
-  hovered: boolean
-  pressed: boolean
-  focusVisible: boolean
-}
-
-function useInteractiveState(disabled = false): {
-  state: InteractiveState
-  eventHandlers: {
-    onPointerEnter: () => void
-    onPointerLeave: () => void
-    onPointerDown: () => void
-    onPointerUp: () => void
-    onPointerCancel: () => void
-    onFocus: (event: FocusEvent<HTMLButtonElement>) => void
-    onBlur: () => void
-  }
-} {
-  const [state, setState] = useState<InteractiveState>({
-    hovered: false,
-    pressed: false,
-    focusVisible: false
-  })
-
-  return {
-    state,
-    eventHandlers: {
-      onPointerEnter: () => {
-        if (!disabled) setState((current) => ({ ...current, hovered: true }))
-      },
-      onPointerLeave: () => {
-        setState((current) => ({ ...current, hovered: false, pressed: false }))
-      },
-      onPointerDown: () => {
-        if (!disabled) setState((current) => ({ ...current, pressed: true }))
-      },
-      onPointerUp: () => {
-        setState((current) => ({ ...current, pressed: false }))
-      },
-      onPointerCancel: () => {
-        setState((current) => ({ ...current, pressed: false }))
-      },
-      onFocus: (event) => {
-        if (!disabled && event.currentTarget.matches(':focus-visible')) {
-          setState((current) => ({ ...current, focusVisible: true }))
-        }
-      },
-      onBlur: () => {
-        setState((current) => ({ ...current, focusVisible: false, pressed: false }))
-      }
-    }
-  }
-}
-
-function interactiveStyle(
-  state: InteractiveState,
-  options: {
-    active?: boolean
-    disabled?: boolean
-  } = {}
-): CSSProperties {
-  if (options.disabled) {
-    return {
-      opacity: 0.45,
-      cursor: 'default',
-      boxShadow: 'none'
-    }
-  }
-
-  const highlighted = options.active === true || state.hovered || state.focusVisible
-  const background = state.pressed
-    ? 'var(--bg-active)'
-    : highlighted
-      ? 'var(--bg-tertiary)'
-      : 'transparent'
-
-  return {
-    background,
-    color: highlighted ? 'var(--text-primary)' : undefined,
-    boxShadow: state.focusVisible
-      ? '0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)'
-      : 'none'
-  }
 }
 
 function workspaceSlug(path: string): string {
@@ -240,9 +111,11 @@ export function ComposerWorkspaceFooter({
   onWorktreeBranchNameChange,
   onWelcomeWorkspaceChange,
   welcomeChangelist = null,
-  onWelcomeChangelistChange
+  onWelcomeChangelistChange,
+  turnRunning = false
 }: ComposerWorkspaceFooterProps): JSX.Element | null {
   const t = useT()
+  const runOnVisible = useRunOnVisible()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const chat = useWorkspaceProjectsStore((s) => s.chat)
@@ -634,10 +507,17 @@ export function ComposerWorkspaceFooter({
   ) : null
   const showGitFooterControls = !foregroundIsChat && !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
   const showPerforceFooterControls = (isPerforceWorkspace && Boolean(thread?.id)) || isPerforceWelcome
+  // A remote AppServer's Hub is not this Desktop's, so its satellites are not reachable.
+  const showRunOn = runOnVisible && !remoteWorkspace && !foregroundIsChat
+  const workLocationBranch = mode === 'local' ? currentBranchLabel(branches) : null
+  // Empty until the branch is known, so the pill is not remounted when it arrives.
+  const workLocationTooltip = workLocationBranch
+    ? t('workspaceFooter.workLocally.tooltip', { branch: workLocationBranch })
+    : ''
 
   return (
     <>
-    {(showProjectSelector || showGitFooterControls || showPerforceFooterControls) && (
+    {(showRunOn || showProjectSelector || showGitFooterControls || showPerforceFooterControls) && (
       <div ref={footerRef} style={footerStyle}>
       {showProjectSelector && (
         <div style={{ position: 'relative' }}>
@@ -655,28 +535,11 @@ export function ComposerWorkspaceFooter({
           {openMenu === 'project' && (
             <div ref={projectMenuRef} style={menuStyle}>
               <ComposerOverlapBand height={projectBandHeight} radius={10} />
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                height: '32px',
-                padding: '0 8px',
-                color: 'var(--text-dimmed)'
-              }}>
-                <Search size={14} strokeWidth={1.8} aria-hidden />
-                <Input
-                  bare
-                  value={projectQuery}
-                  onChange={(e) => setProjectQuery(e.target.value)}
-                  placeholder={t('workspaceFooter.searchProjects')}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    background: 'transparent',
-                    font: 'inherit'
-                  }}
-                />
-              </div>
+              <FooterMenuSearchField
+                value={projectQuery}
+                placeholder={t('workspaceFooter.searchProjects')}
+                onChange={setProjectQuery}
+              />
               <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
                 {filteredProjects.length === 0 ? (
                   <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>{t('workspaceFooter.noProjects')}</div>
@@ -697,13 +560,7 @@ export function ComposerWorkspaceFooter({
                   )
                 })}
               </div>
-              <div
-                style={{
-                  height: '1px',
-                  background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
-                  margin: '6px 8px'
-                }}
-              />
+              <FooterMenuDivider />
               <FooterMenuButton
                 icon={<FolderPlus size={15} strokeWidth={1.8} aria-hidden />}
                 disabled={addProject.busy}
@@ -716,18 +573,28 @@ export function ComposerWorkspaceFooter({
           {addProject.dialog}
         </div>
       )}
+      {showRunOn && (
+        <RunOnPicker
+          threadId={thread?.id}
+          workspacePath={workspacePath}
+          disabled={turnRunning}
+          onOpenChange={(open) => setOpenMenu(open ? 'runOn' : null)}
+        />
+      )}
       {showGitFooterControls && (
         <>
       <div style={{ position: 'relative' }}>
-        <WorkspaceFooterPill
-          disabled={busy || !branchControlsReady}
-          open={openMenu === 'workspace'}
-          onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
-        >
-          <Laptop size={15} strokeWidth={1.8} aria-hidden />
-          <span>{locationLabel}</span>
-          <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
-        </WorkspaceFooterPill>
+        <ActionTooltip label={workLocationTooltip} placement="top">
+          <WorkspaceFooterPill
+            disabled={busy || !branchControlsReady}
+            open={openMenu === 'workspace'}
+            onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
+          >
+            <Laptop size={15} strokeWidth={1.8} aria-hidden />
+            <span>{locationLabel}</span>
+            <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
+          </WorkspaceFooterPill>
+        </ActionTooltip>
         {openMenu === 'workspace' && (
           <div ref={workspaceMenuRef} style={menuStyle}>
             <ComposerOverlapBand height={workspaceBandHeight} radius={10} />
@@ -786,28 +653,11 @@ export function ComposerWorkspaceFooter({
         {openMenu === 'branch' && (
           <div ref={branchMenuRef} style={{ ...menuStyle, width: '320px' }}>
             <ComposerOverlapBand height={branchBandHeight} radius={10} />
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              height: '32px',
-              padding: '0 8px',
-              color: 'var(--text-dimmed)'
-            }}>
-              <Search size={14} strokeWidth={1.8} aria-hidden />
-              <Input
-                bare
-                value={branchQuery}
-                onChange={(e) => setBranchQuery(e.target.value)}
-                placeholder={t('workspaceFooter.searchBranches')}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  background: 'transparent',
-                  font: 'inherit'
-                }}
-              />
-            </div>
+            <FooterMenuSearchField
+              value={branchQuery}
+              placeholder={t('workspaceFooter.searchBranches')}
+              onChange={setBranchQuery}
+            />
             <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
               {filteredBranches.length === 0 ? (
                 <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>{t('workspaceFooter.noBranches')}</div>
@@ -827,13 +677,7 @@ export function ComposerWorkspaceFooter({
                 )
               })}
             </div>
-            <div
-              style={{
-                height: '1px',
-                background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
-                margin: '6px 8px'
-              }}
-            />
+            <FooterMenuDivider />
             <FooterMenuButton
               icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
               onClick={() => setCreateOpen(true)}
@@ -878,28 +722,11 @@ export function ComposerWorkspaceFooter({
           {openMenu === 'changelist' && (
             <div ref={changelistMenuRef} style={{ ...menuStyle, width: '320px' }}>
               <ComposerOverlapBand height={changelistBandHeight} radius={10} />
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                height: '32px',
-                padding: '0 8px',
-                color: 'var(--text-dimmed)'
-              }}>
-                <Search size={14} strokeWidth={1.8} aria-hidden />
-                <Input
-                  bare
-                  value={changelistQuery}
-                  onChange={(e) => setChangelistQuery(e.target.value)}
-                  placeholder={t('workspaceFooter.searchChangelists')}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    background: 'transparent',
-                    font: 'inherit'
-                  }}
-                />
-              </div>
+              <FooterMenuSearchField
+                value={changelistQuery}
+                placeholder={t('workspaceFooter.searchChangelists')}
+                onChange={setChangelistQuery}
+              />
               <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
                 {filteredChangelists.length === 0 ? (
                   <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>
@@ -922,13 +749,7 @@ export function ComposerWorkspaceFooter({
                   </FooterMenuButton>
                 ))}
               </div>
-              <div
-                style={{
-                  height: '1px',
-                  background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
-                  margin: '6px 8px'
-                }}
-              />
+              <FooterMenuDivider />
               <FooterMenuButton
                 icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
                 onClick={() => setCreateChangelistOpen(true)}
@@ -953,266 +774,5 @@ export function ComposerWorkspaceFooter({
     )}
     {handoffDialog}
     </>
-  )
-}
-function WorkspaceFooterPill({
-  children,
-  disabled,
-  open,
-  onClick
-}: {
-  children: ReactNode
-  disabled?: boolean
-  open?: boolean
-  onClick: () => void
-}): JSX.Element {
-  const { state, eventHandlers } = useInteractiveState(disabled)
-  return (
-    <button
-      type="button"
-      style={{
-        ...pillStyle,
-        ...interactiveStyle(state, {
-          active: open,
-          disabled
-        })
-      }}
-      disabled={disabled}
-      onClick={onClick}
-      {...eventHandlers}
-    >
-      {children}
-    </button>
-  )
-}
-function FooterMenuButton({
-  children,
-  icon,
-  checked,
-  active,
-  disabled,
-  onClick
-}: {
-  children: ReactNode
-  icon: ReactNode
-  checked?: boolean
-  active?: boolean
-  disabled?: boolean
-  onClick: () => void
-}): JSX.Element {
-  const { state, eventHandlers } = useInteractiveState(disabled)
-  return (
-    <button
-      type="button"
-      style={{
-        ...menuButtonStyle,
-        ...interactiveStyle(state, { active, disabled })
-      }}
-      disabled={disabled}
-      onClick={onClick}
-      {...eventHandlers}
-    >
-      {icon}
-      {children}
-      {checked && <Check size={15} strokeWidth={1.8} aria-hidden />}
-    </button>
-  )
-}
-function WorkspaceMenuItem({
-  label,
-  icon,
-  checked,
-  disabled,
-  onClick
-}: {
-  label: string
-  icon: JSX.Element
-  checked: boolean
-  disabled?: boolean
-  onClick: () => void
-}): JSX.Element {
-  return (
-    <FooterMenuButton
-      icon={icon}
-      checked={checked}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <span style={{ flex: 1 }}>{label}</span>
-    </FooterMenuButton>
-  )
-}
-function CreateBranchDialog({
-  value,
-  busy,
-  title,
-  confirmLabel,
-  onChange,
-  onCancel,
-  onConfirm
-}: {
-  value: string
-  busy: boolean
-  title: string
-  confirmLabel: string
-  onChange: (value: string) => void
-  onCancel: () => void
-  onConfirm: () => void
-}): JSX.Element {
-  const t = useT()
-  const error = branchNameError(value, t)
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onCancel()
-      if (event.key === 'Enter' && !error && !busy) onConfirm()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [busy, error, onCancel, onConfirm])
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--overlay-scrim)'
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
-    >
-      <div
-        style={{
-          width: '420px',
-          maxWidth: 'calc(100vw - 48px)',
-          padding: '22px',
-          borderRadius: '10px',
-          background: 'var(--bg-secondary)',
-          boxShadow: 'var(--shadow-level-3)'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 style={{ margin: '0 0 16px', fontSize: '18px', color: 'var(--text-primary)' }}>{title}</h2>
-        <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
-          {t('workspaceFooter.branchName')}
-          <Input
-            frameless
-            value={value}
-            autoFocus
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              height: '42px',
-              borderRadius: '8px',
-              background: 'var(--bg-tertiary)',
-              padding: '0 12px',
-              font: 'inherit'
-            }}
-          />
-        </label>
-        {error && <div style={{ marginTop: '8px', color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <Button
-            variant="primary"
-            disabled={Boolean(error) || busy}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-function CreateChangelistDialog({
-  value,
-  busy,
-  onChange,
-  onCancel,
-  onConfirm
-}: {
-  value: string
-  busy: boolean
-  onChange: (value: string) => void
-  onCancel: () => void
-  onConfirm: () => void
-}): JSX.Element {
-  const t = useT()
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onCancel()
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !busy) onConfirm()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [busy, onCancel, onConfirm])
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-changelist-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--overlay-scrim)'
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
-    >
-      <div
-        style={{
-          width: '420px',
-          maxWidth: 'calc(100vw - 48px)',
-          padding: '22px',
-          borderRadius: '10px',
-          background: 'var(--bg-secondary)',
-          boxShadow: 'var(--shadow-level-3)'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 id="create-changelist-title" style={{ margin: '0 0 16px', fontSize: '18px', color: 'var(--text-primary)' }}>
-          {t('workspaceFooter.createChangelistTitle')}
-        </h2>
-        <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
-          {t('workspaceFooter.changelistDescription')}
-          <Textarea
-            frameless
-            value={value}
-            autoFocus
-            rows={4}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              minHeight: '96px',
-              borderRadius: '8px',
-              background: 'var(--bg-tertiary)',
-              padding: '10px 12px',
-              font: 'inherit'
-            }}
-          />
-        </label>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <Button
-            variant="primary"
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {t('workspaceFooter.create')}
-          </Button>
-        </div>
-      </div>
-    </div>
   )
 }

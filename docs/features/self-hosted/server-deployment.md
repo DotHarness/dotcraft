@@ -59,7 +59,7 @@ First confirm that non-interactive SSH works:
 ssh -o BatchMode=yes user@host "echo ok"
 ```
 
-Then open **Settings → Servers → Add server**, enter the SSH target, set the deployment folder to `/opt/dotcraft-stack`, and keep the default ports (AppServer `9100`, Oratorio `5087`, Dashboard `8080`). Finish with **Open in Desktop**.
+Then open **Settings → Connections → SSH → Add server**, enter the SSH target, set the deployment folder to `/opt/dotcraft-stack`, and keep the default ports (AppServer `9100`, Oratorio `5087`, Dashboard `8080`). Finish with **Open in Desktop**.
 
 ## Manage plugins
 

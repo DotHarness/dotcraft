@@ -4,7 +4,7 @@ using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed class RemoteToolHostClientFactory(RemoteToolHostStorage storage, AppConfig config) :
+internal sealed class RemoteToolHostClientFactory(IRemoteToolHostDirectory directory, AppConfig config) :
     IRemoteToolHostClientFactory,
     IAsyncDisposable
 {
@@ -13,9 +13,8 @@ internal sealed class RemoteToolHostClientFactory(RemoteToolHostStorage storage,
 
     public IRemoteToolHostClient Create(IApprovalService approvalService)
     {
-        ArgumentNullException.ThrowIfNull(approvalService);
         lock (_gate)
-            return _client ??= new RemoteToolHostClient(storage, approvalService, config);
+            return _client ??= new RemoteToolHostClient(directory, approvalService, config);
     }
 
     public async ValueTask DisposeAsync()

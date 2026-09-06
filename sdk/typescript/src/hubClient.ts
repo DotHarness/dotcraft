@@ -68,6 +68,7 @@ export interface HubCapabilities {
   events: boolean;
   notifications: boolean;
   tray: boolean;
+  satellites?: boolean;
   [key: string]: unknown;
 }
 
@@ -92,6 +93,41 @@ export interface HubEvent {
   at: string;
   workspacePath?: string | null;
   data?: unknown;
+}
+
+export interface HubSatelliteWorkspace {
+  workspaceId: string;
+  path: string;
+  busy: boolean;
+  busyOwner?: string | null;
+  leaseExpiresAt?: string | null;
+}
+
+/** A paired machine; its peer id is also the AppServer `hostId`. */
+export interface HubSatellite {
+  peerId: string;
+  displayName: string;
+  online: boolean;
+  machineName?: string;
+  operatingSystem?: string;
+  userName?: string;
+  buildVersion?: string;
+  workspaces: HubSatelliteWorkspace[];
+  pairedAt?: string;
+  lastSeenAt?: string | null;
+}
+
+export interface HubSatelliteInvite {
+  inviteId: string;
+  url: string;
+  expiresAt: string;
+}
+
+export interface HubCreateSatelliteInviteOptions {
+  name?: string;
+  host?: string;
+  ttlHours?: number;
+  purpose?: string;
 }
 
 export interface HubRuntimeToolsRequest {
@@ -322,6 +358,35 @@ export class HubClient {
       method: "POST",
       body: JSON.stringify({ serviceId }),
     });
+  }
+
+  async listSatellites(): Promise<HubSatellite[]> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubSatellite[]>(hub, "/v1/satellites", { method: "GET" });
+  }
+
+  async createSatelliteInvite(
+    options: HubCreateSatelliteInviteOptions = {},
+  ): Promise<HubSatelliteInvite> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubSatelliteInvite>(hub, "/v1/satellites/invites", {
+      method: "POST",
+      body: JSON.stringify({
+        name: options.name,
+        host: options.host,
+        ttlHours: options.ttlHours,
+        purpose: options.purpose,
+      }),
+    });
+  }
+
+  async revokeSatellite(peerId: string): Promise<void> {
+    const hub = await this.ensureHub();
+    await this.requestJson<{ revoked: boolean }>(
+      hub,
+      `/v1/satellites/${encodeURIComponent(peerId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async ensureDefaultChatAppServer(

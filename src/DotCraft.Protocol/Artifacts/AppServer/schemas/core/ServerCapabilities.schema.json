@@ -113,6 +113,9 @@
     "providerManagement": {
       "type": "boolean"
     },
+    "remoteToolHost": {
+      "type": "boolean"
+    },
     "requestUserInput": {
       "type": "boolean"
     },

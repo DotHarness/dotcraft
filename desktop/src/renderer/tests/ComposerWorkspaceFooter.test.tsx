@@ -5,7 +5,9 @@ import { ComposerWorkspaceFooter } from '../components/conversation/ComposerWork
 import { useConnectionStore } from '../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { usePerforceChangelistStore } from '../stores/perforceChangelistStore'
+import { useSatellitesStore } from '../stores/satellitesStore'
 import { useSourceControlStore } from '../stores/sourceControlStore'
+import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -27,6 +29,35 @@ function branchSnapshot(current: string): GitBranchListSnapshot {
       { name: 'feat/example', current: current === 'feat/example' }
     ]
   }
+}
+
+const STUDIO_PC = {
+  hostId: 'sat_studio',
+  displayName: 'Studio PC',
+  online: true,
+  workspaces: [{ workspaceId: 'ws_shaders', displayName: 'shaders', available: true }]
+}
+
+/** One enrolled machine, so the Run on chip has somewhere to offer. */
+function withSatellites(): void {
+  useConnectionStore.setState({
+    capabilities: { gitWorktrees: true, remoteToolHost: true }
+  })
+  useSatellitesStore.setState({
+    satellites: [{
+      peerId: 'sat_studio',
+      hostId: 'sat_studio',
+      displayName: 'Studio PC',
+      connected: true,
+      workspaces: []
+    }],
+    supported: true,
+    loaded: true,
+    bootstrapped: true
+  })
+  appServerSendRequest.mockImplementation(async (method: string) =>
+    method === 'remoteToolHost/list' ? { hosts: [STUDIO_PC], route: null } : {}
+  )
 }
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
@@ -101,6 +132,16 @@ describe('ComposerWorkspaceFooter', () => {
     useGitStore.getState().reset()
     usePerforceChangelistStore.getState().reset()
     useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null, perforceChangelist: null })
+    useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
+    useThreadRouteStore.setState({
+      supported: false,
+      hosts: [],
+      routes: {},
+      pendingRoute: null,
+      connecting: null,
+      attempted: new Set<string>(),
+      generation: 0
+    })
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()
     useToastStore.setState({ toasts: [] })
@@ -952,6 +993,132 @@ describe('ComposerWorkspaceFooter', () => {
     expect(screen.getByRole('dialog', { name: 'Handed-off to worktree' })).toBeInTheDocument()
     expect(screen.getByText('You are now working on dotcraft/handoff in a new worktree. Branch main was checked out locally.')).toBeInTheDocument()
     expect(useToastStore.getState().toasts).toEqual([])
+  })
+
+  it('puts Run on ahead of the work-location chip on a thread', async () => {
+    withSatellites()
+
+    renderFooter(makeThread(), 'local')
+
+    const runOn = await screen.findByTestId('run-on-trigger')
+    const workLocation = await screen.findByRole('button', { name: 'Local' })
+    expect(runOn.compareDocumentPosition(workLocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('puts Run on between the project picker and Work locally on the welcome composer', async () => {
+    withSatellites()
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter workspacePath="/workspace/a" mode="local" variant="welcome" />
+      </LocaleProvider>
+    )
+
+    const project = await screen.findByRole('button', { name: 'a' })
+    const runOn = await screen.findByTestId('run-on-trigger')
+    const workLocation = await screen.findByRole('button', { name: 'Work locally' })
+    expect(project.compareDocumentPosition(runOn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(runOn.compareDocumentPosition(workLocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('renders the context row for Run on alone when the workspace has no Git', async () => {
+    withSatellites()
+    gitListBranches.mockRejectedValue(new Error('not a repository'))
+
+    renderFooter(makeThread(), 'local')
+
+    expect(await screen.findByTestId('run-on-trigger')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Local' })).toBeNull())
+    expect(screen.queryByRole('button', { name: 'main' })).toBeNull()
+  })
+
+  it('leaves the context row out when no machine is enrolled and the workspace has no Git', async () => {
+    gitListBranches.mockRejectedValue(new Error('not a repository'))
+
+    const { container } = renderFooter(makeThread(), 'local')
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Local' })).toBeNull())
+    expect(screen.queryByTestId('run-on-trigger')).toBeNull()
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('hides Run on for a remote workspace', async () => {
+    withSatellites()
+    const thread = makeThread()
+    useThreadStore.setState({ activeThreadId: thread.id, activeThread: thread, threadList: [thread] })
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath={thread.workspacePath}
+          mode="local"
+          variant="thread"
+          thread={thread}
+          remoteWorkspace
+        />
+      </LocaleProvider>
+    )
+
+    await waitFor(() => expect(useSatellitesStore.getState().satellites).toHaveLength(1))
+    expect(screen.queryByTestId('run-on-trigger')).toBeNull()
+  })
+
+  it('hides Run on in the default chat workspace', async () => {
+    withSatellites()
+    const chatPath = 'C:\\Users\\me\\.craft\\workspaces\\chats'
+    const chatThread = makeThread({ workspacePath: chatPath, effectiveWorkspacePath: chatPath })
+
+    renderFooter(chatThread, 'local')
+
+    await waitFor(() => expect(useSatellitesStore.getState().satellites).toHaveLength(1))
+    expect(screen.queryByTestId('run-on-trigger')).toBeNull()
+  })
+
+  it('keeps one context-row menu open at a time', async () => {
+    withSatellites()
+
+    renderFooter(makeThread(), 'local')
+
+    const branch = await screen.findByRole('button', { name: 'main' })
+    await waitFor(() => expect(branch).not.toBeDisabled())
+    fireEvent.click(branch)
+    expect(screen.getByPlaceholderText('Search branches')).toBeInTheDocument()
+
+    const runOn = screen.getByTestId('run-on-trigger')
+    fireEvent.click(runOn)
+    expect(screen.queryByPlaceholderText('Search branches')).toBeNull()
+    expect(screen.getByRole('listbox', { name: 'Run on' })).toBeInTheDocument()
+
+    fireEvent.mouseDown(branch)
+    fireEvent.click(branch)
+    expect(screen.queryByRole('listbox', { name: 'Run on' })).toBeNull()
+    expect(screen.getByPlaceholderText('Search branches')).toBeInTheDocument()
+  })
+
+  it('names the branch the work-location chip works on in a tooltip', async () => {
+    renderFooter(makeThread(), 'local')
+
+    const workLocation = await screen.findByRole('button', { name: 'Local' })
+    await waitFor(() => expect(workLocation).not.toBeDisabled())
+    fireEvent.mouseOver(workLocation)
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Work on main')
   })
 
   it('uses a toast instead of the success view when handoff progress is dismissed', async () => {

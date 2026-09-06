@@ -19,6 +19,7 @@ import { ShortcutBadge } from './ShortcutBadge'
 type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right'
 
 interface ActionTooltipProps {
+  /** Empty shows nothing while keeping the wrapper, so the control is not remounted. */
   label: string
   shortcut?: ShortcutSpec
   alternateShortcuts?: readonly ShortcutSpec[]
@@ -52,22 +53,23 @@ export function ActionTooltip({
   const { visible, anchorRef, overlayRef, open, hide } = useTransientOverlay<HTMLSpanElement, HTMLDivElement>()
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 })
   const tooltipLabel = disabledReason || label
+  const shown = visible && tooltipLabel.trim() !== ''
   const child = Children.only(children)
   const describedChild = isValidElement(child)
     ? cloneElement(child as ReactElement<HTMLAttributes<HTMLElement>>, {
-        'aria-describedby': visible ? tooltipId : undefined
+        'aria-describedby': shown ? tooltipId : undefined
       })
     : child
 
   useLayoutEffect(() => {
-    if (!visible) return
+    if (!shown) return
     const anchor = anchorRef.current
     const tooltip = overlayRef.current
     if (!anchor || !tooltip) return
 
     const tooltipRect = tooltip.getBoundingClientRect()
     setPosition(placeTooltip(anchorRect(anchor), tooltipRect, placement))
-  }, [visible, placement, tooltipLabel, shortcut, alternateShortcuts])
+  }, [shown, placement, tooltipLabel, shortcut, alternateShortcuts])
 
   const shortcutGroups = !disabledReason ? [shortcut, ...(alternateShortcuts ?? [])].filter(Boolean) as ShortcutSpec[] : []
 
@@ -87,7 +89,7 @@ export function ActionTooltip({
       >
         {describedChild}
       </span>
-      {visible && createPortal(
+      {shown && createPortal(
         <div
           id={tooltipId}
           ref={overlayRef}

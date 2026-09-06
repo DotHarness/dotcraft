@@ -41,23 +41,21 @@ import { SecretInput } from '../channels/FormShared'
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ExtensionsIcon, FolderIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
+import { ExtensionsIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { Skeleton } from '../ui/Skeleton'
-import { InputWithAction } from '../ui/InputWithAction'
-import { SelectionCard, ResolvedPill } from '../ui/SelectionCard'
 import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import {
   SETTINGS_SURFACE_CLASS,
   settingsDescriptionStyle,
-  settingsErrorTextStyle,
   settingsHintStyle,
   settingsMetaTextStyle,
-  settingsPlaceholderStyle
+  settingsPlaceholderStyle,
+  settingsSectionLabelStyle as sectionLabelStyle
 } from './settingsTypography'
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPanelShell } from './SettingsPanelShell'
@@ -78,7 +76,6 @@ import {
 import { SettingsSelect } from './ui/SettingsSelect'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
-import { ConnectionPanel } from './panels/ConnectionPanel'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
@@ -131,7 +128,7 @@ declare const __APP_VERSION__: string | undefined
 
 const AppearancePanel = coreSettingsPanels.appearance
 const VoicePanel = coreSettingsPanels.voice
-const ServersPanel = coreSettingsPanels.servers
+const ConnectionsPanel = coreSettingsPanels.connections
 const SourceControlPanel = coreSettingsPanels.sourceControl
 const HooksPanel = coreSettingsPanels.hooks
 const SubAgentsPanel = coreSettingsPanels.subAgents
@@ -822,17 +819,6 @@ function settingsContentContainerStyle(): CSSProperties {
   }
 }
 
-function sectionLabelStyle(): CSSProperties {
-  return {
-    display: 'block',
-    fontSize: 'var(--type-secondary-size)',
-    lineHeight: 'var(--type-secondary-line-height)',
-    fontWeight: 600,
-    color: 'var(--text-secondary)',
-    marginBottom: '6px'
-  }
-}
-
 function normalizeBrowserUseDomainInput(input: string): string | null {
   const trimmed = input.trim()
   if (!trimmed || /[\u0000-\u001f]/.test(trimmed)) return null
@@ -1146,7 +1132,6 @@ function ChatGptOAuthPanel({
             {authorizeUrl}
           </div>
           <Button
-            size="sm"
             onClick={() => void handleCopyUrl()}
             style={{ alignSelf: 'flex-start' }}
           >
@@ -2649,19 +2634,22 @@ export function SettingsView({
     return [...mcpServers].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
   }, [mcpServers])
 
+  function restoreConnectionBaseline(): void {
+    if (!baselineConnection) return
+    setBinarySource(baselineConnection.binarySource)
+    setBinaryPath(baselineConnection.binaryPath)
+    setConnectionMode(baselineConnection.connectionMode)
+    setWsHost(baselineConnection.wsHost)
+    setWsPort(baselineConnection.wsPort)
+    setRemoteUrl(baselineConnection.remoteUrl)
+    setRemoteToken(baselineConnection.remoteToken)
+  }
+
   function closeSettings(): void {
     if (connectionDirty) {
       const shouldDiscard = window.confirm(t('settings.pendingChanges.leaveConfirm'))
       if (!shouldDiscard) return
-      if (baselineConnection) {
-        setBinarySource(baselineConnection.binarySource)
-        setBinaryPath(baselineConnection.binaryPath)
-        setConnectionMode(baselineConnection.connectionMode)
-        setWsHost(baselineConnection.wsHost)
-        setWsPort(baselineConnection.wsPort)
-        setRemoteUrl(baselineConnection.remoteUrl)
-        setRemoteToken(baselineConnection.remoteToken)
-      }
+      restoreConnectionBaseline()
     }
     setActiveMainView('conversation')
   }
@@ -4460,195 +4448,35 @@ export function SettingsView({
               </GeneralPanel>
             )}
 
-            {activeSettingsTab === 'connection' && (
-              <ConnectionPanel>
-              <SettingsPanelShell
-                title={t('settings.tab.connection')}
-                description={
-                  <SettingsDescriptionWithLearnMore topic="connection" aboutKey="settings.tab.connection">
-                    {t('settings.connection.description')}
-                  </SettingsDescriptionWithLearnMore>
-                }
-              >
-                <SettingsGroup title={t('settings.group.connectionMode')}>
-                  <SettingsRow
-                    orientation="block"
-                    label={t('settings.connectionMode')}
-                    description={t('settings.connectionModeHint')}
-                    htmlFor="settings-connection-mode"
-                  >
-                    <SettingsSelect
-                      id="settings-connection-mode"
-                      value={connectionMode}
-                      onValueChange={(mode) => {
-                        setConnectionMode(mode as ConnectionMode)
-                      }}
-                      options={[
-                        { value: 'local', label: t('settings.connectionMode.local') },
-                        { value: 'remote', label: t('settings.connectionMode.remote') }
-                      ]}
-                    />
-                  </SettingsRow>
-
-                  {activeRemoteStackConnection && (
-                    <SettingsRow
-                      orientation="block"
-                      label={t('settings.remoteStackManaged.title')}
-                    >
-                      <div
-                        style={{
-                          border: '1px solid var(--border-default)',
-                          borderLeft: '3px solid var(--accent)',
-                          borderRadius: '8px',
-                          background: 'var(--bg-secondary)',
-                          color: 'var(--text-secondary)',
-                          fontSize: '12px',
-                          lineHeight: 1.5,
-                          padding: '10px 12px'
-                        }}
-                      >
-                        {t('settings.remoteStackManaged.description')}
-                      </div>
-                    </SettingsRow>
-                  )}
-
-                  {manualRemoteConnection && (
-                    <SettingsRow
-                      orientation="block"
-                      label={t('settings.remoteUrl')}
-                      htmlFor="settings-remote-url"
-                    >
-                      <Input
-                        id="settings-remote-url"
-                        value={remoteUrl}
-                        onChange={(e) => setRemoteUrl(e.target.value)}
-                        placeholder="ws://127.0.0.1:9100/ws"
-                        mono
-                      />
-                      {remoteConnectionValidation && !remoteConnectionValidation.ok && (
-                        <div style={{ ...settingsErrorTextStyle(false), marginTop: '6px' }}>
-                          {t(REMOTE_URL_ERROR_KEYS[remoteConnectionValidation.code])}
-                        </div>
-                      )}
-                      <label style={{ ...sectionLabelStyle(), marginTop: '10px' }}>
-                        {t('settings.remoteToken')}
-                      </label>
-                      <SecretInput
-                        value={remoteToken}
-                        onChange={setRemoteToken}
-                        placeholder={t('settings.remoteTokenPlaceholder')}
-                        mono
-                      />
-                    </SettingsRow>
-                  )}
-                </SettingsGroup>
-
-                <SettingsGroup
-                  title={t('settings.group.localAppServer')}
-                  description={connectionMode === 'remote'
-                    ? t('settings.localAppServerRemoteHint')
-                    : t('settings.binaryHint')}
-                  style={connectionMode === 'remote'
-                    ? { opacity: 0.55, pointerEvents: 'none' }
-                    : undefined}
-                >
-                  <SettingsRow orientation="block">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                      {(['bundled', 'path', 'custom'] as BinarySource[]).map((source) => {
-                        const active = binarySource === source
-                        const titleKey =
-                          source === 'bundled'
-                            ? 'settings.binarySource.bundled'
-                            : source === 'path'
-                              ? 'settings.binarySource.path'
-                              : 'settings.binarySource.custom'
-                        const descKey =
-                          source === 'bundled'
-                            ? 'settings.binarySource.bundledDesc'
-                            : source === 'path'
-                              ? 'settings.binarySource.pathDesc'
-                              : 'settings.binarySource.customDesc'
-                        const showResolved = !resolvingBinary && !!resolvedBinaryPath
-                        const showError = !resolvingBinary && !resolvedBinaryPath
-                        const errorText =
-                          source === 'bundled'
-                            ? t('settings.binaryNotFound.bundled')
-                            : source === 'path'
-                              ? t('settings.binaryNotFound.path')
-                              : t('settings.binaryNotFound.custom')
-                        return (
-                          <SelectionCard
-                            key={source}
-                            name="settings-binary-source"
-                            value={source}
-                            active={active}
-                            onSelect={() => setBinarySource(source)}
-                            title={t(titleKey)}
-                            description={t(descKey)}
-                            resolvedBadge={
-                              showResolved ? <ResolvedPill label={t('settings.binaryResolved')} /> : undefined
-                            }
-                            errorHint={showError ? errorText : undefined}
-                            extra={
-                              source === 'custom' ? (
-                                <InputWithAction
-                                  id="settings-binary-path"
-                                  inputRef={inputRef}
-                                  mono
-                                  value={binaryPath}
-                                  onChange={(e) => setBinaryPath(e.target.value)}
-                                  placeholder={t('settings.binaryPlaceholder')}
-                                  onInputClick={(e) => e.stopPropagation()}
-                                  actionIcon={<FolderIcon size={16} />}
-                                  actionLabel={t('settings.binaryBrowse')}
-                                  onAction={(e) => {
-                                    e.stopPropagation()
-                                    void handlePickBinary()
-                                  }}
-                                />
-                              ) : undefined
-                            }
-                          />
-                        )
-                      })}
-                      {resolvingBinary && (
-                        <div style={settingsHintStyle(false)}>
-                          {t('settings.binaryResolving')}
-                        </div>
-                      )}
-                    </div>
-                  </SettingsRow>
-
-                  {connectionDirty && (
-                    <SettingsRow
-                      description={t(connectionMode === 'remote'
-                        ? 'settings.pendingChanges.connectionRemote'
-                        : 'settings.pendingChanges.connection')}
-                      control={
-                        <Button
-                          onClick={() => {
-                            if (!baselineConnection) return
-                            setBinarySource(baselineConnection.binarySource)
-                            setBinaryPath(baselineConnection.binaryPath)
-                            setConnectionMode(baselineConnection.connectionMode)
-                            setWsHost(baselineConnection.wsHost)
-                            setWsPort(baselineConnection.wsPort)
-                            setRemoteUrl(baselineConnection.remoteUrl)
-                            setRemoteToken(baselineConnection.remoteToken)
-                          }}
-                          disabled={restartingAppServer || saving}
-                        >
-                          {t('settings.llm.revert')}
-                        </Button>
-                      }
-                    />
-                  )}
-                </SettingsGroup>
-              </SettingsPanelShell>
-              </ConnectionPanel>
+            {activeSettingsTab === 'connections' && (
+              <ConnectionsPanel
+                workspace={{
+                  connectionMode,
+                  onConnectionModeChange: setConnectionMode,
+                  activeRemoteStackConnection,
+                  manualRemoteConnection,
+                  remoteUrl,
+                  onRemoteUrlChange: setRemoteUrl,
+                  remoteUrlErrorKey:
+                    remoteConnectionValidation && !remoteConnectionValidation.ok
+                      ? REMOTE_URL_ERROR_KEYS[remoteConnectionValidation.code]
+                      : null,
+                  remoteToken,
+                  onRemoteTokenChange: setRemoteToken,
+                  binarySource,
+                  onBinarySourceChange: setBinarySource,
+                  binaryPath,
+                  onBinaryPathChange: setBinaryPath,
+                  binaryPathInputRef: inputRef,
+                  onPickBinary: () => void handlePickBinary(),
+                  resolvingBinary,
+                  resolvedBinaryPath,
+                  connectionDirty,
+                  onRevert: restoreConnectionBaseline,
+                  revertDisabled: restartingAppServer || saving
+                }}
+              />
             )}
-
-            {activeSettingsTab === 'servers' && <ServersPanel />}
 
             {activeSettingsTab === 'browserUse' && (
               <GeneralPanel>
@@ -4712,7 +4540,7 @@ export function SettingsView({
                       title={t('settings.browserUse.blockedDomains')}
                       description={t('settings.browserUse.blockedDomainsHint')}
                       headerAction={
-                        <Button onClick={() => openBrowserUseDomainDialog('blocked')}>
+                        <Button iconLeft={<Plus size={15} />} onClick={() => openBrowserUseDomainDialog('blocked')}>
                           {t('settings.browserUse.add')}
                         </Button>
                       }
@@ -4747,7 +4575,7 @@ export function SettingsView({
                       title={t('settings.browserUse.allowedDomains')}
                       description={t('settings.browserUse.allowedDomainsHint')}
                       headerAction={
-                        <Button onClick={() => openBrowserUseDomainDialog('allowed')}>
+                        <Button iconLeft={<Plus size={15} />} onClick={() => openBrowserUseDomainDialog('allowed')}>
                           {t('settings.browserUse.add')}
                         </Button>
                       }
@@ -4951,7 +4779,7 @@ export function SettingsView({
                   description={t('settings.usage.dashboardHint')}
                   headerAction={
                     <IconButton
-                      icon={<OpenInBrowserIcon size={16} />}
+                      icon={<OpenInBrowserIcon size={15} />}
                       label={t('settings.openDashboard')}
                       onClick={() => {
                         if (dashboardUrl) void window.api.shell.openExternal(dashboardUrl)

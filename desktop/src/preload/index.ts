@@ -21,6 +21,21 @@ import type {
   LocalSshConfigInfo,
   DiscoveredStack
 } from '../shared/remoteServers'
+import { unwrapAppServerResult } from '../shared/appServerError'
+export type {
+  AppServerErrorData,
+  AppServerErrorFields,
+  AppServerRequestError
+} from '../shared/appServerError'
+import type {
+  CreatedSatelliteInvite,
+  SatelliteEvent,
+  SatelliteInvite,
+  SatelliteJoinLink,
+  SatelliteListResult,
+  SatelliteThreadRoute,
+  SharePcStatus
+} from '../shared/satellites'
 import {
   TITLE_BAR_OVERLAY_HEIGHT,
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
@@ -403,6 +418,7 @@ ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, 
 })
 
 let oratorioSubscriptionCount = 0
+let satellitesSubscriptionCount = 0
 
 const api = {
   platform: process.platform as 'darwin' | 'win32' | 'linux',
@@ -467,16 +483,21 @@ const api = {
   } satisfies OratorioApi,
 
   appServer: {
-    sendRequest<M extends keyof ClientRequestMethods>(
+    /** Rejects with an `AppServerRequestError` carrying the JSON-RPC `code` and `data`. */
+    async sendRequest<M extends keyof ClientRequestMethods>(
       method: M,
       params: ClientRequestMethods[M]['params'],
       timeoutMs?: number | null
     ): Promise<ClientRequestMethods[M]['result']> {
-      return ipcRenderer.invoke('appserver:send-request', method, params, timeoutMs)
+      return unwrapAppServerResult<ClientRequestMethods[M]['result']>(
+        await ipcRenderer.invoke('appserver:send-request', method, params, timeoutMs)
+      )
     },
 
-    sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null): Promise<unknown> {
-      return ipcRenderer.invoke('appserver:send-request-raw', method, params, timeoutMs)
+    async sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null): Promise<unknown> {
+      return unwrapAppServerResult<unknown>(
+        await ipcRenderer.invoke('appserver:send-request-raw', method, params, timeoutMs)
+      )
     },
 
     listModels(providerId?: string | null): Promise<unknown> {
@@ -1381,6 +1402,9 @@ const api = {
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]
+      /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
+      satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
+      createdSatelliteInviteIds?: CreatedSatelliteInvite[]
     }> {
       return ipcRenderer.invoke('settings:get')
     },
@@ -1435,6 +1459,9 @@ const api = {
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]
+      /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
+      satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
+      createdSatelliteInviteIds?: CreatedSatelliteInvite[]
     }): Promise<void> {
       return ipcRenderer.invoke('settings:set', partial)
     },
@@ -1548,6 +1575,46 @@ const api = {
     },
     disconnect(hostId: string, stackId: string): Promise<{ ok: boolean }> {
       return ipcRenderer.invoke('remoteStacks:disconnect', { hostId, stackId })
+    }
+  },
+
+  /** Satellite enrollment, plus the local Satellite runtime's own pairings. */
+  satellites: {
+    list(): Promise<SatelliteListResult> {
+      return ipcRenderer.invoke('satellites:list')
+    },
+    createInvite(input?: {
+      name?: string
+      host?: string
+      purpose?: string
+      ttlHours?: number
+    }): Promise<SatelliteInvite> {
+      return ipcRenderer.invoke('satellites:create-invite', input ?? {})
+    },
+    revoke(peerId: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('satellites:revoke', { peerId })
+    },
+    activity(peerId?: string): Promise<SatelliteEvent[]> {
+      return ipcRenderer.invoke('satellites:activity', { peerId })
+    },
+    shareStatus(): Promise<SharePcStatus> {
+      return ipcRenderer.invoke('satellites:share-status')
+    },
+    onEvent(callback: (event: SatelliteEvent) => void): () => void {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: SatelliteEvent): void => callback(payload)
+      satellitesSubscriptionCount += 1
+      if (satellitesSubscriptionCount === 1) ipcRenderer.send('satellites:subscribe')
+      ipcRenderer.on('satellites:event', wrapped)
+      return () => {
+        ipcRenderer.removeListener('satellites:event', wrapped)
+        satellitesSubscriptionCount = Math.max(0, satellitesSubscriptionCount - 1)
+        if (satellitesSubscriptionCount === 0) ipcRenderer.send('satellites:unsubscribe')
+      }
+    },
+    onJoinLink(callback: (link: SatelliteJoinLink) => void): () => void {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: SatelliteJoinLink): void => callback(payload)
+      ipcRenderer.on('satellites:join-link', wrapped)
+      return () => ipcRenderer.removeListener('satellites:join-link', wrapped)
     }
   }
 }

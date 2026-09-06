@@ -10719,6 +10719,296 @@
         "text"
       ]
     },
+    "RemoteToolEnvironmentInfo": {
+      "title": "RemoteToolEnvironmentInfo",
+      "type": "object",
+      "properties": {
+        "hostName": {
+          "type": "string"
+        },
+        "operatingSystem": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "workspacePath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "hostName",
+        "operatingSystem",
+        "userName",
+        "workspacePath"
+      ]
+    },
+    "RemoteToolHostConnectParams": {
+      "title": "RemoteToolHostConnectParams",
+      "type": "object",
+      "properties": {
+        "hostId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "hostId",
+        "threadId",
+        "workspaceId"
+      ]
+    },
+    "RemoteToolHostConnectResult": {
+      "title": "RemoteToolHostConnectResult",
+      "type": "object",
+      "properties": {
+        "alreadyConnected": {
+          "type": "boolean"
+        },
+        "matchedTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "route": {
+          "$ref": "#/$defs/RemoteToolRouteInfo"
+        },
+        "unavailableTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "matchedTools",
+        "route",
+        "unavailableTools"
+      ]
+    },
+    "RemoteToolHostDisconnectParams": {
+      "title": "RemoteToolHostDisconnectParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "RemoteToolHostDisconnectResult": {
+      "title": "RemoteToolHostDisconnectResult",
+      "type": "object",
+      "properties": {
+        "disconnected": {
+          "type": "boolean"
+        },
+        "previousRoute": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RemoteToolRouteInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "disconnected"
+      ]
+    },
+    "RemoteToolHostInfo": {
+      "title": "RemoteToolHostInfo",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hostId": {
+          "type": "string"
+        },
+        "online": {
+          "type": "boolean"
+        },
+        "workspaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RemoteToolHostWorkspaceInfo"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "displayName",
+        "hostId",
+        "online",
+        "workspaces"
+      ]
+    },
+    "RemoteToolHostListParams": {
+      "title": "RemoteToolHostListParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "RemoteToolHostListResult": {
+      "title": "RemoteToolHostListResult",
+      "type": "object",
+      "properties": {
+        "hosts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RemoteToolHostInfo"
+          }
+        },
+        "route": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RemoteToolRouteInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "hosts"
+      ]
+    },
+    "RemoteToolHostRouteChangedNotification": {
+      "title": "RemoteToolHostRouteChangedNotification",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "route": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RemoteToolRouteInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "reason",
+        "threadId"
+      ]
+    },
+    "RemoteToolHostWorkspaceInfo": {
+      "title": "RemoteToolHostWorkspaceInfo",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "busyOwner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "leaseExpiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspaceId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "available",
+        "displayName",
+        "workspaceId"
+      ]
+    },
+    "RemoteToolRouteInfo": {
+      "title": "RemoteToolRouteInfo",
+      "type": "object",
+      "properties": {
+        "environment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RemoteToolEnvironmentInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hostId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "hostId",
+        "status",
+        "threadId",
+        "workspaceId"
+      ]
+    },
     "RpcEmpty": {
       "title": "RpcEmpty",
       "type": "object",
@@ -11015,6 +11305,9 @@
           "type": "boolean"
         },
         "providerManagement": {
+          "type": "boolean"
+        },
+        "remoteToolHost": {
           "type": "boolean"
         },
         "requestUserInput": {

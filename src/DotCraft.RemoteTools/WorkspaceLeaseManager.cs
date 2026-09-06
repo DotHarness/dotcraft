@@ -1,3 +1,5 @@
+using DotCraft.Tools;
+
 namespace DotCraft.RemoteTools;
 
 internal sealed class WorkspaceLeaseManager(
@@ -86,12 +88,26 @@ internal sealed class WorkspaceLeaseManager(
         }
     }
 
-    public bool IsBusy(string workspaceId)
+    public bool HasActiveLease
+    {
+        get
+        {
+            lock (_gate)
+            {
+                ReapExpiredCore();
+                return _byWorkspace.Count > 0;
+            }
+        }
+    }
+
+    public WorkspaceLeaseStatus? GetStatus(string workspaceId)
     {
         lock (_gate)
         {
             ReapExpiredCore();
-            return _byWorkspace.ContainsKey(workspaceId);
+            return _byWorkspace.TryGetValue(workspaceId, out var lease)
+                ? new WorkspaceLeaseStatus(lease.OwnerId, lease.ExpiresAt)
+                : null;
         }
     }
 
@@ -153,3 +169,5 @@ internal sealed record WorkspaceLeaseReleased(
     string LeaseId,
     string WorkspaceId,
     string WorkspacePath);
+
+internal sealed record WorkspaceLeaseStatus(string OwnerId, DateTimeOffset ExpiresAt);

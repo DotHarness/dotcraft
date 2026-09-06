@@ -1,22 +1,21 @@
 using System.Collections.Concurrent;
-using System.Net.Http.Headers;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed class RemoteToolHostClient :
+internal sealed partial class RemoteToolHostClient :
     IRemoteToolHostClient,
     IAsyncDisposable
 {
-    private readonly RemoteToolHostStorage _storage;
+    private const int MaxUnavailableDetailChars = 200;
+    private const int MaxRemoteArtifactPathChars = 1024;
+    private readonly IRemoteToolHostDirectory _directory;
     private readonly IApprovalService _approvalService;
     private readonly int _defaultMaxResultChars;
     private readonly int _spillPreviewLines;
@@ -32,11 +31,11 @@ internal sealed class RemoteToolHostClient :
     private bool _disposed;
 
     public RemoteToolHostClient(
-        RemoteToolHostStorage storage,
+        IRemoteToolHostDirectory directory,
         IApprovalService approvalService,
         AppConfig? config = null)
     {
-        _storage = storage;
+        _directory = directory;
         _approvalService = approvalService;
         var limits = (config ?? new AppConfig()).Tools.ResultLimits;
         _defaultMaxResultChars = limits.MaxToolResultChars;
@@ -45,7 +44,6 @@ internal sealed class RemoteToolHostClient :
 
     public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions)
     {
-        ArgumentNullException.ThrowIfNull(definitions);
         lock (_stateGate)
         {
             _definitions = definitions.ToDictionary(
@@ -54,45 +52,34 @@ internal sealed class RemoteToolHostClient :
         }
     }
 
+    /// <summary>Reads the Hub catalog without opening a data connection to a paired machine.</summary>
     public async ValueTask<RemoteToolHostCatalog> ListAsync(
         string threadId,
         CancellationToken cancellationToken = default)
     {
-        var descriptors = new List<RemoteToolHostDescriptor>();
-        foreach (var registration in _storage.LoadRegistrations())
-        {
-            try
-            {
-                var session = await GetSessionAsync(registration, cancellationToken).ConfigureAwait(false);
-                var response = await SendAsync<WorkspaceListRequest, WorkspaceListResponse>(
-                    session.Client,
-                    RemoteToolHostProtocol.WorkspacesList,
-                    new WorkspaceListRequest(RemoteToolHostProtocol.ProfileVersion, _clientInstanceId),
-                    cancellationToken).ConfigureAwait(false);
-                ValidateHostIdentity(registration, response.HostId, response.ProfileVersion);
-                descriptors.Add(new RemoteToolHostDescriptor(
-                    registration.HostId,
-                    response.DisplayName,
-                    true,
-                    response.Workspaces.Select(workspace => new RemoteToolWorkspaceDescriptor(
-                        workspace.WorkspaceId,
-                        workspace.Path,
-                        !workspace.Busy)).ToArray()));
-            }
-            catch (Exception ex)
-            {
-                await InvalidateSessionAsync(registration.HostId).ConfigureAwait(false);
-                descriptors.Add(new RemoteToolHostDescriptor(
-                    registration.HostId,
-                    registration.DisplayName,
-                    false,
-                    [],
-                    MapConnectionError(ex, null).Code));
-            }
-        }
-
+        var descriptors = await _directory.ListAsync(cancellationToken).ConfigureAwait(false);
         TryGetRoute(threadId, out var route);
-        return new RemoteToolHostCatalog(descriptors, route);
+        return new RemoteToolHostCatalog([.. descriptors.Select(MarkOwnLeases)], route);
+    }
+
+    /// <summary>The Hub cannot tell whose lease it is, so this process names its own.</summary>
+    private RemoteToolHostDescriptor MarkOwnLeases(RemoteToolHostDescriptor host)
+    {
+        lock (_stateGate)
+        {
+            if (_leases.Count == 0)
+                return host;
+            return host with
+            {
+                Workspaces =
+                [
+                    .. host.Workspaces.Select(workspace => workspace.BusyOwner is not null
+                        && _leases.ContainsKey(new RouteKey(host.HostId, workspace.WorkspaceId))
+                            ? workspace with { BusyOwner = "self" }
+                            : workspace)
+                ]
+            };
+        }
     }
 
     public async ValueTask<RemoteToolConnectResult> ConnectAsync(
@@ -126,8 +113,7 @@ internal sealed class RemoteToolHostClient :
                 return summary with { AlreadyConnected = true };
             }
 
-            var registration = FindRegistration(hostId);
-            var session = await GetSessionAsync(registration, cancellationToken).ConfigureAwait(false);
+            var session = await GetSessionAsync(hostId, cancellationToken).ConfigureAwait(false);
             var key = new RouteKey(hostId, workspaceId);
             SharedLease lease;
             lock (_stateGate)
@@ -151,7 +137,7 @@ internal sealed class RemoteToolHostClient :
                 }
                 catch (Exception ex)
                 {
-                    throw MapConnectionError(ex, null);
+                    throw MapConnectionError(ex, null, session.CloseDescription);
                 }
                 lease = new SharedLease(
                     new RemoteToolRoute(hostId, workspaceId, acquired.LeaseId, acquired.HostInstanceId),
@@ -164,10 +150,11 @@ internal sealed class RemoteToolHostClient :
                     RemoteToolHostProtocol.WorkspacesList,
                     new WorkspaceListRequest(RemoteToolHostProtocol.ProfileVersion, _clientInstanceId),
                     cancellationToken).ConfigureAwait(false);
-                ValidateHostIdentity(registration, hostInfo.HostId, hostInfo.ProfileVersion);
+                ValidateHostIdentity(hostId, hostInfo);
                 lease.HostName = hostInfo.Hostname;
                 lease.OperatingSystem = hostInfo.Os;
                 lease.UserName = hostInfo.Username;
+                lease.BuildVersion = hostInfo.BuildVersion;
                 lock (_stateGate)
                 {
                     _leases.Add(key, lease);
@@ -407,25 +394,48 @@ internal sealed class RemoteToolHostClient :
             definitions = _definitions;
         }
         var catalog = await lease.Session.Client.ListToolsAsync(
-            new ListToolsRequestParams(),
+            new ListToolsRequestParams
+            {
+                Meta = new JsonObject
+                {
+                    ["dotcraft"] = JsonSerializer.SerializeToNode(
+                        new RemoteCatalogScope(route.LeaseId, route.WorkspaceId),
+                        RemoteToolHostProtocol.JsonOptions)
+                }
+            },
             cancellationToken).ConfigureAwait(false);
         var remote = catalog.Tools
             .Select(ParseRemoteContract)
             .Where(item => item is not null)
             .ToDictionary(item => item!.DefinitionId, item => item!, StringComparer.Ordinal);
+        var builds = $"host build {lease.BuildVersion}, agent build {RemoteToolHostProtocol.BuildVersion}";
         var matched = new List<string>();
         var unavailable = new List<string>();
+        var reasons = new List<RemoteToolUnavailableReason>();
         foreach (var definition in definitions.Values.OrderBy(item => item.Name.ToString(), StringComparer.Ordinal))
         {
-            var definitionId = definition.Id.ToString();
-            if (remote.TryGetValue(definitionId, out var contract)
-                && string.Equals(
-                    contract.ContractHash,
-                    RemoteToolContractHasher.Compute(definition),
-                    StringComparison.Ordinal))
-                matched.Add(definition.Name.ToString());
+            var name = definition.Name.ToString();
+            var expected = RemoteToolContractHasher.Compute(definition);
+            if (!remote.TryGetValue(definition.Id.ToString(), out var contract))
+            {
+                unavailable.Add(name);
+                reasons.Add(new RemoteToolUnavailableReason(
+                    name,
+                    RemoteToolErrorCodes.RemoteToolUnavailable,
+                    Bounded($"The Remote Tool Host does not export this tool ({builds}).")));
+            }
+            else if (!string.Equals(contract.ContractHash, expected, StringComparison.Ordinal))
+            {
+                unavailable.Add(name);
+                reasons.Add(new RemoteToolUnavailableReason(
+                    name,
+                    RemoteToolErrorCodes.ToolContractMismatch,
+                    Bounded($"Remote contract {contract.ContractHash} differs from local {expected} ({builds}).")));
+            }
             else
-                unavailable.Add(definition.Name.ToString());
+            {
+                matched.Add(name);
+            }
         }
         return new RemoteToolConnectResult(
             route,
@@ -435,7 +445,8 @@ internal sealed class RemoteToolHostClient :
                 lease.UserName,
                 lease.WorkspacePath),
             matched,
-            unavailable);
+            unavailable,
+            reasons);
     }
 
     private async Task ReleaseRouteReferenceAsync(
@@ -464,33 +475,24 @@ internal sealed class RemoteToolHostClient :
         }
     }
 
-    private RemoteToolHostRegistration FindRegistration(string hostId) =>
-        _storage.LoadRegistrations().FirstOrDefault(
-            item => string.Equals(item.HostId, hostId, StringComparison.Ordinal))
-        ?? throw new RemoteToolHostException(
-            RemoteToolErrorCodes.HostNotRegistered,
-            $"Remote Tool Host '{hostId}' is not registered.");
-
-    private async Task<HostSession> GetSessionAsync(
-        RemoteToolHostRegistration registration,
-        CancellationToken cancellationToken)
+    private async Task<HostSession> GetSessionAsync(string hostId, CancellationToken cancellationToken)
     {
-        var token = _storage.GetToken(registration);
-        if (_sessions.TryGetValue(registration.HostId, out var existing))
+        if (_sessions.TryGetValue(hostId, out var existing))
         {
-            if (existing.Matches(registration, token))
+            if (existing.Matches(hostId, _directory.CurrentEndpoint))
                 return existing;
-            await InvalidateSessionAsync(registration.HostId).ConfigureAwait(false);
+            await InvalidateSessionAsync(hostId).ConfigureAwait(false);
         }
+        var connection = await _directory.ConnectAsync(hostId, cancellationToken).ConfigureAwait(false);
         var created = await HostSession.CreateAsync(
-            registration,
-            token,
+            hostId,
+            connection,
             HandleElicitationAsync,
             cancellationToken).ConfigureAwait(false);
-        if (_sessions.TryAdd(registration.HostId, created))
+        if (_sessions.TryAdd(hostId, created))
             return created;
         await created.DisposeAsync().ConfigureAwait(false);
-        return _sessions[registration.HostId];
+        return _sessions[hostId];
     }
 
     private async Task InvalidateSessionAsync(string hostId)
@@ -538,39 +540,21 @@ internal sealed class RemoteToolHostClient :
         return current;
     }
 
-    private static async ValueTask<TResult> SendAsync<TParams, TResult>(
-        McpClient client,
-        string method,
-        TParams parameters,
-        CancellationToken cancellationToken) where TResult : notnull
+    private static void ValidateHostIdentity(string hostId, WorkspaceListResponse response)
     {
-        var response = await client.SendRequestAsync<TParams, ExtensionResponse<TResult>>(
-            method,
-            parameters,
-            RemoteToolHostProtocol.JsonOptions,
-            default,
-            cancellationToken).ConfigureAwait(false);
-        if (!response.Success || response.Result is null)
+        var builds = $"host build {response.BuildVersion}, agent build {RemoteToolHostProtocol.BuildVersion}";
+        if (!string.Equals(response.ProfileVersion, RemoteToolHostProtocol.ProfileVersion, StringComparison.Ordinal))
             throw new RemoteToolHostException(
-                response.Error?.Code ?? RemoteToolErrorCodes.ProtocolMismatch,
-                response.Error?.Message ?? $"Remote extension '{method}' returned no result.");
-        return response.Result;
+                RemoteToolErrorCodes.ProtocolMismatch,
+                $"Remote host profile '{response.ProfileVersion}' is unsupported ({builds}).");
+        if (!string.Equals(hostId, response.HostId, StringComparison.Ordinal))
+            throw new RemoteToolHostException(
+                RemoteToolErrorCodes.ProtocolMismatch,
+                $"The remote endpoint returned a different hostId than the paired host ({builds}).");
     }
 
-    private static void ValidateHostIdentity(
-        RemoteToolHostRegistration registration,
-        string hostId,
-        string profileVersion)
-    {
-        if (!string.Equals(profileVersion, RemoteToolHostProtocol.ProfileVersion, StringComparison.Ordinal))
-            throw new RemoteToolHostException(
-                RemoteToolErrorCodes.ProtocolMismatch,
-                $"Remote host profile '{profileVersion}' is unsupported.");
-        if (!string.Equals(registration.HostId, hostId, StringComparison.Ordinal))
-            throw new RemoteToolHostException(
-                RemoteToolErrorCodes.ProtocolMismatch,
-                "The remote endpoint returned a different hostId than the paired host.");
-    }
+    private static string Bounded(string detail) =>
+        detail.Length <= MaxUnavailableDetailChars ? detail : detail[..MaxUnavailableDetailChars];
 
     private static RemoteContract? ParseRemoteContract(Tool tool)
     {
@@ -589,18 +573,16 @@ internal sealed class RemoteToolHostClient :
             : Math.Min(configured, RemoteToolHostProtocol.MaxTransportResultChars);
     }
 
-    private static RemoteToolArtifactMeta? ParseRemoteArtifact(JsonNode? node)
+    internal static RemoteToolArtifactMeta? ParseRemoteArtifact(JsonNode? node)
     {
         if (node is null)
             return null;
-        var artifact = node?.Deserialize<RemoteToolArtifactMeta>(RemoteToolHostProtocol.JsonOptions);
+        var artifact = node.Deserialize<RemoteToolArtifactMeta>(RemoteToolHostProtocol.JsonOptions);
         if (artifact is null
             || string.IsNullOrWhiteSpace(artifact.Path)
             || artifact.CharacterCount < 0
-            || artifact.Path.StartsWith("/", StringComparison.Ordinal)
-            || artifact.Path.Contains('\\')
-            || artifact.Path.Contains(':')
-            || artifact.Path.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(segment => segment is "." or ".."))
+            || artifact.Path.Length > MaxRemoteArtifactPathChars
+            || artifact.Path.Any(char.IsControl))
         {
             throw new JsonException("Invalid Remote Tool Host artifact metadata.");
         }
@@ -667,29 +649,6 @@ internal sealed class RemoteToolHostClient :
         return items.Count == 0 ? null : items;
     }
 
-    private static RemoteToolHostException MapConnectionError(Exception exception, string? invocationId)
-    {
-        if (exception is RemoteToolHostException typed)
-            return typed;
-        if (exception is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized })
-            return new RemoteToolHostException(
-                RemoteToolErrorCodes.AuthenticationFailed,
-                "Remote Tool Host rejected the paired bearer token.",
-                invocationId,
-                exception);
-        if (exception is HttpRequestException { InnerException: System.Security.Authentication.AuthenticationException })
-            return new RemoteToolHostException(
-                RemoteToolErrorCodes.CertificateMismatch,
-                "Remote Tool Host TLS certificate did not match the paired fingerprint.",
-                invocationId,
-                exception);
-        return new RemoteToolHostException(
-            RemoteToolErrorCodes.HostOffline,
-            exception.Message,
-            invocationId,
-            exception);
-    }
-
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     private sealed record RemoteContract(
@@ -699,191 +658,4 @@ internal sealed class RemoteToolHostClient :
         string CatalogRevision);
 
     private readonly record struct RouteKey(string HostId, string WorkspaceId);
-
-    private sealed class SharedLease
-    {
-        private readonly string _clientInstanceId;
-        private readonly Action<RemoteToolRoute> _lost;
-        private readonly CancellationTokenSource _heartbeatCts = new();
-        private Task? _heartbeatTask;
-
-        public SharedLease(
-            RemoteToolRoute route,
-            string workspacePath,
-            HostSession session,
-            string clientInstanceId,
-            Action<RemoteToolRoute> lost)
-        {
-            Route = route;
-            WorkspacePath = workspacePath;
-            Session = session;
-            _clientInstanceId = clientInstanceId;
-            _lost = lost;
-        }
-
-        public RemoteToolRoute Route { get; }
-        public string WorkspacePath { get; }
-        public HostSession Session { get; }
-        public int ReferenceCount { get; set; }
-        public bool Lost { get; set; }
-        public string HostName { get; set; } = "unknown";
-        public string OperatingSystem { get; set; } = "unknown";
-        public string UserName { get; set; } = "unknown";
-
-        public void StartHeartbeat() => _heartbeatTask = RunHeartbeatAsync();
-
-        public async Task DisposeAndReleaseAsync(CancellationToken cancellationToken)
-        {
-            _heartbeatCts.Cancel();
-            if (_heartbeatTask is not null)
-            {
-                try { await _heartbeatTask.ConfigureAwait(false); }
-                catch (OperationCanceledException) { }
-            }
-            try
-            {
-                await SendAsync<WorkspaceLeaseRequest, JsonObject>(
-                    Session.Client,
-                    RemoteToolHostProtocol.WorkspacesRelease,
-                    new WorkspaceLeaseRequest(
-                        RemoteToolHostProtocol.ProfileVersion,
-                        _clientInstanceId,
-                        Route.LeaseId,
-                        Route.WorkspaceId),
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-                // TTL reclaims an unconfirmed release; disconnect still removes local routing immediately.
-            }
-            _heartbeatCts.Dispose();
-        }
-
-        private async Task RunHeartbeatAsync()
-        {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-            var lastSuccess = DateTimeOffset.UtcNow;
-            try
-            {
-                while (await timer.WaitForNextTickAsync(_heartbeatCts.Token).ConfigureAwait(false))
-                {
-                    try
-                    {
-                        await SendAsync<WorkspaceLeaseRequest, WorkspaceHeartbeatResponse>(
-                            Session.Client,
-                            RemoteToolHostProtocol.WorkspacesHeartbeat,
-                            new WorkspaceLeaseRequest(
-                                RemoteToolHostProtocol.ProfileVersion,
-                                _clientInstanceId,
-                                Route.LeaseId,
-                                Route.WorkspaceId),
-                            _heartbeatCts.Token).ConfigureAwait(false);
-                        lastSuccess = DateTimeOffset.UtcNow;
-                    }
-                    catch (RemoteToolHostException ex) when (
-                        !string.Equals(ex.Code, RemoteToolErrorCodes.LeaseLost, StringComparison.Ordinal)
-                        && DateTimeOffset.UtcNow - lastSuccess < TimeSpan.FromSeconds(60))
-                    {
-                    }
-                    catch when (DateTimeOffset.UtcNow - lastSuccess < TimeSpan.FromSeconds(60))
-                    {
-                    }
-                }
-            }
-            catch (OperationCanceledException) when (_heartbeatCts.IsCancellationRequested)
-            {
-            }
-            catch
-            {
-                _lost(Route);
-            }
-        }
-    }
-
-    private sealed class HostSession : IAsyncDisposable
-    {
-        private HostSession(
-            McpClient client,
-            string endpoint,
-            string certificateFingerprint,
-            string tokenHash)
-        {
-            Client = client;
-            Endpoint = endpoint;
-            CertificateFingerprint = certificateFingerprint;
-            TokenHash = tokenHash;
-        }
-
-        public McpClient Client { get; }
-        private string Endpoint { get; }
-        private string CertificateFingerprint { get; }
-        private string TokenHash { get; }
-
-        public bool Matches(RemoteToolHostRegistration registration, string token) =>
-            string.Equals(Endpoint, registration.Endpoint, StringComparison.Ordinal)
-            && string.Equals(
-                CertificateFingerprint,
-                RemoteToolHostStorage.NormalizeFingerprint(registration.CertificateFingerprint),
-                StringComparison.Ordinal)
-            && string.Equals(TokenHash, TokenUtilities.HashToken(token), StringComparison.Ordinal);
-
-        public static async Task<HostSession> CreateAsync(
-            RemoteToolHostRegistration registration,
-            string token,
-            Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler,
-            CancellationToken cancellationToken)
-        {
-            var expectedFingerprint = RemoteToolHostStorage.NormalizeFingerprint(
-                registration.CertificateFingerprint);
-            var handler = new HttpClientHandler { AllowAutoRedirect = false };
-            handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-            {
-                if (certificate is null)
-                    return false;
-                if (certificate is X509Certificate2 certificate2)
-                {
-                    return string.Equals(
-                        RemoteToolCertificate.Fingerprint(certificate2),
-                        expectedFingerprint,
-                        StringComparison.Ordinal);
-                }
-                using var converted = new X509Certificate2(certificate);
-                return string.Equals(
-                    RemoteToolCertificate.Fingerprint(converted),
-                    expectedFingerprint,
-                    StringComparison.Ordinal);
-            };
-            var endpoint = new Uri(registration.Endpoint.TrimEnd('/') + "/mcp", UriKind.Absolute);
-            var options = new HttpClientTransportOptions
-            {
-                Endpoint = endpoint,
-                Name = registration.DisplayName,
-                TransportMode = HttpTransportMode.AutoDetect,
-                AdditionalHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["Authorization"] = "Bearer " + token
-                }
-            };
-            var transport = new HttpClientTransport(
-                options,
-                new HttpClient(handler),
-                loggerFactory: null,
-                ownsHttpClient: true);
-            var client = await McpClient.CreateAsync(
-                transport,
-                new McpClientOptions
-                {
-                    ProtocolVersion = RemoteToolHostProtocol.McpProtocolVersion,
-                    Handlers = new McpClientHandlers { ElicitationHandler = elicitationHandler }
-                },
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-            return new HostSession(
-                client,
-                registration.Endpoint,
-                expectedFingerprint,
-                TokenUtilities.HashToken(token));
-        }
-
-        public ValueTask DisposeAsync() => Client.DisposeAsync();
-    }
 }

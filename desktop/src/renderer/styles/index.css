@@ -26,6 +26,7 @@
 @import "../components/setup/styles/launch-transition.css";
 @import "../components/channels/styles/channel-catalog-item.css";
 @import "../components/settings/profile/TokenActivityHeatmap.css";
+@import "../components/settings/panels/satellites/satellites.css";
 @import "./shared/animations.css";
 @import "../components/sidebar/styles/task-drag.css";
 @import "../components/update/styles/app-update.css";

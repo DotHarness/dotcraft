@@ -35,6 +35,11 @@ describe('Core surface names', () => {
     expect(surfaces[0].surface).toBe('composer.toolbar.trailng')
   })
 
+  it('stays quiet for a Core surface Core defines', () => {
+    registerDesktopPluginSurface('hud', host, 'composer.status.workspace', 'add', component)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
   it('warns for a bare Core root Core does not define', () => {
     registerDesktopPluginSurface('hud', host, 'app.sidebar', 'replace', component)
     expect(warn).toHaveBeenCalledTimes(1)

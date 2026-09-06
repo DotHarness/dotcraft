@@ -253,6 +253,11 @@ public sealed class AgentFactory : IAsyncDisposable
     public PlanStore? PlanStore => _planStore;
 
     /// <summary>
+    /// Gets the process-shared Remote Tool Host client that owns every thread route.
+    /// </summary>
+    public IRemoteToolHostClient? RemoteToolHostClient => _remoteToolHostClient;
+
+    /// <summary>
     /// Gets the layered context-compaction pipeline (auto / reactive / manual).
     /// </summary>
     public CompactionPipeline CompactionPipeline { get; }

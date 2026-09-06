@@ -8,15 +8,11 @@ interface SelectionCardProps {
   onSelect: () => void
   title: string
   description?: string
-  resolvedBadge?: ReactNode
   errorHint?: ReactNode
   extra?: ReactNode
 }
 
-/**
- * `resolvedBadge` renders inline right of the title, and only on the active card;
- * `errorHint` and `extra` stack below the description.
- */
+/** `errorHint` and `extra` stack below the description, and only on the active card. */
 export function SelectionCard({
   name,
   value,
@@ -24,7 +20,6 @@ export function SelectionCard({
   onSelect,
   title,
   description,
-  resolvedBadge,
   errorHint,
   extra
 }: SelectionCardProps): JSX.Element {
@@ -63,7 +58,6 @@ export function SelectionCard({
           >
             {title}
           </span>
-          {active && resolvedBadge ? <span style={{ display: 'inline-flex' }}>{resolvedBadge}</span> : null}
         </div>
         {description ? (
           <div
@@ -90,37 +84,6 @@ export function SelectionCard({
         {active && extra ? <div style={{ marginTop: '4px' }}>{extra}</div> : null}
       </div>
     </label>
-  )
-}
-
-export function ResolvedPill({ label }: { label: string }): JSX.Element {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '2px 8px',
-        borderRadius: '999px',
-        fontSize: '11px',
-        fontWeight: 600,
-        background: 'color-mix(in srgb, var(--success, #3fb950) 18%, transparent)',
-        color: 'var(--success, #3fb950)',
-        lineHeight: 1.4
-      }}
-    >
-      <svg width="11" height="11" viewBox="0 0 20 20" fill="none" aria-hidden>
-        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.6" />
-        <path
-          d="m6.8 10.1 2.1 2.1 4.4-4.7"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <span>{label}</span>
-    </span>
   )
 }
 

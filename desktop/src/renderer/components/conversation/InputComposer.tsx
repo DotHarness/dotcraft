@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { Archive, Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
+import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
@@ -108,14 +109,12 @@ function emptyComposerDraftSnapshot(): ComposerDraftSnapshot {
   return { text: '', segments: [], files: [], images: [] }
 }
 
+/** AppServer maps a running turn and active maintenance alike onto this code. */
+const TURN_IN_PROGRESS_RPC_CODE = -32012
+
 function isTurnBusyError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err)
-  const normalized = message.toLowerCase()
-  return normalized.includes('turninprogress')
-    || normalized.includes('already has a running turn')
-    || normalized.includes('active thread maintenance')
-    || normalized.includes('thread maintenance')
-    || normalized.includes('-32012')
+  const { code, rpcCode } = readAppServerErrorFields(err)
+  return code === 'turnInProgress' || rpcCode === TURN_IN_PROGRESS_RPC_CODE
 }
 
 function isRequestTimeoutError(err: unknown): boolean {
@@ -1953,6 +1952,7 @@ function InputComposerCore({
                 variant="thread"
                 thread={activeThread}
                 remoteWorkspace={remoteWorkspace}
+                turnRunning={isRunning || isWaitingApproval || isWaitingInput}
               />
             )}
             subscription={minimalChrome ? null : <ChatGptUsageBadge provider={activeChatGptProvider} />}
