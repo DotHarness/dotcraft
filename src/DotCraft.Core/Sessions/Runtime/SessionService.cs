@@ -4052,11 +4052,10 @@ public sealed partial class SessionService(
 
     /// <inheritdoc/>
     public Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default)
-        => _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-            ? runtime.Commands.InvokeAsync(
-                _ => TurnControl.CancelTurn(threadId, turnId),
-                ct)
-            : Task.CompletedTask;
+        => InvokeThreadCommandAsync(
+            threadId,
+            _ => TurnControl.CancelTurn(threadId, turnId),
+            ct);
 
     /// <inheritdoc/>
     public Task CancelThreadMaintenanceAsync(string threadId, CancellationToken ct = default)
@@ -4772,7 +4771,26 @@ public sealed partial class SessionService(
         if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
             throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
 
-        _runtimeRegistry.SetThread(thread).Materialized = true;
+        var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
+            turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+        if (interruptedTurn != null)
+        {
+            interruptedTurn.Status = TurnStatus.Cancelled;
+            interruptedTurn.CompletedAt = DateTimeOffset.UtcNow;
+            await new TurnCommitter(this, thread, interruptedTurn).CommitAsync();
+        }
+
+        var runtime = _runtimeRegistry.SetThread(thread);
+        runtime.Materialized = true;
+        if (interruptedTurn != null)
+        {
+            runtime.Broker.PublishTurnCancelled(interruptedTurn, "interrupted");
+            ThreadRuntimeSignalForBroadcast?.Invoke(
+                thread.Id,
+                SessionThreadRuntimeSignal.TurnCancelled,
+                interruptedTurn);
+        }
+
         return thread;
     }
 
