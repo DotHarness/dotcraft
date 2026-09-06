@@ -31,7 +31,7 @@ public sealed class AgentRuntimeContext
 
     /// <summary>
     /// Copies every member of <paramref name="source"/> so a clone site only states its deltas and cannot
-    /// silently drop one. Lazily defaulted members are materialized from the source as it is read.
+    /// silently drop one. Unresolved model runtime values remain unresolved in the clone.
     /// </summary>
     [SetsRequiredMembers]
     public AgentRuntimeContext(AgentRuntimeContext source)
@@ -40,9 +40,9 @@ public sealed class AgentRuntimeContext
         Config = source.Config;
         ChatClient = source.ChatClient;
         ChatClientRegistry = source.ChatClientRegistry;
-        EffectiveMainModel = source.EffectiveMainModel;
-        EffectiveProviderId = source.EffectiveProviderId;
-        EffectiveProviderProtocol = source.EffectiveProviderProtocol;
+        _effectiveMainModel = source._effectiveMainModel;
+        _effectiveProviderId = source._effectiveProviderId;
+        _effectiveProviderProtocol = source._effectiveProviderProtocol;
         EffectiveReasoning = source.EffectiveReasoning;
         EffectiveSpeed = source.EffectiveSpeed;
         WorkspacePath = source.WorkspacePath;
@@ -95,10 +95,10 @@ public sealed class AgentRuntimeContext
     public required AppConfig Config { get; init; }
 
     /// <summary>
-    /// The chat client for AI interactions.
-    /// Required for subagent spawning and other AI-powered tools.
+    /// The resolved chat client for AI interactions.
+    /// Root workspace contexts may leave this unset until an agent is built.
     /// </summary>
-    public required IChatClient ChatClient { get; init; }
+    public IChatClient? ChatClient { get; init; }
 
     /// <summary>
     /// Central provider-neutral registry used to resolve model-specific chat clients.
@@ -112,30 +112,40 @@ public sealed class AgentRuntimeContext
     /// <summary>
     /// Effective MainAgent model represented by <see cref="ChatClient"/>.
     /// </summary>
+    private string? _effectiveMainModel;
+
     public string EffectiveMainModel
     {
-        get => string.IsNullOrWhiteSpace(field) ? ChatClientRegistry.ResolveMainModel(Config) : field;
-        init;
+        get => string.IsNullOrWhiteSpace(_effectiveMainModel)
+            ? ChatClientRegistry.ResolveMainModel(Config)
+            : _effectiveMainModel;
+        init => _effectiveMainModel = value;
     }
 
     /// <summary>
     /// Effective provider id represented by <see cref="ChatClient"/>.
     /// </summary>
+    private string? _effectiveProviderId;
+
     public string EffectiveProviderId
     {
-        get => string.IsNullOrWhiteSpace(field) ? ChatClientRegistry.ResolveMainProviderId(Config) : field;
-        init;
+        get => string.IsNullOrWhiteSpace(_effectiveProviderId)
+            ? ChatClientRegistry.ResolveMainProviderId(Config)
+            : _effectiveProviderId;
+        init => _effectiveProviderId = value;
     }
 
     /// <summary>
     /// Effective provider protocol represented by <see cref="ChatClient"/>.
     /// </summary>
+    private string? _effectiveProviderProtocol;
+
     public string EffectiveProviderProtocol
     {
-        get => string.IsNullOrWhiteSpace(field)
+        get => string.IsNullOrWhiteSpace(_effectiveProviderProtocol)
             ? ChatClientRegistry.ResolveMainRuntime(Config, EffectiveProviderId, EffectiveMainModel).Protocol
-            : field;
-        init;
+            : _effectiveProviderProtocol;
+        init => _effectiveProviderProtocol = value;
     }
 
     /// <summary>

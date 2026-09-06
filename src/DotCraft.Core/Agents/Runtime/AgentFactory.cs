@@ -29,7 +29,7 @@ namespace DotCraft.Agents;
 public sealed class AgentFactory : IAsyncDisposable
 {
     private readonly AppConfig _config;
-    private readonly IChatClient _chatClient;
+    private readonly IChatClient? _chatClientOverride;
     private readonly ConcurrentDictionary<string, TokenTracker> _tokenTrackers = new();
     private readonly ConcurrentDictionary<CompactionPipelineKey, CompactionPipeline> _compactionPipelines = new();
     private readonly TraceCollector? _traceCollector;
@@ -42,6 +42,8 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly IRemoteToolHostClient? _remoteToolHostClient;
     private readonly ChatClientRegistry _chatClientRegistry;
     private readonly IChatClient? _compactionChatClientOverride;
+    private CompactionPipeline? _defaultCompactionPipeline;
+    private IMemoryConsolidator? _defaultConsolidator;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
     private readonly CustomCommandLoader? _customCommandLoader;
     private readonly PlanStore? _planStore;
@@ -92,6 +94,7 @@ public sealed class AgentFactory : IAsyncDisposable
         _onConsolidatorStatus = onConsolidatorStatus;
         _memoryConsolidatorOverride = memoryConsolidator;
         _compactionChatClientOverride = compactionChatClient;
+        _chatClientOverride = chatClient;
         _toolDispatcher = toolDispatcher ?? new ToolDispatcher();
         _remoteToolHostClient = remoteToolHostClient;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -101,67 +104,11 @@ public sealed class AgentFactory : IAsyncDisposable
                               ?? runtimeContext?.ChatClientRegistry
                               ?? new ChatClientRegistry(new ModelProviderRegistry([]));
 
-        var mainRuntime = _chatClientRegistry.ResolveMainRuntime(config);
-        var mainModel = mainRuntime.Model;
-        var mainCompactionConfig = ModelCatalog.ResolveCompactionConfig(config, mainModel);
-        _chatClient = chatClient ?? _chatClientRegistry.GetChatClient(mainRuntime);
-        var consolidationRuntime = _chatClientRegistry.ResolveConsolidationRuntime(
-            config,
-            mainRuntime.ProviderId,
-            mainModel);
-        var maintenanceMainChatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            _chatClient,
-            config,
-            mainRuntime,
-            useDefaultReasoning: false);
-        var consolidationChatClient = chatClient ?? _chatClientRegistry.GetChatClient(consolidationRuntime);
-        var legacyConsolidator = new MemoryConsolidator(
-            ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                consolidationChatClient,
-                config,
-                consolidationRuntime,
-                useDefaultReasoning: false),
-            memoryStore,
-            onConsolidatorStatus);
-        Consolidator = _memoryConsolidatorOverride
-            ?? new MemoryForkConsolidator(
-                new MaintenanceForkRunner(
-                    maintenanceMainChatClient,
-                    cacheOptions: new MaintenanceForkCacheOptions(
-                        mainRuntime.Protocol,
-                        _config.PromptCaching,
-                        mainModel)),
-                legacyConsolidator,
-                memoryStore,
-                mainModel,
-                consolidationRuntime.Model,
-                mainCompactionConfig.BlockingLimit(),
-                workspacePath);
-
-        CompactionPipeline = new CompactionPipeline(
-            mainCompactionConfig,
-            ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                _compactionChatClientOverride ?? _chatClient,
-                config,
-                mainRuntime,
-                useDefaultReasoning: false),
-            _traceCollector,
-            new MaintenanceForkCacheOptions(
-                mainRuntime.Protocol,
-                _config.PromptCaching,
-                mainModel),
-            runtimeContext?.Contributions,
-            logger: _logger);
-
-        // Build the source-neutral runtime context.
         _runtimeContext = runtimeContext ?? new AgentRuntimeContext
         {
             Config = config,
-            ChatClient = _chatClient,
+            ChatClient = chatClient,
             ChatClientRegistry = _chatClientRegistry,
-            EffectiveProviderId = mainRuntime.ProviderId,
-            EffectiveProviderProtocol = mainRuntime.Protocol,
-            EffectiveMainModel = mainModel,
             WorkspacePath = workspacePath,
             BotPath = dotcraftPath,
             MemoryStore = memoryStore,
@@ -260,7 +207,8 @@ public sealed class AgentFactory : IAsyncDisposable
     /// <summary>
     /// Gets the layered context-compaction pipeline (auto / reactive / manual).
     /// </summary>
-    public CompactionPipeline CompactionPipeline { get; }
+    public CompactionPipeline CompactionPipeline =>
+        _defaultCompactionPipeline ??= GetCompactionPipeline(string.Empty);
 
     /// <summary>
     /// Gets the context-compaction pipeline for a thread's effective main model.
@@ -289,6 +237,7 @@ public sealed class AgentFactory : IAsyncDisposable
             var (factory, resolvedConfig, config) = state;
             var runtime = pipelineKey.ToRuntime();
             var baseChatClient = factory._compactionChatClientOverride
+                ?? factory._chatClientOverride
                 ?? factory._chatClientRegistry.GetChatClient(runtime);
             return new CompactionPipeline(
                 resolvedConfig,
@@ -327,7 +276,7 @@ public sealed class AgentFactory : IAsyncDisposable
             mainRuntime.Model);
         var fallback = new MemoryConsolidator(
             ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                _chatClientRegistry.GetChatClient(consolidationRuntime),
+                _chatClientOverride ?? _chatClientRegistry.GetChatClient(consolidationRuntime),
                 config,
                 consolidationRuntime,
                 useDefaultReasoning: false),
@@ -337,7 +286,7 @@ public sealed class AgentFactory : IAsyncDisposable
         return new MemoryForkConsolidator(
             new MaintenanceForkRunner(
                 ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                    _chatClientRegistry.GetChatClient(mainRuntime),
+                    _chatClientOverride ?? _chatClientRegistry.GetChatClient(mainRuntime),
                     config,
                     mainRuntime,
                     useDefaultReasoning: false),
@@ -362,7 +311,8 @@ public sealed class AgentFactory : IAsyncDisposable
     /// Session Core drives consolidation independently from context
     /// compaction, using completed thread history as input.
     /// </summary>
-    public IMemoryConsolidator? Consolidator { get; }
+    public IMemoryConsolidator? Consolidator =>
+        _defaultConsolidator ??= CreateConsolidatorForRuntime(_config, null, null);
 
     /// <summary>
     /// Gets or creates a token tracker for the specified session.
@@ -386,7 +336,7 @@ public sealed class AgentFactory : IAsyncDisposable
     public void RemoveTokenTracker(string sessionKey)
     {
         _tokenTrackers.TryRemove(sessionKey, out _);
-        CompactionPipeline.Forget(sessionKey);
+        _defaultCompactionPipeline?.Forget(sessionKey);
         foreach (var pair in _compactionPipelines.Where(pair =>
                      string.Equals(pair.Key.SessionKey, sessionKey, StringComparison.Ordinal)).ToArray())
         {
@@ -713,7 +663,10 @@ public sealed class AgentFactory : IAsyncDisposable
                 }
             }
         };
-        var chatClientBuilder = new ChatClientBuilder(ctx.ChatClient);
+        var baseChatClient = ctx.ChatClient
+            ?? _chatClientOverride
+            ?? _chatClientRegistry.GetChatClient(runtime);
+        var chatClientBuilder = new ChatClientBuilder(baseChatClient);
         var isNativeSubAgent = ctx.CurrentThreadSource?.SubAgent is { } subAgentSource
             && string.Equals(
                 subAgentSource.RuntimeType,

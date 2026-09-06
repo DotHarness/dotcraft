@@ -120,7 +120,7 @@ open databases, bind ports, start processes, or run background loops.
 The owning Generic Host controls the lifecycle:
 
 1. Registration adds Runtime, selected providers, optional features, and optional AppServer.
-2. Host startup validates configuration and required capabilities.
+2. Host startup validates provider-independent configuration and required host capabilities.
 3. Runtime provisions the workspace, initializes persistent services, starts owned background
    services, and becomes ready.
 4. Requests use the single Core service graph owned by that host.
@@ -131,7 +131,11 @@ A startup failure never exposes a partially ready Runtime. Resources acquired be
 released through the host startup-failure path. Stop and disposal are safe when invoked through the
 normal Generic Host lifecycle.
 
-Missing providers, invalid workspace configuration, and conflicting registrations fail before the
+Missing model providers, model preferences, and provider implementations are validated when an
+operation first builds an agent or otherwise requires model access. A Runtime without a resolvable
+model remains available for provider-independent work such as config-schema inspection, agent
+profile, skill, and command discovery, thread indexing, and recovery export. Invalid
+provider-independent workspace configuration and conflicting registrations still fail before the
 Runtime accepts work. Transport failures follow the AppServer protocol contract and do not expose
 internal exception types as wire contracts.
 
