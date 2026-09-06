@@ -10,7 +10,7 @@ import { useLocale, useT } from '../../../../contexts/LocaleContext'
 import { useSatellitesStore } from '../../../../stores/satellitesStore'
 import type { AppLocale } from '../../../../../shared/locales'
 import { satelliteState, type Satellite, type SatelliteEvent } from '../../../../../shared/satellites'
-import { SATELLITE_MENU_TONE, SATELLITE_STATE_KEY } from './satellitesStatus'
+import { SATELLITE_STATE_KEY, SATELLITE_TONE } from './satellitesStatus'
 import { folderLabel, formatClock, formatDay } from './satellitesFormat'
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }): JSX.Element {
@@ -106,7 +106,7 @@ export function SatelliteDetail({
         action={
           <StatusMenuButton
             label={t(SATELLITE_STATE_KEY[state])}
-            tone={SATELLITE_MENU_TONE[state]}
+            tone={SATELLITE_TONE[state]}
             items={menuItems}
             loading={revoking === satellite.peerId}
           />

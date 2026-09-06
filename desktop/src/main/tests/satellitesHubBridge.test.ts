@@ -159,6 +159,31 @@ describe('SatellitesHubBridge event filtering', () => {
     expect(hub.listCalls).toBe(0)
   })
 
+  it('takes presence from the event kind rather than the cached record', async () => {
+    bridge.acquire()
+    bridge.remember([
+      {
+        peerId: 'sat_1',
+        hostId: 'sat_1',
+        displayName: 'Ann PC',
+        connected: false,
+        workspaces: []
+      }
+    ])
+
+    hub.emit(satelliteFrame('satellite.online', 'sat_1'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(received[0].satellite?.connected).toBe(true)
+    expect(hub.listCalls).toBe(0)
+
+    // The snapshot moved with it, so a later event does not fall back to stale presence.
+    hub.emit(satelliteFrame('satellite.offline', 'sat_1'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(received[1].satellite?.connected).toBe(false)
+    expect(bridge.recentActivity('sat_1')[0].satellite?.connected).toBe(false)
+  })
+
   it('looks a newly joined machine up once so it can be named', async () => {
     hub.satellites = [{ peerId: 'sat_2', displayName: 'Bo PC', online: true }]
     bridge.acquire()

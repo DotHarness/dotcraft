@@ -182,6 +182,16 @@ export function satelliteState(satellite: Pick<Satellite, 'connected' | 'activeL
   return satellite.activeLease ? 'inUse' : 'ready'
 }
 
+/**
+ * Presence follows the event kind. A record carried by an event was listed earlier,
+ * so it names the machine but cannot be trusted for whether it is connected now.
+ */
+export function withEventPresence(satellite: Satellite, event: SatelliteEvent): Satellite {
+  if (event.kind === 'online') return { ...satellite, connected: true }
+  if (event.kind === 'offline') return { ...satellite, connected: false, lastSeenAt: event.at }
+  return satellite
+}
+
 export function normalizeSatelliteInvite(
   value: unknown,
   statedPurpose?: string

@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import {
   normalizeSatellites,
   parseSatelliteEvent,
+  withEventPresence,
   type Satellite,
   type SatelliteEvent
 } from '../../shared/satellites'
@@ -151,7 +152,13 @@ export class SatellitesHubBridge {
       }
     }
     if (event.kind === 'revoked') this.snapshot.delete(event.peerId)
-    this.publish(satellite ? { ...event, satellite } : event)
+    if (!satellite) {
+      this.publish(event)
+      return
+    }
+    const reconciled = withEventPresence(satellite, event)
+    if (event.kind !== 'revoked') this.snapshot.set(event.peerId, reconciled)
+    this.publish({ ...event, satellite: reconciled })
   }
 
   private publish(event: SatelliteEvent): void {

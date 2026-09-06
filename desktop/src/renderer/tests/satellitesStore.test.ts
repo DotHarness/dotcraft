@@ -116,6 +116,19 @@ describe('satellitesStore', () => {
     expect(state.activity.p1).toHaveLength(1)
   })
 
+  it('brings a machine online even when the attached record still reads offline', () => {
+    useSatellitesStore.setState({ satellites: [machine({ connected: false })], loaded: true })
+    useSatellitesStore.getState().applyEvent({
+      kind: 'online',
+      at: '2026-09-05T10:05:00.000Z',
+      peerId: 'p1',
+      satellite: machine({ connected: false })
+    })
+    const state = useSatellitesStore.getState()
+    expect(state.satellites[0].connected).toBe(true)
+    expect(satelliteState(state.satellites[0])).toBe('ready')
+  })
+
   it('drops a revoked machine and its open detail page', () => {
     useSatellitesStore.setState({
       satellites: [machine()],

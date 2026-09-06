@@ -1,0 +1,43 @@
+/* Shared status indicator: one 8px dot inside a fixed 14px box. The box does the
+   centring, so a spinner can take the dot's place without moving the label. */
+.dc-status-indicator {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}
+
+.dc-status-indicator__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--text-dimmed);
+}
+
+.dc-status-indicator__dot[data-tone="success"] { background: var(--success); }
+.dc-status-indicator__dot[data-tone="warning"] { background: var(--warning); }
+.dc-status-indicator__dot[data-tone="error"] { background: var(--error); }
+
+/* The state as the whole content: a tinted badge, never with an indicator inside. */
+.dc-status-badge {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dc-status-badge[data-tone="success"] { background: var(--success-bg); color: var(--success); }
+.dc-status-badge[data-tone="warning"] { background: var(--warning-bg); color: var(--warning); }
+.dc-status-badge[data-tone="error"] { background: var(--error-bg); color: var(--error); }

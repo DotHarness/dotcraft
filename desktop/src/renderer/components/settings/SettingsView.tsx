@@ -82,6 +82,12 @@ import { UsageOverview } from './UsageOverview'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
+import {
+  StatusIndicator,
+  statusTextStyle,
+  type StatusIndicatorTone,
+  type StatusTone
+} from './panels/settingsStatusStyles'
 import { coreSettingsPanels } from './coreSettingsPanels'
 import { DesktopPluginSettingsPageOutlet } from '../desktopPlugins/DesktopPluginOutlets'
 import {
@@ -677,18 +683,18 @@ function mcpPluginSourceLabel(server: McpServerConfigWire, t: (key: MessageKey |
 function getStatusTone(
   t: (key: MessageKey | string, vars?: Record<string, string | number>) => string,
   status?: McpServerStatusWire
-): { label: string; color: string } {
+): { label: string; tone: StatusIndicatorTone } {
   switch (status?.startupState) {
     case 'ready':
-      return { label: t('settings.mcp.status.connected'), color: '#3fb950' }
+      return { label: t('settings.mcp.status.connected'), tone: 'success' }
     case 'starting':
-      return { label: t('settings.mcp.status.connecting'), color: '#d29922' }
+      return { label: t('settings.mcp.status.connecting'), tone: 'pending' }
     case 'error':
-      return { label: t('settings.mcp.status.error'), color: '#f85149' }
+      return { label: t('settings.mcp.status.error'), tone: 'error' }
     case 'disabled':
-      return { label: t('settings.mcp.disabledSuffix').replace(/^ · /, ''), color: 'var(--text-dimmed)' }
+      return { label: t('settings.mcp.disabledSuffix').replace(/^ · /, ''), tone: 'neutral' }
     default:
-      return { label: t('settings.mcp.status.idle'), color: 'var(--text-dimmed)' }
+      return { label: t('settings.mcp.status.idle'), tone: 'neutral' }
   }
 }
 
@@ -762,42 +768,13 @@ function providerFooterStyle(): CSSProperties {
   }
 }
 
-function providerInlineStatusStyle(tone: 'success' | 'warning' | 'error' | 'neutral'): CSSProperties {
-  const color =
-    tone === 'success'
-      ? 'var(--success, #3fb950)'
-      : tone === 'warning'
-        ? 'var(--warning, #d29922)'
-        : tone === 'error'
-          ? 'var(--error, #f85149)'
-          : 'var(--text-dimmed)'
+function providerInlineStatusStyle(): CSSProperties {
   return {
+    ...statusTextStyle(),
     minWidth: 0,
     maxWidth: 'min(420px, 100%)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    color,
     fontSize: '12px',
     lineHeight: 1.4
-  }
-}
-
-function providerInlineStatusDotStyle(tone: 'success' | 'warning' | 'error' | 'neutral'): CSSProperties {
-  const background =
-    tone === 'success'
-      ? 'var(--success, #3fb950)'
-      : tone === 'warning'
-        ? 'var(--warning, #d29922)'
-        : tone === 'error'
-          ? 'var(--error, #f85149)'
-          : 'var(--text-dimmed)'
-  return {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background,
-    flexShrink: 0
   }
 }
 
@@ -911,13 +888,7 @@ function chromeNativeHostActionLabel(
   return t('settings.chrome.repairHost')
 }
 
-function statusDotColor(tone: ChromeSetupTone): string {
-  if (tone === 'ok') return 'var(--success)'
-  if (tone === 'warning') return 'var(--warning)'
-  if (tone === 'error') return 'var(--error)'
-  return 'var(--text-dimmed)'
-}
-
+/** The connection state is this row's whole content, so it reads as a badge. */
 function ChromeStatusPill({
   label,
   tone
@@ -925,32 +896,8 @@ function ChromeStatusPill({
   label: string
   tone: ChromeSetupTone
 }): JSX.Element {
-  const color = statusDotColor(tone)
-  const bg =
-    tone === 'ok'
-      ? 'rgba(52, 199, 89, 0.15)'
-      : tone === 'warning'
-        ? 'rgba(255, 149, 0, 0.15)'
-        : tone === 'error'
-          ? 'rgba(255, 69, 58, 0.15)'
-          : 'var(--bg-tertiary)'
-
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        minHeight: 24,
-        padding: '0 9px',
-        borderRadius: 999,
-        background: bg,
-        color,
-        fontSize: 12,
-        fontWeight: 600
-      }}
-    >
-      <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
+    <span className="dc-status-badge" data-tone={tone === 'ok' ? 'success' : tone === 'muted' ? undefined : tone}>
       {label}
     </span>
   )
@@ -1141,7 +1088,7 @@ function ChatGptOAuthPanel({
       )}
 
       {error && (
-        <div style={{ fontSize: '12px', color: 'var(--error, #f85149)' }}>
+        <div style={{ fontSize: '12px', color: 'var(--error)' }}>
           {error}
         </div>
       )}
@@ -4062,8 +4009,8 @@ export function SettingsView({
                         {(() => {
                           if (testingProvider) {
                             return (
-                              <div role="status" aria-live="polite" style={providerInlineStatusStyle('neutral')}>
-                                <span style={providerInlineStatusDotStyle('neutral')} />
+                              <div role="status" aria-live="polite" style={providerInlineStatusStyle()}>
+                                <StatusIndicator tone="pending" />
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {t('settings.llm.testRunningInline')}
                                 </span>
@@ -4071,7 +4018,7 @@ export function SettingsView({
                             )
                           }
                           if (!providerTestResult) return null
-                          const tone = providerTestResult.success
+                          const tone: StatusTone = providerTestResult.success
                             ? 'success'
                             : providerTestResult.errorCode === 'EndpointNotSupported'
                               ? 'warning'
@@ -4088,8 +4035,8 @@ export function SettingsView({
                               label={message}
                               wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
                             >
-                              <div role="status" aria-live="polite" style={providerInlineStatusStyle(tone)}>
-                                <span style={providerInlineStatusDotStyle(tone)} />
+                              <div role="status" aria-live="polite" style={providerInlineStatusStyle()}>
+                                <StatusIndicator tone={tone} />
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {message}
                                 </span>
@@ -4872,7 +4819,7 @@ export function SettingsView({
                     {!mcpLoading && mcpError && (
                       <SettingsGroup title={t('settings.group.servers')}>
                         <SettingsRow>
-                        <div style={{ fontSize: '13px', color: '#f85149' }}>{mcpError}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--error)' }}>{mcpError}</div>
                         </SettingsRow>
                       </SettingsGroup>
                     )}
@@ -4951,7 +4898,10 @@ export function SettingsView({
                                   </>
                                 )}
                                 <span aria-hidden>·</span>
-                                <span style={{ color: tone.color, fontWeight: 500 }}>{tone.label}</span>
+                                <span style={{ ...statusTextStyle(), fontSize: 'inherit', fontWeight: 500 }}>
+                                  <StatusIndicator tone={tone.tone} />
+                                  {tone.label}
+                                </span>
                                 {toolCountLabel && (
                                   <>
                                     <span aria-hidden>·</span>
@@ -4960,7 +4910,7 @@ export function SettingsView({
                                 )}
                               </div>
                               {status?.lastError && (
-                                <div style={{ fontSize: '12px', color: '#f85149', marginTop: '8px' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--error)', marginTop: '8px' }}>
                                   {status.lastError}
                                 </div>
                               )}
@@ -5169,13 +5119,8 @@ export function SettingsView({
 
                     {mcpTestResult && (
                       <div style={cardStyle()}>
-                        <div
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            color: mcpTestResult.success ? '#3fb950' : '#f85149'
-                          }}
-                        >
+                        <div style={{ ...statusTextStyle(), fontSize: '13px', fontWeight: 600 }}>
+                          <StatusIndicator tone={mcpTestResult.success ? 'success' : 'error'} />
                           {mcpTestResult.success ? t('settings.mcp.testSuccess') : t('settings.mcp.testFailed')}
                         </div>
                         {typeof mcpTestResult.toolCount === 'number' && (

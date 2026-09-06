@@ -1,9 +1,10 @@
 import { create } from 'zustand'
-import type {
-  Satellite,
-  SatelliteEvent,
-  SatelliteInvite,
-  SatelliteWorkspace
+import {
+  withEventPresence,
+  type Satellite,
+  type SatelliteEvent,
+  type SatelliteInvite,
+  type SatelliteWorkspace
 } from '../../shared/satellites'
 
 /** One machine's lease overlay, keyed by workspace id. */
@@ -209,13 +210,8 @@ export const useSatellitesStore = create<SatellitesStore>((set, get) => ({
     set((state) => {
       const index = state.satellites.findIndex((satellite) => satellite.peerId === event.peerId)
       const known = index >= 0 ? state.satellites[index] : null
-      const merged = event.satellite ?? (known
-        ? {
-            ...known,
-            connected: event.kind === 'online',
-            ...(event.kind === 'offline' ? { lastSeenAt: event.at } : {})
-          }
-        : null)
+      const base = event.satellite ?? known
+      const merged = base ? withEventPresence(base, event) : null
       if (!merged) return { activity: prependActivity(state.activity, event) }
       const satellites = index >= 0
         ? state.satellites.map((satellite, at) => (at === index ? merged : satellite))

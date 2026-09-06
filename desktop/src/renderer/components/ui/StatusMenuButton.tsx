@@ -1,8 +1,9 @@
 import { useRef, useState, type JSX } from 'react'
-import { ChevronDown, Loader2 } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
+import { StatusIndicator, type StatusTone } from './StatusIndicator'
 import { ContextMenu, type ContextMenuEntry } from './ContextMenu'
 
-export type StatusMenuTone = 'neutral' | 'success' | 'warning' | 'error'
+export type StatusMenuTone = StatusTone
 
 interface StatusMenuButtonProps {
   label: string
@@ -48,7 +49,6 @@ export function StatusMenuButton({
         ref={buttonRef}
         type="button"
         className={className ? `dc-status-menu-button ${className}` : 'dc-status-menu-button'}
-        data-tone={tone}
         data-open={position != null || undefined}
         aria-label={ariaLabel ?? label}
         aria-haspopup="menu"
@@ -61,9 +61,7 @@ export function StatusMenuButton({
           toggleMenu()
         }}
       >
-        {loading
-          ? <Loader2 size={13} className="animate-spin-custom" aria-hidden />
-          : <span className="dc-status-menu-button__dot" aria-hidden />}
+        <StatusIndicator tone={loading ? 'pending' : tone} />
         <span>{label}</span>
         <ChevronDown size={13} aria-hidden />
       </button>

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-export { dotStyle, statusTextStyle, type StatusTone } from '../settingsStatusStyles'
+export { statusTextStyle, type StatusIndicatorTone, type StatusTone } from '../settingsStatusStyles'
 
 export const card: CSSProperties = {
   border: '1px solid var(--border-default)',

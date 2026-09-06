@@ -18,7 +18,7 @@ import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
 import { addToast } from '../../../../stores/toastStore'
 import type { RemoteHost, RemoteStack } from '../../../../../shared/remoteServers'
-import { StatusDot, healthLabel, healthTone } from './serversStatus'
+import { StatusText, healthLabel, healthTone } from './serversStatus'
 import * as s from './serversStyles'
 
 type StackOperationKind = 'connect' | 'start' | 'stop' | 'restart' | 'update'
@@ -90,7 +90,16 @@ export function StackCard({
     if (operationBusy) setMenuOpen(false)
   }, [operationBusy])
 
-  const tone = operationBusy ? 'info' : active ? 'success' : healthTone(status?.health)
+  const tone: s.StatusIndicatorTone = operationBusy
+    ? 'pending'
+    : active
+      ? 'success'
+      : healthTone(status?.health)
+  const statusLabel = operationKind
+    ? t(operationLabelKey(operationKind))
+    : active
+      ? t('settings.servers.stack.connected')
+      : healthLabel(status, t)
   const running = status?.health === 'running' || status?.health === 'partial'
   const appVersion = formatAppVersion(status?.appVersion)
   const stackMeta = operationKind
@@ -141,18 +150,8 @@ export function StackCard({
     <div style={s.stackCard}>
       <div style={s.stackHead}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <StatusDot tone={tone} />
           <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1 }}>{stack.name}</span>
-          {operationKind ? (
-            <span style={{ ...s.statusTextStyle('info'), color: 'var(--text-primary)' }}>
-              <Loader2 size={13} className="animate-spin-custom" />
-              {t(operationLabelKey(operationKind))}
-            </span>
-          ) : active ? (
-            <span style={s.statusTextStyle('success')}>{t('settings.servers.stack.connected')}</span>
-          ) : (
-            <span style={s.statusTextStyle(healthTone(status?.health))}>{healthLabel(status, t)}</span>
-          )}
+          <StatusText tone={tone}>{statusLabel}</StatusText>
         </span>
         <span style={{ flex: 1 }} />
         {appVersion && (

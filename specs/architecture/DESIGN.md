@@ -1,5 +1,5 @@
 ---
-version: "0.13.0"
+version: "0.14.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -592,19 +592,58 @@ A visible neutral frame (`bordered`: `var(--bg-secondary)` +
 `1px solid var(--border-default)`) is opt-in and reserved for special or important
 icon controls. Modal close buttons stay borderless with neutral hover feedback.
 
+### Status Indicators
+
+A status indicator is one glyph that says what state something is in, read
+together with the label beside it. Every surface uses the same one, so a row in
+Settings, a detail header, and a card all say "healthy" the same way.
+
+The shape never varies: an 8px circle with a `999px` radius that does not
+shrink, drawn inside a fixed 14px inline-flex box. The box is what centres it,
+so alignment is never corrected with `margin-top`, `margin-bottom`, or
+`vertical-align`; two indicators in adjacent rows sit on the same line because
+they share the same box, not because each one was nudged. The box also lets a
+spinner or an icon take the indicator's place without moving the text.
+
+The indicator precedes the label it describes and belongs to that label, not to
+a title or name beside it. Colour lives in the indicator alone: the label stays
+`--text-secondary`, and a failure reason follows it as ordinary neutral text.
+Colouring the words as well doubles the signal and makes a healthy row shout.
+
+Four fills carry every state:
+
+- `--success` for the state worth noticing — running, in use, connected where
+  being connected is the point;
+- `--warning` for degraded but recoverable;
+- `--error` for failed or blocked;
+- `--text-dimmed` for every quiet state — ready, idle, offline, unknown — which
+  the label distinguishes in words.
+
+There is no hollow, dashed, or translucent variant: a ring reads as a different
+component, and a dimmed circle already says "nothing is happening here". A
+transitional state — connecting, testing, restarting — shows a spinner in the
+indicator's box rather than a colour, because a colour would claim a result the
+system does not have yet. When the label does not already name the state, the
+indicator carries an accessible name of its own, since colour alone is not
+readable.
+
+When the state is the whole content rather than an attribute of a row, use a
+badge instead: the tinted surface tokens (`--success-bg`, `--warning-bg`,
+`--error-bg`) with the hue as the foreground, and no indicator inside it. A
+badge and an indicator never appear together for the same fact.
+
 ### Status Menu Buttons
 
 A compact status menu button combines a current-state label with an overflow
 menu when a repeated row would otherwise expose several competing actions. It
 is a state affordance, not a second primary action:
 
-- the trigger is a 32px-high neutral control with a small semantic status dot,
-  concise label, trailing chevron, and a persistent `1px
-  solid var(--border-default)` outline;
+- the trigger takes the control band of the surface it sits in and carries the
+  shared status indicator, a concise label, a trailing chevron, and a persistent
+  `1px solid var(--border-default)` outline;
 - hover and open states may strengthen the neutral fill and border together,
   but the frame never becomes an accent border;
-- stable states such as connected or active may use a success dot, while
-  unavailable or failed states use warning or error only in the dot and label;
+- the indicator follows Status Indicators above, and the label stays neutral;
 - clicking the trigger opens the ordinary shared menu treatment; destructive
   commands remain explicit danger menu items and require confirmation when
   they revoke durable authority or delete data;

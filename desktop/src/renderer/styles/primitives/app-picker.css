@@ -4,7 +4,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 4px;
   height: var(--button-height);
   padding: 0 10px;
   border: 1px solid var(--border-default);
@@ -33,18 +33,6 @@
   cursor: default;
   opacity: 0.55;
 }
-
-.dc-status-menu-button__dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 999px;
-  background: var(--text-dimmed);
-}
-
-.dc-status-menu-button[data-tone="success"] .dc-status-menu-button__dot { background: var(--success); }
-.dc-status-menu-button[data-tone="warning"] .dc-status-menu-button__dot { background: var(--warning); }
-.dc-status-menu-button[data-tone="error"] .dc-status-menu-button__dot { background: var(--error); }
 
 /* Shared Apps picker shell and row layout for Welcome and existing threads. */
 .dc-app-bindings-picker {

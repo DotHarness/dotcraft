@@ -93,7 +93,7 @@ export function ServerDetail({
         action={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {showReachability && (
-              <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32 }}>
+              <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center' }}>
                 <StatusText tone={reach.tone}>{reach.label}</StatusText>
               </span>
             )}

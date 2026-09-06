@@ -84,9 +84,7 @@ export function ServerList({
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
                 {host.name}
-                <StatusText tone={reach.tone} labelTone="neutral">
-                  {reach.label}
-                </StatusText>
+                <StatusText tone={reach.tone}>{reach.label}</StatusText>
                 {activeHere && (
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
                     {t('settings.servers.list.activeHere')}
