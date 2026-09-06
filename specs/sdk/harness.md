@@ -1,5 +1,11 @@
 # DotCraft Harness
 
+| Field | Value |
+|---|---|
+| Version | 1.0.0 |
+| Status | Living |
+| Date | 2026-08-16 |
+
 This specification defines the stable boundary of the in-process .NET Harness package. Runtime
 ownership and lifecycle rules remain defined by
 [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md), and session behavior

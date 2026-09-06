@@ -1,5 +1,4 @@
-/* The one place in Desktop where color does not come from a product token; see
-   "Code token colors" in specs/architecture/DESIGN.md. color-scheme is scoped here
+/* color-scheme is scoped here
    rather than set on the document, so form controls and scrollbars elsewhere are
    untouched. */
 

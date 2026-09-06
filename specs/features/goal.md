@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.1 |
+| **Version** | 0.3.0 |
 | **Status** | Living |
-| **Date** | 2026-06-21 |
+| **Date** | 2026-09-06 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define DotCraft's server-managed persistent thread goal feature, including the Session Core domain model, runtime lifecycle, persistence contract, model tool surface, AppServer wire projection, and client UX expectations.
@@ -51,7 +51,7 @@ This spec covers:
 - AppServer JSON-RPC methods and notifications
 - client UX expectations for Desktop, ACP, external channels, and custom clients
 
-### 1.2 Relationship to Existing Specs
+### 1.2 Relationship to Other Specs
 
 | Spec | Relationship |
 |------|--------------|
@@ -62,15 +62,7 @@ This spec covers:
 
 ### 1.3 In Scope Channels
 
-Goals apply only to server-managed channels that execute through `ISessionService`:
-
-- CLI
-- ACP
-- Desktop through AppServer
-- QQ
-- WeCom
-- external channel adapters that submit server-managed turns
-- Automations when they submit to server-managed threads
+Goals apply only to server-managed channels that execute through the session service: the CLI, ACP, Desktop through AppServer, the [first-party channel adapters](../sdk/typescript.md#171-first-party-modules) and any other adapter that submits server-managed turns, and Automations when they submit to server-managed threads.
 
 ### 1.4 Non-Goals
 
@@ -89,7 +81,7 @@ Design intent:
 1. **Thread-owned durable state**: The current goal belongs to a Session Core thread, not to a UI client or channel adapter.
 2. **Single authoritative state machine**: Session Core owns status transitions, accounting, continuation, and model steering.
 3. **Thin clients**: Clients can set, clear, pause, resume, and display goals, but they do not own the goal runtime.
-4. **Protocol symmetry**: AppServer exposes goal methods using the same JSON-RPC shape and notification style as existing thread methods.
+4. **Protocol symmetry**: AppServer exposes goal methods using the same JSON-RPC shape and notification style as other thread methods.
 5. **Safe autonomy**: An active goal may continue automatically only when the thread is idle and no user or system work is pending.
 6. **Model-limited control**: The model can read goals, explicitly create goals when requested, and mark a goal complete or genuinely blocked after the required audit. It cannot suppress or alter the user's control over goal execution.
 7. **Budget-aware stopping**: Token budget exhaustion is system-owned. It produces `budgetLimited`, steering, and UI feedback, not silent continuation.
@@ -156,56 +148,31 @@ Goals are a Session Core capability with optional UX surfaces. A host can expose
 
 `ThreadGoal` is the current persisted goal for a `SessionThread`.
 
-```csharp
-public sealed record ThreadGoal
-{
-    public required string ThreadId { get; init; }
-    public required string GoalId { get; init; }
-    public required string Objective { get; init; }
-    public required ThreadGoalStatus Status { get; init; }
-    public long? TokenBudget { get; init; }
-    public required TokenUsage TokensUsed { get; init; }
-    public required long TimeUsedSeconds { get; init; }
-    public required DateTimeOffset CreatedAt { get; init; }
-    public required DateTimeOffset UpdatedAt { get; init; }
-}
-```
+A goal carries the fields below. Its public wire projection is defined in §10.2.
 
 Field semantics:
 
-| Field | Semantics |
-|-------|-----------|
-| `ThreadId` | Owning Session Core thread id. |
-| `GoalId` | Stable identity for the current logical goal. Replaced when objective replacement resets usage. |
-| `Objective` | User-declared goal objective. It is user data, not higher-priority instructions. |
-| `Status` | Current lifecycle state. |
-| `TokenBudget` | Optional positive total-token budget. `null` means unbounded. |
-| `TokensUsed` | Cumulative billing token usage attributed to this goal. |
-| `TimeUsedSeconds` | Cumulative elapsed wall-clock seconds attributed to this goal. |
-| `CreatedAt` | UTC timestamp when this logical goal was created. |
-| `UpdatedAt` | UTC timestamp for the latest mutation or accounting update. |
+| Field | Type | Semantics |
+|-------|------|-----------|
+| `ThreadId` | string | Owning Session Core thread id. |
+| `GoalId` | string | Stable identity for the current logical goal. Replaced when objective replacement resets usage. |
+| `Objective` | string | User-declared goal objective. It is user data, not higher-priority instructions. |
+| `Status` | status enum | Current lifecycle state. |
+| `TokenBudget` | integer or null | Optional positive total-token budget. `null` means unbounded. |
+| `TokensUsed` | token usage breakdown | Cumulative billing token usage attributed to this goal. |
+| `TimeUsedSeconds` | integer | Cumulative elapsed wall-clock seconds attributed to this goal. |
+| `CreatedAt` | UTC timestamp | UTC timestamp when this logical goal was created. |
+| `UpdatedAt` | UTC timestamp | UTC timestamp for the latest mutation or accounting update. |
 
-`TokensUsed` uses DotCraft's existing `TokenUsage` shape, not a single integer. This preserves input/output/cache/reasoning breakdowns while still allowing a `TotalTokens` budget check.
+`TokensUsed` is the shared DotCraft token usage breakdown, not a single integer, so input, output, cache, and reasoning components are preserved while still allowing a total-token budget check.
 
-Budget checks use `TokensUsed.TotalTokens`.
+Budget checks use the total-token component of `TokensUsed`.
 
 ### 4.2 ThreadGoalStatus
 
-```csharp
-public enum ThreadGoalStatus
-{
-    Active,
-    Paused,
-    Blocked,
-    UsageLimited,
-    BudgetLimited,
-    Complete
-}
-```
+Statuses and their wire values:
 
-Wire values are lower camel case:
-
-| Domain | Wire |
+| Status | Wire |
 |--------|------|
 | `Active` | `"active"` |
 | `Paused` | `"paused"` |
@@ -223,18 +190,11 @@ Status semantics:
 - `BudgetLimited`: The goal reached or exceeded its token budget. DotCraft should not begin new substantive goal work until the user changes the goal or budget.
 - `Complete`: The objective has been achieved. This is terminal for the current logical goal.
 
-### 4.3 ThreadGoalUpdate
+### 4.3 Goal Mutations
 
-Goal mutations are patch-like:
+Goal mutations are patch-like: an omitted field leaves the stored value unchanged.
 
-```csharp
-public sealed record ThreadGoalUpdate
-{
-    public string? Objective { get; init; }
-    public Optional<ThreadGoalStatus> Status { get; init; }
-    public Optional<long?> TokenBudget { get; init; }
-}
-```
+A goal mutation carries an optional replacement `Objective`, an optional `Status`, and an optional `TokenBudget`.
 
 `TokenBudget` has three states:
 
@@ -354,30 +314,22 @@ Notes:
 
 ### 6.2 Persistence API
 
-The persistence layer must provide atomic operations equivalent to:
-
-- `GetThreadGoalAsync(threadId)`
-- `ReplaceThreadGoalAsync(threadId, objective, status, tokenBudget)`
-- `InsertThreadGoalAsync(threadId, objective, status, tokenBudget)`
-- `UpdateThreadGoalAsync(threadId, update, expectedGoalId?)`
-- `PauseActiveThreadGoalAsync(threadId)`
-- `DeleteThreadGoalAsync(threadId)`
-- `AccountThreadGoalUsageAsync(threadId, usageDelta, timeDeltaSeconds, mode, expectedGoalId?)`
+The persistence layer must provide atomic read, insert, replace, update, pause, delete, and usage-accounting operations for the current goal of a thread. Update and accounting operations must accept an expected goal id so a caller can refuse to write against a goal that has since been replaced.
 
 ### 6.3 Accounting Modes
 
-Accounting modes control which statuses are eligible for usage updates.
+Each accounting call declares which statuses are eligible for the usage update, so a status change racing the write cannot silently drop or misattribute usage:
 
-| Mode | Eligible statuses | Purpose |
-|------|-------------------|---------|
-| `ActiveStatusOnly` | `active` | Interrupt pause path before status changes. |
-| `ActiveOnly` | `active`, `budget_limited` | Normal turn/tool accounting. |
-| `ActiveOrComplete` | `active`, `budget_limited`, `complete` | Completion accounting when final usage must be preserved. |
-| `ActiveOrStopped` | `active`, `paused`, `blocked`, `usage_limited`, `budget_limited` | External mutation or recovery paths that must account stopped in-flight work. |
+| Accounting path | Eligible statuses |
+|-----------------|-------------------|
+| Interrupt pause, before the status change | `active` |
+| Normal turn and tool accounting | `active`, `budget_limited` |
+| Completion accounting, where final usage must be preserved | `active`, `budget_limited`, `complete` |
+| External mutation and recovery paths that must account stopped in-flight work | `active`, `paused`, `blocked`, `usage_limited`, `budget_limited` |
 
 ### 6.4 Atomic Budget Check
 
-`AccountThreadGoalUsageAsync` must update usage and budget status atomically in a single statement. The update accumulates all token and time deltas, flips `status` from `active` to `budget_limited` when the new `total_tokens` meets or exceeds `token_budget`, and applies the `expectedGoalId` guard to reject stale in-flight accounting. If no row matches the predicate (wrong `goal_id`, wrong status, or no goal exists), the operation returns `Unchanged(currentGoal?)`.
+Usage accounting must update usage and budget status atomically. The update accumulates all token and time deltas, flips `status` from `active` to `budget_limited` when the new `total_tokens` meets or exceeds `token_budget`, and applies the expected-goal-id guard to reject stale in-flight accounting. When nothing matches — wrong `goal_id`, ineligible status, or no goal — the operation reports that it changed nothing and returns the current goal if one exists.
 
 ---
 
@@ -385,40 +337,20 @@ Accounting modes control which statuses are eligible for usage updates.
 
 ### 7.1 Service Surface
 
-`ISessionService` should expose goal operations:
+The session service exposes three goal operations: read the current goal, set it, and clear it. Clearing reports whether a goal was actually removed.
 
-```csharp
-Task<ThreadGoal?> GetThreadGoalAsync(
-    string threadId,
-    CancellationToken cancellationToken = default);
+A set operation carries a mode, which is a runtime concern and never an AppServer wire field:
 
-Task<ThreadGoal> SetThreadGoalAsync(
-    string threadId,
-    ThreadGoalUpdate update,
-    GoalSetMode mode = GoalSetMode.UpsertOrUpdate,
-    CancellationToken cancellationToken = default);
-
-Task<ThreadGoalClearResult> ClearThreadGoalAsync(
-    string threadId,
-    CancellationToken cancellationToken = default);
-```
-
-`GoalSetMode` is an internal/runtime helper, not an AppServer wire field:
-
-- `UpsertOrUpdate`: create, replace, or update according to replacement rules.
-- `CreateOnly`: create only when no unfinished current goal exists; a completed current goal may be replaced.
-- `UpdateOnly`: update status or budget only when a current goal exists.
-- `ReplaceExisting`: force objective replacement after a client confirmation.
-
-`ThreadGoalClearResult`:
-
-```csharp
-public sealed record ThreadGoalClearResult(bool Cleared);
-```
+| Mode | Behavior |
+|------|----------|
+| Upsert or update | Create, replace, or update according to the replacement rules in §5.2. This is the default. |
+| Create only | Create only when no unfinished current goal exists; a completed current goal may be replaced. |
+| Update only | Update status or budget only when a current goal exists. |
+| Replace existing | Force objective replacement after a client confirmation. |
 
 ### 7.2 Internal Runtime Events
 
-Session Core models goal runtime effects through an internal event dispatcher. Callers report runtime facts; goal runtime decides how accounting, continuation, and notifications change. The event kinds are: `TurnStarted`, `UsageDelta`, `ToolCompleted`, `GoalToolCompleted`, `TurnFinished`, `TurnCancelledOrInterrupted`, `ExternalMutationStarting`, `ExternalGoalSet`, `ExternalGoalCleared`, `ThreadResumed`, and `MaybeContinueIfIdle`.
+Callers report runtime facts — a turn started, usage arrived, a tool or turn finished, a turn was cancelled, an external mutation is about to be written, a thread resumed, the thread may now be idle — and goal runtime alone decides how accounting, continuation, and notifications change. Callers never decide those themselves.
 
 ### 7.3 Session Events
 
@@ -451,7 +383,7 @@ Payloads:
 
 Goal continuation turns are ordinary persisted turns with special provenance.
 
-The input `UserMessagePayload` should use:
+The continuation turn's user-message input uses:
 
 - `triggerKind = "goal"`
 - `triggerLabel = "Goal continuation"` or a localized equivalent
@@ -466,23 +398,16 @@ The model-visible input is not the raw objective alone. It is a hidden developer
 
 #### Origin-Turn Provenance ("sent as goal")
 
-Clients commonly mark the user message that established the goal (a "sent as goal" badge). This MUST be derived from durable provenance, not inferred by clients:
+Clients commonly badge the user message that established the goal. That badge MUST come from durable provenance, never from inference:
 
-- When the client submits the goal-establishing objective as a user turn, it marks that submission with `sentAsGoal = true` (a turn-input flag).
-- Session Core persists this as a durable `sentAsGoal` marker on the resulting user-message item (§7.5); the marker round-trips through thread history and is projected on the wire.
-- Clients render the "sent as goal" badge from this persisted marker, and MUST NOT infer it by matching message text to the current objective.
+- The client sets `sentAsGoal = true` on the `turn/start` submission carrying the goal objective, including the first-turn submission a goal-first thread makes after `thread/goal/set`.
+- Session Core persists the marker on the resulting user-message item, alongside provenance such as `triggerKind`. It survives process restart, `thread/resume`, and replay.
+- AppServer projects it on the user-message item; the wire field is defined by [AppServer Protocol §6.3](../protocols/appserver-protocol.md#63-item-notifications).
+- A goal mutation that does not originate from a user turn — a status-only pause or resume, a budget change, or a model `UpdateGoal` — produces no marker. State for those is carried by the goal snapshot and notifications (§7.3, §10.6).
 
-Text correlation is unsound and MUST NOT be used: it false-positives after objective replacement, with short or repeated objectives, when the originating turn is absent (e.g. after compaction) so a later message becomes the first text match, and when a casual reply coincidentally equals the objective. The marker records the immutable historical fact that a specific message established a goal; the current objective is mutable, so the two must never be correlated by value.
+Because the marker rides on an item that is persisted anyway, no separate goal-event history item exists.
 
-### 7.5 Durable Origin Marker
-
-The "sent as goal" association is carried by a durable `sentAsGoal` field on the originating user-message item, not by a transient signal:
-
-- The client sets `sentAsGoal = true` on the `turn/start` submission (and the equivalent first-turn submission a goal-first thread makes after `thread/goal/set`) that carries the goal objective.
-- Session Core stores `sentAsGoal` on the persisted `UserMessage` payload in thread history, alongside existing provenance such as `triggerKind`. It survives process restart and `thread/resume`.
-- The AppServer projects `sentAsGoal` on the user-message item wire — the same item DTO that already carries `text` and `triggerKind`.
-- Because the marker rides on an existing persisted item, no separate goal-event history item is required. The reference implementation persists a distinct `ThreadGoalUpdated` rollout item; DotCraft instead stamps the originating user turn, which fits its "the objective is an ordinary user turn" model and yields the same deterministic, replay-safe anchor.
-- A goal mutation that does not originate from a user turn (status-only pause/resume, budget change, or model `UpdateGoal`) produces no `sentAsGoal` marker; state for those is conveyed by the goal snapshot and notifications (§7.3, §10.6).
+Text correlation is unsound and MUST NOT be used: it false-positives after objective replacement, with short or repeated objectives, when the originating turn is absent (for example after compaction) so a later message becomes the first text match, and when a casual reply coincidentally equals the objective. The marker records the immutable historical fact that a specific message established a goal; the objective is mutable, so the two must never be correlated by value.
 
 ---
 
@@ -500,7 +425,7 @@ When a turn starts:
 
 ### 8.2 Usage Delta
 
-DotCraft already emits `usage/delta` when `UsageContent` is received. Goal runtime must also consume the same normalized billing usage.
+Goal runtime consumes the same normalized billing usage that drives `usage/delta`.
 
 On each usage delta:
 
@@ -528,12 +453,7 @@ After `UpdateGoal` completes:
 
 ### 8.4 Turn Finish
 
-On successful turn completion:
-
-1. Runtime accounts final usage and elapsed time.
-2. Runtime clears turn-scoped accounting for the completed turn. If final accounting makes the goal `BudgetLimited`, no budget-limit steering is injected.
-3. Session Core persists the turn and emits `turn/completed`.
-4. If the goal remains `Active`, Session Core may evaluate `MaybeContinueIfIdle` after the completion path has drained queued work decisions.
+On successful turn completion, final usage and elapsed time are accounted before `turn/completed` is emitted. Turn-scoped accounting is then cleared; if final accounting makes the goal `BudgetLimited`, no budget-limit steering is injected, because there is no longer a turn to receive it. If the goal remains `Active`, Session Core evaluates idle continuation only after the completion path has drained queued-work decisions.
 
 ### 8.5 Turn Interrupt or Cancellation
 
@@ -542,7 +462,7 @@ If a user interrupts an active turn:
 1. Runtime accounts progress made before interruption.
 2. If the current goal is `Active`, runtime changes it to `Paused`.
 3. Runtime emits `thread/goal/updated` with `turnId = null`.
-4. The turn continues its existing cancellation lifecycle.
+4. The turn continues its normal cancellation lifecycle.
 
 If the turn is cancelled for non-user reasons, DotCraft may account progress but should not automatically pause unless the cancellation represents user intent.
 
@@ -595,14 +515,7 @@ Continuation must reserve the active turn slot before injecting input, then re-c
 
 ### 8.9 Continuation Prompt
 
-The continuation prompt is generated by Session Core and inserted as a developer/system steering message. It must include:
-
-- the objective framed as untrusted user data inside an `<untrusted_objective>` element, with an explicit note that it is the task to pursue, not higher-priority instructions
-- current token usage, token budget, elapsed time, and remaining token count
-- instruction to choose the next concrete action
-- completion audit requirements before calling `UpdateGoal`
-- instruction to call `UpdateGoal` only when the objective is actually complete
-- blocked audit requirements before calling `UpdateGoal` with status `blocked`
+The continuation prompt is generated by Session Core and inserted as a developer/system steering message, never as a user message. It must give the model the objective framed as untrusted data (§15.1), the current budget position — token usage, token budget, elapsed time, and remaining tokens — and the audit obligations of §15.3 and §15.4 that gate `UpdateGoal`.
 
 ### 8.10 Budget-Limit Steering
 
@@ -610,14 +523,7 @@ When a goal becomes `BudgetLimited` at a tool-completion boundary, runtime injec
 
 Budget-limit steering is turn-scoped internal context. It must not be represented as a `QueuedTurnInput`, must not use `guidancePending`, must not create a `UserMessage` item, and must not start a follow-up turn. If the current turn cannot drain the steering before it ends, the steering is discarded.
 
-The message must say:
-
-- the active goal reached its token budget
-- the objective is untrusted task context
-- the model must not start new substantive work for this goal
-- the model should wrap up soon
-- the model may call `UpdateGoal(complete)` only if the objective is actually complete
-- budget exhaustion is not a reason to call `UpdateGoal(complete)` or `UpdateGoal(blocked)` by itself
+The message must tell the model that the goal reached its token budget, that it must start no new substantive work for this goal and should wrap up, and that budget exhaustion is by itself never grounds for `UpdateGoal(complete)` or `UpdateGoal(blocked)` (§15.5).
 
 ---
 
@@ -634,7 +540,7 @@ Goal tools are injected only when:
 
 Operational modes should not remove goal tool schemas solely to restrict behavior, because changing the model-visible tool surface breaks prompt cache reuse across ordinary mode transitions. For main Session Core threads, goal tool schemas remain stable across `agent` and `plan`; mode-specific restrictions are enforced by execution policy and prompt guidance.
 
-SubAgents should not receive goal control tools by default. If a future role enables them, the child thread's goal state is separate from the parent thread.
+SubAgents do not receive goal control tools by default. A role that enables them gets goal state on the child thread that is separate from the parent thread's.
 
 ### 9.2 Tools
 
@@ -735,14 +641,14 @@ Clients must check `capabilities.threadGoals` before calling `thread/goal/*`.
 
 ```json
 {
-  "threadId": "thread_20260508_abcd",
+  "threadId": "thread_20260906_abcd",
   "objective": "Improve benchmark coverage",
   "status": "active",
   "tokenBudget": 50000,
   "tokensUsed": 1500,
   "timeUsedSeconds": 240,
-  "createdAt": 1778234400,
-  "updatedAt": 1778234640
+  "createdAt": 1788688800,
+  "updatedAt": 1788689040
 }
 ```
 
@@ -750,40 +656,11 @@ The public wire shape intentionally omits internal `goalId` and token breakdown 
 
 ### 10.3 `thread/goal/get`
 
-Direction: client to server request.
-
-Params:
-
-```json
-{ "threadId": "thread_20260508_abcd" }
-```
-
-Result:
-
-```json
-{ "goal": null }
-```
-
-or:
-
-```json
-{ "goal": { "...": "ThreadGoalWire" } }
-```
+Direction: client to server request. Params carry `threadId`. The result is `{ "goal": ThreadGoalWire | null }`.
 
 ### 10.4 `thread/goal/set`
 
 Direction: client to server request.
-
-Params:
-
-```json
-{
-  "threadId": "thread_20260508_abcd",
-  "objective": "Improve benchmark coverage",
-  "status": "active",
-  "tokenBudget": 50000
-}
-```
 
 Fields:
 
@@ -794,35 +671,19 @@ Fields:
 | `status` | string | no | Desired status. |
 | `tokenBudget` | number or null | no | Omitted leaves unchanged, null clears, positive number sets. |
 
-Result:
-
-```json
-{ "goal": { "...": "ThreadGoalWire" } }
-```
+The result is `{ "goal": ThreadGoalWire }`.
 
 Behavior:
 
 - The server validates the request against Session Core rules.
 - With `objective`, the server creates a goal when none exists or updates the existing objective in place.
 - Status-only and budget-only updates require an existing goal.
-- The `mode` field is not part of the public protocol; servers should reject legacy `mode` params with invalid params.
+- The `mode` field is not part of the public protocol; a request carrying `mode` is rejected with invalid params.
 - The server emits `thread/goal/updated` after mutation.
 
 ### 10.5 `thread/goal/clear`
 
-Direction: client to server request.
-
-Params:
-
-```json
-{ "threadId": "thread_20260508_abcd" }
-```
-
-Result:
-
-```json
-{ "cleared": true }
-```
+Direction: client to server request. Params carry `threadId`. The result is `{ "cleared": boolean }`.
 
 Behavior:
 
@@ -841,7 +702,7 @@ Workspace-level broadcast plus thread-subscription delivery.
   "jsonrpc": "2.0",
   "method": "thread/goal/updated",
   "params": {
-    "threadId": "thread_20260508_abcd",
+    "threadId": "thread_20260906_abcd",
     "turnId": "turn_001",
     "goal": { "...": "ThreadGoalWire" }
   }
@@ -850,15 +711,7 @@ Workspace-level broadcast plus thread-subscription delivery.
 
 #### `thread/goal/cleared`
 
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "thread/goal/cleared",
-  "params": {
-    "threadId": "thread_20260508_abcd"
-  }
-}
-```
+Same envelope, method `thread/goal/cleared`, with `threadId` alone in `params`.
 
 ### 10.7 Notification Delivery
 
@@ -883,7 +736,7 @@ Rules:
 
 This is a hydration optimization. Clients must still consume `thread/goal/updated` and `thread/goal/cleared` as the incremental source of truth.
 
-Older servers may omit the field even when a goal exists. Clients can call `thread/goal/get` when they need an authoritative snapshot.
+The field is optional and a server may omit it even when a goal exists. Clients call `thread/goal/get` when they need an authoritative snapshot.
 
 In addition to the current-goal snapshot, the durable `sentAsGoal` marker on user-message items (§7.5) is projected inline in the thread's item stream, so clients reconstruct the "sent as goal" association deterministically from history rather than from a live heuristic.
 
@@ -891,9 +744,9 @@ In addition to the current-goal snapshot, the durable `sentAsGoal` marker on use
 
 AppServer does not require dedicated goal-specific error codes. Servers should use the normal JSON-RPC/AppServer errors:
 
-- method-not-found or capability errors when goals are disabled or unsupported
+- the capability-unsupported error when goals are disabled or the thread cannot hold a goal
 - thread-not-found for missing threads
-- invalid-params for malformed status, invalid objective, invalid budget, legacy `mode`, or mutations that require an existing goal
+- invalid-params for a malformed status, an invalid objective, an invalid budget, a `mode` field, or a status/budget mutation with no current goal
 - internal-error for unexpected persistence/runtime failures
 
 ---
@@ -979,7 +832,7 @@ A client that badges the user message which established the goal MUST read the p
 Automations may interact with goals in two ways:
 
 1. **Bound task continuation**: An automation can submit turns into a thread that already has an active goal. Session Core accounts the work toward the goal.
-2. **Goal bootstrap**: A future automation template may explicitly create a goal before submitting work.
+2. **Goal bootstrap**: An automation template may explicitly create a goal before submitting work.
 
 Rules:
 
@@ -1004,9 +857,9 @@ This prevents:
 
 ### 13.2 Per-Thread Mutual Exclusion
 
-Session Core already enforces one active turn per thread. Goal continuation must use the same per-thread execution gate.
+Session Core enforces one active turn per thread. Goal continuation must use the same per-thread execution gate.
 
-If a user input arrives while a goal continuation is being prepared, user input has priority. The continuation should be abandoned before the turn starts, or the user input should be queued according to existing queue semantics if the continuation already started.
+If a user input arrives while a goal continuation is being prepared, user input has priority. The continuation is abandoned before the turn starts; if it has already started, the user input is queued under the normal queue semantics.
 
 ### 13.3 Accounting Lock
 
@@ -1038,7 +891,7 @@ For running threads:
 
 - `thread/goal/updated` caused by a turn must be ordered with that turn's event stream.
 - Resume goal snapshots must be ordered after `thread/resumed` and before automatic continuation notifications.
-- External goal mutations should emit the JSON-RPC response before the matching notification, matching existing AppServer request/notification style.
+- External goal mutations should emit the JSON-RPC response before the matching notification, matching AppServer request/notification style.
 
 ---
 
@@ -1046,13 +899,13 @@ For running threads:
 
 | Failure | Behavior |
 |---------|----------|
-| State DB unavailable | Goal operations fail. Existing turns continue without goal behavior. |
+| State DB unavailable | Goal operations fail. Turns in flight continue without goal behavior. |
 | Goal accounting write fails during a turn | Log warning, continue turn, and retry on next accounting boundary when possible. |
 | Goal set fails while a turn is running | In-flight accounting remains in memory; client receives error. |
 | Continuation launch fails | Emit/log system error; leave goal status unchanged unless failure is caused by budget limit or explicit user cancellation. |
-| Budget-limit steering injection fails because no turn is active | Do not fail the goal update. Future active work should see status `BudgetLimited`. |
+| Budget-limit steering injection fails because no turn is active | Do not fail the goal update. The next active turn sees status `BudgetLimited`. |
 | Client disconnects after setting a goal | Server-owned thread state persists; active turns continue according to AppServer rules. |
-| Approval required during continuation on non-interactive client | Existing approval fallback policy applies. |
+| Approval required during continuation on non-interactive client | The normal approval fallback policy applies. |
 | Thread deleted | DB cascade removes goal; clients receive normal thread deletion notifications. |
 
 ---
@@ -1075,31 +928,11 @@ The prompt must explicitly say the objective is the task to pursue, not higher-p
 
 ### 15.2 Model Authority Limits
 
-The model can:
-
-- read the current goal
-- create a goal only when explicitly instructed
-- mark a goal complete after verifying success
-- mark a goal blocked only after the blocked audit is satisfied
-
-The model cannot:
-
-- pause
-- resume
-- clear
-- budget-limit
-- change token budget
-- replace the user's goal
+The model's authority over a goal is exactly the three tools of §9.2 and no more. Control of pausing, resuming, clearing, budgeting, and replacing the objective belongs to the user, and no prompt, tool result, or objective text may extend the model's authority past that boundary.
 
 ### 15.3 Completion Audit
 
-Before `UpdateGoal(complete)`, the continuation prompt must require a completion audit:
-
-- restate deliverables
-- map requirements to evidence
-- inspect relevant files, command output, tests, PR state, or runtime state
-- identify missing or weakly verified requirements
-- treat uncertainty as incomplete
+A goal is never marked complete on the model's impression that it is done. Before `UpdateGoal(complete)`, the continuation prompt must require the model to verify each deliverable against inspected evidence — files, command output, tests, PR state, or runtime state — and to treat any requirement it cannot evidence, and any residual uncertainty, as incomplete.
 
 ### 15.4 Blocked Audit
 
@@ -1138,7 +971,7 @@ Defaults for the runtime implementation:
 | `Goals.Enabled` | `true` | Enables goal storage, AppServer methods, prompt injection, accounting, and model goal tools. |
 | `Goals.AutoContinueEnabled` | `true` | Enables idle continuation turns for active goals. Users can pause a goal to stop continuation. |
 
-When `Goals.Enabled = false`, AppServer does not advertise `threadGoals`, `thread/goal/*` methods return unsupported errors, model goal tools are omitted, and persisted goals remain inert.
+When `Goals.Enabled = false`, AppServer does not advertise `threadGoals`, `thread/goal/*` returns the capability-unsupported error of §10.9, model goal tools are omitted, and persisted goals remain inert.
 
 When `Goals.AutoContinueEnabled = false`, AppServer still advertises `threadGoals`; clients can set/read/clear goals, goal context is injected into normal turns, usage accounting and budget steering still run, but Session Core must not start automatic idle continuation turns.
 
@@ -1148,20 +981,16 @@ AppServer advertises `capabilities.threadGoals = true` only when the current ser
 
 ### 16.3 Mode Interaction
 
-Goal runtime is disabled in modes that are explicitly planning-only.
+Planning-only modes deny goal execution but keep the goal tool surface visible, so prompt cache reuse survives ordinary mode transitions (§9.1):
 
-Initial rule:
+| Mode | Goal tool schemas | Goal tool execution | Continuation |
+|------|-------------------|---------------------|--------------|
+| `agent` | visible | permitted | enabled |
+| `plan` | visible | denied by mode policy | disabled |
 
-- `agent`: goal tools executable and continuation enabled
-- `plan`: goal tool schemas remain visible for prompt-cache stability, goal tool execution is denied by mode policy, and goal continuation is disabled
+Every mode must declare whether it permits goal tools, goal accounting, and goal continuation.
 
-If DotCraft later adds more modes, each mode must declare whether it permits:
-
-- goal tools
-- goal accounting
-- goal continuation
-
-Accounting for already-running work may still occur during mode transitions to avoid usage loss.
+Accounting for work in flight may still occur during mode transitions to avoid usage loss.
 
 ---
 

@@ -6,7 +6,7 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 
-/** Shorter and rounder than the ordinary 32px/8px band; see Catalog Toolbar Band in specs/architecture/DESIGN.md. */
+/** Shorter and rounder than the ordinary 32px/8px band. */
 export const CATALOG_TOOLBAR_CONTROL_SIZE = 28
 export const CATALOG_TOOLBAR_CONTROL_RADIUS = 10
 

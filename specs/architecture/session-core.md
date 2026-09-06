@@ -2,11 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.2 |
+| **Version** | 0.8.0 |
 | **Status** | Living |
-| **Date** | 2026-08-12 |
+| **Date** | 2026-09-06 |
+| **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
 
-Purpose: Define the current **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
+Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
 ## 1. Scope
 
@@ -58,7 +59,7 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
 - **Changing LLM/tool execution internals**: The Microsoft.Extensions.AI pipeline (`FunctionInvokingChatClient`, `TracingChatClient`, etc.) remains as-is. Session Core wraps it; it does not replace it.
 - **Prescribing channel-specific UX**: How a QQ bot renders a diff versus how ACP renders it is an adapter concern. The protocol defines *what* happened, not *how* to display it.
 - **Real-time cross-device sync**: Session Core does not push notifications to idle channels when a thread updates elsewhere. Channels discover thread state on resume.
-- **Multi-user thread collaboration**: Collaborative editing of a thread (multiple users editing simultaneously) is not in scope. Sequential group input is supported as described in Section 17.
+- **Multi-user thread collaboration**: Collaborative editing of a thread (multiple users editing simultaneously) is not in scope. Sequential group input is supported as described in Section 13.
 - **Standards-body compatibility**: This spec defines DotCraft's internal session model. It does not attempt to be an external public standard.
 - **Channel integration**: Session Core is a layer *inside* channel implementations, not a replacement of the module system. Compiled modules use `IDotCraftModule` for registration and implement the capability-specific `IChannelServiceModule` and `ISessionChannelModule` facets when they provide managed channel behavior or session origins. Host composition remains outside Session Core.
 
@@ -100,20 +101,17 @@ The server-managed session protocol is organized into five layers, ordered from 
 2. **Adapter Layer** (per channel)
    - Translates transport messages into Session Core calls: `CreateThread`, `ResumeThread`, `SubmitInput`, `ResolveApproval`.
    - Translates Session Core events into transport messages: text chunks, tool call notifications, approval prompts.
-   - This is the only new layer that in-scope channel modules need to implement. It replaces channel-specific session orchestration logic.
+   - This is the only layer that in-scope channel modules implement; session orchestration is not duplicated per channel.
 
-3. **Session Core Layer** (`DotCraft.Core`, new)
+3. **Session Core Layer** (`DotCraft.Core`)
    - Manages Thread/Turn/Item state machines.
    - Orchestrates a Turn: creates Items, invokes the agent, emits events, handles approval pauses.
    - Calls into the Agent Execution Layer and Persistence Layer.
    - This is the "one harness" shared by all server-managed channels.
 
-4. **Agent Execution Layer** (`DotCraft.Core`, existing)
-   - `AgentFactory.CreateAgentWithTools` — tool aggregation, pipeline construction.
-   - `agent.RunStreamingAsync` — the Microsoft.Extensions.AI agent loop.
-   - `FunctionInvokingChatClient` — tool call orchestration.
-   - `TracingChatClient`, `DynamicToolInjectionChatClient` — pipeline middleware.
-   - Unchanged by this spec. Session Core consumes its output.
+4. **Agent Execution Layer** (`DotCraft.Core`)
+   - Aggregates tools and constructs the Microsoft.Extensions.AI agent pipeline, including tool-call orchestration, tracing, and dynamic tool injection.
+   - Runs the streaming agent loop. Session Core consumes its output rather than redefining it.
 
 5. **Persistence Layer** (`DotCraft.Core`)
    - Thread JSONL storage in `.craft/threads/active|archived/` plus metadata projections in `.craft/state.db`
@@ -142,18 +140,12 @@ Server-managed channels
 
 ```
 
-### 3.4 Relationship to Existing Code
+### 3.4 Component Boundaries
 
-| Existing Component | Session Protocol Relationship |
-|--------------------|-------------------------------|
-| `AgentRunner` | Session Core subsumes its responsibilities. `AgentRunner.RunAsync` logic (session load, hook execution, streaming, save, compaction, consolidation) is now implemented on top of Session Core behavior. |
-| `AgentFactory` | Builds immutable `ChatClientAgent` instances and their MEAI `IChatClient` pipelines. It does not create or own a second session model. |
-| `SessionStore` | Removed. Its responsibilities are now split between thread/session file persistence and `ISessionService`. |
-| `SessionGate` | Becomes an internal implementation detail of Session Core. Channels no longer call `AcquireAsync` directly. |
-| `IApprovalService` | Remains the approval interface. Session Core delegates approval requests to the channel adapter, while the request and response are modeled as Items with explicit lifecycle. |
-| `IChannelService` | Unchanged. AppServer uses `IChannelService` to manage in-process and external channel lifecycles. The adapter is an internal component of the channel's `IChannelService` implementation. |
-| `HookRunner` | Session Core invokes hooks (PrePrompt, Stop, PreToolUse, PostToolUse) at the appropriate points in the Turn lifecycle. Channels no longer invoke hooks directly. |
-| `TraceCollector` | Session Core records trace events. Channels no longer interact with `TraceCollector` directly. |
+- Agent construction builds immutable agent instances and their model-client pipelines. It does not own a second session model.
+- Per-thread mutual exclusion is an internal detail of Session Core. Channels do not acquire session locks themselves.
+- Session Core invokes PrePrompt, Stop, PreToolUse, and PostToolUse hooks at their points in the Turn lifecycle and records trace events. Adapters do not invoke hooks or the trace collector.
+- Approval requests and responses are modeled as Items with an explicit lifecycle; Session Core routes them to the channel adapter through the approval interface.
 
 ### 3.5 External Dependencies
 
@@ -259,7 +251,7 @@ Fields:
   - Extensible key-value pairs for channel-specific data (e.g., QQ group ID, ACP workspace URI).
   - Session Core preserves but does not interpret Metadata.
 - `Configuration` (ThreadConfiguration, nullable)
-  - Per-thread agent configuration (MCP servers, mode, extensions). See Section 16. Null means workspace defaults apply.
+  - Per-thread agent configuration (MCP servers, mode, extensions). See Section 12. Null means workspace defaults apply.
 - `Turns` (ordered list of Turn)
   - Canonical visible Turn history. Normal execution appends Turns; rollback removes a visible tail while the rollout retains the rollback and prior Turn records for audit and identity recovery.
 - `QueuedInputs` (ordered list of QueuedTurnInput)
@@ -334,7 +326,7 @@ Fields:
 
 When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
 
-Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A legacy queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
+Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
 
 #### 4.1.1.4 SubAgent Child Threads
 
@@ -365,7 +357,7 @@ Each path-addressable SubAgent has a stable `agentPath`, such as `/root/research
 
 `agentPath` is the model-visible control identity and is immutable for the child relationship. `agentNickname` is optional display metadata provided at spawn time. `Thread.DisplayName` is initialized from `agentNickname` when present, otherwise from `taskName`; later thread rename operations may change `Thread.DisplayName` but must not change `agentPath` or `taskName`.
 
-`SubAgent.MaxDepth` defaults to `1`. The first child spawned by a root thread has depth `1`; by default, that child cannot call `SpawnAgent` again even when its role would otherwise allow Agent control. Raising `SubAgent.MaxDepth` is the advanced opt-in for recursive SubAgent orchestration.
+`SubAgent.MaxDepth` bounds spawn recursion. At the default bound, the first child spawned by a root thread cannot call `SpawnAgent` again even when its role would otherwise allow Agent control. Raising `SubAgent.MaxDepth` is the advanced opt-in for recursive SubAgent orchestration. Its default value lives in the configuration schema.
 
 Session Core persists a `ThreadSpawnEdge` graph row for each parent/child relationship: `parentThreadId`, `childThreadId`, `parentTurnId`, `depth`, `agentPath`, `taskName`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, `supportsSendMessage`, `supportsFollowupTask`, `supportsClose`, `status` (`open` or `closed`), `createdAt`, and `updatedAt`.
 
@@ -373,7 +365,7 @@ Session Core represents SubAgent communication with one internal envelope contai
 
 Durable inter-agent mailbox entries preserve the envelope's message type and parent-Turn provenance alongside delivery `status` and `deliveredAt`. Schema initialization adds missing columns to existing mailbox tables; pre-existing rows receive `MESSAGE` with no parent-Turn provenance. Message types outside the three defined values are rejected. `SendMessage(target, message)` creates a pending `MESSAGE` entry and does not start a target turn. `FollowupTask(target, message, deliveryMode?)` renders a `NEW_TASK` envelope and starts a target turn when the target is idle. When the target has an active turn, `deliveryMode = "queue"` (the default) appends a FIFO queued input for the target thread, while `deliveryMode = "steer"` promotes the task into current-Turn guidance for a running native SubAgent. Running external SubAgents reject `deliveryMode = "steer"`; callers must use `"queue"`. Pending passive communications for the target are delivered as pre-task context with the submitted, queued, or steered task, then marked delivered only after that delivery is persisted successfully.
 
-When a path-addressable child turn reaches a terminal state, Session Core writes a `FINAL_ANSWER` communication to the direct parent agent path mailbox. The communication includes the child `agentPath`, terminal status, final assistant text or error text when available, and the terminal child Turn as provenance. `WaitAgent(timeoutMs?)` waits for mailbox, SubAgent graph, or explicit steer activity scoped to the current root Agent tree; activity in another root tree cannot wake it. The result remains status plus timeout state and does not return child final text. `timeoutMs` is measured in milliseconds; omitting it uses `SubAgent.DefaultWaitTimeoutMs` (default `60000`). When supplied, it must be between `SubAgent.MinWaitTimeoutMs` (default `15000`) and `SubAgent.MaxWaitTimeoutMs` (default `3600000`); out-of-range values are rejected rather than clamped.
+When a path-addressable child turn reaches a terminal state, Session Core writes a `FINAL_ANSWER` communication to the direct parent agent path mailbox. The communication includes the child `agentPath`, terminal status, final assistant text or error text when available, and the terminal child Turn as provenance. `WaitAgent(timeoutMs?)` waits for mailbox, SubAgent graph, or explicit steer activity scoped to the current root Agent tree; activity in another root tree cannot wake it. The result remains status plus timeout state and does not return child final text. `timeoutMs` is measured in milliseconds; omitting it uses `SubAgent.DefaultWaitTimeoutMs`. When supplied, it must fall between `SubAgent.MinWaitTimeoutMs` and `SubAgent.MaxWaitTimeoutMs`; out-of-range values are rejected rather than clamped. The bounds themselves live in the configuration schema.
 
 Mailbox delivery is serialized per `(rootThreadId, targetAgentPath)`, so sampling and follow-up delivery cannot materialize the same pending entry concurrently. Pending communications may be injected at model sampling or tool boundaries while the current Turn accepts mailbox input. Once the Turn emits its final answer, late passive communications remain pending for the next Turn. Explicit `guidancePending` steering reopens current-Turn mailbox delivery; goal-internal steering does not become a WaitAgent activity source. Completion communications remain model-visible context and audit records; clients should not render them as user-authored conversation bubbles or as the child agent's visible reply in the parent thread.
 
@@ -410,7 +402,7 @@ Fields:
   - Unique within the Thread. Format: `turn_{sequence}` (e.g., `turn_001`).
 - `ThreadId` (string)
   - Reference to the parent Thread.
-- `Status` (enum: `Running`, `Completed`, `WaitingApproval`, `Failed`, `Cancelled`)
+- `Status` (enum: `Running`, `Completed`, `WaitingApproval`, `WaitingInput`, `Failed`, `Cancelled`)
   - See Section 5.2 for lifecycle rules.
 - `Input` (Item)
   - The user's input Item that initiated this Turn. Always of type `UserMessage`.
@@ -459,7 +451,7 @@ Fields:
   - `UserInputResponse` — User's answer to a Plan Mode input request.
   - `Error` — An error occurred during the Turn.
   - `SystemNotice` — Persistent system-level marker in the conversation timeline (e.g. context compaction point). Emits `item/started` + `item/completed` back-to-back; no streaming phase.
-- Thread maintenance — A thread-level busy state for long-running blocking maintenance outside the normal Turn stream, currently manual context compaction and manual memory consolidation. While active, new input is accepted only through the queued-input path and starts after the maintenance terminal event. Automatic memory consolidation is non-blocking background work and does not make the thread maintenance-busy.
+- Thread maintenance — A thread-level busy state for long-running blocking maintenance outside the normal Turn stream: manual context compaction and manual memory consolidation. While active, new input is accepted only through the queued-input path and starts after the maintenance terminal event. Automatic memory consolidation is non-blocking background work and does not make the thread maintenance-busy.
 - `Status` (enum: `Started`, `Streaming`, `Completed`)
   - `Started` — Item has been created, payload may be partial or empty.
   - `Streaming` — Item is receiving incremental updates (deltas). Valid for `AgentMessage`, `ReasoningContent`, runtime-projected `CommandExecution`, and AppServer-projected streamed `ToolCall` argument previews.
@@ -503,7 +495,7 @@ Each Item type has a specific payload structure:
   "materializedInputParts": [ // Optional model-visible input snapshot after server-side materialization
     InputPart
   ],
-  "senderId": string,      // Individual sender within a group session (nullable, see Section 17.1)
+  "senderId": string,      // Individual sender within a group session (nullable, see Section 13.1)
   "senderName": string,    // Display name of the sender (nullable)
   "senderRole": string,    // Sender role when available from channel adapter (nullable)
   "channelName": string,   // Originating channel for this user message (nullable)
@@ -522,9 +514,9 @@ Each Item type has a specific payload structure:
 }
 ```
 
-`nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` remains for compatibility and preview generation but is no longer the sole source of truth for user-message reconstruction.
+`nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` supports compatibility and preview generation; it is not the source of truth for user-message reconstruction.
 
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted inside a `TurnTriggerScope` (see `DotCraft.Sessions.TurnTriggerScope`). The automation-side runners set the scope so that cron (`AgentRunner`) and Automations (`AutomationSessionClient.SubmitTurnAsync`) synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job/task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
+The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so cron- and automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
 
 #### AgentMessage
 
@@ -831,7 +823,7 @@ summary and compatibility projection; clients that consume both paths merge by
 {
   "kind": string,              // Notice classifier. Known values: "compacted", "memoryConsolidated", "forked".
   "trigger": string,           // For kind="compacted": "auto" | "reactive" | "manual"
-  "mode": string,              // For kind="compacted": "partial"; legacy persisted notices may contain "micro"
+  "mode": string,              // For kind="compacted": the compaction mode, "micro" or "partial"
   "tokensBefore": number,      // Approximate input tokens right before compaction ran
   "tokensAfter": number,       // Approximate input tokens after compaction ran
   "percentLeftAfter": number,  // Fraction of EffectiveContextWindow still available (0.0 - 1.0)
@@ -844,10 +836,10 @@ summary and compatibility projection; clients that consume both paths merge by
 provider-native compaction and persisted via the normal rollout/`turn.Items`
 pipeline, so they survive thread reload and round-trip through paged Item history.
 Clients treat them as inline dividers in the timeline rather than part of the
-model conversation. Cold-cache tool-result clearing without a replacement
-emits only the transient `system/event` needed to refresh context usage; it
-must not create a persistent timeline divider. Clients may encounter older
-`mode = "micro"` compacted notices from previous releases and should hide them.
+model conversation. Micro compaction clears cold-cache tool results without installing a
+replacement history: it emits only the transient `system/event` needed to
+refresh context usage and must not create a persistent timeline divider.
+Persisted compaction notices therefore carry `mode = "partial"`.
 `memoryConsolidated` notices have no compaction-specific token fields.
 `forked` notices mark the boundary between copied source history and new
 fork-specific work. They carry `sourceThreadId`, are not model-visible, and
@@ -1075,12 +1067,10 @@ Unknown context content shapes reject the entire update. Text and image content 
 
 When a channel adapter resumes a Thread that was created by a different channel:
 
-1. The adapter calls `ResumeThread(threadId)`.
-2. Session Core loads the Thread from persistence.
-3. Session Core reconstructs a request-local `List<ChatMessage>` from the rollout's exact model-history records and latest usable compaction checkpoint. Domain Items are used only as a finite fallback when an exact record is absent.
-4. The Thread's `Status` is set to `Active`, `LastActiveAt` is updated.
-5. The adapter can now call `SubmitInput` to start a new Turn.
-6. The new Turn's Items are attributed to the resuming channel (recorded in Turn metadata).
+1. **Discovery**: the adapter calls `FindThreadsAsync(identity, includeArchived, crossChannelOrigins)` and either presents the result or auto-selects the most recently active thread. Discovery scoping rules are defined in Section 9.5.
+2. **Resume**: the adapter calls `ResumeThreadAsync(threadId)`. Session Core loads the Thread from persistence, sets `Status` to `Active`, and updates `LastActiveAt`.
+3. **Session load**: Session Core reconstructs a request-local `List<ChatMessage>` from the rollout's exact model-history records and latest usable compaction checkpoint. Domain Items are used only as a finite fallback when an exact record is absent.
+4. **Ready**: the adapter calls `SubmitInputAsync` to start a new Turn. The new Turn's Items are attributed to the resuming channel, and the Turn records that channel's name.
 
 The resumed agent has full context of previous Turns regardless of which channel originated them.
 
@@ -1126,7 +1116,7 @@ SessionEvent
   - Payload: `{ thread: Thread }` (full Thread object with initial state).
 
 - **`thread/resumed`**
-  - Emitted when a Paused or previously inactive Thread is resumed.
+  - Emitted when a Paused or otherwise inactive Thread is resumed.
   - Payload: `{ thread: Thread, resumedBy: string }` (channel name that resumed it).
 
 - **`thread/statusChanged`**
@@ -1135,11 +1125,11 @@ SessionEvent
 
 - **`thread/renamed` (Wire Protocol only; not a `SessionEvent`)**
   - Display name changes are applied in Session Core via `ISessionService.RenameThreadAsync`, when the first user message on a turn sets the provisional `Thread.DisplayName`, or when a generated title atomically replaces that unchanged provisional value (see turn input handling and `Thread.DisplayName` in this specification). Session Core does **not** enqueue a `SessionEvent` on the turn/event stream for rename-only updates (there is no separate thread-level event type consumed by in-process adapters the same way as `thread/created`).
-  - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/renamed` notification on the AppServer Wire Protocol after the display name is updated, including when the change originates from another channel or from automatic titling, so clients such as DotCraft Desktop can refresh thread titles **without** relying on `turn/completed` (which may not be delivered to connections that did not subscribe to that thread). See [AppServer Protocol §4.11 `thread/rename`](../protocols/appserver-protocol.md#411-threadrename) and [§6.1 `thread/renamed`](../protocols/appserver-protocol.md#61-thread-notifications).
+  - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/renamed` notification on the AppServer Wire Protocol after the display name is updated, including when the change originates from another channel or from automatic titling, so clients such as DotCraft Desktop can refresh thread titles **without** relying on `turn/completed` (which may not be delivered to connections that did not subscribe to that thread). See [AppServer Protocol §4.13 `thread/rename`](../protocols/appserver-protocol.md#413-threadrename) and [§6.1 `thread/renamed`](../protocols/appserver-protocol.md#61-thread-notifications).
 
 - **`thread/deleted` (Wire Protocol only; not a `SessionEvent`)**
   - Permanent removal is performed via `ISessionService.DeleteThreadPermanentlyAsync(threadId)`. Session Core first closes the thread recorder, then deletes the canonical rollout, then removes DB-backed state and attachment references, and finally best-effort deletes workspace-managed attachment files that are no longer referenced by any remaining thread. Failure to delete the rollout leaves database state and attachment assets intact. It does **not** enqueue a `SessionEvent` on the turn/event stream (there is no active turn for deletion).
-  - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/deleted` notification on the AppServer Wire Protocol after deletion completes, including when deletion is initiated outside Wire (e.g. DashBoard HTTP `DELETE` on `/dashboard/api/sessions/{sessionKey}`), so UIs stay consistent. See [AppServer Protocol §4.9 `thread/delete`](../protocols/appserver-protocol.md#49-threaddelete) and [§6.1 Thread Notifications](../protocols/appserver-protocol.md#61-thread-notifications).
+  - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/deleted` notification on the AppServer Wire Protocol after deletion completes, including when deletion is initiated outside Wire (e.g. DashBoard HTTP `DELETE` on `/dashboard/api/sessions/{sessionKey}`), so UIs stay consistent. See [AppServer Protocol §4.11 `thread/delete`](../protocols/appserver-protocol.md#411-threaddelete) and [§6.1 Thread Notifications](../protocols/appserver-protocol.md#61-thread-notifications).
 
 #### Turn Events
 
@@ -1206,7 +1196,7 @@ SessionEvent
 #### SubAgent Progress Events
 
 - **`subagent/progress`**
-  - Emitted periodically (~200ms) during Turn execution when one or more SubAgent tool calls (`SpawnAgent`) are active.
+  - Emitted periodically during Turn execution when one or more SubAgent tool calls (`SpawnAgent`) are active.
   - Provides a snapshot of all active SubAgents' real-time execution progress, including the tool currently being executed, cumulative token consumption, and completion status.
   - Payload:
 
@@ -1225,7 +1215,7 @@ SessionEvent
     ```
 
   - **Emission rules**:
-    - The event is emitted by a periodic aggregator (~200ms interval) that snapshots the in-process `SubAgentProgressBridge` state.
+    - A periodic aggregator emits the event about every 200ms from a snapshot of in-process SubAgent progress state.
     - The aggregator starts when the first `SpawnAgent` tool call begins within a Turn, and stops when the Turn ends or all tracked SubAgents have completed.
     - Each notification contains the **complete snapshot** of all tracked SubAgents (not incremental deltas), so clients can replace their local state on each receipt.
     - The event is injected into the Turn's event stream as a sideband signal — it may interleave with `item/started`, `item/delta`, and `item/completed` events. This is expected behavior.
@@ -1240,12 +1230,7 @@ SessionEvent
 
     ```
     {
-      "kind": string,          // One of: "compactWarning", "compactError",
-                                //         "compacting", "compacted", "compactSkipped", "compactFailed",
-                                //         "consolidating", "consolidated", "consolidationSkipped",
-                                //         "consolidationFailed", "compactCancelled",
-                                //         "streamError",
-                                //         "consolidationCancelled"
+      "kind": string,          // One of the values in "Defined kind values" below
       "messageKey": string,    // Stable client-localization key (nullable)
       "params": object,        // Optional interpolation params (nullable)
       "fallbackText": string,  // English fallback text (nullable)
@@ -1305,10 +1290,10 @@ optimization. It is not long-term memory consolidation and must not attempt to p
 historical detail.
 
 - The compact summary is a handoff for the next model-visible history. It should preserve only the current task, key decisions, important files read or changed, critical errors/fixes, constraints, and concrete next steps needed to continue.
-- Summary prompts must target about 4,000-6,000 output tokens and must not request an unbounded chronological analysis of every message.
-- Summary prompts must not require a separate `<analysis>` drafting block. Implementations may still strip `<analysis>` if a provider returns it, for compatibility with older summaries.
+- Summary prompts must target a bounded output budget and must not request an unbounded chronological analysis of every message.
+- Summary prompts must not require a separate `<analysis>` drafting block. An `<analysis>` block returned by a provider anyway is stripped.
 - Summary prompts must not require listing all user messages or embedding full code snippets by default. They may ask for the smallest necessary excerpt only when exact text is required to continue the task.
-- Non-cache or legacy compaction requests must use a compact-specific `MaxOutputTokens` budget. The default budget is 12,000 tokens and must not inherit the normal Anthropic 64,000-token turn budget. Snapshot compaction forks must also cap their requested output to the compact-specific budget even when preserving the cache-sensitive input prefix, so a maintenance summary cannot inherit a normal Turn's larger output allowance.
+- Every compaction request uses a compact-specific `MaxOutputTokens` budget defined in the configuration schema; it must not inherit the ordinary turn output budget. Snapshot compaction forks must also cap their requested output to the compact-specific budget even when preserving the cache-sensitive input prefix, so a maintenance summary cannot inherit a normal Turn's larger output allowance.
 - Cache-sharing snapshot forks and context-usage anchors should keep cache-sensitive request parameters stable when possible, but a snapshot or anchor is usable only while its captured messages remain a prefix of the current canonical model-visible history and its request-shape fingerprint still matches. Any successful history replacement (auto, reactive, or manual compaction; rollback; deletion) invalidates older snapshots and anchors. Maintenance forks should attempt the provider request first so prompt-cache-aware providers can reuse the captured prefix only when the estimated snapshot request fits the maintenance input budget. If the snapshot estimate is over budget, or if the provider rejects the snapshot request with a conservatively classified prompt-too-long / context-overflow error, the fork returns `maintenance_snapshot_too_large` and falls back to a trimmed non-cache path when one exists. An otherwise empty response containing provider error content returns a terminal maintenance-fork response with `maintenance_empty_error_response` and must also fall back to the trimmed non-cache path for compaction. Other provider, authentication, rate-limit, model, or request-shape errors must not be reclassified as context overflow.
 - If automatic pre-sampling compaction fails while the original context estimate is still over the blocking limit, Session Core must fail the Turn explicitly with a stable `agent_context_compaction_failed` error instead of continuing to the main provider request. This prevents a too-large context from producing a silent `turn_completed` after a failed maintenance fork.
 - Snapshot forks enforce summary length through the prompt and by validating the returned summary. A summary that exceeds the compact-specific hard budget is treated as `compact_summary_too_long` and must fall back to a non-cache path or report `compactFailed`.
@@ -1476,7 +1461,7 @@ For each submitted turn, Session Core must:
 
 - Session Core owns orchestration.
 - Adapters own presentation.
-- `AgentRunner` may remain as a compatibility entry point, but it is no longer a separate session model.
+- A host entry point that wraps a turn (for example the cron runner) delegates to Session Core; it is not a second session model.
 
 ## 9. Persistence Specification
 
@@ -1543,7 +1528,7 @@ Workspace-managed local images referenced by persisted `localImage` input parts 
 
 #### 9.3.0 Thread Artifact Storage and Maintenance
 
-The current artifact layout is workspace-relative and thread-owned:
+The artifact layout is workspace-relative and thread-owned:
 
 ```text
 .craft/
@@ -1554,7 +1539,7 @@ The current artifact layout is workspace-relative and thread-owned:
     └── {stableToolCallArtifact}.txt
 ```
 
-The canonical thread directory name is the same for all thread-owned artifact stores: a safe current Thread ID may remain readable; an ID containing invalid filename characters uses the current `thread-{sha256(threadId)}` form. Runtime code must resolve the final path under the workspace's `.craft/terminals` or `.craft/tool-results` root and must not read or migrate older replacement-based sanitized directories.
+The canonical thread directory name is the same for all thread-owned artifact stores: a Thread ID that is a safe file name may remain readable, and an ID containing invalid filename characters uses the `thread-{sha256(threadId)}` form. Runtime code must resolve the final path under the workspace's `.craft/terminals` or `.craft/tool-results` root. Discovery of any other sanitized directory shape is not part of the contract.
 
 Artifact rules:
 
@@ -1568,7 +1553,7 @@ Artifact rules:
 
 `model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned `ModelHistoryMessage` values. Each message carries `schemaVersion`, `turnId`, role, optional message identity/author/timestamp, and ordered contents. DotCraft's `kind` field is the content discriminator. The storage contract is independent of runtime CLR type envelopes and serializer-specific property shapes. The codec encodes MEAI semantic fields into DotCraft-owned DTOs and explicitly constructs new MEAI values when decoding.
 
-Every model-history content value has the shape `{ kind, payload }`. Model-history schema version 1 was established on 2026-08-25. Its payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
+Every model-history content value has the shape `{ kind, payload }`. Model-history schema version is 1. Its payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
 
 | Kind | Durable fields |
 |---|---|
@@ -1585,9 +1570,9 @@ Every model-history content value has the shape `{ kind, payload }`. Model-histo
 | `usage` | standard token counts and `additionalCounts` |
 | `deferred_tool_reference` | `toolName` |
 
-New writes use version 1 and readers accept only version 1. Existing version 1 records remain valid because their content kinds are a subset of this union. Unknown schema versions are rejected through the bounded replay contract; rollout records are not migrated or rewritten.
+Writes and reads accept version 1 only. Unknown schema versions are rejected through the bounded replay contract; rollout records are not migrated or rewritten.
 
-Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Image-generation outputs use the same recursive union. The function-result envelope remains version 1 because its `json` and `contents` shapes are unchanged. Binary data and hosted image bytes are stored once as base64; derived data URIs are not duplicated.
+Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Image-generation outputs use the same recursive union. Binary data and hosted image bytes are stored once as base64; derived data URIs are not duplicated.
 
 Function-call namespace and provider-flat-name values are persisted as strong fields even when the same values also occur in `AdditionalProperties`. On decode, the strong fields restore the standard runtime metadata keys. A conflict between a strong field and its extension value makes that content invalid; the model-history replayer rejects the containing record and applies its normal whole-Turn fallback rather than choosing one value silently.
 
@@ -1614,7 +1599,7 @@ contracts are defined in
 
 ### 9.3.1 Ordered Rollout Writer
 
-All records for a thread pass through one workspace-lifetime recorder keyed by thread id. Each recorder has one bounded queue with capacity 256 and owns its pending suffix and any currently open append stream. Enqueue order is append order. A normal terminal Turn mutation enqueues the Turn replacement, any compaction replacement, and its model-history suffix as one batch, then crosses one flush barrier. The file handle may be released after a barrier so standard filesystem readers can inspect the rollout concurrently; recorder lifetime is independent from file-handle lifetime.
+All records for a thread pass through one workspace-lifetime recorder keyed by thread id. Each recorder has one bounded queue and owns its pending suffix and any currently open append stream. Enqueue order is append order. A normal terminal Turn mutation enqueues the Turn replacement, any compaction replacement, and its model-history suffix as one batch, then crosses one flush barrier. The file handle may be released after a barrier so standard filesystem readers can inspect the rollout concurrently; recorder lifetime is independent from file-handle lifetime.
 
 A flush receipt identifies the confirmed byte offset and serialized record sizes. SQLite projections advance only after that barrier succeeds. Normal shutdown flushes and closes every recorder. Writers for different threads may operate concurrently, but one thread has exactly one active append order.
 
@@ -1639,6 +1624,24 @@ Context search treats exact model-history, provider-history, and compaction repl
 Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status.
 
 Current-context handoff uses the canonical shared model-history replayer. Its Markdown presentation excludes reasoning, `ProtectedData`, `AdditionalProperties`, internal provider metadata, and the free-form `SessionThread.Metadata` dictionary. Thread metadata may contain channel credentials, external CLI session identifiers, private paths, or future extension values and therefore is not eligible for blacklist-based redaction. Export uses an explicit allowlist of strong thread fields such as display name, status, timestamps, origin channel, history mode, and Turn count, and propagates sanitized replay warnings through the existing export warning surface.
+
+#### Dashboard Diagnostic Reads
+
+Dashboard trace-session deletion follows the same persistence contract. Deleting one trace session removes that session's trace rows and associated dashboard usage rows; if the session is bound to a thread, deletion cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace/thread state and associated usage rows, but preserves global usage rows that have no `thread_id` or `session_key`. Bulk trace clearing may run SQLite maintenance (`wal_checkpoint(TRUNCATE)` and conditional `VACUUM`) after deletion to reclaim WAL/free-page space.
+
+Dashboard trace event reads are paged from the durable trace store. The first page returns a bounded newest-first window of events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
+
+The effective `AGENTS.md` context-page snapshot is persisted as an `AgentInstructions` trace event.
+Its content is the exact rendered plain-user instruction item; metadata contains schema version 1,
+item kind `agents_md.instructions`, role `user`, the content-and-sources fingerprint, and ordered
+absolute source paths. Session Core records the resolved snapshot at thread lifecycle boundaries and
+before provider use, with consecutive equivalent snapshots de-duplicated by fingerprint. An empty
+snapshot is recorded as empty content and sources rather than as a replacement or removal notice.
+Dashboard reads this diagnostic from the trace store in both live and read-only modes. It must not
+re-read instruction files or infer their sources from model or provider history. The trace event is
+diagnostic-only and must not be projected back into rollout or model-visible history.
+
+Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
 
 ### 9.4 Thread Discovery
 
@@ -1674,40 +1677,7 @@ A projection repair or terminal Turn commit updates thread metadata, attachment 
 
 Persisted Thread display history is queried from a rebuildable SQLite projection. AppServer reads must not materialize a complete `SessionThread` or replay a complete rollout merely to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork materialization continue to use canonical rollout replay when they require complete domain or model-visible history.
 
-The projection consists of three tables:
-
-```sql
-thread_history_projection_state (
-    thread_id                TEXT PRIMARY KEY,
-    rollout_path             TEXT NOT NULL,
-    projected_rollout_offset INTEGER NOT NULL,
-    next_rollout_ordinal     INTEGER NOT NULL,
-    thread_snapshot_json     TEXT NOT NULL,
-    persisted_runtime_json   TEXT NOT NULL,
-    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
-)
-
-thread_turns (
-    thread_id                TEXT NOT NULL,
-    turn_id                  TEXT NOT NULL,
-    rollout_ordinal          INTEGER NOT NULL,
-    turn_json                TEXT NOT NULL,
-    PRIMARY KEY (thread_id, turn_id),
-    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
-)
-
-thread_items (
-    thread_id                TEXT NOT NULL,
-    turn_id                  TEXT NOT NULL,
-    item_id                  TEXT NOT NULL,
-    rollout_ordinal          INTEGER NOT NULL,
-    updated_rollout_ordinal  INTEGER NOT NULL,
-    item_json                TEXT NOT NULL,
-    PRIMARY KEY (thread_id, turn_id, item_id),
-    FOREIGN KEY (thread_id, turn_id)
-        REFERENCES thread_turns(thread_id, turn_id) ON DELETE CASCADE
-)
-```
+The projection consists of three tables: `thread_history_projection_state` holds one row per Thread with its rollout path, projected rollout offset, next rollout ordinal, Thread snapshot, and persisted runtime; `thread_turns` holds one row per Turn; `thread_items` holds one row per Item, keyed within its Turn and carrying both its original and its most recently updated rollout ordinal.
 
 All three tables reference the owning `threads` row directly or transitively with `ON DELETE CASCADE`. Turn paging uses a `(thread_id, rollout_ordinal)` index. Item paging uses `(thread_id, rollout_ordinal)` and `(thread_id, turn_id, rollout_ordinal)` indexes.
 
@@ -1739,7 +1709,7 @@ Projection state is created and repaired on demand rather than through a workspa
 
 The projector parses one JSONL line at a time and decodes only domain payloads. It must not deserialize, store, search, log, or expose the item JSON inside `provider_history_items_appended`, `provider_history_replaced`, or `provider_history_attempt_aborted`. Malformed provider-history state remains isolated to provider-history recovery and must not make provider-neutral Thread, Turn, or Item pages unavailable. Canonical identity errors and unrecoverable domain projection errors fail the query with stable code `ThreadHistoryUnavailable`.
 
-There is no full-rollout response fallback. If SQLite query or repair fails, the caller receives `ThreadHistoryUnavailable`; Session Core must not replay JSONL into a complete response. Removing `state.db` or the history tables is supported because the next successful paged read rebuilds the projection. Existing `thread_sessions` tables remain ignored: runtime code does not read, update, migrate, or delete them.
+There is no full-rollout response fallback. If SQLite query or repair fails, the caller receives `ThreadHistoryUnavailable`; Session Core must not replay JSONL into a complete response. Removing `state.db` or the history tables is supported because the next successful paged read rebuilds the projection.
 
 Session Core exposes this projection through read-only query DTOs rather than returning mutable execution aggregates:
 
@@ -1749,7 +1719,7 @@ Session Core exposes this projection through read-only query DTOs rather than re
 
 `GetThreadAsync` remains the internal lifecycle path for execution, resume, rollback, compaction, and fork operations that genuinely require complete canonical state. AppServer display-history reads must not call it.
 
-History projection telemetry contains no Thread content, provider payload, or raw identifier. It records projection hits, incremental repairs, full rebuilds, repair failures and reason categories, page-query duration, returned row count, repair bytes read, repair record count, and `ThreadHistoryUnavailable` counts. Performance acceptance uses a fixture with 10,000 Turns and 100,000 Items: healthy first and last pages must equal canonical replay, must not open the rollout file, and must allocate `O(page size + largest single rollout record)` server memory rather than memory proportional to total history.
+History projection telemetry contains no Thread content, provider payload, or raw identifier. It records projection hits, incremental repairs, full rebuilds, repair failures and reason categories, page-query duration, returned row count, repair bytes read, repair record count, and `ThreadHistoryUnavailable` counts. Performance acceptance uses a large-history fixture: healthy first and last pages must equal canonical replay, must not open the rollout file, and must allocate `O(page size + largest single rollout record)` server memory rather than memory proportional to total history.
 
 ### 9.5 Cross-Channel Resume Protocol
 
@@ -1766,7 +1736,7 @@ History projection telemetry contains no Thread content, provider payload, or ra
 This means cross-channel discovery is **natural for channels that share the same identity shape**:
 
 - **CLI and ACP** both use `UserId = "local"` and `ChannelContext = null`. They discover each other's threads automatically. A thread created in CLI appears in ACP's session list, and vice versa. This is by design — both are local, single-user channels on the same machine.
-- **QQ, WeCom, and Feishu** use social conversation identities. Private chats use a per-user identity; group chats use a group/chat identity (`UserId = "group:{id}"` or `"chat:{chatId}"`, with matching `ChannelContext`). Individual senders are recorded per turn through `SenderContext`. CLI and ACP cannot see social-channel threads and vice versa unless an opt-in cross-channel origin is supplied.
+- **QQ and WeCom** use social conversation identities. Private chats use a per-user identity; group chats use a group/chat identity (`UserId = "group:{id}"` or `"chat:{chatId}"`, with matching `ChannelContext`). Individual senders are recorded per turn through `SenderContext`. CLI and ACP cannot see social-channel threads and vice versa unless an opt-in cross-channel origin is supplied.
 
 #### Opt-in cross-context discovery (`crossChannelOrigins`)
 
@@ -1785,46 +1755,25 @@ This opt-in path exists so clients such as **DotCraft Desktop** (which uses a no
 
 Trusted workspace-owner clients may request workspace-scoped discovery. This mode still requires an exact case-insensitive `WorkspacePath` match, but does not filter by `UserId`, `ChannelContext`, or `OriginChannel`. `crossChannelOrigins` is redundant and ignored in this mode.
 
-Workspace-scoped discovery does not weaken the default identity scope. Clients and adapters that omit the scope continue to use the identity rules above. Archived, sub-agent, internal-thread, query, channel-name, and pagination controls remain independent filters. DotCraft Desktop uses workspace scope so every non-internal thread in the current workspace is discoverable, including cron, App Binding origins, and previously unknown external origins.
+Workspace-scoped discovery does not weaken the default identity scope. Clients and adapters that omit the scope continue to use the identity rules above. Archived, sub-agent, internal-thread, query, channel-name, and pagination controls remain independent filters. DotCraft Desktop uses workspace scope so every non-internal thread in the current workspace is discoverable, including cron, App Binding origins, and external origins the client does not know in advance.
 
 #### Resume flow
 
-1. **Discovery**: Adapter calls `FindThreadsAsync(identity, includeArchived, crossChannelOrigins)`. Returns threads matching the combined predicate when `crossChannelOrigins` is set, otherwise the default predicate only.
-2. **Selection**: The adapter presents the list to the user, or auto-selects the most recently active thread.
-3. **Resume**: Adapter calls `ResumeThreadAsync(threadId)`. Session Core sets status to `Active` and updates `LastActiveAt`.
-4. **Session Load**: Session Core replays model history from the rollout and materializes the request-local `List<ChatMessage>` supplied to `ChatClientAgent`.
-5. **Ready**: Adapter calls `SubmitInputAsync` to start a new Turn. The Turn's `OriginChannel` records the resuming channel's name.
+Discovery returns threads matching the combined predicate when `crossChannelOrigins` is set, otherwise the default predicate only. The normative resume steps are in Section 5.5.
 
-### 9.6 Legacy Compatibility Policy
-
-Session Core does not implement compatibility paths for older snapshot layouts such as `.craft/sessions/{key}.json`, `.craft/threads/{threadId}.json`, or `.craft/threads/{threadId}.session.json`.
-
-The supported persistence contract is:
-
-- Canonical thread history in `.craft/threads/active|archived/*.jsonl`
-- Classified durable state, diagnostics, and rebuildable projections in `.craft/state.db`
-
-Dashboard trace-session deletion follows the same persistence contract. Deleting one trace session removes that session's trace rows and associated dashboard usage rows; if the session is bound to a thread, deletion cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace/thread state and associated usage rows, but preserves global usage rows that have no `thread_id` or `session_key`. Bulk trace clearing may run SQLite maintenance (`wal_checkpoint(TRUNCATE)` and conditional `VACUUM`) after deletion to reclaim WAL/free-page space.
-
-Dashboard trace event reads are paged from the durable trace store. The first page returns at most the newest 1000 events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
-
-The effective `AGENTS.md` context-page snapshot is persisted as an `AgentInstructions` trace event.
-Its content is the exact rendered plain-user instruction item; metadata contains schema version 1,
-item kind `agents_md.instructions`, role `user`, the content-and-sources fingerprint, and ordered
-absolute source paths. Session Core records the resolved snapshot at thread lifecycle boundaries and
-before provider use, with consecutive equivalent snapshots de-duplicated by fingerprint. An empty
-snapshot is recorded as empty content and sources rather than as a replacement or removal notice.
-Dashboard reads this diagnostic from the trace store in both live and read-only modes. It must not
-re-read instruction files or infer their sources from model or provider history. The trace event is
-diagnostic-only and must not be projected back into rollout or model-visible history.
-
-Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
-
-### 9.7 Persistence Failure Handling
+### 9.6 Persistence Failure Handling
 
 - **Save failure**: The writer retains the unconfirmed suffix and retries transient failures. If durability cannot be established, the affected Turn ends with a stable persistence error; Session Core must not report a successfully durable terminal Turn or silently discard model history.
 - **Load failure**: Ordinary malformed history records are skipped with structured warnings. If Session Core cannot read the file or cannot safely interpret the canonical thread header or source schema, it returns an error to the adapter. The adapter should inform the user and offer to create a new Thread.
 - **Discovery failure**: If a thread file is unreadable during `FindThreadsAsync`, it is skipped with diagnostic evidence. SQLite failure falls back to readable filesystem rollouts, and one corrupt file does not prevent other threads from being discovered.
+
+### 9.7 Thread Rollback
+
+`RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
+
+Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized request-local model history. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
+Rollback does not release the historical Turn sequence numbers of removed Turns. Replay scans all valid `turn_started` records, including Turns later removed by rollback, before allocating a new Turn ID.
+Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
 
 ## 10. Approval Flow Integration
 
@@ -1868,39 +1817,13 @@ Interactive adapters present the request in their native UI. A client may automa
 
 `SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads, except Internal and SubAgent child threads. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the current model/tool loop continue.
 
-The `clock` namespace is exposed by default to ordinary Session Core agent threads, including native SubAgents but excluding Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 through 43,200,000 and records a `Sleep` Item for the wait lifecycle. Sleep completes after the requested duration, Turn cancellation, or an active-Turn steer/mailbox signal. The runtime subscribes before rechecking pending input so input arriving at the subscription boundary cannot be lost. After Sleep returns, the existing safe-boundary drain admits steer and mailbox content before the next model sample.
+The `clock` namespace is exposed by default to ordinary Session Core agent threads, including native SubAgents but excluding Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 millisecond through 12 hours and records a `Sleep` Item for the wait lifecycle. Sleep completes after the requested duration, Turn cancellation, or an active-Turn steer/mailbox signal. The runtime subscribes before rechecking pending input so input arriving at the subscription boundary cannot be lost. After Sleep returns, the existing safe-boundary drain admits steer and mailbox content before the next model sample.
 
 Prompt composition describes the choice only when the corresponding tools are available: use `RequestUserInput` when a structured answer blocks further work, use `SendUserMessageAsync` when the agent can continue independent authorized work, and use `clock/Sleep` after asking when no independent work remains. An asynchronous message must not be repeated in the final answer. These tools never create a Goal or change Goal continuation behavior.
 
-## 11. Implementation Status
+## 11. Failure Model
 
-### 11.1 Adopted Scope
-
-The Session Protocol is now the active execution path for all **server-managed** channels:
-
-- CLI
-- ACP
-- QQ
-- WeCom
-
-These channels create threads, submit turns through `ISessionService`, consume `SessionEvent`s, and persist canonical state via rollout files with rebuildable projections in `.craft/state.db`.
-
-### 11.2 Cross-Channel Resume Status
-
-Cross-channel resume works for channels that share the same identity shape:
-
-- **CLI ↔ ACP** share `UserId = "local"` and `ChannelContext = null`, so they naturally share one thread pool.
-- **QQ**, **WeCom**, and **Feishu** remain isolated by social conversation `ChannelContext`, while multiple users in the same group/chat share that conversation's thread.
-
-### 11.3 Artifact Maintenance Status
-
-The current implementation exposes explicit terminal artifact operations for stop-only thread cleanup, permanent thread-directory deletion, and retention cleanup. Construction of the background terminal service performs a best-effort startup retention pass using `Tools.Shell.Background.OutputRetentionDays`; normal service disposal remains stop-only. The current host registration does not yet provide a separate long-lived periodic janitor for tool-result spill directories, so tool-result permanent deletion and any future TTL/orphan scan must remain explicit maintenance work rather than an assumed background service behavior.
-
-The lifecycle contract in Section 5.1.1 and storage contract in Section 9.3.0 are normative even where a host has not yet wired every maintenance trigger. Implementations must not introduce legacy sanitized-directory discovery or delete tool-result spill files during compaction to compensate for a missing janitor.
-
-## 12. Failure Model
-
-### 12.1 Failure Classes
+### 11.1 Failure Classes
 
 #### Turn-Level Failures
 
@@ -1939,195 +1862,28 @@ The lifecycle contract in Section 5.1.1 and storage contract in Section 9.3.0 ar
 | **Adapter Disconnects Mid-Turn** | QQ WebSocket drops, ACP stdio closes | Turn continues to completion. Events are emitted to a dead consumer (buffered and eventually dropped). On reconnect, the adapter can resume the Thread and see the completed Turn's results. |
 | **Adapter Never Resolves Approval** | Channel disconnects while WaitingApproval | Approval timeout fires. Approval is rejected. Turn continues. |
 
-### 12.2 Recovery Strategy
+### 11.2 Recovery Strategy
 
 - **Turn failures** do not corrupt Thread state. A failed Turn is recorded in the Thread's Turn history. The adapter can submit a new Turn to retry.
 - **Canonical write failures** are recoverable because Session Core retains the unconfirmed in-memory suffix and retries on the next operation.
 - **History projection failures** are recoverable from canonical JSONL through the incremental repair or full rebuild rules in §9.4.2. A failed repair remains an explicit read failure; it is never converted into an unbounded JSONL response.
 
-### 9.8 Thread Rollback
-
-`RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
-
-Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized request-local model history. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
-Rollback does not release the historical Turn sequence numbers of removed Turns. Replay scans all valid `turn_started` records, including Turns later removed by rollback, before allocating a new Turn ID.
-Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
-
 - **Channel disconnects** are transparent to Session Core. Turns run to completion regardless of adapter state. Results are persisted and available on reconnect.
 
-### 12.3 Error Reporting
+### 11.3 Error Reporting
 
 All failures surface as:
 1. An `Error` Item within the Turn (for turn-level failures)
 2. An exception returned to the adapter's `SubmitInput`/`ResumeThread` call (for thread-level and persistence failures)
 3. A log entry with structured context (`threadId`, `turnId`, error category)
 
-## 13. Test and Validation Matrix
+## 12. Per-Session Agent Configuration
 
-### 13.1 Validation Profiles
-
-- **Core Conformance**: Tests for Session Core types, lifecycle, event emission, persistence. Required for any implementation.
-- **Adapter Conformance**: Tests for each channel adapter's integration with Session Core. Required per channel.
-- **Cross-Channel Conformance**: Tests for shared thread discovery and resume across compatible identities.
-
-### 13.2 Core Conformance Tests
-
-#### Types and Serialization
-
-- Thread serialization/deserialization round-trip preserves all fields
-- Turn serialization preserves Item order
-- Item payload schemas validate correctly for each Item type
-- Thread ID generation produces unique IDs
-- Turn ID sequential numbering is correct within a Thread
-- Item ID sequential numbering is correct within a Turn
-
-#### Thread Lifecycle
-
-- `CreateThread` sets correct initial state (Active, timestamps, generated ID)
-- `PauseThread` transitions Active → Paused
-- `ResumeThread` transitions Paused → Active, updates `LastActiveAt`
-- `ArchiveThread` transitions Active → Archived
-- `ArchiveThread` on Paused thread succeeds
-- `ResumeThread` on Archived thread fails
-- `SubmitInput` on Paused thread fails
-- `SubmitInput` on Archived thread fails
-- Archiving a thread stops active terminals but preserves completed/lost terminal artifacts and tool-result spill files
-- Permanent deletion removes terminal and tool-result artifacts for the complete SubAgent subtree
-- Permanent deletion remains successful and retryable when one artifact deletion fails, with an observable cleanup warning
-- Graceful shutdown stops active terminals without deleting persistent artifacts
-- Startup retention marks stale running terminals as lost before removing only eligible completed/lost artifacts
-
-#### Turn Lifecycle
-
-- `SubmitInput` creates Turn with Running status, UserMessage Item
-- Turn completes with Completed status after agent finishes
-- Turn fails with Failed status on agent exception
-- `CancelTurn` sets Cancelled status
-- `SubmitInput` while Turn is Running returns error
-- Turn with approval: Running → WaitingApproval → Running → Completed
-- Approval timeout: WaitingApproval → approval rejected → Turn continues
-
-#### Event Emission
-
-- `turn/started` emitted on `SubmitInput`
-- `item/started` emitted for each Item creation
-- `item/delta` emitted for streaming AgentMessage content
-- `item/delta` emitted for CommandExecution compatibility output when shell streaming is enabled
-- `item/completed` emitted when Item is finalized
-- `turn/completed` emitted after all Items are complete
-- `turn/failed` emitted on error
-- `approval/requested` emitted when approval needed
-- `approval/resolved` emitted when approval resolved
-- Event ordering is causal (started before delta before completed); a tool call and its interactive requests occur only after preceding streamed assistant/reasoning Items have completed
-- `turn/completed` is always the last event for a Turn
-
-#### Persistence
-
-- Thread file written after Turn completes
-- Thread file loaded correctly on resume
-- Exact model history and supported content round-trip through rollout
-- Malformed ordinary history records are rejected observably without hiding recoverable Turns
-- Unknown canonical source schemas fail explicitly
-- Thread index updated on create, resume, pause, archive
-- Thread and attachment projections rebuilt from files when missing without changing SQLite business authority
-- Thread snapshots and Turn/Item pages rebuilt on demand without returning full-rollout fallback responses
-- Healthy paged reads do not open rollout files and allocate in proportion to the requested page plus one rollout record
-- Turn and Item cursors page in both directions without duplicates and reject mismatched Thread or scope
-- Rollback, fork, archive, unarchive, and delete preserve the history projection lifecycle contract
-- Provider-history records and protected provider payloads never appear in display-history projection rows or telemetry
-- Tool-result spill writes are stable and idempotent for the same tool call identity
-- Canonical artifact directory naming does not collide for distinct invalid Thread IDs and remains contained under the artifact root
-- Terminal retention does not remove running sessions and is safe to repeat after a partial failure
-- Thread artifact deletion is idempotent for terminals and tool-result spill directories
-
-### 13.3 Adapter Conformance Tests (Per-Channel)
-
-For each migrated channel:
-
-- User message → Turn created → response delivered to user
-- Streaming deltas delivered incrementally (for channels that support it)
-- Tool calls visible to user (for channels that render them)
-- Approval request presented to user (for channels with interactive approval)
-- Approval response routed back to Session Core
-- Thread created with correct `OriginChannel` and `UserId`
-- Thread resumed correctly (conversation context preserved)
-- Cancellation works (user can cancel a running Turn)
-- Channel disconnect does not crash Session Core
-
-### 13.4 Cross-Channel Conformance Tests
-
-- Thread created by Channel A is discoverable by Channel B
-- Thread resumed by Channel B has full conversation context from Channel A
-- New Turn on resumed Thread produces correct Items
-- Thread metadata from Channel A is preserved after Channel B Turn
-
-### 13.5 Per-Session Configuration Conformance Tests (Section 16)
-
-- Thread created with MCP servers connects them and adds tools to agent
-- Mode switch via `SetThreadMode` rebuilds agent tool set
-- Thread archive disconnects per-thread MCP servers
-- Thread without configuration uses workspace defaults
-- ACP extensions recorded in `Thread.Configuration.Extensions`
-- Simulated host restart (new Session Core instance, same persistence): a thread with non-null `Thread.Configuration` is loaded from disk; `EnsureThreadLoaded` (or turn start) hydrates the per-thread agent so turns do not fall back to workspace-default agent-only behavior
-
-### 13.6 Social Channel Conformance Tests (Section 17)
-
-- Group session Thread allows different `SenderContext` per Turn
-- Permission check at adapter level rejects unauthorized users before `SubmitInput`
-- `/stop` command maps to `CancelTurn` and cancels running Turn
-- `/new` command archives current Thread and creates new one
-- Slash commands not exposed as Items (adapter-local operations)
-
-### 13.7 MCP Apps Session Conformance Tests
-
-- App direct tool dispatch uses null Turn id and creates no Session invocation item or provider-history entry.
-- `ui/message` starts immediately or uses the normal queued-input path and persists only safe MCP App trigger provenance.
-- Per-view pending context is last-write-wins, consumed exactly once at the central Turn-start boundary, and discarded on view/thread teardown.
-- Ordinary user Turns consume all pending thread contexts while View messages consume only their originating context.
-- Persisted and replayed `McpToolCall` items contain invocation provenance, the normalized UI resource association, and audience-separated results, but never availability, handles, HTML, CSP, or pending context.
-
-## 14. Validation Priorities
-
-This specification no longer tracks implementation phases or completed checklists. The remaining validation work is:
-
-- Expand automated **Core Conformance** coverage for lifecycle, persistence, and failure handling.
-- Add per channel **Adapter Conformance** coverage for CLI, ACP, QQ, and WeCom.
-- Add **Cross-Channel Conformance** coverage for the CLI ↔ ACP shared thread pool.
-- Add **Per-Session Configuration** coverage for ACP-specific mode and MCP behavior.
-- Add **Social Channel Conformance** coverage for sender context, approval routing, and slash commands.
-- Add **MCP Apps Session Conformance** coverage for direct calls, queued View messages, one-shot context, and persisted audience isolation.
-
-The purpose of this section is to define ongoing verification targets, not to duplicate project-management to-do lists.
-
----
-
-## 15. Channel-Specific History Boundaries
-
-The Session Protocol applies to server-managed channels:
-
-- CLI
-- ACP
-- QQ
-- WeCom
-
-For these channels, Session Core loads persisted rollout state, constructs a runtime session, executes the turn, emits `SessionEvent`s, and persists updated domain and model history afterward.
-
-### 15.1 Resume Semantics
-
-Cross-channel resume applies only to **server-managed** threads.
-
-- **CLI ↔ ACP** resume works because both participate in Session Core and share the same identity shape.
-- **QQ**, **WeCom**, and **Feishu** remain isolated by social conversation `ChannelContext`.
-
----
-
-## 16. Per-Session Agent Configuration
-
-### 16.1 Principle
+### 12.1 Principle
 
 Thread configuration belongs to the thread model rather than to any individual adapter.
 
-### 16.2 Thread Configuration
+### 12.2 Thread Configuration
 
 Each thread may carry a `Configuration` object. This is a thread-owned model, not channel-owned state, and the same shape applies across CLI, AppServer, external adapters, and other hosts.
 
@@ -2181,7 +1937,7 @@ Model preference resolution is thread-aware:
 Context-window resolution is thread-aware:
 
 - `ThreadConfiguration.ContextWindow` is an optional object `{ mode: "default" | "max" }`; omitted or null means `default`.
-- `default` preserves today's compaction behavior: explicit `Compaction.ContextWindow` wins, otherwise the model catalog is inferred and capped by `Compaction.MaxContextWindow`.
+- `default` uses the ordinary compaction resolution: explicit `Compaction.ContextWindow` wins, otherwise the model catalog is inferred and capped by `Compaction.MaxContextWindow`.
 - `max` is valid only when the model-context catalog has an explicit match for the thread's effective model and that catalog window is greater than the configured default window. When valid, Session Core sets the effective compaction `ContextWindow` to the raw catalog window and bypasses `Compaction.MaxContextWindow`.
 - New threads capture the context-window mode from the selected provider preference. Unsupported `max` selections are normalized to `default`.
 - Forks copy the source thread's context-window configuration unless the fork request supplies a replacement `ThreadConfiguration`.
@@ -2199,7 +1955,7 @@ Workspace resolution is thread-aware:
 - Existing-thread worktree handoff is a metadata/configuration change on the same Thread. It must be rejected while the Thread has running or waiting turn work, and it must rebuild the effective agent/tool context before the next turn.
 - The complete multi-folder contract is specified in [Multi-Folder Local Projects](../features/multi-folder-projects.md).
 
-### 16.3 Mode Switching
+### 12.3 Mode Switching
 
 Mode switching is a thread-level operation:
 
@@ -2212,7 +1968,7 @@ ISessionService.SetThreadMode(threadId: string, mode: string) → void
 - No Turn is created. This is a metadata operation.
 - Emits `thread/statusChanged` event with mode information.
 
-### 16.3.1 Mode-Stable Plan Tools
+### 12.3.1 Mode-Stable Plan Tools
 
 Plan-related tools remain schema-stable across ordinary Agent/Plan mode switches to preserve prompt-cache stability. When `PlanStore` is available, `AgentFactory` exposes `CreatePlan`, `UpdateTodos`, and `TodoWrite`; `ModeToolPolicy` enforces which calls are valid for the current mode:
 
@@ -2221,16 +1977,13 @@ Plan-related tools remain schema-stable across ordinary Agent/Plan mode switches
 | `plan` | `CreatePlan` | `UpdateTodos`, `TodoWrite` |
 | `agent` | `UpdateTodos`, `TodoWrite` | `CreatePlan` |
 
-**`PlanStore` as a Required Dependency**: `PlanStore` provides per-session plan persistence and is required for plan-related tool injection. All hosts that support mode switching **must** supply a `PlanStore` instance to `AgentFactory`. When `PlanStore` is `null`, plan-related tools are silently omitted regardless of the requested mode — this is considered a host configuration error, not a graceful degradation.
+**Plan persistence is required**: every host that exposes mode switching must provide per-thread plan persistence. Without it the plan tools are omitted regardless of the requested mode; that is a host configuration error, not a graceful degradation.
 
-**`onPlanUpdated` Callback**: Hosts may optionally supply a plan-update callback to propagate plan state changes to their UX layer (e.g., CLI status panel, ACP notification, Wire notification). The callback receives the source `threadId` plus the complete plan snapshot. The absence of this callback does not affect tool injection; it only disables real-time plan status updates to the client.
+**Plan update notification is optional**: a host may observe plan changes to drive its own UX (CLI status panel, ACP notification, Wire notification). Each notification carries the source `threadId` and the complete plan snapshot. Omitting it disables real-time plan status in the client but does not change tool injection.
 
-**Host Equivalence Requirement**: Every host that exposes `ISessionService` (and therefore mode switching) must construct `AgentFactory` with equivalent mode-critical dependencies. The minimum set is:
+**Host equivalence**: every host that exposes `ISessionService` must supply the same mode-critical capabilities — plan persistence, and hook execution where lifecycle hooks are expected — so mode switching behaves identically across hosts.
 
-- `PlanStore` — required for plan/agent mode tools
-- `HookRunner` — optional but recommended for lifecycle hooks
-
-### 16.4 MCP Lifecycle
+### 12.4 MCP Lifecycle
 
 MCP server connections are thread-scoped, not turn-scoped:
 
@@ -2240,13 +1993,13 @@ MCP server connections are thread-scoped, not turn-scoped:
 
 When `Thread.Configuration.McpServers` is null, workspace-level MCP configuration applies.
 
-### 16.5 ACP Extension Capabilities
+### 12.5 ACP Extension Capabilities
 
 ACP-specific capabilities such as extension prefixes are connection-scoped at discovery time but may be recorded in `Thread.Configuration.Extensions` when they affect the thread's effective tool set.
 
 For channels that do not use extension capabilities, `Thread.Configuration.Extensions` is null.
 
-### 16.6 Design Constraints
+### 12.6 Design Constraints
 
 - Configuration changes do not implicitly create turns.
 - Configuration must be persisted with the thread.
@@ -2254,9 +2007,9 @@ For channels that do not use extension capabilities, `Thread.Configuration.Exten
 
 ---
 
-## 17. Social Channel Patterns
+## 13. Social Channel Patterns
 
-### 17.1 Group Sessions (Multi-User)
+### 13.1 Group Sessions (Multi-User)
 
 QQ-style group sessions are supported without changing the Thread / Turn / Item model:
 
@@ -2264,28 +2017,11 @@ QQ-style group sessions are supported without changing the Thread / Turn / Item 
 - Each Turn's `Input` Item can carry per-message sender information in its payload.
 - Sender context is appended to the current user message runtime context, not to the thread system prompt, so prompt-cacheable system instructions remain stable across different group senders.
 
-Add to `UserMessage` payload:
-
-```
-{
-  "text": string,
-  "nativeInputParts": [InputPart],
-  "materializedInputParts": [InputPart],
-  "senderId": string,          // Individual sender within a group session (nullable)
-  "senderName": string,        // Display name of the sender (nullable)
-  "images": [                  // Optional local image metadata for UI rehydration
-    {
-      "path": string,
-      "mimeType": string,
-      "fileName": string
-    }
-  ]
-}
-```
+The sender fields on the `UserMessage` payload (`senderId`, `senderName`, `senderRole`, `groupId`) are defined in Section 4.2.
 
 Session Core still treats the thread as a single execution context; sender identity is carried at the turn level.
 
-### 17.2 Permission and Role System
+### 13.2 Permission and Role System
 
 Permissions are an adapter-level concern. Typical roles include `Unauthorized`, `Whitelisted`, and `Admin`. They affect:
 
@@ -2294,16 +2030,11 @@ Permissions are an adapter-level concern. Typical roles include `Unauthorized`, 
 - Whether a user can approve operations
 - Whether a user can use slash commands like `/stop`, `/new`
 
-The adapter's responsibilities:
-1. Check permissions before calling `SubmitInput` (reject unauthorized users).
-2. Set `ApprovalContext` with the user's role so that `SessionApprovalService` can route appropriately.
-3. Filter slash commands by permission level before executing them.
+Permission evaluation is an adapter boundary. Session Core does not interpret channel roles: the adapter rejects unauthorized users before submitting input, supplies the user's role in the approval context so approval routing can use it, and filters slash commands by permission level.
 
-Add `SenderContext` to `SubmitInput`:
+`SubmitInputAsync` (Section 6.5) accepts an optional `SenderContext`:
 
 ```
-SubmitInput(threadId, text, senderContext?: SenderContext)
-
 SenderContext
 ├── SenderId: string           // Individual user ID
 ├── SenderName: string         // Display name
@@ -2313,7 +2044,7 @@ SenderContext
 
 Session Core records `SenderContext`, appends it to the current user message runtime context, and passes it through to approval handling. The adapter is responsible for populating it.
 
-### 17.3 Slash Commands
+### 13.3 Slash Commands
 
 Slash commands are modeled as a managed subsystem with a single server-side command registry for **server-managed commands**:
 
@@ -2345,7 +2076,7 @@ check both standard filenames and must not overwrite or modify an existing file.
 the expanded prompt through the ordinary turn pipeline, so normal workspace tools, approvals, and
 remote-workspace routing continue to apply.
 
-### 17.4 Active Run Cancellation
+### 13.4 Active Run Cancellation
 
 Session Core owns active-run cancellation:
 
@@ -2357,7 +2088,7 @@ Session Core owns active-run cancellation:
 
 ---
 
-## 18. Bidirectional Capabilities
+## 14. Bidirectional Capabilities
 
 Bidirectional capabilities are outside the session model.
 
@@ -2370,9 +2101,9 @@ The design rule is simple:
 
 ---
 
-## 19. Thread Goals
+## 15. Thread Goals
 
-> **Status**: Runtime implementation. See [Goal Design](../features/goal.md) for the full contract.
+See [Goal Design](../features/goal.md) for the full contract.
 
 Session Core owns persistent thread goals, their runtime accounting, and autonomous continuation. A thread has at most one current goal. Clients and adapters may expose controls, but must translate them to Session Core or AppServer goal operations instead of maintaining independent goal state.
 
@@ -2384,22 +2115,22 @@ Goal objective text is user-provided data. Whenever it is injected into model-vi
 
 ---
 
-## 20. Wire Protocol (Cross-Language SDK Support)
+## 16. Wire Protocol (Cross-Language SDK Support)
 
-> **Status**: Specified. See the [DotCraft AppServer Protocol Specification](../protocols/appserver-protocol.md) for the full definition.
+See the [DotCraft AppServer Protocol Specification](../protocols/appserver-protocol.md) for the full definition.
 
-### 20.1 Goal
+### 16.1 Goal
 
 Expose Session Core over a language-neutral protocol so that non-C# adapters (IDE extensions, web frontends, third-party integrations) can participate in the same server-managed thread model without linking DotCraft.Core directly.
 
 The AppServer wire protocol is specified in [appserver-protocol.md](../protocols/appserver-protocol.md). That document defines the transport, JSON-RPC message shapes, method surface, event notifications, error handling, and approval request/response mechanics that project this Session Core model to external clients.
 
-### 20.2 External Channel Adapters
+### 16.2 External Channel Adapters
 
 The wire protocol also enables out-of-process social channel adapters written in any language. By implementing a Wire Protocol client, a channel adapter gains the full session model — thread lifecycle, streaming events, bidirectional approval — without any C# binding.
 
 This is specified in the [External Channel Adapter Specification](../protocols/external-channel-adapter.md) (Draft). The key prerequisite for external channels is the WebSocket transport defined in [appserver-protocol.md §15](../protocols/appserver-protocol.md#15-websocket-transport).
 
-### 20.3 Relationship to AppServer Protocol
+### 16.3 Relationship to AppServer Protocol
 
 The AppServer protocol is the server-managed entry point for persistent threads and structured events.

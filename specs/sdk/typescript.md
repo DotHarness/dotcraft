@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.5.0 |
 | **Status** | Living |
-| **Date** | 2026-08-01 |
+| **Date** | 2026-09-06 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, documentation model, and compatibility strategy for `@dotcraft/sdk`.
@@ -30,7 +30,7 @@ Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This lang
 - [13. Streaming Event Model](#13-streaming-event-model)
 - [14. Callback Capabilities](#14-callback-capabilities)
 - [15. Error Model](#15-error-model)
-- [16. Channel SDK](#16-channel-sdk)
+- [16. Channel Package](#16-channel-package)
 - [17. TypeScript Channel Modules](#17-typescript-channel-modules)
 - [18. Documentation and Examples](#18-documentation-and-examples)
 - [19. Testing and Conformance](#19-testing-and-conformance)
@@ -38,7 +38,6 @@ Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This lang
 - [21. Versioning and Compatibility](#21-versioning-and-compatibility)
 - [22. Repository Integration](#22-repository-integration)
 - [23. Acceptance Contract](#23-acceptance-contract)
-- [24. Future Work](#24-future-work)
 
 ---
 
@@ -79,7 +78,7 @@ The SDK serves three audiences:
 |----------|------|-------------|
 | Application developers | Start or connect to DotCraft and run agent work from Node.js. | `@dotcraft/sdk` |
 | Advanced protocol clients | Access full AppServer JSON-RPC methods and notifications. | `@dotcraft/sdk/wire` |
-| Channel authors | Build external channels that bridge social or messaging platforms to DotCraft. | `@dotcraft/channel` |
+| First-party channel authors | Build external channels that bridge social or messaging platforms to DotCraft. | `@dotcraft/channel` (repository-internal, not published to npm) |
 
 ---
 
@@ -109,7 +108,7 @@ const thread = await dotcraft.threads.getOrCreate({ userId: "me" });
 const result = await thread.run("Summarize this project.");
 ```
 
-Advanced callers must still be able to use the raw wire client for methods that are not yet wrapped by the high-level API.
+Advanced callers use the raw wire client for any method the high-level API does not wrap.
 
 ### 2.4 Thread Is the Core User Concept
 
@@ -131,27 +130,7 @@ If SDK implementation discovers a required change to AppServer Protocol, Hub Pro
 
 ## 3. Architecture
 
-### 3.1 Layered Model
-
-```text
-┌───────────────────────────────────────────────────────────────┐
-│ @dotcraft/sdk                                                  │
-│   DotCraft.local/remote, Thread API, run/runStreamed, events   │
-├───────────────────────────────────────────────────────────────┤
-│ @dotcraft/channel                                              │
-│   Channel authoring, runtime, media, testing, module lifecycle  │
-├───────────────────────────────────────────────────────────────┤
-│ @dotcraft/sdk/wire                 @dotcraft/sdk/hub           │
-│   typed/raw JSON-RPC session        Hub discovery/management    │
-├───────────────────────────────────────────────────────────────┤
-│ @dotcraft/sdk/contracts                                        │
-│   generated DTOs, method maps, unions, protocol metadata       │
-├───────────────────────────────────────────────────────────────┤
-│ DotCraft AppServer Protocol       DotCraft Hub Local API        │
-└───────────────────────────────────────────────────────────────┘
-```
-
-### 3.2 Local Application Flow
+### 3.1 Local Application Flow
 
 ```text
 Node app
@@ -166,7 +145,7 @@ Node app
   -> stream notifications and server-initiated requests
 ```
 
-### 3.3 Remote Application Flow
+### 3.2 Remote Application Flow
 
 ```text
 Node app
@@ -176,7 +155,7 @@ Node app
   -> normal AppServer Protocol
 ```
 
-### 3.4 Channel Module Flow
+### 3.3 Channel Module Flow
 
 ```text
 Channel platform event
@@ -308,7 +287,7 @@ Required package properties:
 - ESM `exports` map
 - generated `.d.ts` files
 
-CommonJS compatibility is not required in the initial SDK contract.
+CommonJS compatibility is not required.
 
 ### 5.3 Required Runtime Dependencies
 
@@ -323,7 +302,7 @@ Channel packages may depend on platform SDKs such as Telegram, Feishu, QQ, WeCom
 
 ### 5.4 Browser Support
 
-The SDK is a Node.js SDK. Browser runtime support is out of scope unless a future spec introduces a browser-specific transport and security model.
+The SDK is a Node.js SDK. Browser runtime support is out of scope.
 
 ---
 
@@ -366,11 +345,11 @@ Behavior:
 
 `DotCraft.local()` must not stop the Hub-managed AppServer when the SDK client closes. Closing the SDK client closes only its WebSocket connection.
 
-`DotCraft.localChat()` follows the same flow after resolving and initializing the default Chat workspace (`~/.craft/workspaces/chats`). It calls the existing Hub AppServer ensure endpoint with that concrete `workspacePath`; it must not use an empty path or a separate Hub endpoint.
+`DotCraft.localChat()` follows the same flow after resolving and initializing the default Chat workspace (`~/.craft/workspaces/chats`). It calls the Hub AppServer ensure endpoint with that concrete `workspacePath`; it must not use an empty path or a separate Hub endpoint.
 
 ### 6.2 Remote Mode
 
-`DotCraft.remote()` connects directly to an existing AppServer WebSocket endpoint.
+`DotCraft.remote()` connects directly to a running AppServer WebSocket endpoint.
 
 Options:
 
@@ -788,13 +767,13 @@ The high-level application API does not automatically interpret user text that s
 
 Applications that want built-in command semantics should call `command/execute` through the wire API or implement their own UI command layer.
 
-Channel adapters keep their existing slash command behavior through `CommandRouter`.
+Channel adapters route slash commands through `CommandRouter`.
 
 ### 12.4 Skill Mentions
 
 High-level applications may use `skillRefPart()` directly.
 
-The SDK does not parse `$skill` text into `skillRef` parts unless a future API explicitly enables that behavior.
+The SDK does not parse `$skill` text into `skillRef` parts.
 
 ---
 
@@ -969,10 +948,10 @@ Regular application clients may also respond with `{}` if the server sends the r
 
 ### 15.1 Base Error
 
-All SDK-specific errors inherit from `DotCraftSdkError`:
+All SDK-specific errors inherit from `DotCraftError`:
 
 ```ts
-class DotCraftSdkError extends Error {
+class DotCraftError extends Error {
   code: string;
   cause?: unknown;
 }
@@ -983,7 +962,7 @@ class DotCraftSdkError extends Error {
 Server JSON-RPC errors are represented as:
 
 ```ts
-class DotCraftError extends DotCraftSdkError {
+class JsonRpcError extends DotCraftError {
   rpcCode: number;
   rpcMessage: string;
   data?: unknown;
@@ -1002,6 +981,8 @@ Required typed errors:
 | `TransportError` | Transport-level read/write/open failure. |
 | `TransportClosed` | Transport closed while reads or writes were pending. |
 | `InitializationError` | AppServer initialize handshake failed. |
+| `RequestTimeoutError` | A request exceeded its timeout before the server answered. |
+| `ReconnectQueueFullError` | Requests queued during reconnect exceeded the queue bound. |
 | `TurnInProgressError` | Server rejected turn start due to active turn or maintenance. |
 | `ThreadNotFoundError` | Server reports thread missing. |
 | `ThreadNotActiveError` | Server reports thread cannot accept turns. |
@@ -1021,50 +1002,29 @@ SDK error `code` strings are stable API. Error message text may evolve.
 
 ### 16.1 Purpose
 
-The independent private `@dotcraft/channel` package lets TypeScript packages integrate messaging platforms with DotCraft as external channels. It depends on `@dotcraft/sdk`; the SDK does not depend on Channel.
+`@dotcraft/channel` is a repository-internal package, not published to npm. It lets TypeScript packages integrate messaging platforms with DotCraft as external channels. It depends on `@dotcraft/sdk`; the SDK does not depend on Channel.
 
 It owns reusable behavior and leaves platform-specific concerns to subclasses.
 
-### 16.2 Core Classes
+Entry points:
 
-`ChannelAdapter`:
+| Entry point | Purpose |
+|-------------|---------|
+| `@dotcraft/channel` | Channel adapter base classes and module authoring contract. |
+| `@dotcraft/channel/runtime` | Reusable channel runtime components. |
+| `@dotcraft/channel/media` | Media source normalization for upload-capable channel tools. |
+| `@dotcraft/channel/testing` | Channel module conformance suite. |
+| `@dotcraft/channel/meta` | Channel contract version metadata. |
 
-- owns AppServer wire client;
-- performs channel adapter initialize handshake;
-- registers approval, delivery, channel tool, and heartbeat handlers;
-- exposes `handleMessage()` for platform inbound events;
-- provides hooks for platform-specific delivery, approval, streaming, and tools.
+### 16.2 Runtime Components
 
-`ModuleChannelAdapter`:
+`ChannelAdapter` owns the AppServer wire client, performs the channel adapter initialize handshake, registers approval, delivery, channel tool, and heartbeat handlers, exposes `handleMessage()` for platform inbound events, and provides the hooks in §16.3.
 
-- adds workspace context;
-- loads module config;
-- resolves state and temp paths;
-- reports lifecycle status;
-- supports hosted module startup via Desktop/AppServer module management.
+`ModuleChannelAdapter` extends it with workspace context, module config loading, state and temp path resolution, lifecycle status reporting, and hosted module startup through Desktop/AppServer module management.
 
-### 16.3 Runtime Components
+The Channel package owns thread resolution and caching, per-identity inbound serialization, slash command routing through `command/execute`, turn stream reduction and text merging, segment boundary policy, `ext/channel/send` and `ext/channel/toolCall` dispatch, approval and user-input dispatch, media source normalization, module config loading and validation, and module lifecycle state (`stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`). First-party channel packages must use these rather than duplicating equivalent logic.
 
-The channel SDK should factor reusable runtime pieces:
-
-| Component | Responsibility |
-|-----------|----------------|
-| `ThreadResolver` | Resolve, resume, create, cache, and recover threads for channel identities. |
-| `ChannelMessageQueue` | Serialize inbound messages per identity. |
-| `CommandRouter` | Route slash commands through `command/execute` and apply reset results. |
-| `TurnStreamReducer` | Consume turn notifications and merge text. |
-| `SegmentBoundaryPolicy` | Decide when progressive channel delivery should flush partial agent text. |
-| `DeliveryDispatcher` | Handle `ext/channel/send`. |
-| `ChannelToolDispatcher` | Handle `ext/channel/toolCall`. |
-| `ApprovalDispatcher` | Route `item/approval/request` to platform approval hooks. |
-| `UserInputDispatcher` | Route `item/tool/requestUserInput` to platform question hooks. |
-| `MediaSourcePreparer` | Normalize upload tool media sources into bytes, temporary files, URLs, or platform-ready upload references. |
-| `ModuleConfigLoader` | Load and validate workspace config files. |
-| `ModuleLifecycleState` | Track `stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`, and failure statuses. |
-
-These may be exported or internal, but first-party channel packages should use them rather than duplicating equivalent logic.
-
-### 16.4 Channel Adapter Hooks
+### 16.3 Channel Adapter Hooks
 
 Subclasses implement or override:
 
@@ -1087,13 +1047,9 @@ getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | u
 
 Override `getRuntimeAdditionalContext` to bind compact adapter-owned application context through `thread/start.additionalContext`. The Channel runtime keeps the binding for active Thread reuse and restores it with one `thread/resume` after the AppServer connection is replaced.
 
-First-party channel adapters must advertise `requestUserInputSupport` and resolve `item/tool/requestUserInput` requests. When a request contains multiple questions, chat-style adapters should ask them one at a time and aggregate the per-question answers into the protocol `UserInputResponse`. When a platform exposes stable native buttons, adapters should use them for single-question option prompts; otherwise they should display a numbered reply prompt and consume the matching inbound reply before it becomes a normal user turn. Current first-party behavior:
+First-party channel adapters must advertise `requestUserInputSupport` and resolve `item/tool/requestUserInput` requests. When a request contains multiple questions, chat-style adapters ask them one at a time and aggregate the per-question answers into the protocol `UserInputResponse`. When a platform exposes stable native buttons, adapters use them for single-question option prompts; otherwise they display a numbered reply prompt and consume the matching inbound reply before it becomes a normal user turn. Secret questions always use a text reply.
 
-- Feishu/Lark: interactive card buttons for each non-secret option question; numbered/text replies for free-form and secret questions.
-- Telegram: inline keyboard buttons for each non-secret option question; numbered/text replies for free-form and secret questions.
-- QQ, WeCom, and Weixin: one numbered/text prompt per question using the existing text-message channel surface.
-
-### 16.5 Channel Identity
+### 16.4 Channel Identity
 
 Channel identity key:
 
@@ -1105,7 +1061,7 @@ Channel identity key:
 
 The `SessionIdentity.channelName` must match the adapter's declared channel name.
 
-### 16.6 Sender Context
+### 16.5 Sender Context
 
 Adapters should provide per-turn sender context:
 
@@ -1117,7 +1073,7 @@ Adapters should provide per-turn sender context:
 If `groupId` is omitted, server-side delivery fallbacks may use `senderId`.
 Sender context is appended to the current user message runtime context, not to the system prompt.
 
-### 16.7 Channel Tools
+### 16.6 Channel Tools
 
 Channel tools are declared during AppServer `initialize` under `capabilities.channelAdapter.channelTools`.
 
@@ -1133,11 +1089,11 @@ Display metadata may include:
 
 Approval metadata is descriptive and server-owned. The adapter does not make local approval policy decisions from descriptor metadata. For multi-source media tools, `approval.targetArgument` may point at an optional host-path argument: AppServer gates calls that provide that argument as a non-empty string, and skips that approval when the call uses another source such as URL, base64, or a platform file id.
 
-### 16.8 Media Source Handling
+### 16.7 Media Source Handling
 
 `@dotcraft/channel/media` owns media source normalization for upload-capable channel tools.
 
-This normalization keeps existing channel tool names and argument schemas stable. A tool may continue to expose an existing path, URL, base64, or platform-file identifier argument. The SDK converts that caller-provided source into the representation required by the target platform during `ext/channel/toolCall` handling.
+This normalization leaves channel tool names and argument schemas unchanged. A tool exposes a path, URL, base64, or platform-file identifier argument of its own choosing. The SDK converts that caller-provided source into the representation required by the target platform during `ext/channel/toolCall` handling.
 
 When a channel tool can read a host path and can also accept URL, base64, or platform-file sources, the host path must have a dedicated argument that can be used as `approval.targetArgument`. Do not route host paths through the same overloaded argument that also accepts non-local sources, because server-side file approval is argument-based.
 
@@ -1237,19 +1193,11 @@ Supported statuses:
 - `authRequired`
 - `authExpired`
 
-Failure statuses use `stopped` with a structured `ModuleError` unless a future lifecycle spec adds additional stable states.
+Failure statuses use `stopped` with a structured `ModuleError`.
 
-### 17.6 Platform Behavior Preservation
+### 17.6 Platform Behavior Contract
 
-Channel SDK refactors must preserve first-party behavior:
-
-- Feishu card approvals and transcript card updates.
-- Telegram long polling, commands, approval callbacks, and media tools.
-- Weixin QR auth lifecycle and monitor loop.
-- QQ OneBot reverse WebSocket behavior and permission checks.
-- WeCom server/pusher behavior and approval routing.
-- Existing structured delivery capability declarations.
-- Existing channel tool names, schemas, and result shapes unless a protocol spec changes them.
+Each first-party module owns platform behavior that the Channel runtime must not absorb or alter: Feishu card approvals and transcript card updates; Telegram long polling, commands, approval callbacks, and media tools; Weixin QR auth lifecycle and monitor loop; QQ OneBot reverse WebSocket behavior and permission checks; WeCom server/pusher behavior and approval routing. Structured delivery capability declarations, channel tool names, schemas, and result shapes change only when a protocol spec changes them.
 
 ---
 
@@ -1257,14 +1205,7 @@ Channel SDK refactors must preserve first-party behavior:
 
 ### 18.1 Documentation Locations
 
-Documentation lives in VitePress:
-
-- `docs/developing/sdk-typescript.md` (English root)
-- `docs/zh/developing/sdk-typescript.md` (Chinese)
-- SDK overview pages as needed
-- related channel-specific SDK pages as needed
-
-Docs must be bilingual: Chinese and English.
+TypeScript SDK documentation is published on the documentation site in both Chinese and English, alongside the SDK overview and channel-specific pages.
 
 ### 18.2 Documentation Structure
 
@@ -1297,54 +1238,13 @@ At least one runnable Node.js example should demonstrate:
 - user input handler;
 - clean shutdown.
 
-Examples should be small and copyable. Full application templates belong to a later release.
+Examples should be small and copyable.
 
 ---
 
 ## 19. Testing and Conformance
 
-### 19.1 SDK Unit Tests
-
-Required tests:
-
-- Hub lock parsing.
-- Dead Hub lock rejection.
-- Hub loopback URL validation.
-- Hub startup command behavior.
-- Hub ensure request and error parsing.
-- SSE boundary parsing.
-- stdio transport framing.
-- WebSocket transport framing.
-- JSON-RPC response correlation.
-- JSON-RPC error conversion.
-- notification registration and unregistration.
-- server-initiated request dispatch.
-- initialize handshake.
-- raw request escape hatch.
-- `run()` final result extraction.
-- `runStreamed()` normalized event order.
-- delta/snapshot text merge.
-- explicit `turn/enqueue`.
-- `TurnInProgressError`.
-- approval callback.
-- dynamic tool callback.
-- user input callback.
-
-### 19.2 Channel Tests
-
-First-party channel package tests must continue to cover:
-
-- config validation;
-- module conformance;
-- approval routing;
-- delivery capabilities;
-- channel tool descriptors;
-- media tool behavior;
-- media source normalization for host paths, base64 data, allowed and disallowed URLs, inferred file metadata, size limits, and platform-ready upload references;
-- stream reducer behavior;
-- platform-specific parsing and permission logic.
-
-### 19.3 Workspace Validation Commands
+### 19.1 Workspace Validation Commands
 
 TypeScript validation:
 
@@ -1362,15 +1262,9 @@ cd docs
 npm run build
 ```
 
-### 19.4 Conformance Helpers
+### 19.2 Conformance Helpers
 
-`@dotcraft/sdk/testing` should provide reusable conformance suites for:
-
-- module manifests;
-- config descriptors;
-- module lifecycle behavior;
-- channel adapter startup failure behavior;
-- delivery and tool dispatch shape.
+`@dotcraft/channel/testing` owns the reusable channel module conformance suite, covering module manifests, config descriptors, module lifecycle behavior, channel adapter startup failure behavior, and delivery and tool dispatch shape. Every first-party channel module runs it. `@dotcraft/sdk/testing` carries only SDK transport and protocol fixtures (§4.8).
 
 ---
 
@@ -1408,7 +1302,7 @@ Tool authors are responsible for validating arguments, enforcing application-lev
 
 ### 20.5 Channel Credentials
 
-Channel modules own platform credentials and must keep secrets in workspace config or state according to existing channel docs. The SDK must not expose secrets through module manifests, status summaries, or logs.
+Channel modules own platform credentials and must keep secrets in workspace config or state. The SDK must not expose secrets through module manifests, status summaries, or logs.
 
 ---
 
@@ -1416,13 +1310,7 @@ Channel modules own platform credentials and must keep secrets in workspace conf
 
 ### 21.1 Channel Contract Version
 
-The private Channel package exposes its contract version from `@dotcraft/channel/meta`:
-
-```ts
-export const CHANNEL_CONTRACT_VERSION = "1.0.0";
-```
-
-Hosted TypeScript channel modules and conformance tests use this value. SDK package and AppServer contract metadata remain available from `@dotcraft/sdk/meta`.
+`@dotcraft/channel/meta` exports `CHANNEL_CONTRACT_VERSION`, the Channel package's own contract version, versioned by the rules in this section. Hosted TypeScript channel modules declare it as `channelContractVersion` in their manifest, and the conformance suite asserts the match. SDK package and AppServer contract metadata remain available from `@dotcraft/sdk/meta`.
 
 ### 21.2 Protocol Version Compatibility
 
@@ -1437,9 +1325,7 @@ Examples:
 - workspace config methods require `workspaceConfigManagement`;
 - model list requires `modelCatalogManagement`.
 
-### 21.3 Breaking Package Rename
-
-The canonical SDK name is `@dotcraft/sdk`.
+### 21.3 Package Identity
 
 `@dotcraft/sdk` and its documented subpaths define the TypeScript client SDK surface. `@dotcraft/plugin` is the separate Desktop module authoring package.
 
@@ -1472,9 +1358,7 @@ Repository consumers import high-level APIs from `@dotcraft/sdk`, protocol-only 
 
 Desktop is the production reference consumer of `@dotcraft/sdk/wire`, `@dotcraft/sdk/contracts`, and `@dotcraft/sdk/hub`. It does not maintain a second JSON-RPC or Hub client.
 
-Electron Main owns SDK connections and host policy. Preload exposes an end-to-end typed IPC boundary for known catalog methods; Renderer imports contract types only and never opens a transport. Dynamic extensions use a separately named raw IPC path that remains subject to Desktop authorization and scope checks.
-
-The repository-local package is bundled into Electron Main and Preload output rather than externalized, so packaged applications do not depend on the checkout-relative package path.
+Desktop opens transports only in its trusted host process; its untrusted renderer consumes contract types alone. Raw protocol access from Desktop extensions stays subject to Desktop authorization and scope checks.
 
 ### 22.3 Hosted Channel Module Ownership
 
@@ -1487,8 +1371,7 @@ TypeScript owns the first-party **hosted** channel module runtime (manifests, mo
 A complete implementation of this specification satisfies:
 
 - `@dotcraft/sdk` is the canonical package name.
-- `@dotcraft/sdk` and `@dotcraft/plugin` are public npm packages with the same version.
-- Node.js 20 is the documented runtime baseline.
+- `@dotcraft/sdk` and `@dotcraft/plugin` are public npm packages with the same version; `@dotcraft/channel` and the first-party channel packages are repository-internal.
 - Local mode starts or discovers Hub and connects to the ensured AppServer.
 - Remote mode connects directly to AppServer WebSocket.
 - High-level API exposes `DotCraft`, thread manager, `DotCraftThread`, `run()`, `runStreamed()`, and `enqueue()`.
@@ -1502,21 +1385,7 @@ A complete implementation of this specification satisfies:
 - Hub API is exported and independently testable.
 - Channel SDK is factored into reusable runtime components.
 - First-party TypeScript channel packages use `@dotcraft/sdk` imports.
-- Existing channel behavior is preserved.
-- AppServer wire DTOs, four-direction method maps, and method groups are generated from the shared Contract IR under `sdk/typescript/src/generated/appserver/`; handwritten transports and high-level APIs consume them while retaining raw fallbacks.
+- AppServer wire DTOs, four-direction method maps, and method groups are generated from the shared Contract IR; handwritten transports and high-level APIs consume them while retaining raw fallbacks.
 - TypeScript SDK and channel package test suites pass.
 - Chinese and English TypeScript SDK docs are updated.
 - A runnable TypeScript SDK example exists.
-- The spec remains the source of truth for future SDK implementation work.
-
----
-
-## 24. Future Work
-
-Future specs or amendments may cover:
-
-- Browser-compatible SDK build.
-- Full typed wrappers for provider, model, MCP, plugin, skill, automation, memory, dreams, and workspace config management.
-- Higher-level one-shot `dotcraft.run()` convenience API.
-- Pluggable logger and telemetry hooks.
-- Template generation for new channel modules.

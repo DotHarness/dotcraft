@@ -25,8 +25,7 @@ export interface ModelReasoningCapability {
 }
 
 /**
- * Server-authored context-window metadata for a model (see
- * specs/features/model-options.md §5). Clients use `supportsMax` to decide
+ * Clients use `supportsMax` to decide
  * whether to offer the MAX context switch; they must not hardcode model rules.
  */
 export interface ModelContextWindowMeta {

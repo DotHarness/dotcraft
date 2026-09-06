@@ -1,6 +1,10 @@
 # Multi-Folder Local Projects
 
-Status: backend contract for implementation
+| Field | Value |
+|---|---|
+| Version | 1.0.0 |
+| Status | Living |
+| Date | 2026-08-27 |
 
 ## 1. Scope
 

@@ -3,10 +3,10 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.1.0    |
+| Version      | 0.2.0    |
 | Status       | Living |
-| Date         | 2026-05-05        |
-| Parent Specs | [AppServer Protocol](../../protocols/appserver-protocol.md), [Automations Lifecycle](../automations-lifecycle.md), [OpenAI Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md) |
+| Date         | 2026-09-06        |
+| Parent Specs | [AppServer Protocol](../../protocols/appserver-protocol.md), [Automations Lifecycle](../automations-lifecycle.md) |
 | Companion   | [Oratorio Native Surfaces](./oratorio-frontend.md) — canonical board and settings layout, navigation, and component vocabulary. This document owns product behavior; the frontend spec owns visual and interaction design.                                                                              |
 
 
@@ -21,21 +21,7 @@ the board, Task cards, and compact Status drawers. Detailed AppServer
 conversation, approval decisions, plan inspection, file/terminal/preview views,
 and turn-by-turn interaction belong in DotCraft Desktop.
 
-This document is the canonical product and behavior contract for Oratorio. It
-captures enduring boundaries, domain behavior, source semantics, runtime
-contracts, and validation expectations without tracking delivery history.
-
-Reference material:
-
-- [OpenAI Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md)
-- [Devin Review](https://docs.devin.ai/work-with-devin/devin-review)
-- [GitHub: Commenting on a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/commenting-on-a-pull-request)
-- [GitHub: Pull request reviews API](https://docs.github.com/en/rest/pulls/reviews?apiVersion=2022-11-28)
-- [GitLab: Suggest changes](https://docs.gitlab.com/user/project/merge_requests/reviews/suggestions/)
-- [GitLab: Suggestions API](https://docs.gitlab.com/api/suggestions/)
-- [parkerbxyz/suggest-changes](https://github.com/parkerbxyz/suggest-changes)
-- [GitHub: resolveReviewThread mutation](https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread)
-- [GitLab: Resolve a thread (Discussions API)](https://docs.gitlab.com/api/discussions/#resolve-a-merge-request-thread)
+This document is the canonical product and behavior contract for Oratorio: enduring boundaries, domain behavior, source semantics, runtime contracts, and validation expectations.
 
 ---
 
@@ -165,26 +151,27 @@ logs.
 comment, closes the current round as `changesRequested`, and returns the item
 to `discovered`.
 - The next dispatch after requested changes creates the next numbered round.
-- `reReview` is available for GitHub pull requests after the pull request head
-  SHA changes from the latest successful AppServer review analysis run. It
-  records an internal decision, supersedes the current round, creates the next
-  numbered round, and queues a new read-only review run without writing to
-  GitHub.
+- `reReview` is available for a GitHub pull request or GitLab merge request
+  after its head SHA changes from the one analyzed by the latest successful
+  AppServer review analysis run. It records an internal decision, supersedes the
+  current round, creates the next numbered round, and queues a new read-only
+  review run. It writes no source decision; the new round drives the
+  `oratorio/review` gate check like any other review round.
 - Repository-level Auto Review uses the same round semantics as `reReview`.
   For enabled repositories, new open non-draft pull requests that appear after
   enablement queue an AppServer `reviewAnalysis` run automatically. Later head
   SHA changes supersede the current round and queue the next read-only review
-  round after any active run finishes. Auto Review never writes a GitHub
+  round after any active run finishes. Auto Review never writes a source
   decision.
 - Implementation Follow-up is an automated, gated, bounded loop anchored on the
   originating GitHub/GitLab issue or local task — never on the generated pull
-  request, which stays a read-only review target per §5.5 and §6. When an
+  request, which stays a read-only review target per §6.2 and §6. When an
   originating item that already delivered a generated pull request is in
   `awaitingReview` and that generated PR accrues new unresolved published review
-  findings (§5.3) or new human PR review comments, the Implementation Follow-up
+  findings (§6.1) or new human PR review comments, the Implementation Follow-up
   scheduler re-activates the originating item to `discovered`, creates the next
   numbered round, and queues a new implementation run that reuses the existing PR
-  branch and pushes follow-up commits to the same pull request (§5.5). The loop
+  branch and pushes follow-up commits to the same pull request (§6.2). The loop
   fires only while the originating item is `awaitingReview`, has no active run, is
   not `approved`/`rejected`/`archived`, the generated PR is still open (not merged
   or closed), and the item's follow-up round count is below the configured
@@ -198,14 +185,15 @@ to `discovered`.
   through the Implementation Follow-up policy in §4.
 - `approve` is allowed only after a completed run has moved the item to
   `awaitingReview`.
-- For GitHub pull request review rounds, Oratorio writes the `oratorio/review`
-  check run as `in_progress` when the round is queued and updates that same
-  check run to completed `neutral` when the review run succeeds, returning
-  merge ownership to GitHub collaborators. Explicit later Oratorio approval,
-  requested changes, rejection, or terminal run failure may update the same
-  check run to success, action-required, or failure. This external check is the
-  merge gate only when the repository requires it through GitHub branch
-  protection or rulesets.
+- Every GitHub pull request review round — first dispatch, `reReview`, Auto
+  Review, and retry alike — drives one `oratorio/review` check run, keyed to the
+  head SHA under review. Oratorio writes it `in_progress` when the round is
+  queued and updates that same check run to completed `neutral` when the review
+  run succeeds, returning merge ownership to GitHub collaborators. A later
+  Oratorio approval, requested changes, rejection, cancellation, or terminal run
+  failure updates the same check run to success, action-required, or failure.
+  This external check is the merge gate only when the repository requires it
+  through GitHub branch protection or rulesets.
 - `archive` is available for non-active local and source-backed items and
   preserves all history; `reopen` restores an archived item to `discovered`.
 - Rejected and archived items are closed/history work. Their TaskStatus
@@ -219,7 +207,7 @@ to `discovered`.
   - human review comments on the generated pull request of an originating
     implementation item, which are actionable follow-up feedback for that
     originating item's next implementation round under the gated
-    Implementation Follow-up loop (§5.5, §6).
+    Implementation Follow-up loop (§6.2, §8).
 
 ---
 
@@ -253,7 +241,7 @@ Canonical domain records:
   submitted by DotCraft and later published, discarded, or left in draft state.
   A published, accepted `ReviewDraftComment` additionally carries resolution
   state (open/resolved, kind, actor, note, provenance, and source-thread
-  mapping) per §5.7.
+  mapping) per §6.4.
 - `SourceWrite`: auditable GitHub write attempt with request, response, status,
   error, retry, and external URL metadata.
 - `TimelineEvent`: append-only operator-facing projection for source sync,
@@ -263,7 +251,7 @@ Canonical domain records:
   baselines, last observed PR heads, last queued PR heads, and visible skip or
   routing errors.
 - `ImplementationFollowUpItemState`: durable backend scheduler state for the
-  Implementation Follow-up loop (§3, §5.5), keyed by originating item, with the
+  Implementation Follow-up loop (§3, §6.2), keyed by originating item, with the
   linked generated PR item, the last observed open-finding signature, the last
   observed human PR comment time, last queued head/round/run, the follow-up round
   count, and visible skip or cap state.
@@ -291,7 +279,7 @@ Required endpoint groups:
 - run detail;
 - GitHub status, sync, write retry, and source write visibility;
 - review draft detail exposure plus edit, publish, and discard actions, and
-  operator resolve/reopen of a published review finding per §5.7;
+  operator resolve/reopen of a published review finding per §6.4;
 - DotCraft/AppServer status, workspace inventory, per-workspace health, and
   dispatch diagnostics.
 - top-level status capabilities for managed worktrees, concurrency limits, and
@@ -323,7 +311,7 @@ validate each canonical source project key and require a syntactically valid,
 fully qualified filesystem path, but they do not require that the directory is
 currently mounted, registered with Hub, or present on disk. Availability belongs
 to workspace inventory and run preparation: unavailable routes remain visible to
-operators, report their existing health reason, and fail execution with the
+operators, report their health reason, and fail execution with the
 applicable stable error such as `workspaceNotRegisteredInHub` or
 `baseWorkspaceMissing`. An unavailable route must not block unrelated Settings
 changes, rebinding, or removal.
@@ -396,7 +384,7 @@ Decision write mapping:
 | Pull request | `approve` | PR review plus `oratorio/review` success check |
 | Pull request | `requestChanges` | PR review plus action-required check |
 | Pull request | `reject` | PR review plus failure check |
-| Pull request | `reReview` | no GitHub decision write; the new review round still writes/updates the `oratorio/review` gate check |
+| Pull request | `reReview` | no decision write; the new round drives the `oratorio/review` check per §3 |
 | Issue | `approve`, `requestChanges`, or `reject` | Issue comment only |
 | Local task | any decision | no GitHub write |
 
@@ -429,10 +417,43 @@ records. They do not roll back recorded Oratorio decisions or item transitions;
 check-gated repositories should rely on the `oratorio/review` check-run state as
 the external merge gate when GitHub write delivery fails.
 
-### 5.3 Structured PR Review Suggestions
+### 5.3 Local Tasks
 
-Oratorio must support Devin-like PR review suggestions as a structured draft
-flow, not as free-form agent text.
+Oratorio-local tasks are first-class Oratorio records. They are separate from
+DotCraft built-in Automations local tasks.
+
+Local task behavior must include:
+
+- operator-created title and body;
+- optional repository, branch, labels, and workspace metadata;
+- comments, review rounds, decisions, and timeline history;
+- dispatch through mock runner or DotCraft AppServer;
+- approve, request-changes, reject, and reopen transitions;
+- edit, archive, and reopen actions only when the task is not actively
+  dispatching or running.
+
+Local task identity:
+
+```text
+source = local
+kind = localTask
+externalId = task:{shortId}
+```
+
+The backend generates the local task external ID. The UI must not derive
+identity from the title because titles are editable. Default task lists hide
+archived local tasks unless an explicit archived filter is selected.
+
+Local tasks may participate in implementation auto-dispatch policy for
+implementation work. They are still not a general cron/reminder system.
+
+---
+
+## 6. Review Draft Contract
+
+### 6.1 Structured PR Review Suggestions
+
+PR review suggestions are a structured draft flow, not free-form agent text.
 
 The required ownership boundary is:
 
@@ -442,36 +463,30 @@ The required ownership boundary is:
 - GitHub writes are performed only by Oratorio through installation
   credentials.
 
-The canonical agent submission contract is
-`oratorio_run.SubmitReviewDraft`.
-For Oratorio-created AppServer runs, Oratorio exposes this contract as a
-Runtime Dynamic Tool:
+The canonical agent submission contract is the Runtime Dynamic Tool
+`oratorio_run.SubmitReviewDraft`. Oratorio declares it on
+`thread/start.dynamicTools` for Oratorio-created AppServer runs; DotCraft
+invokes it through `item/tool/call`, and the callback is bound to the AppServer
+connection and thread that created the run.
 
-- **Runtime Dynamic Tool**: for Oratorio-created AppServer runs, Oratorio
-  declares `SubmitReviewDraft` on `thread/start.dynamicTools`. DotCraft invokes
-  it through `item/tool/call`, and the callback is bound to the AppServer
-  connection and thread that created the run.
+Every Oratorio Runtime Dynamic tool has exactly one identity — a single
+description, JSON Schema, and prompt-visible tool id in the `oratorio_run`
+namespace — shared by every surface that exposes it. Each surface applies its
+own allowlist before dispatch. Runtime declarations carry no MCP metadata; MCP
+annotations, UI resources, and UI metadata are MCP-only sidecars.
 
-Runtime Dynamic Tools are not plugin manifest native tools. DotCraft plugin
-manifests contribute Skills, MCP server declarations, and interface metadata;
-model-callable plugin services should use MCP when they are external reusable
-services. Dynamic Tools remain the direct thread-scoped callback path for an
-AppServer client such as Oratorio.
+Runtime Dynamic Tools are not plugin manifest native tools. Plugin manifests
+contribute Skills, MCP server declarations, and interface metadata;
+model-callable plugin services use MCP when they are external reusable services.
+Dynamic Tools remain the direct thread-scoped callback path for an AppServer
+client such as Oratorio.
 
-All Oratorio Runtime Dynamic and App Binding/MCP tools are authored once as
-typed .NET argument classes and `[DynamicTool]` methods in the DotCraft SDK
-registry. Registry descriptors are the only source for tool identity,
-description, JSON Schema, Runtime Dynamic declarations, prompt-required tool
-IDs, and MCP `tools/list` schemas. Each surface applies its own allowlist before
-registry dispatch. Runtime declarations contain no MCP `_meta`; MCP annotations,
-UI resources, and UI metadata are MCP-only sidecars.
+Every `oratorio_run.SubmitReviewDraft` call must bind to the current Oratorio
+run thread so that drafts cannot be submitted across unrelated runs. Any
+external reusable review service must provide an explicit run or round binding
+contract before it can submit drafts.
 
-Every `SubmitReviewDraft` call must bind to the current Oratorio run thread so
-that drafts cannot be submitted across unrelated runs. Any external reusable
-review service must provide an explicit run or round binding contract before it
-can submit drafts.
-
-`SubmitReviewDraft` input must include:
+`oratorio_run.SubmitReviewDraft` input must include:
 
 - `summary`: object with review counts and body text;
 - `comments`: array of inline review findings.
@@ -505,41 +520,33 @@ comment-only finding:
 fields declared for the other branch are ignored. Undeclared fields are rejected
 by the closed generated schema.
 
-Review Draft copy requirements:
+Review Draft content contract:
 
-- default review prose is restrained English engineering copy with no
-  greetings, filler, raw JSON, or repeated machine-readable draft payload in
-  the final response;
-- clean reviews must use `summary.body` exactly `No issues found.`, set
-  `majorCount`, `minorCount`, and `suggestionCount` to `0`, and submit
+- a clean review uses `summary.body` exactly `No issues found.`, sets
+  `majorCount`, `minorCount`, and `suggestionCount` to `0`, and submits
   `comments: []`;
-- reviews with accepted findings use a minimal summary body, `Found N issue.`
-  or `Found N issues.`; details belong in inline comments, not in the review
-  summary;
+- a review with accepted findings uses the summary body `Found N issue.` or
+  `Found N issues.`; the detail belongs in the inline comments;
 - Oratorio canonicalizes agent-submitted `summary.body`, `majorCount`, and
-  `minorCount` from accepted comments when the draft is submitted; operator
+  `minorCount` from the accepted comments when the draft is submitted; operator
   edits made afterward are respected when publishing;
-- inline finding `title` values are concise imperative or problem statements;
-- inline finding `body` values use natural reviewer prose that explains the
-  failure mode and why it matters, with a short suggested direction when useful;
 - published inline comment titles are prefixed with `🔴` for `RED` findings and
   `🟡` for `YELLOW` findings; stored draft titles remain unprefixed;
-- `oldText`/`newText` with `kind: suggestion` is used only for exact, small,
-  right-side code changes that can be safely published as native suggestions;
-- `reason` with `kind: commentOnly` is used for investigation-only findings, larger
-  refactors, unsafe anchors, human decisions, and left-side or deletion notes;
 - `RED` means a likely bug affecting correctness, security, data loss, or a
   broken workflow; `YELLOW` means an investigation flag, maintainability risk,
   or lower-confidence issue;
-- informational explanations stay in `summary.body` or are omitted. They must
-  not become noisy FYI inline comments.
+- `kind: suggestion` is used only for exact, small, right-side code changes that
+  can be published as native suggestions; every other finding is
+  `kind: commentOnly` with the matching `reason`;
+- informational explanations stay in `summary.body` and must not become inline
+  comments.
 
 `summary.suggestionCount` means accepted concrete code suggestions only. The
 server derives and persists this value from accepted inline comments with
 resolved `oldText`/`newText`; if the agent-submitted
 count differs, Oratorio stores the derived value and records a warning.
 
-Successful `SubmitReviewDraft` output must include:
+Successful `oratorio_run.SubmitReviewDraft` output must include:
 
 - `draftId`;
 - accepted comment count;
@@ -553,7 +560,7 @@ fail the dynamic tool with `reviewDraftAnchorNotCommentable`. Suggestion
 `reviewDraftSuggestionTextNotFound`; `oldText` that matches multiple right-side
 diff ranges must fail with `reviewDraftSuggestionTextAmbiguous`. Failed results
 must include enough metadata and available commentable ranges for the agent to
-repair the draft and call `SubmitReviewDraft` again in the same DotCraft round.
+repair the draft and call `oratorio_run.SubmitReviewDraft` again in the same DotCraft round.
 Invalid items must not cause Oratorio to publish a partial GitHub review
 silently.
 
@@ -590,7 +597,7 @@ Draft lifecycle:
 - `publishFailed`: retryable after a failed publish attempt.
 
 Every GitHub pull request and GitLab merge request AppServer `reviewAnalysis`
-run must call `SubmitReviewDraft` before it can succeed. If the agent finds no
+run must call `oratorio_run.SubmitReviewDraft` before it can succeed. If the agent finds no
 actionable issues, it must submit a summary-only draft with `majorCount`,
 `minorCount`, and `suggestionCount` all `0`, summary body `No issues found.`,
 and `comments: []`. A GitHub PR or GitLab MR review run that completes without any
@@ -611,72 +618,13 @@ stored, Oratorio completes the run from the draft, records the terminal signal
 as an operator-visible warning, and must not ask the agent to submit a duplicate
 draft. Explicit Oratorio operator cancellation remains authoritative.
 
-Review Draft publication may be manual or automatic by Draft auto-publish
-policy. Draft auto-publish is globally gated and repository opt-in by exact
-`owner/name`. It must publish only a GitHub `COMMENT` review, never `APPROVE`,
-`REQUEST_CHANGES`, merge, close, issue-close, or branch-protection decision
-events. Draft auto-publish does not resolve the Oratorio item; the item remains
-`AwaitingReview` until an operator records an Oratorio decision. Draft warnings,
-skipped inline comments, stale head SHA, missing GitHub write authentication, or
-disabled GitHub writes block auto-publication and create failed source-write
-records tied to the draft.
-
-GitHub publication uses a single `COMMENT` pull request review with the summary
-body plus accepted inline comments. Only concrete code suggestions render a
-fenced `suggestion` block; comment-only findings publish as prose comments.
-GitLab publication creates a summary note plus inline discussions. Multi-line
-GitLab code suggestions render offset-aware fence openings such as
-`suggestion:-N+M` when the final anchor line needs to cover preceding lines.
-The Review Draft UI must show code-suggestion and comment-only finding counts
-separately and display the `commentOnlyReason` for comment-only findings.
-
-Settings presents Draft auto-publish as a repository allowlist card over
-configured GitHub repositories. The `Manage` dialog updates the Settings draft
-allowlist; at least one selected repository writes
-`Automation.AutoReviewPublishEnabled=true` with the selected repository
-allowlist, while an empty allowlist writes disabled with an empty allowlist.
-Selected repositories can also be removed directly from the allowlist card.
-
-Repository-level Auto Review is separate from Draft auto-publish. Its server
-configuration key is `Automation.AutoReviewRepositories`, exposed as
-`automation.autoReviewRepositories` in the Settings API. Each entry is an exact
-`owner/name`. A configured GitHub repository has two v1 states: `Off` and
-`Auto review`; label-based PR review triggers are not part of the Auto Review
-contract and must not affect Issues implementation auto-dispatch policy.
-Settings manages this repository allowlist with the same card and searchable
-checkbox dialog pattern as Draft auto-publish.
-
-Settings manages implementation auto-dispatch allow and block label lists as
-free-form label controls rather than multiline text. Labels are trimmed, empty
-entries are ignored, and duplicates are removed case-insensitively while
-preserving the first entered spelling. An empty allow list continues to mean
-all otherwise eligible, unblocked GitHub Issues and local tasks may dispatch.
-
-Auto Review scheduler requirements:
-
-- when a repository is first enabled or re-enabled, baseline current open
-  non-draft PRs and do not queue historical reviews;
-- after enablement, a new open non-draft PR queues an AppServer
-  `reviewAnalysis` run;
-- after enablement, each observed PR head SHA change queues one new review
-  round for the latest head;
-- auto re-review must match manual `reReview`: supersede the current round,
-  create the next round, queue a read-only AppServer review run, and perform no
-  GitHub decision write beyond the review-gate check state;
-- skip draft, closed, merged, archived, rejected, active-run, non-PR, non-GitHub
-  and missing-workspace-route items, and record operator-visible skip or error
-  state;
-- if a new head appears while a review run is active, record the latest
-  observed head and queue exactly one follow-up round for that latest head after
-  the active run completes.
-
 Comment lifecycle:
 
 - `accepted`: valid inline comment eligible for publication;
 - `skipped`: stored for audit and warning display, but not sent to GitHub.
 
 An accepted comment that has been published additionally carries a resolution
-state per §5.7. Publication status and resolution state are independent: only
+state per §6.4. Publication status and resolution state are independent: only
 published, accepted comments are resolvable, and resolution never edits the
 published comment body.
 
@@ -685,45 +633,15 @@ Review Draft submission is connection-bound and thread-scoped. Plugin-bundled
 MCP remains appropriate for external reusable review services that are not
 submitting back into a specific Oratorio run.
 
-### 5.4 Local Tasks
-
-Oratorio-local tasks are first-class Oratorio records. They are separate from
-DotCraft built-in Automations local tasks.
-
-Local task behavior must include:
-
-- operator-created title and body;
-- optional repository, branch, labels, and workspace metadata;
-- comments, review rounds, decisions, and timeline history;
-- dispatch through mock runner or DotCraft AppServer;
-- approve, request-changes, reject, and reopen transitions;
-- edit, archive, and reopen actions only when the task is not actively
-  dispatching or running.
-
-Local task identity:
-
-```text
-source = local
-kind = localTask
-externalId = task:{shortId}
-```
-
-The backend generates the local task external ID. The UI must not derive
-identity from the title because titles are editable. Default task lists hide
-archived local tasks unless an explicit archived filter is selected.
-
-Local tasks may participate in implementation auto-dispatch policy for
-implementation work. They are still not a general cron/reminder system.
-
-### 5.5 Implementation and Follow-up Drafts
+### 6.2 Implementation and Follow-up Drafts
 
 Implementation mode is available for GitHub issues and Oratorio local tasks.
-Existing GitHub pull requests remain review targets and are not mutated by
+GitHub pull requests remain review targets and are not mutated by
 implementation runs.
 
 Implementation runs expose an Oratorio-owned Runtime Dynamic Tool named
-`SubmitImplementationDraft`. The tool is bound to the current run and thread in
-the same way as `SubmitReviewDraft`; final agent summaries are not sufficient to
+`oratorio_run.SubmitImplementationDraft`. The tool is bound to the current run and thread in
+the same way as `oratorio_run.SubmitReviewDraft`; final agent summaries are not sufficient to
 create commits or pull requests. A valid draft includes a concise summary,
 validation notes, risks, changed files, proposed commit message, proposed PR
 title, and proposed PR body.
@@ -765,7 +683,7 @@ existing review target, not creation of a new one:
   If the source API rejects a duplicate creation because the PR already exists,
   delivery resolves and links the existing pull request instead of failing.
 - After a follow-up push, delivery updates the generated PR item head so that
-  Auto Review or `reReview` (§3, §5.3) detects the new head and re-reviews it.
+  Auto Review or `reReview` (§3, §6.1) detects the new head and re-reviews it.
 - The follow-up implementation round's managed worktree is prepared from the
   existing generated PR branch head, not reset to the repository base ref, so
   previously delivered commits are retained and new commits stack on top. This is
@@ -778,12 +696,12 @@ is globally gated and repository opt-in by exact `owner/name`, mirroring Auto
 Review and Draft auto-publish. With `autoFollowUp` disabled or the repository not
 allow-listed, generated PR feedback never auto-re-activates the originating item.
 
-The Implementation Follow-up loop (§3) is distinct from `SubmitFollowUpDraft`
+The Implementation Follow-up loop (§3) is distinct from `oratorio_run.SubmitFollowUpDraft`
 below: the loop continues the current item's own delivery on its existing PR,
-while `SubmitFollowUpDraft` proposes separately scoped new work.
+while `oratorio_run.SubmitFollowUpDraft` proposes separately scoped new work.
 
 Follow-up runs expose an Oratorio-owned Runtime Dynamic Tool named
-`SubmitFollowUpDraft` when eligible. Agents use it to propose split-out work,
+`oratorio_run.SubmitFollowUpDraft` when eligible. Agents use it to propose split-out work,
 blockers, or separately scoped improvements without directly creating external
 issues or mutating source trackers.
 
@@ -799,7 +717,7 @@ the reviewed head rather than the mapped workspace's current `HEAD`.
 Follow-up Drafts are advisory and do not become hidden requirements for the
 current round.
 
-### 5.6 Agent Discussion Turns
+### 6.3 Agent Discussion Turns
 
 Oratorio supports a narrow, lightweight operator question flow for completed
 AppServer work. This flow exists so operators can ask the agent questions from
@@ -817,7 +735,7 @@ The required ownership boundary is:
   create a re-review round.
 - Discussion Turns never create a `Round` or `Run`, never change Task lifecycle
   state, never update `currentRunId`, and never change check state. A Discussion
-  Turn writes to a source system only to resolve a review finding under §5.7;
+  Turn writes to a source system only to resolve a review finding under §6.4;
   it must perform no other source write.
 - Operator questions and agent replies are rendered in the same Discussion
   history as comments, but their purpose keeps them out of next-round feedback
@@ -841,7 +759,7 @@ set remains prompt-cache friendly across later turns. The tool input is:
 - `discussionTurnId`: the pending Discussion Turn to answer;
 - `body`: the Markdown reply to record.
 
-`SubmitDiscussionReply` succeeds only when the call is bound to the current
+`oratorio_run.SubmitDiscussionReply` succeeds only when the call is bound to the current
 thread and turn for a pending or running Discussion Turn. Mismatched thread,
 mismatched turn, unknown turn, completed turn, and empty reply calls must fail
 with stable errors. On success, Oratorio records one agent comment with purpose
@@ -855,18 +773,17 @@ discussion runtime context for reply submission and boundaries. They must not
 restate full source snapshots, full round history, imported source comment
 history, or stable tool-use rules.
 When the Task has open published review findings, the prompt may additionally
-list them per §5.7 so the agent can resolve a finding the discussion concludes
+list them per §6.4 so the agent can resolve a finding the discussion concludes
 is handled. Discussion Turns require both Dynamic Tool rebind and runtime
 additional context support.
 
-### 5.7 Review Finding Resolution
+### 6.4 Review Finding Resolution
 
-A published review finding (§5.3) is a standing thread that stays open until it
-is addressed. Oratorio gives both agents and operators a way to close a finding
-without re-running a full review, mirroring GitHub review-thread resolution and
-GitLab thread resolution. Resolution serves two flows:
+A published review finding (§6.1) is a standing thread that stays open until it
+is addressed. Both agents and operators can close a finding without re-running a full review.
+Resolution serves two flows:
 
-- in an Agent Discussion Turn (§5.6), once discussion concludes a finding is a
+- in an Agent Discussion Turn (§6.3), once discussion concludes a finding is a
   non-issue or already handled;
 - in a later review round, once the agent confirms an earlier round's finding was
   fixed at the current head.
@@ -905,8 +822,8 @@ Resolution rules:
   and visible for audit.
 
 Agent contract. The canonical agent contract is a Runtime Dynamic Tool named
-`ResolveReviewFinding`, declared on every Oratorio-created AppServer thread
-alongside `SubmitDiscussionReply` so both the originating review run and later
+`oratorio_run.ResolveReviewFinding`, declared on every Oratorio-created AppServer thread
+alongside `oratorio_run.SubmitDiscussionReply` so both the originating review run and later
 Discussion Turns on the same thread can call it, and so the thread tool set stays
 prompt-cache friendly. Its input is:
 
@@ -914,7 +831,7 @@ prompt-cache friendly. Its input is:
 - `resolutionKind`: `fixed` or `dismissed`;
 - `note`: optional rationale.
 
-`ResolveReviewFinding` succeeds only when the call is bound to the current thread
+`oratorio_run.ResolveReviewFinding` succeeds only when the call is bound to the current thread
 and the finding belongs to the same Item as the calling run or Discussion Turn.
 Mismatched thread, cross-Item findings, unknown findings, and non-resolvable
 findings must fail with stable errors (`reviewFindingNotFound`,
@@ -924,21 +841,17 @@ publishes a board update, and returns the `findingId` and resulting
 `resolutionState`. Resolving a finding is the only source-affecting state change
 an Agent Discussion Turn may make.
 
-Prompt requirements:
-
-- a review-round prompt for a PR/MR with earlier rounds lists the prior published
-  rounds' still-open accepted findings with their `findingId` values, and
-  instructs the agent to resolve with kind `fixed` only those addressed at the
-  current head and to leave still-present findings open;
-- a Discussion Turn prompt with open published findings lists them with their
-  `findingId` values, and instructs the agent it may resolve with kind
-  `dismissed` only when the discussion concludes a finding is a non-issue or
-  already handled, and must otherwise only reply; resolution must never be used
-  to avoid answering the question.
+A prompt that offers `oratorio_run.ResolveReviewFinding` must list the open
+published findings the call may target, with their `findingId` values, and must
+constrain the resolution kind to the flow it is running: a review round may
+resolve only as `fixed`, and only for findings addressed at the current head; a
+Discussion Turn may resolve only as `dismissed`, and only when the discussion has
+concluded the finding is a non-issue or already handled. Resolution must never
+substitute for answering the operator's question.
 
 Source propagation. Resolution propagates to the source review thread only when
 Oratorio knows the finding's source thread identity. To map findings to threads,
-each accepted inline comment published under §5.3 carries a stable hidden marker
+each accepted inline comment published under §6.1 carries a stable hidden marker
 referencing its `findingId`. During publish reconciliation Oratorio records
 `remoteThreadId` per finding:
 
@@ -972,7 +885,64 @@ Source resolution requirements:
 
 ---
 
-## 6. AppServer, Hub, and Prompt Contract
+## 7. Automation Policies
+
+Review Draft publication may be manual or automatic by Draft auto-publish
+policy. Draft auto-publish is globally gated and repository opt-in by exact
+`owner/name`. It must publish only a GitHub `COMMENT` review, never `APPROVE`,
+`REQUEST_CHANGES`, merge, close, issue-close, or branch-protection decision
+events. Draft auto-publish does not resolve the Oratorio item; the item remains
+`AwaitingReview` until an operator records an Oratorio decision. Draft warnings,
+skipped inline comments, stale head SHA, missing GitHub write authentication, or
+disabled GitHub writes block auto-publication and create failed source-write
+records tied to the draft.
+
+GitHub publication uses a single `COMMENT` pull request review with the summary
+body plus accepted inline comments. Only concrete code suggestions render a
+fenced `suggestion` block; comment-only findings publish as prose comments.
+GitLab publication creates a summary note plus inline discussions. Multi-line
+GitLab code suggestions render offset-aware fence openings such as
+`suggestion:-N+M` when the final anchor line needs to cover preceding lines.
+The Review Draft UI must show code-suggestion and comment-only finding counts
+separately and display the `commentOnlyReason` for comment-only findings.
+
+Draft auto-publish is configured as a repository allowlist over the configured
+GitHub repositories, under `Automation.AutoReviewPublishEnabled` and its
+allowlist. A non-empty allowlist enables the policy for exactly those
+repositories; an empty allowlist disables it.
+
+Repository-level Auto Review is a separate policy, configured under
+`Automation.AutoReviewRepositories` and exposed as
+`automation.autoReviewRepositories` in the Settings API. Each entry is an exact
+`owner/name`, and a configured repository is either off or on. Label-based PR
+review triggers are not part of the Auto Review contract and must not affect
+Issues implementation auto-dispatch policy.
+
+Settings manages implementation auto-dispatch allow and block label lists as
+free-form label controls rather than multiline text. Labels are trimmed, empty
+entries are ignored, and duplicates are removed case-insensitively while
+preserving the first entered spelling. An empty allow list continues to mean
+all otherwise eligible, unblocked GitHub Issues and local tasks may dispatch.
+
+Auto Review scheduler requirements:
+
+- when a repository is first enabled or re-enabled, baseline current open
+  non-draft PRs and do not queue historical reviews;
+- after enablement, a new open non-draft PR queues an AppServer
+  `reviewAnalysis` run;
+- after enablement, each observed PR head SHA change queues one new review
+  round for the latest head;
+- auto re-review must match manual `reReview` in every respect (§3);
+- skip draft, closed, merged, archived, rejected, active-run, non-PR, non-GitHub
+  and missing-workspace-route items, and record operator-visible skip or error
+  state;
+- if a new head appears while a review run is active, record the latest
+  observed head and queue exactly one follow-up round for that latest head after
+  the active run completes.
+
+---
+
+## 8. AppServer, Hub, and Prompt Contract
 
 Oratorio uses DotCraft AppServer as the runtime boundary.
 
@@ -998,14 +968,12 @@ Required AppServer interactions:
 - subscribe to thread and turn events;
 - map turn completion, failure, cancellation, timeout, and disconnection into
   Oratorio run status;
-- treat an SDK Run disconnect as `appServerDisconnected`, then use the existing
+- treat an SDK Run disconnect as `appServerDisconnected`, then use the
   bounded retry flow to resume and subscribe without replaying the original
   `turn/start`;
-- when reconstructing an empty Status drawer from persisted AppServer history,
-  read only the newest Item page with `thread/items/list` using a limit of 200
-  and descending order, then apply that page in chronological order; do not
-  read Thread or Turn history, follow the older-page cursor, or fall back to a
-  complete history response;
+- reconstruct an empty Status drawer from one bounded page of the newest
+  persisted Items; the drawer is a recent-activity surface and must not page
+  back through complete thread history;
 - when an Oratorio AppServer run timeout fires after a turn has started, request
   a DotCraft turn interrupt and wait for a terminal notification or a short
   bounded acknowledgement window before closing the run;
@@ -1025,14 +993,14 @@ Prompt context for real AppServer rounds must include:
 - workspace, repository, branch, and head SHA metadata when available.
 
 For an implementation run on an originating item that has a linked generated pull
-request (the Implementation Follow-up loop, §3, §5.5), the per-turn prompt's
+request (the Implementation Follow-up loop, §3, §6.2), the per-turn prompt's
 feedback section must additionally include the generated PR's still-open published
 review findings — `findingId`, severity, title, path, line, and the
 `suggestionReplacement` text for concrete code suggestions — together with the
 human PR review comments added since the previous follow-up round. The prompt
 instructs the agent to address them on the existing PR branch. The implementation
 agent does not resolve findings itself: finding resolution stays bound to the
-generated PR per §5.7, so the follow-up push changes the PR head and the
+generated PR per §6.4, so the follow-up push changes the PR head and the
 subsequent PR review round resolves the findings it confirms fixed. This is the
 only place where one item's prompt references another item's review
 state, and it is bounded to the originating-item → generated-PR parent link. Only
@@ -1040,15 +1008,10 @@ findings from a published review draft participate; unpublished drafts do not
 trigger or feed the loop. This per-run, cross-item feedback stays in the user-turn
 request, never in thread-stable runtime additional context.
 
-The stored `PromptContextJson` is audit data and may contain full structured
-context. The Dashboard-visible prompt should be compact prose with sections
-such as:
-
-- `Review target`;
-- `Source description`;
-- `New operator feedback`;
-- `Current task`;
-- `Available tools`.
+The stored prompt context is audit data and may contain full structured
+context. The operator-visible prompt is compact prose covering the review
+target, the source description, new operator feedback, the current task, and the
+available tools.
 
 The agent-facing prompt must not include a full serialized `Context JSON:`
 section, full round history, full source snapshot payload, full imported comment
@@ -1139,8 +1102,8 @@ Managed worktree and concurrency contract:
 - Each run records the base workspace path, worktree path, worktree branch,
   requested base ref, resolved base SHA, worktree status, error details, retry
   count, next retry time, lease owner, and lease acquisition time.
-- `WorktreeStatus` values are `NotRequired`, `Preparing`, `Ready`,
-  `CleanupPending`, `Cleaned`, and `Failed`.
+- A run's worktree is in exactly one state: not required, preparing, ready,
+  cleanup pending, cleaned, or failed.
 - AppServer scheduling uses explicit leases and configurable capacity limits at
   global, repository, and source levels.
 - AppServer runs interrupted by backend restart are reconciled as failed or
@@ -1171,12 +1134,12 @@ Oratorio remains responsible for commit, push, pull request creation, and source
 write audit.
 
 When PR review suggestion drafting is enabled, prompts must instruct the agent
-to call the available `SubmitReviewDraft` tool instead of embedding
+to call the available `oratorio_run.SubmitReviewDraft` tool instead of embedding
 machine-readable review JSON in the final answer. GitHub PR and GitLab MR
 review runs must always call the tool, including clean reviews with zero inline
 comments. Inline findings must target commentable changed/context lines from
 the PR/MR diff rather than arbitrary full-file line numbers. If
-`SubmitReviewDraft` fails with `reviewDraftAnchorNotCommentable`, the prompt
+`oratorio_run.SubmitReviewDraft` fails with `reviewDraftAnchorNotCommentable`, the prompt
 must require the agent to choose from the returned ranges and call the tool
 again before completing the turn. Final summaries should describe what was
 submitted and any warnings that remain, while the tool call remains the
@@ -1184,7 +1147,7 @@ canonical structured delivery channel.
 
 ---
 
-## 7. Desktop Renderer Behavior Contract
+## 9. Desktop Renderer Behavior Contract
 
 The Desktop renderer is Oratorio's operator surface for the domain and API
 capabilities defined in this document. It must make the queue, source identity,
@@ -1218,7 +1181,7 @@ the contracts above.
 
 ---
 
-## 8. Operations and Validation
+## 10. Operations and Validation
 
 Operational requirements:
 
@@ -1230,70 +1193,15 @@ Operational requirements:
 
 Validation expectations:
 
-- Domain, lifecycle, prompt, and write contract changes require API integration
-  tests for state transitions and persisted audit data.
-- Agent Discussion Turn tests must cover Ask agent eligibility, comment purpose
-  persistence, single active Discussion Turn per Task, no Task
-  lifecycle mutation, `SubmitDiscussionReply` success, and mismatched
-  thread/turn/repeat-call failures.
-- Prompt tests must verify that new AppServer threads receive full compact
-  context, reused dispatch turns receive incremental context, and Discussion
-  Turn questions and replies do not become next-round feedback by default.
-- GitHub write changes require fake GitHub adapter tests before real credential
-  testing.
-- Structured PR review suggestions must be developed test-first:
-  `SubmitReviewDraft` contract tests first, GitHub review payload tests second,
-  and run-level AppServer Dynamic Tool integration tests third.
-- `SubmitReviewDraft` contract tests must cover valid drafts, multiple inline
-  suggestions, comment-only findings, invalid paths, invalid comment-only line
-  or side values, missing summaries, missing `kind` branch fields, unknown
-  `kind`, missing and ambiguous `oldText`,
-  no-op replacements, summary-only drafts that do not read diffs, and
-  server-derived `suggestionCount`.
-- GitHub payload tests must cover one review with multiple comments, suggestion
-  block rendering, comment-only prose comments, server-derived
-  `suggestionCount`, and summary-only reviews when there are no inline comments.
-- GitLab payload tests must cover single-line suggestion fences, multi-line
-  offset-aware suggestion fences, diff-unavailable skip warnings, and
-  comment-only findings.
-- Renderer tests must cover code-suggestion previews, comment-only badges with
-  reasons, and warning display.
-- Repository Auto Review tests must cover first-enable baselines, new PR
-  dispatch, head-SHA re-review, active-run catch-up, ineligible item skips, and
-  separation from Draft auto-publish.
-- GitHub PR and GitLab MR review run tests must fail runs with
-  `reviewDraftRequired` when no `SubmitReviewDraft` call occurs and must accept
-  summary-only drafts with empty `comments`, including when source diff reads
-  are unavailable.
-- Implementation handoff changes require integration coverage for
-  `SubmitImplementationDraft` binding, implementation-mode prompt constraints,
-  scheduler eligibility and blocker labels, continuation turn limits, manual
-  delivery blocking, auto PR delivery, generated PR item linkage, and failure
-  transitions for missing drafts, empty diffs, template errors, push failures,
-  and PR creation failures.
-- Implementation Follow-up loop changes require integration coverage for:
-  re-activation of the originating item when its generated PR gains a new open
-  published finding or a new human PR review comment; no re-activation from
-  already-resolved findings, an unpublished draft, an active run, a terminal
-  item, a merged/closed PR, or a disabled/not-allow-listed repository; follow-up
-  delivery that pushes to the existing PR branch and updates the same generated PR
-  without opening a second pull request (including the duplicate-create defense);
-  follow-up worktree preparation that stacks on the existing PR head and retains
-  prior commits; prompt feedback that includes the generated PR's open findings,
-  their `suggestionReplacement` text, and the new human PR comments; the
-  follow-up round cap stopping the loop with operator-visible state; loop
-  quiescence when the review is clean; and loop termination on operator `approve`
-  of the originating item.
-- Git delivery tests must use fake Git and fake GitHub adapters before any
-  credentialed smoke test. They must verify that delivery uses Oratorio-owned
-  GitHub App credentials, not agent-owned or ambient local credentials.
-- AppServer protocol changes require fake AppServer tests and at least one
-  manual local smoke test.
-- Plugin packaging changes require plugin manifest, Skill guidance, and local
-  install smoke coverage.
-- Settings changes require redaction tests for diagnostics payloads and UI
-  checks that configuration rows degrade clearly when a backend capability is
-  unavailable.
+- Every contract in this document — lifecycle transitions, API validation, the
+  Review Draft and resolution contracts, prompt and thread-reuse behavior,
+  scheduler eligibility, and delivery — is verified against the persisted audit
+  record, not only against the API response.
+- Source writes are exercised against fake source adapters before any
+  credentialed run, and delivery must be shown to use Oratorio-owned GitHub App
+  credentials rather than agent-owned or ambient local credentials.
+- Settings diagnostics payloads are verified redacted, and configuration rows
+  must degrade visibly when a backend capability is unavailable.
 - Frontend changes must additionally satisfy the acceptance checklist in
   [`oratorio-frontend.md`](./oratorio-frontend.md), including
   `npm run build`, light/dark parity, breakpoint coverage, and the loading,

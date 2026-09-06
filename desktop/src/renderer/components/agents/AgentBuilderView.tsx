@@ -74,7 +74,6 @@ import { AgentTemplateDeck } from './AgentTemplateDeck'
 import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
 import './AgentBuilderView.css'
 
-// Wire shapes, a subset of specs/protocols/appserver-protocol.md.
 
 interface ProfileEntry {
   id: string

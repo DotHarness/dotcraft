@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.10 |
+| Version | 0.10.0 |
 | Status | Draft |
 | Date | 2026-08-20 |
-| Parent spec | `specs/sdk/harness.md` |
+| Parent spec | [DotCraft Harness](../sdk/harness.md) |
 
 ## Overview
 

@@ -1,4 +1,4 @@
-/* Transient feedback stack; see Toasts in specs/architecture/DESIGN.md. Offset, scale,
+/* Offset, scale,
    opacity, z-order, measured height, and the title-bar inset are computed per card and
    stay inline. */
 .dc-toast-stack {

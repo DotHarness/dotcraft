@@ -1337,7 +1337,7 @@ function ConversationWelcomeCore({
 
     // Omitted for single-folder / remote workspaces, and deliberately for worktrees:
     // worktree/createAndStart does not accept runtime roots, so the first turn
-    // establishes them instead (see specs/features/multi-folder-projects.md §5).
+    // establishes them instead.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
 

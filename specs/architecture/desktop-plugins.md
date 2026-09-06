@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.15 |
-| Status | Accepted |
+| Version | 1.16.0 |
+| Status | Living |
 | Date | 2026-09-06 |
-| Parent Specs | `specs/architecture/plugin-architecture.md`, `specs/architecture/tools-architecture.md`, `specs/clients/desktop-client.md` |
+| Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
 
 ## Overview
 
@@ -112,6 +112,20 @@ Revisions, `expectedRevision`, and conflict errors stay out of scope: a plugin i
 its own namespace, so optimistic concurrency would add a failure mode to every call without removing
 one. Secret redaction, path operations, and a separate per-scope event are also out of scope, and
 Core itself reads no plugin's settings, so no Core surface subscribes to the `plugins.config` region.
+
+### Settings and appearance contract
+
+A plugin settings page is built from the Host's settings shell, groups, and rows. Ordinary controls — switches, selects, sliders — go in a row's control slot; previews, media pickers, theme choices, and other wide visual choices go in a block row or a flush group so a plugin never nests a decorative card inside a settings card. The visual grammar those pieces follow is defined in [Desktop DESIGN.md](DESIGN.md#plugin-surfaces).
+
+The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of restyling native selects, segmented controls, switches, or ranges. A hidden native file input may still invoke the platform file picker when the visible trigger is a Host control. Opaque colour choices use Core's shared picker, requested through `host.ui.pickColor`; a plugin never owns its portal, focus lifecycle, validation, or localization.
+
+Continuous controls preview locally and persist when the interaction commits. `Slider` `onValueChange` tracks the pointer or keyboard value, while `onValueCommit` reports the final value once at the end of the gesture. Do not send each intermediate delta through AppServer or write it to configuration storage.
+
+Global appearance is a Host-owned composition. A plugin may contribute a theme-seed override or request backdrop presentation through `host.appearance`; it must not write Desktop's private CSS custom properties. Core Appearance preferences remain the base layer. Each generation owns one theme override and one backdrop contribution, and Desktop removes both when that generation is disabled, reloaded, or disposed.
+
+An `app.background` surface renders media only. When it also requests backdrop presentation, the window frame becomes transparent, and the menu bar, panel body, and welcome surface each composite one Host-owned neutral layer over the media. The panel body is shared by sidebar and main, so the main surface's rounded corner reveals the same neutral layer instead of raw media. A plugin must not place a second translucent sidebar or main layer over that body: compounded alpha makes one opacity setting mean different things across the shell.
+
+Persistent window telemetry belongs in the Host-owned `app.status` rail, not in a freely positioned `app.overlay`. The rail keeps compact readouts and Core indicators on one alignment line and owns their spacing and window inset; contributions do not position themselves against the viewport. Use tabular numerals for changing measurements, omit unavailable facts instead of presenting false zeroes, and keep passive readouts click-through. `app.overlay` remains the surface for decorative or independently positioned content.
 
 ## Package contract
 

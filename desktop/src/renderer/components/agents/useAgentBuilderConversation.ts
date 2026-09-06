@@ -1,5 +1,4 @@
 /**
- * Drives the hidden builder thread behind specs/features/agent-profiles.md §12A.
  * Because the conversation view and Composer are singletons bound to the one active
  * thread, the builder thread becomes the app's active thread while the chat pane is
  * open, and the previous active thread is restored on close.

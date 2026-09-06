@@ -1,5 +1,5 @@
 ---
-version: "0.14.0"
+version: "0.15.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -186,8 +186,8 @@ strength than the shared step.
 One inverse surface exists. `--bg-inverse` is the opposite theme's tertiary tone
 — light in dark mode, dark in light mode — with `--text-on-inverse`,
 `--text-on-inverse-muted`, `--border-on-inverse`, and `--fill-on-inverse` on top
-of it. It is reserved for transient, non-interactive labels, which today means
-tooltips and nothing else. Menus, popovers, dialogs, and hover cards are places
+of it. It is reserved for transient, non-interactive labels: tooltips, and nothing
+else. Menus, popovers, dialogs, and hover cards are places
 the pointer goes, and they keep the ordinary elevated surface. Do not reach for
 the inverse pair to make a control stand out; that is what the Elevation rule
 below already forbids.
@@ -329,18 +329,11 @@ Use depth instead of color variety.
   ordinary overlay carries.
 - Larger dialogs, inspectors, viewers, and non-menu popovers may use subtle
   neutral boundaries when contrast requires it.
-- A fullscreen renderer overlay that crosses an Electron native view, such as an
-  image lightbox above the embedded browser, must register as a native-view
-  blocker for its complete mounted lifetime. Hide the native view while blocked
-  and restore only the active view after the last blocker closes; ordinary menus
-  and local popovers do not use this behavior.
-- The three workspace resize dividers — sidebar/main, conversation/detail, and
-  viewer/explorer — share the same hover and drag highlight: a `1.5px` neutral
-  vertical gradient (`--main-surface-edge-glow`) that is brightest at center and
-  fades to transparent toward the top and bottom. The rest-state `1px` hairline is
-  unchanged. This is a functional resize affordance in a neutral tone (no accent,
-  no bloom), not a decorative glow; the rule below still forbids glow/accent
-  treatments on ordinary controls.
+- Workspace resize dividers rest as a `1px` hairline and answer hover and drag
+  with one shared highlight: a `1.5px` neutral vertical gradient
+  (`--main-surface-edge-glow`), brightest at centre and fading out toward both
+  ends. It is a functional affordance in a neutral tone, which is why the rule
+  below against glow on ordinary controls does not reach it.
 - File viewers and docked file lists inherit the surrounding main surface instead
   of introducing a secondary panel fill. Use secondary and tertiary surfaces for
   controls, hover states, and selected rows within them.
@@ -457,48 +450,45 @@ Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%
 with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
 require confirmation where appropriate.
 
-Text action buttons use a shared size so controls line up across panels,
-toolbars, rows, and dialogs:
+Buttons that share a row share one control band, so the row reads as one strip
+rather than a set of controls that each chose a height. A surface picks its band
+once; nothing opts in per control.
 
-- default height `32px`, `8px` radius, `13px` type, `box-sizing: border-box`;
-- compact `sm` height `28px`, `10px` radius, `12px` type;
-- horizontal padding around `12–14px`; icon+label controls keep a `6px` gap;
-- buttons that share a row (for example a primary next to a secondary or a
-  refresh) must share the same height so the row reads as one control band.
+| Band | Height / radius / type | Where it applies | `size` |
+| --- | --- | --- | --- |
+| Standard | `32px` / `8px` / `13px` | every surface not named below, including dialogs | `default` |
+| Compact | `28px` / `10px` / `12px` | a denser row inside a standard-band surface | `sm` |
+| Catalog top bar | `28px` / `10px` / `13px` | every control in a catalog top bar — text, icon, compound trigger, search field | `toolbar` |
+| Settings surface | `28px` / `10px` / `13px` | every button, select, and icon button inside `.dc-settings-surface` | token-scoped |
+| Prominent pill | `38px` / `999px` / `13px` | one standalone high-emphasis call to action | `prominent` |
+| Install pill | `28px` / `999px` / `12px` | the plugin-package Install action across browse, manage, and detail | `sm` |
+| Icon, standard | `32px` / `8px` | ordinary icon buttons | `icon` |
+| Icon, compact | `28px` / `10px` | icon buttons on either compact band above | `iconSm` |
+| Icon, viewer chrome | `16px`, `24px`, or `28px` | a viewer tab slot or toolbar that already reserves that footprint | — |
 
-A taller, more prominent action is allowed as a deliberate exception, not the
-default. A standalone, high-emphasis call to action — the single primary button
-in a focused setup or install dialog, or a lone full-width confirm — may use a
-larger pill: a `~38px` height with `999px` radius to read as the one clear next
-step. A compact plugin-package Install action is the other pill exception: it
-uses the `28px` compact control height and a `999px` radius consistently across
-plugin browse, manage, and detail surfaces. Native-app installation and other
-row actions keep the ordinary radius. Outside these two cases, repeated or
-in-row actions stay at the `32px` / `8px` standard.
-When a prominent pill shares a row with other buttons, raise the others to the
-same height so the row still aligns.
+Horizontal padding is around `12–14px` (`10px` on the settings band), icon+label
+controls keep a `6px` gap, and every band sets `box-sizing: border-box`.
 
-Catalog top bars run one control band of their own: `28px` height with a `10px`
-radius, shorter and rounder than the standard band. Every control in that bar —
-text actions, icon actions, compound triggers, and search fields — takes it, so the
-row reads as one strip and the band does not change as the user moves between
-catalog surfaces.
-Settings surfaces run that same compact band. Inside the settings scroll
-container (`.dc-settings-surface`) the control tokens are rescoped so every
-button, select, and icon button is `28px` tall with a `10px` radius, while type
-stays `13px` / 500 and side padding tightens to `10px`. Nothing opts in per
-control: the token scope is what keeps a page's header actions, row controls,
-and pickers on one band, and it is why a group's header action fits inside a
-header that carries one instead of overhanging the gap to the card below. Header actions carry
-their glyph when the verb has one — Plus for create, a trash glyph for Delete,
-the refresh glyph for Refresh — at `15px` with the shared `6px` gap, so the label
-never has to do the work of the icon. Dialogs open outside the settings
-container and keep the `32px` standard.
+The two compact bands are shorter and rounder than the standard one because they
+run a strip of many small controls rather than one decision. The settings band is
+scoped by token rather than chosen per control, which is why a group's header
+action fits inside a header instead of overhanging the gap to the card below, and
+why `sm` reads as a `10px` radius there: the scope rewrites it, and there is no
+`--button-radius-sm` token. Dialogs open outside that container and keep the
+standard band.
 
-These two are the only sanctioned alternative bands; elsewhere the `32px` / `8px`
-standard holds. Catalog top bars prefer icon-only actions with tooltips for
-repeated management commands such as Refresh and Manage, keeping the labelled
-action for the one principal command.
+The prominent pill is a deliberate exception, not a second default: the single
+primary button in a focused setup or install dialog, or a lone full-width confirm.
+When one shares a row with other buttons, raise the others to its height so the
+row still aligns. Ordinary in-row and repeated actions stay on the standard band;
+native-app installation and other row actions keep the ordinary radius.
+
+Settings and catalog header actions carry their glyph when the verb has one — Plus
+for create, a trash glyph for Delete, the refresh glyph for Refresh — at `15px`
+with the shared `6px` gap, so the label never has to do the work of the icon.
+Catalog top bars prefer icon-only actions with tooltips for repeated management
+commands such as Refresh and Manage, keeping the labelled action for the one
+principal command.
 
 These action rules are implemented by the shared `Button` component and its
 `.dc-button` styles. Route new text and icon actions through it instead of
@@ -531,7 +521,7 @@ drag interaction), and it must honor the shared reduced-motion preference.
 Icon buttons (the shared `IconButton`, styled by `.dc-icon-button`) are frameless by
 default, matching the frameless action language:
 
-- 32px width and height; 8px radius for toolbar/catalog controls;
+- the footprint of the band they sit in (see the control band table above);
 - transparent surface with a reserved `1px` transparent border;
 - `var(--text-secondary)` icon color, with a neutral hover fill
   (`var(--bg-tertiary)` + `var(--text-primary)`);
@@ -541,24 +531,19 @@ default, matching the frameless action language:
 - destructive icon-only actions use the shared danger tone rather than a locally
   painted red border.
 
-Viewer chrome may use compact `16px`, `24px`, or `28px` icon-button footprints
-when required by an existing tab slot or toolbar, and catalog top bars use the
-`28px` / `10px` toolbar band. The shared hover, focus, disabled, open, and danger
-treatments still apply at those sizes.
+The shared hover, focus, disabled, open, and danger treatments apply at every
+footprint in that table.
 
-Thread List icon actions use a denser, foreground-only exception to the default
-surface hover. The parent thread or project row owns the hover and current-state
-surface; compact actions inside that row, plus the options and create actions in
-its section headers, stay transparent at rest, hover, focus, open, and pressed
-states. Their icon moves from a quiet foreground to the primary foreground, while
-`focus-visible` keeps the shared outline and the hit target remains stable. This
-prevents a second rounded surface from appearing inside an already highlighted
-row. Pin state may also use its filled icon to communicate selection without an
-active background. Archive remains neutral in this context because archived
-threads are recoverable; reserve danger color for irreversible or genuinely
-hazardous actions. These actions sit inside a row that carries a details card,
-so their tooltips take the block axis and anchor to the control rather than to a
-wrapper the absolute positioning has collapsed (see Hover Annotations).
+Thread List icon actions answer on the foreground alone. The thread or project
+row already owns the hover and current-state surface, so its compact actions and
+its section-header options and create actions stay transparent through rest,
+hover, focus, open, and pressed, moving their icon from the quiet foreground to
+the primary one; a second rounded surface inside an already highlighted row reads
+as a box drawn on a box. `focus-visible` keeps the shared outline and the hit
+target stays fixed. Pin may use its filled icon instead of an active background.
+Archive stays neutral here because archived threads are recoverable; danger colour
+is for the irreversible. These rows carry a details card, so their tooltips take
+the block axis (see Hover Annotations).
 
 Compound triggers combine a principal action with a menu of related commands. Both
 segments share one intent and one size; the group clips the outer corners while each
@@ -705,8 +690,8 @@ Button variants.
 
 ### Toasts
 
-Toasts are transient cards in the top-right stack (`ui/ToastContainer.tsx`,
-`ui/ToastCard.tsx`, `primitives/toast.css`). A toast is either present or gone:
+Toasts are transient cards in the top-right stack. A toast is either present or
+gone:
 there is no remaining-time bar, hovering or focusing the stack holds every card,
 and a repeated identical notice replaces its twin instead of stacking.
 
@@ -761,8 +746,8 @@ surface.
 - The surface is the inverse pair (`--bg-inverse` / `--text-on-inverse`): a light
   tooltip over a dark app, a dark one over a light app. A label does not belong
   to the plane it labels, and stating that in the fill is what a same-tone
-  overlay cannot do — in light theme the old surface separated from the app at
-  1.05:1, which is no boundary at all.
+  overlay cannot do: in light theme it separates from the app at about 1.05:1,
+  which is no boundary at all.
 - No border. The inversion is the boundary; `--tooltip-border` is transparent and
   the shadow carries the lift.
 - Type is `--type-secondary` (12/16). The label's 16px line box is what the
@@ -881,8 +866,8 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
 - the send control is one 32px button whose glyph follows the turn: Send at rest
   or with a draft to steer or queue, Stop while a turn runs with an empty draft,
   and a spinner while stopping. The glyphs stack in one cell and crossfade on
-  opacity alone, the incoming one after the mascot's 70ms blank beat, so the
-  control never moves or scales; reduced motion collapses the fade and the beat;
+  opacity alone so the control never moves or scales; reduced motion collapses
+  the fade;
 - use `--border-default` for rest state; the primary message composer uses
   `--composer-input-rest-border` so the light theme has a subtle frame while the
   dark theme can remain effectively frameless, shows a soft brand-gradient glow
@@ -1045,7 +1030,7 @@ Three states, all neutral: `--scrollbar-thumb` at rest, `--scrollbar-thumb-hover
 under the pointer, `--scrollbar-thumb-active` while dragging. Tracks and corners
 stay transparent so the bar never draws a channel through a surface.
 
-Features do not set `scrollbar-width`. In current Chromium it overrides the
+Features do not set `scrollbar-width`. Chromium treats it as overriding the
 shared geometry entirely, so a region that sets it silently opts out of every
 rule above; use it only to hide a scrollbar deliberately (`none`), and reach for
 `dc-scrollbar-stable` when a region needs to reserve the gutter instead.
@@ -1136,49 +1121,13 @@ visualization document. Ordinary visualization buttons follow the shared 32px / 
 action treatment; primary actions use neutral inversion rather than an accent fill. Feature
 colors remain available for charts and diagrams, not ordinary controls.
 
-### Agent Builder
-
-The builder is a profile document the agent and the person edit together, with the
-conversation beside it. Three rules keep the agent's work legible without turning
-the document into a dashboard.
-
-**Welcome deck.** The built-in templates rest against the Welcome page's bottom
-edge as a fanned hand of cards, clipped so only the top of each card shows — the
-avatar and the name. The composer stays the page's subject; the deck is an
-invitation, not a second list, so it carries no heading or label of its own and the
-composer block does not move to make room for it. The card under the pointer or
-keyboard focus rises fully into view while its neighbours part, and only that card
-shows its "Use template" line. Cards are `--bg-elevated` with `--border-default`,
-a 10px radius, and `--shadow-md` (`--shadow-lg` when lifted); the lift is the one
-sanctioned transform, and it honours reduced motion.
-
-**Editing cursor.** While the agent edits, one cursor marks where it is working: an
-arrow with a pill label, positioned against the document rather than mounted inside
-each field. It fades in at the first edit, glides between fields (`transform` over
-`460ms` on `--ease-expand`) instead of disappearing and reappearing, and stays on
-the last edited field after the turn ends. The label reads "Updating {field}" with a
-sheen while the edit runs, then "Updated {field}", and fades after about two
-seconds, leaving the arrow. The cursor is the only presence indicator; the edited
-field's own chrome does not change. While a turn runs the document is veiled and
-non-interactive and the pane edges glow softly; both end with the turn, the cursor
-does not.
-
-**Edit rows.** Each builder tool call renders in the transcript as a
-profile-change row, never as generic tool output: the change stated in words
-("Named the agent", "Allowed only …", "Extended the instructions"), the value as
-an inline reference, and whatever the title cannot carry — instructions, long
-lists, model details, rejected names — behind the row's disclosure. A failed edit
-takes the error tone with its reason; a running edit shimmers on its own text. The
-rows follow Inline Reference Chips and Message Markers above, so a value merely
-named by a row is an inert reference.
-
 ## Loading & Progress
 
 Loading is communicated by a placeholder shaped like the content that will
 arrive, not by a generic spinner or a "Loading…" label. The shared building
-block is `ui/Skeleton.tsx` (`Skeleton`, `SkeletonRow`, `SkeletonList`,
-`SkeletonCatalogGrid`) — a `--bg-tertiary` block on the `skeleton-pulse`
-animation; the pulse itself is the running signal.
+block is the shared `Skeleton` family (`Skeleton`, `SkeletonRow`,
+`SkeletonList`, `SkeletonCatalogGrid`) — a `--bg-tertiary` block on the
+`skeleton-pulse` animation; the pulse itself is the running signal.
 
 - Known-shape content → skeleton, not a centered spinner. When the layout of
   what is loading is known (a plan, a list, a card grid), render a shape-matched
@@ -1204,7 +1153,7 @@ animation; the pulse itself is the running signal.
 The palette is stated as a per-variant seed — `--seed-surface`, `--seed-ink`, `--seed-accent`,
 and a 0-100 contrast — and `foundations/tokens.css` derives the surface, text, and border ramps
 from it with `color-mix`. `surface` is the base plane: the page in dark, the card in light, so
-both variants move away from it by mixing in ink. `shared/themeDerive.ts` writes only what CSS
+both variants move away from it by mixing in ink. Desktop writes only what CSS
 cannot compute (the seed colors, the normalized contrast multiplier `--contrast-k`, and
 `--on-accent`), and writes nothing at all for a default seed. The layering rules and the
 formulas live in `specs/architecture/desktop-styles.md`.
@@ -1225,51 +1174,19 @@ renderer root element:
 When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
 than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
 
-### Desktop Plugin settings and appearance
+### Plugin surfaces
 
-Desktop Plugin settings pages use the same `SettingsPanelShell`, `SettingsGroup`, and
-`SettingsRow` grammar as built-in settings. Put switches, selects, sliders, and other ordinary
-controls in the row's control slot. Put previews, media pickers, theme choices, and other wide
-visual choices in a block row or a flush group so they do not create a decorative card inside a
-settings card. Plugin-specific artwork may carry its own colors, but the surrounding controls use
-the shared neutral borders, radii, spacing, focus, and selection states.
-
-The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of
-restyling native selects, segmented controls, switches, or ranges. A hidden native file input may
-still invoke the platform file picker when the visible trigger is a Host control. Opaque color
-choices use Core's shared picker; plugins request it through `host.ui.pickColor` and never own its
-portal, focus lifecycle, validation, or localization.
-
-Continuous controls preview locally and persist when the interaction commits. `Slider`
-`onValueChange` tracks the pointer or keyboard value, while `onValueCommit` reports the final value
-once at the end of the gesture. Do not send each intermediate delta through AppServer or write it to
-configuration storage.
-
-Global appearance is a Host-owned composition. A plugin may contribute a theme-seed override or
-request backdrop presentation through `host.appearance`; it must not write Desktop's private CSS
-custom properties. Core Appearance preferences remain the base layer. Each plugin generation owns
-one theme override and one backdrop contribution, and Desktop removes both when that generation is
-disabled, reloaded, or disposed.
-
-An `app.background` surface renders media only. When it also requests backdrop presentation, the
-window frame becomes transparent. The menu bar, panel body, and welcome surface each composite one
-Host-owned neutral layer over the media. The panel body is shared by sidebar and main so the main
-surface's rounded corner reveals the same neutral layer instead of raw media. Do not place a second
-translucent sidebar or main layer over that body: compounded alpha makes the same opacity setting
-mean different things across the shell.
-
-Persistent window telemetry belongs in the Host-owned `app.status` rail, not in a freely positioned
-`app.overlay`. The rail sits at the trailing bottom edge, keeps compact readouts and Core indicators
-on one 24px alignment line, and owns their spacing and window inset. Contributions do not position
-themselves against the viewport. Use tabular numerals for changing measurements, omit unavailable
-facts instead of presenting false zeroes, and keep passive readouts click-through. `app.overlay`
-remains the surface for decorative or independently positioned content.
+A plugin settings page uses the same settings grammar as built-in settings: a
+group heading over a card of rows, with wide visual choices in a block row rather
+than a card nested inside a card. Plugin artwork may carry its own colours; the
+controls around it stay on the shared neutral borders, radii, spacing, focus, and
+selection states. What a plugin may contribute, and how the Host composites it,
+is defined in [Desktop Plugins](desktop-plugins.md).
 
 ## Do's and Don'ts
 
 Do:
 
-- Read this file and inspect nearby Desktop components before changing styling.
 - Use tokens and existing style constants before adding new local styles.
 - Decide the action hierarchy before choosing a button treatment.
 - Route text and icon actions through the shared `Button` component and its
@@ -1278,13 +1195,11 @@ Do:
   the `outline` variant / `bordered` icon buttons in special or important cases.
 - Keep every view's main visual language neutral unless this file assigns a
   stronger role.
-- Test or inspect light and dark themes when changing colors, contrast, or
-  control styling.
 - Update `desktop/src/renderer/styles/foundations/tokens.css` and this file together when adding a
   reusable token.
 - Remove a token the same way: confirm zero `var(--x)` consumers across
-  `desktop/src`, then delete the declaration from both theme blocks and the
-  front-matter `colors:` map in one change. A token that survives with no
+  `desktop/src`, then delete the declaration from both theme blocks and this
+  file's front-matter `colors:` map in one change. A token that survives with no
   readers is a phantom the next author will copy.
 
 Don't:

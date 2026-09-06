@@ -1,10 +1,5 @@
 import { stripSystemReminderBlocks } from '../utils/systemReminderText'
 
-/**
- * These map directly to the AppServer Wire Protocol payloads
- * (specs/protocols/appserver-protocol.md Section 6).
- */
-
 export type TurnStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
 /** UI-only extended turn status that includes user wait states */

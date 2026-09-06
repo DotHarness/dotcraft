@@ -3,8 +3,7 @@ import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 
 /**
  * `thisFolder` comes first so the thread's own working directory stays inside its
- * runtime roots; `undefined` lets the backend default them to `[cwd]` (see
- * specs/features/multi-folder-projects.md §4). Callers must not send `cwd` with
+ * runtime roots; `undefined` lets the backend default them to `[cwd]`. Callers must not send `cwd` with
  * this, so an existing thread's cwd survives a change of the Project's primary folder.
  */
 export function runtimeWorkspaceRootsFor(workspacePath: string | undefined | null): string[] | undefined {

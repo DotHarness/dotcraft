@@ -35,8 +35,6 @@ export interface TextareaProps
   extends TextareaHTMLAttributes<HTMLTextAreaElement>, SharedFieldProps {}
 
 /**
- * Every Desktop-owned text input should route through this component so its
- * treatments cannot drift per call site; see Inputs in specs/architecture/DESIGN.md.
  * It owns its height and never sets `flex`, so a caller that needs it to stretch
  * inside a row sets `flex: 1` itself.
  */

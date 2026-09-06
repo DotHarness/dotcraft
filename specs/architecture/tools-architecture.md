@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Version | 0.2.3 |
-| Status | Normative |
+| Status | Living |
 | Date | 2026-07-18 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 | Related | [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |

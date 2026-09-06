@@ -233,7 +233,6 @@ function MarketplaceSectionHeader({
 
   // Revealed by opacity rather than by mounting, so the row does not shift as the
   // pointer crosses it, and on keyboard focus too, or the actions are pointer-only.
-  // See Selection Rows in specs/architecture/DESIGN.md.
   const actionsVisible = hovered || actionFocused || position != null
 
   return (

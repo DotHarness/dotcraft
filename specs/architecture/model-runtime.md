@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8 |
-| Status | Approved |
+| Version | 0.8.0 |
+| Status | Living |
 | Date | 2026-08-06 |
 | Parent Spec | [Session Core](session-core.md) |
 

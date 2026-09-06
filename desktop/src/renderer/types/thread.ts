@@ -1,8 +1,3 @@
-/**
- * Thread-related TypeScript types matching the AppServer Wire Protocol responses.
- * Reference: specs/protocols/appserver-protocol.md §4
- */
-
 import type { QueuedTurnInput } from './conversation'
 
 export type ThreadStatus = 'active' | 'paused' | 'archived'
@@ -184,7 +179,7 @@ export interface ThreadConfigurationWire {
   [key: string]: unknown
 }
 
-/** Per-thread context-window mode. Omitted/null means `default`. See specs/features/model-options.md §5. */
+/** Per-thread context-window mode. Omitted/null means `default`. */
 export type ContextWindowMode = 'default' | 'max'
 
 export interface ContextWindowConfigurationWire {

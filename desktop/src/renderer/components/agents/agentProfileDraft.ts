@@ -1,6 +1,4 @@
 /**
- * `ProfileDraft` mirrors the Agent Profile frontmatter in
- * specs/features/agent-profiles.md plus the Markdown body (`roleInstructions`).
  * `toMarkdown` renders the write format `agent/profiles/upsert` expects.
  */
 

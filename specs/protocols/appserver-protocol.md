@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.0 |
+| **Version** | 0.8.0 |
 | **Status** | Living |
-| **Date** | 2026-08-29 |
+| **Date** | 2026-09-06 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -13,44 +13,35 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 ## Table of Contents
 
 - [1. Scope](#1-scope)
-- [1.4 V1 Contract Snapshot](#14-v1-contract-snapshot)
 - [2. Protocol Fundamentals](#2-protocol-fundamentals)
 - [3. Initialization](#3-initialization)
 - [4. Thread Methods](#4-thread-methods)
-  - [4.15 Thread Goal Methods](#415-thread-goal-methods)
-  - [4.19 Worktree Methods](#419-worktree-methods)
-  - [4.20 Thread Recovery Methods](#420-thread-recovery-methods)
 - [5. Turn Methods](#5-turn-methods)
-  - [5.4 `welcome/suggestions`](#54-welcomesuggestions)
 - [6. Event Notifications](#6-event-notifications)
-  - [6.5 SubAgent Notifications](#65-subagent-notifications)
-  - [6.6 Usage Notifications](#66-usage-notifications)
-  - [6.7 System Notifications](#67-system-notifications)
-- [6.8 Plan Notifications](#68-plan-notifications)
-- [6.10 Notification Delivery Guarantees](#610-notification-delivery-guarantees)
 - [7. Approval Flow](#7-approval-flow)
 - [8. Error Handling](#8-error-handling)
 - [9. Backpressure](#9-backpressure)
 - [10. Notification Opt-Out](#10-notification-opt-out)
 - [11. Extension Methods](#11-extension-methods)
-  - [11.5 Dynamic Workflow Control](#115-dynamic-workflow-control)
 - [12. Versioning and Compatibility](#12-versioning-and-compatibility)
 - [13. Full Turn Example](#13-full-turn-example)
-  - [13.1 ACP client turn (extension proxy)](#131-acp-client-turn-extension-proxy)
-  - [13.2 Standard wire turn (no ACP)](#132-standard-wire-turn-no-acp)
 - [15. WebSocket Transport](#15-websocket-transport)
 - [16. Cron Management Methods](#16-cron-management-methods)
 - [18. Skills Management Methods](#18-skills-management-methods)
+- [18B. Plugin and Marketplace Management Methods](#18b-plugin-and-marketplace-management-methods)
 - [18A. Tool Catalog Methods](#18a-tool-catalog-methods)
 - [19. Command Management Methods](#19-command-management-methods)
+- [19A. Background Terminal Methods](#19a-background-terminal-methods)
 - [19B. Remote Tool Host Routing Methods](#19b-remote-tool-host-routing-methods)
 - [20. Channel Status Methods](#20-channel-status-methods)
-- [21. Model Catalog Methods](#21-model-catalog-methods)
+- [21. Provider And Model Catalog Methods](#21-provider-and-model-catalog-methods)
 - [22. MCP Management Methods](#22-mcp-management-methods)
-  - [22.10 MCP Apps opaque View methods](#2210-mcp-apps-opaque-view-methods)
+- [22A. Hooks Management Methods](#22a-hooks-management-methods)
 - [23. External Channel Management Methods](#23-external-channel-management-methods)
+- [23A. Agent Profile Management Methods](#23a-agent-profile-management-methods)
 - [24. SubAgent Profile Management Methods](#24-subagent-profile-management-methods)
 - [25. Workspace Config Methods](#25-workspace-config-methods)
+- [25A. Source Control Methods](#25a-source-control-methods)
 - [26. Memory Management Methods](#26-memory-management-methods)
 - [27. Dreams Management Methods](#27-dreams-management-methods)
 - [27A. Usage Telemetry Methods](#27a-usage-telemetry-methods)
@@ -75,17 +66,15 @@ This specification defines the wire protocol — message formats, methods, notif
 
 This protocol is DotCraft's language-neutral JSON-RPC contract for projecting Session Core to out-of-process clients. The Thread/Turn/Item primitives, event streaming, and bidirectional approval flow are defined by this specification and the Session Core specification.
 
-### 1.4 V1 Contract Snapshot
+### 1.4 Contract Snapshot
 
-The current contract is based on the Session Core. Features fall into three capability buckets:
+The contract projects Session Core onto the wire. Features fall into three buckets:
 
-| Bucket | V1 Items |
+| Bucket | Meaning |
 |-------|----------|
-| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP configuration methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/test`) and the MCP runtime methods in Section 22. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
-| **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` returns only the current Thread header; historical Turns and Items are read through their dedicated paged methods. |
-| **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
-
-MCP configuration uses `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, and `mcp/test`; runtime status and control use the methods in Section 22.
+| **Guaranteed** | The thread, turn, item, event, and approval surface in Sections 4-7, plus every management method whose section states a capability flag. Each capability flag and the methods it gates are listed in the `initialize` result table ([Section 3.2](#32-initialize)). |
+| **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded unless an explicit filter includes them. `thread/read` returns only the current Thread header; historical Turns and Items are read through the paged methods in [Section 4.4](#44-threadread). |
+| **Discoverable extensions** | Extension namespaces are advertised as a flat list in `serverInfo.extensions` and `capabilities.extensions` ([Section 11](#11-extension-methods)). Clients treat them as optional and must not require them for core Session behavior. |
 
 **Multi-client thread lists**: In deployments with multiple concurrent connections, server-broadcast notifications in [Section 6.1](#61-thread-notifications) include `thread/started`, `thread/deleted`, `thread/renamed`, and `thread/runtimeChanged` so clients can keep both thread lists and per-thread activity indicators (running, waiting-on-approval, waiting-on-plan-confirmation) synchronized without polling or subscribing to every thread's event stream.
 
@@ -242,7 +231,7 @@ Client                              Server
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [external-channel-adapter.md](external-channel-adapter.md). |
-| `capabilities.acpExtensions` | object | no | ACP tool proxy capabilities. When present, the client can handle server-initiated `ext/acp/*` requests. See [Section 11.2](#112-acp-tool-proxy). Default omitted (no ACP support). |
+| `capabilities.acpExtensions` | object | no | ACP tool proxy capabilities. When present, the client can handle server-initiated `ext/acp/*` requests. See [Section 11.4](#114-acp-tool-proxy). Default omitted (no ACP support). |
 | `capabilities.nodeRepl` | object | no | Persistent Node REPL capability. When present with `browserUse`, the client can handle server-initiated `ext/nodeRepl/*` requests for thread-bound local browser automation. Default omitted (no browser automation support). |
 | `capabilities.browserUse` | object | no | Browser automation capability. When present with `nodeRepl`, the Node REPL is backed by one or more client browser backends such as Desktop embedded browser tabs or the Chrome extension backend. Default omitted (no browser automation support). |
 
@@ -261,17 +250,17 @@ Client                              Server
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `backend` | string | Client runtime identifier, currently `desktop-node`. |
+| `backend` | string | Client runtime identifier. The Desktop runtime reports `desktop-node`. |
 
 **`browserUse` object** (when present):
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `backend` | string | Preferred single client browser backend identifier, currently `desktop-iab`. Clients that send `backends` should keep this field set to their preferred backend. |
-| `backends` | string[] | Optional list of client browser backends. Current values include `desktop-iab`; Chrome extension clients use `chrome-extension`. When omitted, servers treat `backend` as the only backend. |
+| `backend` | string | Preferred single client browser backend identifier, for example `desktop-iab`. Clients that send `backends` should keep this field set to their preferred backend. |
+| `backends` | string[] | Optional list of client browser backends. Defined values are `desktop-iab` and `chrome-extension`. When omitted, servers treat `backend` as the only backend. |
 | `protocolVersion` | number | Browser IAB protocol version. Current value is `2`. |
 | `supportsCancel` | boolean | Optional. When `true`, the client handles `ext/nodeRepl/cancel` for in-flight evaluations. |
-| `browserSessionProtocolVersion` | number | Optional. Browser session metadata protocol version supported by the client. Chrome M2/M3 clients use `1`. |
+| `browserSessionProtocolVersion` | number | Optional. Browser session metadata protocol version supported by the client. Chrome clients report `1`. |
 | `supportsCommandCancel` | boolean | Optional. When `true`, browser commands carry command ids and can be cooperatively cancelled independently of the outer Node REPL request. |
 | `maxBrowserResultBytes` | number | Optional. Maximum serialized browser command result bytes before the client rejects oversized results. |
 | `defaultCommandTimeoutMs` | number | Optional. Default browser command timeout used when a command omits `timeoutMs`. |
@@ -353,6 +342,15 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "threadManagement": true,
     "threadFork": true,
     "threadSubscriptions": true,
+    "threadGoals": true,
+    "manualCompaction": true,
+    "manualMemoryConsolidation": true,
+    "threadMaintenanceInterrupt": true,
+    "dynamicToolRebind": true,
+    "runtimeAdditionalContext": true,
+    "gitWorktrees": true,
+    "appBindingVersion": 1,
+    "appThreadInputEnqueue": true,
     "approvalFlow": true,
     "requestUserInput": true,
     "modeSwitch": true,
@@ -360,20 +358,31 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "cronManagement": true,
     "skillsManagement": true,
     "pluginManagement": true,
+    "pluginConfiguration": true,
     "pluginMarketplaces": true,
+    "hooksManagement": true,
     "skillVariants": true,
-    "runtimeAdditionalContext": true,
-    "gitWorktrees": true,
-    "appBindingVersion": 1,
+    "toolCatalog": true,
     "commandManagement": true,
+    "channelStatus": true,
+    "providerManagement": true,
     "modelCatalogManagement": true,
     "workspaceConfigManagement": true,
+    "sourceControlManagement": true,
+    "memoryManagement": true,
+    "dreams": true,
     "mcpManagement": true,
     "mcpRuntime": true,
     "mcpApps": true,
+    "inlineVisualizations": true,
     "mcpServerOrigins": true,
     "externalChannelManagement": true,
+    "agentProfileManagement": true,
+    "subAgentManagement": true,
+    "subAgentSessions": true,
     "mcpStatus": true,
+    "usageTelemetry": true,
+    "remoteToolHost": true,
     "extensions": {
       "welcomeSuggestions": true
     }
@@ -385,14 +394,15 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 |-------|------|-------------|
 | `serverInfo.name` | string | Always `"dotcraft"`. |
 | `serverInfo.version` | string | DotCraft server version. |
-| `serverInfo.protocolVersion` | string | Wire protocol version. Currently `"1"`. |
-| `serverInfo.extensions` | string[] | Optional flat list of available extension namespaces. Structured extension capability metadata is deferred from v1. |
+| `serverInfo.protocolVersion` | string | Wire protocol version. See [Section 12.1](#121-protocol-version). |
+| `serverInfo.extensions` | string[] | Optional flat list of available extension namespaces. |
 | `capabilities.threadManagement` | boolean | Server supports thread CRUD operations. |
 | `capabilities.threadFork` | boolean | Server supports creating conversation branches with `thread/fork`. |
 | `capabilities.threadSubscriptions` | boolean | Server supports passive `thread/subscribe` observers independent from `turn/start`. |
 | `capabilities.threadGoals` | boolean | Server supports the complete thread goal runtime contract: `thread/goal/*` control methods, goal notifications, prompt-visible goal context, usage accounting, budget transitions, and model goal tools. Automatic idle continuation still depends on server config. |
 | `capabilities.manualCompaction` | boolean | Server supports manual context compaction with `thread/compact/start`. |
 | `capabilities.manualMemoryConsolidation` | boolean | Server supports manual long-term memory consolidation with `thread/memory/consolidate/start`. |
+| `capabilities.threadMaintenanceInterrupt` | boolean | Server supports `thread/maintenance/interrupt`. |
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
 | `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`). |
@@ -411,6 +421,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
 | `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
 | `capabilities.commandManagement` | boolean | Server supports command management methods (`command/list`, `command/execute`). |
+| `capabilities.channelStatus` | boolean | Server supports the channel runtime status method (`channel/status`). |
 | `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
 | `capabilities.workspaceConfigManagement` | boolean | Server supports workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). |
@@ -425,7 +436,8 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration and diagnostic methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`). |
 | `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`). |
 | `capabilities.subAgentManagement` | boolean | Server supports SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
-| `capabilities.mcpStatus` | boolean | Compatibility capability for `mcp/test`; runtime status is provided by `capabilities.mcpRuntime` and `mcpServerStatus/list`. |
+| `capabilities.subAgentSessions` | boolean | Server exposes profile-backed SubAgents as child threads with the `subagent/children/list`, `subagent/sendMessage`, `subagent/followupTask`, and `subagent/close` methods (Section 24.10). |
+| `capabilities.mcpStatus` | boolean | Server supports `mcp/test`. Runtime status is provided by `capabilities.mcpRuntime` and `mcpServerStatus/list`. |
 | `capabilities.usageTelemetry` | boolean | Server supports the aggregate usage telemetry method (`usage/summary`). Absent or `false` when tracing is disabled (no trace store is available). |
 | `capabilities.remoteToolHost` | boolean | Server supports client-driven Remote Tool Host routing (`remoteToolHost/list`, `remoteToolHost/connect`, `remoteToolHost/disconnect`) and the `remoteToolHost/route/changed` notification (Section 19B). Absent or `false` when the workspace runtime has no Remote Tool Host client. |
 | `capabilities.extensions` | object | Optional module capability registry keyed by extension name. Each value is extension-defined metadata; boolean `true` means the extension methods are available. Example: `capabilities.extensions.welcomeSuggestions = true` advertises support for `welcome/suggestions`. |
@@ -576,7 +588,7 @@ Wire shape:
 Rules:
 
 - Keys are client-owned stable source identifiers. They must be non-empty, at most 128 characters, and contain only letters, digits, `.`, `_`, or `-`.
-- `kind` must be `"application"` in this version.
+- `kind` must be `"application"`.
 - `value` is required, model-visible text with a maximum length of 16 KiB.
 - Runtime additional context is bound to the requesting client runtime for the thread. It does not create Turns, Items, thread rollout records, or `ThreadConfiguration` updates.
 - The server renders each entry inside `<app-context>...</app-context>` in a System prompt section. Clients must not rely on a separate developer role being available.
@@ -679,7 +691,7 @@ Fields:
 |-------|------|-------------|
 | `agentProfileId` | string | Optional Agent Profile id whose resolved snapshot produced this configuration. Runtime behavior reads the resolved configuration fields, not the profile file. |
 | `agentProfileSource` | string | Optional profile source such as `builtIn`, `user`, or `workspace`. |
-| `agentProfileFingerprint` | string | Optional fingerprint for diagnostics, audit, and future refresh flows. |
+| `agentProfileFingerprint` | string | Optional fingerprint for diagnostics and audit. `agent/profiles/refreshThread` ([Section 23A.7](#23a7-agentprofilesrefreshthread)) compares it against the resolved profile. |
 | `agentBuilderTargetId` | string | Optional. Marks the thread as a **conversational profile-builder** session editing this Agent Profile id (see agent-profiles spec §12A). When set, the server exposes the builder tools and a thread-scoped working draft; the thread is excluded from ordinary thread listings. |
 | `agentBuilderTargetSource` | string | Optional builder target source (`user` / `workspace`). Pairs with `agentBuilderTargetId`. |
 | `mcpServers` | `McpServerConfig[] \| null` | Three-state per-thread MCP selection: omitted/null inherits workspace plus enabled plugin servers; `[]` disables those inherited origins; non-empty replaces them. Binding-origin MCP is independent and additive. |
@@ -695,17 +707,17 @@ Fields:
 | `useToolProfileOnly` | boolean | When `true`, use only the tools from `toolProfile`. |
 | `agentInstructions` | string | Optional additional system instructions. |
 | `developerInstructions` | string | Optional instructions from the application that started the thread, rendered after role instructions as the final system prompt section, or on protocols with a developer role as a developer-role history item ahead of the first user message (at most 32768 characters). Native SubAgent threads do not inherit them. Accepted alongside `agentProfileId`. |
-| `toolAllowList` | string[] | Legacy exact-name tool allow-list. Null or omitted means no legacy allow-list. |
-| `toolDenyList` | string[] | Legacy exact-name tool deny-list. Deny wins over allow. |
+| `toolAllowList` | string[] | Exact-name tool allow-list. Null or omitted means no allow-list. |
+| `toolDenyList` | string[] | Exact-name tool deny-list. Deny wins over allow. |
 | `toolPolicy` | object | Structured tool policy with `allow`, `deny`, `agentControl`, and `allowedAgentControlTools`. Null or omitted keeps existing runtime defaults. |
-| `approvalTimeoutSeconds` | integer | Optional per-thread approval request timeout in seconds. Omitted preserves the server default (currently 300 seconds). Values must be between 1 and 86400. The resolved value is persisted with the thread and applies to future turns and replayed requests. |
+| `approvalTimeoutSeconds` | integer | Optional per-thread approval request timeout in seconds. Omitted uses the server default of 300 seconds. Values must be between 1 and 86400. The resolved value is persisted with the thread and applies to future turns and replayed requests. |
 | `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
-| `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `ultra` and output values such as `none`, `summary`, or `full`. |
-| `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; old threads without it use `standard`. Changes affect future and queued turns, not a running request. |
+| `reasoning` | object | Optional per-thread reasoning configuration. When absent, the thread falls back to the current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `ultra` and output values such as `none`, `summary`, or `full`. |
+| `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; a thread without the field uses `standard`. Changes affect future and queued turns, not a running request. |
 | `contextWindow` | object | Optional per-thread context-window mode. Shape: `{ "mode": "default" | "max" }`. Omitted or null means `default`. Servers reject explicit `max` when the effective model lacks an explicit catalog window larger than the configured default window. |
 | `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
 
@@ -814,19 +826,6 @@ The server validates a non-empty replacement completely before publishing it. Va
 
 If the resumed thread contains unresolved interactive requests in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the corresponding server-to-client requests (`item/approval/request` or `item/tool/requestUserInput`) to the resuming connection when that connection declared the required capability. The returned thread snapshot must already contain completed payloads for assistant and reasoning Items emitted before the blocking tool call. This replay uses the original logical `requestId`; the JSON-RPC request envelope may receive a fresh transport `id`. Replaying a pending request is idempotent per connection and must not create duplicate prompts for the same `method + threadId + turnId + requestId`. When replaying multiple unresolved approval requests for the same thread, the server must start them serially: the next `item/approval/request` is sent only after the previous replayed approval request has resolved or fallen back, so the per-request reply timeout does not elapse while a prompt is only queued behind another approval in the client UI.
 
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "thread/resume", "id": 2, "params": {
-    "threadId": "thread_20260316_x7k2m4"
-} }
-
-{ "jsonrpc": "2.0", "id": 2, "result": {
-    "thread": { "id": "thread_20260316_x7k2m4", "status": "active" },
-    "instructionSources": ["/home/dev/myproject/AGENTS.md"]
-} }
-```
-
 ### 4.2.1 `thread/fork`
 
 Create a new thread from a source thread's persisted history. Clients must check `capabilities.threadFork` before offering this action.
@@ -875,7 +874,7 @@ List threads matching a given identity.
 | `crossChannelOrigins` | string[] \| null | no | When **omitted** or JSON `null`, no cross-channel origin list is applied. When present as an array (possibly empty), non-empty values additionally return threads whose `originChannel` is in the list with the same `workspacePath` and `userId` as `identity`, ignoring `channelContext`. See [Session Core §9.5](../architecture/session-core.md#95-cross-channel-resume-protocol). |
 | `channelName` | string | no | When set, post-filters results to threads whose persisted `originChannel` matches (case-insensitive). Same as existing filter. |
 | `query` | string | no | Optional case-insensitive text filter applied to thread id, display name, origin channel, status, and channel context before pagination. |
-| `limit` | number | no | Optional page size. Must be positive and at most 100. If omitted with `cursor`, the server uses 50. If both `limit` and `cursor` are omitted, the server returns the full compatible list. |
+| `limit` | number | no | Optional page size. Must be positive and at most 100. If omitted with `cursor`, the server uses 50. If both `limit` and `cursor` are omitted, the server returns the full list. |
 | `cursor` | string | no | Opaque cursor returned by a previous `thread/list` call. Invalid cursors return `InvalidParams`. |
 
 **Result**:
@@ -907,11 +906,11 @@ List threads matching a given identity.
 }
 ```
 
-Results are ordered by `lastActiveAt` descending. Filtering is applied before pagination. `nextCursor` is `null` or omitted when no further page exists. `totalMatched` is the number of threads after all filters and before pagination. Cursors are opaque and clients must not parse them. Older clients that omit both `limit` and `cursor` keep receiving the complete list for compatibility.
+Results are ordered by `lastActiveAt` descending. Filtering is applied before pagination. `nextCursor` is `null` or omitted when no further page exists. `totalMatched` is the number of threads after all filters and before pagination. Cursors are opaque and clients must not parse them.
 
 When `scope = "workspace"`, `crossChannelOrigins` is ignored because all origins in the exact workspace are already eligible. `includeInternal` remains `false` by default, so workspace scope does not expose internal helper threads unless explicitly requested. Unknown scope values return `InvalidParams`.
 
-Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. Older servers may omit `runtime`, and clients must treat omission as unknown rather than as an idle thread.
+Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. `runtime` may be omitted; clients treat omission as unknown rather than as an idle thread.
 
 Each `ThreadSummary` may also include an optional `originApp` object `{ appId, displayName, icon?, memberId? }`. The server populates it only when the summary's `originChannel` matches the declared `originChannel` of an installed App Binding app (see [App Binding] §5.1), attributing the thread's origin to that app so clients can render the app's icon + name as the origin badge. When the app also declares `originMembers` and the summary's `channelContext` matches one, `displayName`/`icon` carry the matched member's branding and `memberId` is set (the matched key) so clients can present it as a per-member origin; `appId` still identifies the owning app. `icon` is an optional data URL or safe URL (same contract as app icons). Clients must fall back to the generic origin-channel badge when `originApp` is absent or its `icon` is missing. The same `originApp` attribution (identical shape and contract) is attached to the full thread object delivered by the thread lifecycle methods — `thread/read`, `thread/started`, `thread/updated`, `thread/resumed`, and `thread/rollback` — so threads that reach the client only through the event stream (e.g. threads created server-side by a managed runtime) carry the same origin badge without waiting for a `thread/list` refresh.
 
@@ -959,7 +958,7 @@ Read the current header of a thread by ID without resuming it or loading histori
 
 **Semantics**: `thread/read` is a **read-only** operation. It does not resume execution, start background services, apply execution-time thread configuration, or replay the canonical rollout. The returned `Thread` omits historical `turns`; current state such as `queuedInputs`, `runtime`, `plan`, and `contextUsage` remains part of the header when available.
 
-Historical data is available only through `thread/turns/list` and `thread/items/list`. The server does not accept the former `includeTurns`, `turnLimit`, or history `cursor` parameters and does not return `turnPage`.
+Historical data is available only through `thread/turns/list` and `thread/items/list`. The server does not accept `includeTurns`, `turnLimit`, or history `cursor` parameters and does not return `turnPage`.
 
 ### 4.4.1 `thread/turns/list`
 
@@ -1005,12 +1004,12 @@ Result order matches `sortDirection`. Item position is stable across updates; an
 - A history cursor is an opaque, versioned base64url JSON token containing `threadId`, scope (`turns`, thread-wide Items, or one Turn's Items), optional `turnId`, `sortDirection`, and an exclusive rollout ordinal.
 - The cursor's Thread, scope, optional Turn, and direction must match the request. A mismatch, malformed token, non-positive limit, or limit above the method maximum returns `InvalidParams`.
 - A cursor whose ordinal was removed by rollback remains valid as an exclusive ordinal boundary. The query continues from the surviving rows on the requested side and never restores removed history.
-- AppServer applies the same connection-scoped presentation enrichment and filtering used by live Item projection. Those transient fields are not persisted in SQLite.
+- AppServer applies the same connection-scoped presentation enrichment and filtering used by live Item projection. Those transient fields are not persisted.
 - Provider-native recovery records, including OpenAI Responses raw history, are not returned, searched, or copied into these pages.
 - Persistent fork, rollback, archive, unarchive, and worktree-fork lifecycle responses carry only Thread headers. Clients invalidate affected cursors and reload history pages.
 - Ephemeral Threads return `Unsupported`. If validation, incremental repair, or full rebuild cannot produce a consistent projection, the methods return `ThreadHistoryUnavailable`; they never assemble a full-history JSONL response as a fallback.
 
-The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread from `thread_plans`, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
+The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
 
 **`contextUsage` field**: When the server has persisted context-window occupancy for the thread, the returned `Thread` carries an optional `contextUsage` snapshot for the desktop token ring. This snapshot is not billing usage and must not be derived from cumulative `Turn.tokenUsage` totals. Immediately before a provider request, Session Core persists the estimate for the normalized provider-visible history with `isEstimate = true`; a successful provider response replaces it with the latest request's provider-visible input plus that request's generated output. If the request fails before returning usage, the preflight estimate remains authoritative instead of exposing the previous successful request as current occupancy. Session Core's accounting order is: valid provider anchor plus post-request appended-message estimation, prefix-adjusted anchor for base-instruction drift, latest provider active-context snapshot only while it still belongs to the current request boundary, persisted provider fallback for UI, then a replacement-domain estimate after rollback, compaction, or another history replacement. A neutral replacement is estimated from neutral model-visible history; an active provider-native replacement uses its generation-scoped estimator and must not expand the neutral transcript for this purpose. After either replacement, old anchors and token trackers are invalid until the next provider usage arrives:
 
@@ -1027,7 +1026,7 @@ The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present,
 }
 ```
 
-The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. `ContextUsageSnapshot.contextWindow` is the effective denominator after Session Core reserve and buffer rules, not the raw catalog window advertised by `model/list`. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted only for older threads or hosts that have no persisted context usage state yet.
+The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. `ContextUsageSnapshot.contextWindow` is the effective denominator after Session Core reserve and buffer rules, not the raw catalog window advertised by `model/list`. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted when no persisted context usage state exists for the thread.
 
 Persisted context usage is display state. A stored provider token count without a matching provider anchor for the current replacement domain, generation, and request shape must not by itself trigger automatic compaction. Neutral or provider-native replacement estimates saved after rollback, compaction, or history rebuild may drive automatic compaction because they describe the active model-visible history rather than a stale provider snapshot.
 
@@ -1220,7 +1219,7 @@ Thread goal behavior is defined by [Goal Design](../features/goal.md). AppServer
 
 Clients must check `capabilities.threadGoals` before calling these methods. When absent or false, servers return method-not-found or a capability error.
 
-`thread/goal/set` creates an active goal when no goal exists and updates an existing goal in place otherwise. The legacy `mode` param is not supported. `status` values are `"active"`, `"paused"`, `"blocked"`, `"usageLimited"`, `"budgetLimited"`, and `"complete"`.
+`thread/goal/set` creates an active goal when no goal exists and updates an existing goal in place otherwise. `status` values are `"active"`, `"paused"`, `"blocked"`, `"usageLimited"`, `"budgetLimited"`, and `"complete"`.
 
 `ThreadGoal` uses the normal wire casing:
 
@@ -1237,7 +1236,7 @@ Clients must check `capabilities.threadGoals` before calling these methods. When
 }
 ```
 
-`createdAt` and `updatedAt` are Unix seconds. The public AppServer wire shape omits the internal `goal_id` and token breakdown columns.
+`createdAt` and `updatedAt` are Unix seconds. The wire shape omits internal goal identifiers and per-source token breakdowns.
 
 Goal notifications:
 
@@ -1264,7 +1263,7 @@ Manually compact the model-visible context for an idle server-managed thread.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `outcome` | string | `"partial"`, `"skipped"`, `"failed"`, or `"cancelled"` (`"micro"` is reserved for legacy compatibility and is not expected from manual compaction). |
+| `outcome` | string | `"partial"`, `"skipped"`, `"failed"`, or `"cancelled"`. The `"micro"` outcome is produced only by cold-cache tool-result clearing and never by manual compaction. |
 | `message` | string? | Optional skip/failure reason. |
 | `contextUsage` | ContextUsageSnapshot? | Updated snapshot when available. |
 
@@ -1500,7 +1499,7 @@ Turn methods correspond to `ISessionService` turn lifecycle operations defined i
 
 Submit user input to a thread and begin agent execution. The server creates a new Turn, records the user input as a `UserMessage` Item, and starts the agent.
 
-Before starting the agent, the server **must** ensure the in-memory thread is loaded from persistence if needed and that any persisted `thread.configuration` (mode, MCP servers, etc.) is applied to the execution-time agent, so turns do not silently use workspace-default tooling after a cold load or when only `thread/read` was used earlier ([Session Core](../architecture/session-core.md) `EnsureThreadLoaded`).
+Before starting the agent, the server **must** ensure the in-memory thread is loaded from persistence if needed and that any persisted `thread.configuration` (mode, MCP servers, etc.) is applied to the execution-time agent, so turns do not silently use workspace-default tooling after a cold load or when only `thread/read` was used earlier (see [Session Core](../architecture/session-core.md)).
 
 The response is returned **immediately** with the initial Turn object (status `"running"`, empty `items`). The agent's output then streams as notifications: `turn/started`, followed by `item/*` events, and finally `turn/completed` (or `turn/failed` / `turn/cancelled`).
 
@@ -1522,6 +1521,7 @@ Clients that intend to render a turn from `thread/subscribe` notifications SHOUL
 | `input` | InputPart[] | yes | User input. At least one part required. |
 | `sender` | SenderContext | no | Sender identity for group sessions. |
 | `messages` | ChatMessage[] | conditional | Required when the thread uses `historyMode = "client"`. Forbidden when the thread uses `historyMode = "server"`. |
+| `sentAsGoal` | boolean | no | Submits the message as the thread goal. It is projected onto the resulting `userMessage` item; see [Section 6.3](#63-item-notifications). |
 
 `InputPart` is a tagged union:
 
@@ -1569,7 +1569,7 @@ Tag semantics:
 
 When a queued input later starts a Turn or is promoted into current-Turn guidance, the resulting `userMessage` item preserves `triggerKind`, `triggerLabel`, and `triggerRefId`.
 
-Queued-input materialization never dereferences an image URL. A persisted inline data URL is decoded locally. If a queue snapshot created by an older server contains an HTTP or HTTPS image URL, the server replaces that image part with the model-visible text `image content omitted because remote image URLs are not supported` and continues consuming the remaining input. This compatibility fallback applies both when starting a queued Turn and when admitting `guidancePending` input.
+Queued-input materialization never dereferences an image URL. A persisted inline data URL is decoded locally. A persisted queue snapshot that contains an HTTP or HTTPS image URL has that image part replaced with the model-visible text `image content omitted because remote image URLs are not supported`, and the remaining input is consumed normally. This applies both when starting a queued Turn and when admitting `guidancePending` input.
 
 `SenderContext`:
 
@@ -1601,27 +1601,6 @@ Each persisted Turn also records an `initiator` object with durable actor metada
     "startedAt": "2026-03-16T10:05:00Z"
   }
 }
-```
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "turn/start", "id": 10, "params": {
-    "threadId": "thread_20260316_x7k2m4",
-    "input": [
-      { "type": "text", "text": "Run the tests and fix any failures" }
-    ]
-} }
-
-{ "jsonrpc": "2.0", "id": 10, "result": {
-    "turn": {
-      "id": "turn_001",
-      "threadId": "thread_20260316_x7k2m4",
-      "status": "running",
-      "items": [],
-      "startedAt": "2026-03-16T10:05:00Z"
-    }
-} }
 ```
 
 ### 5.2 `turn/interrupt`
@@ -1854,20 +1833,11 @@ The `thread` payload may omit full turn history. Clients should merge the compac
 
 #### `thread/renamed`
 
-Emitted when a thread's **display name** changes. The server **broadcasts** this notification to **all** connected clients (same delivery model as `thread/started`). Typical triggers include successful `thread/rename` (Section 4.11) and automatic display-name assignment from turn input.
+Emitted when a thread's **display name** changes. The server **broadcasts** this notification to **all** connected clients (same delivery model as `thread/started`). Typical triggers include successful `thread/rename` (Section 4.13) and automatic display-name assignment from turn input.
 
 **Params**: `{ "threadId": "<id>", "displayName": "<non-empty string>" }`
 
 Duplicate or idempotent deliveries for the same `threadId` and `displayName` are allowed.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "thread/renamed", "params": {
-    "threadId": "thread_20260316_x7k2m4",
-    "displayName": "Fix login bug"
-} }
-```
 
 #### `thread/deleted`
 
@@ -1876,14 +1846,6 @@ Emitted when a thread is **permanently** deleted. The server **broadcasts** this
 **Params**: `{ "threadId": "<id>" }`
 
 Duplicate notifications for the same `threadId` should be ignored.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "thread/deleted", "params": {
-    "threadId": "thread_20260316_x7k2m4"
-} }
-```
 
 #### `thread/resumed`
 
@@ -2063,7 +2025,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional `triggerKind` (`"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"workflow"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, workflow, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
+| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional nullable `sentAsGoal` is `true` when the message was submitted as the thread goal. Optional `triggerKind` (`"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"workflow"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, workflow, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
 | `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. Optional `deliveryMode = "async"` identifies a model-initiated user message emitted during a running Turn. It is delivered immediately, does not complete the Turn, is excluded from final-text aggregation, and is not restored into model-visible assistant history. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
 | `toolCall` | Native, plugin, and managed social calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
@@ -2173,7 +2135,7 @@ This marker is current availability evidence, not Session data or authority. It 
 
 #### `item/commandExecution/outputDelta`
 
-Streamed output delta for a `commandExecution` item. Concatenate `delta` values in order to reconstruct the command output for clients that use the compatibility projection.
+Streamed output delta for a `commandExecution` item. Concatenate `delta` values in order to reconstruct the command output.
 
 **Params**:
 
@@ -2192,13 +2154,13 @@ Streamed output delta for a `commandExecution` item. Concatenate `delta` values 
 2. zero or more `item/commandExecution/outputDelta`
 3. `item/completed` with final payload status and `aggregatedOutput`
 
-Compatibility rule:
+Delivery rules:
 
 - Terminal-capable clients that advertise `capabilities.backgroundTerminals = true` should use `terminal/started`, `terminal/outputDelta`, and `terminal/completed` as the primary live shell output source for `Exec`-style tools.
-- When a connection advertises `capabilities.commandExecutionStreaming = true`, the server may also emit the `commandExecution` projection for persistence, history summaries, and compatibility fallback.
+- When a connection advertises `capabilities.commandExecutionStreaming = true`, the server may also emit the `commandExecution` projection for persistence, history summaries, and fallback rendering.
 - The underlying `toolCall` / `toolResult` items still exist for model execution and persistence. Clients that consume both `terminal/*` and `commandExecution` must merge by `callId` and avoid double-rendering the same shell output.
 - A client may use `commandExecution` as an enhancement source for an existing `Exec` tool card when `terminal/*` notifications are unavailable.
-- Clients that do not advertise the capability continue to rely on existing `toolCall` / `toolResult` behavior.
+- Clients that do not advertise the capability rely on `toolCall` / `toolResult` alone.
 
 #### `toolExecution` lifecycle
 
@@ -2223,13 +2185,13 @@ Payload shape:
 }
 ```
 
-Compatibility rule:
+Rules:
 
 - `toolExecution` does not replace `toolCall` or `toolResult`. `toolCall` remains the model-request and final-arguments item; `toolResult` remains the complete, authoritative model-visible result.
 - `resultPreview` is a UI preview only. It is sanitized text and may be truncated to 4096 characters. Clients should replace it with the matching `toolResult.result` when that result arrives.
 - Plugin-backed tools use standard `toolCall`/`toolResult`; `toolExecution` remains an optional capability-gated UI lifecycle projection driven by the common dispatcher.
 - Runtime dynamic tools do not emit companion `toolExecution`; their lifecycle is represented by `dynamicToolCall`.
-- Clients that do not advertise the capability continue to rely on existing `toolCall` / `toolResult` behavior.
+- Clients that do not advertise the capability rely on `toolCall` / `toolResult` alone.
 
 **Params**:
 
@@ -2269,7 +2231,8 @@ Emitted after the client responds to an approval request and the server processe
     "status": "completed",
     "payload": {
       "requestId": "approval_001",
-      "approved": true
+      "approved": true,
+      "decision": "accept"
     }
   }
 }
@@ -2337,46 +2300,6 @@ Emitted when a session-backed SubAgent parent/child edge is created or changes s
 
 **Params**: `{ "parentThreadId": "<parent>", "childThreadId": "<child>" }`
 
-**Example sequence**:
-
-```
-Server                                          Client
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "toolCall",                    |
-  |    toolName: "SpawnAgent",                    |
-  |    arguments: { message: "inspect code",      |
-  |      taskName: "code_explorer",               |
-  |      agentNickname: "Code Explorer" } }        |
-  |---------------------------------------------->|
-  |                                               |
-  | subagent/progress (notification)              |
-  |  entries: [{ label: "code_explorer",          |
-  |    currentTool: "ReadFile",                   |
-  |    inputTokens: 1200, outputTokens: 300,      |
-  |    isCompleted: false }]                      |
-  |<----------------------------------------------|
-  |                                               |
-  | subagent/progress (notification)  (~200ms)    |
-  |  entries: [{ label: "code_explorer",          |
-  |    currentTool: "SearchContent",              |
-  |    inputTokens: 3500, outputTokens: 900,      |
-  |    isCompleted: false }]                      |
-  |<----------------------------------------------|
-  |                                               |
-  | subagent/progress (notification)              |
-  |  entries: [{ label: "code_explorer",          |
-  |    currentTool: null,                         |
-  |    inputTokens: 4500, outputTokens: 1200,     |
-  |    isCompleted: true }]                       |
-  |<----------------------------------------------|
-  |                                               |
-  | item/completed (notification)                 |
-  |  item: { type: "toolResult",                  |
-  |    callId: "...", success: true }             |
-  |---------------------------------------------->|
-```
-
 ### 6.6 Usage Notifications
 
 #### `item/usage/delta`
@@ -2401,7 +2324,7 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
   "turnOutputTokens": 350,
   "turnLlmCalls": 1,
   "totalInputTokens": 14820,
-  "totalOutputTokens": 2610,
+  "totalOutputTokens": 350,
   "contextUsage": {
     "tokens": 14820,
     "contextWindow": 200000,
@@ -2425,9 +2348,9 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 | `reasoningOutputTokens` | integer | Reasoning output tokens consumed in this LLM iteration (delta, not cumulative). |
 | `llmCallDelta` | integer | Optional. `1` when this delta starts a new LLM request, otherwise `0`. |
 | `contextInputTokens` | integer | Optional. Latest provider input-token snapshot for the request. It is not billing/cumulative thread usage. |
-| `totalInputTokens` | integer | Optional. Backward-compatible alias of `contextInputTokens`; not billing/cumulative thread usage. |
+| `totalInputTokens` | integer | Optional. Alias of `contextInputTokens`; not billing/cumulative thread usage. |
 | `turnInputTokens` | integer | Optional. Cumulative billing input tokens emitted so far in the current turn. |
-| `totalOutputTokens` | integer | Optional. Backward-compatible cumulative output tokens emitted so far in the current turn. |
+| `totalOutputTokens` | integer | Optional. Alias of `turnOutputTokens`. |
 | `turnOutputTokens` | integer | Optional. Cumulative billing output tokens emitted so far in the current turn. |
 | `turnLlmCalls` | integer | Optional. Cumulative LLM request count emitted so far in the current turn. |
 | `contextUsage` | object | Optional. Full `ContextUsageSnapshot` for current context pressure, including thresholds needed to seed the desktop token ring. Its `tokens` may include output/cache pressure and therefore may be greater than `contextInputTokens`. |
@@ -2443,28 +2366,6 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 - Cache-hit accounting is cumulative by the same rule: `cachedInputTokens` deltas sum to the Turn's cache-hit input total, so dashboards can show how much of `turnInputTokens` came from cache hits.
 - SubAgent tokens are reported separately via `subagent/progress` and are not included in `item/usage/delta`.
 - Clients that do not need real-time token display can opt out via `optOutNotificationMethods: ["item/usage/delta"]` during `initialize`.
-
-**Example sequence**:
-
-```
-Server                                          Client
-  |                                               |
-  | item/usage/delta (notification)               |
-  |  inputTokens: 1200, outputTokens: 350         |
-  |<----------------------------------------------|
-  |                                               |
-  | (tool calls execute...)                       |
-  |                                               |
-  | item/usage/delta (notification)               |
-  |  inputTokens: 2100, outputTokens: 480         |
-  |<----------------------------------------------|
-  |                                               |
-  | turn/completed (notification)                 |
-  |  tokenUsage: { inputTokens: 3300,             |
-  |    cachedInputTokens: 0, cacheWriteInputTokens: 0, |
-  |    outputTokens: 830, totalTokens: 4130 }     |
-  |<----------------------------------------------|
-```
 
 ### 6.7 System Notifications
 
@@ -2497,7 +2398,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `messageKey` | string? | Stable client-localization key. May be null when no key exists. |
 | `params` | object? | Optional interpolation params for `messageKey`. User text, model output, and raw tool output MUST NOT be translated by the server. |
 | `fallbackText` | string? | English fallback text suitable for display when the client has no translation. |
-| `message` | string? | Compatibility alias for `fallbackText`. New clients should prefer `messageKey` + `params` + `fallbackText`. |
+| `message` | string? | Alias of `fallbackText`. Clients should prefer `messageKey` + `params` + `fallbackText`. |
 | `percentLeft` | number? | Fraction of the effective context window still unused (`0.0`-`1.0`). Populated for compaction-related events. |
 | `tokenCount` | number? | Current estimated prompt token usage. Populated for compaction-related events. |
 | `contextUsage` | object? | Full `ContextUsageSnapshot` on terminal compaction events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds and the exact server-side token source. `compacting` start events must not update the context ring from projected request estimates. `source` is diagnostic and extensible; clients should not compute local replacements or compacting state when this snapshot is present. |
@@ -2532,40 +2433,6 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 - On a successful partial replacement `compacted` event, whether the selected backend replaced neutral or provider-native history, Session Core includes `contextUsage` when available and additionally persists a `SystemNotice` SessionItem (kind = `"compacted"`) into the current or latest completed turn, emitting the normal `item/started` + `item/completed` pair for it. This gives clients a persistent timeline marker that survives thread reload, alongside the transient `system/event` notification used to drive toast/status-line and context-ring UX. Cold-cache tool-result clearing that returns `outcome = "micro"` is transient, updates optimized session/context usage, and must not append a persistent notice. See [Session Core](../architecture/session-core.md#systemnotice) for the payload schema.
 - On a successful `consolidated` event, Session Core additionally persists a `SystemNotice` SessionItem (kind = `"memoryConsolidated"`) into the completed turn and emits the normal `item/started` + `item/completed` pair through the thread event broker. `consolidationSkipped` does not create a persistent notice.
 - Thread fork creation additionally places a persistent `SystemNotice` SessionItem (kind = `"forked"`, `sourceThreadId = <source thread id>`) at the end of the selected copied history in the forked thread. Fork lifecycle responses and `thread/started` contain only the Thread header; clients retrieve the marker through `thread/items/list`.
-
-**Example sequence**:
-
-```
-Server                                          Client
-  |                                               |
-  | system/event (notification)                   |
-  |  kind: "compactWarning",                      |
-  |  percentLeft: 0.12, tokenCount: 176000        |
-  |<----------------------------------------------|
-  |                                               |
-  | system/event (notification)                   |
-  |  kind: "compacting",                          |
-  |  percentLeft: 0.03, tokenCount: 194000        |
-  |<----------------------------------------------|
-  |                                               |
-  | system/event (notification)                   |
-  |  kind: "compacted",                           |
-  |  percentLeft: 0.78, tokenCount: 44000         |
-  |  contextUsage: { tokens: 44000, ... }         |
-  |<----------------------------------------------|
-  |                                               |
-  | system/event (notification)                   |
-  |  kind: "consolidating"                        |
-  |<----------------------------------------------|
-  |                                               |
-  | system/event (notification)                   |
-  |  kind: "consolidated"                         |
-  |<----------------------------------------------|
-  |                                               |
-  | turn/completed (notification)                 |
-  |  turn: { ... }                                |
-  |<----------------------------------------------|
-```
 
 ### 6.8 Plan Notifications
 
@@ -2623,7 +2490,7 @@ This notification is independent of the Turn event stream. Clients that do not n
 | `priority` | string | One of: `"high"`, `"medium"`, `"low"`. |
 | `status` | string | One of: `"pending"`, `"in_progress"`, `"completed"`, `"cancelled"`. |
 
-Compatibility note: older servers may omit `content`; clients should treat missing `content` as an empty string.
+`content` may be absent; clients treat a missing value as an empty string.
 
 **Emission rules**:
 
@@ -2632,6 +2499,82 @@ Compatibility note: older servers may omit `content`; clients should treat missi
 - Clients with a currently selected thread must ignore `plan/updated` notifications whose `threadId` does not match that selected thread, and should recover a selected thread's plan with `thread/read.thread.plan` when switching threads.
 - The notification is sent outside the `SessionEvent` stream; it is a direct JSON-RPC notification from the host to all connected transports.
 - Clients that do not need plan progress can opt out via `optOutNotificationMethods: ["plan/updated"]` during `initialize`.
+
+### 6.9 Job Result Notifications
+
+#### `system/jobResult`
+
+Emitted after a server-managed cron job completes. This allows connected wire clients to receive the agent's response as an out-of-band notification, without the client initiating a turn.
+
+Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during `initialize`.
+
+**Params**:
+
+```json
+{
+  "source": "cron",
+  "jobId": "9c933b01",
+  "jobName": "喝水提醒",
+  "threadId": "thread_abc123",
+  "result": "提醒：该喝水了！保持水分对健康很重要。",
+  "error": null,
+  "tokenUsage": { "inputTokens": 420, "outputTokens": 38 }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | string | `"cron"`. |
+| `jobId` | string? | Cron job ID. Present when `source` is `"cron"`. |
+| `jobName` | string? | Human-readable job name. |
+| `threadId` | string? | The thread ID used for execution. |
+| `result` | string? | Agent's text response. Null if the turn failed or produced no text output. |
+| `error` | string? | Error message if the turn failed. |
+| `tokenUsage` | object? | `{ inputTokens, outputTokens }`. |
+
+**Targeting rules**:
+
+- Emitted to initialized protocol connections that are eligible to receive job-result notifications.
+- Server hosts that route job results through another delivery surface may omit `system/jobResult`.
+- Clients that do not wish to receive cron results can opt out via `optOutNotificationMethods: ["system/jobResult"]`.
+
+**Behavior notes**:
+
+- The `result` field carries the agent's full text output from the completed run.
+- The `threadId` field may be used with `thread/read`, `thread/turns/list`, and `thread/items/list` to retrieve the associated header and bounded conversation history.
+- `cron/stateChanged` may also be emitted for the same completion when the source is a cron job.
+
+### 6.10 Notification Delivery Guarantees
+
+The server MUST deliver each event notification **at most once per connection**, regardless of how many delivery paths are active for that thread.
+
+**At-most-once rule**: When a connection holds an active `thread/subscribe` subscription for a thread and calls `turn/start` on the same thread, the server MUST NOT create a separate inline notification dispatch path for the turn. The existing subscription dispatcher is the sole delivery path for all turn-scoped notifications. The `turn/start` JSON-RPC response is still returned inline before any notifications are emitted.
+
+This rule applies to all turn-scoped notifications:
+
+| Notification | Covered |
+|---|---|
+| `turn/started` | yes |
+| `turn/completed` | yes |
+| `turn/failed` | yes |
+| `turn/cancelled` | yes |
+| `item/started` | yes |
+| `item/agentMessage/delta` | yes |
+| `item/reasoning/delta` | yes |
+| `item/toolCall/argumentsDelta` | yes |
+| `item/commandExecution/outputDelta` | yes |
+| `item/completed` | yes |
+| `item/usage/delta` | yes |
+| `subagent/progress` | yes |
+| `system/event` | yes |
+
+Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thread/deleted`, `thread/statusChanged`, and `thread/runtimeChanged` are **not** part of this thread-subscription delivery rule. They remain workspace-level broadcasts and may be delivered even when the connection is not subscribed to the target thread.
+
+**Rationale**: Without this rule, a connection that both subscribes to a thread and starts a turn on that thread could receive duplicate notifications through multiple delivery paths.
+
+**Ordering guarantee**: The at-most-once rule does not relax the ordering guarantee. The `turn/start` response still arrives before the first `turn/started` notification.
+
+**Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests are resolved only through their normal client response, explicit non-interactive fallback for unsupported/unavailable clients, transport disconnect, or a request-specific timeout such as approval timeout; `thread/unsubscribe` alone must not answer them. Reconnected or returning clients recover state through `thread/read`, fresh history head pages, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
 
 ---
 
@@ -2726,7 +2669,7 @@ The client responds with the standard JSON-RPC response format:
 
 When approval resolution is persisted or echoed back in a later event, the response item carries both:
 
-- `approved`: boolean convenience field for legacy consumers.
+- `approved`: boolean convenience field.
 - `decision`: the exact rich decision value chosen by the user.
 
 ### 7.4 Clients Without Approval Support
@@ -2735,8 +2678,8 @@ If a client declared `capabilities.approvalSupport = false` during initializatio
 
 - `approvalPolicy = autoApprove` resolves as `accept`.
 - `approvalPolicy = interrupt` resolves as `cancel`.
-- `approvalPolicy = default` first resolves through the workspace default approval policy. If both the thread policy and workspace default are `default` or unset, the server cannot prompt on a non-interactive client, so it falls back to its non-interactive default decision. In the current implementation and spec baseline, that fallback is `decline`.
-- `approvalPolicy = prompt` requires the interactive flow; because a non-interactive client cannot prompt, it falls back to the same non-interactive default decision as `default` (`decline` in the baseline).
+- `approvalPolicy = default` first resolves through the workspace default approval policy. If both the thread policy and workspace default are `default` or unset, the server cannot prompt on a non-interactive client, so it falls back to its non-interactive default decision. That fallback is `decline`.
+- `approvalPolicy = prompt` requires the interactive flow; because a non-interactive client cannot prompt, it falls back to the same non-interactive default decision as `default`.
 
 The same non-interactive fallback may also be applied when an approval-capable client disconnects, the approval request cannot be written to the transport, or the request reaches its persisted `expiresAt` before the client replies. The AppServer client-request timeout uses the same expiry and must not introduce a shorter independent deadline. Cancelling a passive `thread/subscribe` subscription is not itself a rejection, timeout, or disconnect; it must not resolve an outstanding approval request.
 
@@ -2834,7 +2777,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 }
 ```
 
-`error.message` is always an English fallback for legacy clients and diagnostics. New UI clients should use `error.data.messageKey`, `error.data.params`, and `error.data.fallbackText` for localized display, falling back to `error.message` only when structured data is absent.
+`error.message` is always an English fallback for diagnostics. UI clients use `error.data.messageKey`, `error.data.params`, and `error.data.fallbackText` for localized display, falling back to `error.message` only when structured data is absent.
 
 ### 8.2 Standard Error Codes
 
@@ -2866,23 +2809,33 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32052` | Task invalid status | `automation/*`: the operation is not valid for the task’s current status. |
 | `-32054` | Task already exists | `automation/task/create`: a task with the same ID already exists. |
 | `-32055` | Thread binding invalid | `automation/task/updateBinding` / `automation/task/create`: the target `threadId` does not exist or is archived. |
+| `-32060` | Command not found | `command/*`: the requested command is not registered. |
+| `-32061` | Command permission denied | `command/execute`: the caller lacks permission for an admin-only command. |
+| `-32062` | Command service unavailable | `command/execute`: the command exists but a required backing service is unavailable. |
+| `-32070` | MCP server not found | The requested MCP server name does not exist. |
+| `-32072` | MCP server validation failed | An MCP config payload is invalid for the selected transport. |
+| `-32073` | MCP server test failed | `mcp/test`: the temporary probe failed. |
+| `-32074` | MCP server name conflict | The name conflicts with an existing logical key after case-insensitive comparison. |
+| `-32075` | MCP server read-only | A write method targeted a plugin-origin read-only MCP server. |
+| `-32080` | External channel not found | The requested external channel name does not exist. |
+| `-32081` | External channel validation failed | An external channel payload is invalid for the selected transport. |
+| `-32082` | External channel name conflict | The name conflicts with an existing logical key or a native channel name. |
+| `-32083` | SubAgent profile not found | The requested profile or workspace override does not exist. |
+| `-32084` | SubAgent profile validation failed | The profile payload is invalid or incompatible with runtime rules. |
+| `-32085` | SubAgent profile protected | The operation targets a protected profile such as `native`. |
+| `-32086` | Agent Profile not found | The requested Agent Profile id/source does not exist. |
+| `-32087` | Agent Profile validation failed | Markdown/frontmatter validation failed, or `thread/start` supplied an unsupported overlay with `agentProfileId`. |
+| `-32088` | Agent Profile protected | A write or remove targeted a built-in profile. |
+| `-32089` | Agent Profile source unavailable | The requested source is unsupported or cannot be read/written in this runtime. |
+| `-32091` | Agent Profile conflict | The requested id conflicts with the profile frontmatter name or a protected source. |
+| `-32093` | Marketplace source invalid | The marketplace source, reference, sparse paths, or resolved document is not acceptable. |
+| `-32094` | Marketplace fetch failed | The marketplace could not be fetched or materialized. |
 | `-32097` | Thread recovery failed | A recovery package is invalid or incompatible, its workspace/Thread/Turn binding mismatches, or the target already exists. Inspect `error.data.code`. |
 | `-32099` | Plugin configuration | `plugin/config/*`: the plugin declares no settings schema, or the document, scope, or an operation is invalid. Inspect `error.data.code`. |
 | `-32100` | Remote Tool Host unavailable | `remoteToolHost/connect`: the machine is not paired, offline, failed authentication, or speaks an incompatible profile. `error.data.code` carries the Remote Tool Host error code (Section 19B). |
 | `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
 
-Automation task methods are defined in full in [automations-lifecycle.md §13](../features/automations-lifecycle.md). Summary of the v1 wire surface:
-
-- `automation/task/list`, `automation/task/read`, `automation/task/create`, `automation/task/updateBinding`, `automation/task/discardWorktree`, `automation/task/delete` — CRUD, binding updates, and managed worktree cleanup for local automation tasks. Task-level review and cancel endpoints are not part of this surface.
-- `automation/task/updateBinding` `{ taskId, threadBinding?: { threadId, mode } | null }` → `{ task }` — rewrites only the `thread_binding` block on disk; pass `null` to unbind.
-- `automation/task/discardWorktree` `{ taskId }` → `{ task }` — best-effort removes the task's managed worktree and branch while keeping the task. Rejects running tasks.
-- `automation/template/list` `{}` → `{ templates: AutomationTemplateWire[] }` — returns the built-in local task templates followed by any user-authored templates so desktop clients can render the "Use template" picker without bundling a copy. User templates carry `isUser: true`; built-ins omit the field (default `false`). User templates also populate `createdAt` / `updatedAt` (ISO-8601 UTC).
-- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription?, defaultAgentProfileId? }` → `{ template: AutomationTemplateWire }` — upsert a user template. `defaultWorkspaceMode` must be `project` or `worktree`. `defaultAgentProfileId` records the Agent Profile that pre-fills the task Agent picker when the template is applied; it is a default, not itself executable. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, invalid workspace mode, and overlong `title` (>200 chars).
-- `automation/template/delete` `{ id }` → `{ ok: true }` — delete a user template directory. Built-in ids and invalid id shapes are rejected with `-32602` Invalid params. Idempotent: missing directories return `{ ok: true }`.
-- User template disk layout: `<CraftPath>/automations/templates/<id>/template.md` (overridable via `Automations.UserTemplatesRoot`). The file is YAML front matter (`id`, `title`, `description`, `icon`, `category`, `default_schedule`, `default_workspace_mode`, `default_approval_policy`, `default_agent_profile_id`, `needs_thread_binding`, `default_title`, `default_description`, `created_at`, `updated_at`) followed by the complete `workflow.md` body that is copied into new tasks applying the template.
-- `AutomationTaskWire.status` is one of `pending`, `running`, `completed`, or `failed`, and carries `workspaceMode` (`project` or `worktree`), nullable `worktree` (`{ branchName, path }`), optional `schedule` (mirrors `CronSchedule`), `threadBinding` (`{ threadId, mode: "run-in-thread" }`), and `nextRunAt` (ISO-8601 UTC). `worktree` is null before provisioning, for project-mode or bound tasks, and when worktree-mode execution falls back to the legacy task workspace.
-- `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, `templateId`, and `agentProfileId` in addition to the existing fields. `workspaceMode` must be `project` or `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
-- `agentProfileId` (on `automation/task/create`, persisted as `agent_profile_id` in `task.md`) binds the task to an Agent Profile that governs the agent's capabilities (tools, MCP, skills, model, instructions). The automation still force-overrides its operational fields (auto-approve, task directory, approval-outside-workspace) on top of the resolved profile, and always injects its `CompleteLocalTask` completion tool — kept reachable even under a restrictive profile allow-list — so the run can finish. The profile's capability policy is the source of truth for general tools; the default source tool profile is not merged on top. Only the id is stored; the profile is resolved at each dispatch (latest definition wins). A bound profile that no longer resolves fails the run. See [automations-lifecycle.md §Agent Profile Binding](../features/automations-lifecycle.md#agent-profile-binding).
+Automation task methods (`automation/task/*`, `automation/template/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
 
 ### 8.4 Turn-Level Errors
 
@@ -2918,107 +2871,6 @@ The server uses bounded internal queues between transport ingress, request proce
 
 - Clients should not send a `turn/start` while a turn is already in progress on the same thread. The server rejects this with error code `-32012`.
 - Clients should consume notifications promptly. If a client falls behind on reading stdout (stdio transport) or WebSocket frames, the server may buffer up to a limit and then drop the connection.
-
-### 6.9 Job Result Notifications
-
-#### `system/jobResult`
-
-Emitted after a server-managed cron job completes. This allows connected wire clients to receive the agent's response as an out-of-band notification, without the client initiating a turn.
-
-Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during `initialize`.
-
-**Params**:
-
-```json
-{
-  "source": "cron",
-  "jobId": "9c933b01",
-  "jobName": "喝水提醒",
-  "threadId": "thread_abc123",
-  "result": "提醒：该喝水了！保持水分对健康很重要。",
-  "error": null,
-  "tokenUsage": { "inputTokens": 420, "outputTokens": 38 }
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `source` | string | `"cron"`. |
-| `jobId` | string? | Cron job ID. Present when `source` is `"cron"`. |
-| `jobName` | string? | Human-readable job name. |
-| `threadId` | string? | The thread ID used for execution. |
-| `result` | string? | Agent's text response. Null if the turn failed or produced no text output. |
-| `error` | string? | Error message if the turn failed. |
-| `tokenUsage` | object? | `{ inputTokens, outputTokens }`. |
-
-**Targeting rules**:
-
-- Emitted to initialized protocol connections that are eligible to receive job-result notifications.
-- Server hosts that route job results through another delivery surface may omit `system/jobResult`.
-- Clients that do not wish to receive cron results can opt out via `optOutNotificationMethods: ["system/jobResult"]`.
-
-**Behavior notes**:
-
-- The `result` field carries the agent's full text output from the completed run.
-- The `threadId` field may be used with `thread/read`, `thread/turns/list`, and `thread/items/list` to retrieve the associated header and bounded conversation history.
-- `cron/stateChanged` may also be emitted for the same completion when the source is a cron job.
-
-**Example sequence**:
-
-```
-Server                                         Client
-  |                                               |
-  | (60 s after job was scheduled)                |
-  |                                               |
-  | [CronService timer fires, AgentRunner runs]   |
-  |                                               |
-  | system/jobResult (notification)               |
-  |  source: "cron",                              |
-  |  jobId: "9c933b01",                           |
-  |  jobName: "喝水提醒",                         |
-  |  threadId: "thread_abc123",                   |
-  |  result: "该喝水了！保持水分对健康很重要。"   |
-  |  tokenUsage: { inputTokens: 420, ... }        |
-  |<----------------------------------------------|
-  |                                               |
-  | cron/stateChanged (notification)              |
-  |  job.state.lastThreadId: "thread_abc123",     |
-  |  job.state.lastResult: "该喝水了！...",       |
-  |  removed: false                               |
-  |<----------------------------------------------|
-```
-
-### 6.10 Notification Delivery Guarantees
-
-The server MUST deliver each event notification **at most once per connection**, regardless of how many delivery paths are active for that thread.
-
-**At-most-once rule**: When a connection holds an active `thread/subscribe` subscription for a thread and calls `turn/start` on the same thread, the server MUST NOT create a separate inline notification dispatch path for the turn. The existing subscription dispatcher is the sole delivery path for all turn-scoped notifications. The `turn/start` JSON-RPC response is still returned inline before any notifications are emitted.
-
-This rule applies to all turn-scoped notifications:
-
-| Notification | Covered |
-|---|---|
-| `turn/started` | yes |
-| `turn/completed` | yes |
-| `turn/failed` | yes |
-| `turn/cancelled` | yes |
-| `item/started` | yes |
-| `item/agentMessage/delta` | yes |
-| `item/reasoning/delta` | yes |
-| `item/toolCall/argumentsDelta` | yes |
-| `item/commandExecution/outputDelta` | yes |
-| `item/completed` | yes |
-| `item/usage/delta` | yes |
-| `subagent/progress` | yes |
-| `system/event` | yes |
-
-Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thread/deleted`, `thread/statusChanged`, and `thread/runtimeChanged` are **not** part of this thread-subscription delivery rule. They remain workspace-level broadcasts and may be delivered even when the connection is not subscribed to the target thread.
-
-**Rationale**: Without this rule, a connection that both subscribes to a thread and starts a turn on that thread could receive duplicate notifications through multiple delivery paths.
-
-**Ordering guarantee**: The at-most-once rule does not relax the ordering guarantee. The `turn/start` response still arrives before the first `turn/started` notification.
-
-**Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests are resolved only through their normal client response, explicit non-interactive fallback for unsupported/unavailable clients, transport disconnect, or a request-specific timeout such as approval timeout; `thread/unsubscribe` alone must not answer them. Reconnected or returning clients recover state through `thread/read`, fresh history head pages, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
 
 ---
 
@@ -3079,7 +2931,7 @@ The core wire protocol (Sections 3–10) covers the `ISessionService` surface. M
 - Module methods must not reuse a Core method name. If a module method is unavailable because the contributing module is not loaded or cannot operate in the current workspace, the server returns `-32601` (`Method not found`).
 - Server-to-client extension families continue to use the `ext/<namespace>/...` prefix (for example `ext/acp/...`).
 - Client-to-server module methods may use stable product namespaces; they are standard protocol extensions even when implemented by a module instead of Core.
-- `initialize` may advertise extension availability in `capabilities.extensions`. Compatibility top-level capability fields may coexist during migration.
+- `initialize` may advertise extension availability in `capabilities.extensions`.
 - Clients must treat the spec as the source of truth for a documented extension's method names and payloads; implementation location inside the server is not wire-visible.
 - The server must validate method ownership from one authoritative namespace view before dispatch. Core methods and extension methods must not be allowed to conflict, and duplicate extension ownership must fail before the method can be invoked.
 - Built-in capabilities and extension capabilities must be reported consistently during the initialization handshake. Capability aggregation is part of protocol readiness, not a later best-effort discovery step.
@@ -3125,7 +2977,7 @@ Structured delivery path for text and media payloads.
 }
 ```
 
-`message.kind` values standardized in v1:
+`message.kind` values:
 
 - `text`
 - `file`
@@ -3175,7 +3027,7 @@ When `delivered` is `false`, `errorCode` should use a stable string when possibl
 - `AdapterDeliveryFailed`
 - `AdapterProtocolViolation`
 
-#### 11.2.3 `ext/channel/toolCall`
+#### 11.2.2 `ext/channel/toolCall`
 
 Structured runtime tool invocation for adapter-declared channel tools.
 
@@ -3276,7 +3128,7 @@ External channel adapter behavior rules for `ext/channel/toolCall`:
 
 Runtime Dynamic declarations cannot carry `_meta.ui`, and Dynamic results cannot carry `_meta`. MCP Apps resource rendering, AppBridge messages, and view-initiated tool calls use the MCP source/session authority model rather than this callback protocol.
 
-### 11.3 ACP Tool Proxy
+### 11.4 ACP Tool Proxy
 
 The ACP (Agent Client Protocol) integration allows the agent's tools to access the IDE client's filesystem, terminals, and custom extension methods. On the AppServer wire, these map to **server → client** JSON-RPC requests (same bidirectional pattern as `item/approval/request` in [Section 7](#7-approval-flow)): the server sends a request with a numeric `id`; the client responds with a `result` or `error`.
 
@@ -3310,7 +3162,7 @@ The ACP (Agent Client Protocol) integration allows the agent's tools to access t
 }
 ```
 
-`runtimeTools.version` MUST equal `1`. A present capability with a missing or unsupported version, or an invalid descriptor, fails ACP `initialize` with `-32602`. There is no alternate legacy shape. Custom descriptor methods MUST start with `_`; `fs/*` and `terminal/*` descriptors remain gated by their standard ACP client capabilities. The bridge derives custom extension families from the validated descriptor methods and MUST NOT add custom fields such as `extensions` to the root ACP capability object.
+`runtimeTools.version` MUST equal `1`. A present capability with a missing or unsupported version, or an invalid descriptor, fails ACP `initialize` with `-32602`. Custom descriptor methods MUST start with `_`; `fs/*` and `terminal/*` descriptors remain gated by their standard ACP client capabilities. The bridge derives custom extension families from the validated descriptor methods and MUST NOT add custom fields such as `extensions` to the root ACP capability object.
 
 The bridge translates validated descriptors into `thread/start.dynamicTools` and `thread/resume.dynamicTools`. The model-visible tool contract is the Runtime Dynamic Tool spec from [Section 4.1.0](#410-runtime-dynamic-tools); the ACP method remains the private client callback used to execute the tool.
 
@@ -3326,7 +3178,7 @@ Version 1 callbacks return the same result envelope as `item/tool/call`: `succes
 | `terminal/kill` | `ext/acp/terminal/kill` |
 | `terminal/release` | `ext/acp/terminal/release` |
 
-### 11.4 Node REPL Browser Runtime
+### 11.5 Node REPL Browser Runtime
 
 The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`. A native SubAgent full-history fork snapshots the direct parent's live Node REPL transport and connection authority onto the child before its first model sampling; fresh and bounded forks do not. Evaluations use the child thread/session/turn identity, and later parent rebinding does not update the child. The binding remains ephemeral and must be established again through the normal thread resume capability flow after process recovery.
 
@@ -3392,7 +3244,7 @@ The client should return before `timeoutMs` when possible. Browser sub-operation
 
 If no matching in-flight evaluation exists, the client returns `{ "ok": false }`. Cancellation is best-effort: the client should abort pending browser operations, rebuild the thread's REPL context when needed, and ignore any late result from the cancelled evaluation.
 
-### 11.5 Dynamic Workflow Control
+### 11.6 Dynamic Workflow Control
 
 The bundled Dynamic Workflows module exposes a trusted control and projection surface under
 `workflow/run/*`. The domain lifecycle, replay rules, progress semantics, and Desktop presentation are
@@ -3591,7 +3443,7 @@ not mutate the run or emit an invalidation notification.
 
 ### 12.1 Protocol Version
 
-`serverInfo.protocolVersion` is returned by `initialize`.
+`serverInfo.protocolVersion` is returned by `initialize`. Its value is `"1"`.
 
 ### 12.2 Compatibility rules
 
@@ -3696,7 +3548,8 @@ Client                                          Server
   |---------------------------------------------->|
   |                                               |
   | item/approval/resolved (notification)         |
-  |  requestId: "approval_001", approved: true    |
+  |  requestId: "approval_001",                   |
+  |  approved: true, decision: "accept"           |
   |<----------------------------------------------|
   |                                               |
   | item/started (notification)                   |
@@ -3789,7 +3642,7 @@ The default listen address binds to `127.0.0.1` only. Binding to `0.0.0.0` or a 
 Each WebSocket connection is fully independent:
 
 1. Client opens a WebSocket connection to `ws://HOST:PORT/ws` (with optional `?token=` query parameter, see §15.4).
-2. Server accepts the connection and creates a new `AppServerConnection` state object. At this point the connection is **unauthenticated and uninitialized**.
+2. Server accepts the connection and creates fresh per-connection state. At this point the connection is **unauthenticated and uninitialized**.
 3. Client sends `initialize` as the first JSON-RPC message (same as stdio, see §3.1).
 4. Server responds and the standard initialization handshake proceeds.
 5. Normal protocol operation: client sends requests, server sends responses and notifications.
@@ -3896,7 +3749,7 @@ The server sends native WebSocket ping frames every 30 seconds to detect stale c
 
 These methods extend the protocol beyond `ISessionService` to cover server-managed cron job lifecycle. They operate on shared server state that is independent of any session or thread.
 
-Unlike thread/turn methods, cron methods are not scoped to a session, thread, or channel identity. They operate on the server's shared `CronService` singleton. All connections on the same server process observe the same cron state.
+Unlike thread/turn methods, cron methods are not scoped to a session, thread, or channel identity. All connections on the same server process observe the same cron state.
 
 Clients must check `capabilities.cronManagement` in the `initialize` response before calling any `cron/*` method. If the flag is absent or `false`, the server returns `-32601` (method not found).
 
@@ -3964,52 +3817,9 @@ List cron jobs managed by the server.
 |-------|------|----------|-------------|
 | `includeDisabled` | boolean | no | Default `false`. When `true`, disabled jobs are included in the result. |
 
-**Result**:
-
-```json
-{
-  "jobs": [
-    {
-      "id": "9c933b01",
-      "name": "drink water reminder",
-      "schedule": { "kind": "every", "everyMs": 3600000, "atMs": null },
-      "enabled": true,
-      "createdAtMs": 1710590400000,
-      "deleteAfterRun": false,
-      "state": {
-        "nextRunAtMs": 1710594000000,
-        "lastRunAtMs": 1710590400000,
-        "lastStatus": "ok",
-        "lastError": null
-      }
-    }
-  ]
-}
-```
+**Result**: `{ "jobs": CronJobInfo[] }`
 
 **Behavior**: Returns the server's current job list. When `includeDisabled` is `false` (default), only jobs with `enabled: true` are returned.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "cron/list", "id": 50, "params": {
-    "includeDisabled": true
-} }
-
-{ "jsonrpc": "2.0", "id": 50, "result": {
-    "jobs": [
-      {
-        "id": "9c933b01",
-        "name": "drink water reminder",
-        "schedule": { "kind": "every", "everyMs": 3600000, "atMs": null },
-        "enabled": true,
-        "createdAtMs": 1710590400000,
-        "deleteAfterRun": false,
-        "state": { "nextRunAtMs": 1710594000000, "lastRunAtMs": null, "lastStatus": null, "lastError": null }
-      }
-    ]
-} }
-```
 
 ### 16.4 `cron/remove`
 
@@ -4036,16 +3846,6 @@ Permanently remove a cron job from the server.
 | `-32031` | The specified `jobId` does not exist. |
 
 **Behavior**: Removes the job from the server-managed cron set. If the job fires concurrently, removal is applied after the current execution completes.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "cron/remove", "id": 51, "params": {
-    "jobId": "9c933b01"
-} }
-
-{ "jsonrpc": "2.0", "id": 51, "result": { "removed": true } }
-```
 
 ### 16.5 `cron/enable`
 
@@ -4076,28 +3876,7 @@ The `job` field contains the updated `CronJobInfo` object reflecting the new `en
 |------|------|
 | `-32031` | The specified `jobId` does not exist. |
 
-**Behavior**: Updates the job's `enabled` field in the server's in-memory `CronService`. Disabling does not clear `nextRunAtMs`. When enabling, `nextRunAtMs` is updated only as described above. Persists the change to disk immediately.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "cron/enable", "id": 52, "params": {
-    "jobId": "9c933b01",
-    "enabled": false
-} }
-
-{ "jsonrpc": "2.0", "id": 52, "result": {
-    "job": {
-      "id": "9c933b01",
-      "name": "drink water reminder",
-      "schedule": { "kind": "every", "everyMs": 3600000, "atMs": null },
-      "enabled": false,
-      "createdAtMs": 1710590400000,
-      "deleteAfterRun": false,
-      "state": { "nextRunAtMs": 1710594000000, "lastRunAtMs": null, "lastStatus": null, "lastError": null }
-    }
-} }
-```
+**Behavior**: Updates the job's enabled state and persists it immediately. Disabling does not clear `nextRunAtMs`; enabling updates `nextRunAtMs` only as described above.
 
 ### 16.6 `cron/run`
 
@@ -4143,64 +3922,14 @@ Emitted when a cron job's state changes.
 | `cron/run` called | No immediate persisted field changes; completion later emits the normal execution update. |
 | `cron/remove` called | Notifies clients the job no longer exists (see `removed` field). |
 
-**Params**:
-
-```json
-{
-  "job": {
-    "id": "9c933b01",
-    "name": "drink water reminder",
-    "schedule": { "kind": "every", "everyMs": 3600000 },
-    "enabled": true,
-    "createdAtMs": 1710590400000,
-    "deleteAfterRun": false,
-    "state": {
-      "nextRunAtMs": 1710597600000,
-      "lastRunAtMs": 1710594000000,
-      "lastStatus": "ok",
-      "lastError": null,
-      "lastThreadId": "thread_abc123",
-      "lastResult": "提醒：该喝水了！"
-    }
-  },
-  "removed": false
-}
-```
+**Params**: `{ "job": CronJobInfo, "removed": boolean }`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `job` | CronJobInfo | The updated job state. Contains the full `CronJobInfo` DTO reflecting the new state. |
+| `job` | CronJobInfo | The updated job state. |
 | `removed` | boolean | `true` when the notification is triggered by `cron/remove`. When `true`, only `job.id` is guaranteed to be present. |
 
 **Delivery**: Broadcast to all initialized connections that have not opted out of `cron/stateChanged`.
-
-**Example sequence — job completes**:
-
-```
-Server                                          Client
-  |                                               |
-  | [CronService timer fires, AgentRunner runs]   |
-  |                                               |
-  | cron/stateChanged (notification)              |
-  |  job.id: "9c933b01",                          |
-  |  job.state.lastStatus: "ok",                  |
-  |  job.state.lastThreadId: "thread_abc123",     |
-  |  removed: false                               |
-  |---------------------------------------------> |
-```
-
-**Example sequence — job removed**:
-
-```
-Server                                          Client
-  |                                               |
-  | [cron/remove request received]                |
-  |                                               |
-  | cron/stateChanged (notification)              |
-  |  job.id: "9c933b01",                          |
-  |  removed: true                                |
-  |---------------------------------------------> |
-```
 
 ---
 
@@ -4291,79 +4020,9 @@ List all installed skills across all sources.
 |-------|------|----------|-------------|
 | `includeUnavailable` | boolean | no | Default `true`. When `false`, skills with unmet requirements are excluded. |
 
-**Result**:
+**Result**: `{ "skills": SkillInfo[] }`
 
-```json
-{
-  "skills": [
-    {
-      "name": "browser",
-      "description": "Browser automation via Playwright MCP...",
-      "source": "builtin",
-      "available": true,
-      "unavailableReason": null,
-      "enabled": true,
-      "path": "/home/user/project/skills/browser/SKILL.md",
-      "hasVariant": true,
-      "metadata": { "description": "Browser automation via Playwright MCP...", "bins": "npx" }
-    },
-    {
-      "name": "create-hooks",
-      "description": "Create and configure DotCraft lifecycle hooks...",
-      "source": "builtin",
-      "available": true,
-      "unavailableReason": null,
-      "enabled": true,
-      "path": "/home/user/project/skills/create-hooks/SKILL.md",
-      "metadata": { "name": "create-hooks", "description": "Create and configure DotCraft lifecycle hooks..." }
-    },
-    {
-      "name": "my-custom-skill",
-      "description": "Custom workspace skill for this project.",
-      "source": "workspace",
-      "available": true,
-      "unavailableReason": null,
-      "enabled": true,
-      "path": "/home/user/project/skills/my-custom-skill/SKILL.md",
-      "metadata": { "description": "Custom workspace skill for this project." }
-    },
-    {
-      "name": "code-review",
-      "description": "Code review guidelines and procedures.",
-      "source": "user",
-      "available": true,
-      "unavailableReason": null,
-      "enabled": false,
-      "path": "/home/user/.craft/skills/code-review/SKILL.md",
-      "metadata": { "description": "Code review guidelines and procedures." }
-    }
-  ]
-}
-```
-
-**Behavior**: Returns skills from all sources merged by the standard priority rules. Skills may have source `workspace`, `plugin`, `builtin`, or `user`. Plugin skills include `pluginId` and `pluginDisplayName` attribution. Workspace user-owned skills have highest priority, then enabled plugin skills, compatibility built-ins, and user-global skills.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "skills/list", "id": 70, "params": {} }
-
-{ "jsonrpc": "2.0", "id": 70, "result": {
-    "skills": [
-      {
-        "name": "browser",
-        "description": "Browser automation via Playwright MCP...",
-        "source": "builtin",
-        "available": true,
-        "unavailableReason": null,
-        "enabled": true,
-        "path": "/home/user/project/skills/browser/SKILL.md",
-        "hasVariant": true,
-        "metadata": { "description": "Browser automation via Playwright MCP...", "bins": "npx" }
-      }
-    ]
-} }
-```
+**Behavior**: Returns skills from all sources merged by the standard priority rules. Skills may have source `workspace`, `plugin`, `builtin`, or `user`. Plugin skills include `pluginId` and `pluginDisplayName` attribution. Workspace user-owned skills have highest priority, then enabled plugin skills, built-ins, and user-global skills.
 
 ### 18.4 `skills/read`
 
@@ -4403,20 +4062,6 @@ Read the full content of a skill's `SKILL.md` file.
 | `-32040` | The specified skill name does not exist in any source. |
 
 **Behavior**: Loads the resolved skill content according to the server's source-priority rules. Returns the raw markdown content of the `SKILL.md` file and its parsed frontmatter metadata.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "skills/read", "id": 71, "params": {
-    "name": "browser"
-} }
-
-{ "jsonrpc": "2.0", "id": 71, "result": {
-    "name": "browser",
-    "content": "---\ndescription: \"Browser automation...\"\nbins: npx\n---\n\n# Browser Automation\n\n...",
-    "metadata": { "description": "Browser automation...", "bins": "npx" }
-} }
-```
 
 ### 18.5 `skills/view`
 
@@ -4487,26 +4132,9 @@ Enable or disable a skill. Disabled skills remain on disk but are excluded from 
 | `name` | string | yes | Skill name to enable or disable. |
 | `enabled` | boolean | yes | `true` to enable the skill; `false` to disable it. |
 
-**Result**:
+**Result**: `{ "skill": SkillInfo }` — the updated skill reflecting the new `enabled` state.
 
-```json
-{
-  "skill": {
-    "name": "browser",
-    "description": "Browser automation via Playwright MCP...",
-    "source": "builtin",
-    "available": true,
-    "unavailableReason": null,
-    "enabled": false,
-    "path": "/home/user/project/skills/browser/SKILL.md",
-    "metadata": { "description": "Browser automation via Playwright MCP...", "bins": "npx" }
-  }
-}
-```
-
-The `skill` field contains the updated `SkillInfo` object reflecting the new `enabled` state.
-
-On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "skills/setEnabled"` and `regions: ["skills"]`.
+On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "skills/setEnabled"` and `regions: ["skills"]`.
 
 **Errors**:
 
@@ -4517,29 +4145,6 @@ On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-
 **Behavior**: Toggles a skill's enabled state in the server's persisted skill-preference store.
 
 When disabling, the skill is marked unavailable for future agent context resolution. When enabling, that exclusion is removed. If the skill is already in the requested state, the operation is a no-op and returns the current `SkillInfo`.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "skills/setEnabled", "id": 72, "params": {
-    "name": "browser",
-    "enabled": false
-} }
-
-{ "jsonrpc": "2.0", "id": 72, "result": {
-    "skill": {
-      "name": "browser",
-      "description": "Browser automation via Playwright MCP...",
-      "source": "builtin",
-      "available": true,
-      "unavailableReason": null,
-      "enabled": false,
-      "path": "/home/user/project/skills/browser/SKILL.md",
-      "hasVariant": true,
-      "metadata": { "description": "Browser automation via Playwright MCP...", "bins": "npx" }
-    }
-} }
-```
 
 ### 18.8 `skills/uninstall`
 
@@ -4573,7 +4178,7 @@ Uninstall a user-managed source skill.
 | `removedSourcePath` | string | Absolute directory path that was removed. |
 | `removedVariantCount` | number | Number of associated workspace variants removed. |
 
-On success, the server removes the skill from `Skills.DisabledSkills`, deletes associated variants for that source skill, and emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "skills/uninstall"` and `regions: ["skills"]`.
+On success, the server clears any disabled-state record for the skill, deletes associated variants for that source skill, and emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "skills/uninstall"` and `regions: ["skills"]`.
 
 **Errors**:
 
@@ -4584,11 +4189,25 @@ On success, the server removes the skill from `Skills.DisabledSkills`, deletes a
 
 **Behavior**: Only `workspace` and `user` skills are directly uninstallable. `builtin` skills are managed by DotCraft, and `plugin` skills are managed by their owning plugin lifecycle.
 
-### 18.9 Plugin Management Methods
+### 18.9 Error Codes
+
+| Code | Constant | When |
+|------|----------|------|
+| `-32040` | `SkillNotFound` | The requested skill name does not exist in any source (workspace, user, or builtin). |
+
+### 18.10 Capability Advertisement
+
+Clients must check `capabilities.skillsManagement` before calling any `skills/*` method. Clients should additionally check `capabilities.skillVariants` before offering variant-dependent UX such as restoring the original skill; `skills/view` remains available as a source-only effective view when that capability is absent or `false`.
+
+---
+
+## 18B. Plugin and Marketplace Management Methods
+
+### 18B.1 Plugin Management Methods
 
 Clients must check `capabilities.pluginManagement` before calling the `plugin/*` methods in this
 section or relying on `plugin/snapshot/updated`. It does not gate `plugin/config/*`, which answers to
-`capabilities.pluginConfiguration` alone (18.10); the two are independent switches, and a server may
+`capabilities.pluginConfiguration` alone (18B.2); the two are independent switches, and a server may
 offer either without the other. These methods expose local plugin discovery, workspace enablement state,
 in-process .NET runtime state, and serialized lifecycle mutations for Desktop and other UI clients.
 Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are
@@ -4825,23 +4444,23 @@ use.
 `state` is one of `stopped`, `blocked`, `activating`, `active`, `deactivating`, `faulted`, or
 `reclaiming`.
 
-- `blocked` is an admission state, not a failure state: the host knows without running any plugin
-  code that activation must not be attempted, so no load context is created. It is non-terminal and
-  re-evaluated whenever its cause can have changed — a host upgrade, a dependency activating, trust
-  being granted, or the bundle being reinstalled — and each cause is reported as a blocker code.
+- `blocked` is an admission state, not a failure state: the host determined without running plugin
+  code that activation must not be attempted. It is non-terminal and re-evaluated whenever its cause
+  can have changed — a host upgrade, a dependency activating, trust being granted, or the bundle
+  being reinstalled — and each cause is reported as a blocker code.
 - `faulted` means an activation attempt was made and failed. Both `faulted` and `blocked` are
   re-attempted by disabling and re-enabling the plugin through `plugin/setEnabled`.
 - `reclaiming` means the plugin is already functionally deactivated — its contributions are revoked
-  and it routes nothing — while its collectible load context has not yet been collected. Memory
-  reclaim is best-effort and never blocks anything: a reclaiming generation does not prevent a
-  replacement activation of the same id, does not prevent a dependent or provider plugin from
-  stopping, and does not prevent shutdown. Clients treat it as observability, not as a fault, and
-  surface a restart suggestion only when `restartRecommended` is true.
+  and it routes nothing — while the host has not finished releasing its memory. Reclaim never blocks
+  anything: a reclaiming generation does not prevent a replacement activation of the same id, does
+  not prevent a dependent or provider plugin from stopping, and does not prevent shutdown. Clients
+  treat it as observability, not as a fault, and surface a restart suggestion only when
+  `restartRecommended` is true.
 
-Anything other than `trustStatus: "trusted"` keeps `state` at `blocked` with no load context
-created, and is the client's cue to offer the trust confirmation described under
-`plugin/setTrusted`. `modified` means a grant exists for different bytes than the bundle currently
-on disk, so the confirmation must be re-obtained rather than assumed.
+Anything other than `trustStatus: "trusted"` keeps `state` at `blocked` and is the client's cue to
+offer the trust confirmation described under `plugin/setTrusted`. `modified` means a grant exists
+for different bytes than the bundle currently on disk, so the confirmation must be re-obtained
+rather than assumed.
 
 ##### `PluginRuntimeBlocker`
 
@@ -5028,7 +4647,7 @@ rejected with `-32602` (Invalid params) carrying an English fallback message.
 
 #### `plugin/install`
 
-Installs a known catalog plugin into the workspace. Uninstalled bundled plugins are installable when AppServer was launched with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at bundled plugin source roots. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
+Installs a known catalog plugin into the workspace. Uninstalled bundled plugins are installable when the host was started with bundled plugin source roots configured. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
 
 **Params**:
 
@@ -5038,7 +4657,7 @@ Installs a known catalog plugin into the workspace. Uninstalled bundled plugins 
 
 **Result**: `PluginOperationResult`
 
-If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Install never installs, enables, updates, or fetches a dependency, and never grants trust. A newly
 installed `dotnet` plugin therefore returns `applied` with its runtime `blocked` on `PluginUntrusted`
@@ -5058,7 +4677,7 @@ Installs a plugin from a local directory the client points at, for example a plu
 
 Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the workspace; the client must remove the existing plugin before reinstalling.
 
-On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 #### `plugin/remove`
 
@@ -5095,7 +4714,7 @@ Enables or disables an installed plugin for the workspace.
 
 **Result**: `PluginOperationResult`
 
-`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server persists `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server persists the enablement intent, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Enabling a `dotnet` plugin activates it only when every other precondition holds; it does not grant
 trust, so an untrusted plugin returns `applied` with runtime state `blocked`. Disabling persists the
@@ -5179,7 +4798,7 @@ clients may coalesce pending invalidations or suppress the notification through
 `optOutNotificationMethods`. A .NET runtime-only transition advances the revision and emits this
 notification without emitting `workspace/configChanged`.
 
-### 18.10 Plugin Configuration Methods
+### 18B.2 Plugin Configuration Methods
 
 Clients must check `capabilities.pluginConfiguration` before calling these methods.
 `capabilities.pluginManagement` does not gate them. Plugin
@@ -5263,15 +4882,15 @@ Stable plugin configuration errors use AppServer server-error responses with an 
 | `PluginConfigurationWriteFailed` | The atomic locked write failed. |
 
 Invalid persisted configuration is also included as a safe plugin diagnostic. It does not disable
-the AppServer or unrelated plugin contributions. The protocol has no revision, etag, conflict
-payload, secret field, per-plugin size limit, or migration endpoint in v1.
+the AppServer or unrelated plugin contributions. The protocol defines no revision, etag, conflict
+payload, secret field, per-plugin size limit, or migration endpoint.
 
-### 18.11 Marketplace Management Methods
+### 18B.3 Marketplace Management Methods
 
 Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method. These methods manage the plugin marketplace sources available to the user. Source kinds, accepted source syntax, fetch requirements, and security boundaries are defined in [Plugin Registry](../architecture/plugin-registry.md).
 
 Any committed marketplace change visible in an unfiltered `plugin/list` advances its
-`snapshotRevision` and emits `plugin/snapshot/updated` under section 18.9, in addition to the
+`snapshotRevision` and emits `plugin/snapshot/updated` under 18B.1, in addition to the
 operation-specific `workspace/configChanged` notification below.
 
 Marketplace sources are recorded in user-global configuration and are therefore available in every workspace. Adding a marketplace never installs a plugin: its entries become installable catalog items, and installation stays per workspace through `plugin/install`.
@@ -5347,11 +4966,10 @@ Re-fetches one marketplace, or every configured marketplace when `name` is omitt
 
 A failure for one marketplace is reported in `errors` and does not fail the others. The request itself fails only when a named marketplace does not exist. On success the server emits `workspace/configChanged` with `source: "marketplace/refresh"` and `regions: ["plugins"]`.
 
-### 18.12 Error Codes
+### 18B.4 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|
-| `-32040` | `SkillNotFound` | The requested skill name does not exist in any source (workspace, user, or builtin). |
 | `-32093` | `MarketplaceSourceInvalid` | The marketplace source, reference, sparse paths, or resolved marketplace document is not acceptable. |
 | `-32094` | `MarketplaceFetchFailed` | The marketplace could not be fetched or materialized. |
 
@@ -5370,10 +4988,8 @@ Marketplace errors carry structured error data with a stable `code`, a `messageK
 | `MarketplaceFetchTimeout` | The fetch exceeded its time budget. |
 | `MarketplaceFetchFailed` | The fetch or the installed-root replacement failed for another reason. |
 
-### 18.13 Capability Advertisement
+### 18B.5 Capability Advertisement
 
-Clients must check `capabilities.skillsManagement` before calling any `skills/*` method.
-Clients should additionally check `capabilities.skillVariants` before offering variant-dependent UX such as restoring the original skill. `skills/view` may still be available as a source-only effective view when this capability is absent or false.
 Clients must check `capabilities.pluginManagement` before calling a `plugin/*` method other than `plugin/config/get` and `plugin/config/mutate`, which are gated by `capabilities.pluginConfiguration`.
 Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method or relying on `plugin/list.marketplaces`.
 
@@ -5437,19 +5053,6 @@ List the built-in tools the server can expose to the model.
 
 **Behavior**: The server returns its built-in tools sorted by `name` (ordinal). The list is deterministic for a given server build and carries no workspace, thread, or per-connection state. Clients filter the model-visible surface per Agent Profile via `tools.allow` / `tools.deny`; this method only describes what those lists may reference.
 
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "tool/list", "id": 71, "params": { "mode": "plan" } }
-
-{ "jsonrpc": "2.0", "id": 71, "result": {
-    "tools": [
-      { "name": "Exec", "description": "Run a shell command...", "icon": "💻", "source": "builtin", "planMode": true },
-      { "name": "ReadFile", "description": "Read the contents of a file...", "icon": "📄", "source": "builtin", "planMode": true }
-    ]
-} }
-```
-
 ### 18A.4 Capability Advertisement
 
 Clients should check `capabilities.toolCatalog` before calling `tool/list`.
@@ -5474,6 +5077,8 @@ Client-local UX commands are intentionally outside this registry surface and do 
 {
   "name": "/new",
   "aliases": [],
+  "descriptionKey": "cmd.new",
+  "fallbackDescription": "Create a new conversation",
   "description": "Create a new conversation",
   "category": "builtin",
   "requiresAdmin": false
@@ -5486,7 +5091,7 @@ Client-local UX commands are intentionally outside this registry surface and do 
 | `aliases` | string[] | Alternative slash names mapped to the same handler. |
 | `descriptionKey` | string | Stable key for client-side localization. Empty for custom commands without a server key. |
 | `fallbackDescription` | string | English fallback description supplied by the server. |
-| `description` | string | Compatibility alias for `fallbackDescription`; clients should prefer `descriptionKey` + `fallbackDescription`. |
+| `description` | string | Alias of `fallbackDescription`; clients should prefer `descriptionKey` + `fallbackDescription`. |
 | `category` | string | `"builtin"` or `"custom"`. |
 | `requiresAdmin` | boolean | Whether the command requires admin permission. |
 
@@ -5588,7 +5193,7 @@ Clients must check `capabilities.commandManagement` before calling `command/list
 
 ### 19A.1 Scope
 
-These methods expose server-managed host shell processes that may continue after an `Exec` tool call returns. They are pipe-based in v1: clients can read output, write stdin, stop a session, list sessions, and clean all sessions for a thread. Full PTY/curses behavior and sandbox process persistence are outside this version.
+These methods expose server-managed host shell processes that may continue after an `Exec` tool call returns. They are pipe-based: clients can read output, write stdin, stop a session, list sessions, and clean all sessions for a thread. PTY/curses behavior and sandbox process persistence are out of scope.
 
 Clients must check `capabilities.backgroundTerminals` before calling `terminal/*` methods. If absent or `false`, the server returns `-32601` (Method not found).
 
@@ -5849,7 +5454,7 @@ Returns runtime status for all configured social and external channels.
 - `running` reflects current server-observed activity state.
 - `runtimeState` is additive lifecycle detail. Servers emit `stopped` for disabled or stopped channels, `starting` while an enabled external adapter is attaching or retrying, `running` after the adapter handshake completes, and `failed` after the runtime abandons automatic startup retries.
 - `failureCode` is omitted unless a stable failure classification is available. An external adapter that reaches its consecutive-startup-failure limit emits `externalChannelStartFailed`.
-- Clients that understand `runtimeState` must prefer it over inferring lifecycle from `enabled` and `running`. Clients connected to older servers continue to use the two boolean fields.
+- Clients that understand `runtimeState` must prefer it over inferring lifecycle from `enabled` and `running`.
 - Results are sorted by category order (`social` → `external`), then by `name` (ordinal case-insensitive).
 - If the server has no channel status data, the result is an empty `channels` array.
 
@@ -5865,7 +5470,7 @@ Clients must check `capabilities.channelStatus` before calling `channel/status`.
 
 These methods expose personal model provider management and provider model discovery. Provider records are personal configuration; workspace configuration only selects a provider id and model id.
 
-Clients must check `capabilities.providerManagement` before calling `provider/list`, `provider/create`, `provider/update`, `provider/delete`, or `provider/test`. Clients must check `capabilities.modelCatalogManagement` before calling `model/list`. If absent or `false`, the server returns `-32601` (Method not found).
+Clients must check `capabilities.providerManagement` before calling any `provider/*` method and `capabilities.modelCatalogManagement` before calling `model/list`. If absent or `false`, the server returns `-32601` (Method not found).
 
 ### 21.2 `ProviderInfo` Wire DTO
 
@@ -5910,11 +5515,11 @@ Additional capability flags include:
 | Field | Type | Description |
 |-------|------|-------------|
 | `responsesApi` | boolean | Whether the provider protocol uses the OpenAI Responses API surface. |
-| `nativeDeferredToolLoading` | boolean | Whether `Tools.DeferredLoading.Strategy = Native` is protocol-valid for this provider, currently OpenAI Responses and Anthropic beta tool-reference providers. |
+| `nativeDeferredToolLoading` | boolean | Whether native deferred tool loading is protocol-valid for this provider. It is valid for OpenAI Responses and Anthropic beta tool-reference providers. |
 
 ### 21.3 Provider Management Methods
 
-`provider/list` returns explicit personal providers with secrets redacted. It does not synthesize providers from root-level legacy LLM fields.
+`provider/list` returns explicit personal providers with secrets redacted. Only configured personal providers are returned; the server never synthesizes one.
 
 `provider/create` params:
 
@@ -6012,7 +5617,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `supportedModes` | string[] | Ordered modes supported by the model. Fast-capable entries contain `standard` and `fast`. |
-| `defaultMode` | string | Default mode, currently `standard`. |
+| `defaultMode` | string | Default mode: `standard`. |
 
 `reasoning` fields:
 
@@ -6205,13 +5810,13 @@ Creates or replaces one workspace-origin MCP server definition. Clients MUST NOT
 - Upsert replaces the full logical server entry.
 - Persistence shape and storage location are server-defined, but only workspace-origin servers are persisted to workspace config.
 - If the target name currently resolves to a plugin-origin server, the server returns `McpServerReadOnly`.
-- On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "mcp/upsert"` and `regions: ["mcp"]`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "mcp/upsert"` and `regions: ["mcp"]`.
 
 ### 22.6 `mcp/remove`
 
 Removes one workspace-origin MCP server definition by name. Removing a plugin-origin server returns `McpServerReadOnly`; plugin-bundled MCP is controlled through plugin install/enable/remove lifecycle, not MCP settings persistence.
 
-On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "mcp/remove"` and `regions: ["mcp"]`.
+On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "mcp/remove"` and `regions: ["mcp"]`.
 
 ### 22.7 Runtime identity and origin
 
@@ -6532,7 +6137,7 @@ Returns current hook metadata plus non-fatal discovery warnings and errors.
 
 ### 22A.4 `hooks/setState`
 
-Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. This avoids committing personal trust or disable choices to workspace config. Clients should use this for user/workspace hook controls and compatibility flows; plugin hook UIs should prefer `hooks/trustPlugin` for trust.
+Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. This avoids committing personal trust or disable choices to workspace config. Clients should use this for user and workspace hook controls; plugin hook UIs should prefer `hooks/trustPlugin` for trust.
 
 **Params**:
 
@@ -6578,7 +6183,7 @@ Trusts all current hooks declared by one enabled plugin. The server writes each 
 
 These methods provide a server-authoritative read/write path for external channel configuration.
 
-Clients must check `capabilities.externalChannelManagement` before calling `externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, or `externalChannel/logs`. If absent or `false`, the server returns `-32601` (Method not found).
+Clients must check `capabilities.externalChannelManagement` before calling any `externalChannel/*` method. If absent or `false`, the server returns `-32601` (Method not found).
 
 ### 23.2 `ExternalChannelConfig` Wire DTO
 
@@ -6667,13 +6272,13 @@ Creates or replaces one external channel definition.
 - Upsert replaces the full logical channel entry.
 - Upsert is an explicit configuration mutation. When the entry is active, replacement may stop the current host and create a new one; clients must not use this method to restore display state after reconnecting to AppServer.
 - Persistence shape and storage location are server-defined.
-- On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
 
 ### 23.6 `externalChannel/remove`
 
 Removes one external channel definition by name.
 
-On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "externalChannel/remove"` and `regions: ["externalChannel"]`.
+On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "externalChannel/remove"` and `regions: ["externalChannel"]`.
 
 ### 23.7 `externalChannel/logs`
 
@@ -6715,7 +6320,7 @@ If the host has no external channel log provider, the server returns `-32601` (M
 
 These methods manage ordinary Agent Profile Markdown files. Agent Profiles are distinct from SubAgent launcher profiles; they compile into `ThreadConfiguration` snapshots for ordinary `thread/start` and reusable task runtimes.
 
-Clients should check `capabilities.agentProfileManagement` before calling `agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, or `agent/profiles/builderDraft/update`.
+Clients should check `capabilities.agentProfileManagement` before calling any `agent/profiles/*` method.
 
 Profile sources:
 
@@ -6973,7 +6578,7 @@ Replaces the server-side working draft for a bound builder thread. Clients use t
 
 These methods provide a server-authoritative read/write path for workspace SubAgent profile configuration.
 
-Clients must check `capabilities.subAgentManagement` before calling `subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, or `subagent/profiles/remove`. If absent or `false`, the server returns `-32601` (Method not found).
+Clients must check `capabilities.subAgentManagement` before calling any `subagent/profiles/*` or `subagent/settings/*` method. If absent or `false`, the server returns `-32601` (Method not found).
 
 ### 24.2 `SubAgentProfileWrite` Wire DTO
 
@@ -7089,7 +6694,7 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
 `settings.externalCliSessionResumeEnabled` is the workspace-scoped toggle that controls whether supported external CLI profiles may reuse saved external session ids.
 `settings.providerPreferences` contains complete native SubAgent preferences keyed by provider id. A missing entry inherits the parent thread's complete MainAgent preference.
 `settings.minWaitTimeoutMs`, `settings.defaultWaitTimeoutMs`, and `settings.maxWaitTimeoutMs` define the configured `WaitAgent(timeoutMs?)` range in milliseconds. Omitted `timeoutMs` uses the default; explicit values outside the configured range are rejected rather than clamped.
-`SubAgent.MaxDepth` defaults to `1`, so root threads can spawn first-level SubAgents but child SubAgents cannot recursively call `SpawnAgent` unless the workspace explicitly raises the depth limit and the selected role exposes Agent control.
+The default SubAgent depth limit is `1`, so root threads can spawn first-level SubAgents but child SubAgents cannot recursively call `SpawnAgent` unless the workspace raises the limit and the selected role exposes Agent control.
 
 ### 24.5 `subagent/settings/update`
 
@@ -7117,10 +6722,9 @@ Update workspace-level SubAgent settings.
 **Semantics**:
 
 - clients may send `externalCliSessionResumeEnabled`, `providerPreferences`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
-- `externalCliSessionResumeEnabled` updates `SubAgent.EnableExternalCliSessionResume`
-- `providerPreferences` replaces `SubAgent.ProviderPreferences`; an empty map clears the section
+- `providerPreferences` replaces the whole workspace map; an empty map clears it
 - each record is normalized as a complete unit; an invalid model, reasoning selection, speed value, or context-window selection rejects the request without writing
-- `minWaitTimeoutMs`, `defaultWaitTimeoutMs`, and `maxWaitTimeoutMs` update `SubAgent.MinWaitTimeoutMs`, `SubAgent.DefaultWaitTimeoutMs`, and `SubAgent.MaxWaitTimeoutMs`; each value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
+- each `*WaitTimeoutMs` value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
 - on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
@@ -7140,7 +6744,6 @@ Enable or disable one profile for the current workspace.
 
 **Semantics**:
 
-- updates `SubAgent.DisabledProfiles`
 - returns the updated `SubAgentProfileEntry`
 - `native` is protected and cannot be disabled
 - on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/profiles/setEnabled"` and `regions: ["subagent"]`
@@ -7334,7 +6937,7 @@ Params:
 
 These methods provide a server-authoritative write path for workspace-level configuration values.
 
-In v1, the wire surface standardizes workspace model persistence while keeping per-thread overrides in `thread/config/update`.
+This surface standardizes workspace model persistence; per-thread overrides stay in `thread/config/update`.
 
 Clients must check `capabilities.workspaceConfigManagement` in `initialize` before calling workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). If absent or `false`, the server returns `-32601` (Method not found).
 
@@ -7432,14 +7035,9 @@ Update workspace-level config values.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
 - At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
-- Key matching is case-insensitive and normalized in-place (`ProviderId`, `ProviderPreferences`, and nested sections).
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
 - Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
-- When `skillsSelfLearningEnabled` is provided, the server writes the boolean to the nested `Skills.SelfLearning.Enabled` key. Setting it to `null` removes the leaf, and the server prunes empty `Skills.SelfLearning` / `Skills` objects when no other keys remain.
-- When `memoryAutoConsolidateEnabled` is provided, the server writes the boolean to `Memory.AutoConsolidateEnabled`. Setting it to `null` removes the leaf, and the server prunes the empty `Memory` object when no other keys remain.
-- When Dreams fields are provided, the server writes them to `Dreams.Enabled`, `Dreams.Interval`, `Dreams.ThreadLookbackCount`, and `Dreams.AutoApply`. Setting a field to `null` removes that leaf, and the server prunes the empty `Dreams` object when no other keys remain.
-- When `defaultApprovalPolicy` is provided, the server writes the value to `Permissions.DefaultApprovalPolicy`. Setting it to `null` removes the leaf, and the server prunes the empty `Permissions` object when no other keys remain.
-- When `toolsLspEnabled` is provided, the server writes the boolean to `Tools.Lsp.Enabled`. Setting it to `null` removes the leaf, and the server prunes empty `Tools.Lsp` / `Tools` objects when no other keys remain.
+- A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.
 - Each preference must contain a non-empty model and valid enum values. Unsupported reasoning selections are repaired to catalog defaults, unsupported `max` is reset to `default`, and `fast` may remain stored even when the selected model executes it as `standard`.
 - On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
 
@@ -7467,29 +7065,11 @@ Server notification emitted after a successful workspace configuration write.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/config/mutate`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
+| `source` | string | Name of the RPC method that triggered the mutation. Each method's own section states the `source` and `regions` values it emits. |
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
-Current `regions` taxonomy:
-
-| Region | Fired by |
-|--------|----------|
-| `providers` | `provider/create`, `provider/update`, `provider/delete` |
-| `workspace.provider` | `workspace/config/update` |
-| `workspace.providerPreferences` | `workspace/config/update` |
-| `welcomeSuggestions` | `workspace/config/update` |
-| `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
-| `plugins` | `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh` |
-| `plugins.config` | `plugin/config/mutate` |
-| `memory` | `workspace/config/update`, `memory/reset` |
-| `workspace.defaultApprovalPolicy` | `workspace/config/update` |
-| `lsp` | `workspace/config/update`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |
-| `mcp` | `mcp/upsert`, `mcp/remove`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |
-| `hooks` | `hooks/setState`, `hooks/trustPlugin`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |
-| `externalChannel` | `externalChannel/upsert`, `externalChannel/remove` |
-| `subagent` | `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove` |
-| `sourceControl` | `sourceControl/update` |
+Defined region tags: `providers`, `workspace.provider`, `workspace.providerPreferences`, `workspace.defaultApprovalPolicy`, `welcomeSuggestions`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
 
 Semantics:
 
@@ -7497,20 +7077,15 @@ Semantics:
 - Payload is intentionally coarse; clients should re-read relevant state (`skills/list`, `mcp/list`, etc.) when needed.
 - Unknown region tags are forward-compatible and must be ignored by clients that do not recognize them.
 
-### 25.6 Backward Compatibility
-
-- Clients that set `capabilities.configChange = false` are supported indefinitely and simply do not receive `workspace/configChanged` on that connection.
-- Older servers may not emit `workspace/configChanged`; clients must tolerate its absence and rely on existing refresh paths.
-
 ## 25A. Source Control Methods
 
 ### 25A.1 Scope
 
-These methods bind a workspace to a source control provider, validate provider connectivity, and expose the current v1 Perforce pending-changelist workflow. They cover **selection, connection configuration, connectivity testing, workspace binding, thread-scoped Perforce write target selection, pending changelist creation, and changelist preparation**. They do **not** submit, shelve, or implement a general-purpose version control console.
+These methods bind a workspace to a source control provider, validate provider connectivity, and expose the Perforce pending-changelist workflow. They cover **selection, connection configuration, connectivity testing, workspace binding, thread-scoped Perforce write target selection, pending changelist creation, and changelist preparation**. They do **not** submit, shelve, or implement a general-purpose version control console.
 
 Connectivity testing runs in the **AppServer environment** with the workspace path as the working directory, so results reflect the machine, PATH, and credential context that actually owns the workspace (correct for both local and remote AppServers). Clients never execute `p4` locally.
 
-Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`, `sourceControl/changelist/*`, `sourceControl/threadTarget/*`). If absent or `false`, the server returns `-32601` (Method not found). Clients must also check `sourceControl/get.capabilities.perforceChangelist` before showing Perforce changelist UI; it is false while the Perforce binding is offline, and `perforceShelve`/`perforceSubmit` remain `false` in this version.
+Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`, `sourceControl/changelist/*`, `sourceControl/threadTarget/*`). If absent or `false`, the server returns `-32601` (Method not found). Clients must also check `sourceControl/get.capabilities.perforceChangelist` before showing Perforce changelist UI; it is false while the Perforce binding is offline.
 
 Credentials are never persisted: `sourceControl/update` rejects any password field, and the `password` supplied to `sourceControl/test` is transient (used only for a one-shot login attempt, never written to config and never echoed in results or logs). Long-lived Perforce authentication relies on the server-side ticket (`P4TICKETS`).
 
@@ -7555,12 +7130,12 @@ Return the effective source control binding snapshot for the current workspace.
 | Field | Type | Description |
 |-------|------|-------------|
 | `provider` | string | User-selected provider: `none`, `git`, or `perforce` (default `git`). |
-| `effectiveProvider` | string | Resolved provider; equals `provider` in this version because source control has no auto-detection. |
+| `effectiveProvider` | string | Resolved provider. It equals `provider`; source control has no auto-detection. |
 | `connectionMode` | string \| null | Perforce connection mode: `p4config` or `manual`. Null for non-Perforce providers. |
 | `status` | string | Derived binding status (see [25A.9](#25a9-status-and-error-taxonomy)). `sourceControl/get` never runs `p4`; live connectivity comes from `sourceControl/test`. |
 | `workspacePath` | string | Absolute workspace path owned by this AppServer. |
 | `perforce` | object \| null | Non-sensitive Perforce connection fields. Null when no Perforce config exists. Never contains a password or ticket. |
-| `capabilities` | object | Booleans gating client UI. `perforceChangelist` is `true` only when `effectiveProvider` is `perforce` and `perforce.online` is true; `perforceShelve` and `perforceSubmit` are always `false` in this version. `gitCommit` is `true` only when `effectiveProvider` is `git`. |
+| `capabilities` | object | Booleans gating client UI. `perforceChangelist` is `true` only when `effectiveProvider` is `perforce` and `perforce.online` is true; `perforceShelve` and `perforceSubmit` are `false`, because this protocol defines neither shelve nor submit. `gitCommit` is `true` only when `effectiveProvider` is `git`. |
 
 **Semantics**:
 
@@ -7601,7 +7176,7 @@ Validate Perforce connectivity in the AppServer environment and return a structu
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `provider` | string | yes | Must be `perforce` in this version. |
+| `provider` | string | yes | Must be `perforce`. |
 | `connectionMode` | string \| null | no | `p4config` or `manual`. |
 | `perforce` | object \| null | no | Same non-sensitive fields as `sourceControl/update`. Used to override environment/`P4CONFIG` for this test only. |
 | `password` | string \| null | no | Transient. Used only for a one-shot `p4 login` attempt when a ticket is missing. Never persisted, never returned, never logged. |
@@ -7654,14 +7229,13 @@ Validate Perforce connectivity in the AppServer environment and return a structu
 
 **Semantics**:
 
-- The server resolves the `p4` executable (params `p4ExecutablePath`, else the AppServer `PATH`), then runs a read-only sequence in the workspace directory: version probe, `p4 info`, `p4 login -s`, `p4 client -o`, and a client-root containment check followed by a `p4 where <workspace>/...` view-mapping probe. The recursive `/...` spec is required because `p4 where` resolves a bare directory as a single (unmapped) file, which would misreport a healthy workspace root as `WorkspaceNotMapped`. Connection parameters are passed as global options (`-p`/`-c`/`-u`/`-C`/`-d`) ahead of each command.
-- Each step maps failures to a `code` in [25A.9](#25a9-status-and-error-taxonomy). Raw `p4` stderr is never the primary message and is redacted of any credential-bearing content.
-- SSL trust is reported as `SSLTrustRequired`; this version surfaces it but does not run `p4 trust` from the UI.
+- The test is read-only. It resolves the Perforce client program (`p4ExecutablePath` when supplied, otherwise the AppServer environment) and then checks, in order: the program is usable, the server is reachable, the ticket is valid, the named client exists, and the workspace path is both inside the client root and mapped by the client view. The first failing check determines `status` and `code` ([25A.9](#25a9-status-and-error-taxonomy)); raw provider stderr is never the primary message and is redacted of credential-bearing content.
+- Missing SSL trust is reported as `SSLTrustRequired`. The server reports it and does not establish trust on the user's behalf.
 - The `password`, if provided, is passed to `p4 login` via stdin only and discarded immediately.
 
 ### 25A.5 Thread Target Shape
 
-Perforce changelist targets are thread-scoped. The server stores them in `SessionThread.Metadata` using server-owned keys such as `sourceControl.provider = "perforce"` and `sourceControl.perforce.changelist = "default" | "<number>"`. Clients read/write them only through the RPCs below; handlers must not mutate persisted thread state directly outside `ISessionService`.
+Perforce changelist targets are thread-scoped and persisted with the thread. Clients read and write them only through the RPCs below.
 
 `SourceControlThreadTarget`:
 
@@ -7674,7 +7248,7 @@ Perforce changelist targets are thread-scoped. The server stores them in `Sessio
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `provider` | string | Currently `perforce`. |
+| `provider` | string | `perforce`. |
 | `changelist` | string | `"default"` or a numbered pending changelist id encoded as a string, e.g. `"12345"`. Clients must not send numbers. |
 
 New and ordinary threads default to `{ provider: "perforce", changelist: "default" }` when the workspace provider is Perforce. Forked threads must not inherit an existing Perforce target to avoid unintentionally sharing a pending changelist across separate work streams.
@@ -7700,7 +7274,7 @@ Result: `{ "target": SourceControlThreadTarget }`
 
 Result: `{ "target": SourceControlThreadTarget }`
 
-On update, the server persists via `ISessionService` and emits `thread/updated`. Clients merge the returned target and the broadcast thread metadata. Changelist existence is validated by operations that need a live Perforce server; a bare target update is a metadata write.
+On update, the server persists the target and emits `thread/updated`. Clients merge the returned target and the broadcast thread metadata. Changelist existence is validated by operations that need a live Perforce server; a bare target update is a metadata write.
 
 ### 25A.7 `sourceControl/changelist/list`
 
@@ -7724,11 +7298,11 @@ List the default changelist plus the current user/client's pending numbered Perf
 }
 ```
 
-The server synthesizes the `default` entry and obtains numbered entries with `p4 -ztag changes -s pending -u <user> -c <client>` using the AppServer Perforce connection settings. Live changelist RPCs require `effectiveProvider = "perforce"` and `perforce.online = true`; when offline, the server must not run `p4` and should reject live changelist operations as unavailable.
+The server synthesizes the `default` entry and reads numbered pending changelists for the configured user and client using the AppServer Perforce connection settings. Live changelist RPCs require `effectiveProvider = "perforce"` and `perforce.online = true`; when offline, the server must not run `p4` and should reject live changelist operations as unavailable.
 
 ### 25A.8 `sourceControl/changelist/create` and `sourceControl/changelist/prepare`
 
-`sourceControl/changelist/create` creates a numbered pending changelist with `p4 change -i`.
+`sourceControl/changelist/create` creates a numbered pending changelist.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -7771,18 +7345,17 @@ Result:
 
 Prepare semantics:
 
-- If target is `"default"`, the server creates a numbered pending changelist and then moves this thread's opened files into it with `p4 reopen -c <change> <paths>`. On success it updates the thread target to the new id and emits `thread/updated`.
-- If target is a numbered changelist, the server confirms it exists with `p4 change -o <change>`, moves all provided opened files that are not already in the target into it with `p4 reopen -c <change> <paths>`, and then updates its description when provided. Files already opened in a different pending changelist are moved because `sourceControl/changelist/prepare` is an explicit user checkout/prepare action. If moving files succeeds but the description update fails, the result is an error that still reports the target changelist and moved paths.
+- If target is `"default"`, the server creates a numbered pending changelist and moves this thread's opened files into it. On success it updates the thread target to the new id and emits `thread/updated`.
+- If target is a numbered changelist, the server confirms it exists, moves every supplied opened file that is not already in the target into it, and then updates its description when provided. Files already opened in a different pending changelist are moved because `sourceControl/changelist/prepare` is an explicit user checkout/prepare action. If moving files succeeds but the description update fails, the result is an error that still reports the target changelist and moved paths.
 - Files that are already in the target changelist are left as-is. Files that are not opened are ignored for movement unless Perforce reports an error while reading opened state.
 - Stable result/error codes include `Prepared`, `Created`, `NoFiles`, `Timeout`, `LoginRequired`, `ChangelistNotFound`, `FileAlreadyInOtherChangelist`, `P4ExecutableNotFound`, and `P4CommandFailed`.
 
 Tool write coordination:
 
 - When the effective workspace provider is `perforce` and source control is online, AppServer file tools coordinate writes against the current thread target.
-- Existing mapped files are opened with `p4 edit -c <target>` before `WriteFile`/`EditFile` writes. New files are added with `p4 add -c <target>` after a successful write.
+- Existing mapped files are opened for edit in the target changelist before `WriteFile`/`EditFile` writes. New files are added to the target changelist after a successful write.
 - If the target is a numbered changelist that no longer exists, the write fails with a stable source-control error and the client should ask the user to choose another target.
 - Files already opened in a different pending numbered changelist are not reopened by ordinary write coordination; the write may continue with a warning so user-owned changelist membership is preserved. Explicit `sourceControl/changelist/prepare` may move them into the selected target.
-- This protocol version does not define a general delete file tool. Future delete-type operations under Perforce MUST use `p4 delete -c <target>`.
 
 ### 25A.9 Status and Error Taxonomy
 
@@ -7805,7 +7378,7 @@ Codes are stable wire contracts; servers emit `code` plus an English `fallbackTe
 
 ### 25A.10 Capability Advertisement
 
-Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline; `perforceShelve` and `perforceSubmit` remain false. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
+Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
 
 ## 26. Memory Management Methods
 
@@ -8087,20 +7660,6 @@ When there are no traced sessions yet, every numeric field is `0`.
 | Code | When |
 |------|------|
 | `-32601` | Tracing is disabled on this server (no trace store available). |
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "usage/summary", "id": 70, "params": {} }
-
-{ "jsonrpc": "2.0", "id": 70, "result": {
-    "sessionCount": 12,
-    "totalInputTokens": 1840221,
-    "totalOutputTokens": 96540,
-    "cacheHitRate": 0.8162,
-    "totalTokens": 1936761
-} }
-```
 
 ### 27A.3 `usage/timeseries`
 

@@ -53,7 +53,7 @@ function samePath(a: string, b: string): boolean {
  *
  * `folders[0]` is always the primary (default folder for new chats and project
  * discovery); "Make primary" reorders a folder to the front so presentation order
- * stays stable (see specs/features/multi-folder-projects.md). Create allows either
+ * stays stable. Create allows either
  * a from-scratch name (no folders) or attached existing folders; a blank name
  * defaults to the primary folder's name.
  *

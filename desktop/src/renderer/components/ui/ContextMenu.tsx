@@ -50,7 +50,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   const menuPadding = 8
   // The submenu meets the parent edge-to-edge (a ~1px seam, not an obvious overlap
   // that covers the parent); that meeting edge takes a hairline — the only border on
-  // an ordinary overlay. See specs/architecture/DESIGN.md.
+  // an ordinary overlay.
   const submenuOverlap = 1
   const visibleItemCount = items.filter((item) => item.type !== 'separator').length
   const separatorCount = items.length - visibleItemCount

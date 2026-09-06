@@ -44,8 +44,6 @@
   font-size: 12px;
 }
 
-/* Catalog top bars run their own shorter, rounder band; see the Catalog Toolbar
-   Band section in specs/architecture/DESIGN.md. */
 .dc-button[data-size="toolbar"] {
   height: var(--toolbar-control-height);
   padding: 0 8px;

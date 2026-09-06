@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1 |
-| Status | Accepted |
+| Version | 1.1.0 |
+| Status | Living |
 | Date | 2026-08-09 |
-| Parent Spec | `specs/architecture/DESIGN.md` |
+| Parent Spec | [Desktop Design System](DESIGN.md) |
 
 ## Overview
 

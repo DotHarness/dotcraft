@@ -1,10 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
-/**
- * Intent variants drive the action hierarchy; see Actions in specs/architecture/DESIGN.md.
- * Buttons are frameless by default and `outline` is the only bordered variant.
- */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
 
 /**

@@ -1,6 +1,10 @@
 # Desktop E2E and developer debugging
 
-**Status:** Accepted
+| Field | Value |
+|---|---|
+| Version | 1.0.0 |
+| Status | Living |
+| Date | 2026-08-29 |
 
 This specification defines the local automation boundary for DotCraft Desktop. It covers explicit Chrome DevTools Protocol (CDP) startup, a hot-pluggable renderer driver, and non-owning Playwright CLI attachment. It does not define a CI suite.
 

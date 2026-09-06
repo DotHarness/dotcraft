@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.16.0 |
+| **Version** | 0.17.0 |
 | **Status** | Living |
 | **Date** | 2026-09-06 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -15,30 +15,97 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 ## Table of Contents
 
 - [1. Scope](#1-scope)
+  - [1.1 What This Spec Defines](#11-what-this-spec-defines)
+  - [1.2 What This Spec Does Not Define](#12-what-this-spec-does-not-define)
 - [2. Goals and Non-Goals](#2-goals-and-non-goals)
+  - [2.1 Goals](#21-goals)
+  - [2.2 Non-Goals](#22-non-goals)
 - [3. Connection and Session Lifecycle](#3-connection-and-session-lifecycle)
+  - [3.1 Workspace Entry](#31-workspace-entry)
+  - [3.1.1 Local and Remote AppServer Ownership](#311-local-and-remote-appserver-ownership)
+  - [3.2 Connection States](#32-connection-states)
+  - [3.3 Initial Load](#33-initial-load)
+  - [3.4 Reconnection](#34-reconnection)
+  - [3.5 Workspace Switching](#35-workspace-switching)
+  - [3.6 Multiple Windows](#36-multiple-windows)
+  - [3.7 Projects Rail, Thread Navigation, and Secondary Connections](#37-projects-rail-thread-navigation-and-secondary-connections)
 - [4. Protocol Event to UX Behavior](#4-protocol-event-to-ux-behavior)
+  - [4.1 Thread Events](#41-thread-events)
+  - [4.2 Turn Events](#42-turn-events)
+  - [4.3 Item Events](#43-item-events)
+  - [4.4 Approval Events](#44-approval-events)
+  - [4.4.1 User Input Request Events](#441-user-input-request-events)
+  - [4.5 Supplemental Events](#45-supplemental-events)
+  - [4.6 General Rules](#46-general-rules)
 - [5. Core Interaction Flows](#5-core-interaction-flows)
+  - [5.1 Open a Workspace](#51-open-a-workspace)
   - [5.1.1 Welcome Suggestions](#511-welcome-suggestions)
+  - [5.1.2 Workspace Setup](#512-workspace-setup)
+  - [5.2 Start a New Conversation](#52-start-a-new-conversation)
   - [5.3 Resume or Open an Existing Thread](#53-resume-or-open-an-existing-thread)
-    - [5.3.1 Desktop Thread Restore Pipeline](#531-desktop-thread-restore-pipeline)
-    - [5.3.2 Interactive Request Restore](#532-interactive-request-restore)
-    - [5.3.3 Snapshot and Realtime Reconciliation](#533-snapshot-and-realtime-reconciliation)
-    - [5.3.4 Backend Verification Gate](#534-backend-verification-gate)
+  - [5.3.1 Desktop Thread Restore Pipeline](#531-desktop-thread-restore-pipeline)
+  - [5.3.2 Interactive Request Restore](#532-interactive-request-restore)
+  - [5.3.3 Snapshot and Realtime Reconciliation](#533-snapshot-and-realtime-reconciliation)
+  - [5.3.4 Backend Verification Gate](#534-backend-verification-gate)
+  - [5.3.5 Open a Thread from a Workspace-owned product surface](#535-open-a-thread-from-a-workspace-owned-product-surface)
+  - [5.4 Send a Message](#54-send-a-message)
+  - [5.5 Input Rules](#55-input-rules)
+  - [5.6 Approval Handling](#56-approval-handling)
+  - [5.7 User Input Request Handling](#57-user-input-request-handling)
   - [5.8 View Changes, Plans, and Tool Output](#58-view-changes-plans-and-tool-output)
     - [5.8.1 Trusted Local Renderers](#581-trusted-local-renderers)
     - [5.8.2 MCP Apps Interactive Tool Views](#582-mcp-apps-interactive-tool-views)
     - [5.8.3 Inline Assistant Visualizations](#583-inline-assistant-visualizations)
+  - [5.9 Interrupt a Running Turn](#59-interrupt-a-running-turn)
+  - [5.10 Archive and Delete](#510-archive-and-delete)
+  - [5.11 Cross-Channel Visibility](#511-cross-channel-visibility)
+  - [5.11.1 Thread Fork And Worktree Handoff](#5111-thread-fork-and-worktree-handoff)
+  - [5.12 Manage Thread Goal](#512-manage-thread-goal)
+  - [5.13 Composer System Actions](#513-composer-system-actions)
+  - [5.14 Desktop Runtime Thread Tools](#514-desktop-runtime-thread-tools)
 - [6. Secondary Flows](#6-secondary-flows)
-- [6.7 Settings Surface](#67-settings-surface)
-- [6.8 Channel Modules](#68-channel-modules)
-- [6.9 What's New](#69-whats-new)
-- [6.10 Remote Servers](#610-remote-servers)
-- [6.11 Satellites](#611-satellites)
+  - [6.1 Plugins and Skills](#61-plugins-and-skills)
+    - [6.1.1 Plugin creation and marketplace sources](#611-plugin-creation-and-marketplace-sources)
+    - [6.1.2 Plugin app connection and conversation binding](#612-plugin-app-connection-and-conversation-binding)
+    - [6.1.3 Desktop Plugins](#613-desktop-plugins)
+  - [6.2 Automations](#62-automations)
+  - [6.3 Cron Jobs](#63-cron-jobs)
+  - [6.4 Cron Run Review](#64-cron-run-review)
+  - [6.5 Model Selection](#65-model-selection)
+  - [6.6 Archived chats](#66-archived-chats)
+  - [6.7 Settings Surface](#67-settings-surface)
+  - [6.8 Channel Modules](#68-channel-modules)
+    - [6.8.1 Discovery and Identity](#681-discovery-and-identity)
+    - [6.8.2 Configuration Workflow](#682-configuration-workflow)
+    - [6.8.3 Enable, Disable, and Runtime Expectations](#683-enable-disable-and-runtime-expectations)
+    - [6.8.4 Module Status Semantics](#684-module-status-semantics)
+    - [6.8.5 Interactive Setup and QR-like Flows](#685-interactive-setup-and-qr-like-flows)
+    - [6.8.6 Variants](#686-variants)
+    - [6.8.7 Refresh and Startup Restore](#687-refresh-and-startup-restore)
+    - [6.8.8 Diagnostics and Preconditions](#688-diagnostics-and-preconditions)
+  - [6.9 What's New](#69-whats-new)
+  - [6.10 Remote Servers](#610-remote-servers)
+  - [6.11 Satellites](#611-satellites)
+  - [6.12 Agent Builder](#612-agent-builder)
 - [7. Keyboard Accessibility and Localization](#7-keyboard-accessibility-and-localization)
+  - [7.1 Keyboard Expectations](#71-keyboard-expectations)
+  - [7.2 Accessibility](#72-accessibility)
+  - [7.3 Localization](#73-localization)
 - [8. Error Handling and Recovery](#8-error-handling-and-recovery)
+  - [8.1 Connection Errors](#81-connection-errors)
+  - [8.2 Thread Errors](#82-thread-errors)
+  - [8.3 Turn Errors](#83-turn-errors)
+  - [8.4 Approval Errors](#84-approval-errors)
+  - [8.5 Input and Attachment Errors](#85-input-and-attachment-errors)
+  - [8.6 Automation Errors](#86-automation-errors)
 - [9. Non-Functional UX Requirements](#9-non-functional-ux-requirements)
-- [10. Phase 2 Reserved Surface](#10-phase-2-reserved-surface)
+  - [9.1 Responsiveness](#91-responsiveness)
+  - [9.2 Reliability](#92-reliability)
+  - [9.3 Platform Coverage](#93-platform-coverage)
+  - [9.4 Accessibility and Readability](#94-accessibility-and-readability)
+- [10. Auxiliary Surfaces](#10-auxiliary-surfaces)
+  - [10.1 Viewer Panel](#101-viewer-panel)
+  - [10.2 Browser Automation](#102-browser-automation)
 
 ---
 
@@ -86,15 +153,13 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Acting as a full IDE, terminal emulator, or general-purpose file browser.
 - Freezing a specific visual layout or frontend architecture.
 - Defining remote plugin UI, mobile UX, or future task-board behavior in detail.
-- Aggregating multiple remote workspaces in the background. Remote projects are foreground-only in this version.
+- Aggregating multiple remote workspaces in the background. Remote projects are foreground-only.
 
 ---
 
 ## 3. Connection and Session Lifecycle
 
-Desktop is a host adapter over the TypeScript SDK. Electron Main owns one or more `@dotcraft/sdk/wire` and `@dotcraft/sdk/hub` clients; Preload exposes the authorized IPC projection; Renderer never opens an AppServer or Hub transport. Desktop does not maintain a parallel JSON-RPC or Hub implementation.
-
-Known AppServer request, result, notification, and server-request payloads use generated `@dotcraft/sdk/contracts` types across Main, Preload, and Renderer. Desktop Plugin calls use the same typed connection routing and remain scoped to the foreground workspace.
+Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transports are owned by the trusted host side of the application; the UI reaches them only through an authorized projection and never opens a transport itself. Desktop does not maintain a parallel JSON-RPC or Hub implementation, and it consumes the generated protocol contracts rather than restating payload shapes locally. Desktop Plugin calls use the same connection routing and remain scoped to the foreground workspace.
 
 ### 3.1 Workspace Entry
 
@@ -176,14 +241,14 @@ Ordinary remote initialization uses a fifteen-second timeout. A temporary connec
 - Local project rows use local workspace identity. Remote project rows use remote identity and distinct local-vs-remote visual treatment so remote threads do not appear under the local workspace that initiated the remote connection.
 - A project row expands or collapses the project group. It does not promote the project by itself. Clicking a background thread first promotes the owning local workspace, then opens the selected thread on the foreground connection.
 - Foreground workspace state owns the composer, settings, capabilities, tools, active thread subscription, and server-initiated interactive requests. Secondary workspace state may update thread summaries and compact runtime indicators only.
-- For local Hub-managed recent workspaces already running, Desktop may open secondary AppServer WebSocket connections. The v1 secondary connection cap is 8 workspaces per window; excess workspaces remain cold until selected or until LRU capacity becomes available.
+- For local Hub-managed recent workspaces already running, Desktop may open secondary AppServer connections, up to eight per window. Excess workspaces remain cold until selected or until LRU capacity becomes available.
 - Secondary connections initialize, load thread summaries, and consume only thread-list and runtime notifications. They do not subscribe to every thread and do not receive turn, item, job, configuration, MCP, or server-request streams for inactive workspaces.
-- Remote projects are not opened as background secondary connections in this version. At most one remote project is active, and it is foreground-only. Disconnecting it removes the remote project from the rail rather than adding it to recent local history.
+- Remote projects are not opened as background secondary connections. At most one remote project is active, and it is foreground-only. Disconnecting it removes the remote project from the rail rather than adding it to recent local history.
 - The global New Chat action starts in the current foreground project. A project-level New Chat action first promotes or starts the target local project, then opens the welcome composer; new thread creation always uses the foreground AppServer. The welcome composer project selector preserves a separate draft for each project identity and reloads capabilities, skills, plugins, and model state after promotion.
 - Project actions are scoped to the project kind. Local projects may expose local opening, path copying, and removal from Projects when they are not foreground. Remote projects expose only remote-appropriate actions such as disconnecting and copying a remote endpoint or path; they must not expose local filesystem actions such as opening the path in the system file explorer.
 - Hovering or focusing a thread row reveals a compact details card with the complete thread title, relative activity time, owning project name, and the current Git branch when a local Git head is available. Worktree threads use their recorded worktree branch. Chats, remote projects, and non-Git workspaces omit the branch row.
 - Hovering or focusing a project row reveals a project details card with its name, pin control, visible thread count, waiting/running counts, and full local path or remote display path. Waiting takes precedence over running for a thread so one thread is not counted in both states. Connecting projects use a content-shaped loading placeholder; unloaded cold/error projects report that details are not loaded rather than claiming zero threads.
-- Thread and project details cards attach to the sidebar edge with an 8px overlap instead of a floating gap. The overlap keeps the card's connection edge visibly inside the sidebar entry region; the card draws a single neutral `var(--glass-border)` hairline only on that edge, mirrors it when viewport constraints flip the card left, and omits the hairline if clamping prevents a real attachment.
+- Thread and project details cards attach to the sidebar edge rather than floating beside it, and mirror to the other side when the viewport would clip them. Their surface treatment is defined in [Desktop DESIGN.md](../architecture/DESIGN.md#hover-annotations).
 
 ---
 
@@ -210,7 +275,7 @@ For secondary connections, only thread-list and runtime notifications update bac
 
 | Protocol event | UX behavior |
 |---------------|-------------|
-| `turn/started` | The active thread enters a running state. Sending a new turn on the same thread is blocked. |
+| `turn/started` | The active thread enters a running state. A further submission on that thread follows the steer/enqueue rule in [Composer System Actions](#513-composer-system-actions) rather than starting a second turn. |
 | `turn/completed` | Running indicators clear and final turn results are shown. `tokenUsage` is the final turn aggregate, not an extra delta when real-time usage events were already consumed. |
 | `turn/failed` | The user sees that the turn ended unsuccessfully and is given a path to retry or continue. |
 | `turn/cancelled` | The running state clears and the user sees that the turn was interrupted. |
@@ -248,7 +313,7 @@ While a turn is actively running, the conversation view must always show visible
 
 If the user switches away while a request is pending, Desktop must park the request on that thread, show a sidebar badge indicating that an answer is needed, and restore the same composer when the user returns. Switching threads is not a dismissal and must not send an empty response.
 
-Desktop must also tolerate the request being replayed by AppServer when the user returns via `thread/subscribe` or `thread/resume`. A replayed `item/approval/request` or `item/tool/requestUserInput` with the same logical `requestId` restores the actionable composer; it must not be treated as a new turn or a duplicate dismissal prompt.
+Desktop must also tolerate the request being replayed by AppServer when the user returns via `thread/subscribe` or `thread/resume`. A replayed `item/approval/request` or `item/tool/requestUserInput` with the same logical identity (`method + threadId + turnId + requestId`, see [Interactive Request Restore](#532-interactive-request-restore)) restores the actionable composer; it must not be treated as a new turn or a duplicate dismissal prompt.
 
 ### 4.5 Supplemental Events
 
@@ -320,26 +385,22 @@ When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` dur
 
 ### 5.3 Resume or Open an Existing Thread
 
-1. User selects a thread from the navigation area.
-2. Client establishes the live subscription, then loads the Thread header and newest Turn and Item pages.
-3. Client merges page and subscription data by stable Turn and Item IDs.
-4. If the thread is not turn-capable, the user sees why and which actions remain allowed.
+Selecting a thread from the navigation area starts one coordinated subscription and paged-hydration operation, defined in 5.3.1. If the thread is not turn-capable, the user sees why and which actions remain allowed.
 
 ### 5.3.1 Desktop Thread Restore Pipeline
 
-Desktop treats opening, returning to, or restoring an existing thread as one coordinated subscription and paged-hydration operation.
+When the user selects a thread, Desktop opens a new restore generation for it and clears the one that belonged to the previously active thread. The invariants below hold for every restore; how many pages are read, in what direction, and in what size is a client choice.
 
-1. When the user selects a thread, Desktop creates a new restore generation for that thread and clears any restore generation that belonged to the previously active thread.
-2. Desktop establishes `thread/subscribe`, normally with `replayRecent = true`, before issuing history reads so updates that race the first page are observable.
-3. After subscription establishment begins, Desktop reads `thread/read` and the newest `thread/turns/list` page concurrently. The page request uses `descending`; Desktop reverses it before inserting it into its chronological conversation store.
-4. Every Turn of a page is hydrated with all of its Items through `thread/items/list` scoped to that `turnId`, paging `ascending` until the Turn-scoped cursor is exhausted. A history page therefore never renders as a fragment of a Turn, and page size stays proportional to displayed content rather than to persisted Item count.
-5. The active conversation must not expose replayed approval or user-input composers until subscription readiness and the header and page reads for the current restore generation have completed.
-6. Any header read, page read, subscription operation, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
-7. Subscription updates overwrite loaded entities by stable ID. A new Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
-8. After the head page renders, Desktop pulls another Turn page only while the rendered content does not fill the viewport. Once the viewport is scrollable, Desktop reads one older page when the user reaches the top threshold; advancing the cursor must not automatically drain the remaining history. Only one older-page read may be in flight, and insertion preserves the visible-content scroll anchor.
-9. Every loaded Turn remains whole in the active conversation store, but unopened older Turn pages remain server-side. Switching threads releases the prior thread's loaded page state. Live-only output buffers must be bounded independently from persisted history so a long-running command cannot grow renderer memory without limit.
-10. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
-11. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
+1. Desktop establishes `thread/subscribe`, normally with `replayRecent = true`, before issuing history reads, so updates that race the first page are observable.
+2. Once subscription establishment has begun, the thread header and the newest Turn page are read concurrently and merged into a chronological conversation store by stable Turn and Item id.
+3. Every Turn in a page is hydrated with all of its Items, so a page never renders as a fragment of a Turn and page size stays proportional to displayed content rather than to persisted Item count.
+4. The active conversation must not expose replayed approval or user-input composers until subscription readiness and the header and page reads for the current restore generation have completed.
+5. Any header read, page read, subscription operation, or server-to-client interactive request result belonging to an older restore generation must be ignored for the active conversation.
+6. Subscription updates overwrite loaded entities by stable id. An Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
+7. Older history is read on demand rather than drained: advancing the history cursor must not pull the remaining pages by itself, and inserting a page preserves the visible-content scroll anchor.
+8. Every loaded Turn remains whole in the active conversation store, and unopened older pages remain server-side. Switching threads releases the prior thread's loaded page state. Live-only output buffers must be bounded independently from persisted history so a long-running command cannot grow renderer memory without limit.
+9. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
+10. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
 
 This pipeline is a Desktop client responsibility. `thread/read` is the current header, the two list methods are the persisted display history, and `thread/subscribe` is the live notification channel.
 
@@ -391,7 +452,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 
 1. User composes input and submits it.
 2. If the thread is idle and turn-capable, the client calls `turn/start`.
-3. The thread enters a running state and duplicate submissions for the same thread are blocked.
+3. The thread enters a running state; a further submission follows the Input Rules below.
 4. Incremental output appears as events arrive.
 5. When the turn finishes, the thread returns to an idle, completed, failed, or cancelled state.
 
@@ -399,7 +460,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 
 - The input area accepts plain text and any supported structured attachments or references.
 - The client must prevent submission of an empty turn.
-- If the thread is currently running, the client must either block a second submission on that thread or convert it into an explicit queued-follow-up behavior. The behavior must be consistent and visible to the user.
+- If the thread is currently running, a second submission follows [Composer System Actions](#513-composer-system-actions): a non-empty draft steers the active Turn, and a draft submitted while blocking maintenance is running is enqueued. The path taken must be visible to the user before submission.
 - If attachments cannot be preserved in a queued or deferred path, the user must be warned before the message is sent.
 
 ### 5.6 Approval Handling
@@ -443,6 +504,8 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - Desktop does not require interactive terminal input; shell output is read-only from the Desktop client's perspective.
 - The client may reveal related context automatically when new changes or plans appear, but the rule should be based on relevance, not on any fixed panel design.
 
+A fullscreen renderer overlay that covers an embedded native view, such as an image lightbox above the embedded browser, blocks that view for its complete mounted lifetime: the native view is hidden while any blocker is open and only the active view is restored after the last one closes. Ordinary menus and local popovers do not block a native view.
+
 Durable user-actionable result cards and available interactive Views remain outside collapsed Turn summaries. Collapsing intermediate work must not hide an action the user still needs or a completed result intended for direct review.
 
 The latest successful Dynamic Workflow launch in a Turn is one such durable result. When the launch
@@ -455,7 +518,7 @@ footer. Failed Workflow launch attempts remain ordinary collapsible tool history
 
 Desktop consumes the exact `PresentationId` projected by the server. An active Desktop Plugin renderer for that id takes precedence, followed by the optimized Core renderer and generic tool card. Tool payloads never provide module paths or executable code, and an unavailable id falls back without changing tool execution authority.
 
-The local registry covers trusted renderers for plans, cron, skills, subagents, shell, file writes and streaming diffs, web operations, user input, file reads, todo updates, deferred tool search, and generic fallback. Conversation pinning, grouping, labels, and render plans consume the registry result instead of branching independently on tool names. The authority and audience contract is defined by [Tool Architecture Section 14.1](../architecture/tools-architecture.md#141-trusted-local-renderer-registry).
+Desktop keeps one resolution point for these renderers, and conversation pinning, grouping, labels, and render plans consume its result instead of branching on tool names of their own. The authority and audience contract is defined by [Tool Architecture Section 14.1](../architecture/tools-architecture.md#141-trusted-local-renderer-registry).
 
 #### 5.8.2 MCP Apps Interactive Tool Views
 
@@ -504,7 +567,7 @@ If the interruption request fails before it is accepted, Desktop clears the stop
 - Deleted threads disappear from the client once deletion is confirmed.
 - If a thread is archived or deleted elsewhere while open locally, the user must see the updated state immediately and lose only the actions that are no longer valid.
 
-### 5.10 Cross-Channel Visibility
+### 5.11 Cross-Channel Visibility
 
 - Desktop requests workspace-scoped thread discovery for foreground, secondary-project, archived, and Desktop-tool thread lists.
 - Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context. This includes cron, App Binding origins, and unknown external origins.
@@ -514,7 +577,7 @@ If the interruption request fails before it is accepted, Desktop clears the stop
   - unsupported actions must be disabled rather than failing unexpectedly
   - read and resume behavior must follow server capabilities and thread status
 
-### 5.10.1 Thread Fork And Worktree Handoff
+### 5.11.1 Thread Fork And Worktree Handoff
 
 Desktop exposes conversation branching as a normal thread action.
 
@@ -559,9 +622,9 @@ Worktree execution:
 - Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
 - Desktop hides or disables Git worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and Perforce workspaces. Perforce changelist controls remain available in remote workspaces because all Perforce operations run through AppServer. For existing threads that are running, waiting for approval/input, or in blocking maintenance, the local/worktree handoff menu remains available, but the confirmation dialog disables the final handoff action and explains that the workspace cannot be switched while a conversation is in progress.
 
-### 5.11 Manage Thread Goal
+### 5.12 Manage Thread Goal
 
-Desktop goal behavior is defined by [Goal Design §11.7](../features/goal.md#117-desktop-ux-contract).
+Desktop goal behavior is defined by [Goal Design, Client UX Contract](../features/goal.md#11-client-ux-contract).
 
 At the Desktop UX level:
 
@@ -576,14 +639,14 @@ At the Desktop UX level:
 - SubAgent-sourced user messages with `triggerKind = "subagentFollowupTask"` or `"subagentInput"` must render a visible source marker. Desktop uses the thread-source badge copy, such as "Sent by DotCraft from another thread" / "DotCraft 从另一个会话发送", and keeps action-specific wording in the tooltip/detail; `triggerRefId` is an agent path, not a thread id. Messages with `deliveryMode = "subagentMailbox"` or `triggerKind = "subagentMailbox"` are internal, model-visible mailbox notifications and must not render as user bubbles in the main conversation.
 - Dynamic Workflow continuation messages with `triggerKind = "workflow"` must render the standard origin marker above the bubble. The marker uses `triggerLabel` for its detail and opens the run identified by `triggerRefId` in the current thread's Workflow Detail tab.
 
-### 5.12 Composer System Actions
+### 5.13 Composer System Actions
 
 The slash reference surface includes Desktop-owned system actions above custom Commands and Skills:
 
 - Init is shown with the hint "Create an AGENTS.md file with instructions for DotCraft" only when command management is available and the workspace-scoped `command/list` result contains `/init`. AppServer omits `/init` when the workspace root already contains `AGENTS.md` or `AGENTS.override.md`; Desktop must not inspect these files locally. Selecting Init, or directly submitting `/init`, calls the server-managed `command/execute` method and starts a normal agent turn with the returned `expandedPrompt`. Direct execution remains safe when discovery is stale because the agent refuses to overwrite either root instructions file. Desktop reloads command availability after a turn reaches a terminal state.
 - Plan mode is always shown with the label "Plan mode". Its hint reflects the current mode: "Enable Plan mode" in Agent mode and "Disable Plan mode" in Plan mode. Selecting it uses the same local mode toggle path as `Shift+Tab` and calls `thread/mode/set`.
-- Manual compaction is shown as "Compact" with the hint "Compact this session's context" only when `capabilities.manualCompaction = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/compact/start` with the active `threadId` and a long client wait timeout of 300 seconds. That timeout is only the renderer's wait limit for the request/response pair; it does not prove that server-side compaction has failed.
-- Manual memory consolidation is shown as "Consolidate" / "整理" with the hint "Consolidate long-term memory" only when `capabilities.manualMemoryConsolidation = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/memory/consolidate/start` with the active `threadId` and a long maintenance timeout of 300 seconds.
+- Manual compaction is shown as "Compact" with the hint "Compact this session's context" only when `capabilities.manualCompaction = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/compact/start` with the active `threadId` and the 300-second maintenance wait shared by both maintenance actions. That timeout is only the client's wait limit for the request/response pair; it does not prove that server-side compaction has failed.
+- Manual memory consolidation is shown as "Consolidate" / "整理" with the hint "Consolidate long-term memory" only when `capabilities.manualMemoryConsolidation = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/memory/consolidate/start` with the active `threadId` and the same maintenance wait.
 - While a regular Turn is active, the composer sends a non-empty draft through `turn/steer` with the observed active Turn id. When the thread is idle it uses `turn/start`. When `system/event` or `thread/runtimeChanged` reports active maintenance (`maintenanceKind = "compacting"` or `"consolidating"`), or the current execution cannot accept steering, it uses `turn/enqueue`; the empty-draft stop control calls `thread/maintenance/interrupt`.
 - If `turn/steer` fails because the active Turn changed or ended, Desktop preserves the draft and reports the failure. It must not silently retry through `turn/start`, `turn/enqueue`, or a different Turn. If a normal `turn/start` races with a maintenance transition and is rejected as busy, Desktop preserves the draft and retries through `turn/enqueue`.
 - If the manual compaction request times out while `thread/runtimeChanged` or `system/event` still reports `maintenanceKind = "compacting"`, Desktop keeps the busy compacting state, preserves the stop control, and waits for the terminal `system/event`. If manual compaction returns `outcome = "skipped"` or `outcome = "failed"`, or a terminal `compactFailed` / `compactCancelled` event arrives, Desktop shows the returned or event message using the same compact status surface. Short histories should normally compact through the server's full-history fallback.
@@ -592,7 +655,7 @@ The slash reference surface includes Desktop-owned system actions above custom C
 - Direct `/plan`, `/agent`, `/compact`, and `/consolidate` submissions are handled locally and must not start a normal agent turn. Direct `/init` is translated locally into server-managed command execution and starts a normal turn only when the server returns an expanded prompt. `/compact` and `/consolidate` show an unavailable message instead of submitting a turn when their visibility conditions are not met. On the welcome screen, Plan mode is also shown as a system action, and `/plan` / `/agent` update the pending welcome mode without starting a thread.
 - Desktop updates the context ring from the RPC response when it includes `contextUsage`, and also consumes `system/event.contextUsage` on terminal compaction notifications so the ring updates even if a long manual compaction outlives the renderer request timeout. Desktop must not update the ring from `compacting` start events because their token counts are projected request estimates, not stable active-context snapshots. When a compacted `SystemNotice` item is the only event that reaches the renderer, Desktop uses its `tokensAfter` / `percentLeftAfter` fields to update an already-seeded ring instead of waiting for the next model request.
 
-### 5.13 Desktop Runtime Thread Tools
+### 5.14 Desktop Runtime Thread Tools
 
 Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start` and `thread/resume`.
 
@@ -627,7 +690,7 @@ Required behavior:
 
 - Users can browse discovered and installable plugins, inspect plugin details, see included tools and skills, install or uninstall managed built-in plugins, and enable or disable installed plugins. Plugin package Install actions use the same compact pill treatment in browse, manage, and detail surfaces; native-app installation remains an ordinary app-row action.
 - Browse tabs and Manage breadcrumbs share the same top navigation band and left edge so moving between catalog levels does not shift the primary navigation anchor.
-- Desktop launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at its bundled plugin resources. If that environment is absent, uninstalled built-in plugins are not shown as installable catalog entries.
+- Desktop tells AppServer where its bundled plugin resources live when it starts one. Without that, uninstalled built-in plugins are not shown as installable catalog entries.
 - Plugin installation, uninstallation, and enablement refresh both plugin and skill state because plugin-contained skills are controlled by the plugin lifecycle.
 - Browser is the built-in reference plugin. It shows the `NodeReplJs` tool and the `browser` skill in its included content.
 - Users can enter a Skills view if the server exposes skills capabilities.
@@ -643,10 +706,9 @@ Required behavior:
 #### 6.1.1 Plugin creation and marketplace sources
 
 The plugin browse top bar carries icon-only Refresh and Manage actions plus one
-compound Create control, which is the bar's only labelled action. The Create
-control follows the filled compound-trigger treatment: both segments carry the
-neutral inversion, meet flush without a divider, and sit in the catalog toolbar
-band. Its principal segment starts a plugin authoring conversation; its menu
+compound Create control, which is the bar's only labelled action and follows the
+compound-trigger treatment in [Desktop DESIGN.md](../architecture/DESIGN.md#icon-buttons).
+Its principal segment starts a plugin authoring conversation; its menu
 gathers every way of getting a plugin into the workspace — authoring one, adding a
 marketplace, and installing from a local folder — so the surface needs no separate
 overflow menu. When only one of those is available the control collapses to a plain
@@ -708,9 +770,9 @@ user workflows even though both are backed by App Binding version 2:
   immediately. Installation, connection, reconnect, and setup remain exclusive
   to plugin detail.
 - Both pickers use a switch without a connection-status badge. Before a thread
-  exists, the switch only stages `WelcomeDraft.appIds`; it never creates an
-  empty thread or invokes connection or revoke methods. The staged list,
-  including an explicitly empty selection, is restored with the workspace
+  exists, the switch only stages the selection in the welcome draft; it never
+  creates an empty thread or invokes connection or revoke methods. The staged
+  list, including an explicitly empty selection, is restored with the workspace
   welcome draft. After the first message creates the thread, Desktop enables
   and awaits each staged binding before submitting that message.
 - In an existing conversation, switching on starts the existing binding
@@ -743,8 +805,8 @@ Required behavior:
 - When a remote AppServer reports an installed plugin, Desktop may use that metadata to determine availability, but it loads code only from a matching locally packaged plugin identified by plugin id, version, and Desktop revision. Remote absolute plugin paths are never resolved against the Desktop host filesystem or treated as code locations.
 - Desktop Plugin code runs as trusted local renderer code. Installing and enabling the owning plugin is the trust decision; bundled and user-installed plugins use the same Host API and lifecycle.
 - `host.appSurfaces` is the normal safe proxy for Desktop Plugin App Surface GET and POST operations. It is not a permission boundary for trusted plugin code or its exclusive network route.
-- For every proxy call, Desktop Main resolves `(appId, surfaceId)` through `app/surface/resolve`, keeps the returned endpoint and bearer out of the proxy result, and injects the bearer into the loopback HTTP(S) request.
-- Desktop Main requires a live lease and an origin-relative path confined to the resolved endpoint base path, accepts only loopback HTTP(S) endpoints, refuses redirects, and bounds request timeouts and response size.
+- For every proxy call, Desktop resolves `(appId, surfaceId)` through `app/surface/resolve` (defined in [app-binding.md](../protocols/app-binding.md)), keeps the returned endpoint and bearer out of the result handed to plugin code, and injects the bearer into the loopback request itself.
+- A proxy call requires a live lease and an origin-relative path confined to the resolved endpoint base path, accepts only loopback HTTP(S) endpoints, refuses redirects, and bounds request timeouts and response size.
 - Missing, expired, or malformed resolutions produce the stable `AppSurfaceUnavailable` error. Desktop may show a reconnect/unavailable state but must not reuse an expired resolution.
 - Failed plugin loads show a localized error state for the affected contribution without breaking core conversation workflows.
 
@@ -818,7 +880,7 @@ Required behavior:
   - SubAgent displays an inline `Inherit MainAgent` switch. Inherit removes the provider-specific SubAgent record; enabling Custom starts from the current MainAgent preference;
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
-- The legacy shared footer Save/Cancel pattern is retired. Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group.
+- Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group. There is no page-level Save/Cancel footer.
 - The Connections settings page is one entry with a segmented control that separates connection kinds by direction: **Workspace** (how this Desktop connects to the workspace runtime), **Satellites** (other PCs the user's agent can run tools on, §6.11), **Share this PC** (who may run tools on this PC through the local Satellite runtime, §6.11), and **SSH** (remote DotCraft instances managed over SSH, §6.10). Each segment owns its own model, list, and single primary action; segments never share state or rows. Segments whose backing capability is absent show a setup state rather than disappearing, except that Share this PC may be hidden when no Satellite runtime state exists on the machine.
 - The Workspace segment distinguishes lifecycle ownership:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
@@ -832,7 +894,7 @@ Required behavior:
   - an offline Perforce binding suppresses Git branch/worktree controls, but does not enable Perforce changelist selection or `Checkout`; the user must configure the AppServer `p4` environment and pass Test Connection to bring it online.
   - Desktop reacts to `workspace/configChanged` with the `sourceControl` region to refresh the binding status without manual refresh. Because `sourceControl/get` describes whichever workspace the foreground AppServer connection is bound to, Desktop must also re-resolve the binding whenever that connection changes — a workspace switch promotes a different connection and re-emits `connected` — so the source-control surface reflects the new foreground workspace rather than a previously cached provider.
   - When `sourceControl/get.capabilities.perforceChangelist = true`, Desktop replaces the Git branch footer selector with a Perforce changelist selector and changes the Thread Header commit action to `Checkout`.
-  - `Checkout` calls `sourceControl/changelist/prepare` and never invokes local `window.api.git.commit`; when the description is blank, Desktop first calls `workspace/commitMessage/suggest` with `provider = "perforce"` to generate a changelist description from AppServer-side Perforce context. The Checkout dialog lets users choose the current target, another pending changelist, or `New Changelist`; `New Changelist` sends `target = "default"` so AppServer creates a numbered pending changelist during prepare. The dialog and toast copy must avoid submit/commit semantics. Desktop does not expose Perforce submit or shelve in this version.
+  - `Checkout` calls `sourceControl/changelist/prepare` and never falls back to a local Git commit; when the description is blank, Desktop first calls `workspace/commitMessage/suggest` with `provider = "perforce"` to generate a changelist description from AppServer-side Perforce context. The Checkout dialog lets users choose the current target, another pending changelist, or `New Changelist`; `New Changelist` sends `target = "default"` so AppServer creates a numbered pending changelist during prepare. The dialog and toast copy must avoid submit/commit semantics. Desktop does not expose Perforce submit or shelve.
   - A successful `Checkout` may move files that are already opened in another pending changelist into the selected target; Desktop treats the selected thread target as the user's explicit prepare intent.
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
 - Desktop groups Personalization settings into Conversation, Learning, Memory, and Dreams cards when the corresponding capabilities are available. Empty groups are hidden.
@@ -951,19 +1013,28 @@ Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks ov
 
 Desktop owns a **Satellites** segment of the Connections settings page (§6.7) for the machines a colleague has lent to the user's agent through [Remote Tool Host](../architecture/remote-tool-host.md) and the [Satellite](satellite.md) client, and a **Share this PC** segment for the other direction. A **server** (§6.10, the SSH segment) is infrastructure the user deploys to; a **satellite** is a colleague's PC that runs work for the user's agent. The segments never share state.
 
-- **Share this PC** presents the local Satellite runtime's view, read-only: whether Satellite is installed on this PC and, for each pairing, who may run tools here, which folder they may reach, and when they were paired, with a footnote that pairings are added and removed in the Satellite tray application. Controls that change that state (pause, revoke, keep awake) arrive with a later Satellite client integration. The segment is hidden when no Satellite runtime state exists on the machine.
+- **Share this PC** presents the local Satellite runtime's view, read-only: whether Satellite is installed on this PC and, for each pairing, who may run tools here, which folder they may reach, and when they were paired, with a footnote that pairings are added and removed in the Satellite client itself. Desktop exposes no control that changes that state. The segment is hidden when no Satellite runtime state exists on the machine.
 
 - **Two planes, one key.** Enrollment (list, invite, revoke, presence) is read from Hub by the Desktop main process through the Hub Local API `/v1/satellites*` routes and Hub SSE events. Per-thread routing (connect, disconnect, route state) goes through the AppServer Protocol `remoteToolHost/*` methods. Both planes identify a machine by the same `hostId`, which is the Hub `peerId`. Desktop never routes fleet operations through an AppServer and never routes connect or disconnect through Hub.
 - The Hub bearer token never crosses into the renderer. The renderer sees only redacted satellite records and invitation URLs; the invitation URL is held in memory and is not persisted.
-- State vocabulary is three words: **offline** (the machine is not connected to Hub), **ready / 待命** (connected, no active lease), and **in use / 使用中** (a thread holds a lease). Presence comes from Hub; lease state is overlaid from `remoteToolHost/list` and is simply absent when no AppServer is connected.
-- The Satellites segment shows a setup state when the Hub does not report the satellite capability. It uses the same list → detail drill-in grammar as the SSH segment, exposes at most one primary action (Invite a machine) in its section header, and has a first-run empty state whose one sentence states what the surface is. Row state is a dot plus a neutral label; semantic hue lives in the dot only (success for in use, neutral for ready and offline); no badges, no framed status, no accent or info blue for state.
-- The detail page header carries the breadcrumb, a secondary description line (user, system, joined date), and the shared status menu button whose dot and label give the state and whose menu holds Refresh and a destructive Remove that confirms, because revoking removes durable authority. Below it, frameless sections: folders (a busy folder is marked as in use in this workspace or by another agent; the wire carries no holder identity beyond `self`/`other`) and recent activity from Hub events already received by this Desktop. There is no standalone status section. A detail page takes the whole settings surface: the Connections header and segmented control are hidden while it is open, as they are for an SSH server page.
-- Inviting is a dialog opened from the Satellites list (the Invite action and the empty state's call to action), not a second-level page: minting a credential is one focused act with a clear end, so it takes the dialog frame from Dialog Headers — neutral identity badge, title, one-line description, borderless close. The form collects an optional purpose only — the folder to share is chosen by the invited machine's owner on that machine — with Cancel and Create invite link; on success the same dialog shows the link with its copy action on one line. Expiry and caution are feedback, not standing copy: they appear only once the link exists or was copied ("Copied. The link works once and expires in 24 hours."). The footer then offers Create another (secondary) and Done (primary); an expired link shows the expired message with New link. Desktop remembers only the ids and expiry of invitations it created; while one of them is unexpired, a machine that joins is announced with a neutral arrival toast that names the machine and offers Run here when that is one press away. Hub join events carry no invitation id, so the announcement is gated on the presence of an unexpired invitation, not matched to one.
-- The **Run on / 执行位置** chip sits in the context row below the composer card — the first chip on a thread, and directly after the project picker, before the work-location control, on the welcome screen — and shows This PC or the satellite's machine name for the active thread; the folder appears on the option row, not in the chip. It uses the row's footer pill grammar: a Monitor glyph for This PC, a satellite-dish glyph once routed to a machine, a spinner while connecting; like every other context-row chip it carries no status colour. It lists (machine, folder) pairs with availability and marks a busy folder as in use in this workspace or by another agent. It is hidden entirely when no satellite is enrolled, when the server lacks `capabilities.remoteToolHost`, when Desktop is attached to a remote AppServer (whose Hub is not this Desktop's Hub), in the default Chat workspace, and in minimal-chrome embedded composers; whenever it is visible the context row renders even if no source-control control applies. It is disabled while a turn runs, and it never writes thread configuration: routes are runtime-only and server-owned, so the chip renders only server-confirmed state. On the welcome composer, before any thread exists, the chip offers the same machines (listed without a thread); a choice there is a pending route held by the client and applied when the first message creates the thread, before that thread's first turn starts, so the very first tools already run where the user chose. A pending route is never persisted and is dropped when the user picks This PC or leaves the workspace.
+- State vocabulary is three words: **offline** (the machine is not connected to Hub), **ready** (connected, no active lease), and **in use** (a thread holds a lease). Presence comes from Hub; lease state is overlaid from `remoteToolHost/list` and is simply absent when no AppServer is connected.
+- The Satellites segment shows a setup state when the Hub does not report the satellite capability. It uses the same list → detail drill-in grammar as the SSH segment, exposes at most one primary action (Invite a machine) in its section header, and has a first-run empty state whose one sentence states what the surface is. A row states its machine's state next to the machine, following the shared status indicator in [Desktop DESIGN.md](../architecture/DESIGN.md#status-indicators).
+- The detail page header carries the breadcrumb, a description line (user, system, joined date), and a status menu button giving the machine's state, with Refresh and a destructive Remove that confirms, because revoking removes durable authority. Below it are two sections: folders (a busy folder is marked as in use in this workspace or by another agent; the wire carries no holder identity beyond `self`/`other`) and recent activity from Hub events this Desktop already received. State is not repeated as a section of its own. A detail page takes the whole settings surface: the Connections header and segmented control are hidden while it is open, as they are for an SSH server page.
+- Inviting is a dialog opened from the Satellites list (the Invite action and the empty state's call to action), not a second-level page: minting a credential is one focused act with a clear end. The form collects an optional purpose only — the folder to share is chosen by the invited machine's owner on that machine — with Cancel and Create invite link. On success the same dialog shows the link with its copy action, and only then says that the link works once and expires; expiry and caution are feedback on an existing link, not standing copy on an empty form. The footer then offers Create another and Done; an expired link shows the expired message with New link. Desktop remembers only the ids and expiry of invitations it created; while one of them is unexpired, a machine that joins is announced with a neutral arrival notice that names the machine and offers Run here when that is one press away. Hub join events carry no invitation id, so the announcement is gated on the presence of an unexpired invitation, not matched to one.
+- The **Run on** control sits in the composer context row — the first chip on a thread, and directly after the project picker, before the work-location control, on the welcome screen — and shows This PC or the satellite's machine name for the active thread; the folder appears on the option row, not in the chip. It follows the context-row chip treatment in [Desktop DESIGN.md](../architecture/DESIGN.md#inputs) and shows a working indicator while connecting. It lists (machine, folder) pairs with availability and marks a busy folder as in use in this workspace or by another agent. It is hidden entirely when no satellite is enrolled, when the server lacks `capabilities.remoteToolHost`, when Desktop is attached to a remote AppServer (whose Hub is not this Desktop's Hub), in the default Chat workspace, and in minimal-chrome embedded composers; whenever it is visible the context row renders even if no source-control control applies. It is disabled while a turn runs, and it never writes thread configuration: routes are runtime-only and server-owned, so the chip renders only server-confirmed state. On the welcome composer, before any thread exists, the chip offers the same machines (listed without a thread); a choice there is a pending route held by the client and applied when the first message creates the thread, before that thread's first turn starts, so the very first tools already run where the user chose. A pending route is never persisted and is dropped when the user picks This PC or leaves the workspace.
 - Thread routes are lost on cold resume. Desktop remembers the last explicit choice per thread locally and re-applies it at most once per thread per connection, only for the visible thread, only when the target is online and its folder is free, and never during a running turn. Choosing This PC deletes the memory. A silent re-apply that fails stays silent; only explicit choices report errors.
-- Route failures show a tinted error toast whose text comes from the error's `messageKey` (self/other wording for a busy folder); arrival of an invited machine shows the neutral info card described above.
-- `dotcraft://satellite/join` is parsed and always consumed by Desktop. Desktop forwards it to the Satellite executable published under `HKCU\Software\DotCraft\Satellite` and never completes a pairing itself; when no Satellite is installed it shows one neutral card that points to the Satellite installer. Desktop keeps ownership of the `dotcraft://` protocol registration whenever it is installed. Desktop runs one process per workspace and takes no single-instance lock; a Windows launch whose arguments carry only a join link forwards it and exits without opening a window, so clicking an invitation never opens a Desktop window.
-- The design is prototyped in the maintained design system before production implementation and promoted after review, following the design-prototype workflow.
+- A route failure is reported as an error, worded from the error's `messageKey` (which distinguishes a folder busy in this workspace from one busy elsewhere); the arrival of an invited machine is the neutral notice described above.
+- `dotcraft://satellite/join` is parsed and always consumed by Desktop. Desktop forwards the link to the installed Satellite client and never completes a pairing itself; when no Satellite is installed it shows one neutral notice pointing to the Satellite installer. Desktop owns the `dotcraft://` protocol registration whenever it is installed. A launch whose arguments carry only a join link forwards it and exits, so clicking an invitation never opens a Desktop window.
+
+### 6.12 Agent Builder
+
+The Agent Builder edits an Agent Profile as a document beside the conversation, so the person and the agent work on the same subject at the same time.
+
+- Built-in templates are offered from the Welcome screen as a partly hidden deck rather than a second list. The composer remains the screen's subject, the deck carries no heading of its own, and only the card under the pointer or keyboard focus comes fully into view and offers its use action. Keyboard focus must reveal a card exactly as hover does.
+- While the agent edits, one cursor marks where it is working. It appears at the first edit, moves between fields rather than disappearing and reappearing, and stays on the last edited field after the turn ends. Its label names the field being updated, then reports it updated, then fades, leaving the marker. It is the only presence indicator; the edited field's own chrome does not change. While a turn runs the document is non-interactive; that ends with the turn, the cursor does not.
+- Each builder tool call renders in the transcript as a profile-change row rather than generic tool output: the change stated in words, the value as an inline reference, and whatever the title cannot carry — instructions, long lists, model details, rejected names — behind the row's disclosure. A failed edit shows its reason. A value merely named by a row is inert and not a control.
+
+Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md).
 
 ---
 
@@ -1064,20 +1135,14 @@ User input request delivery follows the same reliability expectation: if the dia
 
 ---
 
-## 10. Phase 2 Reserved Surface
+## 10. Auxiliary Surfaces
 
-- The Desktop client may later expose task-oriented surfaces beyond conversation, skills, and automations.
-- This document reserves that expansion without defining future layout or visual form.
-- Any future task-board or GitHub-tracker UX must preserve the same principles used here:
-  - protocol-driven behavior
-  - explicit status and recovery
-  - clear separation between workflow rules and visual implementation
+Surfaces beyond the conversation follow the same rules as the rest of this document: protocol-driven behavior, explicit status and recovery, and a clear separation between workflow rules and visual implementation.
 
-### 10.1 Viewer Panel (Reserved)
+### 10.1 Viewer Panel
 
-- Desktop reserves an auxiliary right-side **viewer panel** surface that coexists with the existing changes / plan / terminal tabs and lets users open native file viewers and embedded browser tabs without leaving the workspace.
+- The auxiliary right-side **viewer panel** coexists with the changes / plan / terminal tabs and lets users open native file viewers and embedded browser tabs without leaving the workspace.
 - Chat-local file references, including absolute local paths and `file://` links, may open in the viewer panel even when the file is outside the active workspace. External local files must be served only after a user-triggered exact-file authorization; authorizing one external file must not authorize its parent directory or sibling files.
-- The viewer panel must preserve the same principles this document applies to the rest of desktop behavior: protocol-driven where applicable, explicit status and recovery, and clear separation between workflow rules and visual implementation.
 
 ### 10.2 Browser Automation
 

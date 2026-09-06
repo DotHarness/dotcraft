@@ -1,5 +1,11 @@
 # OpenAI Subscription (Sign in with ChatGPT) Auth
 
+| Field | Value |
+|---|---|
+| Version | 1.0.0 |
+| Status | Living |
+| Date | 2026-09-05 |
+
 DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
 subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
 pay-as-you-go OpenAI API key. This document specifies the protocol, on-disk shape, and the touch

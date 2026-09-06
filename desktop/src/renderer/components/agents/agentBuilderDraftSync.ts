@@ -1,4 +1,4 @@
-/** Builder tools return per-field change descriptors (specs/features/agent-profiles.md §12A); applying them locally keeps the editor in sync without re-fetching Markdown. */
+/** Builder tools return per-field change descriptors; applying them locally keeps the editor in sync without re-fetching Markdown. */
 
 import type { AgentControl, AgentProviderPreference, ApprovalPolicy, ProfileDraft, ToolPolicyMode } from './agentProfileDraft'
 

@@ -35,8 +35,7 @@ interface SplitButtonProps {
 
 /**
  * Both segments carry the same fill and sit flush, with no divider painted: the seam
- * appears only because hover lightens one segment. See the Compound Triggers section
- * in specs/architecture/DESIGN.md.
+ * appears only because hover lightens one segment.
  */
 export function SplitButton({
   label,

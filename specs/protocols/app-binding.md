@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Version | 2.2.0 |
-| Status | Normative |
+| Status | Living |
 | Date | 2026-07-16 |
 | Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Session Core](../architecture/session-core.md) |
 

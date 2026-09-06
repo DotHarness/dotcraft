@@ -1,5 +1,11 @@
 # Runtime module boundaries
 
+| Field | Value |
+|---|---|
+| Version | 1.0.0 |
+| Status | Living |
+| Date | 2026-09-01 |
+
 This specification defines the stable ownership, dependency, composition, and lifecycle rules for
 the DotCraft runtime. It describes the finished architecture rather than the repository migration
 used to reach it.

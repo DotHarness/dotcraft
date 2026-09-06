@@ -1,4 +1,4 @@
-/** BCP 47; see specs/clients/desktop-client.md §22.3 */
+/** BCP 47 */
 export const SUPPORTED_LOCALES = [
   {
     value: 'en',

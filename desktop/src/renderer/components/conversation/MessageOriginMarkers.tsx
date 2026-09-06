@@ -11,11 +11,6 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 
 type TriggerKind = NonNullable<ConversationItem['triggerKind']>
 
-/**
- * Markers that sit outside a user bubble, so the bubble itself holds only what the
- * person wrote. Spec §10.3.2 and specs/architecture/DESIGN.md → Message Markers.
- */
-
 function isSubAgentKind(kind: TriggerKind): boolean {
   return kind === 'subagentFollowupTask' || kind === 'subagentMailbox' || kind === 'subagentInput'
 }
