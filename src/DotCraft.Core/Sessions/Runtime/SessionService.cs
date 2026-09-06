@@ -124,6 +124,13 @@ public sealed partial class SessionService(
         PromptRequestSnapshot? RequestSnapshot,
         ContextTokenUsageEstimate Estimate);
 
+    private sealed class ThreadLoadGate
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public int ReferenceCount { get; set; }
+    }
+
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
     /// <inheritdoc />
@@ -131,7 +138,8 @@ public sealed partial class SessionService(
 
     // In-memory state
     private readonly ThreadManager _runtimeRegistry = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _threadLoadLocks = new(StringComparer.Ordinal);
+    private readonly Lock _threadLoadGatesLock = new();
+    private readonly Dictionary<string, ThreadLoadGate> _threadLoadGates = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private ThreadIndexCoordinator? _threadIndexCoordinator;
@@ -159,6 +167,15 @@ public sealed partial class SessionService(
         threadLifecycleObservers?.ToArray() ?? [];
     private readonly IReadOnlyList<ISubAgentGuidanceProvider> _subAgentGuidanceProviders =
         subAgentGuidanceProviders?.ToArray() ?? [];
+
+    internal int ThreadLoadGateCount
+    {
+        get
+        {
+            lock (_threadLoadGatesLock)
+                return _threadLoadGates.Count;
+        }
+    }
 
     SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
         _subAgentCommunicationRuntime;
@@ -4758,6 +4775,34 @@ public sealed partial class SessionService(
         }
     }
 
+    private ThreadLoadGate AddThreadLoadGateReference(string threadId)
+    {
+        lock (_threadLoadGatesLock)
+        {
+            if (!_threadLoadGates.TryGetValue(threadId, out var gate))
+            {
+                gate = new ThreadLoadGate();
+                _threadLoadGates[threadId] = gate;
+            }
+
+            gate.ReferenceCount++;
+            return gate;
+        }
+    }
+
+    private void ReleaseThreadLoadGateReference(string threadId, ThreadLoadGate gate)
+    {
+        lock (_threadLoadGatesLock)
+        {
+            gate.ReferenceCount--;
+            if (gate.ReferenceCount == 0)
+            {
+                _threadLoadGates.Remove(threadId);
+                gate.Semaphore.Dispose();
+            }
+        }
+    }
+
     private async Task<SessionThread> GetOrLoadThreadAsync(string threadId, CancellationToken ct)
     {
         if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
@@ -4766,10 +4811,13 @@ public sealed partial class SessionService(
         if (_runtimeRegistry.TryGetThread(threadId, out var cached))
             return cached;
 
-        var loadLock = _threadLoadLocks.GetOrAdd(threadId, static _ => new SemaphoreSlim(1, 1));
-        await loadLock.WaitAsync(ct);
+        var loadGate = AddThreadLoadGateReference(threadId);
+        var gateAcquired = false;
         try
         {
+            await loadGate.Semaphore.WaitAsync(ct);
+            gateAcquired = true;
+
             if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
                 throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
 
@@ -4806,7 +4854,9 @@ public sealed partial class SessionService(
         }
         finally
         {
-            loadLock.Release();
+            if (gateAcquired)
+                loadGate.Semaphore.Release();
+            ReleaseThreadLoadGateReference(threadId, loadGate);
         }
     }
 

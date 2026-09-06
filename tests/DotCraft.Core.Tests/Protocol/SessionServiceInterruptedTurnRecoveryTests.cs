@@ -175,6 +175,7 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         Assert.All(loaded, thread => Assert.Same(loaded[0], thread));
         Assert.Equal(TurnStatus.Cancelled, Assert.Single(loaded[0].Turns).Status);
         Assert.Equal(1, Volatile.Read(ref cancelledSignals));
+        Assert.Equal(0, service.ThreadLoadGateCount);
 
         var replayed = await ReadSingleReplayEventAndAssertQuietAsync(service, threadId);
         var cancelled = Assert.IsType<TurnCancelledPayload>(replayed.Payload);
@@ -191,6 +192,53 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
             await start.Task;
             return await load();
         });
+    }
+
+    [Fact]
+    public async Task ColdLoadFailure_ReleasesGate()
+    {
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+
+        for (var i = 0; i < 3; i++)
+        {
+            await Assert.ThrowsAsync<KeyNotFoundException>(
+                () => service.GetThreadAsync(SessionIdGenerator.NewThreadId()));
+            Assert.Equal(0, service.ThreadLoadGateCount);
+        }
+    }
+
+    [Fact]
+    public async Task CancelledColdLoadWaiter_DoesNotReleaseActiveGate()
+    {
+        var (threadId, _, _, _) = await SeedThreadAsync(TurnStatus.Running);
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+        var cancelledSignals = 0;
+        service.ThreadRuntimeSignalForBroadcast = (id, signal, _) =>
+        {
+            if (id == threadId && signal == SessionThreadRuntimeSignal.TurnCancelled)
+                Interlocked.Increment(ref cancelledSignals);
+        };
+
+        using var persistenceGate = await ThreadRolloutWriteGate.AcquireAsync(CraftPath, threadId);
+        var leaderTask = service.GetThreadAsync(threadId);
+        Assert.Equal(1, service.ThreadLoadGateCount);
+
+        using var waiterCancellation = new CancellationTokenSource();
+        var waiterTask = service.GetThreadAsync(threadId, waiterCancellation.Token);
+        waiterCancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiterTask);
+        Assert.Equal(1, service.ThreadLoadGateCount);
+
+        persistenceGate.Dispose();
+        var loaded = await leaderTask;
+
+        Assert.Equal(TurnStatus.Cancelled, Assert.Single(loaded.Turns).Status);
+        Assert.Equal(1, Volatile.Read(ref cancelledSignals));
+        Assert.Equal(0, service.ThreadLoadGateCount);
     }
 
     [Fact]
