@@ -39,7 +39,6 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('brain', 'Memory & Dreams'), link: '/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
-          { text: withIcon('server', 'Remote Tool Host'), link: '/features/agent-system/remote-tool-host' },
           { text: withIcon('satelliteDish', 'DotCraft Satellite'), link: '/features/agent-system/satellite' },
           { text: withIcon('package', 'Plugin Marketplaces'), link: '/features/agent-system/plugin-marketplaces' },
           { text: withIcon('plug', 'Connected Apps'), link: '/features/agent-system/connected-apps' },
@@ -106,7 +105,8 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('branch', 'Overview'), link: '/developing/architecture/overview' },
           { text: withIcon('layers', 'Unified Session Core'), link: '/developing/architecture/session-core' },
-          { text: withIcon('database', 'Session Persistence'), link: '/developing/architecture/session-persistence' }
+          { text: withIcon('database', 'Session Persistence'), link: '/developing/architecture/session-persistence' },
+          { text: withIcon('server', 'Remote Tool Host'), link: '/developing/architecture/remote-tool-host' }
         ]
       },
       { text: withIcon('sliders', 'Configuration'), link: '/developing/configuration' },
@@ -192,7 +192,6 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('brain', '长期记忆与梦境'), link: '/zh/features/agent-system/memory' },
           { text: withIcon('sparkles', '技能与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
-          { text: withIcon('server', 'Remote Tool Host'), link: '/zh/features/agent-system/remote-tool-host' },
           { text: withIcon('satelliteDish', 'DotCraft 卫星'), link: '/zh/features/agent-system/satellite' },
           { text: withIcon('package', '插件市场'), link: '/zh/features/agent-system/plugin-marketplaces' },
           { text: withIcon('plug', '应用连接'), link: '/zh/features/agent-system/connected-apps' },
@@ -259,7 +258,8 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('branch', '架构总览'), link: '/zh/developing/architecture/overview' },
           { text: withIcon('layers', '统一会话核心'), link: '/zh/developing/architecture/session-core' },
-          { text: withIcon('database', '会话持久化'), link: '/zh/developing/architecture/session-persistence' }
+          { text: withIcon('database', '会话持久化'), link: '/zh/developing/architecture/session-persistence' },
+          { text: withIcon('server', 'Remote Tool Host'), link: '/zh/developing/architecture/remote-tool-host' }
         ]
       },
       { text: withIcon('sliders', '配置'), link: '/zh/developing/configuration' },

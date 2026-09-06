@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.0 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
 | **Date** | 2026-09-06 |
 | **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
@@ -23,12 +23,7 @@ For the external JSON-RPC API that projects these primitives to out-of-process c
 
 ### 1.1 In-Scope Channels
 
-The Session Protocol is the active execution model for:
-
-- CLI
-- ACP
-- QQ
-- WeCom
+The Session Protocol is the active execution model for every channel module that executes through the session service, whatever its transport.
 
 These channels create and resume server-managed threads whose canonical domain and model-visible history lives under `.craft/threads/active|archived/`, while queryable metadata lives in `.craft/state.db`. They submit turns through Session Core and consume `SessionEvent` streams through thin adapters.
 
@@ -57,7 +52,7 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
 ### 2.2 Non-Goals
 
 - **Changing LLM/tool execution internals**: The Microsoft.Extensions.AI pipeline (`FunctionInvokingChatClient`, `TracingChatClient`, etc.) remains as-is. Session Core wraps it; it does not replace it.
-- **Prescribing channel-specific UX**: How a QQ bot renders a diff versus how ACP renders it is an adapter concern. The protocol defines *what* happened, not *how* to display it.
+- **Prescribing channel-specific UX**: How a channel renders a diff is an adapter concern. The protocol defines *what* happened, not *how* to display it.
 - **Real-time cross-device sync**: Session Core does not push notifications to idle channels when a thread updates elsewhere. Channels discover thread state on resume.
 - **Multi-user thread collaboration**: Collaborative editing of a thread (multiple users editing simultaneously) is not in scope. Sequential group input is supported as described in Section 13.
 - **Standards-body compatibility**: This spec defines DotCraft's internal session model. It does not attempt to be an external public standard.
@@ -95,7 +90,7 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
 The server-managed session protocol is organized into five layers, ordered from closest to the user to closest to the model:
 
 1. **Transport Layer** (per channel)
-   - The raw communication mechanism: stdio JSON-RPC (ACP), WebSocket (QQ), HTTPS webhook (WeCom), in-process (CLI).
+   - The raw communication mechanism: stdio JSON-RPC, WebSocket, HTTPS webhook, or in-process.
    - Each channel keeps its existing transport.
 
 2. **Adapter Layer** (per channel)
@@ -123,9 +118,9 @@ The server-managed session protocol is organized into five layers, ordered from 
 ```
 Server-managed channels
 
-  ACP      CLI      QQ      WeCom
-   │        │        │         │
-   └────────┴────────┴─────────┘
+ terminal    editor protocol    social messaging    wire
+     │              │                  │             │
+     └──────────────┴──────────────────┴─────────────┘
                          │
                     Adapter Layer
                          │
@@ -151,7 +146,7 @@ Server-managed channels
 
 - **Microsoft.Extensions.AI**: `IChatClient`, `AITool`, `FunctionInvokingChatClient` — the agent execution pipeline.
 - **Existing DotCraft.Core**: `AppConfig`, `SkillsLoader`, `MemoryStore`, `ToolProviderCollector` — workspace infrastructure.
-- **Channel transports**: Each channel's transport library (NapCat for QQ, ASP.NET for WeCom, custom stdio for ACP).
+- **Channel transports**: Each channel's own transport library.
 
 ### 3.6 Runtime State Ownership
 
@@ -248,7 +243,7 @@ Fields:
 - `LastActiveAt` (UTC timestamp)
   - Updated when a Turn starts or completes.
 - `Metadata` (dictionary, string → string)
-  - Extensible key-value pairs for channel-specific data (e.g., QQ group ID, ACP workspace URI).
+  - Extensible key-value pairs for channel-specific data (e.g., a group or chat id, a workspace URI).
   - Session Core preserves but does not interpret Metadata.
 - `Configuration` (ThreadConfiguration, nullable)
   - Per-thread agent configuration (MCP servers, mode, extensions). See Section 12. Null means workspace defaults apply.
@@ -468,11 +463,11 @@ A SessionIdentity maps a channel-specific user context to a Thread. It is used f
 Fields:
 
 - `ChannelName` (string)
-  - The channel requesting the operation (e.g., `"qq"`, `"acp"`).
+  - The channel requesting the operation.
 - `UserId` (string, nullable)
   - Channel-specific user identifier.
 - `ChannelContext` (string, nullable)
-  - Channel-specific context key (e.g., QQ group ID, ACP workspace URI). Allows multiple threads per user within the same channel.
+  - Channel-specific context key (e.g., a group or chat id, a workspace URI). Allows multiple threads per user within the same channel.
 - `WorkspacePath` (string)
   - The workspace this identity operates in.
 
@@ -853,7 +848,7 @@ must not mutate the source thread.
 - **Item reference**: An Item is addressed across Thread-level protocols by `(turnId, itemId)`. `itemId` alone is not a Thread-wide identity.
 - **Canonical tool identity**: The persisted pair `(namespace, toolName)` is the exact case-sensitive `ToolName` selected by the Turn snapshot. It is not parsed from a provider string. Each present component matches `^[A-Za-z0-9_]+$` and its deterministic flat form fits within 64 ASCII bytes.
 - **Flat provider alias**: `providerFlatName` is the exact deterministic alias selected by the same snapshot for providers that cannot represent namespaces. It is required on every new tool invocation payload, remains distinct from the canonical pair, and is never parsed to recover canonical or source-routing identity.
-- **UserId Normalization**: Session Core stores `UserId` as-is from the adapter. Cross-channel user identity resolution (is QQ user X the same as ACP user Y?) is out of scope for this spec.
+- **UserId Normalization**: Session Core stores `UserId` as-is from the adapter. Cross-channel user identity resolution (whether two channels' user ids denote the same person) is out of scope for this spec.
 
 ## 5. Session Lifecycle Specification
 
@@ -992,6 +987,21 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 - Session Core cancels the agent execution via `CancellationToken`, completes any currently streaming agent/reasoning Items with their accumulated text, and appends partial domain and model history to rollout. A cancellation must not restore pre-compaction tool results or summaries that were no longer model-visible.
 
 **Terminal states**: `Completed`, `Failed`, `Cancelled`. A Turn in a terminal state cannot transition.
+
+On the first load of a persisted Thread into a new Session Core process, a single Turn still in
+`Running`, `WaitingApproval`, or `WaitingInput` has no execution owner and is treated as interrupted.
+Before the load operation returns, Session Core sets that Turn to `Cancelled`, sets `CompletedAt`,
+and commits the terminal Turn and its completed model-visible history. Existing Items, token usage,
+and error data are preserved exactly; recovery does not synthesize an error, assistant response,
+approval response, or user-input response. The terminal commit must succeed before the Thread is
+registered in the process or `turn/cancelled` is published. A commit failure fails the load and the
+modified Thread is not cached. After the commit, Session Core publishes exactly one
+`turn/cancelled` event with reason `"interrupted"`; unresolved approval or user-input requests from
+that Turn are no longer replayed.
+
+This reconciliation applies only at the persisted cold-load boundary. A Thread already registered
+in the current process retains its live execution owner and is never reconciled by ordinary load,
+resume, or read operations.
 
 ### 5.3 Item Lifecycle
 
@@ -1220,7 +1230,7 @@ SessionEvent
     - Each notification contains the **complete snapshot** of all tracked SubAgents (not incremental deltas), so clients can replace their local state on each receipt.
     - The event is injected into the Turn's event stream as a sideband signal — it may interleave with `item/started`, `item/delta`, and `item/completed` events. This is expected behavior.
   - **Relationship to Item events**: SubAgent execution is triggered by `SpawnAgent` tool calls, which appear as `item/started` (type `toolCall`, toolName `SpawnAgent`) and `item/completed` (type `toolResult`) events. The `subagent/progress` event provides fine-grained intermediate progress that is not captured by the standard Item lifecycle.
-  - **Adapters**: Adapters that render SubAgent progress (e.g., CLI Live Table) should consume `subagent/progress` events to update their UI. Adapters that do not need SubAgent progress may ignore this event type or opt out via `optOutNotificationMethods`.
+  - **Adapters**: Adapters that render SubAgent progress (e.g., a live progress table) should consume `subagent/progress` events to update their UI. Adapters that do not need SubAgent progress may ignore this event type or opt out via `optOutNotificationMethods`.
 
 #### System Events
 
@@ -1279,7 +1289,7 @@ SessionEvent
     - Turn-scoped system events are emitted through the turn-scoped `SessionEventChannel`, so they are guaranteed to arrive before `turn/completed`. Thread-scoped maintenance events may arrive later.
     - The protocol is language-neutral. System events carry `messageKey`, optional `params`, and an English `fallbackText`; `message` is a compatibility alias for `fallbackText`. Clients that support UI localization translate `messageKey` locally and fall back to `fallbackText`. User text, model output, and raw tool output remain original text and are not translated by Session Core.
     - Provider stream retry events (`streamError`) are transient and must not create a persistent `SystemNotice`. They are emitted only when the failed sampling attempt has not yet produced a visible item or item delta. Visible output is assistant text, reasoning text, a tool call, or a tool-argument delta. Usage metadata, provider error frames, and `FunctionResultContent` echoed from request input are non-visible updates; the retry layer buffers them before the first visible update and discards the failed attempt's buffer when retrying. Once visible output has been emitted for an attempt, a later stream failure is treated as a normal agent exception so the partial Turn can be preserved without inventing delta rollback semantics. Idle-timeout detection must surface the retry or failure promptly; cleanup of the failed provider stream is best-effort and must not indefinitely delay the retry notification or terminal failure.
-  - **Adapters**: Adapters that display session maintenance status (e.g., CLI spinner for consolidation, status text for compaction) should consume `system/event` notifications. Adapters that do not need maintenance status may ignore this event type or opt out via `optOutNotificationMethods`.
+  - **Adapters**: Adapters that display session maintenance status (e.g., a progress indicator for consolidation, status text for compaction) should consume `system/event` notifications. Adapters that do not need maintenance status may ignore this event type or opt out via `optOutNotificationMethods`.
 
 #### Local Summary Compaction Contract
 
@@ -1332,7 +1342,7 @@ historical detail.
     - At most one `usage/delta` event is emitted per LLM iteration (the `UsageContent` is emitted once at the end of each iteration by the provider, not per token).
     - The event is a sideband signal — it may interleave with `item/started`, `item/delta`, and `item/completed` events. This is expected behavior.
   - **Relationship to Turn.TokenUsage**: The sum of all `usage/delta` events for a Turn's main agent equals the main-agent portion of `Turn.TokenUsage`. SubAgent tokens are reported separately via `subagent/progress` and are added to `Turn.TokenUsage` at turn completion.
-  - **Adapters**: Adapters that display real-time token consumption (e.g., CLI Thinking/Tool spinners) should consume `usage/delta` events to maintain a running total. Adapters that only need final totals may ignore this event type or opt out via `optOutNotificationMethods`.
+  - **Adapters**: Adapters that display real-time token consumption should consume `usage/delta` events to maintain a running total. Adapters that only need final totals may ignore this event type or opt out via `optOutNotificationMethods`.
 
 ### 6.4 Event Delivery Semantics
 
@@ -1735,8 +1745,8 @@ History projection telemetry contains no Thread content, provider payload, or ra
 
 This means cross-channel discovery is **natural for channels that share the same identity shape**:
 
-- **CLI and ACP** both use `UserId = "local"` and `ChannelContext = null`. They discover each other's threads automatically. A thread created in CLI appears in ACP's session list, and vice versa. This is by design — both are local, single-user channels on the same machine.
-- **QQ and WeCom** use social conversation identities. Private chats use a per-user identity; group chats use a group/chat identity (`UserId = "group:{id}"` or `"chat:{chatId}"`, with matching `ChannelContext`). Individual senders are recorded per turn through `SenderContext`. CLI and ACP cannot see social-channel threads and vice versa unless an opt-in cross-channel origin is supplied.
+- **Local single-user channels** (a terminal, an editor protocol) use `UserId = "local"` and `ChannelContext = null`. They discover each other's threads automatically: a thread created in one appears in another's session list, and vice versa. This is by design — all of them are local, single-user channels on the same machine.
+- **Social messaging channels** use social conversation identities. Private chats use a per-user identity; group chats use a group/chat identity (`UserId = "group:{id}"` or `"chat:{chatId}"`, with matching `ChannelContext`). Individual senders are recorded per turn through `SenderContext`. Local single-user channels cannot see social-channel threads and vice versa unless an opt-in cross-channel origin is supplied.
 
 #### Opt-in cross-context discovery (`crossChannelOrigins`)
 
@@ -1749,7 +1759,7 @@ This means cross-channel discovery is **natural for channels that share the same
 
 The union is deduplicated by thread ID and ordered by `LastActiveAt` descending.
 
-This opt-in path exists so clients such as **DotCraft Desktop** (which uses a non-null `ChannelContext` such as `workspace:{path}`) can still list threads created by channels with a different context (e.g. CLI with `ChannelContext = null`) when the user explicitly allows those origin channels.
+This opt-in path exists so clients such as **DotCraft Desktop** (which uses a non-null `ChannelContext` such as `workspace:{path}`) can still list threads created by channels with a different context (for example a channel with `ChannelContext = null`) when the user explicitly allows those origin channels.
 
 #### Workspace-scoped discovery
 
@@ -1859,12 +1869,13 @@ Prompt composition describes the choice only when the corresponding tools are av
 
 | Failure | Trigger | Behavior |
 |---------|---------|----------|
-| **Adapter Disconnects Mid-Turn** | QQ WebSocket drops, ACP stdio closes | Turn continues to completion. Events are emitted to a dead consumer (buffered and eventually dropped). On reconnect, the adapter can resume the Thread and see the completed Turn's results. |
+| **Adapter Disconnects Mid-Turn** | An adapter's transport drops mid-turn | Turn continues to completion. Events are emitted to a dead consumer (buffered and eventually dropped). On reconnect, the adapter can resume the Thread and see the completed Turn's results. |
 | **Adapter Never Resolves Approval** | Channel disconnects while WaitingApproval | Approval timeout fires. Approval is rejected. Turn continues. |
 
 ### 11.2 Recovery Strategy
 
 - **Turn failures** do not corrupt Thread state. A failed Turn is recorded in the Thread's Turn history. The adapter can submit a new Turn to retry.
+- **Interrupted process recovery** terminates a persisted non-terminal Turn during the next cold load. Session Core durably commits it as `Cancelled` before publishing `turn/cancelled` with reason `"interrupted"`, preserving completed partial history so later input and recovery export can proceed.
 - **Canonical write failures** are recoverable because Session Core retains the unconfirmed in-memory suffix and retries on the next operation.
 - **History projection failures** are recoverable from canonical JSONL through the incremental repair or full rebuild rules in §9.4.2. A failed repair remains an explicit read failure; it is never converted into an unbounded JSONL response.
 
@@ -1885,7 +1896,7 @@ Thread configuration belongs to the thread model rather than to any individual a
 
 ### 12.2 Thread Configuration
 
-Each thread may carry a `Configuration` object. This is a thread-owned model, not channel-owned state, and the same shape applies across CLI, AppServer, external adapters, and other hosts.
+Each thread may carry a `Configuration` object. This is a thread-owned model, not channel-owned state, and the same shape applies across every host, in-process or out-of-process.
 
 ```
 ThreadConfiguration
@@ -1979,7 +1990,7 @@ Plan-related tools remain schema-stable across ordinary Agent/Plan mode switches
 
 **Plan persistence is required**: every host that exposes mode switching must provide per-thread plan persistence. Without it the plan tools are omitted regardless of the requested mode; that is a host configuration error, not a graceful degradation.
 
-**Plan update notification is optional**: a host may observe plan changes to drive its own UX (CLI status panel, ACP notification, Wire notification). Each notification carries the source `threadId` and the complete plan snapshot. Omitting it disables real-time plan status in the client but does not change tool injection.
+**Plan update notification is optional**: a host may observe plan changes to drive its own UX, such as a status panel or a wire notification. Each notification carries the source `threadId` and the complete plan snapshot. Omitting it disables real-time plan status in the client but does not change tool injection.
 
 **Host equivalence**: every host that exposes `ISessionService` must supply the same mode-critical capabilities — plan persistence, and hook execution where lifecycle hooks are expected — so mode switching behaves identically across hosts.
 
@@ -1993,9 +2004,9 @@ MCP server connections are thread-scoped, not turn-scoped:
 
 When `Thread.Configuration.McpServers` is null, workspace-level MCP configuration applies.
 
-### 12.5 ACP Extension Capabilities
+### 12.5 Connection-Scoped Extension Capabilities
 
-ACP-specific capabilities such as extension prefixes are connection-scoped at discovery time but may be recorded in `Thread.Configuration.Extensions` when they affect the thread's effective tool set.
+Channel capabilities such as extension prefixes are connection-scoped at discovery time but may be recorded in `Thread.Configuration.Extensions` when they affect the thread's effective tool set.
 
 For channels that do not use extension capabilities, `Thread.Configuration.Extensions` is null.
 
@@ -2011,7 +2022,7 @@ For channels that do not use extension capabilities, `Thread.Configuration.Exten
 
 ### 13.1 Group Sessions (Multi-User)
 
-QQ-style group sessions are supported without changing the Thread / Turn / Item model:
+Group sessions are supported without changing the Thread / Turn / Item model:
 
 - `Thread.UserId` for group sessions is **null or a group identifier** (e.g., `group:12345` or `chat:chatId`), not an individual user.
 - Each Turn's `Input` Item can carry per-message sender information in its payload.
@@ -2048,7 +2059,7 @@ Session Core records `SenderContext`, appends it to the current user message run
 
 Slash commands are modeled as a managed subsystem with a single server-side command registry for **server-managed commands**:
 
-- Built-in in-process adapters (CLI, QQ, WeCom) call the registry directly.
+- Built-in in-process adapters call the registry directly.
 - Out-of-process adapters use AppServer wire methods (`command/list`, `command/execute`).
 - Both paths resolve against the same server-managed command set and permission metadata.
 

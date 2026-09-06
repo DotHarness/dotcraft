@@ -6,7 +6,7 @@ DotCraft 的核心是一个随项目持续演进的 Agent。这一组页面介�
 
 ## 扩展能力
 
-[技能与自学习](./skills)把验证过的工作流程沉淀为可复用的技能，同类任务直接复用。[插件与工具](./plugins-tools)介绍内置工具、插件和 MCP server 如何为 Agent 提供能力，以及各自的信任边界。[Remote Tool Host](./remote-tool-host)无需迁移 Agent 会话，就能在另一台设备的工作区中运行符合条件的内置工具，而那台设备的主人则用 [DotCraft 卫星](./satellite)来批准和查看它。需要更多插件时，[插件市场](./plugin-marketplaces)用于添加你信任的插件目录，[应用连接](./connected-apps)则让会话直接使用你已经在用的产品和服务。
+[技能与自学习](./skills)把验证过的工作流程沉淀为可复用的技能，同类任务直接复用。[插件与工具](./plugins-tools)介绍内置工具、插件和 MCP server 如何为 Agent 提供能力，以及各自的信任边界。[DotCraft 卫星](./satellite)让 Agent 到同事电脑上的一个共享文件夹里干活：你在 Desktop 里发出邀请，由那台电脑的主人批准那一个文件夹，并随时可以叫停。需要更多插件时，[插件市场](./plugin-marketplaces)用于添加你信任的插件目录，[应用连接](./connected-apps)则让会话直接使用你已经在用的产品和服务。
 
 ## 保留上下文
 
