@@ -10,46 +10,31 @@ public sealed partial class SessionService
     {
         public async Task<SessionThread> ResumeAsync(string threadId, CancellationToken ct)
         {
-            if (owner._runtimeRegistry.TryGetThread(threadId, out var cached))
-            {
-                if (cached.Status == ThreadStatus.Archived)
-                    throw new InvalidOperationException($"Thread '{threadId}' is archived and cannot be resumed.");
-
-                if (cached.Status != ThreadStatus.Active)
-                {
-                    var previousStatus = cached.Status;
-                    cached.Status = ThreadStatus.Active;
-                    cached.LastActiveAt = DateTimeOffset.UtcNow;
-                    await owner.PersistThreadIfMaterializedAsync(cached, ct);
-                    owner.GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, cached.Status);
-                }
-
-                await owner.EnsurePerThreadAgentIfMissingAsync(threadId, cached, ct);
-
-                var resumedByChannel = ChannelSessionScope.Current?.Channel ?? cached.OriginChannel;
-                owner.GetOrCreateBroker(threadId).PublishThreadEvent(SessionEventType.ThreadResumed,
-                    new ThreadResumedPayload { Thread = cached, ResumedBy = resumedByChannel });
-                await owner.ContributionLifecycle.ThreadResumedAsync(cached, ct);
-                return cached;
-            }
-
-            var thread = await owner.Persistence.LoadThreadAsync(threadId, ct)
-                ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            var wasLoaded = owner._runtimeRegistry.TryGetThread(threadId, out _);
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
 
             if (thread.Status == ThreadStatus.Archived)
                 throw new InvalidOperationException($"Thread '{threadId}' is archived and cannot be resumed.");
 
-            thread.Status = ThreadStatus.Active;
-            thread.LastActiveAt = DateTimeOffset.UtcNow;
-
-            owner._runtimeRegistry.SetThread(thread);
-            var broker = owner.GetOrCreateBroker(thread.Id);
+            if (!wasLoaded)
+            {
+                thread.Status = ThreadStatus.Active;
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                await owner.PersistThreadWithMaterializationAsync(thread, ct);
+            }
+            else if (thread.Status != ThreadStatus.Active)
+            {
+                var previousStatus = thread.Status;
+                thread.Status = ThreadStatus.Active;
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                await owner.PersistThreadIfMaterializedAsync(thread, ct);
+                owner.GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, thread.Status);
+            }
 
             await owner.EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
 
-            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             var resumedBy = ChannelSessionScope.Current?.Channel ?? thread.OriginChannel;
-            broker.PublishThreadEvent(SessionEventType.ThreadResumed,
+            owner.GetOrCreateBroker(thread.Id).PublishThreadEvent(SessionEventType.ThreadResumed,
                 new ThreadResumedPayload { Thread = thread, ResumedBy = resumedBy });
             await owner.ContributionLifecycle.ThreadResumedAsync(thread, ct);
 

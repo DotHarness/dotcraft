@@ -124,6 +124,13 @@ public sealed partial class SessionService(
         PromptRequestSnapshot? RequestSnapshot,
         ContextTokenUsageEstimate Estimate);
 
+    private sealed class ThreadLoadGate
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public int ReferenceCount { get; set; }
+    }
+
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
     /// <inheritdoc />
@@ -131,6 +138,8 @@ public sealed partial class SessionService(
 
     // In-memory state
     private readonly ThreadManager _runtimeRegistry = new();
+    private readonly Lock _threadLoadGatesLock = new();
+    private readonly Dictionary<string, ThreadLoadGate> _threadLoadGates = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private ThreadIndexCoordinator? _threadIndexCoordinator;
@@ -158,6 +167,15 @@ public sealed partial class SessionService(
         threadLifecycleObservers?.ToArray() ?? [];
     private readonly IReadOnlyList<ISubAgentGuidanceProvider> _subAgentGuidanceProviders =
         subAgentGuidanceProviders?.ToArray() ?? [];
+
+    internal int ThreadLoadGateCount
+    {
+        get
+        {
+            lock (_threadLoadGatesLock)
+                return _threadLoadGates.Count;
+        }
+    }
 
     SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
         _subAgentCommunicationRuntime;
@@ -4052,11 +4070,10 @@ public sealed partial class SessionService(
 
     /// <inheritdoc/>
     public Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default)
-        => _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-            ? runtime.Commands.InvokeAsync(
-                _ => TurnControl.CancelTurn(threadId, turnId),
-                ct)
-            : Task.CompletedTask;
+        => InvokeThreadCommandAsync(
+            threadId,
+            _ => TurnControl.CancelTurn(threadId, turnId),
+            ct);
 
     /// <inheritdoc/>
     public Task CancelThreadMaintenanceAsync(string threadId, CancellationToken ct = default)
@@ -4758,6 +4775,34 @@ public sealed partial class SessionService(
         }
     }
 
+    private ThreadLoadGate AddThreadLoadGateReference(string threadId)
+    {
+        lock (_threadLoadGatesLock)
+        {
+            if (!_threadLoadGates.TryGetValue(threadId, out var gate))
+            {
+                gate = new ThreadLoadGate();
+                _threadLoadGates[threadId] = gate;
+            }
+
+            gate.ReferenceCount++;
+            return gate;
+        }
+    }
+
+    private void ReleaseThreadLoadGateReference(string threadId, ThreadLoadGate gate)
+    {
+        lock (_threadLoadGatesLock)
+        {
+            gate.ReferenceCount--;
+            if (gate.ReferenceCount == 0)
+            {
+                _threadLoadGates.Remove(threadId);
+                gate.Semaphore.Dispose();
+            }
+        }
+    }
+
     private async Task<SessionThread> GetOrLoadThreadAsync(string threadId, CancellationToken ct)
     {
         if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
@@ -4766,14 +4811,53 @@ public sealed partial class SessionService(
         if (_runtimeRegistry.TryGetThread(threadId, out var cached))
             return cached;
 
-        var thread = await persistence.LoadThreadAsync(threadId, ct)
-                     ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+        var loadGate = AddThreadLoadGateReference(threadId);
+        var gateAcquired = false;
+        try
+        {
+            await loadGate.Semaphore.WaitAsync(ct);
+            gateAcquired = true;
 
-        if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-            throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
+                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
 
-        _runtimeRegistry.SetThread(thread).Materialized = true;
-        return thread;
+            if (_runtimeRegistry.TryGetThread(threadId, out cached))
+                return cached;
+
+            var thread = await persistence.LoadThreadAsync(threadId, ct)
+                         ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+
+            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
+                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+
+            var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
+                turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+            if (interruptedTurn != null)
+            {
+                interruptedTurn.Status = TurnStatus.Cancelled;
+                interruptedTurn.CompletedAt = DateTimeOffset.UtcNow;
+                await new TurnCommitter(this, thread, interruptedTurn).CommitAsync();
+            }
+
+            var runtime = _runtimeRegistry.SetThread(thread);
+            runtime.Materialized = true;
+            if (interruptedTurn != null)
+            {
+                runtime.Broker.PublishTurnCancelled(interruptedTurn, "interrupted");
+                ThreadRuntimeSignalForBroadcast?.Invoke(
+                    thread.Id,
+                    SessionThreadRuntimeSignal.TurnCancelled,
+                    interruptedTurn);
+            }
+
+            return thread;
+        }
+        finally
+        {
+            if (gateAcquired)
+                loadGate.Semaphore.Release();
+            ReleaseThreadLoadGateReference(threadId, loadGate);
+        }
     }
 
     private async Task InvokeThreadCommandAsync(

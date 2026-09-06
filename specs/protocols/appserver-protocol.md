@@ -822,6 +822,15 @@ Resume a paused or previously loaded thread. Session Core loads the thread from 
 
 The server emits a `thread/resumed` notification.
 
+When this request cold-loads a persisted thread whose sole non-terminal turn is `running`,
+`waitingApproval`, or `waitingInput`, the prior server process no longer owns that execution. Before
+returning the thread or emitting `thread/resumed`, the server commits the Turn as `cancelled` with a
+`completedAt` timestamp, then emits `turn/cancelled` with reason `"interrupted"`. Persistence must
+succeed before either notification is published; otherwise `thread/resume` fails and the modified
+thread is not cached. The cancellation preserves all existing Items, token usage, and error data and
+does not create response or error Items. Consequently, interactive requests belonging to that Turn
+are not replayed. A thread already loaded in this server process is not subject to this recovery rule.
+
 The server validates a non-empty replacement completely before publishing it. Validation or authority failure leaves the previous binding unchanged. Omission is no-change only when the request comes from the binding's current owning connection generation; a new/non-owning connection must submit a non-empty authorized replacement to take over. `[]` clears the binding only when the caller has thread authority. A successful clear or replacement invalidates the next Turn snapshot; live disconnect/revocation checks apply immediately.
 
 If the resumed thread contains unresolved interactive requests in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the corresponding server-to-client requests (`item/approval/request` or `item/tool/requestUserInput`) to the resuming connection when that connection declared the required capability. The returned thread snapshot must already contain completed payloads for assistant and reasoning Items emitted before the blocking tool call. This replay uses the original logical `requestId`; the JSON-RPC request envelope may receive a fresh transport `id`. Replaying a pending request is idempotent per connection and must not create duplicate prompts for the same `method + threadId + turnId + requestId`. When replaying multiple unresolved approval requests for the same thread, the server must start them serially: the next `item/approval/request` is sent only after the previous replayed approval request has resolved or fallen back, so the per-request reply timeout does not elapse while a prompt is only queued behind another approval in the client UI.
@@ -1624,6 +1633,12 @@ Before emitting `turn/cancelled`, the server finalizes any currently streaming a
 
 The actual cancellation is asynchronous. Rely on the `turn/cancelled` notification to know when the turn has stopped.
 
+The server also loads a thread that is not yet present in the current process before handling this
+request. If cold loading finds the requested persisted Turn in `running`, `waitingApproval`, or
+`waitingInput`, cold-load recovery durably changes it to `cancelled` and emits `turn/cancelled` with
+reason `"interrupted"`; the interrupt request then succeeds idempotently. No live cancellation token
+or execution cleanup is fabricated for that stale Turn.
+
 ### 5.2.1 `turn/enqueue`
 
 Persist user input in the thread FIFO queue. Interactive clients use this while blocking maintenance is active or the current execution cannot accept steering.
@@ -1965,7 +1980,9 @@ The `turn.status` is `"failed"` and `turn.error` contains the error description.
 
 #### `turn/cancelled`
 
-Emitted when a turn is cancelled via `turn/interrupt` or client disconnect.
+Emitted when a turn is cancelled via `turn/interrupt`, client disconnect, or cold-load recovery after
+the process that owned a non-terminal Turn has exited. Cold-load recovery uses reason
+`"interrupted"` and publishes only after the terminal Turn is durable.
 
 **Params**: `{ "turn": Turn, "reason": "<description>" }`
 
