@@ -131,6 +131,7 @@ public sealed partial class SessionService(
 
     // In-memory state
     private readonly ThreadManager _runtimeRegistry = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _threadLoadLocks = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private ThreadIndexCoordinator? _threadIndexCoordinator;
@@ -4765,33 +4766,48 @@ public sealed partial class SessionService(
         if (_runtimeRegistry.TryGetThread(threadId, out var cached))
             return cached;
 
-        var thread = await persistence.LoadThreadAsync(threadId, ct)
-                     ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
-
-        if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-            throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
-
-        var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
-            turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-        if (interruptedTurn != null)
+        var loadLock = _threadLoadLocks.GetOrAdd(threadId, static _ => new SemaphoreSlim(1, 1));
+        await loadLock.WaitAsync(ct);
+        try
         {
-            interruptedTurn.Status = TurnStatus.Cancelled;
-            interruptedTurn.CompletedAt = DateTimeOffset.UtcNow;
-            await new TurnCommitter(this, thread, interruptedTurn).CommitAsync();
-        }
+            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
+                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
 
-        var runtime = _runtimeRegistry.SetThread(thread);
-        runtime.Materialized = true;
-        if (interruptedTurn != null)
+            if (_runtimeRegistry.TryGetThread(threadId, out cached))
+                return cached;
+
+            var thread = await persistence.LoadThreadAsync(threadId, ct)
+                         ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+
+            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
+                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+
+            var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
+                turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+            if (interruptedTurn != null)
+            {
+                interruptedTurn.Status = TurnStatus.Cancelled;
+                interruptedTurn.CompletedAt = DateTimeOffset.UtcNow;
+                await new TurnCommitter(this, thread, interruptedTurn).CommitAsync();
+            }
+
+            var runtime = _runtimeRegistry.SetThread(thread);
+            runtime.Materialized = true;
+            if (interruptedTurn != null)
+            {
+                runtime.Broker.PublishTurnCancelled(interruptedTurn, "interrupted");
+                ThreadRuntimeSignalForBroadcast?.Invoke(
+                    thread.Id,
+                    SessionThreadRuntimeSignal.TurnCancelled,
+                    interruptedTurn);
+            }
+
+            return thread;
+        }
+        finally
         {
-            runtime.Broker.PublishTurnCancelled(interruptedTurn, "interrupted");
-            ThreadRuntimeSignalForBroadcast?.Invoke(
-                thread.Id,
-                SessionThreadRuntimeSignal.TurnCancelled,
-                interruptedTurn);
+            loadLock.Release();
         }
-
-        return thread;
     }
 
     private async Task InvokeThreadCommandAsync(

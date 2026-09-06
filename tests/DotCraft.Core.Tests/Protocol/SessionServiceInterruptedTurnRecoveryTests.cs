@@ -142,6 +142,58 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentColdLoads_CommitAndPublishInterruptedCancellationOnce()
+    {
+        var (threadId, _, _, _) = await SeedThreadAsync(TurnStatus.Running);
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+        var cancelledSignals = 0;
+        service.ThreadRuntimeSignalForBroadcast = (id, signal, _) =>
+        {
+            if (id == threadId && signal == SessionThreadRuntimeSignal.TurnCancelled)
+                Interlocked.Increment(ref cancelledSignals);
+        };
+
+        using var persistenceGate = await ThreadRolloutWriteGate.AcquireAsync(CraftPath, threadId);
+        using var ready = new CountdownEvent(3);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ensureTask = StartConcurrentLoadAsync(() => service.EnsureThreadLoadedAsync(threadId));
+        var readTask = StartConcurrentLoadAsync(() => service.GetThreadAsync(threadId));
+        var cancelTask = StartConcurrentLoadAsync(async () =>
+        {
+            await service.CancelTurnAsync(threadId, "turn_001");
+            return await service.GetThreadAsync(threadId);
+        });
+
+        Assert.True(ready.Wait(TimeSpan.FromSeconds(5)));
+        start.SetResult();
+        await Task.Delay(100);
+        persistenceGate.Dispose();
+
+        var loaded = await Task.WhenAll(ensureTask, readTask, cancelTask);
+        Assert.All(loaded, thread => Assert.Same(loaded[0], thread));
+        Assert.Equal(TurnStatus.Cancelled, Assert.Single(loaded[0].Turns).Status);
+        Assert.Equal(1, Volatile.Read(ref cancelledSignals));
+
+        var replayed = await ReadSingleReplayEventAndAssertQuietAsync(service, threadId);
+        var cancelled = Assert.IsType<TurnCancelledPayload>(replayed.Payload);
+        Assert.Equal(SessionEventType.TurnCancelled, replayed.EventType);
+        Assert.Equal("interrupted", cancelled.Reason);
+
+        await using var freshStore = new ThreadStore(CraftPath);
+        var history = await freshStore.LoadModelHistoryAsync(threadId);
+        Assert.Equal(["original request", "partial response"], history.Select(MessageText));
+
+        Task<SessionThread> StartConcurrentLoadAsync(Func<Task<SessionThread>> load) => Task.Run(async () =>
+        {
+            ready.Signal();
+            await start.Task;
+            return await load();
+        });
+    }
+
+    [Fact]
     public async Task InterruptedTurn_AllowsNextTurnAndRecoveryExport()
     {
         var (threadId, _, _, _) = await SeedThreadAsync(TurnStatus.WaitingApproval);
@@ -365,6 +417,24 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
             await events.MoveNextAsync().AsTask());
         return result;
     }
+
+    private static async Task<SessionEvent> ReadSingleReplayEventAndAssertQuietAsync(
+        SessionService service,
+        string threadId)
+    {
+        using var timeout = new CancellationTokenSource();
+        await using var events = service.SubscribeThreadAsync(threadId, replayRecent: true, timeout.Token)
+            .GetAsyncEnumerator(timeout.Token);
+        Assert.True(await events.MoveNextAsync());
+        var result = events.Current;
+        timeout.CancelAfter(TimeSpan.FromMilliseconds(250));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await events.MoveNextAsync().AsTask());
+        return result;
+    }
+
+    private static string MessageText(ChatMessage message) =>
+        string.Concat(message.Contents.OfType<TextContent>().Select(static content => content.Text));
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
     {
