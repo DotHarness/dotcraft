@@ -2878,7 +2878,6 @@ export const MESSAGES_JA = {
   'composer.runOn.busy.self': 'このワークスペースで使用中',
   'composer.runOn.busy.other': '別のエージェントが使用中',
   'composer.runOn.offline': 'オフライン',
-  'composer.runOn.turnRunning': '現在のターンを終了するか停止してください。',
   'satellite.toast.joined.message': '{{name}} が参加しました',
   'satellite.toast.joined.description': '{{user}} のPCであなたの作業を実行できます。',
   'satellite.toast.joined.action': 'このスレッドで使う',

@@ -16,7 +16,7 @@ interface RunOnPickerProps {
   threadId?: string
   /** Names the This PC folder before a thread carries a workspace path. */
   workspacePath?: string
-  disabled?: boolean
+  turnRunning?: boolean
   /** Lets the context row close its own menus when this one opens. */
   onOpenChange?: (open: boolean) => void
 }
@@ -49,13 +49,14 @@ export function useRunOnVisible(): boolean {
 export function RunOnPicker({
   threadId,
   workspacePath,
-  disabled = false,
+  turnRunning = false,
   onOpenChange
 }: RunOnPickerProps): JSX.Element | null {
   const t = useT()
   const hosts = useThreadRouteStore((s) => s.hosts)
   const route = useThreadRouteStore((s) => (threadId ? s.routes[threadId] : undefined))
   const pendingRoute = useThreadRouteStore((s) => (threadId ? null : s.pendingRoute))
+  const deferredRoutes = useThreadRouteStore((s) => s.deferredRoutes)
   const connecting = useThreadRouteStore((s) => s.connecting === threadId && threadId != null)
   const activeWorkspacePath = useThreadStore((s) => s.activeThread?.workspacePath ?? '')
   const localWorkspacePath = activeWorkspacePath || (workspacePath ?? '')
@@ -67,7 +68,7 @@ export function RunOnPicker({
   const listId = useId()
 
   const visible = useRunOnVisible()
-  const interactive = visible && !disabled && !connecting
+  const interactive = visible && !connecting
   const overlapBandHeight = useComposerOverlapBandHeight(popupRef, interactive && open)
 
   const setOpenState = useCallback((next: boolean): void => {
@@ -82,8 +83,13 @@ export function RunOnPicker({
 
   useEffect(() => {
     if (!visible || !threadId) return
-    useThreadRouteStore.getState().maybeReapply(threadId, { turnRunning: disabled })
-  }, [disabled, threadId, visible])
+    useThreadRouteStore.getState().maybeReapply(threadId, { turnRunning })
+  }, [threadId, turnRunning, visible])
+
+  useEffect(() => {
+    if (!visible || !threadId || turnRunning) return
+    void useThreadRouteStore.getState().applyDeferredRoute(threadId)
+  }, [threadId, turnRunning, visible])
 
   const options = useMemo<RunOnOption[]>(() => {
     const local: RunOnOption = {
@@ -98,13 +104,14 @@ export function RunOnPicker({
       host.workspaces.map((workspace) => {
         const offline = !host.online
         const busy = host.online && workspace.available === false
+        const current = route?.hostId === host.hostId && route.workspaceId === workspace.workspaceId
         return {
           id: `${host.hostId}:${workspace.workspaceId}`,
           hostId: host.hostId,
           workspaceId: workspace.workspaceId,
           title: host.displayName,
           folder: workspace.displayName,
-          disabled: offline || busy,
+          disabled: !current && (offline || busy),
           ...(offline
             ? { noteKey: 'composer.runOn.offline' }
             : busy
@@ -114,12 +121,21 @@ export function RunOnPicker({
       })
     )
     return [local, ...remote]
-  }, [hosts, localWorkspacePath, t])
+  }, [hosts, localWorkspacePath, route, t])
 
-  // Before a thread exists the chip reads the pending choice; after it, only the
-  // route the server confirmed.
-  const chosen = route ?? pendingRoute
-  const selectedId = chosen ? `${chosen.hostId}:${chosen.workspaceId}` : LOCAL_OPTION_ID
+  const hasDeferredRoute = threadId != null
+    && Object.prototype.hasOwnProperty.call(deferredRoutes, threadId)
+  const deferredRoute = hasDeferredRoute && threadId ? deferredRoutes[threadId] : undefined
+  const actualId = route ? `${route.hostId}:${route.workspaceId}` : LOCAL_OPTION_ID
+  const pendingId = hasDeferredRoute
+    ? deferredRoute
+      ? `${deferredRoute.hostId}:${deferredRoute.workspaceId}`
+      : LOCAL_OPTION_ID
+    : null
+  const welcomeId = pendingRoute
+    ? `${pendingRoute.hostId}:${pendingRoute.workspaceId}`
+    : LOCAL_OPTION_ID
+  const selectedId = threadId ? pendingId ?? actualId : welcomeId
   const selectedIndex = Math.max(0, options.findIndex((option) => option.id === selectedId))
 
   useEffect(() => {
@@ -142,6 +158,19 @@ export function RunOnPicker({
         )
         return
       }
+      if (turnRunning) {
+        if (option.id === actualId) {
+          store.clearDeferredRoute(threadId)
+        } else {
+          store.deferRoute(
+            threadId,
+            option.hostId && option.workspaceId
+              ? { hostId: option.hostId, workspaceId: option.workspaceId }
+              : null
+          )
+        }
+        return
+      }
       try {
         if (option.hostId && option.workspaceId) {
           await store.connect(threadId, option.hostId, option.workspaceId)
@@ -152,7 +181,7 @@ export function RunOnPicker({
         showThreadRouteFailureToast(option.title, error, t)
       }
     },
-    [selectedId, setOpenState, t, threadId]
+    [actualId, selectedId, setOpenState, t, threadId, turnRunning]
   )
 
   useEffect(() => {
@@ -197,12 +226,8 @@ export function RunOnPicker({
   // The pill names the machine only; the folder stays on the option row's second line.
   const label = connecting
     ? t('composer.runOn.connecting')
-    : chosen
-      ? selected.title
-      : t('composer.runOn.thisPc')
-  const tooltip = disabled
-    ? t('composer.runOn.turnRunning')
-    : `${t('composer.runOn.label')} · ${label}`
+    : selected.title
+  const tooltip = `${t('composer.runOn.label')} · ${label}`
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', minWidth: 0 }}>
@@ -219,7 +244,7 @@ export function RunOnPicker({
         >
           {connecting ? (
             <Loader2 size={15} className="animate-spin-custom" aria-hidden />
-          ) : chosen ? (
+          ) : selectedId !== LOCAL_OPTION_ID ? (
             <SatelliteDish size={15} strokeWidth={1.8} aria-hidden data-testid="run-on-routed-glyph" />
           ) : (
             <Monitor size={15} strokeWidth={1.8} aria-hidden />

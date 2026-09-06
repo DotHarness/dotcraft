@@ -51,6 +51,7 @@ describe('threadRouteStore', () => {
       hosts: [],
       routes: {},
       pendingRoute: null,
+      deferredRoutes: {},
       connecting: null,
       attempted: new Set<string>(),
       generation: 0
@@ -232,6 +233,61 @@ describe('threadRouteStore', () => {
     useThreadRouteStore.getState().resetForConnection()
 
     expect(useThreadRouteStore.getState().pendingRoute).toBeNull()
+  })
+
+  it('applies a deferred choice silently after the caller observes an idle thread', async () => {
+    settingsGet.mockResolvedValue({ satelliteRouteByThread: {} })
+    useThreadRouteStore.getState().deferRoute(THREAD_ID, {
+      hostId: 'sat_studio',
+      workspaceId: 'ws_shaders'
+    })
+
+    expect(sendRequest).not.toHaveBeenCalled()
+    await useThreadRouteStore.getState().applyDeferredRoute(THREAD_ID)
+
+    expect(sendRequest).toHaveBeenCalledWith('remoteToolHost/connect', {
+      threadId: THREAD_ID,
+      hostId: 'sat_studio',
+      workspaceId: 'ws_shaders'
+    })
+    expect(useThreadRouteStore.getState().routes[THREAD_ID]?.hostId).toBe('sat_studio')
+    expect(useThreadRouteStore.getState().deferredRoutes).not.toHaveProperty(THREAD_ID)
+    expect(settingsSet).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses a deferred null target to return to This PC', async () => {
+    useThreadRouteStore.setState({
+      routes: {
+        [THREAD_ID]: {
+          threadId: THREAD_ID,
+          hostId: 'sat_studio',
+          workspaceId: 'ws_shaders',
+          status: 'connected'
+        }
+      }
+    })
+    useThreadRouteStore.getState().deferRoute(THREAD_ID, null)
+
+    await useThreadRouteStore.getState().applyDeferredRoute(THREAD_ID)
+
+    expect(sendRequest).toHaveBeenCalledWith('remoteToolHost/disconnect', { threadId: THREAD_ID })
+    expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
+    expect(useThreadRouteStore.getState().deferredRoutes).not.toHaveProperty(THREAD_ID)
+    expect(settingsSet).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a refused deferred choice without changing route memory', async () => {
+    sendRequest.mockRejectedValue(new Error('That machine is offline.'))
+    useThreadRouteStore.getState().deferRoute(THREAD_ID, {
+      hostId: 'sat_studio',
+      workspaceId: 'ws_shaders'
+    })
+
+    await expect(useThreadRouteStore.getState().applyDeferredRoute(THREAD_ID)).resolves.toBeUndefined()
+
+    expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
+    expect(useThreadRouteStore.getState().deferredRoutes).not.toHaveProperty(THREAD_ID)
+    expect(settingsSet).not.toHaveBeenCalled()
   })
 
   it('applies a route/changed notification and clears the route on disconnect', () => {

@@ -2886,7 +2886,6 @@ export const MESSAGES_FR = {
   'composer.runOn.busy.self': 'Utilisé dans cet espace de travail',
   'composer.runOn.busy.other': 'Utilisé par un autre agent',
   'composer.runOn.offline': 'Hors ligne',
-  'composer.runOn.turnRunning': 'Terminez ou arrêtez d’abord le tour en cours.',
   'satellite.toast.joined.message': '{{name}} a rejoint',
   'satellite.toast.joined.description': 'Le PC de {{user}} peut désormais exécuter votre travail.',
   'satellite.toast.joined.action': 'Utiliser dans ce fil',

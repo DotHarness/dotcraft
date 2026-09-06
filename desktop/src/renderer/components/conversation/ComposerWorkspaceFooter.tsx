@@ -49,7 +49,7 @@ interface ComposerWorkspaceFooterProps {
   // Perforce changelist pre-selected on the welcome screen; applied to the thread the first message creates.
   welcomeChangelist?: string | null
   onWelcomeChangelistChange?: (changelist: string) => void
-  /** True while a turn runs; only the Run on chip refuses input, git controls stay live. */
+  /** True while a turn runs; Run on defers its choice while git controls stay live. */
   turnRunning?: boolean
 }
 
@@ -577,7 +577,7 @@ export function ComposerWorkspaceFooter({
         <RunOnPicker
           threadId={thread?.id}
           workspacePath={workspacePath}
-          disabled={turnRunning}
+          turnRunning={turnRunning}
           onOpenChange={(open) => setOpenMenu(open ? 'runOn' : null)}
         />
       )}

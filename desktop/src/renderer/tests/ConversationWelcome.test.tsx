@@ -277,6 +277,7 @@ describe('ConversationWelcome composer', () => {
       hosts: [],
       routes: {},
       pendingRoute: null,
+      deferredRoutes: {},
       connecting: null,
       attempted: new Set<string>(),
       generation: 0

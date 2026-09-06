@@ -2888,7 +2888,6 @@ export const MESSAGES_DE = {
   'composer.runOn.busy.self': 'In diesem Workspace in Verwendung',
   'composer.runOn.busy.other': 'Von einem anderen Agent verwendet',
   'composer.runOn.offline': 'Offline',
-  'composer.runOn.turnRunning': 'Beende oder stoppe zuerst den laufenden Zug.',
   'satellite.toast.joined.message': '{{name}} ist beigetreten',
   'satellite.toast.joined.description': 'Der PC von {{user}} kann jetzt Arbeit für dich ausführen.',
   'satellite.toast.joined.action': 'In diesem Thread nutzen',

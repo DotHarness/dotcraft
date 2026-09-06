@@ -2365,7 +2365,6 @@ export const MESSAGES_EN = {
   'composer.runOn.busy.self': 'In use in this workspace',
   'composer.runOn.busy.other': 'In use by another agent',
   'composer.runOn.offline': 'Offline',
-  'composer.runOn.turnRunning': 'Finish or stop the current turn first.',
   'satellite.toast.joined.message': '{{name}} joined',
   'satellite.toast.joined.description': '{{user}}’s PC is ready to run work for you.',
   'satellite.toast.joined.action': 'Use in this thread',

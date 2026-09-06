@@ -2880,7 +2880,6 @@ export const MESSAGES_KO = {
   'composer.runOn.busy.self': '이 워크스페이스에서 사용 중',
   'composer.runOn.busy.other': '다른 에이전트가 사용 중',
   'composer.runOn.offline': '오프라인',
-  'composer.runOn.turnRunning': '현재 턴을 끝내거나 중지하세요.',
   'satellite.toast.joined.message': '{{name}}이(가) 참여했습니다',
   'satellite.toast.joined.description': '{{user}}의 PC에서 작업을 실행할 수 있습니다.',
   'satellite.toast.joined.action': '이 스레드에서 사용',

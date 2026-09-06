@@ -32,10 +32,10 @@ const OFFLINE_PC = {
   workspaces: [{ workspaceId: 'ws_qa', displayName: 'qa', available: true }]
 }
 
-function renderPicker(disabled = false): void {
-  render(
+function renderPicker(turnRunning = false) {
+  return render(
     <LocaleProvider>
-      <RunOnPicker threadId={THREAD_ID} disabled={disabled} />
+      <RunOnPicker threadId={THREAD_ID} turnRunning={turnRunning} />
     </LocaleProvider>
   )
 }
@@ -58,6 +58,7 @@ describe('RunOnPicker', () => {
       hosts: [],
       routes: {},
       pendingRoute: null,
+      deferredRoutes: {},
       connecting: null,
       attempted: new Set<string>(),
       generation: 0
@@ -84,8 +85,20 @@ describe('RunOnPicker', () => {
       satellites: [{ peerId: 'sat_studio', hostId: 'sat_studio' }]
     })
     settingsGet.mockResolvedValue({ locale: 'en' })
-    sendRequest.mockImplementation(async (method: string) => {
+    sendRequest.mockImplementation(async (method: string, params: Record<string, unknown>) => {
       if (method === 'remoteToolHost/list') return { hosts: [STUDIO_PC, OFFLINE_PC], route: null }
+      if (method === 'remoteToolHost/connect') {
+        return {
+          route: {
+            threadId: params.threadId,
+            hostId: params.hostId,
+            workspaceId: params.workspaceId,
+            status: 'connected'
+          },
+          matchedTools: [],
+          unavailableTools: []
+        }
+      }
       return {}
     })
 
@@ -131,12 +144,56 @@ describe('RunOnPicker', () => {
     expect(offline).toHaveTextContent('Offline')
   })
 
-  it('is disabled with a reason while a turn runs', async () => {
+  it('holds a running-turn choice until the thread becomes idle', async () => {
+    const view = renderPicker(true)
+
+    const trigger = await screen.findByTestId('run-on-trigger')
+    expect(trigger).not.toBeDisabled()
+    fireEvent.click(trigger)
+    fireEvent.click(await screen.findByTestId('run-on-option-sat_studio:ws_shaders'))
+
+    expect(trigger).toHaveTextContent('Studio PC')
+    expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
+    expect(useThreadRouteStore.getState().deferredRoutes[THREAD_ID]).toEqual({
+      hostId: 'sat_studio',
+      workspaceId: 'ws_shaders'
+    })
+    expect(sendRequest.mock.calls.some(([method]) => method === 'remoteToolHost/connect')).toBe(false)
+
+    fireEvent.click(trigger)
+    expect(screen.getByTestId('run-on-option-this-pc')).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByTestId('run-on-option-sat_studio:ws_shaders')).toHaveAttribute('aria-selected', 'true')
+
+    view.rerender(
+      <LocaleProvider>
+        <RunOnPicker threadId={THREAD_ID} turnRunning={false} />
+      </LocaleProvider>
+    )
+
+    await waitFor(() =>
+      expect(sendRequest).toHaveBeenCalledWith('remoteToolHost/connect', {
+        threadId: THREAD_ID,
+        hostId: 'sat_studio',
+        workspaceId: 'ws_shaders'
+      })
+    )
+    await waitFor(() => expect(trigger).toHaveTextContent('Studio PC'))
+    expect(useThreadRouteStore.getState().deferredRoutes).not.toHaveProperty(THREAD_ID)
+  })
+
+  it('cancels a running-turn choice by selecting the confirmed location', async () => {
     renderPicker(true)
 
     const trigger = await screen.findByTestId('run-on-trigger')
-    expect(trigger).toBeDisabled()
-    expect(trigger).toHaveAttribute('aria-label', 'Finish or stop the current turn first.')
+    fireEvent.click(trigger)
+    fireEvent.click(await screen.findByTestId('run-on-option-sat_studio:ws_shaders'))
+    expect(trigger).toHaveTextContent('Studio PC')
+
+    fireEvent.click(trigger)
+    fireEvent.click(await screen.findByTestId('run-on-option-this-pc'))
+
+    expect(trigger).toHaveTextContent('This PC')
+    expect(useThreadRouteStore.getState().deferredRoutes).not.toHaveProperty(THREAD_ID)
   })
 
   it('raises a tinted toast naming the busy folder when the route is refused', async () => {

@@ -35,6 +35,8 @@ export interface ThreadRouteState {
   routes: Record<string, RemoteToolRouteInfo>
   /** Client-only and never persisted: it lives until the first message claims it. */
   pendingRoute: PendingThreadRoute | null
+  /** Client-only next-idle choices. A present null value means switch back to This PC. */
+  deferredRoutes: Record<string, PendingThreadRoute | null>
   connecting: string | null
   /** `<generation>:<threadId>` entries whose silent re-apply has already been tried. */
   attempted: Set<string>
@@ -48,6 +50,9 @@ export interface ThreadRouteActions {
   disconnect(threadId: string): Promise<void>
   setPendingRoute(route: PendingThreadRoute | null): void
   applyPendingRoute(threadId: string): Promise<PendingRouteFailure | null>
+  deferRoute(threadId: string, route: PendingThreadRoute | null): void
+  clearDeferredRoute(threadId: string): void
+  applyDeferredRoute(threadId: string): Promise<void>
   handleRouteChanged(params: unknown): void
   resetForConnection(): void
   maybeReapply(threadId: string, options?: { turnRunning?: boolean }): void
@@ -148,11 +153,22 @@ function withoutRoute(
   return next
 }
 
+function withoutDeferredRoute(
+  routes: Record<string, PendingThreadRoute | null>,
+  threadId: string
+): Record<string, PendingThreadRoute | null> {
+  if (!Object.prototype.hasOwnProperty.call(routes, threadId)) return routes
+  const next = { ...routes }
+  delete next[threadId]
+  return next
+}
+
 export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
   supported: false,
   hosts: [],
   routes: {},
   pendingRoute: null,
+  deferredRoutes: {},
   connecting: null,
   attempted: new Set<string>(),
   generation: 0,
@@ -240,6 +256,29 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
     }
   },
 
+  deferRoute(threadId, route) {
+    set((state) => ({ deferredRoutes: { ...state.deferredRoutes, [threadId]: route } }))
+  },
+
+  clearDeferredRoute(threadId) {
+    set((state) => ({ deferredRoutes: withoutDeferredRoute(state.deferredRoutes, threadId) }))
+  },
+
+  async applyDeferredRoute(threadId) {
+    const state = get()
+    if (!Object.prototype.hasOwnProperty.call(state.deferredRoutes, threadId)) return
+    const deferred = state.deferredRoutes[threadId]
+    set((current) => ({
+      deferredRoutes: withoutDeferredRoute(current.deferredRoutes, threadId)
+    }))
+    try {
+      if (deferred) await get().connect(threadId, deferred.hostId, deferred.workspaceId)
+      else await get().disconnect(threadId)
+    } catch {
+      // A deferred choice is advisory. Keep the confirmed route and stay quiet if it is refused.
+    }
+  },
+
   handleRouteChanged(params) {
     const payload = asRecord(params) as RemoteToolHostRouteChangedNotification | null
     const threadId = text(payload?.threadId)
@@ -258,6 +297,7 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
       hosts: [],
       routes: {},
       pendingRoute: null,
+      deferredRoutes: {},
       connecting: null,
       attempted: new Set<string>(),
       generation: state.generation + 1

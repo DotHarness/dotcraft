@@ -2302,7 +2302,6 @@ export const MESSAGES_ZH_HANS = {
   'composer.runOn.busy.self': '在本工作区使用中',
   'composer.runOn.busy.other': '由其他 Agent 使用中',
   'composer.runOn.offline': '离线',
-  'composer.runOn.turnRunning': '请先结束或停止当前回合。',
   'satellite.toast.joined.message': '{{name}} 已加入',
   'satellite.toast.joined.description': '{{user}} 的电脑已经可以为你运行工作。',
   'satellite.toast.joined.action': '在当前会话使用',
