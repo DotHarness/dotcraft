@@ -434,7 +434,7 @@ export function ThreadHeader({
             else setCommitOpen(true)
           }}
           disabled={isPerforceWorkspace ? !canPreparePerforce || !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
-          icon={<CommitIcon size={14} />}
+          icon={<CommitIcon size={16} />}
         />
 
         {/* Only opens the panel; closing is handled by the panel's own rightmost button. */}

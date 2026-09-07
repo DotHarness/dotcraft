@@ -7,7 +7,6 @@ import {
   Clock,
   ExternalLink,
   Folder,
-  GitCommitHorizontal,
   Monitor,
   Puzzle,
   RotateCw,
@@ -42,7 +41,12 @@ export function WrenchIcon({ size = 16 }: { size?: number }): JSX.Element {
 }
 
 export function CommitIcon({ size = 16 }: { size?: number }): JSX.Element {
-  return <GitCommitHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+      <circle cx="10" cy="10" r="4" />
+      <path d="M2 10h4m8 0h4" />
+    </svg>
+  )
 }
 
 export function EditorGenericIcon({ size = 16 }: { size?: number }): JSX.Element {
