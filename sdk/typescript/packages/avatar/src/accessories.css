@@ -1,6 +1,4 @@
 .dca-part-held {
-  transform-box: view-box;
-  transform-origin: 233px 514px;
   opacity: 1;
   transition: opacity 150ms ease 460ms;
 }
@@ -8,9 +6,9 @@
   opacity: 0;
   transition: opacity 140ms ease;
 }
-/* The left hand keeps its original resting grip during a right-arm greeting or cheer. */
-.dca-has-held.dca-action-celebrate :is(.dca-part-arm-l-w, .dca-part-arm-l-b) {
-  transform: none;
-}
-.dca-has-held.dca-action-celebrate .dca-part-arm-l-b { fill: var(--dca-part-body-paint); }
 .dca-robot[data-gesture='blink'] .dca-part-caret { animation: none !important; }
+
+/* Lift an upright tool beside the face rather than sweeping it across the screen. */
+.dca-robot[data-held-state='holding'] .dca-action-celebrate :is(.dca-part-arm-l-w, .dca-part-arm-l) {
+  transform: translate(30px, -65px) rotate(20deg);
+}

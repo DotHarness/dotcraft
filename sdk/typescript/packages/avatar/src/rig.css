@@ -40,7 +40,7 @@
    a prop is never left floating. Every rule that ENTERS a posed arm state overrides
    the delay back to 0 so raises stay immediate. */
 .dca-part-arm-l-w,
-.dca-part-arm-l-b {
+.dca-part-arm-l {
   transform-box: view-box;
   transform-origin: 233px 514px;
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
@@ -117,7 +117,7 @@
 }
 
 .dca-action-prop-laptop .dca-part-arm-l-w,
-.dca-action-prop-laptop .dca-part-arm-l-b {
+.dca-action-prop-laptop .dca-part-arm-l {
   transform: translate(18px, 0);
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
 }
@@ -242,7 +242,7 @@
 /* The cheer reuses the wave's slide-then-rotate hinge grammar, so the outline wraps
    the band and the colour stays seam-continuous. */
 .dca-action-celebrate .dca-part-arm-l-w,
-.dca-action-celebrate .dca-part-arm-l-b {
+.dca-action-celebrate .dca-part-arm-l {
   transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
   transition-delay: 0ms;
 }

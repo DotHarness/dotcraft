@@ -70,7 +70,7 @@ Required fields:
 
 | Field | Meaning |
 |-------|---------|
-| `name` | Stable profile id. |
+| `name` | Canonical Unicode name used for display, lookup, and avatars. |
 | `description` | Human-readable purpose and selection hint. |
 
 Supported frontmatter groups:
@@ -88,7 +88,11 @@ Supported frontmatter groups:
 
 Validation rules:
 
-- `name` must be stable and safe for storage and API use.
+- `name` is trimmed and NFC-normalized, preserves case and internal spaces, contains 1–240 Unicode scalar values, and contains no control characters. Equality is ordinal after normalization.
+- The document name, not its filename, identifies a profile. New writable files use lowercase SHA-256 of the UTF-8 canonical name plus `.md`; hand-written filenames remain valid and are preserved on updates.
+- Duplicate names within one source are invalid and block mutation. Cross-source shadowing remains whole-document priority resolution.
+- `id` and `agentProfileId` reference this same canonical name; there is no independent display-name or slug field.
+- Upsert accepts optional `previousName` for a same-source rename. It validates the new document and target-name availability before replacing the old document. Failure preserves the original. Existing thread snapshots retain their original provenance; renaming does not rewrite historical threads.
 - `description` must be present for valid authoring and selection UX.
 - Unknown fields are rejected unless explicitly marked experimental.
 - The Markdown body maps to role instructions, not a base-prompt replacement.
@@ -358,3 +362,7 @@ The Agent Profiles system is complete when:
 - profile CRUD and validation are available through the management API,
 - refresh is explicit and updates stale profile-backed threads predictably,
 - diagnostics explain invalid profiles, shadowing, stale threads, locks, and trust restrictions.
+
+### Desktop creation
+
+New agent opens the profile editor alongside the builder conversation. The empty conversation offers creation prompts; templates remain available in the Agents gallery. An unnamed draft uses the default DotCraft avatar. Once named, the editor and conversation use the canonical name for their avatars.

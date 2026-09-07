@@ -134,7 +134,7 @@ internal sealed class AgentProfileRequestHandler(
 
         try
         {
-            var profile = CreateStore().Upsert(id, source, rawContent);
+            var profile = CreateStore().Upsert(id, source, rawContent, ValueOrDefault(p.PreviousName));
             return Task.FromResult<object?>(new Contract.AgentProfileUpsertResult
             {
                 Profile = ToContract(profile, includeRawContent: true, includeCompiledConfig: true)

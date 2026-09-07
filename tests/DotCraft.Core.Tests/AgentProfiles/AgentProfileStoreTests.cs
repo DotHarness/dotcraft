@@ -41,37 +41,40 @@ public sealed class AgentProfileStoreTests : IDisposable
     public void List_UsesSourcePriorityAndMarksShadowedProfiles()
     {
         File.WriteAllText(
-            Path.Combine(_userCraftPath, "agents", "reviewer.md"),
-            ValidProfile("reviewer", "User reviewer"));
+            Path.Combine(_userCraftPath, "agents", "Researcher.md"),
+            ValidProfile("Researcher", "User Researcher"));
         File.WriteAllText(
-            Path.Combine(_workspaceCraftPath, "agents", "reviewer.md"),
-            ValidProfile("reviewer", "Workspace reviewer"));
+            Path.Combine(_workspaceCraftPath, "agents", "Researcher.md"),
+            ValidProfile("Researcher", "Workspace Researcher"));
 
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
         var entries = store.List();
-        var effective = store.Read("reviewer");
+        var effective = store.Read("Researcher");
 
         Assert.Equal(AgentProfileSources.Workspace, effective.Source);
-        Assert.Equal("Workspace reviewer", effective.Description);
+        Assert.Equal("Workspace Researcher", effective.Description);
 
         var userEntry = entries.Single(entry =>
-            entry.Id == "reviewer"
+            entry.Id == "Researcher"
             && entry.Source == AgentProfileSources.User);
         Assert.True(userEntry.Shadowed);
         Assert.Equal(AgentProfileSources.Workspace, userEntry.ShadowedBy);
 
         var builtInEntry = entries.Single(entry =>
-            entry.Id == "reviewer"
+            entry.Id == "Researcher"
             && entry.Source == AgentProfileSources.BuiltIn);
         Assert.True(builtInEntry.Shadowed);
     }
 
     [Theory]
-    [InlineData("leader", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos,SpawnAgent,SendMessage,FollowupTask,WaitAgent,ListAgents,CloseAgent", null, AgentControlToolAccess.Full, ApprovalPolicy.Default)]
-    [InlineData("explorer", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("builder", "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("reviewer", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("operator", null, "WriteFile,EditFile,Exec,WriteStdin,Cron,CreatePlan,TodoWrite,UpdateTodos,GetGoal,CreateGoal,UpdateGoal,imagegen", AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Chief of Staff", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("Competitor Watcher", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("Inbox Triage", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Lookout", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("Negotiator", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Night Shift", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Researcher", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
     public void BuiltInProfiles_CompileRoleCapabilityPolicies(
         string profileId,
         string? allowedTools,
@@ -87,7 +90,7 @@ public sealed class AgentProfileStoreTests : IDisposable
         Assert.Equal(SplitTools(deniedTools), config.ToolPolicy?.Deny);
         Assert.Equal(agentControl, config.AgentControlToolAccess);
         Assert.Equal(approvalPolicy, config.ApprovalPolicy);
-        Assert.Equal(false, config.SkillsPolicy?.AllowManage);
+        Assert.Null(config.SkillsPolicy);
     }
 
     [Fact]
@@ -97,7 +100,7 @@ public sealed class AgentProfileStoreTests : IDisposable
         var result = store.ValidateRaw(
             """
 ---
-name: bad profile!
+name: "bad\u0001profile"
 avatar: 457
 tools:
   agentControl: root

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using YamlDotNet.Serialization;
 namespace DotCraft.Agents;
 
 /// <summary>
@@ -101,8 +103,8 @@ public static class AgentProfileDraftEditor
                 sub = null;
                 switch (key)
                 {
-                    case "name": draft.Name = val; break;
-                    case "description": draft.Description = val; break;
+                    case "name": draft.Name = new DeserializerBuilder().Build().Deserialize<string>(val) ?? string.Empty; break;
+                    case "description": draft.Description = new DeserializerBuilder().Build().Deserialize<string>(val) ?? string.Empty; break;
                     case "providerPreference":
                         draft.HasProviderPreference = true;
                         section = key;
@@ -166,8 +168,8 @@ public static class AgentProfileDraftEditor
     public static string ToMarkdown(AgentProfileDraft draft)
     {
         var fm = new List<string> { "---" };
-        fm.Add($"name: {(string.IsNullOrEmpty(draft.Name) ? "untitled-agent" : draft.Name)}");
-        fm.Add($"description: {draft.Description}");
+        fm.Add($"name: {JsonSerializer.Serialize(string.IsNullOrEmpty(draft.Name) ? "untitled-agent" : AgentProfileName.Canonicalize(draft.Name))}");
+        fm.Add($"description: {JsonSerializer.Serialize(draft.Description)}");
         if (draft.HasProviderPreference)
         {
             fm.Add("providerPreference:");

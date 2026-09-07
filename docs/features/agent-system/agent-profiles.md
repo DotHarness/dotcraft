@@ -8,6 +8,10 @@ Start with one specialist or build out a whole agent team: an Explorer for resea
 
 DotCraft derives each profile's avatar from its name, so the same name keeps the same visual identity wherever the profile appears.
 
+Names support spaces and Unicode (1–240 characters, without control characters). They are trimmed and NFC-normalized while preserving case. Display, lookup, and avatars use that one name. Storage filenames are generated safely; no separate ID is required.
+
+In Desktop, choose **Agents → New agent** to open the editor and builder conversation together. Describe what you need in the conversation or fill in the profile directly, then choose **Create** to save it. Select a built-in template from the Agents gallery to start from an existing role.
+
 ## Where profiles pay off
 
 | Place | How it helps |
@@ -23,11 +27,14 @@ DotCraft includes five starting points for your agent team. Use one as-is or ope
 
 | Profile | Best fit |
 |---|---|
-| <img src="/leader.svg" alt="Leader Agent Profile" width="64" height="64"> **Leader** | Plans complex work, delegates to specialists, verifies results, and combines the delivery. |
-| <img src="/explorer.svg" alt="Explorer Agent Profile" width="64" height="64"> **Explorer** | Investigates unfamiliar systems, resolves unknowns, and reports evidence without changing state. |
-| <img src="/builder.svg" alt="Builder Agent Profile" width="64" height="64"> **Builder** | Implements focused changes and verifies the result. |
-| <img src="/reviewer.svg" alt="Reviewer Agent Profile" width="64" height="64"> **Reviewer** | Independently checks correctness, risk, test coverage, and maintainability. |
-| <img src="/operator.svg" alt="Operator Agent Profile" width="64" height="64"> **Operator** | Operates apps, browsers, MCP servers, and workflows with explicit control over side effects. |
+| **Night Shift** | Works through an overnight queue and prepares a morning digest. |
+| **Inbox Triage** | Sorts supplied email and drafts replies. |
+| **Chief of Staff** | Tracks the team plan and brings decisions to the user. |
+| **Negotiator** | Researches pricing and drafts negotiation messages. |
+| **Prototyper** | Turns ideas into working prototypes. |
+| **Researcher** | Investigates questions and reports evidence. |
+| **Lookout** | Checks pages and reports meaningful changes. |
+| **Competitor Watcher** | Tracks competitor pricing and launches, and prepares a brief. |
 
 ## Agent Builder
 

@@ -10,6 +10,7 @@ export type MascotLight = 'default' | 'error' | 'success'
 
 interface MascotRobotProps {
   baseFace?: number
+  held?: ReactNode
   accessory?: ReactNode
   top?: ReactNode
   surface?: ReactNode
@@ -52,7 +53,7 @@ export function MascotRig({
   size = 48,
   className,
   style,
-  avatar, top, surface, baseFace, accessory
+  avatar, top, surface, baseFace, accessory, held
 }: MascotRobotProps): JSX.Element {
   const uid = useId().replace(/:/g, '')
   const blue = `dca-part-blue-${uid}`
@@ -79,6 +80,8 @@ export function MascotRig({
   const propMark = avatar ? palette.markD : '#3161f7'
   const laptopLine = palette.markL
   const svgStyle = {
+    '--dca-held-mark': `url(#${blueMark})`,
+    '--dca-held-accent': `url(#${yellow})`,
     '--dca-part-body-paint': `url(#${blue})`,
     '--dca-part-raised-arm-left': raisedArmLeft,
     '--dca-part-raised-arm-right': raisedArmRight,
@@ -138,7 +141,6 @@ export function MascotRig({
 
         <g filter={`url(#${innerLift})`}>
           <rect x="243" y="408" width="538" height="426" rx="113" fill={`url(#${blue})`} />
-          <rect className="dca-part-arm-l-b" x="188" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} />
           <rect className="dca-part-arm-r-b" x="746" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} />
           {!top && <rect x="479" y="337" width="66" height="119" rx="6" fill={`url(#${blue})`} />}
         </g>
@@ -148,6 +150,10 @@ export function MascotRig({
         {!top && <circle className="dca-part-glow" cx="512" cy="229" r="96" fill={glowFill} />}
         {top ?? <circle className="dca-part-light" cx="512" cy="229" r="73" fill={lightFill} />}
 
+        <g className="dca-part-arm-l">
+          <rect className="dca-part-arm-l-b" x="188" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} filter={`url(#${innerLift})`} />
+          {held}
+        </g>
         {accessory}
         <g className="dca-face-motion"><Faces baseFace={baseFace} mark={`url(#${blueMark})`} accent={`url(#${yellow})`} /></g>
 

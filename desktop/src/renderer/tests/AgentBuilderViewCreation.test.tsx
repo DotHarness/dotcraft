@@ -56,9 +56,8 @@ function renderView(): void {
 async function openBlankBuilder(): Promise<void> {
   renderView()
   fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
-  fireEvent.click(screen.getByRole('button', { name: /Start blank/i }))
   await waitFor(() => {
-    expect(screen.getByText(/Untitled agent/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('agent name')).toBeInTheDocument()
   })
 }
 
@@ -74,7 +73,7 @@ async function startBuilderTurn(): Promise<void> {
   renderView()
   fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
 
-  const textbox = screen.getByRole('textbox')
+  const textbox = within(document.querySelector('.agent-builder-chatpane') as HTMLElement).getByRole('textbox')
   textbox.textContent = 'Name this agent Slate'
   fireEvent.input(textbox)
   fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
@@ -104,7 +103,7 @@ function emitBuilderToolStarted(callId: string, toolName: string): void {
   })
 }
 
-describe('AgentBuilderView intro composer', () => {
+describe('AgentBuilderView creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     notificationHandlers = []
@@ -196,7 +195,7 @@ describe('AgentBuilderView intro composer', () => {
     })
   })
 
-  it('uses the real builder composer and starts the first builder turn from intro submit', async () => {
+  it('uses the real builder composer and starts the first builder turn from the editor', async () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
@@ -218,7 +217,7 @@ describe('AgentBuilderView intro composer', () => {
       expect(screen.getByRole('button', { name: /Select model/i })).toHaveTextContent('gpt-5.5')
     })
 
-    const textbox = screen.getByRole('textbox')
+    const textbox = within(document.querySelector('.agent-builder-chatpane') as HTMLElement).getByRole('textbox')
     textbox.textContent = 'Build a release notes helper'
     fireEvent.input(textbox)
     fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
@@ -295,7 +294,7 @@ describe('AgentBuilderView intro composer', () => {
       expect(screen.getByRole('button', { name: /Select model/i })).toHaveTextContent('provider-model')
     })
 
-    const textbox = screen.getByRole('textbox')
+    const textbox = within(document.querySelector('.agent-builder-chatpane') as HTMLElement).getByRole('textbox')
     textbox.textContent = 'Build a provider-aware helper'
     fireEvent.input(textbox)
     fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
@@ -314,14 +313,12 @@ describe('AgentBuilderView intro composer', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
-    appServerSendRequest.mockClear()
 
-    fireEvent.click(screen.getByRole('button', { name: /Start blank/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/Untitled agent/i)).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('agent name')).toBeInTheDocument()
     })
-    expect(screen.getByText('How should we improve this agent?')).toBeInTheDocument()
+    expect(screen.getByText('Describe the agent you want')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
   })

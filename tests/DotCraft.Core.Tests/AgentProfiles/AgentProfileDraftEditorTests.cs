@@ -105,7 +105,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
         var md = AgentProfileDraftEditor.ToMarkdown(draft);
 
-        Assert.Contains("name: minimal", md);
+        Assert.Equal("minimal", AgentProfileDraftEditor.Parse(md).Name);
         Assert.DoesNotContain("providerPreference:", md);
         Assert.DoesNotContain("model:", md);
         Assert.DoesNotContain("reasoning:", md);

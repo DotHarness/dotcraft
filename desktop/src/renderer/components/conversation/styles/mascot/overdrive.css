@@ -123,6 +123,11 @@
   }
 }
 
+[data-mascot-profile-transition='active'] .composer-mascot-character-stage {
+  transform-origin: 50% 52%;
+  animation: composer-mascot-profile-character 1.24s linear both;
+}
+
 [data-mascot-profile-transition='active'] .composer-mascot-motion::before {
   content: '';
   position: absolute;

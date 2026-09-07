@@ -221,6 +221,7 @@ export interface AgentProfileSummary {
 
 export interface AgentProfileUpsertParams {
   id?: string;
+  previousName?: string;
   rawContent?: string;
   source?: string;
   [key: string]: unknown;

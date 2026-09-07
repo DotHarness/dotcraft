@@ -303,6 +303,23 @@ describe('ComposerShell mascot energy and active idle', () => {
     expect(element).toHaveAttribute('data-mascot-profile-transition', 'idle')
   })
 
+  it('cancels superseded profile swaps and restores the default avatar when cleared', () => {
+    const view = renderComposer({ mascotName: '' })
+    const element = mascot(view.container)
+    const defaultColor = element.style.getPropertyValue('--mascot-body-dark')
+    view.rerender(composer({ mascotName: 'Alpha' }))
+    act(() => vi.advanceTimersByTime(400))
+    view.rerender(composer({ mascotName: '夜班助手' }))
+    act(() => vi.advanceTimersByTime(220))
+    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe(defaultColor)
+    act(() => vi.advanceTimersByTime(400))
+    expect(element.style.getPropertyValue('--mascot-body-dark')).not.toBe(defaultColor)
+    view.rerender(composer({ mascotName: '' }))
+    act(() => vi.advanceTimersByTime(1240))
+    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe(defaultColor)
+    expect(element).toHaveAttribute('data-mascot-profile-transition', 'idle')
+  })
+
   it('switches Agent Profile avatars immediately when reduced motion is on', () => {
     document.documentElement.dataset.reduceMotion = 'on'
     const view = renderComposer({ mascotName: 'Alpha' })

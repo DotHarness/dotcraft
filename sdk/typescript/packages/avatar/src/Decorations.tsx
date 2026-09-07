@@ -25,7 +25,7 @@ export function DecoratedTop({ id }: { id: Exclude<PrimaryId, 'none'> }) {
 export function DecorationSwatch({ id, size = 112 }: { id: DecorationId; size?: number }) {
   const secondary = decorationOf(id).category === 'Accessories'
   const forehead = id === 'forehead-goggles'
-  return <svg width={size} height={size} viewBox={secondary ? forehead ? '300 280 424 324' : '95 635 260 260' : '265 105 494 360'} fill="none" role="img" aria-label={`${decorationOf(id).name} specimen`}>
+  return <svg width={size} height={size} viewBox={secondary ? forehead ? '300 280 424 324' : '65 435 315 360' : '265 105 494 360'} fill="none" role="img" aria-label={`${decorationOf(id).name} specimen`}>
     {secondary ? <SecondaryDecoration id={id as SecondaryId} /> : <PrimaryDecoration id={id as PrimaryId} />}
   </svg>
 }

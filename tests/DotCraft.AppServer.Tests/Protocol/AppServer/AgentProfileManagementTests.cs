@@ -70,7 +70,7 @@ public sealed class AgentProfileManagementTests : IDisposable
             Assert.Equal(raw, profile.GetProperty("rawContent").GetString());
         }
 
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "agents", "reviewer-lite.md")));
+        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "agents", DotCraft.Agents.AgentProfileName.FileName("reviewer-lite"))));
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileList, new { }));
         using (var listResponse = await harness.Transport.ReadNextSentAsync())

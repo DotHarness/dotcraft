@@ -60,7 +60,6 @@ export function AppearanceAvatar({ appearance, state = 'idle', size = 44, motion
   const pose = animated ? displayed : state
   const classes = [
     'dca-rig',
-    held ? 'dca-has-held' : '',
     !compact && pose === 'waiting' ? 'dca-action-hold-sign' : '',
     !compact && pose === 'working' ? 'dca-action-prop-laptop' : '',
     !compact && pose === 'done' ? 'dca-action-celebrate' : '',
@@ -75,7 +74,8 @@ export function AppearanceAvatar({ appearance, state = 'idle', size = 44, motion
       <g className="dca-body-motion"><g className={classes}>
         <AppearanceRig appearance={appearance} pose={pose} expression={animated ? shownExpression : expression}
           top={appearance.primary === 'none' ? undefined : <AnimatedDecoration id={appearance.primary} pose={state} sequence={eventSequence} enabled={animated} paused={paused || !visible} />}
-          accessory={compact ? undefined : <g data-accessory={appearance.secondary} className={held ? 'dca-part-held' : undefined}><SecondaryDecoration id={appearance.secondary} /></g>} />
+          held={!compact && held ? <g data-accessory={appearance.secondary} className="dca-part-held"><SecondaryDecoration id={appearance.secondary} /></g> : undefined}
+          accessory={!compact && !held ? <g data-accessory={appearance.secondary}><SecondaryDecoration id={appearance.secondary} /></g> : undefined} />
       </g></g>
     </svg>
   </span>

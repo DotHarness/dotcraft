@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
@@ -24,8 +24,7 @@ import { Input } from '../ui/Input'
 import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
 import { ResizeEdgeGlow } from '../layout/ResizeEdgeGlow'
-import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
-import { useComposerModelControls } from '../conversation/useComposerModelControls'
+import { type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import {
   createCatalogDefaultPreference,
   PreferenceModelPicker
@@ -68,8 +67,7 @@ import {
 import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
-import { AgentBuilderChatEmptyState } from './AgentBuilderChatEmptyState'
-import { AgentTemplateDeck } from './AgentTemplateDeck'
+import { DetachedAgentBuilderChat } from './DetachedAgentBuilderChat'
 import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
 import './AgentBuilderView.css'
 
@@ -122,7 +120,6 @@ type Filter = 'all' | 'builtIn' | 'user' | 'workspace'
 
 type Route =
   | { name: 'gallery' }
-  | { name: 'intro' }
   | {
       name: 'builder'
       draft: ProfileDraft
@@ -137,12 +134,6 @@ type Route =
       /** ISO last-updated time of the persisted profile; drives "Updated X ago". */
       updatedAt: string | null
     }
-
-const SUGGESTIONS: { icon: LucideIcon; title: string; desc: string; prompt: string }[] = [
-  { icon: FileSearch, title: 'Code review', desc: 'Read-only: find correctness gaps and missing tests', prompt: 'A read-only code reviewer focused on correctness, risk, and missing tests.' },
-  { icon: FileText, title: 'Doc writer', desc: 'Draft and maintain docs in the established style', prompt: 'A documentation writer that drafts and keeps docs consistent in the established style.' },
-  { icon: Tag, title: 'Bug triage', desc: 'Prioritize incoming bugs and log them', prompt: 'A bug triage agent that reviews incoming bugs, prioritizes them, and logs them.' }
-]
 
 const INSTRUCTIONS_PLACEHOLDER = 'Give your agent instructions on how to operate — its job, boundaries, and what it handles…'
 
@@ -193,8 +184,8 @@ function newDraftTargetId(): string {
 }
 
 interface AgentBuilderViewProps {
-  /** Where the view opens; the design lab mounts the Welcome page directly. */
-  initialRoute?: 'gallery' | 'intro'
+  /** Initial surface for the design lab. */
+  initialRoute?: 'gallery' | 'new'
 }
 
 export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewProps = {}): JSX.Element {
@@ -203,7 +194,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [route, setRoute] = useState<Route>(() => (initialRoute === 'intro' ? { name: 'intro' } : { name: 'gallery' }))
+  const [route, setRoute] = useState<Route>(() => (initialRoute === 'new' ? { name: 'builder', draft: createEmptyDraft(), id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, created: false, updatedAt: null } : { name: 'gallery' }))
 
   const [toolCatalog, setToolCatalog] = useState<ToolInfo[]>([])
   const [skillCatalog, setSkillCatalog] = useState<SkillInfo[]>([])
@@ -221,9 +212,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     targetId: string
     targetSource: string
   } | null>(null)
-  const [introPrefillRequest, setIntroPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const [builderPrefillRequest, setBuilderPrefillRequest] = useState<{ id: number; text: string } | null>(null)
-  const introPrefillSeqRef = useRef(0)
   const builderPrefillSeqRef = useRef(0)
   // Persists between turns; only another builder tool moves it.
   const [cursor, setCursor] = useState<{ field: BuilderField; phase: AgentEditingPhase } | null>(null)
@@ -478,10 +467,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     })
   }, [startDraft])
 
-  const prefillIntroComposer = useCallback((text: string): void => {
-    setIntroPrefillRequest({ id: ++introPrefillSeqRef.current, text })
-  }, [])
-
   const prefillBuilderComposer = useCallback((text: string): void => {
     setBuilderPrefillRequest({ id: ++builderPrefillSeqRef.current, text })
   }, [])
@@ -511,29 +496,12 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     lastSyncedBuilderDraftRef.current = md
   }, [startBuilderConversation])
 
-  const startBlankFromIntro = useCallback(async (
-    payload: InputComposerSubmitPayload,
-    config: ThreadConfigurationWire
-  ): Promise<void> => {
-    const draft = createEmptyDraft()
-    const targetId = newDraftTargetId()
-    const targetSource = 'workspace'
-    startDraft(draft, { targetId, targetSource })
-    await startBuilderChatWithDraft({
-      draft,
-      targetId,
-      targetSource,
-      inputParts: payload.inputParts,
-      config
-    })
-  }, [startDraft, startBuilderChatWithDraft])
-
   const startBuilderChatFromRoute = useCallback(async (
     payload: InputComposerSubmitPayload,
     config: ThreadConfigurationWire
   ): Promise<void> => {
     if (route.name !== 'builder') return
-    const routeName = route.draft.name.trim()
+    const routeName = route.draft.name.trim().normalize('NFC')
     const targetId = builderSession?.targetId ?? route.id ?? (routeName || newDraftTargetId())
     const targetSource = builderSession?.targetSource ?? route.source ?? route.saveTarget ?? 'workspace'
     await startBuilderChatWithDraft({
@@ -545,20 +513,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     })
   }, [builderSession, route, startBuilderChatWithDraft])
 
-  const fromTemplate = useCallback(async (entry: ProfileEntry): Promise<void> => {
-    try {
-      const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
-      const draft = parseProfile(res.profile?.rawContent)
-      if (!draft.name) draft.name = entry.id
-      startDraft(draft, {
-        targetId: entry.id,
-        targetSource: entry.source
-      })
-    } catch (err) {
-      showToast({ message: `Could not load template: ${errorText(err)}`, type: 'error' })
-    }
-  }, [startDraft])
-
   // A new/uncreated agent never auto-saves; it waits for the explicit Create button.
   // The Markdown baseline guards against re-saving unchanged content, which would
   // otherwise loop because each save updates the route.
@@ -568,7 +522,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
       return undefined
     }
     if (!route.created) return undefined
-    const name = route.draft.name.trim()
+    const name = route.draft.name.trim().normalize('NFC')
     const target = route.saveTarget
     const md = toMarkdown(route.draft)
     if (!name) return undefined
@@ -579,10 +533,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         try {
           const prevId = lastSavedIdRef.current
           const prevSource = lastSavedSourceRef.current
-          if (prevId && (prevId !== name || prevSource !== target)) {
-            await rpc('agent/profiles/remove', { id: prevId, source: prevSource }).catch(() => undefined)
-          }
-          await rpc('agent/profiles/upsert', { id: name, source: target, rawContent: md })
+          await rpc('agent/profiles/upsert', {
+            id: name, source: target, rawContent: md,
+            ...(prevId && prevSource === target && prevId !== name ? { previousName: prevId } : {})
+          })
           lastSavedMdRef.current = md
           lastSavedIdRef.current = name
           lastSavedSourceRef.current = target
@@ -601,7 +555,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   // After this, auto-save takes over to that target.
   const createProfile = useCallback(async (target: SaveTarget): Promise<void> => {
     if (route.name !== 'builder') return
-    const name = route.draft.name.trim()
+    const name = route.draft.name.trim().normalize('NFC')
     if (!name) {
       showToast({ message: 'Give the agent a name first.', type: 'error' })
       return
@@ -700,6 +654,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             />
           ) : (
             <DetachedAgentBuilderChat
+              creating={route.isNew && !route.draft.name.trim()}
               workspacePath={workspacePath}
               mascotName={route.draft.name}
               prefillRequest={builderPrefillRequest}
@@ -723,7 +678,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         />
         {createDialogOpen && (
           <AgentSaveTargetDialog
-            name={route.draft.name.trim()}
+            name={route.draft.name.trim().normalize('NFC')}
             onChoose={(target) => {
               setCreateDialogOpen(false)
               void createProfile(target)
@@ -731,55 +686,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             onCancel={() => setCreateDialogOpen(false)}
           />
         )}
-      </div>
-    )
-  }
-
-  if (route.name === 'intro') {
-    const templates = profiles.filter((p) => sectionFor(p.source) === 'builtIn')
-    return (
-      <div className="agent-builder">
-        <div className="agent-builder-intro-top">
-          <button type="button" className="agent-builder-iconbtn" title="Back" onClick={() => setRoute({ name: 'gallery' })}>
-            <ArrowLeft size={18} />
-          </button>
-          <button type="button" className="agent-builder-intro-blank" onClick={() => newBlank()}>
-            Start blank
-          </button>
-        </div>
-        <div className="agent-builder-intro">
-          <div className="agent-builder-intro-center">
-            <h1 className="agent-builder-intro-title">Build a new agent</h1>
-            <IntroBuilderComposer
-              workspacePath={workspacePath}
-              prefillRequest={introPrefillRequest}
-              onSubmit={startBlankFromIntro}
-            />
-            <div className="agent-builder-intro-sugs">
-              {SUGGESTIONS.map((s) => {
-                const Icon = s.icon
-                return (
-                  <button key={s.title} type="button" className="agent-builder-intro-sug" onClick={() => prefillIntroComposer(s.prompt)}>
-                    <span className="agent-builder-intro-sug-ic" aria-hidden><Icon size={16} /></span>
-                    <span className="agent-builder-intro-sug-t">{s.title}</span>
-                    <span className="agent-builder-intro-sug-d">{s.desc}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <AgentTemplateDeck
-            templates={templates.map((p) => ({
-              key: `${p.source}:${p.id}`,
-              name: p.name || p.id,
-              description: p.description || '',
-            }))}
-            onPick={(key) => {
-              const entry = templates.find((p) => `${p.source}:${p.id}` === key)
-              if (entry) void fromTemplate(entry)
-            }}
-          />
-        </div>
       </div>
     )
   }
@@ -807,7 +713,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
               variant="primary"
               size="toolbar"
               aria-label={t('agentBuilder.newAgent')}
-              onClick={() => setRoute({ name: 'intro' })}
+              onClick={newBlank}
               iconLeft={<Plus size={14} aria-hidden />}
             >
               {t('agentBuilder.newAgent')}
@@ -857,116 +763,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
           ))
         )}
       </CatalogScrollArea>
-    </div>
-  )
-}
-
-// Uses the real conversation composer, but with a detached submit handler because the hidden builder
-// thread is created only after the user sends the first intent.
-function IntroBuilderComposer({
-  workspacePath,
-  prefillRequest,
-  onSubmit
-}: {
-  workspacePath: string
-  prefillRequest: { id: number; text: string } | null
-  onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
-}): JSX.Element {
-  const modelControls = useComposerModelControls({
-    workspacePath,
-    mode: 'detached'
-  })
-
-  return (
-    <div className="agent-builder-introcomposer">
-      <InputComposer
-        threadId="agent-builder-intro"
-        transientVoiceOrigin
-        workspacePath={workspacePath}
-        minimalChrome
-        mascotName="Agent Builder"
-        variant="agentBuilder"
-        placeholder="Describe the agent you want…"
-        prefillRequest={prefillRequest}
-        submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
-        modelName={modelControls.modelName}
-        modelOptions={modelControls.modelOptions}
-        modelCatalog={modelControls.modelCatalog}
-        reasoningValue={modelControls.reasoningValue}
-        modelLoading={modelControls.modelLoading}
-        modelDisabled={modelControls.modelDisabled}
-        modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
-        modelCatalogError={modelControls.modelCatalogError}
-        modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
-        onModelChange={modelControls.onModelChange}
-        onReasoningChange={modelControls.onReasoningChange}
-        onModelCatalogRetry={modelControls.onModelCatalogRetry}
-        contextMode={modelControls.contextMode}
-        contextSupportsMax={modelControls.contextSupportsMax}
-        contextDegraded={modelControls.contextDegraded}
-        contextConfiguredWindow={modelControls.contextConfiguredWindow}
-        onContextModeChange={modelControls.onContextModeChange}
-        dockPadding={0}
-      />
-    </div>
-  )
-}
-
-function DetachedAgentBuilderChat({
-  workspacePath,
-  mascotName,
-  prefillRequest,
-  error,
-  onPrefill,
-  onSubmit
-}: {
-  workspacePath: string
-  mascotName: string
-  prefillRequest: { id: number; text: string } | null
-  error: string | null
-  onPrefill: (prompt: string) => void
-  onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
-}): JSX.Element {
-  const modelControls = useComposerModelControls({
-    workspacePath,
-    mode: 'detached'
-  })
-
-  return (
-    <div className="agent-builder-detached-chat">
-      {error && (
-        <div className="agent-builder-chat-error" role="alert">
-          Couldn’t start the builder chat: {error}
-        </div>
-      )}
-      <AgentBuilderChatEmptyState onPick={onPrefill} />
-      <InputComposer
-        threadId="agent-builder-detached"
-        transientVoiceOrigin
-        workspacePath={workspacePath}
-        minimalChrome
-        mascotName={mascotName}
-        variant="agentBuilder"
-        prefillRequest={prefillRequest}
-        submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
-        modelName={modelControls.modelName}
-        modelOptions={modelControls.modelOptions}
-        modelCatalog={modelControls.modelCatalog}
-        reasoningValue={modelControls.reasoningValue}
-        modelLoading={modelControls.modelLoading}
-        modelDisabled={modelControls.modelDisabled}
-        modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
-        modelCatalogError={modelControls.modelCatalogError}
-        modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
-        onModelChange={modelControls.onModelChange}
-        onReasoningChange={modelControls.onReasoningChange}
-        onModelCatalogRetry={modelControls.onModelCatalogRetry}
-        contextMode={modelControls.contextMode}
-        contextSupportsMax={modelControls.contextSupportsMax}
-        contextDegraded={modelControls.contextDegraded}
-        contextConfiguredWindow={modelControls.contextConfiguredWindow}
-        onContextModeChange={modelControls.onContextModeChange}
-      />
     </div>
   )
 }
@@ -1110,10 +906,6 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
           <button type="button" className="agent-builder-iconbtn" title="Back" onClick={onBack}>
             <ArrowLeft size={18} />
           </button>
-          <span className="agent-builder-headavatar">
-            <RobotAvatar name={draft.name} size={26} />
-          </span>
-          <span className="agent-builder-headname">{draft.name || 'Untitled agent'}</span>
         </div>
         <div className="agent-builder-edit-right">
           {route.created && (
@@ -1187,8 +979,6 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
             {route.readOnly && !preview && <div className="agent-builder-note">Built-in template — click Create to save it as a new agent in the selected source.</div>}
           </div>
         </div>
-
-        <div className="agent-builder-divider" />
 
         <Section label="Tools">
           <FieldAnchor field="tools.policy" className="agent-builder-tool-policy">

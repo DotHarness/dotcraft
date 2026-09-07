@@ -3355,6 +3355,13 @@ export const MESSAGES_EN = {
   'settings.subAgents.custom.sanitizationRulesPlaceholder': '{ "redactEmails": true }',
 
   // Agent Builder chat
+  'agentBuilder.chat.createTitle': "Describe the agent you want",
+  'agentBuilder.chat.createReview': "Code reviewer",
+  'agentBuilder.chat.createReviewPrompt': "Create a read-only code reviewer focused on correctness, risks, and missing tests.",
+  'agentBuilder.chat.createDocs': "Documentation writer",
+  'agentBuilder.chat.createDocsPrompt': "Create a documentation writer that keeps docs consistent with the established style.",
+  'agentBuilder.chat.createTriage': "Bug triage",
+  'agentBuilder.chat.createTriagePrompt': "Create an agent that reviews incoming bugs, prioritizes them, and logs them.",
   'agentBuilder.chat.emptyTitle': 'How should we improve this agent?',
   'agentBuilder.chat.quick.test': 'Test this agent',
   'agentBuilder.chat.quick.advanced': 'Add advanced logic',
@@ -3379,7 +3386,6 @@ export const MESSAGES_EN = {
   'agentBuilder.removeChip': 'Remove {{item}}',
   'agentBuilder.editing.updatingField': 'Updating {{field}}',
   'agentBuilder.editing.updatedField': 'Updated {{field}}',
-  'agentBuilder.intro.useTemplate': 'Use template',
   'agentBuilder.field.name': 'name',
   'agentBuilder.field.description': 'description',
   'agentBuilder.field.instructions': 'instructions',
