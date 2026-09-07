@@ -4,7 +4,7 @@ An Agent Profile saves a purpose-built DotCraft agent so you can reach for it wh
 
 ![DotCraft Agent Profiles](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
 
-Start with one specialist or build out a whole agent team: an Explorer for research, a Builder for implementation, or an Operator for app workflows. Each role is an independent Profile you can choose whenever the work calls for it.
+Choose a role for the result you need: Researcher for an evidence-backed answer, Prototyper for a runnable idea, or Task Runner for a local task. Each role is an independent Profile you can choose whenever the work calls for it.
 
 DotCraft derives each profile's avatar from its name, so the same name keeps the same visual identity wherever the profile appears.
 
@@ -23,18 +23,16 @@ A profile takes effect when a conversation or task starts. A conversation that's
 
 ## Built-in profiles
 
-DotCraft includes five starting points for your agent team. Use one as-is or open it in Agent Builder and shape it around your project.
+DotCraft includes six starting points for local tasks and concrete deliverables. Use one as-is or open it in Agent Builder and shape it around your project.
 
 | Profile | Best fit |
 |---|---|
-| **Night Shift** | Works through an overnight queue and prepares a morning digest. |
-| **Inbox Triage** | Sorts supplied email and drafts replies. |
-| **Chief of Staff** | Tracks the team plan and brings decisions to the user. |
-| **Negotiator** | Researches pricing and drafts negotiation messages. |
-| **Prototyper** | Turns ideas into working prototypes. |
-| **Researcher** | Investigates questions and reports evidence. |
-| **Lookout** | Checks pages and reports meaningful changes. |
-| **Competitor Watcher** | Tracks competitor pricing and launches, and prepares a brief. |
+| **Task Runner** | Completes local tasks and hands back verified results. |
+| **Researcher** | Answers questions with sources and clear conclusions. |
+| **Writer** | Turns source material into editable documents and presentations. |
+| **Data Analyst** | Analyzes files and delivers reproducible findings and charts. |
+| **Prototyper** | Builds runnable prototypes and verifies the core idea. |
+| **QA Tester** | Reproduces issues and verifies workflows with evidence. |
 
 ## Agent Builder
 

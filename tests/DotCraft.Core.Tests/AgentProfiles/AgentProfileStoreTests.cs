@@ -66,15 +66,23 @@ public sealed class AgentProfileStoreTests : IDisposable
         Assert.True(builtInEntry.Shadowed);
     }
 
+    [Fact]
+    public void BuiltInProfiles_OfferSixDeliveryRoles()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        Assert.Equal(
+            new[] { "Data Analyst", "Prototyper", "QA Tester", "Researcher", "Task Runner", "Writer" },
+            store.List().Where(entry => entry.Source == AgentProfileSources.BuiltIn)
+                .Select(entry => entry.Id).OrderBy(name => name, StringComparer.Ordinal));
+    }
+
     [Theory]
-    [InlineData("Chief of Staff", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("Competitor Watcher", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("Inbox Triage", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Lookout", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("Negotiator", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Night Shift", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Researcher", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("Task Runner", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Researcher", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,LSP", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Writer", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Data Analyst", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile,LSP,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("QA Tester", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     public void BuiltInProfiles_CompileRoleCapabilityPolicies(
         string profileId,
         string? allowedTools,

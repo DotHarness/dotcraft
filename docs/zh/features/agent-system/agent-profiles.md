@@ -4,7 +4,7 @@ Agent Profile 把一套专门用途的 Agent 设定保存下来，需要时随�
 
 ![DotCraft Agent 预设](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
 
-可以先打造一个专门 Agent，也可以逐步组建完整的 Agent 团队：让 Explorer 负责调查、Builder 负责实现、Operator 处理 App 工作流。每个角色都是独立的 Profile，需要时按工作选择即可。
+按需要的结果选择角色：让 Researcher 提供有据可查的结论、Prototyper 构建可运行的原型，或让 Task Runner 完成本地任务。每个角色都是独立的 Profile，需要时按工作选择即可。
 
 DotCraft 根据 Profile 名称生成 avatar，因此同一个名称在各处保持相同的视觉身份。
 
@@ -23,18 +23,16 @@ DotCraft 根据 Profile 名称生成 avatar，因此同一个名称在各处保�
 
 ## 内置 Profiles
 
-DotCraft 为你的 Agent 团队提供五个起点。可以直接使用，也可以在 Agent Builder 中按照项目需要继续调整。
+DotCraft 提供六个面向本地任务与具体交付的起点。可以直接使用，也可以在 Agent Builder 中按照项目需要继续调整。
 
 | Profile | 适合的工作 |
 |---|---|
-| **Night Shift** | 处理夜间交接任务，准备晨间摘要。 |
-| **Inbox Triage** | 整理提供的邮件并起草回复。 |
-| **Chief of Staff** | 整理团队计划，提请用户作出决策。 |
-| **Negotiator** | 研究价格并起草协商信息。 |
-| **Prototyper** | 将想法实现为可运行的原型。 |
-| **Researcher** | 研究问题并给出证据。 |
-| **Lookout** | 检查网页并报告变化。 |
-| **Competitor Watcher** | 跟踪竞品定价与发布，汇总简报。 |
+| **Task Runner** | 完成本地多步骤任务，交付经过验证的结果。 |
+| **Researcher** | 研究问题，给出来源与清晰结论。 |
+| **Writer** | 将资料写成可编辑的文档、报告和演示稿。 |
+| **Data Analyst** | 分析文件，交付可复现的计算、图表和结论。 |
+| **Prototyper** | 构建可运行的原型，验证核心想法。 |
+| **QA Tester** | 复现问题、验证流程，提供步骤和证据。 |
 
 ## Agent Builder
 
