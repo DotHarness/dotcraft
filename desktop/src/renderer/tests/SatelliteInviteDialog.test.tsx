@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SatellitesSegment } from '../components/settings/panels/connections/SatellitesSegment'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -162,6 +162,26 @@ describe('SatelliteInviteDialog', () => {
 
     expect(screen.getByLabelText('Invite link')).toHaveValue(LIVE.url)
     expect(screen.queryByLabelText('Purpose')).not.toBeInTheDocument()
+  })
+
+  it('shows the creation form after the kept link is consumed', async () => {
+    useSatellitesStore.setState({ invite: LIVE })
+    await openFromHeader()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    act(() => {
+      useSatellitesStore.getState().applyEvent({
+        kind: 'joined',
+        at: new Date().toISOString(),
+        peerId: MACHINE.peerId,
+        inviteId: LIVE.inviteId,
+        satellite: MACHINE
+      })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Invite' }))
+
+    expect(await screen.findByRole('button', { name: 'Create invite link' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Invite link')).not.toBeInTheDocument()
   })
 
   it('offers a new link once the kept invitation has expired', async () => {

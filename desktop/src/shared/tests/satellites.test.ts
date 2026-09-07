@@ -138,6 +138,19 @@ describe('parseSatelliteEvent', () => {
     })).toEqual({ kind, at: '2026-09-05T12:00:00.000Z', peerId: 'sat_1' })
   })
 
+  it('keeps the invitation id that identifies a newly consumed link', () => {
+    expect(parseSatelliteEvent({
+      kind: 'satellite.joined',
+      at: '2026-09-05T12:00:00.000Z',
+      data: { peerId: 'sat_1', inviteId: 'inv_1' }
+    })).toEqual({
+      kind: 'joined',
+      at: '2026-09-05T12:00:00.000Z',
+      peerId: 'sat_1',
+      inviteId: 'inv_1'
+    })
+  })
+
   it.each([
     { kind: 'appserver.started', at: '2026-09-05T12:00:00.000Z', data: { peerId: 'sat_1' } },
     { kind: 'satellite.renamed', at: '2026-09-05T12:00:00.000Z', data: { peerId: 'sat_1' } },

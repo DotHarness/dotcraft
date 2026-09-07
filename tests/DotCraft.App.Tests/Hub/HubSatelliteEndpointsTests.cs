@@ -98,6 +98,54 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task JoinEvent_IdentifiesTheConsumedInvitation()
+    {
+        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
+        var workspacePath = Path.Combine(_userProfile, "workspace");
+        Directory.CreateDirectory(workspacePath);
+        var credentials = new MemoryCredentialStore();
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
+        var invite = await hub.CreateInviteAsync("Ann");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        using var eventsRequest = new HttpRequestMessage(HttpMethod.Get, $"{hub.ApiBaseUrl}/v1/events");
+        eventsRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", hub.Token);
+        using var eventsResponse = await hub.Http.SendAsync(
+            eventsRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            cts.Token);
+        eventsResponse.EnsureSuccessStatusCode();
+        await using var stream = await eventsResponse.Content.ReadAsStreamAsync(cts.Token);
+        using var reader = new StreamReader(stream);
+
+        var peer = await runtime.AcceptInviteAsync(
+            new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath),
+            cts.Token);
+
+        var sawEvent = false;
+        while (!cts.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cts.Token);
+            if (line == "event: satellite.joined")
+            {
+                sawEvent = true;
+                continue;
+            }
+            if (sawEvent && line?.StartsWith("data:", StringComparison.Ordinal) == true)
+            {
+                using var payload = JsonDocument.Parse(line["data:".Length..].Trim());
+                var data = payload.RootElement.GetProperty("data");
+                Assert.Equal(peer.PeerId, data.GetProperty("peerId").GetString());
+                Assert.Equal(invite.InviteId, data.GetProperty("inviteId").GetString());
+                return;
+            }
+        }
+
+        Assert.Fail("The Hub published no satellite.joined event.");
+    }
+
+    [Fact]
     public async Task IconRoute_ServesEmbeddedDotCraftIcon()
     {
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);

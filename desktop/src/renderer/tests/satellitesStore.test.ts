@@ -178,6 +178,34 @@ describe('satellitesStore', () => {
     expect(useSatellitesStore.getState().inviteError).toBe('hub said no')
   })
 
+  it('clears only the invitation consumed by a joined event', () => {
+    const invite = {
+      inviteId: 'inv_current',
+      url: 'http://ann-pc:47600/i/inv_current',
+      expiresAt: '2999-01-01T00:00:00.000Z'
+    }
+    useSatellitesStore.setState({ invite, inviteError: 'old error' })
+
+    useSatellitesStore.getState().applyEvent({
+      kind: 'joined',
+      at: '2026-09-05T10:00:00.000Z',
+      peerId: 'p1',
+      inviteId: 'inv_other',
+      satellite: machine()
+    })
+    expect(useSatellitesStore.getState().invite).toEqual(invite)
+
+    useSatellitesStore.getState().applyEvent({
+      kind: 'joined',
+      at: '2026-09-05T10:01:00.000Z',
+      peerId: 'p1',
+      inviteId: 'inv_current',
+      satellite: machine()
+    })
+    expect(useSatellitesStore.getState().invite).toBeNull()
+    expect(useSatellitesStore.getState().inviteError).toBeNull()
+  })
+
   it('reads recent activity for one machine', async () => {
     activity.mockResolvedValue([{ kind: 'joined', at: '2026-09-05T09:12:00.000Z', peerId: 'p1' }])
     await useSatellitesStore.getState().loadActivity('p1')
