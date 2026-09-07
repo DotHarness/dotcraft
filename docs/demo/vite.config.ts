@@ -4,24 +4,23 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const desktopRenderer = resolve(__dirname, '../../desktop/src/renderer')
+const avatarSource = resolve(__dirname, '../../sdk/typescript/packages/avatar/src')
 const repoRoot = resolve(__dirname, '../..')
 
 export default defineConfig({
-  // Relative base so the bundle works under any docs subpath (VITEPRESS_BASE).
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify('web-demo')
   },
   resolve: {
     alias: [
-      // The Monaco/xterm viewer subtree is lazy-loaded by DetailPanel and never
-      // opened in the demo; stub it out so those heavy deps stay uninstalled.
+      // Keep desktop-only viewer dependencies out of the web demo.
       { find: /^.*\/detail\/ViewerTab$/, replacement: resolve(__dirname, 'src/stubs/ViewerTab.tsx') },
+      { find: '@dotcraft/avatar', replacement: avatarSource },
       { find: '@renderer', replacement: desktopRenderer },
       { find: '@', replacement: desktopRenderer }
     ],
-    // Desktop has its own node_modules (possibly stale or partially installed);
-    // force every shared runtime dependency to resolve from this project.
+    // Prevent Desktop's node_modules from supplying shared runtime instances.
     dedupe: [
       'react',
       'react-dom',
@@ -53,8 +52,6 @@ export default defineConfig({
     }
   },
   build: {
-    // Emitted into the docs site's public assets so `vitepress build` ships
-    // the demo at <base>/demo/. Generated output is gitignored.
     outDir: resolve(__dirname, '../public/demo'),
     emptyOutDir: true
   }

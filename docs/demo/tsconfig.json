@@ -10,6 +10,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@dotcraft/avatar": ["../../sdk/typescript/packages/avatar/src/index.ts"],
+      "@dotcraft/avatar/*": ["../../sdk/typescript/packages/avatar/src/*"],
       "@renderer/*": ["../../desktop/src/renderer/*"],
       "@/*": ["../../desktop/src/renderer/*"]
     }
