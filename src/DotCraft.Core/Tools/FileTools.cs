@@ -26,7 +26,8 @@ public sealed class FileTools(
     string? ripgrepPath = null,
     TimeSpan? searchTimeout = null,
     ISourceControlWriteCoordinator? sourceControlWriteCoordinator = null,
-    IReadOnlyList<string>? workspaceRoots = null)
+    IReadOnlyList<string>? workspaceRoots = null,
+    bool managedSearchOnly = false)
 {
     private const int MaxGrepMatches = 100;
 
@@ -310,7 +311,7 @@ public sealed class FileTools(
             if (!Directory.Exists(searchPath))
                 return $"Error: Directory not found: {path}";
 
-            var ripgrepResult = await _ripgrep.SearchAsync(new RipgrepSearchRequest(
+            var ripgrepResult = managedSearchOnly ? null : await _ripgrep.SearchAsync(new RipgrepSearchRequest(
                 searchPath,
                 pattern,
                 string.IsNullOrEmpty(include) ? null : include,
@@ -537,7 +538,7 @@ public sealed class FileTools(
         return string.IsNullOrWhiteSpace(result) ? $"Directory {originalPath} is empty" : result;
     }
 
-    private static IEnumerable<string> EnumerateSearchableFiles(
+    private IEnumerable<string> EnumerateSearchableFiles(
         string rootPath,
         string? includePattern,
         CancellationToken cancellationToken = default)
@@ -558,7 +559,7 @@ public sealed class FileTools(
         }
     }
 
-    private static IEnumerable<string> EnumerateFilesRecursive(
+    private IEnumerable<string> EnumerateFilesRecursive(
         string rootPath,
         string searchPattern = "*",
         CancellationToken cancellationToken = default)
@@ -581,7 +582,9 @@ public sealed class FileTools(
             foreach (var file in files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return file;
+                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0
+                    && blacklist?.IsBlacklisted(file) != true)
+                    yield return file;
             }
 
             try
@@ -590,7 +593,9 @@ public sealed class FileTools(
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var dirName = Path.GetFileName(subDir);
-                    if (SkipDirectories.Contains(dirName))
+                    if (SkipDirectories.Contains(dirName)
+                        || (File.GetAttributes(subDir) & FileAttributes.ReparsePoint) != 0
+                        || blacklist?.IsBlacklisted(subDir) == true)
                         continue;
                     dirs.Push(subDir);
                 }

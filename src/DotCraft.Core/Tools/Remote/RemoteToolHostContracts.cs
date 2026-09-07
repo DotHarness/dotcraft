@@ -132,6 +132,8 @@ public static class RemoteToolErrorCodes
     public const string ToolContractMismatch = "remote_tool_contract_mismatch";
     public const string RemoteToolUnavailable = "remote_tool_unavailable";
     public const string RemotePolicyDenied = "remote_policy_denied";
+    public const string ApprovalTimedOut = "remote_approval_timed_out";
+    public const string AuthorizationRequired = "remote_authorization_required";
     public const string ApprovalDeclined = "remote_approval_declined";
     public const string RemoteOutcomeUnknown = "remote_outcome_unknown";
     public const string RemoteResultMaterializationFailed = "remote_result_materialization_failed";

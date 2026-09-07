@@ -8,7 +8,7 @@ namespace DotCraft.Satellite.Consent;
 internal sealed partial class ConsentWindow : Window
 {
     private const int WidthDips = 560;
-    private const int HeightDips = 500;
+    private const int HeightDips = 580;
 
     public ConsentWindow(ConsentViewModel viewModel)
     {
@@ -27,6 +27,8 @@ internal sealed partial class ConsentWindow : Window
     public ConsentViewModel ViewModel { get; }
 
     public bool Accepted { get; private set; }
+
+    private void PreferredChecked(object sender, RoutedEventArgs args) => ViewModel.FullAccess = false;
 
     private void OnFirstActivation(object sender, WindowActivatedEventArgs args)
     {

@@ -13,8 +13,15 @@ internal sealed partial class ConsentViewModel : ObservableObject
 
     private readonly RemoteToolInvite _invite;
     private readonly IFolderPicker _picker;
-    private readonly Func<string, CancellationToken, Task> _accept;
+    private readonly Func<RemoteToolJoinDecision, CancellationToken, Task> _accept;
     private readonly SatelliteStrings _strings;
+    private readonly string _defaultFolder;
+
+    [ObservableProperty]
+    public partial bool FullAccess { get; set; }
+
+    [ObservableProperty]
+    public partial bool Acknowledged { get; set; }
 
     [ObservableProperty]
     public partial string FolderPath { get; set; } = string.Empty;
@@ -28,13 +35,16 @@ internal sealed partial class ConsentViewModel : ObservableObject
     public ConsentViewModel(
         RemoteToolInvite invite,
         IFolderPicker picker,
-        Func<string, CancellationToken, Task> accept,
+        Func<RemoteToolJoinDecision, CancellationToken, Task> accept,
         SatelliteStrings strings)
     {
         _invite = invite;
+        _defaultFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "DotCraft", "Satellite", "task-" + Guid.NewGuid().ToString("N")[..8]);
         _picker = picker;
         _accept = accept;
         _strings = strings;
+        FolderPath = _defaultFolder;
         InviterName = Sanitize(invite.InviterDisplayName, MaxNameLength);
         Purpose = Sanitize(invite.Purpose, MaxPurposeLength);
         if (IsExpired)
@@ -77,7 +87,24 @@ internal sealed partial class ConsentViewModel : ObservableObject
 
     public bool IsExpired => _invite.ExpiresAt is { } expiry && expiry <= DateTimeOffset.UtcNow;
 
-    public bool CanAllow => !IsBusy && !IsExpired && IsShareableFolder(FolderPath);
+    public string ModeHeading => _strings["consent.modeHeading"];
+    public string PreferredText => _strings["consent.preferred"];
+    public string PreferredDescription => _strings["consent.preferredDescription"];
+    public string FullText => _strings["consent.full"];
+    public string FullDescription => _strings["consent.fullDescription"];
+    public string AcknowledgementText => _strings["consent.acknowledgement"];
+    public bool WorkspacePreferred => !FullAccess;
+    public bool CanChangeFolder { get; set; } = true;
+    public bool CanAllow => !IsBusy && !IsExpired && (!FullAccess || Acknowledged)
+        && (FolderPath == _defaultFolder || IsShareableFolder(FolderPath));
+
+    partial void OnFullAccessChanged(bool value)
+    {
+        Acknowledged = false;
+        OnPropertyChanged(nameof(WorkspacePreferred));
+        OnPropertyChanged(nameof(CanAllow));
+    }
+    partial void OnAcknowledgedChanged(bool value) => OnPropertyChanged(nameof(CanAllow));
 
     [RelayCommand]
     private async Task ChangeFolderAsync()
@@ -95,7 +122,9 @@ internal sealed partial class ConsentViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            await _accept(FolderPath, CancellationToken.None);
+            await _accept(new RemoteToolJoinDecision(_invite, FolderPath,
+                FullAccess ? RemoteToolAuthorization.FullAccess : RemoteToolAuthorization.WorkspacePreferred,
+                FolderPath == _defaultFolder), CancellationToken.None);
             Finished?.Invoke(this, true);
         }
         catch (Exception ex)
@@ -120,10 +149,9 @@ internal sealed partial class ConsentViewModel : ObservableObject
         AllowCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>Nothing is pre-filled, so an empty folder is where the owner starts, not a mistake.</summary>
     private string FolderWarning(string value)
     {
-        if (value.Length == 0)
+        if (value.Length == 0 || value == _defaultFolder)
             return string.Empty;
         if (!IsExistingDirectory(value))
             return _strings["consent.warningFolder"];

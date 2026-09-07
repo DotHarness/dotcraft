@@ -66,7 +66,7 @@ internal sealed class SatelliteScenario : IAsyncDisposable
         var runtime = new RemoteToolHostRuntime(storage, "host-machine", heartbeatInterval);
         var invite = await hub.CreateInviteAsync("Ann");
         var peer = await runtime.AcceptInviteAsync(
-            new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath));
+            new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath, RemoteToolAuthorization.FullAccess));
 
         var running = runtime.RunAsync();
         var directory = new HubRemoteToolHostDirectory(new FixedHubEndpointProvider(hub.ApiBaseUrl, hub.Token));

@@ -26,7 +26,8 @@ public sealed record RemoteToolPeer(
     string WorkspaceId,
     string WorkspacePath,
     DateTimeOffset JoinedAt,
-    DateTimeOffset? ConnectedSince);
+    DateTimeOffset? ConnectedSince,
+    string? AuthorizationMode = null);
 
 /// <summary>The tool call currently running for a paired machine.</summary>
 public sealed record RemoteToolActivity(
@@ -47,12 +48,18 @@ public sealed record RemoteToolInvite(
     DateTimeOffset? ExpiresAt);
 
 /// <summary>An accepted invitation together with the folder the machine owner chose to share.</summary>
-public sealed record RemoteToolJoinDecision(RemoteToolInvite Invite, string WorkspacePath);
+public sealed record RemoteToolJoinDecision(
+    RemoteToolInvite Invite, string WorkspacePath,
+    string AuthorizationMode = RemoteToolAuthorization.WorkspacePreferred,
+    bool CreateWorkspace = false);
 
 public sealed class RemoteToolHostRuntimeOptions
 {
     /// <summary>DotCraft home directory; defaults to <c>~/.craft</c>.</summary>
     public string? CraftHome { get; set; }
+
+    /// <summary>Local owner approval UI. Absent presenters decline requests.</summary>
+    public IRemoteToolApprovalPresenter? ApprovalPresenter { get; set; }
 
     /// <summary>Name shown to paired machines; defaults to the machine name.</summary>
     public string? DisplayName { get; set; }

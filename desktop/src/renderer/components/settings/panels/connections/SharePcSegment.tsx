@@ -44,6 +44,9 @@ export function SharePcSegment({ status, onRefresh }: SharePcSegmentProps): JSX.
           {peers.map((peer, index) => {
             const paired = formatDay(peer.pairedAt, locale)
             const meta = [
+              t(peer.authorizationMode === 'fullAccess' ? 'settings.share.mode.full'
+                : peer.authorizationMode === 'workspacePreferred' ? 'settings.share.mode.preferred'
+                  : 'settings.share.mode.review'),
               peer.folderPath ? t('settings.share.pairing.folder', { folder: peer.folderPath }) : null,
               paired ? t('settings.share.pairing.paired', { date: paired }) : null
             ].filter((part): part is string => Boolean(part))

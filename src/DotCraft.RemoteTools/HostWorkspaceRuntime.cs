@@ -32,6 +32,8 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
     public IReadOnlyList<ToolRegistration> Registrations { get; }
     public IBackgroundTerminalService Terminals => _terminals;
 
+    public Task InitializeLspAsync(CancellationToken ct) => _lsp?.InitializeAsync(ct) ?? Task.CompletedTask;
+
     public static AppConfig LoadWorkspaceConfig(string globalConfigPath, string workspacePath) =>
         AppConfig.LoadWithGlobalFallback(
             Path.Combine(workspacePath, ".craft", "config.json"),
@@ -45,7 +47,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         string hostDataPath,
         CancellationToken cancellationToken)
     {
-        var config = LoadWorkspaceConfig(globalConfigPath, workspacePath);
+        var config = AppConfig.Load(globalConfigPath);
         var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId);
         Directory.CreateDirectory(workspaceData);
         var terminals = new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background);
@@ -55,7 +57,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             lsp = new LspServerManager(
                 config,
                 DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath));
-            await lsp.InitializeAsync(cancellationToken).ConfigureAwait(false);
+
         }
         var registrations = await CreateSource(config, terminals, lsp, hostDataPath)
             .GetRegistrationsAsync(
@@ -131,8 +133,10 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             terminals,
             pathBlacklist: new PathBlacklist(config.Security.BlacklistedPaths),
             lspServerManager: lsp,
-            userDataPath: hostDataPath,
-            approvalService: new HostInvocationApprovalService());
+            userDataPath: null,
+            approvalService: new HostInvocationApprovalService(),
+            notifyLspOnFileChanges: false,
+            managedFileSearch: true);
 
     private sealed class DeclarationOnlyTerminals : IBackgroundTerminalService
     {
@@ -192,37 +196,4 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             revision: catalogRevision,
             workspaceRoots: [workspacePath],
             requireApprovalOutsideWorkspace: true);
-}
-
-internal sealed class HostInvocationApprovalService : IApprovalService
-{
-    private static readonly AsyncLocal<bool> Approved = new();
-
-    public static IDisposable BeginApprovedInvocation()
-    {
-        var previous = Approved.Value;
-        Approved.Value = true;
-        return new Scope(previous);
-    }
-
-    public Task<bool> RequestFileApprovalAsync(
-        string operation,
-        string path,
-        ApprovalContext? context = null) => Task.FromResult(Approved.Value);
-
-    public Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
-        ApprovalContext? context = null) => Task.FromResult(Approved.Value);
-
-    public Task<bool> RequestResourceApprovalAsync(
-        string kind,
-        string operation,
-        string target,
-        ApprovalContext? context = null) => Task.FromResult(Approved.Value);
-
-    private sealed class Scope(bool previous) : IDisposable
-    {
-        public void Dispose() => Approved.Value = previous;
-    }
 }

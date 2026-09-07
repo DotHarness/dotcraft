@@ -14,6 +14,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     private readonly RemoteToolHostStorage _storage;
     private readonly RemoteToolHostActivityMonitor _activity = new();
     private readonly string _displayName;
+    private IRemoteToolApprovalPresenter? _approvalPresenter;
     private readonly TimeSpan? _heartbeatInterval;
     private readonly object _gate = new();
     private RemoteToolHostOutboundHost? _host;
@@ -45,7 +46,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         var displayName = string.IsNullOrWhiteSpace(options?.DisplayName)
             ? Environment.MachineName
             : options.DisplayName.Trim();
-        return new RemoteToolHostRuntime(storage, displayName);
+        return new RemoteToolHostRuntime(storage, displayName) { _approvalPresenter = options?.ApprovalPresenter };
     }
 
     /// <summary>Current lifecycle state.</summary>
@@ -91,7 +92,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         {
             if (_runTask is not null)
                 return _runTask;
-            var host = new RemoteToolHostOutboundHost(_storage, _activity, _heartbeatInterval);
+            var host = new RemoteToolHostOutboundHost(_storage, _activity, _heartbeatInterval, _approvalPresenter);
             host.Prepare();
             host.Changed += Refresh;
             _host = host;
@@ -228,6 +229,10 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(decision);
+        if (!RemoteToolAuthorization.IsValid(decision.AuthorizationMode))
+            throw new ArgumentException("Choose an authorization mode.", nameof(decision));
+        if (decision.CreateWorkspace)
+            Directory.CreateDirectory(decision.WorkspacePath);
         var workspacePath = CanonicalizeWorkspace(decision.WorkspacePath);
         var workspaceId = EnsureHostState(workspacePath);
         var hub = decision.Invite.HubEndpoint;
@@ -277,6 +282,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
                 HubScheme = hub.Scheme,
                 HubLabel = welcome.HubLabel ?? decision.Invite.InviterDisplayName,
                 WorkspaceId = workspaceId,
+                AuthorizationMode = decision.AuthorizationMode,
+                AuthorizationRevision = 1,
                 PairedAt = DateTimeOffset.UtcNow
             },
             welcome.Credential);
@@ -285,16 +292,18 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     }
 
     /// <summary>Closes one pairing's control connection without removing the pairing.</summary>
-    public Task DisconnectAsync(string peerId)
+    public async Task DisconnectAsync(string peerId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(peerId);
         foreach (var connector in _host?.Connectors ?? [])
         {
             if (string.Equals(connector.PeerId, peerId, StringComparison.Ordinal))
+            {
                 connector.Stop();
+                await connector.DrainAsync().ConfigureAwait(false);
+            }
         }
         Refresh();
-        return Task.CompletedTask;
     }
 
     /// <summary>Removes one pairing and its stored credential on this machine.</summary>
@@ -309,12 +318,16 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     /// Pauses or resumes sharing; while paused the Host stays reachable but offers no workspace and
     /// refuses new sessions, and leases already granted expire normally.
     /// </summary>
-    public Task SetSharingPausedAsync(bool paused)
+    public async Task SetSharingPausedAsync(bool paused)
     {
         if (_host is not null)
+        {
             _host.Paused = paused;
+            if (paused)
+                foreach (var connector in _host.Connectors)
+                    await connector.DrainAsync().ConfigureAwait(false);
+        }
         Refresh();
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -401,7 +414,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             workspaceId,
             workspacePath,
             peer.PairedAt,
-            connectedSince);
+            connectedSince,
+            peer.AuthorizationMode);
     }
 
     private string EnsureHostState(string workspacePath)
@@ -411,13 +425,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             HostId = "rth_" + Guid.NewGuid().ToString("N"),
             DisplayName = _displayName
         };
-        var existing = state.Workspaces.FirstOrDefault(pair => PathsEqual(pair.Value, workspacePath));
-        if (existing.Key is not null)
-        {
-            _storage.SaveHostState(state);
-            return existing.Key;
-        }
-
         var workspaceId = UniqueWorkspaceId(state, workspacePath);
         var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
         {

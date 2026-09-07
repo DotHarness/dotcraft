@@ -111,6 +111,13 @@ internal sealed class WorkspaceLeaseManager(
         }
     }
 
+    public void ReleaseWorkspace(string workspaceId)
+    {
+        lock (_gate)
+            if (_byWorkspace.TryGetValue(workspaceId, out var lease))
+                RemoveCore(lease);
+    }
+
     public void ReleaseAll()
     {
         lock (_gate)

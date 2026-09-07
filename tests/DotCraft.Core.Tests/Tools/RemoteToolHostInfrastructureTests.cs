@@ -302,10 +302,10 @@ public sealed class RemoteToolHostInfrastructureTests
             writeContext,
             new JsonObject { ["path"] = "approved.txt", ["content"] = "approved" });
         Assert.True(writeResult.Success, writeResult.Error?.Message);
-        Assert.Equal(1, approvals.RequestCount);
+        Assert.Equal(0, approvals.RequestCount);
         Assert.Equal("approved", await File.ReadAllTextAsync(Path.Combine(workspace.Path, "approved.txt")));
 
-        storage.SaveHostState(state with
+        storage.SaveHostState(storage.LoadHostState()! with
         {
             ToolPolicies = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -320,7 +320,7 @@ public sealed class RemoteToolHostInfrastructureTests
             new JsonObject { ["path"] = "denied.txt", ["content"] = "denied" });
         Assert.False(denied.Success);
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, denied.Error?.Code);
-        Assert.Equal(1, approvals.RequestCount);
+        Assert.Equal(0, approvals.RequestCount);
         Assert.False(File.Exists(Path.Combine(workspace.Path, "denied.txt")));
 
         Assert.True((await client.DisconnectAsync("agent-thread")).Disconnected);

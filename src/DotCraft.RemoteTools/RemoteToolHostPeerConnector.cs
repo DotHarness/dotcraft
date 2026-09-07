@@ -16,7 +16,10 @@ internal sealed class RemoteToolHostPeerConnector(
     TimeSpan? heartbeatInterval = null)
 {
     private readonly TimeSpan _heartbeatInterval = heartbeatInterval ?? SatelliteWire.HeartbeatInterval;
+    private readonly SemaphoreSlim _drainGate = new(1, 1);
     private readonly SemaphoreSlim _sendGate = new(1, 1);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _dataTasks = new();
+    private CancellationTokenSource _dataCancellation = new();
     private int _backoffAttempt;
     private volatile bool _stopped;
     private CancellationTokenSource? _session;
@@ -34,6 +37,22 @@ internal sealed class RemoteToolHostPeerConnector(
         _stopped = true;
         try { _session?.Cancel(); }
         catch (ObjectDisposedException) { }
+    }
+
+    public async Task DrainAsync()
+    {
+        await _drainGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+        await _dataCancellation.CancelAsync().ConfigureAwait(false);
+        try { await Task.WhenAll(_dataTasks.Values).ConfigureAwait(false); }
+        catch (Exception) { }
+        _dataTasks.Clear();
+        await handlers.DrainWorkspaceAsync(peer.WorkspaceId).ConfigureAwait(false);
+        _dataCancellation.Dispose();
+        _dataCancellation = new CancellationTokenSource();
+        }
+        finally { _drainGate.Release(); }
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -106,6 +125,7 @@ internal sealed class RemoteToolHostPeerConnector(
             await session.CancelAsync().ConfigureAwait(false);
             try { await heartbeat.ConfigureAwait(false); }
             catch (Exception) { }
+            await DrainAsync().ConfigureAwait(false);
             _session = null;
             IsConnected = false;
             ConnectedSince = null;
@@ -128,7 +148,7 @@ internal sealed class RemoteToolHostPeerConnector(
                 case SatelliteWire.Revoked:
                     throw new PairingRevokedException();
                 case SatelliteWire.OpenSession when frame.SessionId is { Length: > 0 } sessionId:
-                    _ = OpenDataSessionAsync(socket, credential, sessionId, session.Token);
+                    _dataTasks[sessionId] = OpenDataSessionAsync(socket, credential, sessionId, session.Token);
                     break;
             }
         }
@@ -142,14 +162,15 @@ internal sealed class RemoteToolHostPeerConnector(
     {
         try
         {
-            if (isPaused())
+            if (isPaused() || !RemoteToolAuthorization.IsValid(peer.AuthorizationMode))
                 throw new InvalidOperationException("Sharing is paused on this machine.");
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _dataCancellation.Token);
             await RemoteToolHostDataSession.RunAsync(
                 peer.DataUri(sessionId),
                 credential,
                 peer.PeerId,
                 handlers,
-                cancellationToken).ConfigureAwait(false);
+                linked.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -211,14 +232,14 @@ internal sealed class RemoteToolHostPeerConnector(
 
     private IReadOnlyList<SatelliteWorkspaceInfo> DescribeWorkspaces()
     {
-        if (isPaused())
+        if (isPaused() || !RemoteToolAuthorization.IsValid(peer.AuthorizationMode))
             return [];
         var state = storage.LoadHostState();
         if (state is null)
             return [];
         return
         [
-            .. state.Workspaces
+            .. state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId)
                 .OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair =>
                 {

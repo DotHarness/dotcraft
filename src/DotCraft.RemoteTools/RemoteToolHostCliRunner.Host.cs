@@ -137,6 +137,7 @@ internal static partial class RemoteToolHostCliRunner
                     hub = $"{peer.HubHost}:{peer.HubPort}",
                     label = peer.HubLabel,
                     workspaceId = peer.WorkspaceId,
+                    authorizationMode = peer.AuthorizationMode,
                     pairedAt = peer.PairedAt
                 })
             }).ConfigureAwait(false);

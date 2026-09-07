@@ -19,7 +19,7 @@ internal static class RemoteToolHostServerOptions
             "Pure DotCraft Remote Tool Host. It exposes paired workspace execution tools only.",
         Handlers = new McpServerHandlers
         {
-            ListToolsHandler = handlers.ListToolsAsync,
+            ListToolsHandler = (request, ct) => handlers.ListToolsAsync(request, ct, peerId),
             CallToolHandler = (request, cancellationToken) =>
                 handlers.CallToolAsync(request, peerId, cancellationToken)
         },

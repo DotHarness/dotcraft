@@ -70,6 +70,7 @@ public sealed class FileAccessGuard
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        fullPath = ResolveSymbolicLink(fullPath);
         if (_blacklist != null && _blacklist.IsBlacklisted(fullPath))
             return $"Error: Path '{originalPath}' is in the blacklist and cannot be accessed.";
 
@@ -132,58 +133,25 @@ public sealed class FileAccessGuard
             || resolvedPath.StartsWith(resolvedBoundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string ResolveSymbolicLinkSafe(string path)
-    {
-        try
-        {
-            return ResolveSymbolicLink(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return Path.GetFullPath(path);
-        }
-    }
-
-    private const int MaxSymlinkResolveDepth = 64;
+    private static string ResolveSymbolicLinkSafe(string path) => ResolveSymbolicLink(path);
 
     private static string ResolveSymbolicLink(string path)
     {
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        return ResolveSymbolicLinkCore(Path.GetFullPath(path), visited, depth: 0);
-    }
-
-    private static string ResolveSymbolicLinkCore(string path, HashSet<string> visited, int depth)
-    {
-        if (depth >= MaxSymlinkResolveDepth)
-            throw new InvalidOperationException("Symbolic link resolution exceeded maximum depth.");
-
-        if (!File.Exists(path) && !Directory.Exists(path))
-            return path;
-
-        if (!visited.Add(path))
-            throw new InvalidOperationException("Circular symbolic link detected.");
-
-        try
+        var full = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(full)!;
+        var current = root;
+        foreach (var part in full[root.Length..].Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
         {
-            FileSystemInfo info = File.Exists(path)
-                ? new FileInfo(path)
-                : new DirectoryInfo(path);
-
-            if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
+            current = Path.Combine(current, part);
+            FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
+            if (info.LinkTarget is not null)
             {
-                var target = info.ResolveLinkTarget(returnFinalTarget: false);
-                if (target != null)
-                {
-                    var resolved = Path.GetFullPath(target.FullName);
-                    return ResolveSymbolicLinkCore(resolved, visited, depth + 1);
-                }
+                var target = info.ResolveLinkTarget(returnFinalTarget: true)
+                    ?? throw new IOException("Cannot resolve linked path.");
+                current = target.FullName;
             }
-
-            return path;
         }
-        catch (PlatformNotSupportedException)
-        {
-            return path;
-        }
+        return Path.GetFullPath(current);
     }
 }
