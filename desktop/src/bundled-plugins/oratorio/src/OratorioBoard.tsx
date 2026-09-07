@@ -149,7 +149,7 @@ export function OratorioBoard({
 
   const source = useMemo(() => {
     if (effectivePresentation === 'empty' || effectivePresentation === 'unconfigured') return []
-    if (mode === 'active') return taskItems.filter((task) => task.lifecycle === 'open')
+    if (mode === 'active') return taskItems.filter((task) => task.lifecycle === 'open' && !task.archived && !task.cancelled)
     if (mode === 'all') return taskItems
     if (mode === 'cancelled') return taskItems.filter((task) => task.cancelled)
     return taskItems.filter((task) => task.archived)

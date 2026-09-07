@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mapItemSummary } from '../../bundled-plugins/oratorio/src/oratorio-mappers'
+import type { ItemSummaryDto } from '../../bundled-plugins/oratorio/src/oratorio-contracts'
 import { OratorioBoard } from '../../bundled-plugins/oratorio/src/OratorioBoard'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useToastStore } from '../stores/toastStore'
@@ -18,6 +20,32 @@ describe('OratorioBoard', () => {
     installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
     installOratorioTestHost()
     useToastStore.setState({ toasts: [] })
+  })
+
+  it('keeps archived and cancelled open-source tasks out of Active while preserving completed work', () => {
+    const item: ItemSummaryDto = {
+      itemId: 'done', source: 'github', externalId: '42', kind: 'issue', title: 'Completed work',
+      repository: 'example/project', assignee: null, branch: null, labels: [], state: 'approved',
+      currentRound: 1, checkState: null, latestSummary: null, sourceState: 'open',
+      createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', taskStatus: 'done',
+    }
+    const tasks = [
+      mapItemSummary(item),
+      mapItemSummary({ ...item, itemId: 'archived', title: 'Archived work', state: 'archived', taskStatus: 'cancelled' }),
+      mapItemSummary({ ...item, itemId: 'cancelled', title: 'Cancelled work', state: 'rejected', taskStatus: 'cancelled' }),
+    ]
+    renderBoard(<OratorioBoard tasks={tasks} onOpenDetail={vi.fn()} onOpenSettings={vi.fn()} onOpenThread={vi.fn()} />)
+
+    expect(screen.getByText('Completed work')).toBeInTheDocument()
+    expect(screen.queryByText('Archived work')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cancelled work')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archived', exact: true }))
+    expect(screen.getByText('Archived work')).toBeInTheDocument()
+    expect(screen.queryByText('Completed work')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'All', exact: true }))
+    for (const task of tasks) expect(screen.getByText(task.title)).toBeInTheDocument()
   })
 
   it('uses the host toast system for source sync feedback', async () => {
