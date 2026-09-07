@@ -10,6 +10,9 @@ npm install @dotcraft/sdk
 
 Follow the [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart) to connect an application.
 
+For name-derived robot avatars in React applications, use the separate
+[@dotcraft/avatar package](packages/avatar/README.md). It does not require this Node.js SDK.
+
 ## Documentation
 
 - [SDK overview](https://www.dotcraft.net/developing/sdks/)

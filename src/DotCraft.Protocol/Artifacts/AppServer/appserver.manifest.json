@@ -583,13 +583,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "avatar",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "compiledConfig",
           "type": "core.ThreadConfiguration",
           "required": false,

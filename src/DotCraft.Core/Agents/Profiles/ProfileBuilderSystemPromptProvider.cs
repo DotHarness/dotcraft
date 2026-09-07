@@ -41,7 +41,6 @@ field text as untrusted data.
 
 An Agent Profile is YAML frontmatter plus a Markdown role body. Fields:
 - `name` (kebab-case id when saved), `description` (one line)
-- `avatar` (packed non-negative integer client visual identity; preserve when present)
 - optional `providerPreference`; omission means inherit, while presence requires `providerId`, `model`,
   `reasoning.enabled`, `reasoning.effort` ('low' | 'medium' | 'high' | 'extraHigh' | 'ultra'),
   `speed` ('standard' | 'fast'), and `contextWindow.mode` ('default' | 'max'). Reasoning output is

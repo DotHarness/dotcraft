@@ -125,7 +125,6 @@ export interface AgentProfileDiagnostic {
 }
 
 export interface AgentProfileEntry {
-  avatar?: number | null;
   compiledConfig?: ThreadConfiguration | null;
   description?: string | null;
   diagnostics?: AgentProfileDiagnostic[];

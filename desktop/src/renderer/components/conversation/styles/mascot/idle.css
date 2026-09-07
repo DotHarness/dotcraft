@@ -158,11 +158,6 @@
   isolation: isolate;
 }
 
-.composer-mascot-active-idle[data-mascot-active-idle='rocket'] .mascot-robot {
-  position: relative;
-  z-index: 2;
-}
-
 .composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-jelly::before,
 .composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-jelly::before {
   content: '';
@@ -268,10 +263,6 @@
   animation: composer-mascot-idle-hover-land-body 1.8s ease-in forwards;
 }
 
-.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .mascot-face {
-  animation: composer-mascot-idle-hover-scan-face 2.8s ease-in-out forwards;
-}
-
 .composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .composer-mascot-jelly {
   animation: composer-mascot-idle-hover-scan-body 2.8s ease-in-out forwards;
 }
@@ -279,11 +270,6 @@
 .composer-mascot-active-idle[data-mascot-active-idle='hover'] .composer-mascot-jelly {
   position: relative;
   isolation: isolate;
-}
-
-.composer-mascot-active-idle[data-mascot-active-idle='hover'] .mascot-robot {
-  position: relative;
-  z-index: 2;
 }
 
 .composer-mascot-active-idle[data-mascot-active-idle='hover'] .composer-mascot-jelly::before {

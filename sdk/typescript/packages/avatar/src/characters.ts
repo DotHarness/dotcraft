@@ -1,0 +1,5 @@
+export type AvatarState = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked' | 'done'
+export type AvatarPose = AvatarState | 'greeting' | 'acknowledge' | 'sleep'
+export type MotionMode = 'system' | 'on' | 'off'
+export type AvatarExpression = 'base' | 'happy' | 'operator' | 'sleep'
+export type AvatarGesture = 'blink' | 'look-left' | 'look-right' | 'antenna-bob'

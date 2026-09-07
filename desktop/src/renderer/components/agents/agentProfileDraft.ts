@@ -2,7 +2,6 @@
  * `toMarkdown` renders the write format `agent/profiles/upsert` expects.
  */
 
-import { decodeAvatar, encodeAvatar, type AvatarSpec } from './agentAvatar'
 import type {
   ModelPreferenceContextMode,
   ModelPreferenceReasoningEffort,
@@ -33,7 +32,6 @@ export interface AgentProviderPreference {
 export interface ProfileDraft {
   name: string
   description: string
-  avatar?: AvatarSpec
   providerPreference: AgentProviderPreference | null
   tools: {
     mode: ToolPolicyMode
@@ -91,12 +89,6 @@ function parseList(value: string): string[] {
   return inner.split(',').map((x) => x.trim()).filter(Boolean)
 }
 
-function parsePackedAvatar(value: string): AvatarSpec | undefined {
-  const trimmed = value.trim()
-  if (!/^\d+$/.test(trimmed)) return undefined
-  return decodeAvatar(Number.parseInt(trimmed, 10)) ?? undefined
-}
-
 /** Parse the raw Markdown (frontmatter + body) returned by agent/profiles/read into a draft. */
 export function parseProfile(rawContent: string | null | undefined): ProfileDraft {
   const draft = createEmptyDraft()
@@ -134,9 +126,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       sub = null
       if (key === 'name') draft.name = val
       else if (key === 'description') draft.description = val
-      else if (key === 'avatar') {
-        draft.avatar = parsePackedAvatar(val)
-      } else if (key === 'providerPreference' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
+      else if (key === 'providerPreference' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
     } else if (indent === 2) {
       sub = null
       if (section === 'providerPreference' && key === 'providerId') providerPreference.providerId = val
@@ -203,9 +193,6 @@ export function toMarkdown(draft: ProfileDraft): string {
   const fm: string[] = ['---']
   fm.push(`name: ${draft.name || 'untitled-agent'}`)
   fm.push(`description: ${draft.description || ''}`)
-  if (draft.avatar) {
-    fm.push(`avatar: ${encodeAvatar(draft.avatar)}`)
-  }
   if (draft.providerPreference) {
     const preference = draft.providerPreference
     fm.push('providerPreference:')

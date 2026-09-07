@@ -1,14 +1,12 @@
 import { useRef, useState, type CSSProperties, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { RobotAvatar } from './RobotAvatar'
-import type { AvatarSpec } from './agentAvatar'
 import './AgentTemplateDeck.css'
 
 export interface AgentTemplateDeckItem {
   key: string
   name: string
   description: string
-  avatar: AvatarSpec
 }
 
 interface AgentTemplateDeckProps {
@@ -74,7 +72,7 @@ export function AgentTemplateDeck({ templates, onPick }: AgentTemplateDeckProps)
             onClick={() => onPick(card.key)}
           >
             <span className="agent-template-card-avatar">
-              <RobotAvatar spec={card.avatar} size={44} />
+              <RobotAvatar name={card.name} size={44} />
             </span>
             <span className="agent-template-card-name">{card.name}</span>
             <span className="agent-template-card-desc">{card.description}</span>

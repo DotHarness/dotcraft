@@ -1,7 +1,6 @@
 ---
 name: builder
 description: Implement focused changes, produce artifacts, and verify the result.
-avatar: 274
 tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, Exec, WriteStdin, WriteFile, EditFile, WebSearch, WebFetch, RequestUserInput, TodoWrite, UpdateTodos]
   agentControl: disabled

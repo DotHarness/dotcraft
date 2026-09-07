@@ -67,14 +67,13 @@ public sealed class AgentProfileStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("leader", 128, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos,SpawnAgent,SendMessage,FollowupTask,WaitAgent,ListAgents,CloseAgent", null, AgentControlToolAccess.Full, ApprovalPolicy.Default)]
-    [InlineData("explorer", 555, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("builder", 274, "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("reviewer", 457, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("operator", 695, null, "WriteFile,EditFile,Exec,WriteStdin,Cron,CreatePlan,TodoWrite,UpdateTodos,GetGoal,CreateGoal,UpdateGoal,imagegen", AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("leader", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos,SpawnAgent,SendMessage,FollowupTask,WaitAgent,ListAgents,CloseAgent", null, AgentControlToolAccess.Full, ApprovalPolicy.Default)]
+    [InlineData("explorer", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("builder", "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("reviewer", "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("operator", null, "WriteFile,EditFile,Exec,WriteStdin,Cron,CreatePlan,TodoWrite,UpdateTodos,GetGoal,CreateGoal,UpdateGoal,imagegen", AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     public void BuiltInProfiles_CompileRoleCapabilityPolicies(
         string profileId,
-        int avatar,
         string? allowedTools,
         string? deniedTools,
         AgentControlToolAccess agentControl,
@@ -84,7 +83,6 @@ public sealed class AgentProfileStoreTests : IDisposable
         var profile = store.Read(profileId);
         var config = Assert.IsType<ThreadConfiguration>(profile.CompiledConfiguration);
 
-        Assert.Equal(avatar, profile.Avatar);
         Assert.Equal(SplitTools(allowedTools), config.ToolPolicy?.Allow);
         Assert.Equal(SplitTools(deniedTools), config.ToolPolicy?.Deny);
         Assert.Equal(agentControl, config.AgentControlToolAccess);
@@ -100,7 +98,7 @@ public sealed class AgentProfileStoreTests : IDisposable
             """
 ---
 name: bad profile!
-surprise: true
+avatar: 457
 tools:
   agentControl: root
 ---
@@ -128,7 +126,6 @@ Body
 ---
 name: reviewer-lite
 description: Read-only reviewer
-avatar: 554
 providerPreference:
   providerId: profile-provider
   model: profile-model
@@ -161,7 +158,6 @@ Focus on correctness.
             AgentProfileSources.Workspace);
 
         Assert.True(result.Valid);
-        Assert.Equal(AgentProfileAvatarCodec.Encode(10, 2, 4), result.Avatar);
         var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
         Assert.Equal("reviewer-lite", config.AgentProfileId);
         Assert.Equal(AgentProfileSources.Workspace, config.AgentProfileSource);

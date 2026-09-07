@@ -20,12 +20,13 @@ import type {
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
-import { mascotPaletteOf, type AvatarSpec } from '../agents/agentAvatar'
+import { deriveAppearance, mascotPaletteOf, type AvatarPose } from '@dotcraft/avatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
+import { useComposerAvatarBehavior } from './useComposerAvatarBehavior'
 
 /** Bubble content shown above the mascot (copy already localized by the caller). */
 export interface ComposerMascotBubble {
@@ -93,7 +94,7 @@ interface ComposerShellProps {
   mascotReasoningEffort?: ComposerMascotReasoningEffort
   mascotSpeed?: ComposerMascotSpeed
   mascotContextMax?: boolean
-  mascotAvatar?: AvatarSpec
+  mascotName?: string
   /** When this shell replaces (or is replaced by) another handoff shell — input ↔
    *  approval — the mascot rides between the two rims instead of hard-cutting. */
   mascotHandoff?: boolean
@@ -115,7 +116,6 @@ const MASCOT_ACTIVE_IDLE_MIN_MS = 35_000
 const MASCOT_ACTIVE_IDLE_JITTER_MS = 30_000
 const MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS = 500
 
-type MascotMicro = 'blink' | 'look-l' | 'look-r' | 'bob'
 type MascotActiveIdleMotion = 'hop' | 'rocket' | 'hover'
 type MascotActiveIdlePhase = 'outbound' | 'away' | 'inbound'
 
@@ -174,8 +174,8 @@ function prefersReducedMotion(): boolean {
     : false
 }
 
-function mascotAvatarKey(avatar?: AvatarSpec): string {
-  return avatar ? `${avatar.palette}:${avatar.face}:${avatar.accessory}` : 'default'
+function mascotNameKey(name?: string): string {
+  return name?.trim() || 'default'
 }
 
 /**
@@ -206,7 +206,7 @@ function ComposerMascot({
   reasoningEffort: ComposerMascotReasoningEffort
   speed: ComposerMascotSpeed
   contextMax: boolean
-  avatar?: AvatarSpec
+  avatar?: string
   profileTransition: MascotProfileTransition | null
   profileTransitionRevision: number
   desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
@@ -217,9 +217,9 @@ function ComposerMascot({
   handoff?: boolean
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
-  const [micro, setMicro] = useState<MascotMicro | null>(null)
   const [sleeping, setSleeping] = useState(false)
   const [waving, setWaving] = useState(false)
+  const [greetingSequence, setGreetingSequence] = useState(0)
   const [startled, setStartled] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [cheering, setCheering] = useState(false)
@@ -251,7 +251,31 @@ function ComposerMascot({
     baseExpression === 'operator' &&
     light === 'default'
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
-  const mascotPalette = mascotPaletteOf(avatar)
+  const semanticAvatarPose: AvatarPose = light === 'error'
+    ? 'blocked'
+    : light === 'success'
+      ? 'done'
+      : sleeping
+        ? 'sleep'
+        : waving
+          ? 'greeting'
+          : holdSign || bubble != null
+            ? 'waiting'
+            : laptopActive
+              ? 'working'
+              : 'idle'
+  const avatarBehavior = useComposerAvatarBehavior({
+    semanticPose: semanticAvatarPose,
+    baseExpression,
+    focused,
+    dragOver,
+    sleeping,
+    waving,
+    activeIdle: activeIdle != null,
+    bounceSignal,
+    reducedMotion: prefersReducedMotion()
+  })
+  const mascotPalette = mascotPaletteOf(deriveAppearance(avatar ?? ''))
   const activity: DesktopPluginMascotActivity = light === 'error'
     ? 'error'
     : light === 'success'
@@ -338,7 +362,7 @@ function ComposerMascot({
       }
       const motion = pickMascotActiveIdle(Math.random(), lastActiveIdleRef.current)
       lastActiveIdleRef.current = motion
-      setMicro(null)
+      avatarBehavior.clearGesture()
       setActiveIdle({ motion, phase: 'outbound' })
     }
     timer = window.setTimeout(
@@ -495,33 +519,6 @@ function ComposerMascot({
     if (!prefersReducedMotion()) setStartled(true)
   }, [])
 
-  useEffect(() => {
-    if (sleeping || activeIdle || prefersReducedMotion()) return
-    if (baseExpression !== 'neutral' && baseExpression !== 'happy') return
-    let cancelled = false
-    let timer = 0
-    const schedule = (): void => {
-      timer = window.setTimeout(
-        () => {
-          if (cancelled) return
-          if (!document.hidden) {
-            const r = Math.random()
-            if (r < 0.5) setMicro('blink')
-            else if (r < 0.72) setMicro(Math.random() < 0.5 ? 'look-l' : 'look-r')
-            else if (r < 0.86) setMicro('bob')
-          }
-          schedule()
-        },
-        2600 + Math.random() * 3200
-      )
-    }
-    schedule()
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [sleeping, baseExpression, activeIdle])
-
   // The visual character is replaceable, so the greeting lifecycle cannot rely
   // only on an animation event emitted by the default SVG's arm nodes.
   useEffect(() => {
@@ -560,16 +557,6 @@ function ComposerMascot({
       }
     }
     switch (event.animationName) {
-      case 'composer-mascot-blink':
-        // Neutral's caret flash runs longer than the eye squash; let it finish.
-        if (expression !== 'neutral') setMicro(null)
-        break
-      case 'composer-mascot-caret':
-      case 'composer-mascot-look-l':
-      case 'composer-mascot-look-r':
-      case 'composer-mascot-antenna-bob':
-        setMicro(null)
-        break
       case 'composer-mascot-launch':
         setLaunching(false)
         break
@@ -584,11 +571,6 @@ function ComposerMascot({
         break
       case 'composer-mascot-startle':
         setStartled(false)
-        break
-      case 'composer-mascot-wave-arm':
-      case 'composer-mascot-sign-wave-arm':
-      case 'composer-mascot-wave-lean':
-        setWaving(false)
         break
       case 'composer-mascot-nod':
         setNodding(false)
@@ -637,9 +619,7 @@ function ComposerMascot({
 
   const rootClassName =
     [
-      micro ? `composer-mascot-${micro}` : null,
       activeIdle ? 'composer-mascot-active-idle' : null,
-      waving ? 'composer-mascot-wave' : null,
       sleeping ? 'composer-mascot-sleeping' : null,
       light === 'success' ? 'composer-mascot-celebrate' : null,
       light === 'error' ? 'composer-mascot-deflate' : null,
@@ -729,7 +709,10 @@ function ComposerMascot({
                     wake()
                     return
                   }
-                  if (!prefersReducedMotion()) setWaving(true)
+                  if (!prefersReducedMotion()) {
+                    setWaving(true)
+                    setGreetingSequence((value) => value + 1)
+                  }
                 }}
                 onContextMenu={
                   menuItems.length > 0
@@ -743,7 +726,16 @@ function ComposerMascot({
                 <div className="composer-mascot-fast-echo">
                   <div className="composer-mascot-character-stage">
                     <DesktopPluginSurface name="composer.mascot" context={desktopPluginMascotContext}>
-                      <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
+                      <MascotRobot
+                        state={avatarBehavior.pose}
+                        expression={avatarBehavior.expression}
+                        gesture={avatarBehavior.gesture}
+                        gestureSequence={avatarBehavior.gestureSequence}
+                        onGestureComplete={avatarBehavior.completeGesture}
+                        eventSequence={bounceSignal + greetingSequence}
+                        size={MASCOT_SIZE}
+                        name={avatar}
+                      />
                     </DesktopPluginSurface>
                   </div>
                 </div>
@@ -809,7 +801,7 @@ export function ComposerShell({
   mascotReasoningEffort = 'off',
   mascotSpeed = 'standard',
   mascotContextMax = false,
-  mascotAvatar,
+  mascotName,
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
@@ -817,16 +809,16 @@ export function ComposerShell({
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
   const { lift: overlayLift, api: overlayLiftApi, Provider: OverlayLiftProvider } =
     useComposerOverlayLiftHost()
-  const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotAvatar)
+  const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
   const [mascotProfileTransition, setMascotProfileTransition] = useState<MascotProfileTransition | null>(null)
   const [mascotProfileTransitionRevision, setMascotProfileTransitionRevision] = useState(0)
   const renderedMascotAvatarRef = useRef(renderedMascotAvatar)
-  const targetMascotAvatarRef = useRef(mascotAvatar)
+  const targetMascotAvatarRef = useRef(mascotName)
   const profileTransitionRevisionRef = useRef(0)
   renderedMascotAvatarRef.current = renderedMascotAvatar
-  targetMascotAvatarRef.current = mascotAvatar
-  const targetAvatarKey = mascotAvatarKey(mascotAvatar)
-  const renderedMascotPalette = mascotPaletteOf(renderedMascotAvatar)
+  targetMascotAvatarRef.current = mascotName
+  const targetAvatarKey = mascotNameKey(mascotName)
+  const renderedMascotPalette = mascotPaletteOf(deriveAppearance(renderedMascotAvatar ?? ''))
   const topAccessoryRef = useRef<HTMLDivElement | null>(null)
   const topAccessoryHeightRef = useRef(0)
 
@@ -876,7 +868,7 @@ export function ComposerShell({
 
   useEffect(() => {
     const currentAvatar = renderedMascotAvatarRef.current
-    if (targetAvatarKey === mascotAvatarKey(currentAvatar)) {
+    if (targetAvatarKey === mascotNameKey(currentAvatar)) {
       setMascotProfileTransition(null)
       return undefined
     }
@@ -894,8 +886,8 @@ export function ComposerShell({
     setMascotProfileTransitionRevision(revision)
     setMascotProfileTransition({
       revision,
-      fromAccent: mascotPaletteOf(currentAvatar).accent,
-      toAccent: mascotPaletteOf(nextAvatar).accent
+      fromAccent: mascotPaletteOf(deriveAppearance(currentAvatar ?? '')).accent,
+      toAccent: mascotPaletteOf(deriveAppearance(nextAvatar ?? '')).accent
     })
 
     const swapTimer = window.setTimeout(() => {

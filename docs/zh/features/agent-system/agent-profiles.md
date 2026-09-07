@@ -6,6 +6,8 @@ Agent Profile 把一套专门用途的 Agent 设定保存下来，需要时随�
 
 可以先打造一个专门 Agent，也可以逐步组建完整的 Agent 团队：让 Explorer 负责调查、Builder 负责实现、Operator 处理 App 工作流。每个角色都是独立的 Profile，需要时按工作选择即可。
 
+DotCraft 根据 Profile 名称生成 avatar，因此同一个名称在各处保持相同的视觉身份。
+
 ## 在哪里用得上
 
 | 位置 | 用途 |

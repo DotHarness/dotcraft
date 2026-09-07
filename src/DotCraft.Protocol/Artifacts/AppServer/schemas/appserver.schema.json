@@ -412,16 +412,6 @@
       "title": "AgentProfileEntry",
       "type": "object",
       "properties": {
-        "avatar": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "compiledConfig": {
           "anyOf": [
             {

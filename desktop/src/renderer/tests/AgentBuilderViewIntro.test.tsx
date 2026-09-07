@@ -244,9 +244,7 @@ describe('AgentBuilderView intro composer', () => {
       'turn/start'
     ])
     const draftUpdateCall = appServerSendRequest.mock.calls.find(([method]) => method === 'agent/profiles/builderDraft/update')
-    expect((draftUpdateCall?.[1] as { rawContent?: string } | undefined)?.rawContent).toMatch(
-      /avatar: \d+/
-    )
+    expect((draftUpdateCall?.[1] as { rawContent?: string } | undefined)?.rawContent).not.toContain('avatar:')
     expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
       config: expect.objectContaining({
         agentBuilderTargetSource: 'workspace',
@@ -487,11 +485,10 @@ describe('AgentBuilderView intro composer', () => {
     expect(cursor.getAttribute('data-phase')).toBe('editing')
   })
 
-  it('persists the rerolled avatar when creating a profile', async () => {
+  it('derives the avatar from name without persisting avatar metadata', async () => {
     await openBlankBuilder()
 
     fireEvent.change(screen.getByPlaceholderText('agent name'), { target: { value: 'avatar-bot' } })
-    fireEvent.click(screen.getByTitle('Re-roll avatar'))
     await waitFor(() => expect(screen.getByRole('button', { name: /Create/i })).not.toBeDisabled())
     fireEvent.click(screen.getByRole('button', { name: /Create/i }))
     const workspaceTitle = await screen.findByText('Workspace')
@@ -506,9 +503,7 @@ describe('AgentBuilderView intro composer', () => {
       }))
     })
     const upsertCall = appServerSendRequest.mock.calls.find(([method]) => method === 'agent/profiles/upsert')
-    expect((upsertCall?.[1] as { rawContent?: string } | undefined)?.rawContent).toMatch(
-      /avatar: \d+/
-    )
+    expect((upsertCall?.[1] as { rawContent?: string } | undefined)?.rawContent).not.toContain('avatar:')
   })
 
   it('persists a complete custom provider preference and omits it when inheriting', async () => {

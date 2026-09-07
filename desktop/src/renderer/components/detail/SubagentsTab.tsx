@@ -10,8 +10,7 @@ import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { formatSubAgentMeta, getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
-import { avatarFromSeed } from '../agents/agentAvatar'
+import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { formatSubAgentElapsed } from '../../utils/formatSubAgentElapsed'
@@ -127,8 +126,7 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
   const t = useT()
   const locale = useLocale()
   const running = isSubAgentChildRunning(child)
-  const seed = getSubAgentIdentitySeed(child) ?? child.nickname
-  const color = getSubAgentAccent(seed)
+  const color = getSubAgentAccent(child.nickname)
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,
@@ -159,7 +157,7 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
     >
       <span className={styles.iconSlot}>
         {/* The accessory is unreadable at this size, so palette and face carry the identity. */}
-        <RobotAvatar spec={{ ...avatarFromSeed(seed), accessory: 0 }} size={20} />
+        <RobotAvatar name={child.nickname} size={20} />
       </span>
       <span className={styles.bodyCell}>
         <span className={styles.titleRow}>

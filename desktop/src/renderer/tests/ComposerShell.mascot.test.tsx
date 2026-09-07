@@ -3,7 +3,7 @@ import './setupPluginRuntime'
 import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopPluginHost } from '@dotcraft/plugin'
-import { ComposerShell } from '../components/conversation/ComposerShell'
+import { ComposerShell, DECISION_MASCOT } from '../components/conversation/ComposerShell'
 import {
   clearDesktopPluginRegistry,
   registerDesktopPluginSurface
@@ -99,6 +99,24 @@ describe('ComposerShell mascot energy and active idle', () => {
     expect(mascot(container)).toHaveAttribute('data-mascot-speed', 'fast')
     expect(mascot(container)).toHaveAttribute('data-mascot-context', 'max')
     expect(container.querySelector('.composer-mascot-fast-echo')).not.toBeNull()
+  })
+
+  it('maps decisions to the waiting sign and reserves the laptop for active work', () => {
+    const decision = renderComposer({ mascotInteraction: DECISION_MASCOT })
+    expect(decision.container.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'waiting')
+    expect(decision.container.querySelector('.dca-action-hold-sign')).not.toBeNull()
+    expect(decision.container.querySelector('.dca-action-prop-laptop')).toBeNull()
+    decision.unmount()
+
+    const working = renderComposer({ mascotInteraction: { expression: 'operator' } })
+    expect(working.container.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'working')
+    expect(working.container.querySelector('.dca-action-prop-laptop')).not.toBeNull()
+    expect(working.container.querySelector('.dca-action-hold-sign')).toBeNull()
+  })
+
+  it('keeps persistent focus as an idle task state', () => {
+    const focused = renderComposer({ focused: true })
+    expect(focused.container.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'idle')
   })
 
   it('lets a plugin replace the mascot character and receive semantic state', () => {
@@ -267,21 +285,19 @@ describe('ComposerShell mascot energy and active idle', () => {
     expect(element.style.transform).toBe('')
   })
 
-  it('hands an Agent Profile avatar over at the hidden midpoint', () => {
-    const first = { palette: 0, face: 0, accessory: 0 }
-    const second = { palette: 2, face: 1, accessory: 3 }
-    const view = renderComposer({ mascotAvatar: first })
+  it('hands an Agent Profile name over at the hidden midpoint', () => {
+    const view = renderComposer({ mascotName: 'Alpha' })
     const element = mascot(view.container)
 
-    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe('#2563eb')
-    view.rerender(composer({ mascotAvatar: second }))
+    const firstColor = element.style.getPropertyValue('--mascot-body-dark')
+    view.rerender(composer({ mascotName: 'Bravo' }))
 
     expect(element).toHaveAttribute('data-mascot-profile-transition', 'active')
     act(() => vi.advanceTimersByTime(619))
-    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe('#2563eb')
+    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe(firstColor)
 
     act(() => vi.advanceTimersByTime(1))
-    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe('#6d28d9')
+    expect(element.style.getPropertyValue('--mascot-body-dark')).not.toBe(firstColor)
 
     act(() => vi.advanceTimersByTime(620))
     expect(element).toHaveAttribute('data-mascot-profile-transition', 'idle')
@@ -289,12 +305,13 @@ describe('ComposerShell mascot energy and active idle', () => {
 
   it('switches Agent Profile avatars immediately when reduced motion is on', () => {
     document.documentElement.dataset.reduceMotion = 'on'
-    const view = renderComposer({ mascotAvatar: { palette: 0, face: 0, accessory: 0 } })
+    const view = renderComposer({ mascotName: 'Alpha' })
     const element = mascot(view.container)
 
-    view.rerender(composer({ mascotAvatar: { palette: 2, face: 1, accessory: 3 } }))
+    const firstColor = element.style.getPropertyValue('--mascot-body-dark')
+    view.rerender(composer({ mascotName: 'Bravo' }))
 
-    expect(element.style.getPropertyValue('--mascot-body-dark')).toBe('#6d28d9')
+    expect(element.style.getPropertyValue('--mascot-body-dark')).not.toBe(firstColor)
     expect(element).toHaveAttribute('data-mascot-profile-transition', 'idle')
   })
 

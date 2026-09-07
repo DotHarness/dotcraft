@@ -76,9 +76,6 @@ public sealed class AgentProfileEntry
 
     public string? Description { get; init; }
 
-    /// <summary>Optional packed profile avatar used by clients for visual identity.</summary>
-    public int? Avatar { get; init; }
-
     public string Source { get; init; } = AgentProfileSources.BuiltIn;
 
     public string? Path { get; init; }
@@ -123,9 +120,6 @@ public sealed class AgentProfileValidationResult
 
     public string? Description { get; init; }
 
-    /// <summary>Optional packed profile avatar parsed from frontmatter.</summary>
-    public int? Avatar { get; init; }
-
     public string Body { get; init; } = string.Empty;
 
     public string Fingerprint { get; init; } = string.Empty;
@@ -141,46 +135,6 @@ public sealed class AgentProfileValidationResult
     public ThreadConfiguration? CompiledConfiguration { get; init; }
 
     public AgentProfileProviderPreference? ProviderPreference { get; init; }
-}
-
-/// <summary>Packs and validates Agent Profile avatar indices into a single integer frontmatter field.</summary>
-public static class AgentProfileAvatarCodec
-{
-    /// <summary>The number of palette variants currently supported by the desktop renderer.</summary>
-    public const int PaletteCount = 12;
-
-    /// <summary>The number of face variants currently supported by the desktop renderer.</summary>
-    public const int FaceCount = 5;
-
-    /// <summary>The number of accessory variants currently supported by the desktop renderer.</summary>
-    public const int AccessoryCount = 6;
-
-    private const int PaletteMask = 0x0f;
-    private const int FaceMask = 0x07;
-    private const int AccessoryMask = 0x07;
-    private const int FaceShift = 4;
-    private const int AccessoryShift = 7;
-    private const int AvatarMask = PaletteMask | (FaceMask << FaceShift) | (AccessoryMask << AccessoryShift);
-
-    /// <summary>Packs palette, face, and accessory indices into one non-negative integer.</summary>
-    public static int Encode(int palette, int face, int accessory) =>
-        (palette & PaletteMask)
-        | ((face & FaceMask) << FaceShift)
-        | ((accessory & AccessoryMask) << AccessoryShift);
-
-    /// <summary>Attempts to unpack a persisted avatar value into palette, face, and accessory indices.</summary>
-    public static bool TryDecode(int value, out int palette, out int face, out int accessory)
-    {
-        palette = value & PaletteMask;
-        face = (value >> FaceShift) & FaceMask;
-        accessory = (value >> AccessoryShift) & AccessoryMask;
-
-        return value >= 0
-            && (value & ~AvatarMask) == 0
-            && palette < PaletteCount
-            && face < FaceCount
-            && accessory < AccessoryCount;
-    }
 }
 
 public sealed class AgentProfileAuditRecord
@@ -231,7 +185,6 @@ public sealed partial class AgentProfileStore
     {
         "name",
         "description",
-        "avatar",
         "providerPreference",
         "mode",
         "tools",
@@ -473,7 +426,6 @@ public sealed partial class AgentProfileStore
 
         var id = ReadOptionalString(frontmatter, "name", diagnostics, required: true);
         var description = ReadOptionalString(frontmatter, "description", diagnostics, required: true);
-        var avatar = ReadOptionalAvatar(frontmatter, diagnostics);
         if (!string.IsNullOrWhiteSpace(id))
         {
             id = id.Trim();
@@ -507,7 +459,6 @@ public sealed partial class AgentProfileStore
         {
             Id = id,
             Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-            Avatar = avatar,
             Body = extracted.Value.Body,
             Fingerprint = fingerprint,
             Diagnostics = diagnostics,
@@ -852,7 +803,6 @@ public sealed partial class AgentProfileStore
             Id = id,
             Name = validation.Id,
             Description = validation.Description,
-            Avatar = validation.Avatar,
             Source = source,
             Path = path,
             UpdatedAt = TryGetLastWriteTime(path),
@@ -908,7 +858,6 @@ public sealed partial class AgentProfileStore
         Id = entry.Id,
         Name = entry.Name,
         Description = entry.Description,
-        Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
         UpdatedAt = entry.UpdatedAt,
@@ -939,7 +888,6 @@ public sealed partial class AgentProfileStore
         Id = entry.Id,
         Name = entry.Name,
         Description = entry.Description,
-        Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
         UpdatedAt = entry.UpdatedAt,
@@ -1051,64 +999,6 @@ public sealed partial class AgentProfileStore
         ValidateAllowedFields(TryGetObject(locked, "tools", diagnostics), LockedToolsFields, "locked.tools", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "mcp", diagnostics), LockedMcpFields, "locked.mcp", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "permissions", diagnostics), LockedPermissionsFields, "locked.permissions", diagnostics);
-    }
-
-    private static int? ReadOptionalAvatar(
-        JsonObject frontmatter,
-        List<AgentProfileDiagnostic> diagnostics)
-    {
-        if (!TryGetProperty(frontmatter, "avatar", out var value) || value == null)
-            return null;
-
-        var avatar = ReadPackedAvatarValue(value, diagnostics);
-        return avatar.HasValue && ValidateAvatarValue(avatar.Value, diagnostics) ? avatar.Value : null;
-    }
-
-    private static int? ReadPackedAvatarValue(JsonNode value, List<AgentProfileDiagnostic> diagnostics)
-    {
-        int? parsed = null;
-        if (value is JsonValue jsonValue)
-        {
-            if (jsonValue.TryGetValue<int>(out var intValue))
-                parsed = intValue;
-            else if (jsonValue.TryGetValue<long>(out var longValue)
-                && longValue >= int.MinValue
-                && longValue <= int.MaxValue)
-            {
-                parsed = (int)longValue;
-            }
-            else if (jsonValue.TryGetValue<string>(out var raw)
-                && raw.All(char.IsDigit)
-                && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var stringValue))
-            {
-                parsed = stringValue;
-            }
-        }
-
-        if (!parsed.HasValue)
-        {
-            diagnostics.Add(Error("InvalidFieldType", "Agent profile field 'avatar' must be an integer."));
-            return null;
-        }
-
-        if (parsed.Value < 0)
-        {
-            diagnostics.Add(Error("InvalidPolicyValue", "Agent profile field 'avatar' must be a non-negative integer."));
-            return null;
-        }
-
-        return parsed.Value;
-    }
-
-    private static bool ValidateAvatarValue(int avatar, List<AgentProfileDiagnostic> diagnostics)
-    {
-        if (AgentProfileAvatarCodec.TryDecode(avatar, out _, out _, out _))
-            return true;
-
-        diagnostics.Add(Error(
-            "InvalidPolicyValue",
-            $"Agent profile field 'avatar' must encode palette < {AgentProfileAvatarCodec.PaletteCount}, face < {AgentProfileAvatarCodec.FaceCount}, and accessory < {AgentProfileAvatarCodec.AccessoryCount}."));
-        return false;
     }
 
     private static void ApplyPluginTrustRestrictions(

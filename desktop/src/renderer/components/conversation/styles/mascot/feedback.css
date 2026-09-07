@@ -1,28 +1,3 @@
-/* The cheer reuses the wave's slide-then-rotate hinge grammar, so the outline wraps
-   the band and the colour stays seam-continuous. */
-.composer-mascot-celebrate .mascot-arm-l-w,
-.composer-mascot-celebrate .mascot-arm-l-b {
-  transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
-  transition-delay: 0ms;
-}
-
-.composer-mascot-celebrate .mascot-arm-r-w,
-.composer-mascot-celebrate .mascot-arm-r-b {
-  transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
-  transition-delay: 0ms;
-}
-
-/* Raised arms swap the body gradient for a solid hinge colour, so a rotated arm has
-   no gradient to diverge from the torso's field. White halo capsules stay white. */
-.composer-mascot-wave .mascot-arm-r-b,
-.composer-mascot-celebrate .mascot-arm-r-b {
-  fill: var(--mascot-raised-arm-right, #7a96fb);
-}
-
-.composer-mascot-celebrate .mascot-arm-l-b {
-  fill: var(--mascot-raised-arm-left, #3161f7);
-}
-
 @keyframes composer-mascot-glow-flash {
   0%,
   100% {
@@ -33,10 +8,6 @@
     opacity: 0.7;
     transform: scale(1.6);
   }
-}
-
-.composer-mascot-celebrate .mascot-glow {
-  animation: composer-mascot-glow-flash 700ms ease-out 2;
 }
 
 @keyframes composer-mascot-cheer {
@@ -136,10 +107,6 @@
   }
 }
 
-.composer-mascot-deflate .mascot-glow {
-  animation: composer-mascot-glow-blink 560ms ease-in-out 3;
-}
-
 @keyframes composer-mascot-eager-hop {
   0%,
   100% {
@@ -153,22 +120,6 @@
 .composer-mascot-eager {
   animation: composer-mascot-eager-hop 460ms ease-in-out infinite;
   transform-origin: bottom center;
-}
-
-.composer-mascot-eager .mascot-arm-l-w,
-.composer-mascot-eager .mascot-arm-l-b {
-  transform: translate(8px, -20px) rotate(14deg);
-  transition-delay: 0ms;
-}
-
-.composer-mascot-eager .mascot-arm-r-w,
-.composer-mascot-eager .mascot-arm-r-b {
-  transform: translate(-8px, -20px) rotate(-14deg);
-  transition-delay: 0ms;
-}
-
-.composer-mascot-eager .mascot-glow {
-  animation: composer-mascot-glow-pulse 650ms ease-in-out infinite;
 }
 
 /* The slumped pose is held inline by ComposerMascot. */
@@ -185,10 +136,6 @@
 .composer-mascot-sleep-breathe {
   animation: composer-mascot-sleep-breathe 5.6s ease-in-out infinite;
   transform-origin: bottom center;
-}
-
-.composer-mascot-sleeping .mascot-light {
-  opacity: 0.45;
 }
 
 .composer-mascot-zzz {

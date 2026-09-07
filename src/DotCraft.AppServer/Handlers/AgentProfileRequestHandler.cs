@@ -364,7 +364,6 @@ internal sealed class AgentProfileRequestHandler(
             Id = profile.Id,
             Name = OmitIfNull(profile.Name),
             Description = OmitIfNull(profile.Description),
-            Avatar = OmitIfNull(profile.Avatar),
             Source = profile.Source,
             Path = OmitIfNull(profile.Path),
             UpdatedAt = OmitIfNull(profile.UpdatedAt),

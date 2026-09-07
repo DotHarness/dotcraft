@@ -103,22 +103,6 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   }
 }
 
-[data-mascot-effort] .mascot-robot [id^='mascot-blue-'] stop {
-  transition: stop-color 360ms ease;
-}
-
-[data-mascot-effort='medium'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(1) {
-  animation: composer-mascot-energy-medium-dark 6s ease-in-out infinite;
-}
-
-[data-mascot-effort='medium'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(2) {
-  animation: composer-mascot-energy-medium-mid 6s ease-in-out infinite;
-}
-
-[data-mascot-effort='medium'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(3) {
-  animation: composer-mascot-energy-medium-light 6s ease-in-out infinite;
-}
-
 @keyframes composer-mascot-energy-medium-dark {
   0%, 38%, 100% { stop-color: var(--mascot-body-dark); }
   14% {
@@ -147,35 +131,6 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
       clamp(0, calc(c * 0.569), 0.3)
       calc(h + 1.57));
   }
-}
-
-[data-mascot-effort='high'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(1) {
-  animation: composer-mascot-energy-high-dark 3.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='high'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(2) {
-  animation: composer-mascot-energy-high-mid 3.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='high'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(3) {
-  animation: composer-mascot-energy-high-light 3.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='high'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(1) {
-  animation: composer-mascot-energy-high-mark-dark 3.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='high'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(2),
-[data-mascot-effort='high'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(3) {
-  animation: composer-mascot-energy-high-mark-light 3.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='high'] .mascot-robot {
-  filter: drop-shadow(0 0 5px color-mix(in srgb,
-    oklch(from var(--mascot-energy-accent)
-      clamp(0.28, calc(l - 0.0112), 0.96)
-      clamp(0, calc(c * 1.116), 0.3)
-      calc(h - 3.09)) 28%, transparent));
 }
 
 @keyframes composer-mascot-energy-high-dark {
@@ -251,35 +206,6 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
       clamp(0, calc(c * 0.409), 0.3)
       calc(h - 12.45));
   }
-}
-
-[data-mascot-effort='extraHigh'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(1) {
-  animation: composer-mascot-energy-extra-dark 2.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='extraHigh'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(2) {
-  animation: composer-mascot-energy-extra-mid 2.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='extraHigh'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(3) {
-  animation: composer-mascot-energy-extra-light 2.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='extraHigh'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(1) {
-  animation: composer-mascot-energy-extra-mark-dark 2.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='extraHigh'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(2),
-[data-mascot-effort='extraHigh'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(3) {
-  animation: composer-mascot-energy-extra-mark-light 2.8s ease-in-out infinite;
-}
-
-[data-mascot-effort='extraHigh'] .mascot-robot {
-  filter: drop-shadow(0 0 7px color-mix(in srgb,
-    oklch(from var(--mascot-energy-accent)
-      clamp(0.28, calc(l - 0.0456), 0.96)
-      clamp(0, calc(c * 1.231), 0.3)
-      calc(h + 27.55)) 36%, transparent));
 }
 
 @keyframes composer-mascot-energy-extra-dark {

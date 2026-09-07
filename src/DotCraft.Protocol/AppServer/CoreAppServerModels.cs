@@ -103,10 +103,6 @@ public sealed class AgentProfileDiagnostic : ExtensibleJsonObject
 /// <summary>Executable wire contract for AgentProfileEntry.</summary>
 public sealed class AgentProfileEntry : ExtensibleJsonObject
 {
-    [JsonPropertyName("avatar")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> Avatar { get; init; }
-
     [JsonPropertyName("compiledConfig")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadConfiguration?> CompiledConfig { get; init; }

@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { parseProfile, toMarkdown, type ProfileDraft } from '../components/agents/agentProfileDraft'
 
 describe('agent profile draft avatar metadata', () => {
-  it('round-trips avatar frontmatter', () => {
+  it('drops legacy avatar frontmatter because appearance derives from name', () => {
     const draft: ProfileDraft = {
       name: 'avatar-bot',
       description: 'Uses a persisted avatar',
-      avatar: { palette: 6, face: 1, accessory: 2 },
       providerPreference: null,
       tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
       mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
@@ -18,8 +17,8 @@ describe('agent profile draft avatar metadata', () => {
     const markdown = toMarkdown(draft)
     const parsed = parseProfile(markdown)
 
-    expect(markdown).toContain('avatar: 278')
-    expect(parsed.avatar).toEqual(draft.avatar)
+    expect(markdown).not.toContain('avatar:')
+    expect(parsed).not.toHaveProperty('avatar')
   })
 
   it('leaves profiles without avatar metadata unset', () => {
@@ -31,7 +30,7 @@ description: Inherited profile
 Inherited body.
 `)
 
-    expect(parsed.avatar).toBeUndefined()
+    expect(parsed).not.toHaveProperty('avatar')
     expect(parsed.providerPreference).toBeNull()
   })
 

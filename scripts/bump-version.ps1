@@ -252,7 +252,7 @@ $targets = @(
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
     @{ Type = "packageJson"; Path = "desktop/resources/plugins/dotcraft-bundled/plugins/oratorio/.craft-plugin/plugin.json" },
-    @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true; UpdateLinkedDesktopPlugin = $true },
+    @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true; UpdateLinkedDesktopPlugin = $true; UpdateLinkedAvatar = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
     @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk"; SyncSdkDependencyWorkspace = "packages/plugin" },
     @{ Type = "typescriptProtocolMetadata"; Path = "sdk/typescript/src/generated/appserver/protocol-info.generated.ts" },
@@ -262,6 +262,7 @@ $targets = @(
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-qq/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-wecom/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/plugin/package.json"; SyncSdkDependency = $true },
+    @{ Type = "packageJson"; Path = "sdk/typescript/packages/avatar/package.json" },
     @{ Type = "packageJsonDependency"; Path = "sdk/dotnet/samples/DotNetPluginSample/Desktop/package.json"; Dependency = "@dotcraft/plugin" },
     @{ Type = "releaseDownloads"; Path = "docs/public/release-downloads.json" }
 )
@@ -327,6 +328,9 @@ foreach ($target in $targets) {
             }
             if ($target.ContainsKey("SyncSdkDependencyWorkspace")) {
                 Update-NpmLockWorkspaceDependencyVersion -Path $absolutePath -WorkspacePath $target.SyncSdkDependencyWorkspace -Dependency "@dotcraft/sdk" -NewVersion $Version
+            }
+            if ($target.ContainsKey("UpdateLinkedAvatar") -and $target.UpdateLinkedAvatar) {
+                Update-NpmLockWorkspaceVersion -Path $absolutePath -WorkspacePath "../sdk/typescript/packages/avatar" -NewVersion $Version
             }
             Assert-NpmLockVersionsSynced -Path $absolutePath -NewVersion $Version
         }

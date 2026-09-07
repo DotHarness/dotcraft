@@ -1,0 +1,62 @@
+.dca-robot {
+  display: inline-flex;
+  flex: none;
+  vertical-align: middle;
+  isolation: isolate;
+}
+
+.dca-canvas { overflow: visible; }
+.dca-body-motion { transform-origin: 512px 760px; }
+.dca-robot[data-motion='on'] .dca-body-motion {
+  transition: transform 260ms cubic-bezier(.22, .7, .3, 1);
+}
+
+/* The production rig owns arm geometry, paired paint layers and all arm motion. */
+.dca-robot[data-compact='true'] .dca-decoration-detail { display: none; }
+.dca-robot[data-exiting='true'] :is(.dca-part-prop-laptop, .dca-part-prop-sign) {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.dca-robot[data-pose='thinking'] .dca-body-motion { transform: rotate(-4deg); }
+.dca-robot[data-pose='working'] .dca-body-motion { transform: translateY(12px) rotate(2deg); }
+.dca-robot[data-pose='blocked'] .dca-body-motion { transform: translateY(22px) scaleY(.96); }
+.dca-robot[data-pose='greeting'] .dca-body-motion { transform: rotate(-3deg); }
+
+.dca-robot[data-motion='on'][data-pose='idle'] .dca-body-motion { animation: dca-breathe 5s ease-in-out infinite; }
+.dca-robot[data-motion='on'][data-pose='idle'] .dca-part-caret { animation: dca-cursor 7s step-end infinite; }
+.dca-robot[data-motion='on'][data-pose='working'] .dca-body-motion { animation: dca-work var(--dca-loop) ease-in-out infinite; }
+.dca-robot[data-motion='on'][data-pose='done'] .dca-body-motion { animation: dca-celebrate 800ms ease-in-out both; }
+.dca-robot[data-motion='on'][data-pose='acknowledge'] .dca-body-motion { animation: dca-nod 350ms ease-in-out both; }
+
+.dca-robot[data-paused='true'] * { animation-play-state: paused !important; }
+.dca-robot[data-exiting='true'] .dca-body-motion { animation: none !important; }
+.dca-robot[data-motion='off'] * { animation: none !important; transition: none !important; }
+
+@keyframes dca-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-9px) scaleY(1.008); }
+}
+@keyframes dca-cursor { 0%, 93%, 100% { opacity: 1; } 95%, 98% { opacity: .12; } }
+@keyframes dca-work {
+  0%, 100% { transform: translateY(12px) rotate(2deg); }
+  50% { transform: translateY(5px) rotate(0deg); }
+}
+@keyframes dca-celebrate {
+  0%, 100% { transform: translateY(0); }
+  20% { transform: translateY(10px) scaleY(.97); }
+  55% { transform: translateY(-30px) rotate(-3deg); }
+}
+@keyframes dca-nod {
+  0%, 100% { transform: translateY(0); }
+  38% { transform: translateY(17px) scaleY(.97); }
+  68% { transform: translateY(-8px); }
+}
+
+
+.dca-robot[data-pose='sleep'] .dca-body-motion { transform: translateY(18px) rotate(4deg); }
+.dca-robot[data-pose='sleep'] .dca-part-light { opacity: .45; }
+.dca-robot[data-motion='off'][data-pose='greeting'] :is(.dca-part-arm-r-w, .dca-part-arm-r-b) { transform: translate(-48px, 88px) rotate(-110deg) scaleY(.8); }
+@media (prefers-reduced-motion: reduce) {
+ .dca-robot[data-mode='system'] * { animation: none !important; transition: none !important; }
+}

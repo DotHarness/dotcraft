@@ -1,7 +1,6 @@
 ---
 name: reviewer
 description: Independently review correctness, risks, tests, and maintainability without editing.
-avatar: 457
 tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch]
   agentControl: disabled

@@ -6,11 +6,7 @@ import { findSubAgentChild, type SubAgentScope } from '../../utils/subAgentIdent
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import {
-  getSubAgentAccent,
-  getSubAgentIdentitySeed
-} from '../../utils/subAgentPresentation'
-import { avatarFromSeed } from '../agents/agentAvatar'
+import { getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginRegistry'
@@ -59,8 +55,7 @@ export function SubAgentChips({
   const resolved = parsedDisplays.map((display) => {
     const child = findSubAgentChild(lookup, display.childThreadId, display.agentPath, display.scope)
     const name = child?.nickname ?? display.name
-    const seed = getSubAgentIdentitySeed(child ?? display) ?? display.seed
-    return { ...display, name, seed, accentColor: getSubAgentAccent(seed), child }
+    return { ...display, name, seed: name, accentColor: getSubAgentAccent(name), child }
   })
   if (resolved.length === 0) return null
   const states = resolved.map((display) => agentState(display, display.child, discovery, turnRunning))
@@ -75,7 +70,7 @@ export function SubAgentChips({
       <span className="dc-subagent-marks" aria-hidden>
         {visible.map((display) => (
           <span key={display.id} className="dc-subagent-mark">
-            <RobotAvatar spec={{ ...avatarFromSeed(display.seed), accessory: 0 }} size={16} />
+            <RobotAvatar name={display.name} size={16} />
           </span>
         ))}
       </span>
@@ -201,7 +196,7 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
     ?? getString(args, 'prompt')
     ?? ''
 
-  const seed = getSubAgentIdentitySeed({ agentPath, childThreadId, nickname: name }) ?? name
+  const seed = name
 
   return {
     id: item.id,

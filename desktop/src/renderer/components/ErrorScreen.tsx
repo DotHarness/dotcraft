@@ -123,7 +123,7 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
               {/* Root carries -deflate so its descendant .mascot-glow blinks red ×3. */}
               <div className="composer-mascot-deflate">
                 <div className="composer-mascot-shake">
-                  <MascotRobot expression="operator" light="error" size={96} />
+                  <MascotRobot state="blocked" size={96} />
                 </div>
               </div>
             </div>

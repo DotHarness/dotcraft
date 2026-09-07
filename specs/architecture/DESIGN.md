@@ -365,6 +365,13 @@ identity-mark family. Avatars, status dots, thumbnails, favicons, action glyphs,
 and illustrations keep their own shape rules. Choose a role instead of deriving
 corner geometry from an arbitrary size:
 
+Agent avatars derive their complete visual identity and interaction rendering from
+the shared `@dotcraft/avatar` package. Hosts pass names, state, expression, gesture,
+and hand/work-prop intent without copying or overriding internal SVG artwork. At
+`20px` and below, keep the robot arms but hide handheld accessories and work props while retaining the primary
+head silhouette. A left-side hold owns the left hand. Native work props take priority
+over decorative hand poses when both are requested.
+
 | Role | Standard size / radius | Use |
 | --- | --- | --- |
 | Compact | `24px / 6px` | Dense metadata, prompt prefixes, and connection rows. Inline marks may reduce to `18px` while retaining the compact radius. |

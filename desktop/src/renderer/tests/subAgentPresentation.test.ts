@@ -5,7 +5,7 @@ import {
 } from '../utils/subAgentPresentation'
 
 describe('SubAgent identity presentation', () => {
-  it('keeps the accent stable across surfaces by preferring the agent path', () => {
+  it('keeps the accent stable across surfaces from the visible agent name', () => {
     const conversationSeed = getSubAgentIdentitySeed({
       agentPath: '/root/reviewer',
       nickname: 'Reviewer'
@@ -16,14 +16,15 @@ describe('SubAgent identity presentation', () => {
       nickname: 'Reviewer'
     })
 
-    expect(conversationSeed).toBe('/root/reviewer')
-    expect(detailPanelSeed).toBe('/root/reviewer')
+    expect(conversationSeed).toBe('Reviewer')
+    expect(detailPanelSeed).toBe('Reviewer')
     expect(getSubAgentAccent(conversationSeed)).toBe(getSubAgentAccent(detailPanelSeed))
   })
 
-  it('falls back to child thread id and then nickname for historical entries', () => {
+  it('never hashes an internal thread id when no visible nickname exists', () => {
     expect(getSubAgentIdentitySeed({ childThreadId: 'thread_reviewer', nickname: 'Reviewer' }))
-      .toBe('thread_reviewer')
+      .toBe('Reviewer')
+    expect(getSubAgentIdentitySeed({ childThreadId: 'thread_reviewer' })).toBeNull()
     expect(getSubAgentIdentitySeed({ nickname: 'Reviewer' })).toBe('Reviewer')
   })
 })

@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { SubAgentChild } from '../../stores/subAgentStore'
 import { findSubAgentChild, type SubAgentLookupSources } from '../../utils/subAgentIdentity'
-import { formatSubAgentMeta, getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
+import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { parseToolResultObject } from '../../utils/toolCallDisplay'
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -162,11 +162,7 @@ export function getSubAgentToolDisplay(
     name: label,
     meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
     prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
-    accentColor: getSubAgentAccent(getSubAgentIdentitySeed({
-      agentPath: resolvedAgentPath,
-      childThreadId,
-      nickname: label
-    })),
+    accentColor: getSubAgentAccent(label),
     child: matchedChild,
     message: isTimeout
       ? (message && !isTimeoutMessage(message) ? message : null)

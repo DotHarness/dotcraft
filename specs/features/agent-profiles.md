@@ -41,6 +41,7 @@ Out of scope:
 - Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete Profile model preset; canonical profiles do not merge individual model-option fields with workspace defaults.
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
 - Runtime-owned capabilities remain outside profile policy. Profiles specialize a thread without taking ownership of scheduling or runtime lifecycle.
+- Visual identity is client-derived from the profile name. It is not authored in profile frontmatter, stored by the profile service, or exposed by the AppServer profile contract.
 
 ---
 
@@ -54,7 +55,6 @@ Minimal shape:
 ---
 name: reviewer
 description: Read-only reviewer focused on correctness, risks, and tests.
-avatar: 457
 tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch]
   agentControl: disabled
@@ -79,7 +79,6 @@ Supported frontmatter groups:
 |-------|---------|
 | `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed, and context-window mode. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
 | `mode` | Other runtime defaults for new profile-backed threads. |
-| `avatar` | Optional packed non-negative integer client visual identity metadata. Bits 0-3 encode `palette`, bits 4-6 encode `face`, and bits 7-9 encode `accessory`. It is not compiled into thread configuration or model-visible instructions. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
 | `plugins` | Plugin/app capability policy. |

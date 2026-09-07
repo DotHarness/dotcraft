@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
@@ -45,8 +45,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { Button } from '../ui/Button'
 import { RefreshIcon } from '../ui/AppIcons'
 import { RobotAvatar } from './RobotAvatar'
-import { AGENT_BUILDER_AVATAR, randomAvatar, resolveProfileAvatar, type AvatarSpec } from './agentAvatar'
-import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore'
+import { useAgentProfileNameStore } from '../../stores/agentProfileNameStore'
 import {
   findProviderPreference,
   mergeProviderPreferences,
@@ -79,7 +78,6 @@ interface ProfileEntry {
   id: string
   name?: string
   description?: string
-  avatar?: number | AvatarSpec
   source: string
   valid?: boolean
   readOnly?: boolean
@@ -134,7 +132,6 @@ type Route =
       isNew: boolean
       saveTarget: SaveTarget
       saving: boolean
-      avatar: AvatarSpec
       /** Whether the profile is persisted (existing, or created via the Create button). */
       created: boolean
       /** ISO last-updated time of the persisted profile; drives "Updated X ago". */
@@ -189,14 +186,6 @@ function sectionFor(source: string): Filter {
 
 function writableSource(source: string | null): SaveTarget {
   return source === 'user' ? 'user' : 'workspace'
-}
-
-function avatarForEntry(entry: Pick<ProfileEntry, 'id' | 'avatar'>): AvatarSpec {
-  return resolveProfileAvatar(entry.id, entry.avatar)
-}
-
-function draftWithAvatar(draft: ProfileDraft, avatar: AvatarSpec): ProfileDraft {
-  return draft.avatar ? draft : { ...draft, avatar }
 }
 
 function newDraftTargetId(): string {
@@ -393,9 +382,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
       const res = await rpc<{ profiles?: ProfileEntry[] }>('agent/profiles/list', { includeInvalid: true })
       const profiles = Array.isArray(res.profiles) ? res.profiles : []
       setProfiles(profiles)
-      // Share the freshly-fetched stored avatars so the composer/welcome mascots
-      // (which only know a profile id) resolve the same avatar without a refetch.
-      useAgentProfileAvatarStore.getState().setFromList(useConversationStore.getState().workspacePath, profiles)
+      // Share visible names so profile-id-only surfaces resolve the same identity.
+      useAgentProfileNameStore.getState().setFromList(useConversationStore.getState().workspacePath, profiles)
       setStatus('ready')
       setLoadError(null)
     } catch (err) {
@@ -452,7 +440,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         isNew: readOnly,
         saveTarget: writableSource(entry.source),
         saving: false,
-        avatar: draft.avatar ?? avatarForEntry(res.profile ?? entry),
         // An existing writable profile is already "created"; a read-only template is an uncreated copy.
         created: !readOnly,
         updatedAt: readOnly ? null : (res.profile?.updatedAt ?? entry.updatedAt ?? null)
@@ -468,7 +455,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
 
   const startDraft = useCallback((
     draft: ProfileDraft,
-    avatar: AvatarSpec,
     options: { targetId?: string; targetSource?: string } = {}
   ): void => {
     lastSavedMdRef.current = null
@@ -477,8 +463,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     lastSyncedBuilderDraftRef.current = null
     setViewMode('edit')
     setAutoSaveState('idle')
-    const nextDraft = draftWithAvatar(draft, avatar)
-    setRoute({ name: 'builder', draft: nextDraft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, avatar, created: false, updatedAt: null })
+    const nextDraft = draft
+    setRoute({ name: 'builder', draft: nextDraft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, created: false, updatedAt: null })
     setBuilderSession({
       targetId: options.targetId?.trim() || nextDraft.name.trim() || newDraftTargetId(),
       targetSource: options.targetSource?.trim() || 'workspace'
@@ -486,7 +472,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   }, [])
 
   const newBlank = useCallback((): void => {
-    startDraft(createEmptyDraft(), randomAvatar(), {
+    startDraft(createEmptyDraft(), {
       targetId: newDraftTargetId(),
       targetSource: 'workspace'
     })
@@ -529,11 +515,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     payload: InputComposerSubmitPayload,
     config: ThreadConfigurationWire
   ): Promise<void> => {
-    const avatar = randomAvatar()
-    const draft = draftWithAvatar(createEmptyDraft(), avatar)
+    const draft = createEmptyDraft()
     const targetId = newDraftTargetId()
     const targetSource = 'workspace'
-    startDraft(draft, avatar, { targetId, targetSource })
+    startDraft(draft, { targetId, targetSource })
     await startBuilderChatWithDraft({
       draft,
       targetId,
@@ -565,7 +550,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
       const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
       const draft = parseProfile(res.profile?.rawContent)
       if (!draft.name) draft.name = entry.id
-      startDraft(draft, draft.avatar ?? avatarForEntry(res.profile ?? entry), {
+      startDraft(draft, {
         targetId: entry.id,
         targetSource: entry.source
       })
@@ -687,7 +672,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         <div className={`agent-builder-split-main${agentDriving ? ' is-agent-driving' : ''}`}>
           <BuilderView
             route={route}
-            setRoute={setRoute}
             setDraft={setDraft}
             toolCatalog={toolCatalog}
             skillCatalog={skillCatalog}
@@ -710,14 +694,14 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             <ConversationPanel
               workspacePath={workspacePath}
               minimalComposer
-              mascotAvatar={route.avatar}
+              mascotName={route.draft.name}
               variant="agentBuilder"
               onBeforeSend={flushBuilderDraft}
             />
           ) : (
             <DetachedAgentBuilderChat
               workspacePath={workspacePath}
-              mascotAvatar={route.avatar}
+              mascotName={route.draft.name}
               prefillRequest={builderPrefillRequest}
               error={builderConversationStatus === 'error' ? builderConversationError : null}
               onPrefill={prefillBuilderComposer}
@@ -787,9 +771,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
           <AgentTemplateDeck
             templates={templates.map((p) => ({
               key: `${p.source}:${p.id}`,
-              name: p.id,
+              name: p.name || p.id,
               description: p.description || '',
-              avatar: avatarForEntry(p)
             }))}
             onPick={(key) => {
               const entry = templates.find((p) => `${p.source}:${p.id}` === key)
@@ -858,10 +841,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
                 {items.map((p) => (
                   <CatalogHoverButton key={`${p.source}:${p.id}`} type="button" baseStyle={catalogStyles.compactItem} onClick={() => void openProfile(p)}>
                     <span style={galleryAvatar}>
-                      <RobotAvatar spec={avatarForEntry(p)} size={36} />
+                      <RobotAvatar name={p.name || p.id} size={36} />
                     </span>
                     <span style={galleryText}>
-                      <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.id}</strong></span>
+                      <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.name || p.id}</strong></span>
                       <span style={catalogStyles.rowDesc}>{p.description || ''}</span>
                     </span>
                     {p.valid === false && (
@@ -901,7 +884,7 @@ function IntroBuilderComposer({
         transientVoiceOrigin
         workspacePath={workspacePath}
         minimalChrome
-        mascotAvatar={AGENT_BUILDER_AVATAR}
+        mascotName="Agent Builder"
         variant="agentBuilder"
         placeholder="Describe the agent you want…"
         prefillRequest={prefillRequest}
@@ -931,14 +914,14 @@ function IntroBuilderComposer({
 
 function DetachedAgentBuilderChat({
   workspacePath,
-  mascotAvatar,
+  mascotName,
   prefillRequest,
   error,
   onPrefill,
   onSubmit
 }: {
   workspacePath: string
-  mascotAvatar: AvatarSpec
+  mascotName: string
   prefillRequest: { id: number; text: string } | null
   error: string | null
   onPrefill: (prompt: string) => void
@@ -962,7 +945,7 @@ function DetachedAgentBuilderChat({
         transientVoiceOrigin
         workspacePath={workspacePath}
         minimalChrome
-        mascotAvatar={mascotAvatar}
+        mascotName={mascotName}
         variant="agentBuilder"
         prefillRequest={prefillRequest}
         submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
@@ -990,7 +973,6 @@ function DetachedAgentBuilderChat({
 
 interface BuilderViewProps {
   route: Extract<Route, { name: 'builder' }>
-  setRoute: Dispatch<SetStateAction<Route>>
   setDraft: Dispatch<SetStateAction<ProfileDraft>>
   toolCatalog: ToolInfo[]
   skillCatalog: SkillInfo[]
@@ -1005,20 +987,14 @@ interface BuilderViewProps {
   onCreate: () => void
 }
 
-function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
+function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
   const locale = useLocale()
   const t = useT()
-  const { draft, avatar } = route
+  const { draft } = route
   const nameMissing = !draft.name.trim()
   const preview = viewMode === 'preview'
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-
-  const reroll = (): void => setRoute((r) => {
-    if (r.name !== 'builder') return r
-    const avatar = randomAvatar(r.avatar)
-    return { ...r, avatar, draft: { ...r.draft, avatar } }
-  })
 
   useEffect(() => {
     if (!menuOpen) return undefined
@@ -1135,7 +1111,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             <ArrowLeft size={18} />
           </button>
           <span className="agent-builder-headavatar">
-            <RobotAvatar spec={avatar} size={26} />
+            <RobotAvatar name={draft.name} size={26} />
           </span>
           <span className="agent-builder-headname">{draft.name || 'Untitled agent'}</span>
         </div>
@@ -1181,12 +1157,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
         <AgentEditingCursor field={cursor?.field ?? null} phase={cursor?.phase ?? 'settled'} />
         <div className="agent-builder-id">
           <span className="agent-builder-id-avatar">
-            <RobotAvatar spec={avatar} size={64} animated />
-            {!preview && (
-              <button type="button" className="agent-builder-reroll" onClick={reroll} title="Re-roll avatar">
-                <Shuffle size={12} />
-              </button>
-            )}
+            <RobotAvatar name={draft.name} size={64} animated />
           </span>
           <div className="agent-builder-id-main">
             <FieldAnchor field="name" className="agent-builder-field-anchor-name">

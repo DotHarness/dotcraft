@@ -27,6 +27,10 @@ The package is published on npm. Runtime entry points belong in Node.js or Elect
 
 Contracts has no Node.js, WebSocket, or runtime I/O dependency, so Renderer code may import it for types.
 
+## Avatar package
+
+`@dotcraft/avatar/react` provides the React 19 `Avatar` component for DotCraft's name-derived visual identity. Pass `name` and `size`, with optional `state`, `motion`, `paused`, `eventSequence`, and `label` props. The framework-neutral package root exports `deriveAppearance`, which trims and NFC-normalizes the name before deriving an appearance. The same normalized name produces the same identity; an empty name produces the original DotCraft appearance.
+
 ## High-level API
 
 | Task | API |

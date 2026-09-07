@@ -1,7 +1,6 @@
 ---
 name: explorer
 description: Inspect code and sources, resolve unknowns, and report evidence without changing state.
-avatar: 555
 tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch]
   agentControl: disabled

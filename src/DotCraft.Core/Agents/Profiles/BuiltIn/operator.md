@@ -1,7 +1,6 @@
 ---
 name: operator
 description: Operate apps, browsers, MCP servers, and workflows with explicit control over side effects.
-avatar: 695
 tools:
   deny: [WriteFile, EditFile, Exec, WriteStdin, Cron, CreatePlan, TodoWrite, UpdateTodos, GetGoal, CreateGoal, UpdateGoal, imagegen]
   agentControl: disabled

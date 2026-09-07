@@ -18,32 +18,6 @@
   --mascot-max-blur-glow: 6.8px;
 }
 
-[data-mascot-context='max'] .mascot-robot {
-  animation: composer-mascot-max-overdrive-edge 3.8s ease-in-out infinite;
-  will-change: filter;
-}
-
-[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(1) {
-  animation: composer-mascot-max-coat-dark 3.8s ease-in-out infinite;
-}
-
-[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(2) {
-  animation: composer-mascot-max-coat-mid 3.8s ease-in-out infinite;
-}
-
-[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(3) {
-  animation: composer-mascot-max-coat-light 3.8s ease-in-out infinite;
-}
-
-[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(1) {
-  animation: composer-mascot-max-coat-mark-dark 3.8s ease-in-out infinite;
-}
-
-[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(2),
-[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(3) {
-  animation: composer-mascot-max-coat-mark-light 3.8s ease-in-out infinite;
-}
-
 .composer-mascot-motion::after {
   content: '';
   position: absolute;
@@ -70,28 +44,6 @@
   filter: drop-shadow(0 0 1.6px color-mix(in srgb, var(--mascot-max-edge) 32%, transparent));
   opacity: 0.18;
   animation: composer-mascot-max-micrograin 6.2s ease-in-out infinite;
-}
-
-[data-mascot-context='max'] .mascot-arm-r-b {
-  color: var(--mascot-body-light);
-  animation: composer-mascot-max-arm-right 3.8s ease-in-out infinite;
-}
-
-[data-mascot-context='max'] .mascot-arm-l-b {
-  color: var(--mascot-body-dark);
-  animation: composer-mascot-max-arm-left 3.8s ease-in-out infinite;
-}
-
-[data-mascot-context='max'].composer-mascot-wave .mascot-arm-r-b {
-  fill: currentColor;
-  animation:
-    composer-mascot-max-arm-right 3.8s ease-in-out infinite,
-    composer-mascot-wave-arm 1.6s ease-in-out;
-}
-
-[data-mascot-context='max'].composer-mascot-celebrate .mascot-arm-r-b,
-[data-mascot-context='max'].composer-mascot-celebrate .mascot-arm-l-b {
-  fill: currentColor;
 }
 
 @keyframes composer-mascot-max-overdrive-edge {
@@ -169,19 +121,6 @@
     color: oklch(from var(--mascot-body-dark)
       clamp(0.28, calc(l + 0.09), 0.96) clamp(0, calc(c * 0.9), 0.3) calc(h + 14));
   }
-}
-
-/* Profile handoff: the grain waves change from the outgoing accent to cool white at
-   the hidden swap frame, then to the incoming accent. */
-[data-mascot-profile-transition='active'] .mascot-robot {
-  position: relative;
-  z-index: 2;
-  transform-origin: 50% 52%;
-  animation: composer-mascot-profile-character 1.24s linear both;
-}
-
-[data-mascot-profile-transition='active'] .mascot-robot [id^='mascot-blue-'] stop {
-  transition: none;
 }
 
 [data-mascot-profile-transition='active'] .composer-mascot-motion::before {

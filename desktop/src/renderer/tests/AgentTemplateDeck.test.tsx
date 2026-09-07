@@ -2,14 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentTemplateDeck } from '../components/agents/AgentTemplateDeck'
-import { avatarFromSeed } from '../components/agents/agentAvatar'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const templates = ['leader', 'builder', 'explorer', 'operator', 'reviewer'].map((id) => ({
   key: id,
   name: id,
-  description: `${id} description`,
-  avatar: avatarFromSeed(id)
+  description: `${id} description`
 }))
 
 function renderDeck(onPick = vi.fn()): HTMLElement[] {

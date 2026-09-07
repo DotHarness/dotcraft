@@ -6,6 +6,8 @@ An Agent Profile saves a purpose-built DotCraft agent so you can reach for it wh
 
 Start with one specialist or build out a whole agent team: an Explorer for research, a Builder for implementation, or an Operator for app workflows. Each role is an independent Profile you can choose whenever the work calls for it.
 
+DotCraft derives each profile's avatar from its name, so the same name keeps the same visual identity wherever the profile appears.
+
 ## Where profiles pay off
 
 | Place | How it helps |

@@ -1,4 +1,5 @@
 @import "./foundations/tailwind.css";
+@import "@dotcraft/avatar/styles.css";
 @import "../components/detail/styles/automation-viewer-tab-keyframes.css";
 @import "./foundations/tokens.css";
 @import "./foundations/themes.css";

@@ -1,7 +1,6 @@
 ---
 name: leader
 description: Plan, delegate, coordinate specialists, verify results, and synthesize delivery.
-avatar: 128
 tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch, RequestUserInput, TodoWrite, UpdateTodos, SpawnAgent, SendMessage, FollowupTask, WaitAgent, ListAgents, CloseAgent]
   agentControl: full
