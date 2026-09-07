@@ -11,7 +11,10 @@ internal static class SatelliteInvitePage
 {
     public const string InstallerFileName = "DotCraft-Satellite-Setup.exe";
     public const string InstallerPath = "/satellite/installer";
+    public const string IconPath = "/satellite/icon";
     public const string ReleasesUrl = "https://github.com/DotHarness/dotcraft/releases";
+
+    private const string IconResourceName = "DotCraft.Resources.favicon.ico";
 
     public static SatelliteInviteDetails Describe(
         string inviteId,
@@ -29,6 +32,8 @@ internal static class SatelliteInvitePage
         var builder = new StringBuilder();
         builder.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
         builder.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
+        builder.Append("<link rel=\"icon\" type=\"image/x-icon\" href=\"").Append(IconPath)
+            .Append("\">");
         builder.Append("<title>Share this PC with DotCraft</title><style>");
         builder.Append(Css);
         builder.Append("</style></head><body><main>");
@@ -52,6 +57,10 @@ internal static class SatelliteInvitePage
         builder.Append("</script></body></html>");
         return builder.ToString();
     }
+
+    public static Stream OpenIcon() =>
+        typeof(SatelliteInvitePage).Assembly.GetManifestResourceStream(IconResourceName)
+        ?? throw new InvalidOperationException($"Embedded resource '{IconResourceName}' was not found.");
 
     private static string Escape(string value) => WebUtility.HtmlEncode(value);
 

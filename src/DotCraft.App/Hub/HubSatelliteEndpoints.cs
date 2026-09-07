@@ -104,6 +104,9 @@ internal sealed class HubSatelliteListener : IAsyncDisposable
                     SatelliteInvitePage.InstallerFileName);
         });
 
+        app.MapGet(SatelliteInvitePage.IconPath, () =>
+            Results.Stream(SatelliteInvitePage.OpenIcon(), "image/x-icon"));
+
         app.Map(SatelliteWire.ControlPath, async (HttpContext context) =>
         {
             var bearer = SatelliteWire.ReadBearer(context.Request.Headers.Authorization);

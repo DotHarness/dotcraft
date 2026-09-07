@@ -72,6 +72,8 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         Assert.Contains("Ann", html, StringComparison.Ordinal);
         Assert.Contains("Fix the build", html, StringComparison.Ordinal);
         Assert.Contains("/satellite/installer", html, StringComparison.Ordinal);
+        Assert.Contains("<link rel=\"icon\"", html, StringComparison.Ordinal);
+        Assert.Contains("/satellite/icon", html, StringComparison.Ordinal);
         Assert.Contains("dotcraft://satellite/join?invite=", html, StringComparison.Ordinal);
         Assert.DoesNotContain("http://cdn", html, StringComparison.OrdinalIgnoreCase);
 
@@ -93,6 +95,22 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
             "github.com/DotHarness/dotcraft/releases",
             await response.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IconRoute_ServesEmbeddedDotCraftIcon()
+    {
+        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
+        var invite = await hub.CreateInviteAsync("Ann");
+        var listener = new Uri(invite.Url).GetLeftPart(UriPartial.Authority);
+
+        using var response = await hub.Http.GetAsync($"{listener}/satellite/icon");
+        var icon = await response.Content.ReadAsByteArrayAsync();
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("image/x-icon", response.Content.Headers.ContentType?.MediaType);
+        Assert.True(icon.Length > 4);
+        Assert.Equal(new byte[] { 0, 0, 1, 0 }, icon[..4]);
     }
 
     [Fact]
