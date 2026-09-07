@@ -14,8 +14,6 @@
   will-change: transform;
 }
 
-/* Reasoning energy: every animated color is the OKLCH delta measured from the
-   canonical-blue animation, reapplied to the current Agent Profile palette. */
 .composer-mascot-motion {
   position: relative;
 }
@@ -25,8 +23,6 @@
   z-index: 2;
 }
 
-/* A dedicated wrapper around the SVG owns this filter so the afterimage cannot
-   replace the pose, activity, Effort, or MAX animations on adjacent layers. */
 .composer-mascot-fast-echo {
   display: grid;
   line-height: 0;
@@ -40,9 +36,6 @@
   overflow: visible;
 }
 
-.composer-mascot-character-stage > [data-dotcraft-plugin-surface='composer.mascot'] > * {
-  grid-area: 1 / 1;
-}
 
 [data-mascot-speed='fast'] .composer-mascot-motion {
   --mascot-fast-shift-base: oklch(from var(--mascot-energy-accent)
@@ -73,8 +66,6 @@
   }
 }
 
-/* Light surfaces expose the sub-pixel edges that read as crisp echoes on dark ones, so
-   here the echoes trade edge opacity for blur. The dark animation above is unchanged. */
 html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-motion {
   --mascot-fast-light-edge-base: oklch(from var(--mascot-energy-accent)
     clamp(0.38, calc(l + 0.12), 0.94) clamp(0.05, calc(c * 0.92), 0.28) calc(h + 8));
@@ -281,4 +272,16 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
       clamp(0, calc(c * 0.995), 0.3)
       calc(h + 45.19));
   }
+}
+
+.composer-mascot-contact-shadow {
+  position: absolute;
+  right: 68px;
+  top: 1px;
+  width: 72px;
+  height: 24px;
+  transform: translateX(50%);
+  border-radius: 50%;
+  filter: blur(2px);
+  pointer-events: none;
 }

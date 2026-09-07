@@ -8,7 +8,7 @@ import { Avatar } from '../dist/react.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-function createEnvironment({ reduced = false, legacyMedia = false, matchMedia = true } = {}) {
+function createEnvironment({ reduced = false, matchMedia = true } = {}) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'https://avatar.test/' })
   const previous = Object.fromEntries(['window', 'document', 'IntersectionObserver', 'requestAnimationFrame', 'cancelAnimationFrame'].map(key => [key, globalThis[key]]))
   globalThis.window = dom.window
@@ -40,10 +40,8 @@ function createEnvironment({ reduced = false, legacyMedia = false, matchMedia = 
   const mediaListeners = new Set()
   const media = {
     matches: reduced,
-    addEventListener: legacyMedia ? undefined : (_type, listener) => mediaListeners.add(listener),
-    removeEventListener: legacyMedia ? undefined : (_type, listener) => mediaListeners.delete(listener),
-    addListener: legacyMedia ? listener => mediaListeners.add(listener) : undefined,
-    removeListener: legacyMedia ? listener => mediaListeners.delete(listener) : undefined,
+    addEventListener: (_type, listener) => mediaListeners.add(listener),
+    removeEventListener: (_type, listener) => mediaListeners.delete(listener),
   }
   if (matchMedia) dom.window.matchMedia = () => media
   else dom.window.matchMedia = undefined
@@ -151,18 +149,12 @@ test('unmount cancels subscriptions, observation, and scheduled animation frames
   assert.ok(env.cancelledFrames.length > 0)
 })
 
-test('missing matchMedia and legacy media listeners are both safe', async () => {
-  for (const options of [{ matchMedia: false }, { legacyMedia: true }]) {
-    const env = createEnvironment(options)
-    try {
-      await env.render({ name: 'agent', motion: 'system', size: 44 })
-      assert.equal(env.dom.window.document.querySelector('.dca-robot').dataset.motion, options.matchMedia === false ? 'off' : 'on')
-      if (options.legacyMedia) {
-        await env.setReduced(true)
-        assert.equal(env.dom.window.document.querySelector('.dca-robot').dataset.motion, 'off')
-      }
-    } finally { await env.cleanup() }
-  }
+test('system motion stays off when media preferences are unavailable', async () => {
+  const env = createEnvironment({ matchMedia: false })
+  try {
+    await env.render({ name: 'agent', motion: 'system', size: 44 })
+    assert.equal(env.dom.window.document.querySelector('.dca-robot').dataset.motion, 'off')
+  } finally { await env.cleanup() }
 })
 
 test('expression changes retain the base and happy DOM layers without retracting decorations', async () => {

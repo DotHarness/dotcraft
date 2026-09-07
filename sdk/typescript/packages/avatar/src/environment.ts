@@ -8,12 +8,8 @@ export function useMotionEnvironment(mode: MotionMode, observe = true) {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     const update = () => setReduced(media.matches)
     update()
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', update)
-      return () => media.removeEventListener('change', update)
-    }
-    media.addListener?.(update)
-    return () => media.removeListener?.(update)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
   }, [mode, observe])
   return observe && (mode === 'on' || (mode === 'system' && !reduced))
 }

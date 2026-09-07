@@ -1,6 +1,3 @@
-/* Each motion owns a separate horizontal, vertical, posture, and thrust layer so no
-   segment has to fake a skeletal rig or reset velocity mid-flight. The travel
-   durations here must match MASCOT_ACTIVE_IDLE_TRAVEL_MS in ComposerShell. */
 [data-composer-root]:has(.composer-mascot-active-idle) .composer-mascot-contact-shadow {
   opacity: 0;
 }
@@ -396,12 +393,6 @@
   91% { transform: translateY(1px) rotate(0) scale(1.1, 0.88); }
   95% { transform: translateY(-1px) rotate(0) scale(0.99, 1.02); }
   99%, 100% { transform: translateY(0) rotate(0) scale(1); }
-}
-
-@keyframes composer-mascot-idle-hover-scan-face {
-  0%, 12%, 46%, 54%, 88%, 100% { transform: translateX(0); }
-  20%, 38% { transform: translateX(-34px); }
-  62%, 80% { transform: translateX(34px); }
 }
 
 @keyframes composer-mascot-idle-hover-scan-body {

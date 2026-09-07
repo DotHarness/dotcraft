@@ -16,3 +16,6 @@
     transition: none !important;
   }
 }
+
+[data-composer-mascot-motion='off'],
+[data-composer-mascot-motion='off'] * { animation: none !important; transition: none !important; }

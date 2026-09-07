@@ -1,15 +1,3 @@
-@keyframes composer-mascot-glow-flash {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-  30% {
-    opacity: 0.7;
-    transform: scale(1.6);
-  }
-}
-
 @keyframes composer-mascot-cheer {
   0% {
     transform: translateY(0) scale(1, 1);
@@ -45,7 +33,6 @@
   pointer-events: none;
 }
 
-/* Success star burst — semantic status color, not decoration. */
 .composer-mascot-sparkles i {
   position: absolute;
   left: 50%;
@@ -71,8 +58,6 @@
   }
 }
 
-/* The deflated droop pose itself is held inline by ComposerMascot while the error
-   light persists. */
 @keyframes composer-mascot-shake {
   0%,
   100% {
@@ -97,16 +82,6 @@
   transform-origin: bottom center;
 }
 
-@keyframes composer-mascot-glow-blink {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 0.65;
-  }
-}
-
 @keyframes composer-mascot-eager-hop {
   0%,
   100% {
@@ -122,7 +97,6 @@
   transform-origin: bottom center;
 }
 
-/* The slumped pose is held inline by ComposerMascot. */
 @keyframes composer-mascot-sleep-breathe {
   0%,
   100% {
@@ -200,8 +174,6 @@
   transform-origin: bottom center;
 }
 
-/* The dock owns the upward movement; this is only the small inertial release
-   after its expanding rim stops pushing the mascot. */
 @keyframes composer-mascot-push-lift {
   0% { transform: translateY(0) scale(1); }
   38% { transform: translateY(-7px) scale(0.98, 1.035); }

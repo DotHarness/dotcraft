@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AvatarPose } from '@dotcraft/avatar'
-import type { MascotExpression } from './MascotRobot'
+import type { AvatarPose } from '../index.js'
+import type { MascotExpression } from './types.js'
 
 export type ComposerAvatarGesture = 'blink' | 'look-left' | 'look-right' | 'antenna-bob'
 
@@ -48,11 +48,10 @@ export function useComposerAvatarBehavior(options: ComposerAvatarBehaviorOptions
       return
     }
     if (options.baseExpression !== 'neutral' && options.baseExpression !== 'happy') return
-    let cancelled = false
     let timer = 0
     const schedule = (): void => {
       timer = window.setTimeout(() => {
-        if (!cancelled && !document.hidden) {
+        if (!document.hidden) {
           const value = Math.random()
           const next = value < 0.5
             ? 'blink'
@@ -70,7 +69,7 @@ export function useComposerAvatarBehavior(options: ComposerAvatarBehaviorOptions
       }, 2600 + Math.random() * 3200)
     }
     schedule()
-    return () => { cancelled = true; window.clearTimeout(timer) }
+    return () => { window.clearTimeout(timer) }
   }, [options.sleeping, options.activeIdle, options.reducedMotion, options.baseExpression])
 
   const clearGesture = useCallback(() => setGesture(undefined), [])

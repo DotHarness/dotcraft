@@ -103,12 +103,12 @@ export function MascotRig({
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id={blue} x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+        <linearGradient className="dca-paint-body" id={blue} x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor={body0} />
           <stop offset=".46" stopColor={body1} />
           <stop offset="1" stopColor={body2} />
         </linearGradient>
-        <linearGradient id={blueMark} x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+        <linearGradient className="dca-paint-mark" id={blueMark} x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor={mark0} />
           <stop offset=".55" stopColor={mark1} />
           <stop offset="1" stopColor={mark2} />

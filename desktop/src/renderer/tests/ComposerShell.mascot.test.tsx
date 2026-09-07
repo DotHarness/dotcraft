@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import './setupPluginRuntime'
-import { act, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { ComposerShell, DECISION_MASCOT } from '../components/conversation/ComposerShell'
@@ -70,7 +70,7 @@ describe('ComposerShell mascot energy and active idle', () => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: false })
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
-      value: vi.fn().mockReturnValue({ matches: false })
+      value: vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })
     })
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
@@ -80,6 +80,7 @@ describe('ComposerShell mascot energy and active idle', () => {
   })
 
   afterEach(() => {
+    cleanup()
     act(() => clearDesktopPluginRegistry())
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -151,7 +152,7 @@ describe('ComposerShell mascot energy and active idle', () => {
     })
     let custom = view.getByTestId('custom-mascot')
 
-    expect(view.container.querySelector('.mascot-robot')).toBeNull()
+    expect(view.container.querySelector('.dca-robot')).toBeNull()
     expect(custom).toHaveAttribute('data-activity', 'working')
     expect(custom).toHaveAttribute('data-expression', 'operator')
     expect(custom).toHaveAttribute('data-light', 'default')

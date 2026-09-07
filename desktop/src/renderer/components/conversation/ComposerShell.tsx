@@ -1,10 +1,7 @@
 import {
-  useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
-  type AnimationEvent,
   type ButtonHTMLAttributes,
   type CSSProperties,
   type DragEventHandler,
@@ -13,22 +10,16 @@ import {
 } from 'react'
 import { Bot, ListChecks, Loader2, Square, X } from 'lucide-react'
 import type {
-  DesktopPluginComposerMascotSurfaceContext,
   DesktopPluginComposerSurfaceContext,
-  DesktopPluginMascotActivity
 } from '@dotcraft/plugin'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
-import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
-import { deriveAppearance, mascotPaletteOf, type AvatarPose } from '@dotcraft/avatar'
+import { ComposerMascot, ComposerMascotShadow, type MascotExpression, type MascotLight } from '@dotcraft/avatar/react'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
-import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { useComposerOverlayLiftHost } from './composerOverlayLift'
-import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
-import { useComposerAvatarBehavior } from './useComposerAvatarBehavior'
 
-/** Bubble content shown above the mascot (copy already localized by the caller). */
 export interface ComposerMascotBubble {
   tone?: MascotBubbleTone
   title: string
@@ -36,27 +27,17 @@ export interface ComposerMascotBubble {
   actions?: MascotBubbleAction[]
 }
 
-/** When omitted (e.g. the welcome composer) the mascot keeps its ambient focus/drag expression. */
 export interface ComposerMascotInteraction {
-  /** Overrides the ambient focus/drag expression when set. */
   expression?: MascotExpression
   light?: MascotLight
-  /** Dismissal is one of the bubble's own reply actions (no separate close control). */
   bubble?: ComposerMascotBubble | null
-  /** Right-click preset actions (already localized). Empty disables the menu. */
   menuItems?: ContextMenuItem[]
-  /** Raises the right arm holding the "?" sign, and suppresses the laptop prop. */
   hold?: 'sign'
 }
 
 export type ComposerMascotReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 'extraHigh'
 export type ComposerMascotSpeed = 'standard' | 'fast'
 
-/**
- * Shared pose for the bottom-dock decision composers (tool approval, plan approval,
- * ask-question). The held sign suppresses the mini-terminal prop, which would
- * otherwise wrongly imply a running turn.
- */
 export const DECISION_MASCOT: ComposerMascotInteraction = { expression: 'operator', hold: 'sign' }
 
 type ComposerActionButtonTone = 'enabled' | 'disabled'
@@ -88,687 +69,17 @@ interface ComposerShellProps {
   focused?: boolean
   showMascot?: boolean
   desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
-  /** Monotonic counter; bump on send to trigger the one-shot launch jump. */
   mascotBounceSignal?: number
   mascotInteraction?: ComposerMascotInteraction
   mascotReasoningEffort?: ComposerMascotReasoningEffort
   mascotSpeed?: ComposerMascotSpeed
   mascotContextMax?: boolean
   mascotName?: string
-  /** When this shell replaces (or is replaced by) another handoff shell — input ↔
-   *  approval — the mascot rides between the two rims instead of hard-cutting. */
   mascotHandoff?: boolean
 }
 
 const COMPOSER_CARD_INLINE_PADDING = 10
 const COMPOSER_CARD_BORDER = 1
-
-const MASCOT_SIZE = 58
-/** Default display scale; applied via a wrapper so it shrinks the motion too. */
-const MASCOT_SCALE = 0.75
-/** Fraction of the mascot tucked behind the composer rim (only its feet rest on the edge). */
-const MASCOT_HIDDEN_RATIO = 0.06
-/** Extra upward nudge so the (scaled) feet sit flush on the rim, not sunk or floating. */
-const MASCOT_RAISE = 3
-const MASCOT_SLEEP_AFTER_MS = 90_000
-const MASCOT_WAVE_DURATION_MS = 1_600
-const MASCOT_ACTIVE_IDLE_MIN_MS = 35_000
-const MASCOT_ACTIVE_IDLE_JITTER_MS = 30_000
-const MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS = 500
-
-type MascotActiveIdleMotion = 'hop' | 'rocket' | 'hover'
-type MascotActiveIdlePhase = 'outbound' | 'away' | 'inbound'
-
-interface MascotActiveIdleState {
-  motion: MascotActiveIdleMotion
-  phase: MascotActiveIdlePhase
-}
-
-interface MascotProfileTransition {
-  revision: number
-  fromAccent: string
-  toAccent: string
-}
-
-const MASCOT_PROFILE_TRANSITION_SWAP_MS = 620
-const MASCOT_PROFILE_TRANSITION_DURATION_MS = 1240
-
-const MASCOT_ACTIVE_IDLE_TRAVEL_MS: Record<MascotActiveIdleMotion, number> = {
-  hop: 2400,
-  rocket: 1800,
-  hover: 1800
-}
-
-const MASCOT_ACTIVE_IDLE_HOLD_MS: Record<MascotActiveIdleMotion, number> = {
-  hop: 1400,
-  rocket: 1400,
-  hover: 2800
-}
-
-function pickMascotActiveIdle(random: number, previous: MascotActiveIdleMotion | null): MascotActiveIdleMotion {
-  const selected: MascotActiveIdleMotion = random < 0.65 ? 'hop' : random < 0.9 ? 'rocket' : 'hover'
-  if (selected !== previous) return selected
-  return selected === 'hop' ? 'rocket' : selected === 'rocket' ? 'hop' : 'rocket'
-}
-
-/** Deterministic star-burst offsets for the success celebration. */
-const MASCOT_SPARKLES = Array.from({ length: 7 }, (_, i) => {
-  const angle = ((-150 + i * 40) * Math.PI) / 180
-  const radius = 26 + (i % 3) * 9
-  return {
-    dx: `${(Math.cos(angle) * radius).toFixed(1)}px`,
-    dy: `${(Math.sin(angle) * radius - 8).toFixed(1)}px`,
-    delay: `${i * 40}ms`
-  }
-})
-
-function prefersReducedMotion(): boolean {
-  const configuredPreference =
-    typeof document !== 'undefined' ? document.documentElement.dataset.reduceMotion : undefined
-  if (configuredPreference === 'on') return true
-  if (configuredPreference === 'off') return false
-
-  // matchMedia is always present in Electron; guard for the jsdom test env.
-  return typeof window.matchMedia === 'function'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false
-}
-
-function mascotNameKey(name?: string): string {
-  return name?.trim() || 'default'
-}
-
-/**
- * DotCraft mascot standing on the composer's top-right edge. The nested transform
- * layers (display scale → pose → one-shot → loop → hover jelly → SVG) exist so the
- * animations do not clobber each other's `transform`.
- */
-function ComposerMascot({
-  focused,
-  dragOver,
-  bounceSignal,
-  interaction,
-  reasoningEffort,
-  speed,
-  contextMax,
-  avatar,
-  profileTransition,
-  profileTransitionRevision,
-  desktopPluginSurfaceContext,
-  anchorOffset = 0,
-  anchorPushSignal = 0,
-  handoff = false
-}: {
-  focused: boolean
-  dragOver: boolean
-  bounceSignal: number
-  interaction?: ComposerMascotInteraction
-  reasoningEffort: ComposerMascotReasoningEffort
-  speed: ComposerMascotSpeed
-  contextMax: boolean
-  avatar?: string
-  profileTransition: MascotProfileTransition | null
-  profileTransitionRevision: number
-  desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
-  /** Height of the active top accessory; the mascot stands on its upper edge. */
-  anchorOffset?: number
-  /** Monotonic signal fired when an expanding accessory finishes pushing upward. */
-  anchorPushSignal?: number
-  handoff?: boolean
-}): JSX.Element {
-  const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
-  const [sleeping, setSleeping] = useState(false)
-  const [waving, setWaving] = useState(false)
-  const [greetingSequence, setGreetingSequence] = useState(0)
-  const [startled, setStartled] = useState(false)
-  const [launching, setLaunching] = useState(false)
-  const [cheering, setCheering] = useState(false)
-  const [sparkling, setSparkling] = useState(false)
-  const [shaking, setShaking] = useState(false)
-  const [nodding, setNodding] = useState(false)
-  const [landing, setLanding] = useState(false)
-  const [pushLift, setPushLift] = useState(false)
-  const [activeIdle, setActiveIdle] = useState<MascotActiveIdleState | null>(null)
-  const [activityRevision, setActivityRevision] = useState(0)
-  const rootRef = useRef<HTMLDivElement | null>(null)
-  const lastActivityRef = useRef(0)
-  const lastActiveIdleRef = useRef<MascotActiveIdleMotion | null>(null)
-
-  const baseExpression: MascotExpression =
-    interaction?.expression ?? (dragOver ? 'operator' : focused ? 'happy' : 'neutral')
-  const light: MascotLight = interaction?.light ?? 'default'
-  const menuItems = interaction?.menuItems ?? []
-  const bubble = interaction?.bubble ?? null
-  const holdSign = interaction?.hold === 'sign'
-  // Mini terminal: a bubble over an operator face is a local confirm/busy state,
-  // not a running turn. The 1.2s reveal delay lives in tokens.css so quick turns
-  // never flash the prop.
-  const laptopActive =
-    !sleeping &&
-    !dragOver &&
-    !holdSign &&
-    bubble == null &&
-    baseExpression === 'operator' &&
-    light === 'default'
-  const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
-  const semanticAvatarPose: AvatarPose = light === 'error'
-    ? 'blocked'
-    : light === 'success'
-      ? 'done'
-      : sleeping
-        ? 'sleep'
-        : waving
-          ? 'greeting'
-          : holdSign || bubble != null
-            ? 'waiting'
-            : laptopActive
-              ? 'working'
-              : 'idle'
-  const avatarBehavior = useComposerAvatarBehavior({
-    semanticPose: semanticAvatarPose,
-    baseExpression,
-    focused,
-    dragOver,
-    sleeping,
-    waving,
-    activeIdle: activeIdle != null,
-    bounceSignal,
-    reducedMotion: prefersReducedMotion()
-  })
-  const mascotPalette = mascotPaletteOf(deriveAppearance(avatar ?? ''))
-  const activity: DesktopPluginMascotActivity = light === 'error'
-    ? 'error'
-    : light === 'success'
-      ? 'success'
-      : sleeping
-        ? 'sleeping'
-        : dragOver
-          ? 'dragging'
-          : holdSign
-            ? 'decision'
-            : baseExpression === 'operator'
-              ? 'working'
-              : focused
-                ? 'focused'
-                : 'idle'
-  const desktopPluginMascotContext: DesktopPluginComposerMascotSurfaceContext = {
-    ...desktopPluginSurfaceContext,
-    size: MASCOT_SIZE,
-    activity,
-    expression,
-    light,
-    submitRevision: bounceSignal,
-    reasoningEffort,
-    speed,
-    contextMax,
-    reducedMotion: prefersReducedMotion()
-  }
-  const ambient =
-    !focused &&
-    !dragOver &&
-    !bubble &&
-    !holdSign &&
-    menuPos == null &&
-    baseExpression === 'neutral' &&
-    light === 'default'
-
-  const markActivity = useCallback(() => {
-    setActiveIdle(null)
-    setSleeping((current) => {
-      if (current && !prefersReducedMotion()) setStartled(true)
-      return false
-    })
-    const now = Date.now()
-    if (now - lastActivityRef.current < MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS) return
-    lastActivityRef.current = now
-    setActivityRevision((value) => value + 1)
-  }, [])
-
-  useEffect(() => {
-    const markPointerMoveActivity = (): void => {
-      if (Date.now() - lastActivityRef.current >= MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS) {
-        markActivity()
-      }
-    }
-    window.addEventListener('keydown', markActivity)
-    window.addEventListener('pointerdown', markActivity)
-    window.addEventListener('pointermove', markPointerMoveActivity, { passive: true })
-    window.addEventListener('wheel', markActivity, { passive: true })
-    window.addEventListener('focusin', markActivity)
-    return () => {
-      window.removeEventListener('keydown', markActivity)
-      window.removeEventListener('pointerdown', markActivity)
-      window.removeEventListener('pointermove', markPointerMoveActivity)
-      window.removeEventListener('wheel', markActivity)
-      window.removeEventListener('focusin', markActivity)
-    }
-  }, [markActivity])
-
-  // `sleeping` is a dependency so dozing cancels a pending patrol. Without it the
-  // `document.hidden` retry re-arms while the window is backgrounded, and the first
-  // tick after it returns launches a hop/rocket out of the sleep pose.
-  useEffect(() => {
-    if (!ambient || sleeping || prefersReducedMotion()) {
-      setActiveIdle(null)
-      return undefined
-    }
-
-    let timer = 0
-    const start = (): void => {
-      if (prefersReducedMotion()) return
-      if (document.hidden) {
-        timer = window.setTimeout(start, 5000)
-        return
-      }
-      const motion = pickMascotActiveIdle(Math.random(), lastActiveIdleRef.current)
-      lastActiveIdleRef.current = motion
-      avatarBehavior.clearGesture()
-      setActiveIdle({ motion, phase: 'outbound' })
-    }
-    timer = window.setTimeout(
-      start,
-      MASCOT_ACTIVE_IDLE_MIN_MS + Math.random() * MASCOT_ACTIVE_IDLE_JITTER_MS
-    )
-    return () => window.clearTimeout(timer)
-  }, [ambient, activityRevision, sleeping])
-
-  useEffect(() => {
-    if (!activeIdle) return undefined
-    const delay = activeIdle.phase === 'away'
-      ? MASCOT_ACTIVE_IDLE_HOLD_MS[activeIdle.motion]
-      : MASCOT_ACTIVE_IDLE_TRAVEL_MS[activeIdle.motion] + 160
-    const timer = window.setTimeout(() => {
-      setActiveIdle((current) => {
-        if (!current) return null
-        if (current.phase === 'outbound') return { ...current, phase: 'away' }
-        if (current.phase === 'away') return { ...current, phase: 'inbound' }
-        return null
-      })
-    }, delay)
-    return () => window.clearTimeout(timer)
-  }, [activeIdle])
-
-  // The approval composer replaces the input composer (a full remount), so the
-  // outgoing mascot records its screen position in the layout cleanup — while the
-  // node is still attached — and the incoming one rides from that offset.
-  useLayoutEffect(() => {
-    if (!handoff) return undefined
-    const el = rootRef.current
-    if (!el) return undefined
-    let timer = 0
-    const dy = prefersReducedMotion() ? null : consumeMascotHandoff(el)
-    if (dy != null) {
-      const rising = dy > 0
-      el.style.transition = 'none'
-      el.style.transform = `translateY(${dy}px)`
-      void el.offsetHeight
-      el.style.transition = rising
-        ? 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)'
-        : 'transform 300ms cubic-bezier(0.55, 0, 0.8, 0.9)'
-      el.style.transform = 'translateY(0)'
-      if (rising) setStartled(true)
-      timer = window.setTimeout(() => {
-        el.style.transition = ''
-        el.style.transform = ''
-        if (!rising) setLanding(true)
-      }, rising ? 430 : 310)
-    }
-    return () => {
-      window.clearTimeout(timer)
-      recordMascotHandoff(el)
-    }
-  }, [handoff])
-
-  // Activity docks stay mounted inside one ComposerShell, so their height changes
-  // never pass through the cross-composer handoff; FLIP from the previous visual
-  // position to the new accessory rim instead.
-  const previousAnchorOffsetRef = useRef(anchorOffset)
-  useLayoutEffect(() => {
-    const el = rootRef.current
-    const previousOffset = previousAnchorOffsetRef.current
-    previousAnchorOffsetRef.current = anchorOffset
-    if (!el || previousOffset === anchorOffset || prefersReducedMotion()) return undefined
-
-    if (anchorOffset > previousOffset) {
-      // ResizeObserver advances the anchor on every growth frame, so the mascot must
-      // stay attached to the expanding dock rather than run its own slower transition.
-      el.style.transition = ''
-      el.style.transform = ''
-      setLanding(false)
-      return undefined
-    }
-
-    const currentVisualTop = el.getBoundingClientRect().top
-    const offsetDelta = anchorOffset - previousOffset
-    el.style.transition = 'none'
-    el.style.transform = ''
-    const targetTop = el.getBoundingClientRect().top
-    const dy = currentVisualTop + offsetDelta - targetTop
-    if (Math.abs(dy) < 1) return undefined
-
-    const rising = dy > 0
-    let timer = 0
-    el.style.transform = `translateY(${dy}px)`
-    void el.offsetHeight
-    el.style.transition = rising
-      ? 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)'
-      : 'transform 300ms cubic-bezier(0.55, 0, 0.8, 0.9)'
-    el.style.transform = 'translateY(0)'
-    if (rising) {
-      setStartled(true)
-    } else {
-      // A quick collapse can interrupt the rise before its startle animation
-      // ends. Landing owns the downward transition and must remain visible.
-      setStartled(false)
-      setPushLift(false)
-    }
-    timer = window.setTimeout(() => {
-      el.style.transition = ''
-      el.style.transform = ''
-      if (!rising) setLanding(true)
-    }, rising ? 430 : 310)
-
-    return () => window.clearTimeout(timer)
-  }, [anchorOffset])
-
-  const previousAnchorPushSignalRef = useRef(anchorPushSignal)
-  useEffect(() => {
-    if (anchorPushSignal === previousAnchorPushSignalRef.current) return
-    previousAnchorPushSignalRef.current = anchorPushSignal
-    if (!prefersReducedMotion()) setPushLift(true)
-  }, [anchorPushSignal])
-
-  // Replay the send launch via state (not a remount) so other one-shots can
-  // share the same transform layer without re-triggering it.
-  const prevBounceRef = useRef(bounceSignal)
-  useEffect(() => {
-    if (bounceSignal === prevBounceRef.current) return
-    prevBounceRef.current = bounceSignal
-    if (!prefersReducedMotion()) setLaunching(true)
-  }, [bounceSignal])
-
-  // Celebrate / deflate on live light transitions (not on mount, so loading a
-  // finished thread does not replay the celebration).
-  const prevLightRef = useRef(light)
-  useEffect(() => {
-    const prev = prevLightRef.current
-    prevLightRef.current = light
-    if (light === prev || prefersReducedMotion()) return
-    if (light === 'success') {
-      setCheering(true)
-      setSparkling(true)
-    } else if (light === 'error') {
-      setShaking(true)
-    }
-  }, [light])
-
-  // A patrol counts as activity: dozing waits until it lands, so the mascot is never
-  // cut mid-flight back to the rim.
-  useEffect(() => {
-    if (!ambient || prefersReducedMotion()) {
-      setSleeping(false)
-      return
-    }
-    if (sleeping || activeIdle) return
-    const timer = window.setTimeout(() => setSleeping(true), MASCOT_SLEEP_AFTER_MS)
-    return () => window.clearTimeout(timer)
-  }, [ambient, activityRevision, sleeping, activeIdle])
-
-  const wake = useCallback(() => {
-    setSleeping(false)
-    if (!prefersReducedMotion()) setStartled(true)
-  }, [])
-
-  // The visual character is replaceable, so the greeting lifecycle cannot rely
-  // only on an animation event emitted by the default SVG's arm nodes.
-  useEffect(() => {
-    if (!waving) return
-    const timer = window.setTimeout(() => setWaving(false), MASCOT_WAVE_DURATION_MS)
-    return () => window.clearTimeout(timer)
-  }, [waving])
-
-  // Typing nod: keystrokes land here only while the composer editor is focused;
-  // the animation's own duration throttles the cadence.
-  useEffect(() => {
-    if (!focused || prefersReducedMotion()) return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return
-      setNodding(true)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [focused])
-
-  // One-shot states clear when their animation finishes (events bubble up here).
-  const onAnimationEnd = (event: AnimationEvent<HTMLDivElement>): void => {
-    if (activeIdle) {
-      const expected = activeIdle.motion === 'hop'
-        ? 'composer-mascot-idle-hop-travel'
-        : activeIdle.motion === 'rocket'
-          ? 'composer-mascot-idle-rocket-flight-x'
-          : activeIdle.phase === 'outbound'
-            ? 'composer-mascot-idle-hover-launch-body'
-            : 'composer-mascot-idle-hover-land-body'
-      if (event.animationName === expected) {
-        setActiveIdle((current) => {
-          if (!current) return null
-          return current.phase === 'outbound' ? { ...current, phase: 'away' } : null
-        })
-      }
-    }
-    switch (event.animationName) {
-      case 'composer-mascot-launch':
-        setLaunching(false)
-        break
-      case 'composer-mascot-cheer':
-        setCheering(false)
-        break
-      case 'composer-mascot-sparkle':
-        setSparkling(false)
-        break
-      case 'composer-mascot-shake':
-        setShaking(false)
-        break
-      case 'composer-mascot-startle':
-        setStartled(false)
-        break
-      case 'composer-mascot-nod':
-        setNodding(false)
-        break
-      case 'composer-mascot-land':
-        setLanding(false)
-        break
-      case 'composer-mascot-push-lift':
-        setPushLift(false)
-        break
-    }
-  }
-
-  const poseTransform = sleeping
-    ? 'translateY(2px) rotate(2.6deg) scale(0.985)'
-    : light === 'error'
-      ? 'translateY(2px) rotate(-3deg) scale(0.98)'
-      : focused
-        ? 'scale(1.1)'
-        : 'scale(1)'
-
-  // One transform slot for one-shots; priority resolves rare overlaps.
-  const shotClass = cheering
-    ? 'composer-mascot-cheer'
-    : shaking
-      ? 'composer-mascot-shake'
-      : pushLift
-        ? 'composer-mascot-push-lift'
-      : startled
-        ? 'composer-mascot-startle'
-        : landing
-          ? 'composer-mascot-land'
-          : launching
-            ? 'composer-mascot-launch'
-            : nodding
-              ? 'composer-mascot-nod'
-              : undefined
-
-  const loopClass = sleeping
-    ? 'composer-mascot-sleep-breathe'
-    : dragOver
-      ? 'composer-mascot-eager'
-      : baseExpression === 'operator' && light === 'default'
-        ? 'composer-mascot-think'
-        : 'composer-mascot-breathe'
-
-  const rootClassName =
-    [
-      activeIdle ? 'composer-mascot-active-idle' : null,
-      sleeping ? 'composer-mascot-sleeping' : null,
-      light === 'success' ? 'composer-mascot-celebrate' : null,
-      light === 'error' ? 'composer-mascot-deflate' : null,
-      holdSign ? 'composer-mascot-hold-sign' : null,
-      laptopActive ? 'composer-mascot-prop-laptop' : null
-    ]
-      .filter(Boolean)
-      .join(' ') || undefined
-
-  return (
-    <div
-      // Decorative only until it carries a bubble or a right-click menu.
-      aria-hidden={interaction ? undefined : true}
-      ref={rootRef}
-      className={rootClassName}
-      data-mascot-effort={reasoningEffort}
-      data-mascot-speed={speed}
-      data-mascot-context={contextMax ? 'max' : 'default'}
-      data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
-      data-mascot-active-idle={activeIdle?.motion}
-      data-mascot-idle-phase={activeIdle?.phase}
-      data-mascot-anchor-offset={anchorOffset}
-      onAnimationEnd={onAnimationEnd}
-      style={{
-        '--mascot-body-dark': mascotPalette.bodyD,
-        '--mascot-body-mid': mascotPalette.bodyM,
-        '--mascot-body-light': mascotPalette.bodyL,
-        '--mascot-mark-dark': mascotPalette.markD,
-        '--mascot-mark-energy': mascotPalette.markM,
-        '--mascot-energy-accent': mascotPalette.accent,
-        '--mascot-profile-from-accent': profileTransition?.fromAccent ?? mascotPalette.accent,
-        '--mascot-profile-to-accent': profileTransition?.toAccent ?? mascotPalette.accent,
-        position: 'absolute',
-        right: '40px',
-        top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO)) - MASCOT_RAISE - anchorOffset}px`,
-        zIndex: 0,
-        pointerEvents: 'none'
-      } as CSSProperties}
-    >
-      {bubble && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            bottom: 'calc(100% + 8px)',
-            zIndex: 5,
-            pointerEvents: 'auto'
-          }}
-        >
-          <MascotBubble
-            tone={bubble.tone}
-            title={bubble.title}
-            body={bubble.body}
-            actions={bubble.actions}
-          />
-        </div>
-      )}
-
-      {/* Display scale layer; also the prefers-reduced-motion scope (see tokens.css). */}
-      <div
-        key={profileTransitionRevision}
-        className="composer-mascot-motion"
-        style={{
-          transformOrigin: 'bottom center',
-          transform: `scale(${MASCOT_SCALE})`,
-          // Biased downward so it reads together with the contact shadow on the rim below.
-          filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotPalette.shadow} 20%, transparent))`
-        }}
-      >
-        <div
-          style={{
-            transformOrigin: 'bottom center',
-            transition: 'transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-            transform: poseTransform
-          }}
-        >
-          <div className={shotClass}>
-            <div className={loopClass}>
-              {/* pointer-events re-enabled here so only the robot above the rim is
-                  hoverable; the rest of the box stays click-through. */}
-              <div
-                className="composer-mascot-jelly"
-                style={{ pointerEvents: 'auto', cursor: menuItems.length > 0 ? 'context-menu' : undefined }}
-                onMouseEnter={sleeping ? wake : undefined}
-                onClick={() => {
-                  if (sleeping) {
-                    wake()
-                    return
-                  }
-                  if (!prefersReducedMotion()) {
-                    setWaving(true)
-                    setGreetingSequence((value) => value + 1)
-                  }
-                }}
-                onContextMenu={
-                  menuItems.length > 0
-                    ? (e) => {
-                        e.preventDefault()
-                        setMenuPos({ x: e.clientX, y: e.clientY })
-                      }
-                    : undefined
-                }
-              >
-                <div className="composer-mascot-fast-echo">
-                  <div className="composer-mascot-character-stage">
-                    <DesktopPluginSurface name="composer.mascot" context={desktopPluginMascotContext}>
-                      <MascotRobot
-                        state={avatarBehavior.pose}
-                        expression={avatarBehavior.expression}
-                        gesture={avatarBehavior.gesture}
-                        gestureSequence={avatarBehavior.gestureSequence}
-                        onGestureComplete={avatarBehavior.completeGesture}
-                        eventSequence={bounceSignal + greetingSequence}
-                        size={MASCOT_SIZE}
-                        name={avatar}
-                      />
-                    </DesktopPluginSurface>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {sleeping && (
-          <div aria-hidden className="composer-mascot-zzz">
-            <span>z</span>
-            <span>z</span>
-            <span>z</span>
-          </div>
-        )}
-        {sparkling && (
-          <div aria-hidden className="composer-mascot-sparkles">
-            {MASCOT_SPARKLES.map((s, i) => (
-              <i
-                key={i}
-                style={{ '--dx': s.dx, '--dy': s.dy, animationDelay: s.delay } as CSSProperties}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {menuPos && menuItems.length > 0 && (
-        <ContextMenu items={menuItems} position={menuPos} onClose={() => setMenuPos(null)} />
-      )}
-    </div>
-  )
-}
 
 interface ComposerPlanModeLabelProps {
   value: 'agent' | 'plan'
@@ -810,15 +121,6 @@ export function ComposerShell({
   const { lift: overlayLift, api: overlayLiftApi, Provider: OverlayLiftProvider } =
     useComposerOverlayLiftHost()
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
-  const [mascotProfileTransition, setMascotProfileTransition] = useState<MascotProfileTransition | null>(null)
-  const [mascotProfileTransitionRevision, setMascotProfileTransitionRevision] = useState(0)
-  const renderedMascotAvatarRef = useRef(renderedMascotAvatar)
-  const targetMascotAvatarRef = useRef(mascotName)
-  const profileTransitionRevisionRef = useRef(0)
-  renderedMascotAvatarRef.current = renderedMascotAvatar
-  targetMascotAvatarRef.current = mascotName
-  const targetAvatarKey = mascotNameKey(mascotName)
-  const renderedMascotPalette = mascotPaletteOf(deriveAppearance(renderedMascotAvatar ?? ''))
   const topAccessoryRef = useRef<HTMLDivElement | null>(null)
   const topAccessoryHeightRef = useRef(0)
 
@@ -866,43 +168,6 @@ export function ComposerShell({
     }
   }, [topAccessoryVisible])
 
-  useEffect(() => {
-    const currentAvatar = renderedMascotAvatarRef.current
-    if (targetAvatarKey === mascotNameKey(currentAvatar)) {
-      setMascotProfileTransition(null)
-      return undefined
-    }
-
-    const nextAvatar = targetMascotAvatarRef.current
-    if (prefersReducedMotion()) {
-      renderedMascotAvatarRef.current = nextAvatar
-      setRenderedMascotAvatar(nextAvatar)
-      setMascotProfileTransition(null)
-      return undefined
-    }
-
-    const revision = profileTransitionRevisionRef.current + 1
-    profileTransitionRevisionRef.current = revision
-    setMascotProfileTransitionRevision(revision)
-    setMascotProfileTransition({
-      revision,
-      fromAccent: mascotPaletteOf(deriveAppearance(currentAvatar ?? '')).accent,
-      toAccent: mascotPaletteOf(deriveAppearance(nextAvatar ?? '')).accent
-    })
-
-    const swapTimer = window.setTimeout(() => {
-      renderedMascotAvatarRef.current = nextAvatar
-      setRenderedMascotAvatar(nextAvatar)
-    }, MASCOT_PROFILE_TRANSITION_SWAP_MS)
-    const finishTimer = window.setTimeout(() => {
-      setMascotProfileTransition((current) => current?.revision === revision ? null : current)
-    }, MASCOT_PROFILE_TRANSITION_DURATION_MS)
-
-    return () => {
-      window.clearTimeout(swapTimer)
-      window.clearTimeout(finishTimer)
-    }
-  }, [targetAvatarKey])
 
   return (
     <div
@@ -924,14 +189,14 @@ export function ComposerShell({
           focused={focused}
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}
-          interaction={mascotInteraction}
+          interaction={mascotInteraction ? { ...mascotInteraction, bubble: mascotInteraction.bubble ? <MascotBubble {...mascotInteraction.bubble} /> : undefined } : undefined}
+          renderMenu={mascotInteraction?.menuItems?.length ? (position, close) => <ContextMenu items={mascotInteraction.menuItems!} position={position} onClose={close} /> : undefined}
+          renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}>{character}</DesktopPluginSurface>}
           reasoningEffort={mascotReasoningEffort}
           speed={mascotSpeed}
           contextMax={mascotContextMax}
-          avatar={renderedMascotAvatar}
-          profileTransition={mascotProfileTransition}
-          profileTransitionRevision={mascotProfileTransitionRevision}
-          desktopPluginSurfaceContext={desktopPluginSurfaceContext}
+          name={mascotName}
+          onNameRendered={setRenderedMascotAvatar}
           anchorOffset={Math.max(topAccessoryHeight, overlayLift)}
           anchorPushSignal={topAccessoryPushSignal}
           handoff={mascotHandoff}
@@ -952,11 +217,7 @@ export function ComposerShell({
           {topAccessory}
         </div>
       )}
-      {/* Card-only wrapper: scopes the focus glow to the card so the halo hugs it
-          evenly instead of spreading down behind the footer below. */}
       <div data-composer-card-layer style={{ position: 'relative' }}>
-        {/* Always mounted so the glow can ease in and out on hover instead of popping
-            when the pointer crosses the edge. It sits behind the opaque card. */}
         <div
           aria-hidden
           className={focused ? 'composer-focus-glow' : undefined}
@@ -997,25 +258,7 @@ export function ComposerShell({
           onDrop={onDrop}
         >
           {showMascot && !topAccessoryVisible && (
-            // Anchored under the mascot: right 40 + half width 29 − 1px border ≈ 68,
-            // with translateX(50%) centering the contact shadow on that point.
-            <div
-              aria-hidden
-              className="composer-mascot-contact-shadow"
-              style={{
-                position: 'absolute',
-                right: '68px',
-                top: '1px',
-                width: '72px',
-                height: '24px',
-                transform: 'translateX(50%)',
-                borderRadius: '50%',
-                background:
-                  `radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, ${renderedMascotPalette.shadow} 10%, transparent) 0%, transparent 72%)`,
-                filter: 'blur(2px)',
-                pointerEvents: 'none'
-              }}
-            />
+            <ComposerMascotShadow name={renderedMascotAvatar} />
           )}
           {dragOver && (
             <div
@@ -1154,7 +397,6 @@ interface ComposerCustomProfileLabelProps {
   ariaLabel: string
 }
 
-/** Replaces the Plan pill, since a profile-backed thread has no operational mode. */
 export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }: ComposerCustomProfileLabelProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
