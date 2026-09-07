@@ -435,36 +435,36 @@ function AppSetupRow({
       <span style={appSetupActions}>
         {stage === 'nativeAppRequired' || stage === 'nativeAppPending' ? (
           nativePending ? (
-            <button type="button" onClick={onRefresh} disabled={busyKey != null} style={secondaryButton}>
+            <Button size="sm" onClick={onRefresh} disabled={busyKey != null} variant="secondary">
               <RefreshCw size={13} aria-hidden />
               {t('appBinding.refresh')}
-            </button>
+            </Button>
           ) : (
-            <button type="button" onClick={() => { void onInstallNative(app) }} disabled={busyKey != null} style={primaryButton}>
+            <Button size="sm" onClick={() => { void onInstallNative(app) }} disabled={busyKey != null} variant="primary">
               <ExternalLink size={13} aria-hidden />
               {t('appBinding.installNative')}
-            </button>
+            </Button>
           )
         ) : waitingForApp ? (
           <>
-            <button type="button" disabled style={secondaryButton}>
+            <Button size="sm" disabled variant="secondary">
               <Link2 size={13} aria-hidden />
               {t('plugins.installDialog.linkOpened')}
-            </button>
-            <button type="button" onClick={onRefresh} disabled={busyKey != null} style={secondaryButton}>
+            </Button>
+            <Button size="sm" onClick={onRefresh} disabled={busyKey != null} variant="secondary">
               <RefreshCw size={13} aria-hidden />
               {t('appBinding.refresh')}
-            </button>
-            <button type="button" onClick={() => { void onConnect(app) }} disabled={busyKey != null} style={secondaryButton}>
+            </Button>
+            <Button size="sm" onClick={() => { void onConnect(app) }} disabled={busyKey != null} variant="secondary">
               <Link2 size={13} aria-hidden />
               {t('appBinding.connect')}
-            </button>
+            </Button>
           </>
         ) : (
-          <button type="button" onClick={() => { void onConnect(app) }} disabled={busyKey != null} style={primaryButton}>
+          <Button size="sm" onClick={() => { void onConnect(app) }} disabled={busyKey != null} variant="primary">
             <Link2 size={13} aria-hidden />
             {t('appBinding.connect')}
-          </button>
+          </Button>
         )}
       </span>
     </div>
@@ -590,5 +590,3 @@ const appSetupList: CSSProperties = { display: 'flex', flexDirection: 'column', 
 const appSetupRow: CSSProperties = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, width: '100%' }
 const appSetupBody: CSSProperties = { display: 'flex', flexDirection: 'column', flex: '1 1 180px', minWidth: 0 }
 const appSetupActions: CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, flex: '0 1 auto' }
-const primaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 999, backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px' }
-const secondaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 650, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px' }

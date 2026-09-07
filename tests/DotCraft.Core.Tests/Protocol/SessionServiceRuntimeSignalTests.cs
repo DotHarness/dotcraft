@@ -46,7 +46,7 @@ namespace DotCraft.Tests.Sessions.Protocol;
 /// <summary>
 /// Verifies that <see cref="SessionService"/> emits runtime broadcast signals for turn lifecycle transitions.
 /// </summary>
-public sealed class SessionServiceRuntimeSignalTests : IDisposable
+public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 {
     private readonly string _tempDir;
 

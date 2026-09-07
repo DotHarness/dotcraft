@@ -12,6 +12,7 @@ internal enum TrayMenuCommand
     PauseSharing,
     ResumeSharing,
     Revoke,
+    ManageAccess,
     OpenFolder,
     PasteInvite,
     Quit
@@ -72,6 +73,15 @@ internal static class TrayMenuModel
         items.Add(state == SatelliteTrayState.Paused
             ? new TrayMenuItem(TrayMenuCommand.ResumeSharing, strings["tray.resume"], peers.Count > 0)
             : new TrayMenuItem(TrayMenuCommand.PauseSharing, strings["tray.pause"], peers.Count > 0));
+        items.Add(new TrayMenuItem(
+            TrayMenuCommand.ManageAccess, strings["tray.permissions"], peers.Count > 0,
+            Children: [.. peers.Select(peer => new TrayMenuItem(TrayMenuCommand.ManageAccess,
+                peer.DisplayName + " · " + strings[peer.AuthorizationMode switch
+                {
+                    RemoteToolAuthorization.FullAccess => "consent.full",
+                    RemoteToolAuthorization.WorkspacePreferred => "consent.preferred",
+                    _ => "consent.review"
+                }], PeerId: peer.PeerId))]));
         items.Add(new TrayMenuItem(
             TrayMenuCommand.Revoke,
             strings["tray.revoke"],

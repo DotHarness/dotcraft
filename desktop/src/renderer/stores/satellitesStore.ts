@@ -191,6 +191,11 @@ export const useSatellitesStore = create<SatellitesStore>((set, get) => ({
   },
 
   applyEvent(event) {
+    const invite = get().invite
+    if (event.kind === 'joined' && invite && event.inviteId === invite.inviteId) {
+      set({ invite: null, inviteError: null })
+    }
+
     if (event.kind === 'revoked') {
       set((state) => ({
         satellites: state.satellites.filter((satellite) => satellite.peerId !== event.peerId),

@@ -111,9 +111,11 @@ internal sealed class AgentProfileBuilderToolMethods(
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
     [GeneratedTool]
-    [Description("Set the agent's name. The name becomes the profile id when saved; keep it short and kebab-case (e.g. 'release-notes-writer').")]
+    [Description("Set the agent's name. The name is used for lookup and the avatar. Unicode and spaces are supported (1–240 characters, no control characters).")]
     public string SetAgentName([Description("The agent name.")] string name) =>
-        Mutate("name", draft => { draft.Name = (name ?? string.Empty).Trim(); return Change("set", value: draft.Name); });
+        AgentProfileName.IsValid(name ?? string.Empty)
+            ? Mutate("name", draft => { draft.Name = AgentProfileName.Normalize(name!); return Change("set", value: draft.Name); })
+            : Reject("name", "Use 1–240 Unicode characters without control characters.");
 
     [GeneratedTool]
     [Description("Set the agent's one-line description shown in the gallery.")]

@@ -18,7 +18,9 @@ public sealed class WorkspaceExecutionToolSource(
     PathBlacklist? pathBlacklist = null,
     LspServerManager? lspServerManager = null,
     string? userDataPath = null,
-    IApprovalService? approvalService = null) : AIFunctionToolSource
+    IApprovalService? approvalService = null,
+    bool notifyLspOnFileChanges = true,
+    bool managedFileSearch = false) : AIFunctionToolSource
 {
     /// <inheritdoc />
     public override string SourceId => "core-native";
@@ -45,10 +47,11 @@ public sealed class WorkspaceExecutionToolSource(
             approvalService,
             pathBlacklist,
             trustedReadPaths: userDataPath == null ? [] : [userDataPath],
-            lspServerManager: lspServerManager,
+            lspServerManager: notifyLspOnFileChanges ? lspServerManager : null,
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            managedSearchOnly: managedFileSearch);
         tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));

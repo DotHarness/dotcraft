@@ -190,6 +190,9 @@ public sealed class RemoteToolHostCoreTests
 
     private sealed class FakeRemoteClient : IRemoteToolHostClient
     {
+        public ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
+            byte[] bytes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         private readonly Dictionary<string, RemoteToolConnectionSnapshot> _connections = new(StringComparer.Ordinal);
         public int RemoteCalls { get; private set; }
         public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) { }

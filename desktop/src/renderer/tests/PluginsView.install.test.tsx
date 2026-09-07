@@ -85,7 +85,6 @@ describe('PluginsView installation', () => {
     renderPluginsView()
 
     const installButton = await screen.findByRole('button', { name: 'Install' })
-    expect(installButton).toHaveClass('dc-plugin-install-button')
     fireEvent.click(installButton)
 
     const dialog = (await screen.findByRole('heading', { name: 'Install Workflow App' })).closest('[role="dialog"]')

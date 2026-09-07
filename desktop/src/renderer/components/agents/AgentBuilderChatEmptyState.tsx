@@ -1,10 +1,14 @@
-import { BookOpen, CirclePlay, WandSparkles, type LucideIcon } from 'lucide-react'
+import { BookOpen, CirclePlay, WandSparkles, FileSearch, FileText, Tag, type LucideIcon } from 'lucide-react'
 import type { CSSProperties, JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 
-export function AgentBuilderChatEmptyState({ onPick }: { onPick: (prompt: string) => void }): JSX.Element {
+export function AgentBuilderChatEmptyState({ creating = false, onPick }: { creating?: boolean; onPick: (prompt: string) => void }): JSX.Element {
   const t = useT()
-  const prompts: { key: string; icon: LucideIcon; label: string; prompt: string }[] = [
+  const prompts: { key: string; icon: LucideIcon; label: string; prompt: string }[] = creating ? [
+    { key: 'review', icon: FileSearch, label: t('agentBuilder.chat.createReview'), prompt: t('agentBuilder.chat.createReviewPrompt') },
+    { key: 'docs', icon: FileText, label: t('agentBuilder.chat.createDocs'), prompt: t('agentBuilder.chat.createDocsPrompt') },
+    { key: 'triage', icon: Tag, label: t('agentBuilder.chat.createTriage'), prompt: t('agentBuilder.chat.createTriagePrompt') }
+  ] : [
     {
       key: 'test',
       icon: CirclePlay,
@@ -28,7 +32,7 @@ export function AgentBuilderChatEmptyState({ onPick }: { onPick: (prompt: string
   return (
     <div style={agentBuilderEmptyStyle}>
       <div style={agentBuilderEmptyInnerStyle}>
-        <div style={agentBuilderEmptyTitleStyle}>{t('agentBuilder.chat.emptyTitle')}</div>
+        <div style={agentBuilderEmptyTitleStyle}>{t(creating ? 'agentBuilder.chat.createTitle' : 'agentBuilder.chat.emptyTitle')}</div>
         <div style={agentBuilderQuickListStyle}>
           {prompts.map((item) => {
             const Icon = item.icon

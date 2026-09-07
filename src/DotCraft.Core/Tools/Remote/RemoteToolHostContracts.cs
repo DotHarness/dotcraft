@@ -102,6 +102,10 @@ public interface IRemoteToolHostClient
     /// <summary>Copies the parent's current route reference to a native child thread.</summary>
     bool TryForkRoute(string parentThreadId, string childThreadId);
 
+    /// <summary>Writes a generated image once to its captured remote workspace route.</summary>
+    ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
+        byte[] bytes, CancellationToken cancellationToken = default);
+
     /// <summary>Invokes an exact mirrored definition through the active remote workspace lease.</summary>
     ValueTask<ToolExecutionResult> InvokeAsync(
         RemoteToolRoute route,
@@ -132,6 +136,8 @@ public static class RemoteToolErrorCodes
     public const string ToolContractMismatch = "remote_tool_contract_mismatch";
     public const string RemoteToolUnavailable = "remote_tool_unavailable";
     public const string RemotePolicyDenied = "remote_policy_denied";
+    public const string ApprovalTimedOut = "remote_approval_timed_out";
+    public const string AuthorizationRequired = "remote_authorization_required";
     public const string ApprovalDeclined = "remote_approval_declined";
     public const string RemoteOutcomeUnknown = "remote_outcome_unknown";
     public const string RemoteResultMaterializationFailed = "remote_result_materialization_failed";

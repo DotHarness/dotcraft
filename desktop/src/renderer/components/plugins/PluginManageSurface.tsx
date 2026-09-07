@@ -17,7 +17,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { SkeletonList } from '../ui/Skeleton'
 import { PluginIcon, pluginSourceLabel, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginDiagnosticsBanner } from './PluginDiagnosticsBanner'
-import { PluginInstallButton } from './PluginInstallButton'
+import { Button } from '../ui/Button'
 
 type Surface = PluginCatalogSurface
 
@@ -298,7 +298,7 @@ function PluginManageItem({
             aria-label={`${pluginTitle(plugin)} enabled`}
           />
         ) : (
-          <PluginInstallButton onClick={onInstall}>{t('plugins.install')}</PluginInstallButton>
+          <Button size="sm" onClick={onInstall}>{t('plugins.install')}</Button>
         )}
       </span>
     </div>

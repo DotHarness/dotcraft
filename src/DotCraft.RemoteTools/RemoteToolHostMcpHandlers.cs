@@ -8,9 +8,11 @@ using ModelContextProtocol;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
+internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
 {
     private readonly RemoteToolHostStorage _storage;
+    private readonly IRemoteToolApprovalPresenter? _approvalPresenter;
+    private readonly Func<bool>? _isPaused;
     private readonly WorkspaceLeaseManager _leases;
     private readonly LeaseTerminalRegistry _leaseTerminals;
     private readonly RemoteToolHostActivityMonitor? _activity;
@@ -23,28 +25,44 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
         RemoteToolHostStorage storage,
         WorkspaceLeaseManager leases,
         LeaseTerminalRegistry leaseTerminals,
-        RemoteToolHostActivityMonitor? activity = null)
+        RemoteToolHostActivityMonitor? activity = null,
+        IRemoteToolApprovalPresenter? approvalPresenter = null, Func<bool>? isPaused = null)
     {
         _storage = storage;
         _leases = leases;
         _leaseTerminals = leaseTerminals;
         _activity = activity;
+        _approvalPresenter = approvalPresenter;
+        _isPaused = isPaused;
     }
 
     /// <summary>The Hub-assigned peer id is the host identity every Agent-side surface sees.</summary>
     public IReadOnlyList<McpServerRequestHandler> CreateExtensionHandlers(string peerId) =>
     [
+        Raw(RemoteImageWriteRequest.Method, (request, ct) => WriteImageAsync(request, peerId, ct)),
         Raw(
             RemoteToolHostProtocol.WorkspacesList,
             (request, ct) => HandleWorkspaceListAsync(request, peerId, ct)),
-        Raw(RemoteToolHostProtocol.WorkspacesAcquire, HandleWorkspaceAcquireAsync),
-        Raw(RemoteToolHostProtocol.WorkspacesRelease, HandleWorkspaceReleaseAsync),
-        Raw(RemoteToolHostProtocol.WorkspacesHeartbeat, HandleWorkspaceHeartbeatAsync)
+        Raw(RemoteToolHostProtocol.WorkspacesAcquire, (request, ct) =>
+        {
+            RequirePeer(RequireState(), peerId, Deserialize<WorkspaceAcquireRequest>(request).WorkspaceId);
+            return HandleWorkspaceAcquireAsync(request, ct);
+        }),
+        Raw(RemoteToolHostProtocol.WorkspacesRelease, (request, ct) =>
+        {
+            RequirePeer(RequireState(), peerId, Deserialize<WorkspaceLeaseRequest>(request).WorkspaceId);
+            return HandleWorkspaceReleaseAsync(request, ct);
+        }),
+        Raw(RemoteToolHostProtocol.WorkspacesHeartbeat, (request, ct) =>
+        {
+            RequirePeer(RequireState(), peerId, Deserialize<WorkspaceLeaseRequest>(request).WorkspaceId);
+            return HandleWorkspaceHeartbeatAsync(request, ct);
+        })
     ];
 
     public async ValueTask<ListToolsResult> ListToolsAsync(
         RequestContext<ListToolsRequestParams> request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string peerId)
     {
         var scope = request.Params?.Meta?["dotcraft"]?
             .Deserialize<RemoteCatalogScope>(RemoteToolHostProtocol.JsonOptions);
@@ -55,6 +73,7 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
 
         var workspacePath = _leases.Validate(scope.LeaseId, scope.WorkspaceId);
         var state = RequireState();
+        RequirePeer(state, peerId, scope.WorkspaceId);
         var runtime = await GetRuntimeAsync(scope.WorkspaceId, workspacePath, state, cancellationToken)
             .ConfigureAwait(false);
         return new ListToolsResult
@@ -75,6 +94,7 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             invocation = ParseInvocationMeta(request.Params.Meta);
             var workspacePath = _leases.Validate(invocation.LeaseId, invocation.WorkspaceId);
             var state = RequireState();
+            var peer = RequirePeer(state, peerId, invocation.WorkspaceId);
             if (!state.Workspaces.TryGetValue(invocation.WorkspaceId, out var registeredPath)
                 || !PathsEqual(workspacePath, registeredPath))
             {
@@ -111,7 +131,16 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             var toolName = registration.Definition.Name.Name;
             using var activity = _activity?.Begin(peerId, toolName, ReadCommandPreview(request.Params.Arguments));
             RequireBoundTerminal(toolName, request.Params.Arguments, invocation);
-            await EnforcePolicyAsync(request, state, invocation, cancellationToken).ConfigureAwait(false);
+            var approval = new HostInvocationApprovalService.Invocation(
+                peer, invocation.InvocationId, workspacePath, _approvalPresenter, cancellationToken);
+            using var approvalScope = HostInvocationApprovalService.Begin(approval);
+            await AuthorizeAsync(toolName, request.Params.Arguments, state, approval, workspacePath, cancellationToken)
+                .ConfigureAwait(false);
+            var currentPeer = RequirePeer(RequireState(), peerId, invocation.WorkspaceId);
+            if (currentPeer.AuthorizationRevision != peer.AuthorizationRevision)
+                throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
+            if (toolName == "LSP")
+                await runtime.InitializeLspAsync(cancellationToken).ConfigureAwait(false);
 
             var arguments = new JsonObject();
             foreach (var (name, value) in request.Params.Arguments ?? new Dictionary<string, JsonElement>())
@@ -131,7 +160,6 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             var terminalsBeforeExec = string.Equals(toolName, "Exec", StringComparison.Ordinal)
                 ? await SnapshotTerminalIdsAsync(runtime, cancellationToken).ConfigureAwait(false)
                 : null;
-            using var approvalScope = HostInvocationApprovalService.BeginApprovedInvocation();
             var result = await registration.Binding.Runtime.InvokeAsync(context, arguments, cancellationToken)
                 .ConfigureAwait(false);
             if (terminalsBeforeExec is not null)
@@ -217,6 +245,7 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
         var parameters = Deserialize<WorkspaceListRequest>(request);
         ValidateProfile(parameters.ProfileVersion);
         var state = RequireState();
+        var peer = RequirePeer(state, peerId);
         var contracts = await GetContractsAsync().ConfigureAwait(false);
         var response = new WorkspaceListResponse(
             state.ProfileVersion,
@@ -230,7 +259,7 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             RemoteToolHostProtocol.BuildVersion,
             RemoteToolHostProtocol.ComputeCatalogDigest(contracts),
             contracts,
-            state.Workspaces.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId).OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair => ToCatalogEntry(pair.Key, pair.Value, parameters.ClientInstanceId))
                 .ToArray());
         return JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions);
@@ -415,51 +444,6 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             await runtime.DisposeAsync().ConfigureAwait(false);
     }
 
-    private static async Task EnforcePolicyAsync(
-        RequestContext<CallToolRequestParams> request,
-        RemoteToolHostState state,
-        RemoteInvocationMeta invocation,
-        CancellationToken cancellationToken)
-    {
-        var toolName = request.Params.Name;
-        var policy = state.ToolPolicies.GetValueOrDefault(toolName)
-            ?? DefaultPolicy(toolName);
-        if (string.Equals(policy, "deny", StringComparison.OrdinalIgnoreCase))
-            throw new RemoteToolHostException(
-                RemoteToolErrorCodes.RemotePolicyDenied,
-                $"Remote Tool Host policy denied '{toolName}'.",
-                invocation.InvocationId);
-        if (!string.Equals(policy, "needsApproval", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var result = await request.Server.ElicitAsync<RemoteExecutionApproval>(
-            $"Approve this Remote Tool Host call once? Tool: {toolName}; workspace: {invocation.WorkspaceId}",
-            new RequestOptions
-            {
-                Meta = new JsonObject
-                {
-                    ["dotcraft"] = new JsonObject
-                    {
-                        ["invocationId"] = invocation.InvocationId,
-                        ["threadId"] = invocation.ThreadId,
-                        ["turnId"] = invocation.TurnId
-                    }
-                }
-            },
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (!result.IsAccepted || result.Content?.Approved != true)
-            throw new RemoteToolHostException(
-                RemoteToolErrorCodes.ApprovalDeclined,
-                $"Approval was declined for remote tool '{toolName}'.",
-                invocation.InvocationId);
-    }
-
-    private static string DefaultPolicy(string toolName) => toolName switch
-    {
-        "Exec" or "WriteFile" or "EditFile" => "needsApproval",
-        _ => "allow"
-    };
-
     private static Tool ToMcpTool(ToolRegistration registration, RemoteToolHostState state)
     {
         var definition = registration.Definition;
@@ -553,7 +537,9 @@ internal sealed class RemoteToolHostMcpHandlers : IAsyncDisposable
             ["code"] = code,
             ["invocationId"] = invocationId,
             ["latencyMs"] = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds,
-            ["diagnostic"] = diagnostic
+            ["diagnostic"] = diagnostic,
+            ["messageKey"] = code is null ? null : "error.remoteToolHost." + code,
+            ["fallbackText"] = diagnostic
         };
         if (artifact is not null)
             dotcraft["remoteArtifact"] = JsonSerializer.SerializeToNode(

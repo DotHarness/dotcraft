@@ -13,26 +13,25 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
+import { BookOpen, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useLocale, useT } from '../../contexts/LocaleContext'
+import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
 import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
 import { ResizeEdgeGlow } from '../layout/ResizeEdgeGlow'
-import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
-import { useComposerModelControls } from '../conversation/useComposerModelControls'
+import { type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import {
   createCatalogDefaultPreference,
   PreferenceModelPicker
 } from '../conversation/PreferenceModelPicker'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
-import { formatRelativeTime } from '../../utils/relativeTime'
+import { AgentBuilderToolbar } from './AgentBuilderToolbar'
 import {
   AGENT_BUILDER_CHAT_MIN_WIDTH,
   resolveAgentBuilderChatWidth,
@@ -45,8 +44,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { Button } from '../ui/Button'
 import { RefreshIcon } from '../ui/AppIcons'
 import { RobotAvatar } from './RobotAvatar'
-import { AGENT_BUILDER_AVATAR, randomAvatar, resolveProfileAvatar, type AvatarSpec } from './agentAvatar'
-import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore'
+import { useAgentProfileNameStore } from '../../stores/agentProfileNameStore'
 import {
   findProviderPreference,
   mergeProviderPreferences,
@@ -69,8 +67,7 @@ import {
 import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
-import { AgentBuilderChatEmptyState } from './AgentBuilderChatEmptyState'
-import { AgentTemplateDeck } from './AgentTemplateDeck'
+import { DetachedAgentBuilderChat } from './DetachedAgentBuilderChat'
 import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
 import './AgentBuilderView.css'
 
@@ -79,7 +76,6 @@ interface ProfileEntry {
   id: string
   name?: string
   description?: string
-  avatar?: number | AvatarSpec
   source: string
   valid?: boolean
   readOnly?: boolean
@@ -124,7 +120,6 @@ type Filter = 'all' | 'builtIn' | 'user' | 'workspace'
 
 type Route =
   | { name: 'gallery' }
-  | { name: 'intro' }
   | {
       name: 'builder'
       draft: ProfileDraft
@@ -134,18 +129,11 @@ type Route =
       isNew: boolean
       saveTarget: SaveTarget
       saving: boolean
-      avatar: AvatarSpec
       /** Whether the profile is persisted (existing, or created via the Create button). */
       created: boolean
       /** ISO last-updated time of the persisted profile; drives "Updated X ago". */
       updatedAt: string | null
     }
-
-const SUGGESTIONS: { icon: LucideIcon; title: string; desc: string; prompt: string }[] = [
-  { icon: FileSearch, title: 'Code review', desc: 'Read-only: find correctness gaps and missing tests', prompt: 'A read-only code reviewer focused on correctness, risk, and missing tests.' },
-  { icon: FileText, title: 'Doc writer', desc: 'Draft and maintain docs in the established style', prompt: 'A documentation writer that drafts and keeps docs consistent in the established style.' },
-  { icon: Tag, title: 'Bug triage', desc: 'Prioritize incoming bugs and log them', prompt: 'A bug triage agent that reviews incoming bugs, prioritizes them, and logs them.' }
-]
 
 const INSTRUCTIONS_PLACEHOLDER = 'Give your agent instructions on how to operate — its job, boundaries, and what it handles…'
 
@@ -191,21 +179,13 @@ function writableSource(source: string | null): SaveTarget {
   return source === 'user' ? 'user' : 'workspace'
 }
 
-function avatarForEntry(entry: Pick<ProfileEntry, 'id' | 'avatar'>): AvatarSpec {
-  return resolveProfileAvatar(entry.id, entry.avatar)
-}
-
-function draftWithAvatar(draft: ProfileDraft, avatar: AvatarSpec): ProfileDraft {
-  return draft.avatar ? draft : { ...draft, avatar }
-}
-
 function newDraftTargetId(): string {
   return `draft-agent-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`
 }
 
 interface AgentBuilderViewProps {
-  /** Where the view opens; the design lab mounts the Welcome page directly. */
-  initialRoute?: 'gallery' | 'intro'
+  /** Initial surface for the design lab. */
+  initialRoute?: 'gallery' | 'new'
 }
 
 export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewProps = {}): JSX.Element {
@@ -214,7 +194,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [route, setRoute] = useState<Route>(() => (initialRoute === 'intro' ? { name: 'intro' } : { name: 'gallery' }))
+  const [route, setRoute] = useState<Route>(() => (initialRoute === 'new' ? { name: 'builder', draft: createEmptyDraft(), id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, created: false, updatedAt: null } : { name: 'gallery' }))
 
   const [toolCatalog, setToolCatalog] = useState<ToolInfo[]>([])
   const [skillCatalog, setSkillCatalog] = useState<SkillInfo[]>([])
@@ -232,9 +212,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     targetId: string
     targetSource: string
   } | null>(null)
-  const [introPrefillRequest, setIntroPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const [builderPrefillRequest, setBuilderPrefillRequest] = useState<{ id: number; text: string } | null>(null)
-  const introPrefillSeqRef = useRef(0)
   const builderPrefillSeqRef = useRef(0)
   // Persists between turns; only another builder tool moves it.
   const [cursor, setCursor] = useState<{ field: BuilderField; phase: AgentEditingPhase } | null>(null)
@@ -393,9 +371,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
       const res = await rpc<{ profiles?: ProfileEntry[] }>('agent/profiles/list', { includeInvalid: true })
       const profiles = Array.isArray(res.profiles) ? res.profiles : []
       setProfiles(profiles)
-      // Share the freshly-fetched stored avatars so the composer/welcome mascots
-      // (which only know a profile id) resolve the same avatar without a refetch.
-      useAgentProfileAvatarStore.getState().setFromList(useConversationStore.getState().workspacePath, profiles)
+      // Share visible names so profile-id-only surfaces resolve the same identity.
+      useAgentProfileNameStore.getState().setFromList(useConversationStore.getState().workspacePath, profiles)
       setStatus('ready')
       setLoadError(null)
     } catch (err) {
@@ -452,7 +429,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         isNew: readOnly,
         saveTarget: writableSource(entry.source),
         saving: false,
-        avatar: draft.avatar ?? avatarForEntry(res.profile ?? entry),
         // An existing writable profile is already "created"; a read-only template is an uncreated copy.
         created: !readOnly,
         updatedAt: readOnly ? null : (res.profile?.updatedAt ?? entry.updatedAt ?? null)
@@ -468,7 +444,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
 
   const startDraft = useCallback((
     draft: ProfileDraft,
-    avatar: AvatarSpec,
     options: { targetId?: string; targetSource?: string } = {}
   ): void => {
     lastSavedMdRef.current = null
@@ -477,8 +452,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     lastSyncedBuilderDraftRef.current = null
     setViewMode('edit')
     setAutoSaveState('idle')
-    const nextDraft = draftWithAvatar(draft, avatar)
-    setRoute({ name: 'builder', draft: nextDraft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, avatar, created: false, updatedAt: null })
+    const nextDraft = draft
+    setRoute({ name: 'builder', draft: nextDraft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, created: false, updatedAt: null })
     setBuilderSession({
       targetId: options.targetId?.trim() || nextDraft.name.trim() || newDraftTargetId(),
       targetSource: options.targetSource?.trim() || 'workspace'
@@ -486,15 +461,11 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   }, [])
 
   const newBlank = useCallback((): void => {
-    startDraft(createEmptyDraft(), randomAvatar(), {
+    startDraft(createEmptyDraft(), {
       targetId: newDraftTargetId(),
       targetSource: 'workspace'
     })
   }, [startDraft])
-
-  const prefillIntroComposer = useCallback((text: string): void => {
-    setIntroPrefillRequest({ id: ++introPrefillSeqRef.current, text })
-  }, [])
 
   const prefillBuilderComposer = useCallback((text: string): void => {
     setBuilderPrefillRequest({ id: ++builderPrefillSeqRef.current, text })
@@ -525,30 +496,12 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     lastSyncedBuilderDraftRef.current = md
   }, [startBuilderConversation])
 
-  const startBlankFromIntro = useCallback(async (
-    payload: InputComposerSubmitPayload,
-    config: ThreadConfigurationWire
-  ): Promise<void> => {
-    const avatar = randomAvatar()
-    const draft = draftWithAvatar(createEmptyDraft(), avatar)
-    const targetId = newDraftTargetId()
-    const targetSource = 'workspace'
-    startDraft(draft, avatar, { targetId, targetSource })
-    await startBuilderChatWithDraft({
-      draft,
-      targetId,
-      targetSource,
-      inputParts: payload.inputParts,
-      config
-    })
-  }, [startDraft, startBuilderChatWithDraft])
-
   const startBuilderChatFromRoute = useCallback(async (
     payload: InputComposerSubmitPayload,
     config: ThreadConfigurationWire
   ): Promise<void> => {
     if (route.name !== 'builder') return
-    const routeName = route.draft.name.trim()
+    const routeName = route.draft.name.trim().normalize('NFC')
     const targetId = builderSession?.targetId ?? route.id ?? (routeName || newDraftTargetId())
     const targetSource = builderSession?.targetSource ?? route.source ?? route.saveTarget ?? 'workspace'
     await startBuilderChatWithDraft({
@@ -560,20 +513,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     })
   }, [builderSession, route, startBuilderChatWithDraft])
 
-  const fromTemplate = useCallback(async (entry: ProfileEntry): Promise<void> => {
-    try {
-      const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
-      const draft = parseProfile(res.profile?.rawContent)
-      if (!draft.name) draft.name = entry.id
-      startDraft(draft, draft.avatar ?? avatarForEntry(res.profile ?? entry), {
-        targetId: entry.id,
-        targetSource: entry.source
-      })
-    } catch (err) {
-      showToast({ message: `Could not load template: ${errorText(err)}`, type: 'error' })
-    }
-  }, [startDraft])
-
   // A new/uncreated agent never auto-saves; it waits for the explicit Create button.
   // The Markdown baseline guards against re-saving unchanged content, which would
   // otherwise loop because each save updates the route.
@@ -583,7 +522,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
       return undefined
     }
     if (!route.created) return undefined
-    const name = route.draft.name.trim()
+    const name = route.draft.name.trim().normalize('NFC')
     const target = route.saveTarget
     const md = toMarkdown(route.draft)
     if (!name) return undefined
@@ -594,10 +533,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         try {
           const prevId = lastSavedIdRef.current
           const prevSource = lastSavedSourceRef.current
-          if (prevId && (prevId !== name || prevSource !== target)) {
-            await rpc('agent/profiles/remove', { id: prevId, source: prevSource }).catch(() => undefined)
-          }
-          await rpc('agent/profiles/upsert', { id: name, source: target, rawContent: md })
+          await rpc('agent/profiles/upsert', {
+            id: name, source: target, rawContent: md,
+            ...(prevId && prevSource === target && prevId !== name ? { previousName: prevId } : {})
+          })
           lastSavedMdRef.current = md
           lastSavedIdRef.current = name
           lastSavedSourceRef.current = target
@@ -616,7 +555,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   // After this, auto-save takes over to that target.
   const createProfile = useCallback(async (target: SaveTarget): Promise<void> => {
     if (route.name !== 'builder') return
-    const name = route.draft.name.trim()
+    const name = route.draft.name.trim().normalize('NFC')
     if (!name) {
       showToast({ message: 'Give the agent a name first.', type: 'error' })
       return
@@ -687,7 +626,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         <div className={`agent-builder-split-main${agentDriving ? ' is-agent-driving' : ''}`}>
           <BuilderView
             route={route}
-            setRoute={setRoute}
             setDraft={setDraft}
             toolCatalog={toolCatalog}
             skillCatalog={skillCatalog}
@@ -710,14 +648,15 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             <ConversationPanel
               workspacePath={workspacePath}
               minimalComposer
-              mascotAvatar={route.avatar}
+              mascotName={route.draft.name}
               variant="agentBuilder"
               onBeforeSend={flushBuilderDraft}
             />
           ) : (
             <DetachedAgentBuilderChat
+              creating={route.isNew && !route.draft.name.trim()}
               workspacePath={workspacePath}
-              mascotAvatar={route.avatar}
+              mascotName={route.draft.name}
               prefillRequest={builderPrefillRequest}
               error={builderConversationStatus === 'error' ? builderConversationError : null}
               onPrefill={prefillBuilderComposer}
@@ -739,7 +678,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         />
         {createDialogOpen && (
           <AgentSaveTargetDialog
-            name={route.draft.name.trim()}
+            name={route.draft.name.trim().normalize('NFC')}
             onChoose={(target) => {
               setCreateDialogOpen(false)
               void createProfile(target)
@@ -747,56 +686,6 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             onCancel={() => setCreateDialogOpen(false)}
           />
         )}
-      </div>
-    )
-  }
-
-  if (route.name === 'intro') {
-    const templates = profiles.filter((p) => sectionFor(p.source) === 'builtIn')
-    return (
-      <div className="agent-builder">
-        <div className="agent-builder-intro-top">
-          <button type="button" className="agent-builder-iconbtn" title="Back" onClick={() => setRoute({ name: 'gallery' })}>
-            <ArrowLeft size={18} />
-          </button>
-          <button type="button" className="agent-builder-intro-blank" onClick={() => newBlank()}>
-            Start blank
-          </button>
-        </div>
-        <div className="agent-builder-intro">
-          <div className="agent-builder-intro-center">
-            <h1 className="agent-builder-intro-title">Build a new agent</h1>
-            <IntroBuilderComposer
-              workspacePath={workspacePath}
-              prefillRequest={introPrefillRequest}
-              onSubmit={startBlankFromIntro}
-            />
-            <div className="agent-builder-intro-sugs">
-              {SUGGESTIONS.map((s) => {
-                const Icon = s.icon
-                return (
-                  <button key={s.title} type="button" className="agent-builder-intro-sug" onClick={() => prefillIntroComposer(s.prompt)}>
-                    <span className="agent-builder-intro-sug-ic" aria-hidden><Icon size={16} /></span>
-                    <span className="agent-builder-intro-sug-t">{s.title}</span>
-                    <span className="agent-builder-intro-sug-d">{s.desc}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <AgentTemplateDeck
-            templates={templates.map((p) => ({
-              key: `${p.source}:${p.id}`,
-              name: p.id,
-              description: p.description || '',
-              avatar: avatarForEntry(p)
-            }))}
-            onPick={(key) => {
-              const entry = templates.find((p) => `${p.source}:${p.id}` === key)
-              if (entry) void fromTemplate(entry)
-            }}
-          />
-        </div>
       </div>
     )
   }
@@ -824,7 +713,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
               variant="primary"
               size="toolbar"
               aria-label={t('agentBuilder.newAgent')}
-              onClick={() => setRoute({ name: 'intro' })}
+              onClick={newBlank}
               iconLeft={<Plus size={14} aria-hidden />}
             >
               {t('agentBuilder.newAgent')}
@@ -858,10 +747,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
                 {items.map((p) => (
                   <CatalogHoverButton key={`${p.source}:${p.id}`} type="button" baseStyle={catalogStyles.compactItem} onClick={() => void openProfile(p)}>
                     <span style={galleryAvatar}>
-                      <RobotAvatar spec={avatarForEntry(p)} size={36} />
+                      <RobotAvatar name={p.name || p.id} size={36} />
                     </span>
                     <span style={galleryText}>
-                      <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.id}</strong></span>
+                      <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.name || p.id}</strong></span>
                       <span style={catalogStyles.rowDesc}>{p.description || ''}</span>
                     </span>
                     {p.valid === false && (
@@ -878,119 +767,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   )
 }
 
-// Uses the real conversation composer, but with a detached submit handler because the hidden builder
-// thread is created only after the user sends the first intent.
-function IntroBuilderComposer({
-  workspacePath,
-  prefillRequest,
-  onSubmit
-}: {
-  workspacePath: string
-  prefillRequest: { id: number; text: string } | null
-  onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
-}): JSX.Element {
-  const modelControls = useComposerModelControls({
-    workspacePath,
-    mode: 'detached'
-  })
-
-  return (
-    <div className="agent-builder-introcomposer">
-      <InputComposer
-        threadId="agent-builder-intro"
-        transientVoiceOrigin
-        workspacePath={workspacePath}
-        minimalChrome
-        mascotAvatar={AGENT_BUILDER_AVATAR}
-        variant="agentBuilder"
-        placeholder="Describe the agent you want…"
-        prefillRequest={prefillRequest}
-        submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
-        modelName={modelControls.modelName}
-        modelOptions={modelControls.modelOptions}
-        modelCatalog={modelControls.modelCatalog}
-        reasoningValue={modelControls.reasoningValue}
-        modelLoading={modelControls.modelLoading}
-        modelDisabled={modelControls.modelDisabled}
-        modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
-        modelCatalogError={modelControls.modelCatalogError}
-        modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
-        onModelChange={modelControls.onModelChange}
-        onReasoningChange={modelControls.onReasoningChange}
-        onModelCatalogRetry={modelControls.onModelCatalogRetry}
-        contextMode={modelControls.contextMode}
-        contextSupportsMax={modelControls.contextSupportsMax}
-        contextDegraded={modelControls.contextDegraded}
-        contextConfiguredWindow={modelControls.contextConfiguredWindow}
-        onContextModeChange={modelControls.onContextModeChange}
-        dockPadding={0}
-      />
-    </div>
-  )
-}
-
-function DetachedAgentBuilderChat({
-  workspacePath,
-  mascotAvatar,
-  prefillRequest,
-  error,
-  onPrefill,
-  onSubmit
-}: {
-  workspacePath: string
-  mascotAvatar: AvatarSpec
-  prefillRequest: { id: number; text: string } | null
-  error: string | null
-  onPrefill: (prompt: string) => void
-  onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
-}): JSX.Element {
-  const modelControls = useComposerModelControls({
-    workspacePath,
-    mode: 'detached'
-  })
-
-  return (
-    <div className="agent-builder-detached-chat">
-      {error && (
-        <div className="agent-builder-chat-error" role="alert">
-          Couldn’t start the builder chat: {error}
-        </div>
-      )}
-      <AgentBuilderChatEmptyState onPick={onPrefill} />
-      <InputComposer
-        threadId="agent-builder-detached"
-        transientVoiceOrigin
-        workspacePath={workspacePath}
-        minimalChrome
-        mascotAvatar={mascotAvatar}
-        variant="agentBuilder"
-        prefillRequest={prefillRequest}
-        submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
-        modelName={modelControls.modelName}
-        modelOptions={modelControls.modelOptions}
-        modelCatalog={modelControls.modelCatalog}
-        reasoningValue={modelControls.reasoningValue}
-        modelLoading={modelControls.modelLoading}
-        modelDisabled={modelControls.modelDisabled}
-        modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
-        modelCatalogError={modelControls.modelCatalogError}
-        modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
-        onModelChange={modelControls.onModelChange}
-        onReasoningChange={modelControls.onReasoningChange}
-        onModelCatalogRetry={modelControls.onModelCatalogRetry}
-        contextMode={modelControls.contextMode}
-        contextSupportsMax={modelControls.contextSupportsMax}
-        contextDegraded={modelControls.contextDegraded}
-        contextConfiguredWindow={modelControls.contextConfiguredWindow}
-        onContextModeChange={modelControls.onContextModeChange}
-      />
-    </div>
-  )
-}
-
 interface BuilderViewProps {
   route: Extract<Route, { name: 'builder' }>
-  setRoute: Dispatch<SetStateAction<Route>>
   setDraft: Dispatch<SetStateAction<ProfileDraft>>
   toolCatalog: ToolInfo[]
   skillCatalog: SkillInfo[]
@@ -1005,30 +783,11 @@ interface BuilderViewProps {
   onCreate: () => void
 }
 
-function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
-  const locale = useLocale()
+function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
   const t = useT()
-  const { draft, avatar } = route
+  const { draft } = route
   const nameMissing = !draft.name.trim()
   const preview = viewMode === 'preview'
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const reroll = (): void => setRoute((r) => {
-    if (r.name !== 'builder') return r
-    const avatar = randomAvatar(r.avatar)
-    return { ...r, avatar, draft: { ...r.draft, avatar } }
-  })
-
-  useEffect(() => {
-    if (!menuOpen) return undefined
-    function onDown(event: MouseEvent): void {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDown, true)
-    return () => document.removeEventListener('mousedown', onDown, true)
-  }, [menuOpen])
-
   const providers = useProvidersStore((s) => s.providers)
   const models = useModelCatalogStore((s) => s.models)
   const modelCatalogStatus = useModelCatalogStore((s) => s.status)
@@ -1129,51 +888,9 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
     && !providers.some((provider) => provider.id.toLowerCase() === draft.providerPreference!.providerId.toLowerCase())
   return (
     <div className="agent-builder">
-      <header className="agent-builder-edit-head">
-        <div className="agent-builder-edit-left">
-          <button type="button" className="agent-builder-iconbtn" title="Back" onClick={onBack}>
-            <ArrowLeft size={18} />
-          </button>
-          <span className="agent-builder-headavatar">
-            <RobotAvatar spec={avatar} size={26} />
-          </span>
-          <span className="agent-builder-headname">{draft.name || 'Untitled agent'}</span>
-        </div>
-        <div className="agent-builder-edit-right">
-          {route.created && (
-            <span className={`agent-builder-autosave${autoSaveState === 'error' ? ' is-error' : ''}`}>
-              {autoSaveState === 'saving'
-                ? 'Saving…'
-                : autoSaveState === 'error'
-                  ? 'Save failed'
-                  : route.updatedAt
-                    ? `Updated ${formatRelativeTime(route.updatedAt, new Date(), locale)}`
-                    : 'Saved'}
-            </span>
-          )}
-          <button type="button" className="agent-builder-btn-secondary" onClick={() => setViewMode(preview ? 'edit' : 'preview')}>
-            {preview ? <><Pencil size={15} /> Edit</> : <><Eye size={15} /> Preview</>}
-          </button>
-          {route.created ? (
-            <div className="agent-builder-menu" ref={menuRef}>
-              <button type="button" className="agent-builder-iconbtn" aria-label="More actions" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
-                <MoreHorizontal size={18} />
-              </button>
-              {menuOpen && (
-                <div className="agent-builder-menu-pop" role="menu">
-                  <button type="button" className="agent-builder-menu-item is-danger" role="menuitem" onClick={() => { setMenuOpen(false); onDelete() }}>
-                    <Trash2 size={15} /> Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <button type="button" className="agent-builder-btn" disabled={nameMissing} onClick={onCreate}>
-              <Plus size={15} /> Create
-            </button>
-          )}
-        </div>
-      </header>
+      <AgentBuilderToolbar created={route.created} updatedAt={route.updatedAt} autoSaveState={autoSaveState}
+        preview={preview} nameMissing={nameMissing} onBack={onBack} onDelete={onDelete} onCreate={onCreate}
+        onTogglePreview={() => setViewMode(preview ? 'edit' : 'preview')} />
 
       <div className="agent-builder-scroll dc-scrollbar-stable">
       <div className={`agent-builder-doc${agentDriving ? ' is-agent-driving' : ''}`}>
@@ -1181,12 +898,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
         <AgentEditingCursor field={cursor?.field ?? null} phase={cursor?.phase ?? 'settled'} />
         <div className="agent-builder-id">
           <span className="agent-builder-id-avatar">
-            <RobotAvatar spec={avatar} size={64} animated />
-            {!preview && (
-              <button type="button" className="agent-builder-reroll" onClick={reroll} title="Re-roll avatar">
-                <Shuffle size={12} />
-              </button>
-            )}
+            <RobotAvatar name={draft.name} size={64} animated />
           </span>
           <div className="agent-builder-id-main">
             <FieldAnchor field="name" className="agent-builder-field-anchor-name">
@@ -1216,8 +928,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             {route.readOnly && !preview && <div className="agent-builder-note">Built-in template — click Create to save it as a new agent in the selected source.</div>}
           </div>
         </div>
-
-        <div className="agent-builder-divider" />
 
         <Section label="Tools">
           <FieldAnchor field="tools.policy" className="agent-builder-tool-policy">

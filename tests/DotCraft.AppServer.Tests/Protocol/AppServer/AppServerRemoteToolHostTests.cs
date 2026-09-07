@@ -338,6 +338,9 @@ public sealed class AppServerRemoteToolHostTests
 
     private sealed class FakeRemoteToolHostClient : IRemoteToolHostClient
     {
+        public ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
+            byte[] bytes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public RemoteToolHostCatalog Catalog { get; set; } = new([]);
 
         public Dictionary<string, RemoteToolConnectionSnapshot> Snapshots { get; } = new(StringComparer.Ordinal);

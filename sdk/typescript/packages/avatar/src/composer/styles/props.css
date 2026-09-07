@@ -1,0 +1,21 @@
+@keyframes composer-mascot-land {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  35% { transform: translateY(2px) scale(1.12, 0.86); }
+  70% { transform: translateY(-2px) scale(0.97, 1.03); }
+}
+
+.composer-mascot-land {
+  animation: composer-mascot-land 380ms ease-out;
+  transform-origin: bottom center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-mascot-motion,
+  .composer-mascot-motion * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+[data-composer-mascot-motion='off'],
+[data-composer-mascot-motion='off'] * { animation: none !important; transition: none !important; }

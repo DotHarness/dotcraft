@@ -22,7 +22,8 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
     public RemoteToolHostOutboundHost(
         RemoteToolHostStorage storage,
         RemoteToolHostActivityMonitor? activity = null,
-        TimeSpan? heartbeatInterval = null)
+        TimeSpan? heartbeatInterval = null,
+        IRemoteToolApprovalPresenter? approvalPresenter = null)
     {
         _storage = storage;
         _heartbeatInterval = heartbeatInterval;
@@ -32,7 +33,7 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
                 _leaseTerminals.ReleaseLease(released.LeaseId);
                 RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
             });
-        _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _leaseTerminals, activity);
+        _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _leaseTerminals, activity, approvalPresenter, () => _paused);
     }
 
     public event Action? Changed;

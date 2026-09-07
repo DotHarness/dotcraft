@@ -19,18 +19,49 @@ public sealed class ConsentViewModelTests : IDisposable
     public ConsentViewModelTests() => Directory.CreateDirectory(_folder);
 
     [Fact]
-    public void NewInvitation_OpensWithNoFolderNoWarningAndAllowDisabled()
+    public void NewInvitation_SuggestsUncreatedFolderAndAllowsPreferredMode()
     {
         var viewModel = NewViewModel();
 
-        Assert.Equal(string.Empty, viewModel.FolderPath);
+        Assert.True(Path.IsPathFullyQualified(viewModel.FolderPath));
+        Assert.False(Directory.Exists(viewModel.FolderPath));
         Assert.False(viewModel.HasWarning);
-        Assert.False(viewModel.CanAllow);
+        Assert.True(viewModel.CanAllow);
 
         viewModel.FolderPath = _folder;
 
         Assert.True(viewModel.CanAllow);
         Assert.False(viewModel.HasWarning);
+    }
+
+    [Fact]
+    public async Task FullAccess_RequiresAcknowledgementAndPreservesFolderWhenSwitchingBack()
+    {
+        RemoteToolJoinDecision? decision = null;
+        var viewModel = NewViewModel(accept: (value, _) =>
+        {
+            decision = value;
+            return Task.CompletedTask;
+        });
+        viewModel.FolderPath = _folder;
+
+        viewModel.FullAccess = true;
+        Assert.False(viewModel.WorkspacePreferred);
+        Assert.False(viewModel.CanAllow);
+        await viewModel.AllowCommand.ExecuteAsync(null);
+        Assert.Null(decision);
+
+        viewModel.Acknowledged = true;
+        await viewModel.AllowCommand.ExecuteAsync(null);
+        Assert.Equal(RemoteToolAuthorization.FullAccess, decision?.AuthorizationMode);
+
+        viewModel.FullAccess = false;
+        Assert.True(viewModel.WorkspacePreferred);
+        Assert.Equal(_folder, viewModel.FolderPath);
+        Assert.True(viewModel.CanAllow);
+        viewModel.FullAccess = true;
+        Assert.False(viewModel.Acknowledged);
+        Assert.False(viewModel.CanAllow);
     }
 
     [Fact]
@@ -64,7 +95,7 @@ public sealed class ConsentViewModelTests : IDisposable
             picker: new StubFolderPicker(picked),
             accept: (folder, _) =>
             {
-                accepted.Add(folder);
+                accepted.Add(folder.WorkspacePath);
                 return Task.CompletedTask;
             });
         var finished = new List<bool>();
@@ -156,7 +187,7 @@ public sealed class ConsentViewModelTests : IDisposable
         string purpose = "Fix the build",
         DateTimeOffset? expiresAt = null,
         IFolderPicker? picker = null,
-        Func<string, CancellationToken, Task>? accept = null) => new(
+        Func<RemoteToolJoinDecision, CancellationToken, Task>? accept = null) => new(
         new RemoteToolInvite(
             "inv_abcdefgh",
             inviter,

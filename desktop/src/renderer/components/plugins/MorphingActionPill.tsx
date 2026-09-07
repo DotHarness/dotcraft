@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { JSX, ReactNode } from 'react'
-import { PluginInstallButton } from './PluginInstallButton'
+import { Button } from '../ui/Button'
 import styles from './MorphingActionPill.module.css'
 
 /** The off-screen copy measures the next label so the visible slot can transition to that width. */
@@ -34,16 +34,16 @@ export function MorphingActionPill({
   return (
     <>
       <span ref={measureRef} className={styles.measure} aria-hidden="true">
-        <PluginInstallButton variant="primary" loading={loading} disabled tabIndex={-1} iconLeft={iconLeft}>
+        <Button size="sm" variant="primary" loading={loading} disabled tabIndex={-1} iconLeft={iconLeft}>
           {label}
-        </PluginInstallButton>
+        </Button>
       </span>
       <span
         className={styles.slot}
         data-transition-ready={transitionReady ? 'true' : 'false'}
         style={width == null ? undefined : { width }}
       >
-        <PluginInstallButton
+        <Button size="sm"
           variant="primary"
           loading={loading}
           aria-busy={loading}
@@ -53,7 +53,7 @@ export function MorphingActionPill({
           className={styles.button}
         >
           {label}
-        </PluginInstallButton>
+        </Button>
       </span>
     </>
   )

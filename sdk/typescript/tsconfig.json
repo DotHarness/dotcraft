@@ -1,5 +1,6 @@
 {
   "references": [
+    { "path": "./packages/avatar" },
     { "path": "./packages/plugin" },
     { "path": "./packages/channel-feishu" },
     { "path": "./packages/channel-weixin" },

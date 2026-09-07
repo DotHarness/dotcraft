@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, CircleAlert, Copy, Loader2, RotateCw, Settings } from 'lucide-react'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useT } from '../contexts/LocaleContext'
-import { MascotRobot } from './conversation/MascotRobot'
+import { Avatar } from '@dotcraft/avatar/react'
 
 interface ErrorScreenProps {
   onOpenSettings?: () => void
@@ -120,11 +120,8 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
             }}
           >
             <div style={{ transformOrigin: 'bottom center', transform: 'translateY(2px) rotate(-3deg) scale(0.98)' }}>
-              {/* Root carries -deflate so its descendant .mascot-glow blinks red ×3. */}
-              <div className="composer-mascot-deflate">
-                <div className="composer-mascot-shake">
-                  <MascotRobot expression="operator" light="error" size={96} />
-                </div>
+              <div className="composer-mascot-shake">
+                <Avatar name="" state="blocked" size={96} />
               </div>
             </div>
           </div>

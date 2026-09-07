@@ -583,13 +583,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "avatar",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "compiledConfig",
           "type": "core.ThreadConfiguration",
           "required": false,
@@ -1052,6 +1045,13 @@
       "fields": [
         {
           "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "previousName",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -7844,6 +7844,13 @@
           "const": null
         },
         {
+          "name": "errorCode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "errorMessage",
           "type": "string",
           "required": false,
@@ -7872,7 +7879,35 @@
           "const": null
         },
         {
+          "name": "saveErrorCode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "saveStatus",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "savedHostId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "savedPath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "savedWorkspaceId",
           "type": "string",
           "required": false,
           "nullable": true,

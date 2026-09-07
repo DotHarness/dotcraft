@@ -1,29 +1,21 @@
-import { forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
+import { Children, forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
 
-/**
- * Size families map to the shared control band (32px) plus compact / square options.
- * `toolbar` is the catalog top-bar band: shorter and rounder than the standard band,
- * shared by every control in that bar.
- */
 export type ButtonSize = 'default' | 'sm' | 'icon' | 'iconSm' | 'prominent' | 'toolbar'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
   size?: ButtonSize
-  /** Leading icon rendered before the label. Ignored for icon sizes (children is the glyph). */
   iconLeft?: ReactNode
-  /** Show an in-control spinner and disable the button. */
   loading?: boolean
 }
 
-/**
- * Every text/icon action should route through this component so intent and size are
- * chosen by prop rather than re-derived per call site. The 1px border is always in the
- * box model but painted only by `outline`, so switching variants never shifts height.
- */
+export function ButtonLabel({ children }: { children: ReactNode }): JSX.Element {
+  return <span className="dc-button__label">{children}</span>
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = 'secondary',
   size = 'default',
@@ -49,17 +41,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       data-variant={variant}
       data-size={size}
       disabled={isDisabled}
+      data-loading={loading || undefined}
+      aria-busy={loading || undefined}
       className={className ? `dc-button ${className}` : 'dc-button'}
       {...props}
     >
-      {loading
-        ? spinner
-        : iconLeft != null && !isIcon && (
-            <span className="dc-button__icon" aria-hidden="true">
-              {iconLeft}
-            </span>
-          )}
-      {loading && isIcon ? null : children}
+      {loading && spinner}
+      {iconLeft != null && !isIcon && <span className="dc-button__icon" aria-hidden="true">{iconLeft}</span>}
+      {loading && isIcon ? null : isIcon ? children : Children.map(children, child =>
+        typeof child === 'string' || typeof child === 'number' ? <ButtonLabel>{child}</ButtonLabel> : child)}
     </button>
   )
 })

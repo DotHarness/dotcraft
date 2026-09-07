@@ -58,7 +58,7 @@ import {
 import { ComposerSubmitGlyphs } from './ComposerSubmitButton'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
-import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
+import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Skeleton } from '../ui/Skeleton'
 import { PillSwitch } from '../ui/PillSwitch'
@@ -354,8 +354,7 @@ function ConversationWelcomeCore({
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
   // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
-  // Prefer the profile's configured (stored) avatar, matching the composer and gallery.
-  const resolvedProfileAvatar = useResolvedProfileAvatar(selectedProfileId ?? undefined, workspacePath)
+  const resolvedProfileName = useResolvedProfileName(selectedProfileId ?? undefined, workspacePath)
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
@@ -1829,7 +1828,7 @@ function ConversationWelcomeCore({
               )}
               mascotSpeed={mascotSpeed}
               mascotContextMax={welcomeContextMode === 'max'}
-              mascotAvatar={resolvedProfileAvatar}
+              mascotName={resolvedProfileName}
               attachmentStrip={
                 <AttachmentStrip
                   images={images}
@@ -1975,7 +1974,7 @@ function ConversationWelcomeCore({
                         <ComposerCustomProfileLabel
                           label={t('composer.mode.custom')}
                           onClear={() => setSelectedProfileId(null)}
-                          title={t('composer.customPill.title', { name: selectedProfileId })}
+                          title={t('composer.customPill.title', { name: resolvedProfileName ?? selectedProfileId })}
                           ariaLabel={t('composer.customPill.aria')}
                         />
                       ) : (

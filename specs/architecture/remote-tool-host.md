@@ -135,7 +135,8 @@ retarget a workspace. The Agent cannot submit a new root or reinterpret a worksp
 A Host also has zero or more **pairings**. A pairing binds the Host to one Hub and is recorded on
 the Host as a peer record containing the Hub endpoint, an opaque `peerId` assigned by that Hub, a
 credential reference, and the `workspaceId` the pairing was created for. That workspace reference
-is a label for local surfaces; workspace records and Host policy remain the only access boundary.
+is enforced per authenticated peer at discovery, acquisition, catalog and invocation boundaries.
+Peers store `authorizationMode` and `authorizationRevision`; absent modes require local reauthorization.
 The Hub records the same pairing as a satellite peer under the same `peerId` together with the
 Host display name, machine information, build version, last reported workspaces, and last-seen
 time. Agent Hosts on the Hub's machine address the Remote Tool Host by that `peerId`; it is the
@@ -271,18 +272,18 @@ preview into its local workspace. The Host does not create Session items or run 
 common hooks. The Agent Host performs final result validation and normalization, terminalizes the
 original Session projection, and runs terminal hooks exactly once.
 
-Host policy returns `allow`, `deny`, or `needsApproval`. A denial cannot be overridden remotely.
-For `needsApproval`, the Host sends standard MCP form elicitation inside the active call. The Agent
-Host binds the elicitation to the invocation's Turn and creates the ordinary approval interaction.
-Acceptance authorizes only the current invocation; persistent policy can be changed only through
-Host-local administration. A disconnected or non-interactive Agent declines safely.
+Host deny policy is authoritative. Owner authorization reuses `IApprovalService` through a local
+Satellite presenter, never remote MCP elicitation as a substitute. Workspace-preferred permits
+ordinary workspace files; external files, every new command, nonempty terminal input and language
+server execution require owner approval. Full access skips owner prompts but not explicit Host
+policy. Requests bind peer, authorization revision, invocation and arguments. They expire after two
+minutes; disconnect, cancellation, pause and revoke invalidate them. No presenter means deny.
+Agent-side approval remains independent. Tool definitions and model-facing schemas stay unchanged.
 
-Remote `Exec` requires approval for every new command by default because working-directory
-validation cannot constrain arbitrary shell access. The Host MUST record the background terminal
-session ids created by each approved `Exec` against the acquiring lease and MUST reject `WriteStdin`
-for any other session id with `RemotePolicyDenied`. This binding is unconditional and is not
-weakened by a Host-local `allow` policy. File and LSP policy canonicalizes paths and resolves
-symlinks, junctions, and reparse points before applying workspace rules.
+Workspace configuration cannot relax Host authority or replace process executables. Language servers
+start only inside an approved invocation; file-only calls cannot start them. Shell approval permits
+execution with the signed-in user's authority, not filesystem isolation. Terminals remain lease-bound.
+File path checks cover ancestor junctions and symlinks, including nonexistent destination files.
 
 ## 8. Transport profile and failure semantics
 
@@ -484,3 +485,16 @@ Conformance tests cover:
 
 When no Remote Tool Host is paired, the existing model tool schema and local execution behavior
 remain unchanged.
+
+## Generated image artifacts
+
+Hosted generation remains Agent-owned. The image's route is captured at generation start.
+The Agent persists image content in Session history and, when routed remotely, writes the
+artifact through `dotcraft/remoteToolHost/images/write` to the captured workspace's
+`.craft/generated_images/<threadId>/<callId>.png`. The Host computes this path, validates the
+lease and peer, applies WriteFile authorization and configured file size limits, and writes
+atomically without replacing an existing destination. These files survive lease release.
+A lost or changed route must not redirect output or fall back to local file storage. The
+write is not automatically retried after transmission. Generation success and storage failure
+are distinct: the image remains displayable while storage status reports the error. Saved
+locations include host/workspace provenance. Local generation retains the Agent data root.

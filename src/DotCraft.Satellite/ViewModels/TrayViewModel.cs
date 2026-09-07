@@ -90,7 +90,7 @@ internal sealed class TrayViewModel(
             invite,
             new WindowFolderPicker(() =>
                 window is null ? 0 : WinRT.Interop.WindowNative.GetWindowHandle(window)),
-            (folder, cancellationToken) => AcceptAsync(invite, folder, cancellationToken),
+            AcceptAsync,
             strings);
         window = new ConsentWindow(viewModel);
         _consent = window;
@@ -104,14 +104,15 @@ internal sealed class TrayViewModel(
     }
 
     private async Task AcceptAsync(
-        RemoteToolInvite invite,
-        string folder,
+        RemoteToolJoinDecision decision,
         CancellationToken cancellationToken)
     {
         await connection.Runtime.AcceptInviteAsync(
-            new RemoteToolJoinDecision(invite, folder),
+            decision,
             cancellationToken);
         await connection.RestartAsync();
+        toasts.Show(strings["consent.connected"], decision.WorkspacePath + "\n" +
+            strings[decision.AuthorizationMode == RemoteToolAuthorization.FullAccess ? "consent.full" : "consent.preferred"]);
         Refresh();
     }
 
@@ -144,6 +145,9 @@ internal sealed class TrayViewModel(
             case TrayMenuCommand.Revoke when item.PeerId is { Length: > 0 } peerId:
                 await connection.Runtime.RevokeAsync(peerId);
                 break;
+            case TrayMenuCommand.ManageAccess when item.PeerId is { } managedPeer:
+                ShowAccess(managedPeer);
+                break;
             case TrayMenuCommand.OpenFolder:
                 OpenFolder();
                 break;
@@ -158,6 +162,21 @@ internal sealed class TrayViewModel(
         }
 
         Refresh();
+    }
+
+    private void ShowAccess(string peerId)
+    {
+        var peer = connection.Runtime.Peers.FirstOrDefault(item => item.PeerId == peerId);
+        if (peer is null) return;
+        var invite = new RemoteToolInvite("", peer.DisplayName, "", new Uri("http://localhost"), null);
+        var model = new ConsentViewModel(invite, new WindowFolderPicker(() => 0), async (decision, ct) =>
+        {
+            await connection.Runtime.SetAuthorizationAsync(peerId, decision.AuthorizationMode);
+            await connection.RestartAsync();
+        }, strings) { CanChangeFolder = false, FolderPath = peer.WorkspacePath, FullAccess = peer.AuthorizationMode == RemoteToolAuthorization.FullAccess };
+        _consent?.Close();
+        _consent = new ConsentWindow(model);
+        _consent.Activate();
     }
 
     private void OpenFolder()

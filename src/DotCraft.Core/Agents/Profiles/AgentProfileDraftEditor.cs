@@ -1,3 +1,5 @@
+using System.Text.Json;
+using YamlDotNet.Serialization;
 namespace DotCraft.Agents;
 
 /// <summary>
@@ -10,7 +12,6 @@ public sealed class AgentProfileDraft
 {
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public int? Avatar { get; set; }
     public bool HasProviderPreference { get; set; }
     public string ProviderId { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
@@ -102,9 +103,8 @@ public static class AgentProfileDraftEditor
                 sub = null;
                 switch (key)
                 {
-                    case "name": draft.Name = val; break;
-                    case "description": draft.Description = val; break;
-                    case "avatar": draft.Avatar = ParsePackedAvatar(val); break;
+                    case "name": draft.Name = new DeserializerBuilder().Build().Deserialize<string>(val) ?? string.Empty; break;
+                    case "description": draft.Description = new DeserializerBuilder().Build().Deserialize<string>(val) ?? string.Empty; break;
                     case "providerPreference":
                         draft.HasProviderPreference = true;
                         section = key;
@@ -168,10 +168,8 @@ public static class AgentProfileDraftEditor
     public static string ToMarkdown(AgentProfileDraft draft)
     {
         var fm = new List<string> { "---" };
-        fm.Add($"name: {(string.IsNullOrEmpty(draft.Name) ? "untitled-agent" : draft.Name)}");
-        fm.Add($"description: {draft.Description}");
-        if (draft.Avatar.HasValue)
-            fm.Add($"avatar: {draft.Avatar.Value}");
+        fm.Add($"name: {JsonSerializer.Serialize(string.IsNullOrEmpty(draft.Name) ? "untitled-agent" : AgentProfileName.Canonicalize(draft.Name))}");
+        fm.Add($"description: {JsonSerializer.Serialize(draft.Description)}");
         if (draft.HasProviderPreference)
         {
             fm.Add("providerPreference:");
@@ -310,15 +308,4 @@ public static class AgentProfileDraftEditor
     private static string YamlList(IReadOnlyList<string> values) =>
         values.Count == 0 ? "[]" : $"[{string.Join(", ", values)}]";
 
-    private static int? ParsePackedAvatar(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)
-            || value.Any(ch => !char.IsDigit(ch))
-            || !int.TryParse(value, out var parsed))
-        {
-            return null;
-        }
-
-        return AgentProfileAvatarCodec.TryDecode(parsed, out _, out _, out _) ? parsed : null;
-    }
 }

@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <Content Include="Resources\favicon.ico" />
+    <EmbeddedResource Include="Resources\favicon.ico" LogicalName="DotCraft.Resources.favicon.ico" />
     <EmbeddedResource Include="Resources\Templates\**\*" />
     <EmbeddedResource Include="..\..\docker\dotcraft\docker-compose.yml" Link="Resources\Stack\docker-compose.yml" />
     <EmbeddedResource Include="..\..\docker\dotcraft\docker-compose.webhook.yml" Link="Resources\Stack\docker-compose.webhook.yml" />

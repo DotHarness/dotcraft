@@ -60,6 +60,8 @@ internal sealed record RemoteToolHubPeer
     public string HubScheme { get; init; } = Uri.UriSchemeHttp;
     public string HubLabel { get; init; } = string.Empty;
     public string WorkspaceId { get; init; } = string.Empty;
+    public string? AuthorizationMode { get; init; }
+    public long AuthorizationRevision { get; init; }
     public DateTimeOffset PairedAt { get; init; }
 
     public Uri ControlUri => BuildUri(SatelliteWire.ControlPath, $"?peer={Uri.EscapeDataString(PeerId)}");

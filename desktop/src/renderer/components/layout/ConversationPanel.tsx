@@ -7,7 +7,6 @@ import { useUIStore } from '../../stores/uiStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer } from '../conversation/InputComposer'
-import type { AvatarSpec } from '../agents/agentAvatar'
 import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
@@ -33,8 +32,8 @@ interface ConversationPanelProps {
   onInteractionResponseAccepted?: () => void
   /** Render the composer with minimal chrome (no workspace/branch footer, permissions, or subscription badge). */
   minimalComposer?: boolean
-  /** Explicit mascot character for the composer (e.g. the Agent Builder pane's edited-profile avatar). */
-  mascotAvatar?: AvatarSpec
+  /** Explicit visible name for the composer mascot (e.g. an Agent Builder draft). */
+  mascotName?: string
   /** Purpose-built embedded conversation surface for Agent Builder. */
   variant?: 'default' | 'agentBuilder'
   onBeforeSend?: () => Promise<void> | void
@@ -53,7 +52,7 @@ export function ConversationPanel({
   workspaceConfigChangeSeq = 0,
   onInteractionResponseAccepted,
   minimalComposer = false,
-  mascotAvatar,
+  mascotName,
   variant = 'default',
   onBeforeSend
 }: ConversationPanelProps): JSX.Element {
@@ -276,7 +275,7 @@ export function ConversationPanel({
           fileWorkspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
           minimalChrome={minimalComposer || isAgentBuilder}
-          mascotAvatar={mascotAvatar}
+          mascotName={mascotName}
           variant={variant}
           prefillRequest={composerPrefillRequest}
           onBeforeSend={onBeforeSend}

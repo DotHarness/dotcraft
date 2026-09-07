@@ -365,6 +365,13 @@ identity-mark family. Avatars, status dots, thumbnails, favicons, action glyphs,
 and illustrations keep their own shape rules. Choose a role instead of deriving
 corner geometry from an arbitrary size:
 
+Agent avatars derive their complete visual identity and interaction rendering from
+the shared `@dotcraft/avatar` package. Hosts pass names, state, expression, gesture,
+and hand/work-prop intent without copying or overriding internal SVG artwork. At
+`20px` and below, keep the robot arms but hide handheld accessories and work props while retaining the primary
+head silhouette. A left-side hold owns the left hand. Native work props take priority
+over decorative hand poses when both are requested.
+
 | Role | Standard size / radius | Use |
 | --- | --- | --- |
 | Compact | `24px / 6px` | Dense metadata, prompt prefixes, and connection rows. Inline marks may reduce to `18px` while retaining the compact radius. |
@@ -502,6 +509,16 @@ prop and the footprint with the `size` prop:
   one bordered variant — only for special / important framed actions).
 - `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
   `prominent` (the standalone `38px` pill CTA), `toolbar` (the catalog top-bar band).
+
+All ordinary action labels use `text-box: trim-both cap alphabetic`; compound
+labels use the shared `ButtonLabel` slot and keep icons outside that slot.
+Loading overlays the spinner without changing the control's footprint or accessible name.
+
+Text buttons use a dedicated `--button-text-radius` pill radius: default actions
+are 32px high, compact actions 28px, and prominent actions 38px. Catalog and Builder
+toolbars use the same 28px height and 10px radius. Icon buttons, navigation, menu
+rows and Composer controls retain their own geometry. Builder Create is primary;
+Preview/Edit is secondary with a subtle fill.
 
 Buttons are frameless by default. Every variant keeps a `1px` border in the box
 model but only `outline` paints it visibly, so switching a button between fills and

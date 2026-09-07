@@ -66,8 +66,7 @@ import {
 import { ComposerSubmitButton } from './ComposerSubmitButton'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
-import { type AvatarSpec } from '../agents/agentAvatar'
-import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
+import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -168,8 +167,8 @@ interface InputComposerProps {
    * for embedded composers; the core input (attach, plan, reasoning, model, send) is kept.
    */
   minimalChrome?: boolean
-  /** Overrides the thread-profile-derived avatar — the Agent Builder thread has no profile id. */
-  mascotAvatar?: AvatarSpec
+  /** Overrides the thread-profile-derived name — the Agent Builder thread has no profile id. */
+  mascotName?: string
   variant?: 'default' | 'agentBuilder'
   placeholder?: string
   /** One-shot text injection request from an external empty state or suggestion. */
@@ -245,7 +244,7 @@ function InputComposerCore({
   contextConfiguredWindow,
   onContextModeChange,
   minimalChrome = false,
-  mascotAvatar,
+  mascotName,
   variant = 'default',
   placeholder,
   prefillRequest = null,
@@ -355,10 +354,8 @@ function InputComposerCore({
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
-  // Prefer the profile's configured (stored) avatar over a derived one so the mascot
-  // matches the builder gallery and picker instead of a name-hash.
-  const resolvedProfileAvatar = useResolvedProfileAvatar(activeProfileId, workspacePath)
-  const effectiveMascotAvatar = mascotAvatar ?? resolvedProfileAvatar
+  const resolvedProfileName = useResolvedProfileName(activeProfileId, workspacePath)
+  const effectiveMascotName = mascotName ?? resolvedProfileName
   const desktopCommandContext = useMemo(() => ({
     workspacePath: workspacePath || null,
     threadId,
@@ -1675,7 +1672,7 @@ function InputComposerCore({
         mascotReasoningEffort={mascotEffectState.reasoningEffort}
         mascotSpeed={mascotEffectState.speed}
         mascotContextMax={mascotEffectState.contextMax}
-        mascotAvatar={effectiveMascotAvatar}
+        mascotName={effectiveMascotName}
         mascotHandoff
         attachmentStrip={
           <AttachmentStrip
@@ -1826,7 +1823,7 @@ function InputComposerCore({
                     onClear={() => {
                       void clearProfile()
                     }}
-                    title={t('composer.customPill.title', { name: activeProfileId ?? '' })}
+                    title={t('composer.customPill.title', { name: resolvedProfileName ?? activeProfileId ?? '' })}
                     ariaLabel={t('composer.customPill.aria')}
                   />
                 ) : !isAgentBuilder ? (

@@ -126,7 +126,7 @@ describe('PlanApprovalComposer', () => {
     expect(mascot).toHaveAttribute('data-mascot-effort', 'high')
     expect(mascot).toHaveAttribute('data-mascot-speed', 'fast')
     expect(mascot).toHaveAttribute('data-mascot-context', 'max')
-    expect(mascot).toHaveClass('composer-mascot-hold-sign')
+    expect(mascot?.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'waiting')
   })
 
   it('accept path switches to agent and shows the plan acceptance request', async () => {

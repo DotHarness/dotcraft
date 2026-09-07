@@ -12,9 +12,11 @@ public sealed partial class App : Application, IDisposable
 {
     private readonly StartupOptions _options;
     private readonly SingleInstanceGate _gate;
+    private Window? _lifetimeWindow;
     private SatelliteRuntimeConnection? _connection;
     private TrayIconHost? _tray;
     private ToastPresenter? _toasts;
+    private OwnerApprovalPresenter? _approvals;
 
     internal App(StartupOptions options, SingleInstanceGate gate)
     {
@@ -26,14 +28,25 @@ public sealed partial class App : Application, IDisposable
     public void Dispose()
     {
         _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _approvals?.Dispose();
         _toasts?.Dispose();
         _tray?.Dispose();
+        GC.KeepAlive(_lifetimeWindow);
+        _lifetimeWindow = null;
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // WinUI exits when its last Window closes. Keep an unactivated window alive so closing
+        // consent returns this tray application to the background instead of terminating it.
+        _lifetimeWindow ??= new Window();
+
         var strings = SatelliteStrings.Current;
-        _connection = new SatelliteRuntimeConnection(RemoteToolHostRuntime.Create());
+        _approvals = new OwnerApprovalPresenter(DispatcherQueue.GetForCurrentThread(), strings);
+        _connection = new SatelliteRuntimeConnection(RemoteToolHostRuntime.Create(new RemoteToolHostRuntimeOptions
+        {
+            ApprovalPresenter = _approvals
+        }));
         _tray = new TrayIconHost(Path.Combine(AppContext.BaseDirectory, "Assets"));
         _toasts = new ToastPresenter(_tray);
         _toasts.Register();

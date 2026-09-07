@@ -98,18 +98,27 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
     public RemoteToolHostTestServer(
         RemoteToolHostStorage storage,
         string peerId = "sat_test",
-        string? reportedPeerId = null)
+        string? reportedPeerId = null,
+        IRemoteToolApprovalPresenter? ownerApprovals = null)
     {
         _storage = storage;
         PeerId = peerId;
         ReportedPeerId = reportedPeerId ?? peerId;
+        var state = storage.LoadHostState();
+        if (state is not null && state.Peers.Count == 0 && state.Workspaces.Count > 0)
+            storage.SaveHostState(state with { Peers = [new RemoteToolHubPeer
+            {
+                PeerId = ReportedPeerId, HubHost = "localhost", HubPort = 1, CredentialReference = "test",
+                WorkspaceId = state.Workspaces.Keys.First(), AuthorizationMode = RemoteToolAuthorization.FullAccess,
+                AuthorizationRevision = 1
+            }] });
         Leases = new WorkspaceLeaseManager(
             onReleased: released =>
             {
                 _terminals.ReleaseLease(released.LeaseId);
                 RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
             });
-        _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _terminals);
+        _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _terminals, approvalPresenter: ownerApprovals);
         Directory = new TestDirectory(this);
     }
 

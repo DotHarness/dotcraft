@@ -3,16 +3,14 @@ import { Bot } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { MenuHeading, MenuOption, PillDropdown } from '../ui/PillDropdown'
 import { RobotAvatar } from '../agents/RobotAvatar'
-import { resolveProfileAvatar, type AvatarSpec } from '../agents/agentAvatar'
 
 interface ProfileEntry {
   id: string
+  name?: string
   description?: string
   source: string
   valid?: boolean
   shadowed?: boolean
-  /** Avatar the user configured in the builder (packed number or spec); honored over the derived one. */
-  avatar?: number | AvatarSpec
 }
 
 interface AgentProfileDropdownProps {
@@ -65,10 +63,10 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
     if (loaded && value && !profiles.some((p) => p.id === value)) onChange(null)
   }, [loaded, value, profiles, onChange])
 
-  const label = value ? (selected?.id ?? value) : t('auto.newTask.agentDefault')
+  const label = value ? (selected?.name || selected?.id || value) : t('auto.newTask.agentDefault')
   const icon =
     value && selected ? (
-      <RobotAvatar spec={resolveProfileAvatar(selected.id, selected.avatar)} size={16} />
+      <RobotAvatar name={selected.name || selected.id} size={16} />
     ) : (
       <Bot size={13} strokeWidth={1.8} aria-hidden />
     )
@@ -102,14 +100,14 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
             <MenuOption
               key={`${profile.source}:${profile.id}`}
               selected={profile.id === value}
-              icon={<RobotAvatar spec={resolveProfileAvatar(profile.id, profile.avatar)} size={20} />}
+              icon={<RobotAvatar name={profile.name || profile.id} size={20} />}
               description={profile.description}
               onClick={() => {
                 onChange(profile.id)
                 close()
               }}
             >
-              {profile.id}
+              {profile.name || profile.id}
             </MenuOption>
           ))}
         </>

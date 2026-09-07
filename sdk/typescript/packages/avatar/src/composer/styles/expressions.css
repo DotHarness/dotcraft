@@ -1,0 +1,20 @@
+@keyframes composer-mascot-nod {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(2.5px) scale(1.015, 0.985); }
+}
+
+.composer-mascot-nod {
+  animation: composer-mascot-nod 140ms ease-out;
+  transform-origin: bottom center;
+}
+
+@keyframes composer-mascot-think-sway {
+  0%, 100% { transform: rotate(-2.2deg); }
+  50% { transform: rotate(2.2deg); }
+}
+
+.composer-mascot-think {
+  animation: composer-mascot-think-sway 2.6s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}

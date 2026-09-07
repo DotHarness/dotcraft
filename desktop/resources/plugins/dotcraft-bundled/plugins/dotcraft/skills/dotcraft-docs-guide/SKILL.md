@@ -22,7 +22,7 @@ Write current, task-focused documentation and keep applicable localized mirrors 
    - Read `references/page-templates.md` when creating a documentation-site page or changing its archetype.
    - Read `references/sample-readmes.md` for a README under a `samples/` or `examples/` tree.
 5. Establish current behavior from source, tests, manifests, generated contracts, and durable specs before writing. Treat nearby docs as style evidence, not proof that a command or API still works.
-6. Edit the smallest coherent set of artifacts. Keep one source of truth for installation and other drift-prone procedures; link to it instead of copying it.
+6. Keep edits within the requested scope, preserving unrelated content and media references. Keep one source of truth for installation and other drift-prone procedures; link to it instead of copying it.
 7. For a documentation-site page or another artifact with established localized mirrors, update every mirror in the same change. Preserve heading hierarchy, code blocks, links, admonitions, images, and example order while translating prose naturally.
 8. Validate proportionally:
    - Build the documentation site when a rendered documentation-site page changes.
@@ -54,7 +54,7 @@ Write current, task-focused documentation and keep applicable localized mirrors 
 
 ## Completion check
 
-- Audience, page job, and source of truth are clear.
+- Audience, page job, and source of truth are clear; removed content and media references have a task-relevant reason.
 - The documented behavior and package availability match the current repository and release state.
 - Parallel language examples and any localized mirrors have the same structure.
 - No duplicated procedure, dead link, stale identifier, historical narrative, standalone FAQ, or troubleshooting dump remains.

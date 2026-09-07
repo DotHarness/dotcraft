@@ -61,8 +61,12 @@ function fakeHub(): FakeHub {
   }
 }
 
-function satelliteFrame(kind: string, peerId: string): HubEvent {
-  return { kind, at: '2026-09-05T12:00:00.000Z', data: { peerId } }
+function satelliteFrame(kind: string, peerId: string, inviteId?: string): HubEvent {
+  return {
+    kind,
+    at: '2026-09-05T12:00:00.000Z',
+    data: { peerId, ...(inviteId ? { inviteId } : {}) }
+  }
 }
 
 let hub: FakeHub
@@ -188,11 +192,11 @@ describe('SatellitesHubBridge event filtering', () => {
     hub.satellites = [{ peerId: 'sat_2', displayName: 'Bo PC', online: true }]
     bridge.acquire()
 
-    hub.emit(satelliteFrame('satellite.joined', 'sat_2'))
+    hub.emit(satelliteFrame('satellite.joined', 'sat_2', 'inv_2'))
     await vi.advanceTimersByTimeAsync(0)
 
     expect(hub.listCalls).toBe(1)
-    expect(received[0]).toMatchObject({ kind: 'joined', peerId: 'sat_2' })
+    expect(received[0]).toMatchObject({ kind: 'joined', peerId: 'sat_2', inviteId: 'inv_2' })
     expect(received[0].satellite?.displayName).toBe('Bo PC')
   })
 })

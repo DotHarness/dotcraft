@@ -128,7 +128,10 @@ internal sealed class SatelliteConnectionManager(
                 HubLabel = peer.DisplayName
             },
             cancellationToken).ConfigureAwait(false);
-        events.Publish(joined ? "satellite.joined" : "satellite.online", data: new { peerId = peer.PeerId });
+        if (joined)
+            events.Publish("satellite.joined", data: new { peerId = peer.PeerId, inviteId = bearer });
+        else
+            events.Publish("satellite.online", data: new { peerId = peer.PeerId });
 
         try
         {

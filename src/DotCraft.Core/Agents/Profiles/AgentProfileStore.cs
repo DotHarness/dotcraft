@@ -76,9 +76,6 @@ public sealed class AgentProfileEntry
 
     public string? Description { get; init; }
 
-    /// <summary>Optional packed profile avatar used by clients for visual identity.</summary>
-    public int? Avatar { get; init; }
-
     public string Source { get; init; } = AgentProfileSources.BuiltIn;
 
     public string? Path { get; init; }
@@ -90,7 +87,8 @@ public sealed class AgentProfileEntry
 
     public string Fingerprint { get; init; } = string.Empty;
 
-    public bool Valid { get; init; }
+    public bool Valid { get => _valid && !Diagnostics.Any(d => d.Severity == "error"); init => _valid = value; }
+    private readonly bool _valid;
 
     public bool IsBuiltIn => string.Equals(Source, AgentProfileSources.BuiltIn, StringComparison.Ordinal);
 
@@ -123,9 +121,6 @@ public sealed class AgentProfileValidationResult
 
     public string? Description { get; init; }
 
-    /// <summary>Optional packed profile avatar parsed from frontmatter.</summary>
-    public int? Avatar { get; init; }
-
     public string Body { get; init; } = string.Empty;
 
     public string Fingerprint { get; init; } = string.Empty;
@@ -141,46 +136,6 @@ public sealed class AgentProfileValidationResult
     public ThreadConfiguration? CompiledConfiguration { get; init; }
 
     public AgentProfileProviderPreference? ProviderPreference { get; init; }
-}
-
-/// <summary>Packs and validates Agent Profile avatar indices into a single integer frontmatter field.</summary>
-public static class AgentProfileAvatarCodec
-{
-    /// <summary>The number of palette variants currently supported by the desktop renderer.</summary>
-    public const int PaletteCount = 12;
-
-    /// <summary>The number of face variants currently supported by the desktop renderer.</summary>
-    public const int FaceCount = 5;
-
-    /// <summary>The number of accessory variants currently supported by the desktop renderer.</summary>
-    public const int AccessoryCount = 6;
-
-    private const int PaletteMask = 0x0f;
-    private const int FaceMask = 0x07;
-    private const int AccessoryMask = 0x07;
-    private const int FaceShift = 4;
-    private const int AccessoryShift = 7;
-    private const int AvatarMask = PaletteMask | (FaceMask << FaceShift) | (AccessoryMask << AccessoryShift);
-
-    /// <summary>Packs palette, face, and accessory indices into one non-negative integer.</summary>
-    public static int Encode(int palette, int face, int accessory) =>
-        (palette & PaletteMask)
-        | ((face & FaceMask) << FaceShift)
-        | ((accessory & AccessoryMask) << AccessoryShift);
-
-    /// <summary>Attempts to unpack a persisted avatar value into palette, face, and accessory indices.</summary>
-    public static bool TryDecode(int value, out int palette, out int face, out int accessory)
-    {
-        palette = value & PaletteMask;
-        face = (value >> FaceShift) & FaceMask;
-        accessory = (value >> AccessoryShift) & AccessoryMask;
-
-        return value >= 0
-            && (value & ~AvatarMask) == 0
-            && palette < PaletteCount
-            && face < FaceCount
-            && accessory < AccessoryCount;
-    }
 }
 
 public sealed class AgentProfileAuditRecord
@@ -223,15 +178,12 @@ public sealed class AgentProfileException(
 
 public sealed partial class AgentProfileStore
 {
-    private const int MaxProfileIdLength = 80;
-    private static readonly Regex ProfileIdRegex = BuildProfileIdRegex();
     private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder().Build();
 
     private static readonly HashSet<string> TopLevelFields = new(StringComparer.Ordinal)
     {
         "name",
         "description",
-        "avatar",
         "providerPreference",
         "mode",
         "tools",
@@ -359,9 +311,13 @@ public sealed partial class AgentProfileStore
             entries.AddRange(ReadSource(sourceName));
         }
 
+        foreach (var group in entries.Where(e => e.Name != null).GroupBy(e => (e.Source, e.Id)).Where(g => g.Count() > 1))
+            foreach (var entry in group)
+                entry.Diagnostics.Add(Error("DuplicateProfileName", $"Multiple profiles in {entry.Source} use the name '{entry.Id}'."));
+
         var sourceStacks = entries
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Id))
-            .GroupBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(entry => entry.Id, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
                 group => group
@@ -369,11 +325,11 @@ public sealed partial class AgentProfileStore
                     .Select(entry => entry.Source)
                     .Distinct(StringComparer.Ordinal)
                     .ToList(),
-                StringComparer.OrdinalIgnoreCase);
+                StringComparer.Ordinal);
 
         var shadowedIds = entries
             .Where(entry => entry.Valid)
-            .GroupBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(entry => entry.Id, StringComparer.Ordinal)
             .SelectMany(group =>
             {
                 var ordered = group.OrderByDescending(entry => SourcePriority(entry.Source)).ToArray();
@@ -392,7 +348,7 @@ public sealed partial class AgentProfileStore
                 ? CloneWithSourceStack(entry, stack)
                 : entry)
             .Where(entry => includeInvalid || entry.Valid)
-            .OrderBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(entry => entry.Id, StringComparer.Ordinal)
             .ThenBy(entry => SourcePriority(entry.Source))
             .ToList();
 
@@ -401,10 +357,10 @@ public sealed partial class AgentProfileStore
 
     public AgentProfileEntry Read(string id, string? source = null)
     {
-        var normalizedId = NormalizeProfileId(id);
+        var normalizedId = AgentProfileName.Normalize(id);
         var sourceFilter = NormalizeSourceOrNull(source);
         var entries = List(sourceFilter, includeInvalid: true)
-            .Where(entry => string.Equals(entry.Id, normalizedId, StringComparison.OrdinalIgnoreCase))
+            .Where(entry => string.Equals(entry.Id, normalizedId, StringComparison.Ordinal))
             .ToList();
 
         if (entries.Count == 0)
@@ -473,17 +429,16 @@ public sealed partial class AgentProfileStore
 
         var id = ReadOptionalString(frontmatter, "name", diagnostics, required: true);
         var description = ReadOptionalString(frontmatter, "description", diagnostics, required: true);
-        var avatar = ReadOptionalAvatar(frontmatter, diagnostics);
         if (!string.IsNullOrWhiteSpace(id))
         {
-            id = id.Trim();
-            if (!IsValidProfileId(id))
-                diagnostics.Add(Error("InvalidProfileId", $"Agent profile id '{id}' is invalid."));
+            if (!AgentProfileName.IsValid(id))
+                diagnostics.Add(Error("InvalidProfileId", $"Agent profile name '{id}' is invalid."));
+            else id = AgentProfileName.Canonicalize(id);
         }
 
         if (!string.IsNullOrWhiteSpace(expectedId)
             && !string.IsNullOrWhiteSpace(id)
-            && !string.Equals(expectedId.Trim(), id.Trim(), StringComparison.OrdinalIgnoreCase))
+            && !string.Equals(AgentProfileName.Canonicalize(expectedId), id, StringComparison.Ordinal))
         {
             diagnostics.Add(Error(
                 "ProfileIdMismatch",
@@ -507,7 +462,6 @@ public sealed partial class AgentProfileStore
         {
             Id = id,
             Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-            Avatar = avatar,
             Body = extracted.Value.Body,
             Fingerprint = fingerprint,
             Diagnostics = diagnostics,
@@ -516,53 +470,6 @@ public sealed partial class AgentProfileStore
             CompiledConfiguration = config,
             ProviderPreference = providerPreference
         };
-    }
-
-    public AgentProfileEntry Upsert(string id, string source, string rawContent)
-    {
-        var normalizedId = NormalizeProfileId(id);
-        var sourceName = NormalizeSource(source);
-        if (IsReadOnlySource(sourceName))
-            throw new AgentProfileException(AgentProfileErrorKind.Protected, $"Agent profile source '{sourceName}' is read-only.");
-
-        var path = GetWritableProfilePath(sourceName, normalizedId);
-        var validation = ValidateRaw(rawContent, sourceName, normalizedId);
-        if (!validation.Valid)
-            throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, "Agent profile validation failed.", validation.Diagnostics);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, rawContent, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-        AppendAudit(new AgentProfileAuditRecord
-        {
-            Event = "agentProfile.upsert",
-            Code = "AgentProfileUpserted",
-            ProfileId = normalizedId,
-            Source = sourceName
-        });
-
-        return BuildEntryFromContent(normalizedId, sourceName, path, rawContent);
-    }
-
-    public bool Remove(string id, string source)
-    {
-        var normalizedId = NormalizeProfileId(id);
-        var sourceName = NormalizeSource(source);
-        if (IsReadOnlySource(sourceName))
-            throw new AgentProfileException(AgentProfileErrorKind.Protected, $"Agent profile source '{sourceName}' is read-only.");
-
-        var path = GetWritableProfilePath(sourceName, normalizedId);
-        if (!File.Exists(path))
-            throw new AgentProfileException(AgentProfileErrorKind.NotFound, $"Agent profile not found: {normalizedId}");
-
-        File.Delete(path);
-        AppendAudit(new AgentProfileAuditRecord
-        {
-            Event = "agentProfile.remove",
-            Code = "AgentProfileRemoved",
-            ProfileId = normalizedId,
-            Source = sourceName
-        });
-        return true;
     }
 
     public ThreadConfiguration ResolveProfileConfiguration(string id)
@@ -765,7 +672,7 @@ public sealed partial class AgentProfileStore
     {
         if (string.Equals(source, AgentProfileSources.BuiltIn, StringComparison.Ordinal))
             return BuiltInAgentProfileResources.Load()
-                .Select(profile => BuildEntryFromContent(profile.Id, source, $"builtin://agent-profiles/{profile.Id}.md", profile.RawContent))
+                .Select(profile => BuildEntryFromContent(source, $"builtin://agent-profiles/{profile.Id}.md", profile.RawContent))
                 .ToList();
 
         if (string.Equals(source, AgentProfileSources.Plugin, StringComparison.Ordinal))
@@ -778,16 +685,14 @@ public sealed partial class AgentProfileStore
         var entries = new List<AgentProfileEntry>();
         foreach (var path in Directory.EnumerateFiles(directory, "*.md", SearchOption.TopDirectoryOnly))
         {
-            var fileId = Path.GetFileNameWithoutExtension(path);
             try
             {
-                entries.Add(BuildEntryFromContent(fileId, source, path, File.ReadAllText(path)));
+                entries.Add(BuildEntryFromContent(source, path, File.ReadAllText(path)));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 entries.Add(new AgentProfileEntry
                 {
-                    Id = fileId,
                     Source = source,
                     Path = path,
                     Valid = false,
@@ -817,16 +722,14 @@ public sealed partial class AgentProfileStore
             var pluginId = ResolvePluginId(pluginRoot, profileDirectory);
             foreach (var path in Directory.EnumerateFiles(profileDirectory, "*.md", SearchOption.TopDirectoryOnly))
             {
-                var fileId = Path.GetFileNameWithoutExtension(path);
                 try
                 {
-                    entries.Add(BuildEntryFromContent(fileId, AgentProfileSources.Plugin, path, File.ReadAllText(path), pluginId));
+                    entries.Add(BuildEntryFromContent(AgentProfileSources.Plugin, path, File.ReadAllText(path), pluginId));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     entries.Add(new AgentProfileEntry
                     {
-                        Id = fileId,
                         Source = AgentProfileSources.Plugin,
                         PluginId = pluginId,
                         Path = path,
@@ -844,15 +747,14 @@ public sealed partial class AgentProfileStore
         return entries;
     }
 
-    private AgentProfileEntry BuildEntryFromContent(string id, string source, string? path, string rawContent, string? pluginId = null)
+    private AgentProfileEntry BuildEntryFromContent(string source, string? path, string rawContent, string? pluginId = null)
     {
-        var validation = ValidateRaw(rawContent, source, id);
+        var validation = ValidateRaw(rawContent, source);
         return new AgentProfileEntry
         {
-            Id = id,
+            Id = validation.Id ?? string.Empty,
             Name = validation.Id,
             Description = validation.Description,
-            Avatar = validation.Avatar,
             Source = source,
             Path = path,
             UpdatedAt = TryGetLastWriteTime(path),
@@ -900,7 +802,7 @@ public sealed partial class AgentProfileStore
         if (string.IsNullOrWhiteSpace(directory))
             throw new AgentProfileException(AgentProfileErrorKind.SourceUnavailable, $"Agent profile source '{source}' is not available.");
 
-        return Path.Combine(directory, $"{id}.md");
+        return Path.Combine(directory, AgentProfileName.FileName(id));
     }
 
     private static AgentProfileEntry CloneWithShadow(AgentProfileEntry entry, string shadowedBy) => new()
@@ -908,7 +810,6 @@ public sealed partial class AgentProfileStore
         Id = entry.Id,
         Name = entry.Name,
         Description = entry.Description,
-        Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
         UpdatedAt = entry.UpdatedAt,
@@ -939,7 +840,6 @@ public sealed partial class AgentProfileStore
         Id = entry.Id,
         Name = entry.Name,
         Description = entry.Description,
-        Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
         UpdatedAt = entry.UpdatedAt,
@@ -1051,64 +951,6 @@ public sealed partial class AgentProfileStore
         ValidateAllowedFields(TryGetObject(locked, "tools", diagnostics), LockedToolsFields, "locked.tools", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "mcp", diagnostics), LockedMcpFields, "locked.mcp", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "permissions", diagnostics), LockedPermissionsFields, "locked.permissions", diagnostics);
-    }
-
-    private static int? ReadOptionalAvatar(
-        JsonObject frontmatter,
-        List<AgentProfileDiagnostic> diagnostics)
-    {
-        if (!TryGetProperty(frontmatter, "avatar", out var value) || value == null)
-            return null;
-
-        var avatar = ReadPackedAvatarValue(value, diagnostics);
-        return avatar.HasValue && ValidateAvatarValue(avatar.Value, diagnostics) ? avatar.Value : null;
-    }
-
-    private static int? ReadPackedAvatarValue(JsonNode value, List<AgentProfileDiagnostic> diagnostics)
-    {
-        int? parsed = null;
-        if (value is JsonValue jsonValue)
-        {
-            if (jsonValue.TryGetValue<int>(out var intValue))
-                parsed = intValue;
-            else if (jsonValue.TryGetValue<long>(out var longValue)
-                && longValue >= int.MinValue
-                && longValue <= int.MaxValue)
-            {
-                parsed = (int)longValue;
-            }
-            else if (jsonValue.TryGetValue<string>(out var raw)
-                && raw.All(char.IsDigit)
-                && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var stringValue))
-            {
-                parsed = stringValue;
-            }
-        }
-
-        if (!parsed.HasValue)
-        {
-            diagnostics.Add(Error("InvalidFieldType", "Agent profile field 'avatar' must be an integer."));
-            return null;
-        }
-
-        if (parsed.Value < 0)
-        {
-            diagnostics.Add(Error("InvalidPolicyValue", "Agent profile field 'avatar' must be a non-negative integer."));
-            return null;
-        }
-
-        return parsed.Value;
-    }
-
-    private static bool ValidateAvatarValue(int avatar, List<AgentProfileDiagnostic> diagnostics)
-    {
-        if (AgentProfileAvatarCodec.TryDecode(avatar, out _, out _, out _))
-            return true;
-
-        diagnostics.Add(Error(
-            "InvalidPolicyValue",
-            $"Agent profile field 'avatar' must encode palette < {AgentProfileAvatarCodec.PaletteCount}, face < {AgentProfileAvatarCodec.FaceCount}, and accessory < {AgentProfileAvatarCodec.AccessoryCount}."));
-        return false;
     }
 
     private static void ApplyPluginTrustRestrictions(
@@ -1728,32 +1570,6 @@ public sealed partial class AgentProfileStore
             .Any(property => string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string NormalizeProfileId(string id)
-    {
-        if (string.IsNullOrWhiteSpace(id))
-            throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, "Agent profile id is required.");
-
-        var normalized = id.Trim();
-        if (!IsValidProfileId(normalized))
-            throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, $"Agent profile id '{normalized}' is invalid.");
-
-        return normalized;
-    }
-
-    private static bool IsValidProfileId(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value) || value.Length > MaxProfileIdLength)
-            return false;
-
-        if (value is "." or "..")
-            return false;
-
-        if (value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            return false;
-
-        return ProfileIdRegex.IsMatch(value);
-    }
-
     private static string NormalizeSource(string source) =>
         NormalizeSourceOrNull(source)
         ?? throw new AgentProfileException(AgentProfileErrorKind.SourceUnavailable, $"Agent profile source '{source}' is not supported.");
@@ -1925,6 +1741,4 @@ public sealed partial class AgentProfileStore
 
     private readonly record struct ExtractedProfile(string Frontmatter, string Body);
 
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$", RegexOptions.CultureInvariant)]
-    private static partial Regex BuildProfileIdRegex();
 }

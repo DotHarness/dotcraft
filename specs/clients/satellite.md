@@ -73,15 +73,20 @@ short probe, the CLI pairs directly.
 
 ## Consent
 
-Satellite MUST show a consent window before storing any peer credential. The window MUST show:
+Satellite MUST show inviter, Hub and purpose before storing credentials. Consent offers
+`workspacePreferred` (default) and `fullAccess`. The default allows ordinary task-folder file
+operations and asks the local owner before external files, new commands, nonempty terminal input
+and language-server execution. This is approval-based, not an OS sandbox. Full access requires
+explicit acknowledgement and remains subject to Windows permissions and Host deny policy.
+A new per-pairing task folder is suggested and created only on acceptance. The owner may choose
+an existing folder instead. Whole drives and user profiles remain invalid.
 
-- the inviter's display name and the Hub machine it comes from;
-- the purpose text carried by the invitation;
-- the folder to share, which the owner chooses on this machine; nothing is pre-filled, and Allow
-  stays unavailable until an existing folder that is neither a whole drive nor the user profile
-  has been chosen;
-- an explicit list of what acceptance grants: reading and changing files inside that folder,
-  running commands on this machine, and that access exists only while this machine stays signed in.
+Owner requests show the inviter and exact operation, offer Allow once or Deny, queue serially,
+and expire after two minutes. Cancellation, disconnect, pause, revoke and authorization changes
+invalidate pending decisions. No local UI means deny. Inviter approval never replaces owner
+approval. Shell approval explicitly covers possible effects outside the task folder.
+Existing pairings with no mode require local reauthorization. The tray exposes mode, folder and
+authorization management. Mode changes drain execution resources before changing authorization.
 
 Parsing an invitation link MUST be a pure operation. Filling the window costs exactly one `GET` of
 the invitation URL, which reads the inviter, purpose, and expiry and writes nothing on either

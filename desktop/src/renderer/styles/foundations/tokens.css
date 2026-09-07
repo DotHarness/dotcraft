@@ -122,6 +122,7 @@
   --button-height: 32px;
   --button-height-sm: 28px;
   --button-radius: 8px;
+  --button-text-radius: 999px;
   --button-padding-x: 12px;
   /* Catalog top bars run their own shorter, rounder control band. */
   --toolbar-control-height: 28px;

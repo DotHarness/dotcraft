@@ -60,6 +60,7 @@ export interface SatelliteEvent {
 }
 
 export interface SharePcPeer {
+  authorizationMode?: 'workspacePreferred' | 'fullAccess'
   peerId: string
   hubLabel: string
   folderPath?: string

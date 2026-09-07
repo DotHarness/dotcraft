@@ -125,6 +125,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         sdkUpdates = providerItemIdentities.TrackAsync(sdkUpdates, cancellationToken);
         if (providerHistory != null)
             sdkUpdates = CaptureProviderHistoryAsync(sdkUpdates, providerHistory, cancellationToken);
+        var images = new ResponsesImageGenerationStream();
+        sdkUpdates = images.CaptureAsync(sdkUpdates, cancellationToken);
         var functionCallNamespaces = new Dictionary<string, string>(StringComparer.Ordinal);
         var normalizedUpdates = ResponsesToolSearchMapper.NormalizeToolSearchCalls(
             sdkUpdates,
@@ -135,10 +137,13 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                            .AsChatResponseUpdatesAsync(responseOptions, cancellationToken)
                            .ConfigureAwait(false))
         {
+            images.Apply(update);
             providerItemIdentities.Apply(update);
             ResponsesToolSearchMapper.ApplyRecordedFunctionCallNamespaces(update, functionCallNamespaces);
             yield return SuppressProviderContinuation(update);
         }
+        foreach (var content in images.Drain())
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [content]);
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null) =>

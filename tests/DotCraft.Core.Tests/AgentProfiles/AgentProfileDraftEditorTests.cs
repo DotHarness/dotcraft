@@ -52,7 +52,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         {
             Name = "release-notes-writer",
             Description = "Drafts release notes from merged PRs",
-            Avatar = AgentProfileAvatarCodec.Encode(7, 3, 5),
             HasProviderPreference = true,
             ProviderId = "anthropic",
             Model = "claude-opus-4-8",
@@ -78,7 +77,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
         Assert.Equal(draft.Name, roundTripped.Name);
         Assert.Equal(draft.Description, roundTripped.Description);
-        Assert.Equal(draft.Avatar, roundTripped.Avatar);
         Assert.Equal(draft.HasProviderPreference, roundTripped.HasProviderPreference);
         Assert.Equal(draft.ProviderId, roundTripped.ProviderId);
         Assert.Equal(draft.Model, roundTripped.Model);
@@ -107,7 +105,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
         var md = AgentProfileDraftEditor.ToMarkdown(draft);
 
-        Assert.Contains("name: minimal", md);
+        Assert.Equal("minimal", AgentProfileDraftEditor.Parse(md).Name);
         Assert.DoesNotContain("providerPreference:", md);
         Assert.DoesNotContain("model:", md);
         Assert.DoesNotContain("reasoning:", md);
@@ -183,7 +181,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         {
             Name = "doc-writer",
             Description = "Writes documentation",
-            Avatar = AgentProfileAvatarCodec.Encode(2, 1, 4),
             ToolPolicyMode = "allowList",
             ToolsAllow = ["ReadFile"],
             SkillsPreload = ["docx"],
@@ -199,7 +196,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
         Assert.True(entry.Valid, string.Join("; ", entry.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
         Assert.Equal("Writes documentation", entry.Description);
-        Assert.Equal(AgentProfileAvatarCodec.Encode(2, 1, 4), entry.Avatar);
         Assert.NotNull(entry.CompiledConfiguration);
         Assert.Contains("ReadFile", entry.CompiledConfiguration!.ToolPolicy?.Allow ?? []);
     }

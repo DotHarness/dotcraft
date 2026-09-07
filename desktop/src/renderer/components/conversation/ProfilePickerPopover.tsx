@@ -3,16 +3,14 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { RobotAvatar } from '../agents/RobotAvatar'
-import { resolveProfileAvatar, type AvatarSpec } from '../agents/agentAvatar'
 
 interface ProfileEntry {
   id: string
+  name?: string
   description?: string
   source: string
   valid?: boolean
   shadowed?: boolean
-  /** Avatar the user configured in the builder (packed number or spec); honored over the derived one. */
-  avatar?: number | AvatarSpec
 }
 
 interface ProfilePickerPopoverProps {
@@ -91,10 +89,10 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
                 onMouseLeave={() => setHoveredId((prev) => (prev === profile.id ? null : prev))}
               >
                 <span style={AVATAR_STYLE} aria-hidden>
-                  <RobotAvatar spec={resolveProfileAvatar(profile.id, profile.avatar)} size={30} />
+                  <RobotAvatar name={profile.name || profile.id} size={30} />
                 </span>
                 <span style={COPY_STYLE}>
-                  <span style={NAME_STYLE}>{profile.id}</span>
+                  <span style={NAME_STYLE}>{profile.name || profile.id}</span>
                   {profile.description && <span style={DESC_STYLE}>{profile.description}</span>}
                 </span>
               </button>

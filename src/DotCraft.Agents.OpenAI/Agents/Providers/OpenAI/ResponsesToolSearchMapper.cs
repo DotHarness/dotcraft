@@ -352,38 +352,6 @@ internal static partial class ResponsesToolSearchMapper
         }
     }
 
-    public static async IAsyncEnumerable<StreamingResponseUpdate> CaptureHostedImageGenerationCalls(
-        IAsyncEnumerable<StreamingResponseUpdate> updates,
-        Queue<HostedImageGenerationContent> captured,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(captured);
-        var capturedIds = new HashSet<string>(StringComparer.Ordinal);
-
-        await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            if (update is StreamingResponseOutputItemDoneUpdate done
-                && TryCreateHostedImageGenerationContent(done.Item, out var content))
-            {
-                EnqueueIfNew(content);
-            }
-            else if (TryCreateHostedImageGenerationContent(update, out content))
-            {
-                EnqueueIfNew(content);
-            }
-
-            yield return update;
-        }
-
-        void EnqueueIfNew(HostedImageGenerationContent content)
-        {
-            if (!string.IsNullOrWhiteSpace(content.Id) && !capturedIds.Add(content.Id))
-                return;
-
-            captured.Enqueue(content);
-        }
-    }
-
     public static void ApplyRecordedFunctionCallNamespaces(
         ChatResponseUpdate update,
         IReadOnlyDictionary<string, string> functionCallNamespaces)

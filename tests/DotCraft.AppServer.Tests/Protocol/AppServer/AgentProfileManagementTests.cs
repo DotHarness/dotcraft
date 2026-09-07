@@ -70,7 +70,7 @@ public sealed class AgentProfileManagementTests : IDisposable
             Assert.Equal(raw, profile.GetProperty("rawContent").GetString());
         }
 
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "agents", "reviewer-lite.md")));
+        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "agents", DotCraft.Agents.AgentProfileName.FileName("reviewer-lite"))));
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileList, new { }));
         using (var listResponse = await harness.Transport.ReadNextSentAsync())
@@ -150,62 +150,6 @@ public sealed class AgentProfileManagementTests : IDisposable
         Assert.Contains(
             result.GetProperty("diagnostics").EnumerateArray(),
             diagnostic => diagnostic.GetProperty("code").GetString() == "PinnedProviderUnavailable");
-    }
-
-    [Fact]
-    public async Task CrudMethods_SurfaceAvatarMetadata()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        var raw = """
----
-name: avatar-bot
-description: Uses a persisted avatar
-avatar: 278
----
-
-Avatar body.
-""";
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
-        {
-            id = "avatar-bot",
-            source = "workspace",
-            rawContent = raw
-        }));
-
-        using (var upsertResponse = await harness.Transport.ReadNextSentAsync())
-        {
-            AppServerTestHarness.AssertIsSuccessResponse(upsertResponse);
-            Assert.Equal(
-                AgentProfileAvatarCodec.Encode(6, 1, 2),
-                upsertResponse.RootElement.GetProperty("result").GetProperty("profile").GetProperty("avatar").GetInt32());
-        }
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileList, new { }));
-        using (var listResponse = await harness.Transport.ReadNextSentAsync())
-        {
-            AppServerTestHarness.AssertIsSuccessResponse(listResponse);
-            var profile = listResponse.RootElement.GetProperty("result").GetProperty("profiles")
-                .EnumerateArray()
-                .Single(profile => profile.GetProperty("id").GetString() == "avatar-bot");
-            Assert.Equal(AgentProfileAvatarCodec.Encode(6, 1, 2), profile.GetProperty("avatar").GetInt32());
-        }
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRead, new
-        {
-            id = "avatar-bot"
-        }));
-
-        using var readResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(readResponse);
-        Assert.Equal(
-            AgentProfileAvatarCodec.Encode(6, 1, 2),
-            readResponse.RootElement.GetProperty("result")
-                .GetProperty("profile")
-                .GetProperty("avatar")
-                .GetInt32());
     }
 
     [Fact]

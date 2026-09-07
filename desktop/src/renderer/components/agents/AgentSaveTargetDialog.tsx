@@ -5,7 +5,9 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderGit2, Save, User } from 'lucide-react'
+import { Button } from '../ui/Button'
 import { ModalHeader } from '../ui/ModalHeader'
+import './AgentSaveTargetDialog.css'
 import type { SaveTarget } from './agentProfileDraft'
 
 interface AgentSaveTargetDialogProps {
@@ -56,9 +58,9 @@ export function AgentSaveTargetDialog({ name, onChoose, onCancel }: AgentSaveTar
           />
         </div>
 
-        <button type="button" onClick={onCancel} style={cancelStyle}>
+        <Button variant="secondary" onClick={onCancel} className="agent-save-cancel">
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -169,16 +171,4 @@ const optionTitleStyle: CSSProperties = {
 const optionSubtitleStyle: CSSProperties = {
   fontSize: '12px',
   color: 'var(--text-secondary)'
-}
-
-const cancelStyle: CSSProperties = {
-  marginTop: '14px',
-  width: '100%',
-  padding: '8px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  fontSize: '13px',
-  cursor: 'pointer'
 }

@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { parseProfile, toMarkdown, type ProfileDraft } from '../components/agents/agentProfileDraft'
 
 describe('agent profile draft avatar metadata', () => {
-  it('round-trips avatar frontmatter', () => {
+  it('drops legacy avatar frontmatter because appearance derives from name', () => {
     const draft: ProfileDraft = {
       name: 'avatar-bot',
       description: 'Uses a persisted avatar',
-      avatar: { palette: 6, face: 1, accessory: 2 },
       providerPreference: null,
       tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
       mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
@@ -18,8 +17,8 @@ describe('agent profile draft avatar metadata', () => {
     const markdown = toMarkdown(draft)
     const parsed = parseProfile(markdown)
 
-    expect(markdown).toContain('avatar: 278')
-    expect(parsed.avatar).toEqual(draft.avatar)
+    expect(markdown).not.toContain('avatar:')
+    expect(parsed).not.toHaveProperty('avatar')
   })
 
   it('leaves profiles without avatar metadata unset', () => {
@@ -31,7 +30,7 @@ description: Inherited profile
 Inherited body.
 `)
 
-    expect(parsed.avatar).toBeUndefined()
+    expect(parsed).not.toHaveProperty('avatar')
     expect(parsed.providerPreference).toBeNull()
   })
 
@@ -138,3 +137,20 @@ function createDraftWithProviderPreference(): ProfileDraft {
     roleInstructions: ''
   }
 }
+
+
+describe('canonical profile names', () => {
+  it.each(['Night Shift', '夜班助手', '报告: "本周" / #1', 'true', "Agent's notes"])(
+    'round-trips %s through YAML', (name) => {
+      const draft = parseProfile(`---\nname: ${JSON.stringify(name)}\ndescription: Test\n---\nBody`)
+      expect(parseProfile(toMarkdown(draft)).name).toBe(name)
+    }
+  )
+  it('normalizes names before saving without changing case', () => {
+    const draft = parseProfile('---\nname: " Cafe\u0301 "\ndescription: Test\n---\nBody')
+    expect(parseProfile(toMarkdown(draft)).name).toBe('Café')
+  })
+  it('keeps malformed scalar text editable', () => {
+    expect(() => parseProfile('---\nname: "unfinished\ndescription: Test\n---\nBody')).not.toThrow()
+  })
+})

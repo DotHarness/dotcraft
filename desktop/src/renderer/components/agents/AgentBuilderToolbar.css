@@ -1,0 +1,11 @@
+.agent-builder-edit-head { flex: 0 0 auto; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 18px; }
+.agent-builder-edit-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.agent-builder-edit-right { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
+.agent-builder-autosave { font-size: 11.5px; color: var(--text-dimmed); white-space: nowrap; }
+.agent-builder-autosave.is-error { color: var(--error); }
+.agent-builder-menu { position: relative; display: inline-flex; }
+.agent-builder-menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 150px; padding: 6px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.agent-builder-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.agent-builder-menu-item:hover { background: var(--bg-tertiary); }
+.agent-builder-menu-item.is-danger { color: color-mix(in srgb, var(--error) 80%, var(--text-primary)); }
+.agent-builder-menu-item.is-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }

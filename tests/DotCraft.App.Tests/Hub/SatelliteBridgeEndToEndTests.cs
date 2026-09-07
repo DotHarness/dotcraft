@@ -40,7 +40,7 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
             ["content"] = "approved"
         });
         Assert.True(writeResult.Success, writeResult.Error?.Message);
-        Assert.Equal(1, approvals.RequestCount);
+        Assert.Equal(0, approvals.RequestCount);
         Assert.Equal(
             "approved",
             await File.ReadAllTextAsync(Path.Combine(scenario.WorkspacePath, "approved.txt")));
@@ -53,7 +53,7 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
         });
         Assert.False(denied.Success);
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, denied.Error?.Code);
-        Assert.Equal(1, approvals.RequestCount);
+        Assert.Equal(0, approvals.RequestCount);
 
         var spilled = await InvokeAsync(client, connected.Route, read, "spill", new JsonObject
         {

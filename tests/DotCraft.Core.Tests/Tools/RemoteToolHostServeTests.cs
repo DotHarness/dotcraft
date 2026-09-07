@@ -10,7 +10,7 @@ namespace DotCraft.Tests.Tools;
 public sealed class RemoteToolHostServeTests
 {
     [Fact]
-    public async Task Serve_UsesGlobalAndWorkspaceConfig_EnablesLsp()
+    public async Task Serve_UsesHostConfig_AndRejectsUnpairedWorkspace()
     {
         using var home = new TemporaryDirectory();
         using var shared = new TemporaryDirectory();
@@ -39,11 +39,11 @@ public sealed class RemoteToolHostServeTests
         client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
 
         var withLsp = await client.ConnectAsync("thread-shared", server.PeerId, "shared");
-        var withoutLsp = await client.ConnectAsync("thread-opted-out", server.PeerId, "opted-out");
+        await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
+            await client.ConnectAsync("thread-opted-out", server.PeerId, "opted-out"));
 
         Assert.Contains("LSP", withLsp.MatchedTools);
-        Assert.DoesNotContain("LSP", withoutLsp.MatchedTools);
-        Assert.Contains("LSP", withoutLsp.UnavailableTools);
+
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class RemoteToolHostServeTests
         await File.WriteAllTextAsync(Path.Combine(workspace.Path, "open.txt"), "open-value");
         var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
         RemoteToolHostTestHost.WriteConfig(
-            Path.Combine(workspace.Path, ".craft", "config.json"),
+            storage.GlobalConfigPath,
             new { Security = new { BlacklistedPaths = new[] { secretDirectory } } });
         RemoteToolHostTestHost.Setup(
             storage,
@@ -103,7 +103,7 @@ public sealed class RemoteToolHostServeTests
         });
 
         Assert.DoesNotContain("top-secret", blocked.Content, StringComparison.Ordinal);
-        Assert.Contains("blacklist", blocked.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("blacklist", blocked.Error?.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("open-value", allowed.Content, StringComparison.Ordinal);
     }
 
@@ -209,7 +209,7 @@ public sealed class RemoteToolHostServeTests
     }
 
     [Fact]
-    public async Task ListTools_UsesLeasedWorkspace_NotFirstRegistered()
+    public async Task ListTools_DoesNotLoadExecutableConfigFromSharedWorkspace()
     {
         using var home = new TemporaryDirectory();
         using var plain = new TemporaryDirectory();
@@ -234,9 +234,9 @@ public sealed class RemoteToolHostServeTests
             enableLsp: true);
         client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
 
-        var connected = await client.ConnectAsync("thread", server.PeerId, "b-lsp");
+        var connected = await client.ConnectAsync("thread", server.PeerId, "a-plain");
 
-        Assert.Contains("LSP", connected.MatchedTools);
+        Assert.DoesNotContain("LSP", connected.MatchedTools);
     }
 
     [Fact]

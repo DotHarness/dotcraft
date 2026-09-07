@@ -4,7 +4,13 @@ An Agent Profile saves a purpose-built DotCraft agent so you can reach for it wh
 
 ![DotCraft Agent Profiles](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
 
-Start with one specialist or build out a whole agent team: an Explorer for research, a Builder for implementation, or an Operator for app workflows. Each role is an independent Profile you can choose whenever the work calls for it.
+Choose a role for the result you need: Researcher for an evidence-backed answer, Prototyper for a runnable idea, or Task Runner for a local task. Each role is an independent Profile you can choose whenever the work calls for it.
+
+DotCraft derives each profile's avatar from its name, so the same name keeps the same visual identity wherever the profile appears.
+
+Names support spaces and Unicode (1–240 characters, without control characters). They are trimmed and NFC-normalized while preserving case. Display, lookup, and avatars use that one name. Storage filenames are generated safely; no separate ID is required.
+
+In Desktop, choose **Agents → New agent** to open the editor and builder conversation together. Describe what you need in the conversation or fill in the profile directly, then choose **Create** to save it. Select a built-in template from the Agents gallery to start from an existing role.
 
 ## Where profiles pay off
 
@@ -17,15 +23,16 @@ A profile takes effect when a conversation or task starts. A conversation that's
 
 ## Built-in profiles
 
-DotCraft includes five starting points for your agent team. Use one as-is or open it in Agent Builder and shape it around your project.
+DotCraft includes six starting points for local tasks and concrete deliverables. Use one as-is or open it in Agent Builder and shape it around your project.
 
 | Profile | Best fit |
 |---|---|
-| <img src="/leader.svg" alt="Leader Agent Profile" width="64" height="64"> **Leader** | Plans complex work, delegates to specialists, verifies results, and combines the delivery. |
-| <img src="/explorer.svg" alt="Explorer Agent Profile" width="64" height="64"> **Explorer** | Investigates unfamiliar systems, resolves unknowns, and reports evidence without changing state. |
-| <img src="/builder.svg" alt="Builder Agent Profile" width="64" height="64"> **Builder** | Implements focused changes and verifies the result. |
-| <img src="/reviewer.svg" alt="Reviewer Agent Profile" width="64" height="64"> **Reviewer** | Independently checks correctness, risk, test coverage, and maintainability. |
-| <img src="/operator.svg" alt="Operator Agent Profile" width="64" height="64"> **Operator** | Operates apps, browsers, MCP servers, and workflows with explicit control over side effects. |
+| **Task Runner** | Completes local tasks and hands back verified results. |
+| **Researcher** | Answers questions with sources and clear conclusions. |
+| **Writer** | Turns source material into editable documents and presentations. |
+| **Data Analyst** | Analyzes files and delivers reproducible findings and charts. |
+| **Prototyper** | Builds runnable prototypes and verifies the core idea. |
+| **QA Tester** | Reproduces issues and verifies workflows with evidence. |
 
 ## Agent Builder
 

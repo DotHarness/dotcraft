@@ -27,6 +27,10 @@
 
 Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代码可以导入它获取类型。
 
+## Avatar 包
+
+`@dotcraft/avatar/react` 提供面向 React 19 的 DotCraft 名称派生 `Avatar` 组件。传入 `name` 和 `size`，还可传入 `state`、`motion`、`paused`、`eventSequence` 和 `label`。不依赖框架的包根入口导出 `deriveAppearance`，它会先去除名称两端空白并进行 NFC 规范化，再生成外观。规范化后相同的名称会得到相同的视觉身份，空名称会使用原始 DotCraft 外观。
+
 ## 高层 API
 
 | 任务 | API |

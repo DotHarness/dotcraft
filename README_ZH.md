@@ -29,6 +29,32 @@ DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 - **面向 .NET 的完整 Agent Harness：** 把完整的 Agent 能力带进你正在构建的 .NET 应用，从桌面工具到服务与自动化流程。
 - **轻松接入现有产品：** API、SDK、App Binding 和 Plugins，让 DotCraft 直接集成到你的应用中。
 
+## 探索 DotCraft
+
+### Desktop
+
+[![你的项目，你的 Agent，同一个桌面。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-desktop.png)](https://www.dotcraft.net/zh/features/entry-points/desktop)
+
+在一个桌面窗口里与 Agent 处理项目，查看计划、运行过程和代码改动。[了解 Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop)。
+
+### DotCraft.Harness
+
+[![把 Agent 能力嵌入你的 .NET 应用。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/zh/developing/harness/)
+
+通过 `DotCraft.Harness` NuGet 包，将 Agent 运行时、会话、工具与审批能力嵌入你的 .NET 应用。[使用 Harness 构建应用](https://www.dotcraft.net/zh/developing/harness/)。
+
+### Oratorio
+
+[![从任务到审阅与交付。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-oratorio.png)](https://www.dotcraft.net/zh/features/oratorio)
+
+将本地任务、GitHub 和 GitLab 工作汇入同一看板，交给 Agent 执行，再审阅和交付结果。[了解 Oratorio](https://www.dotcraft.net/zh/features/oratorio)。
+
+### 卫星
+
+[![让你的 Agent 到另一台电脑上工作。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/zh/features/agent-system/satellite)
+
+让 Agent 使用另一台电脑获准共享的文件夹与工具，对话、审批和历史仍留在你这边。[连接卫星](https://www.dotcraft.net/zh/features/agent-system/satellite)。
+
 ## 快速开始
 
 DotCraft 支持 OpenAI、Anthropic 模型提供商，或使用你的 ChatGPT 订阅登录。

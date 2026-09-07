@@ -48,6 +48,7 @@ interface RawHostPeer {
   peerId?: unknown
   hubLabel?: unknown
   workspaceId?: unknown
+  authorizationMode?: unknown
   pairedAt?: unknown
 }
 
@@ -90,6 +91,8 @@ function peersOf(state: RawHostState): SharePcPeer[] {
     result.push({
       peerId,
       hubLabel: text(raw.hubLabel) ?? '',
+      ...(raw.authorizationMode === 'workspacePreferred' || raw.authorizationMode === 'fullAccess'
+        ? { authorizationMode: raw.authorizationMode } : {}),
       ...(folderPath ? { folderPath } : {}),
       ...(text(raw.pairedAt) ? { pairedAt: text(raw.pairedAt) as string } : {})
     })

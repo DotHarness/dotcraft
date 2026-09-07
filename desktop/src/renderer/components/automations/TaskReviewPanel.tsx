@@ -16,7 +16,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { WorktreeHandoffDialog } from '../conversation/WorktreeHandoffDialog'
 import { ArrowRightLeft, ExternalLink, GitBranch, RefreshCcw, Trash2, X } from 'lucide-react'
-import { Button } from '../ui/Button'
+import { Button, ButtonLabel } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 
 function ApprovalPolicyBadge({
@@ -247,7 +247,7 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
                 onClick={() => void openThread()}
               >
                 <ExternalLink size={13} aria-hidden />
-                <span>{t('auto.review.openThread')}</span>
+                <ButtonLabel>{t('auto.review.openThread')}</ButtonLabel>
               </Button>
               <ActionTooltip label={t('auto.review.handoffToLocal')} disabledReason={disableHandoffReason}>
                 <Button
@@ -257,7 +257,7 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
                   onClick={() => void startHandoff()}
                 >
                   <ArrowRightLeft size={13} aria-hidden />
-                  <span>{t('auto.review.handoffToLocal')}</span>
+                  <ButtonLabel>{t('auto.review.handoffToLocal')}</ButtonLabel>
                 </Button>
               </ActionTooltip>
               <Button
@@ -271,7 +271,7 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
                 loading={busy}
               >
                 <Trash2 size={13} aria-hidden />
-                <span>{busy ? t('auto.deleting') : t('auto.review.discardWorktree')}</span>
+                <ButtonLabel>{busy ? t('auto.deleting') : t('auto.review.discardWorktree')}</ButtonLabel>
               </Button>
             </div>
           </div>

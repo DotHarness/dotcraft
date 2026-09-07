@@ -52,6 +52,7 @@ jobs:
             const manifests = [
               ["@dotcraft/sdk", "sdk/typescript/package.json", "sdk/typescript"],
               ["@dotcraft/plugin", "sdk/typescript/packages/plugin/package.json", "sdk/typescript/packages/plugin"],
+              ["@dotcraft/avatar", "sdk/typescript/packages/avatar/package.json", "sdk/typescript/packages/avatar"],
             ].map(([name, path, directory]) => [name, directory, JSON.parse(readFileSync(path, "utf8"))]);
             const version = manifests[0][2].version;
 
@@ -104,6 +105,7 @@ jobs:
               const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
               const response = await fetch(url, { headers: { accept: "application/json" } });
               if (response.status === 404) {
+                if (name === "@dotcraft/avatar") continue;
                 throw new Error(`${name} does not exist on npmjs.com.`);
               }
               if (!response.ok) {
@@ -144,8 +146,10 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/artifacts/npm"
           npm pack --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
           npm pack --workspace @dotcraft/plugin --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
+          npm pack --workspace @dotcraft/avatar --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
           test -f "$GITHUB_WORKSPACE/artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz"
           test -f "$GITHUB_WORKSPACE/artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz"
+          test -f "$GITHUB_WORKSPACE/artifacts/npm/dotcraft-avatar-$PACKAGE_VERSION.tgz"
           sha256sum "$GITHUB_WORKSPACE"/artifacts/npm/*.tgz
         working-directory: sdk/typescript
 
@@ -185,3 +189,4 @@ jobs:
         run: |
           npm publish "artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
           npm publish "artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
+          npm publish "artifacts/npm/dotcraft-avatar-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org

@@ -41,6 +41,7 @@ Out of scope:
 - Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete Profile model preset; canonical profiles do not merge individual model-option fields with workspace defaults.
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
 - Runtime-owned capabilities remain outside profile policy. Profiles specialize a thread without taking ownership of scheduling or runtime lifecycle.
+- Visual identity is client-derived from the profile name. It is not authored in profile frontmatter, stored by the profile service, or exposed by the AppServer profile contract.
 
 ---
 
@@ -54,7 +55,6 @@ Minimal shape:
 ---
 name: reviewer
 description: Read-only reviewer focused on correctness, risks, and tests.
-avatar: 457
 tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch]
   agentControl: disabled
@@ -70,7 +70,7 @@ Required fields:
 
 | Field | Meaning |
 |-------|---------|
-| `name` | Stable profile id. |
+| `name` | Canonical Unicode name used for display, lookup, and avatars. |
 | `description` | Human-readable purpose and selection hint. |
 
 Supported frontmatter groups:
@@ -79,7 +79,6 @@ Supported frontmatter groups:
 |-------|---------|
 | `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed, and context-window mode. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
 | `mode` | Other runtime defaults for new profile-backed threads. |
-| `avatar` | Optional packed non-negative integer client visual identity metadata. Bits 0-3 encode `palette`, bits 4-6 encode `face`, and bits 7-9 encode `accessory`. It is not compiled into thread configuration or model-visible instructions. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
 | `plugins` | Plugin/app capability policy. |
@@ -89,7 +88,11 @@ Supported frontmatter groups:
 
 Validation rules:
 
-- `name` must be stable and safe for storage and API use.
+- `name` is trimmed and NFC-normalized, preserves case and internal spaces, contains 1–240 Unicode scalar values, and contains no control characters. Equality is ordinal after normalization.
+- The document name, not its filename, identifies a profile. New writable files use lowercase SHA-256 of the UTF-8 canonical name plus `.md`; hand-written filenames remain valid and are preserved on updates.
+- Duplicate names within one source are invalid and block mutation. Cross-source shadowing remains whole-document priority resolution.
+- `id` and `agentProfileId` reference this same canonical name; there is no independent display-name or slug field.
+- Upsert accepts optional `previousName` for a same-source rename. It validates the new document and target-name availability before replacing the old document. Failure preserves the original. Existing thread snapshots retain their original provenance; renaming does not rewrite historical threads.
 - `description` must be present for valid authoring and selection UX.
 - Unknown fields are rejected unless explicitly marked experimental.
 - The Markdown body maps to role instructions, not a base-prompt replacement.
@@ -359,3 +362,7 @@ The Agent Profiles system is complete when:
 - profile CRUD and validation are available through the management API,
 - refresh is explicit and updates stale profile-backed threads predictably,
 - diagnostics explain invalid profiles, shadowing, stale threads, locks, and trust restrictions.
+
+### Desktop creation
+
+New agent opens the profile editor alongside the builder conversation. The empty conversation offers creation prompts; templates remain available in the Agents gallery. An unnamed draft uses the default DotCraft avatar. Once named, the editor and conversation use the canonical name for their avatars.

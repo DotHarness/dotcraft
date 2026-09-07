@@ -412,16 +412,6 @@
       "title": "AgentProfileEntry",
       "type": "object",
       "properties": {
-        "avatar": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "compiledConfig": {
           "anyOf": [
             {
@@ -772,6 +762,9 @@
       "type": "object",
       "properties": {
         "id": {
+          "type": "string"
+        },
+        "previousName": {
           "type": "string"
         },
         "rawContent": {
@@ -6458,6 +6451,16 @@
         "callId": {
           "type": "string"
         },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "errorMessage": {
           "anyOf": [
             {
@@ -6491,7 +6494,47 @@
             }
           ]
         },
+        "saveErrorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "saveStatus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "savedHostId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "savedPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "savedWorkspaceId": {
           "anyOf": [
             {
               "type": "string"

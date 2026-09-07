@@ -41,40 +41,50 @@ public sealed class AgentProfileStoreTests : IDisposable
     public void List_UsesSourcePriorityAndMarksShadowedProfiles()
     {
         File.WriteAllText(
-            Path.Combine(_userCraftPath, "agents", "reviewer.md"),
-            ValidProfile("reviewer", "User reviewer"));
+            Path.Combine(_userCraftPath, "agents", "Researcher.md"),
+            ValidProfile("Researcher", "User Researcher"));
         File.WriteAllText(
-            Path.Combine(_workspaceCraftPath, "agents", "reviewer.md"),
-            ValidProfile("reviewer", "Workspace reviewer"));
+            Path.Combine(_workspaceCraftPath, "agents", "Researcher.md"),
+            ValidProfile("Researcher", "Workspace Researcher"));
 
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
         var entries = store.List();
-        var effective = store.Read("reviewer");
+        var effective = store.Read("Researcher");
 
         Assert.Equal(AgentProfileSources.Workspace, effective.Source);
-        Assert.Equal("Workspace reviewer", effective.Description);
+        Assert.Equal("Workspace Researcher", effective.Description);
 
         var userEntry = entries.Single(entry =>
-            entry.Id == "reviewer"
+            entry.Id == "Researcher"
             && entry.Source == AgentProfileSources.User);
         Assert.True(userEntry.Shadowed);
         Assert.Equal(AgentProfileSources.Workspace, userEntry.ShadowedBy);
 
         var builtInEntry = entries.Single(entry =>
-            entry.Id == "reviewer"
+            entry.Id == "Researcher"
             && entry.Source == AgentProfileSources.BuiltIn);
         Assert.True(builtInEntry.Shadowed);
     }
 
+    [Fact]
+    public void BuiltInProfiles_OfferSixDeliveryRoles()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        Assert.Equal(
+            new[] { "Data Analyst", "Prototyper", "QA Tester", "Researcher", "Task Runner", "Writer" },
+            store.List().Where(entry => entry.Source == AgentProfileSources.BuiltIn)
+                .Select(entry => entry.Id).OrderBy(name => name, StringComparer.Ordinal));
+    }
+
     [Theory]
-    [InlineData("leader", 128, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos,SpawnAgent,SendMessage,FollowupTask,WaitAgent,ListAgents,CloseAgent", null, AgentControlToolAccess.Full, ApprovalPolicy.Default)]
-    [InlineData("explorer", 555, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("builder", 274, "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("reviewer", 457, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
-    [InlineData("operator", 695, null, "WriteFile,EditFile,Exec,WriteStdin,Cron,CreatePlan,TodoWrite,UpdateTodos,GetGoal,CreateGoal,UpdateGoal,imagegen", AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Task Runner", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Researcher", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,LSP", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Writer", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Data Analyst", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,WebSearch,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile,LSP,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("QA Tester", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     public void BuiltInProfiles_CompileRoleCapabilityPolicies(
         string profileId,
-        int avatar,
         string? allowedTools,
         string? deniedTools,
         AgentControlToolAccess agentControl,
@@ -84,12 +94,11 @@ public sealed class AgentProfileStoreTests : IDisposable
         var profile = store.Read(profileId);
         var config = Assert.IsType<ThreadConfiguration>(profile.CompiledConfiguration);
 
-        Assert.Equal(avatar, profile.Avatar);
         Assert.Equal(SplitTools(allowedTools), config.ToolPolicy?.Allow);
         Assert.Equal(SplitTools(deniedTools), config.ToolPolicy?.Deny);
         Assert.Equal(agentControl, config.AgentControlToolAccess);
         Assert.Equal(approvalPolicy, config.ApprovalPolicy);
-        Assert.Equal(false, config.SkillsPolicy?.AllowManage);
+        Assert.Null(config.SkillsPolicy);
     }
 
     [Fact]
@@ -99,8 +108,8 @@ public sealed class AgentProfileStoreTests : IDisposable
         var result = store.ValidateRaw(
             """
 ---
-name: bad profile!
-surprise: true
+name: "bad\u0001profile"
+avatar: 457
 tools:
   agentControl: root
 ---
@@ -128,7 +137,6 @@ Body
 ---
 name: reviewer-lite
 description: Read-only reviewer
-avatar: 554
 providerPreference:
   providerId: profile-provider
   model: profile-model
@@ -161,7 +169,6 @@ Focus on correctness.
             AgentProfileSources.Workspace);
 
         Assert.True(result.Valid);
-        Assert.Equal(AgentProfileAvatarCodec.Encode(10, 2, 4), result.Avatar);
         var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
         Assert.Equal("reviewer-lite", config.AgentProfileId);
         Assert.Equal(AgentProfileSources.Workspace, config.AgentProfileSource);

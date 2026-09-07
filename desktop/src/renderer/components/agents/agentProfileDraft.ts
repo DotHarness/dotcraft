@@ -1,8 +1,8 @@
+import { load as loadYaml } from 'js-yaml'
 /**
  * `toMarkdown` renders the write format `agent/profiles/upsert` expects.
  */
 
-import { decodeAvatar, encodeAvatar, type AvatarSpec } from './agentAvatar'
 import type {
   ModelPreferenceContextMode,
   ModelPreferenceReasoningEffort,
@@ -33,7 +33,6 @@ export interface AgentProviderPreference {
 export interface ProfileDraft {
   name: string
   description: string
-  avatar?: AvatarSpec
   providerPreference: AgentProviderPreference | null
   tools: {
     mode: ToolPolicyMode
@@ -84,17 +83,15 @@ export function createEmptyDraft(): ProfileDraft {
   }
 }
 
+function parseScalar(value: string): string {
+  try { return String(loadYaml(value) ?? '') } catch { return value }
+}
+
 function parseList(value: string): string[] {
   const v = (value || '').trim()
   if (!v || v === '[]') return []
   const inner = v.replace(/^\[/, '').replace(/\]$/, '')
   return inner.split(',').map((x) => x.trim()).filter(Boolean)
-}
-
-function parsePackedAvatar(value: string): AvatarSpec | undefined {
-  const trimmed = value.trim()
-  if (!/^\d+$/.test(trimmed)) return undefined
-  return decodeAvatar(Number.parseInt(trimmed, 10)) ?? undefined
 }
 
 /** Parse the raw Markdown (frontmatter + body) returned by agent/profiles/read into a draft. */
@@ -132,11 +129,9 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     if (indent === 0) {
       section = null
       sub = null
-      if (key === 'name') draft.name = val
-      else if (key === 'description') draft.description = val
-      else if (key === 'avatar') {
-        draft.avatar = parsePackedAvatar(val)
-      } else if (key === 'providerPreference' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
+      if (key === 'name') draft.name = parseScalar(val)
+      else if (key === 'description') draft.description = parseScalar(val)
+      else if (key === 'providerPreference' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
     } else if (indent === 2) {
       sub = null
       if (section === 'providerPreference' && key === 'providerId') providerPreference.providerId = val
@@ -201,11 +196,8 @@ function yamlList(values: string[]): string {
 /** Render the draft as the raw Markdown an agent/profiles/upsert would persist. */
 export function toMarkdown(draft: ProfileDraft): string {
   const fm: string[] = ['---']
-  fm.push(`name: ${draft.name || 'untitled-agent'}`)
-  fm.push(`description: ${draft.description || ''}`)
-  if (draft.avatar) {
-    fm.push(`avatar: ${encodeAvatar(draft.avatar)}`)
-  }
+  fm.push(`name: ${JSON.stringify(draft.name.trim().normalize('NFC') || 'untitled-agent')}`)
+  fm.push(`description: ${JSON.stringify(draft.description)}`)
   if (draft.providerPreference) {
     const preference = draft.providerPreference
     fm.push('providerPreference:')

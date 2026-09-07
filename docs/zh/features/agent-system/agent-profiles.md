@@ -4,7 +4,13 @@ Agent Profile 把一套专门用途的 Agent 设定保存下来，需要时随�
 
 ![DotCraft Agent 预设](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
 
-可以先打造一个专门 Agent，也可以逐步组建完整的 Agent 团队：让 Explorer 负责调查、Builder 负责实现、Operator 处理 App 工作流。每个角色都是独立的 Profile，需要时按工作选择即可。
+按需要的结果选择角色：让 Researcher 提供有据可查的结论、Prototyper 构建可运行的原型，或让 Task Runner 完成本地任务。每个角色都是独立的 Profile，需要时按工作选择即可。
+
+DotCraft 根据 Profile 名称生成 avatar，因此同一个名称在各处保持相同的视觉身份。
+
+名称支持中文、空格及其他 Unicode 字符（1–240 个字符，不含控制字符），去除首尾空白后按 NFC 规范化，保留大小写。显示、查找和头像使用同一个名称。文件名由程序安全生成，不需要填写额外 ID。
+
+在桌面端选择 **Agents → New agent**，即可同时打开编辑器和 Builder 会话。你可以在会话中描述需求，也可以直接填写 Profile，然后点击 **Create** 保存。要从现有角色开始，可在 Agents 列表中选择内置模板。
 
 ## 在哪里用得上
 
@@ -17,15 +23,16 @@ Agent Profile 把一套专门用途的 Agent 设定保存下来，需要时随�
 
 ## 内置 Profiles
 
-DotCraft 为你的 Agent 团队提供五个起点。可以直接使用，也可以在 Agent Builder 中按照项目需要继续调整。
+DotCraft 提供六个面向本地任务与具体交付的起点。可以直接使用，也可以在 Agent Builder 中按照项目需要继续调整。
 
 | Profile | 适合的工作 |
 |---|---|
-| <img src="/leader.svg" alt="Leader Agent Profile" width="64" height="64"> **Leader** | 规划复杂工作、委派给专门角色、验证结果并整合交付。 |
-| <img src="/explorer.svg" alt="Explorer Agent Profile" width="64" height="64"> **Explorer** | 调查陌生系统、消除未知，并在不改变状态的前提下提供证据。 |
-| <img src="/builder.svg" alt="Builder Agent Profile" width="64" height="64"> **Builder** | 实现范围明确的改动并验证结果。 |
-| <img src="/reviewer.svg" alt="Reviewer Agent Profile" width="64" height="64"> **Reviewer** | 独立检查正确性、风险、测试覆盖和可维护性。 |
-| <img src="/operator.svg" alt="Operator Agent Profile" width="64" height="64"> **Operator** | 操作 App、浏览器、MCP server 和工作流，并明确控制外部副作用。 |
+| **Task Runner** | 完成本地多步骤任务，交付经过验证的结果。 |
+| **Researcher** | 研究问题，给出来源与清晰结论。 |
+| **Writer** | 将资料写成可编辑的文档、报告和演示稿。 |
+| **Data Analyst** | 分析文件，交付可复现的计算、图表和结论。 |
+| **Prototyper** | 构建可运行的原型，验证核心想法。 |
+| **QA Tester** | 复现问题、验证流程，提供步骤和证据。 |
 
 ## Agent Builder
 

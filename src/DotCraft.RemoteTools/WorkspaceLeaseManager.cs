@@ -88,6 +88,15 @@ internal sealed class WorkspaceLeaseManager(
         }
     }
 
+    public void CommitArtifact(string leaseId, string workspaceId, Action commit)
+    {
+        lock (_gate)
+        {
+            Validate(leaseId, workspaceId);
+            commit();
+        }
+    }
+
     public bool HasActiveLease
     {
         get
@@ -109,6 +118,13 @@ internal sealed class WorkspaceLeaseManager(
                 ? new WorkspaceLeaseStatus(lease.OwnerId, lease.ExpiresAt)
                 : null;
         }
+    }
+
+    public void ReleaseWorkspace(string workspaceId)
+    {
+        lock (_gate)
+            if (_byWorkspace.TryGetValue(workspaceId, out var lease))
+                RemoveCore(lease);
     }
 
     public void ReleaseAll()

@@ -8,14 +8,9 @@ import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
 import { showToast } from '../stores/toastStore'
 
-/**
- * Satellite events carry no invitation id, so an arrival is announced only while this
- * Desktop still holds an invitation it minted and has not seen expire.
- */
-async function invitedFromThisDesktop(): Promise<boolean> {
+async function invitedFromThisDesktop(inviteId: string): Promise<boolean> {
   const created = (await window.api.settings.get()).createdSatelliteInviteIds ?? []
-  const now = Date.now()
-  return created.some((entry) => Date.parse(entry.expiresAt) > now)
+  return created.some((entry) => entry.inviteId === inviteId)
 }
 
 /** The folder a newly joined machine could run this thread's work in, when there is one. */
@@ -74,8 +69,8 @@ export function useSatelliteNotices(): void {
 
   useEffect(() => {
     const unsubscribeEvent = onSatelliteEvent((event) => {
-      if (event.kind !== 'joined') return
-      void invitedFromThisDesktop()
+      if (event.kind !== 'joined' || event.inviteId == null) return
+      void invitedFromThisDesktop(event.inviteId)
         .then((invited) => {
           if (invited) announceArrival(event, localeRef.current)
         })

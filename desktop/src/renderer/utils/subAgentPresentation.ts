@@ -1,4 +1,4 @@
-import { avatarFromSeed, paletteOf } from '../components/agents/agentAvatar'
+import { deriveAppearance, paletteOf } from '@dotcraft/avatar'
 
 interface SubAgentMetaInput {
   agentRole?: string | null
@@ -58,16 +58,12 @@ export function formatSubAgentMeta({
 }
 
 /** The tint comes from the seeded avatar's palette, so name and robot cannot drift. */
-export function getSubAgentAccent(seed?: string | null): string {
-  return paletteOf(avatarFromSeed(normalizeText(seed) ?? 'agent')).accent
+export function getSubAgentAccent(name?: string | null): string {
+  return paletteOf(deriveAppearance(normalizeText(name) ?? 'agent')).accent
 }
 
 export function getSubAgentIdentitySeed({
-  agentPath,
-  childThreadId,
   nickname
 }: SubAgentIdentityInput): string | null {
-  return normalizeText(agentPath)
-    ?? normalizeText(childThreadId)
-    ?? normalizeText(nickname)
+  return normalizeText(nickname)
 }

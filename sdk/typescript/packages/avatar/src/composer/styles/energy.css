@@ -1,0 +1,99 @@
+[data-mascot-effort] .dca-robot :is(.dca-paint-body, .dca-paint-mark) stop {
+  transition: stop-color 360ms ease;
+}
+
+[data-mascot-effort='medium'] .dca-robot .dca-paint-body stop:nth-child(1) {
+  animation: composer-mascot-energy-medium-dark 6s ease-in-out infinite;
+}
+
+[data-mascot-effort='medium'] .dca-robot .dca-paint-body stop:nth-child(2) {
+  animation: composer-mascot-energy-medium-mid 6s ease-in-out infinite;
+}
+
+[data-mascot-effort='medium'] .dca-robot .dca-paint-body stop:nth-child(3) {
+  animation: composer-mascot-energy-medium-light 6s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot .dca-paint-body stop:nth-child(1) {
+  animation: composer-mascot-energy-high-dark 3.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot .dca-paint-body stop:nth-child(2) {
+  animation: composer-mascot-energy-high-mid 3.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot .dca-paint-body stop:nth-child(3) {
+  animation: composer-mascot-energy-high-light 3.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot .dca-paint-mark stop:nth-child(1) {
+  animation: composer-mascot-energy-high-mark-dark 3.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot .dca-paint-mark stop:nth-child(2),
+[data-mascot-effort='high'] .dca-robot .dca-paint-mark stop:nth-child(3) {
+  animation: composer-mascot-energy-high-mark-light 3.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot {
+  filter: drop-shadow(0 0 5px color-mix(in srgb,
+    oklch(from var(--mascot-energy-accent)
+      clamp(0.28, calc(l - 0.0112), 0.96)
+      clamp(0, calc(c * 1.116), 0.3)
+      calc(h - 3.09)) 28%, transparent));
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot .dca-paint-body stop:nth-child(1) {
+  animation: composer-mascot-energy-extra-dark 2.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot .dca-paint-body stop:nth-child(2) {
+  animation: composer-mascot-energy-extra-mid 2.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot .dca-paint-body stop:nth-child(3) {
+  animation: composer-mascot-energy-extra-light 2.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot .dca-paint-mark stop:nth-child(1) {
+  animation: composer-mascot-energy-extra-mark-dark 2.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot .dca-paint-mark stop:nth-child(2),
+[data-mascot-effort='extraHigh'] .dca-robot .dca-paint-mark stop:nth-child(3) {
+  animation: composer-mascot-energy-extra-mark-light 2.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot {
+  filter: drop-shadow(0 0 7px color-mix(in srgb,
+    oklch(from var(--mascot-energy-accent)
+      clamp(0.28, calc(l - 0.0456), 0.96)
+      clamp(0, calc(c * 1.231), 0.3)
+      calc(h + 27.55)) 36%, transparent));
+}
+
+[data-mascot-context='max'] .dca-robot {
+  animation: composer-mascot-max-overdrive-edge 3.8s ease-in-out infinite;
+  will-change: filter;
+}
+
+[data-mascot-context='max'] .dca-robot .dca-paint-body stop:nth-child(1) {
+  animation: composer-mascot-max-coat-dark 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .dca-robot .dca-paint-body stop:nth-child(2) {
+  animation: composer-mascot-max-coat-mid 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .dca-robot .dca-paint-body stop:nth-child(3) {
+  animation: composer-mascot-max-coat-light 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .dca-robot .dca-paint-mark stop:nth-child(1) {
+  animation: composer-mascot-max-coat-mark-dark 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .dca-robot .dca-paint-mark stop:nth-child(2),
+[data-mascot-context='max'] .dca-robot .dca-paint-mark stop:nth-child(3) {
+  animation: composer-mascot-max-coat-mark-light 3.8s ease-in-out infinite;
+}

@@ -7830,3 +7830,7 @@ Runtime domain projections and high-level SDK models are not independent
 wire-contract sources. Canonical C# method-name constants are generated from the
 typed catalog. Dynamic third-party extension methods remain on the explicit raw
 JSON-RPC path.
+
+### Agent Profile names
+
+Profile `id` references carry the canonical `name`: trim plus Unicode NFC, ordinal equality, 1–240 Unicode scalar values, no control characters. `agent/profiles/upsert` accepts optional `previousName` to rename within the selected writable source without a client-side delete. A conflicting destination returns the profile conflict error and leaves the old document intact. Filenames are storage details and never define the Profile name.

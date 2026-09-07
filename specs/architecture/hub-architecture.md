@@ -294,7 +294,7 @@ Service entries are in-memory and scoped to the current Hub lifetime. Concurrent
 
 ### Satellite peers
 
-Hub accepts one outbound control connection per paired Remote Tool Host, tracks its online state from heartbeats, brokers data sessions on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` lifecycle events on SSE. Hub does not start, stop, supervise, or update the remote process; the remote machine owns its lifecycle. Hub shutdown closes all satellite connections; peers reconnect on their own when Hub returns.
+Hub accepts one outbound control connection per paired Remote Tool Host, tracks its online state from heartbeats, brokers data sessions on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` lifecycle events on SSE. The first `satellite.joined` event carries `{ peerId, inviteId }`, where `inviteId` names the one-time invitation consumed by that pairing; later presence events carry only `peerId`. Hub does not start, stop, supervise, or update the remote process; the remote machine owns its lifecycle. Hub shutdown closes all satellite connections; peers reconnect on their own when Hub returns.
 
 ---
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { translate } from '../../../shared/locales'
 import { useLocale } from '../../contexts/LocaleContext'
-import { Button } from '../ui/Button'
+import { Button, ButtonLabel } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
@@ -86,7 +86,7 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
               onClick={() => void window.api.shell.openExternal(safeUrl)}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {translate(locale, 'mcp.elicitation.openUrl')}
+                <ButtonLabel>{translate(locale, 'mcp.elicitation.openUrl')}</ButtonLabel>
               </span>
             </Button>
           )
