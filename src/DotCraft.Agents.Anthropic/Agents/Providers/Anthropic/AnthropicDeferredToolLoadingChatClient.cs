@@ -79,12 +79,9 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
     {
         ArgumentNullException.ThrowIfNull(tool);
 
-        var name = CanonicalToolIdentityMetadataResolver.TryGet(tool, out _, out var providerFlatName)
-            ? providerFlatName
-            : tool.Name;
         var betaTool = new BetaTool
         {
-            Name = name,
+            Name = tool.Name,
             Description = tool.Description,
             InputSchema = CreateInputSchema(tool),
             DeferLoading = true

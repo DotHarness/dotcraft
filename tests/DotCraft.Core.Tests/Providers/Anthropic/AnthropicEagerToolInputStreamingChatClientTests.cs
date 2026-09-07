@@ -73,6 +73,7 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
         Assert.NotSame(options, prepared);
         Assert.Same(hostedTool, prepared!.Tools![0]);
         Assert.Same(function, options.Tools![1]);
+        Assert.Equal(function.Name, prepared.Tools[1].Name);
         var betaTool = GetBetaTool(prepared.Tools[1]);
         Assert.True(betaTool.EagerInputStreaming);
         Assert.Equal(function.Name, betaTool.Name);
@@ -89,6 +90,7 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
         var prepared = AnthropicEagerToolInputStreamingChatClient.PrepareOptions(options);
 
         Assert.NotSame(options, prepared);
+        Assert.Equal("unset", prepared!.Tools![0].Name);
         Assert.True(GetBetaTool(prepared!.Tools![0]).EagerInputStreaming);
         Assert.Same(disabled, prepared.Tools[1]);
         Assert.False(GetBetaTool(prepared.Tools[1]).EagerInputStreaming);

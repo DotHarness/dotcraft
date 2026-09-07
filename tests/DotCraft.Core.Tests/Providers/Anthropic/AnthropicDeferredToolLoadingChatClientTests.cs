@@ -16,6 +16,15 @@ namespace DotCraft.Tests.Agents;
 public sealed class AnthropicDeferredToolLoadingChatClientTests
 {
     [Fact]
+    public void CreateDeferredTool_PreservesProviderToolName()
+    {
+        var deferredTool = AnthropicDeferredToolLoadingChatClient.CreateDeferredTool(
+            CreateTicketLookupTool());
+
+        Assert.Equal("TicketLookup", deferredTool.Name);
+    }
+
+    [Fact]
     public async Task GetResponseAsync_BeforeActivationSendsOnlyToolSearchAndBetaHeader()
     {
         var handler = new CaptureHandler();
