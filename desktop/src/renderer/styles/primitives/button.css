@@ -50,6 +50,10 @@
   border-radius: var(--toolbar-control-radius);
 }
 
+.dc-button[data-size="toolbar"] > .dc-button__label {
+  text-box: trim-both cap alphabetic;
+}
+
 .dc-button[data-size="icon"] {
   width: var(--button-height);
   padding: 0;

@@ -510,6 +510,9 @@ prop and the footprint with the `size` prop:
 - `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
   `prominent` (the standalone `38px` pill CTA), `toolbar` (the catalog top-bar band).
 
+Toolbar text labels use `text-box: trim-both cap alphabetic` so font leading does
+not displace the visible label relative to the centered icon.
+
 Buttons are frameless by default. Every variant keeps a `1px` border in the box
 model but only `outline` paints it visibly, so switching a button between fills and
 frames never shifts height or alignment — the "border-reserved" treatment. Heights

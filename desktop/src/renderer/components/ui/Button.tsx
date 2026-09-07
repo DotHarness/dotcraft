@@ -59,7 +59,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
               {iconLeft}
             </span>
           )}
-      {loading && isIcon ? null : children}
+      {loading && isIcon ? null : size === 'toolbar' && typeof children === 'string'
+        ? <span className="dc-button__label">{children}</span>
+        : children}
     </button>
   )
 })
