@@ -29,6 +29,32 @@ DotCraft turns your projects into **extensible environments for AI agents**.
 - **A complete Agent Harness for .NET:** Bring complete agent capabilities into the .NET applications you already build, from desktop tools to services and automation.
 - **Easy to integrate with existing products:** APIs, SDKs, App Binding, and plugins bring DotCraft directly into your applications.
 
+## Explore DotCraft
+
+### Desktop
+
+[![Your projects. Your agents. One desktop.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-desktop.png)](https://www.dotcraft.net/features/entry-points/desktop)
+
+Work on projects with agents in one desktop window, with plans, activity, and code changes in view. [Explore Desktop](https://www.dotcraft.net/features/entry-points/desktop).
+
+### DotCraft.Harness
+
+[![Build agents into your .NET apps.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/developing/harness/)
+
+Embed the agent runtime, sessions, tools, and approvals in your .NET applications with the `DotCraft.Harness` NuGet package. [Build with Harness](https://www.dotcraft.net/developing/harness/).
+
+### Oratorio
+
+[![From task to reviewed delivery.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-oratorio.png)](https://www.dotcraft.net/features/oratorio)
+
+Bring local tasks, GitHub, and GitLab work onto one board, hand tasks to agents, then review and deliver the results. [Explore Oratorio](https://www.dotcraft.net/features/oratorio).
+
+### Satellite
+
+[![Your agents. Another machine.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/features/agent-system/satellite)
+
+Let agents use an approved shared folder and tools on another computer while conversations, approvals, and history stay on yours. [Connect a Satellite](https://www.dotcraft.net/features/agent-system/satellite).
+
 ## Quick start
 
 DotCraft supports OpenAI, Anthropic model providers, or you can sign in using your ChatGPT subscription.
