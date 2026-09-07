@@ -120,7 +120,7 @@ A feature page explains the idea in terms of what the reader does and what they 
 >
 > **After:** "The agent keeps a full history of every session, plus long-term notes it writes as it learns your project." Move the storage path and the internal data model to the reference page and link: "See [how sessions are stored](…)."
 
-The test: does the reader need this token to understand or use the feature on this page? If not, it belongs in the owning reference behind a link. The same test applies to whole sentences: if removing one changes nothing the reader does, remove it.
+Keep details that help the reader understand the feature, make a decision, or complete the task. Move implementation detail that serves none of these purposes to the owning reference.
 
 ### 10.2 Architecture before the reader needs it
 
@@ -180,7 +180,7 @@ Read every paragraph aloud. Noun piles, hidden actors, and 30-word sentences are
 >
 > **After:** Keep the actions required for the successful path. Add confirmation, recovery, or cleanup only when the reader must make a distinct decision, the omission commonly blocks completion, or the operation has a persistent or safety consequence.
 
-Verified behavior is not automatically useful documentation. Ask what the reader does differently because of the sentence; if the answer is nothing, remove it.
+Verified behavior is not automatically useful documentation. Trim redundant detail while preserving explanations that help the reader understand or use the feature.
 
 ### Also still watch for
 
