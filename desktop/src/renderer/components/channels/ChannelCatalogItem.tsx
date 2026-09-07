@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { PluginInstallButton } from '../plugins/PluginInstallButton'
+import { Button } from '../ui/Button'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import type { ChannelConnectionState } from './ChannelCard'
@@ -56,14 +56,14 @@ export function ChannelCatalogItem({
       </span>
       <span className="dc-channel-catalog-item__action">
         {status === 'notConfigured' && onInstall ? (
-          <PluginInstallButton
+          <Button size="sm"
             onClick={(event) => {
               event.stopPropagation()
               onInstall()
             }}
           >
             {t('plugins.install')}
-          </PluginInstallButton>
+          </Button>
         ) : status === 'connecting' ? (
           <RunningSpinner size={12} borderWidth={1.5} label={statusLabel} />
         ) : (

@@ -510,8 +510,15 @@ prop and the footprint with the `size` prop:
 - `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
   `prominent` (the standalone `38px` pill CTA), `toolbar` (the catalog top-bar band).
 
-Toolbar text labels use `text-box: trim-both cap alphabetic` so font leading does
-not displace the visible label relative to the centered icon.
+All ordinary action labels use `text-box: trim-both cap alphabetic`; compound
+labels use the shared `ButtonLabel` slot and keep icons outside that slot.
+Loading overlays the spinner without changing the control's footprint or accessible name.
+
+Text buttons use a dedicated `--button-text-radius` pill radius: default actions
+are 32px high, compact actions 28px, and prominent actions 38px. Catalog and Builder
+toolbars use the same 28px height and 10px radius. Icon buttons, navigation, menu
+rows and Composer controls retain their own geometry. Builder Create is primary;
+Preview/Edit is secondary with a subtle fill.
 
 Buttons are frameless by default. Every variant keeps a `1px` border in the box
 model but only `outline` paints it visibly, so switching a button between fills and

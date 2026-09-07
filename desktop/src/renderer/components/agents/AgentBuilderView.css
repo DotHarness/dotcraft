@@ -13,22 +13,7 @@
 }
 .agent-builder *, .agent-builder *::before, .agent-builder *::after { box-sizing: border-box; }
 
-.agent-builder-btn {
-  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 9px;
-  font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
-  border: 1px solid var(--text-primary); background: var(--text-primary); color: var(--bg-primary);
-}
-.agent-builder-btn:hover { background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary)); }
 
-.agent-builder-edit-head { flex: 0 0 auto; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 18px; }
-.agent-builder-edit-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.agent-builder-edit-right { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
-.agent-builder-iconbtn { width: 30px; height: 30px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
-.agent-builder-iconbtn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-.agent-builder-btn-secondary, .agent-builder-btn-ghost { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-default); background: var(--bg-secondary); color: var(--text-primary); }
-.agent-builder-btn-secondary:hover, .agent-builder-btn-ghost:hover { background: var(--bg-tertiary); }
-.agent-builder-btn-ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
-.agent-builder-btn[disabled] { opacity: 0.5; cursor: default; }
 
 /* full-width scroll container keeps the scrollbar at the app's right edge, not on the centered doc */
 .agent-builder-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
@@ -121,14 +106,6 @@
   }
 }
 
-.agent-builder-autosave { font-size: 11.5px; color: var(--text-dimmed); white-space: nowrap; }
-.agent-builder-autosave.is-error { color: var(--error); }
-.agent-builder-menu { position: relative; display: inline-flex; }
-.agent-builder-menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 150px; padding: 6px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
-.agent-builder-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
-.agent-builder-menu-item:hover { background: var(--bg-tertiary); }
-.agent-builder-menu-item.is-danger { color: color-mix(in srgb, var(--error) 80%, var(--text-primary)); }
-.agent-builder-menu-item.is-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
 
 .agent-builder-id-name[readonly], .agent-builder-id-desc[readonly] { cursor: default; }
 .agent-builder-id-name[readonly]:hover, .agent-builder-id-desc[readonly]:hover { border-color: transparent; background: transparent; }
@@ -165,7 +142,6 @@
 .agent-builder-chat-error { color: var(--error); }
 .agent-builder-detached-chat { height: 100%; display: flex; flex-direction: column; min-height: 0; background: transparent; }
 .agent-builder-detached-chat > .agent-builder-chat-error { flex: 0 0 auto; display: block; padding: 12px 20px; border-bottom: 1px solid var(--border-default); text-align: left; }
-.agent-builder-btn-secondary.is-active { border-color: var(--border-active); background: var(--bg-tertiary); }
 
 .agent-builder-field-anchor-catalog, .agent-builder-detail-control { width: 100%; }
 .agent-builder-sec-label { display: inline-flex; align-items: center; gap: 8px; }

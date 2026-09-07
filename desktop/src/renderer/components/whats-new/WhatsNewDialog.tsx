@@ -18,7 +18,7 @@ import {
 } from '../../../shared/whatsNew'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Skeleton } from '../ui/Skeleton'
-import { Button } from '../ui/Button'
+import { Button, ButtonLabel } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 
 interface WhatsNewDialogProps {
@@ -131,7 +131,7 @@ export function WhatsNewDialog({
                 onClick={() => setActiveIndex((index) => index + 1)}
               >
                 <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
-                <span>{t('whatsNew.showOlder', { version: olderRelease.version })}</span>
+                <ButtonLabel>{t('whatsNew.showOlder', { version: olderRelease.version })}</ButtonLabel>
               </Button>
             )}
             {newerRelease && (
@@ -140,7 +140,7 @@ export function WhatsNewDialog({
                 size="sm"
                 onClick={() => setActiveIndex((index) => index - 1)}
               >
-                <span>{t('whatsNew.showNewer', { version: newerRelease.version })}</span>
+                <ButtonLabel>{t('whatsNew.showNewer', { version: newerRelease.version })}</ButtonLabel>
                 <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
               </Button>
             )}

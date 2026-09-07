@@ -513,9 +513,9 @@ function RetryState({ message, onRetry }: { message: string; onRetry(): void }):
   return (
     <div style={emptyState}>
       <p style={{ margin: 0, color: 'var(--error)' }}>{message}</p>
-      <button type="button" onClick={onRetry} style={retryButton}>
+      <Button variant="secondary" onClick={onRetry}>
         {t('common.retry')}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -672,15 +672,4 @@ const emptyState: CSSProperties = {
   color: 'var(--text-tertiary)',
   fontSize: '13px',
   textAlign: 'center'
-}
-
-const retryButton: CSSProperties = {
-  marginTop: '12px',
-  padding: '5px 14px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: '12px',
-  cursor: 'pointer'
 }

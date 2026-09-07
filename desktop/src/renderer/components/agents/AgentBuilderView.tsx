@@ -13,13 +13,13 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileText, Globe, ListChecks, MoreHorizontal, Pencil, Plus, Search, Server, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
+import { BookOpen, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useLocale, useT } from '../../contexts/LocaleContext'
+import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
 import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
@@ -31,7 +31,7 @@ import {
 } from '../conversation/PreferenceModelPicker'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
-import { formatRelativeTime } from '../../utils/relativeTime'
+import { AgentBuilderToolbar } from './AgentBuilderToolbar'
 import {
   AGENT_BUILDER_CHAT_MIN_WIDTH,
   resolveAgentBuilderChatWidth,
@@ -784,23 +784,10 @@ interface BuilderViewProps {
 }
 
 function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
-  const locale = useLocale()
   const t = useT()
   const { draft } = route
   const nameMissing = !draft.name.trim()
   const preview = viewMode === 'preview'
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!menuOpen) return undefined
-    function onDown(event: MouseEvent): void {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDown, true)
-    return () => document.removeEventListener('mousedown', onDown, true)
-  }, [menuOpen])
-
   const providers = useProvidersStore((s) => s.providers)
   const models = useModelCatalogStore((s) => s.models)
   const modelCatalogStatus = useModelCatalogStore((s) => s.status)
@@ -901,47 +888,9 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
     && !providers.some((provider) => provider.id.toLowerCase() === draft.providerPreference!.providerId.toLowerCase())
   return (
     <div className="agent-builder">
-      <header className="agent-builder-edit-head">
-        <div className="agent-builder-edit-left">
-          <button type="button" className="agent-builder-iconbtn" title="Back" onClick={onBack}>
-            <ArrowLeft size={18} />
-          </button>
-        </div>
-        <div className="agent-builder-edit-right">
-          {route.created && (
-            <span className={`agent-builder-autosave${autoSaveState === 'error' ? ' is-error' : ''}`}>
-              {autoSaveState === 'saving'
-                ? 'Saving…'
-                : autoSaveState === 'error'
-                  ? 'Save failed'
-                  : route.updatedAt
-                    ? `Updated ${formatRelativeTime(route.updatedAt, new Date(), locale)}`
-                    : 'Saved'}
-            </span>
-          )}
-          <button type="button" className="agent-builder-btn-secondary" onClick={() => setViewMode(preview ? 'edit' : 'preview')}>
-            {preview ? <><Pencil size={15} /> Edit</> : <><Eye size={15} /> Preview</>}
-          </button>
-          {route.created ? (
-            <div className="agent-builder-menu" ref={menuRef}>
-              <button type="button" className="agent-builder-iconbtn" aria-label="More actions" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
-                <MoreHorizontal size={18} />
-              </button>
-              {menuOpen && (
-                <div className="agent-builder-menu-pop" role="menu">
-                  <button type="button" className="agent-builder-menu-item is-danger" role="menuitem" onClick={() => { setMenuOpen(false); onDelete() }}>
-                    <Trash2 size={15} /> Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <button type="button" className="agent-builder-btn" disabled={nameMissing} onClick={onCreate}>
-              <Plus size={15} /> Create
-            </button>
-          )}
-        </div>
-      </header>
+      <AgentBuilderToolbar created={route.created} updatedAt={route.updatedAt} autoSaveState={autoSaveState}
+        preview={preview} nameMissing={nameMissing} onBack={onBack} onDelete={onDelete} onCreate={onCreate}
+        onTogglePreview={() => setViewMode(preview ? 'edit' : 'preview')} />
 
       <div className="agent-builder-scroll dc-scrollbar-stable">
       <div className={`agent-builder-doc${agentDriving ? ' is-agent-driving' : ''}`}>

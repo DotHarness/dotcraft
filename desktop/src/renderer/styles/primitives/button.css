@@ -2,6 +2,7 @@
    paints it, so switching a button between filled and ghost never shifts height. */
 .dc-button {
   box-sizing: border-box;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -9,7 +10,7 @@
   height: var(--button-height);
   padding: 0 var(--button-padding-x);
   border: 1px solid transparent;
-  border-radius: var(--button-radius);
+  border-radius: var(--button-text-radius);
   background: transparent;
   color: var(--text-primary);
   font-family: inherit;
@@ -40,7 +41,7 @@
 .dc-button[data-size="sm"] {
   height: var(--button-height-sm);
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: var(--button-text-radius);
   font-size: 12px;
 }
 
@@ -50,12 +51,13 @@
   border-radius: var(--toolbar-control-radius);
 }
 
-.dc-button[data-size="toolbar"] > .dc-button__label {
+.dc-button__label {
   text-box: trim-both cap alphabetic;
 }
 
 .dc-button[data-size="icon"] {
   width: var(--button-height);
+  border-radius: var(--button-radius);
   padding: 0;
 }
 
@@ -69,12 +71,7 @@
 .dc-button[data-size="prominent"] {
   height: 38px;
   padding: 0 18px;
-  border-radius: 999px;
-}
-
-/* Plugin-package install actions use the compact catalog pill treatment. */
-.dc-plugin-install-button[data-size="sm"] {
-  border-radius: 999px;
+  border-radius: var(--button-text-radius);
 }
 
 .dc-button[data-variant="primary"] {
@@ -144,3 +141,6 @@
   justify-content: center;
   flex-shrink: 0;
 }
+
+.dc-button[data-loading="true"] > :not(.dc-button__spinner) { opacity: 0; }
+.dc-button__spinner { position: absolute; inset: 0; }

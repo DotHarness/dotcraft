@@ -3,7 +3,7 @@ import { Check, MessageCircle, Plus } from 'lucide-react'
 import type { PluginEntry } from '../../stores/pluginStore'
 import { styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { PluginInstallButton } from './PluginInstallButton'
+import { Button } from '../ui/Button'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 
 export function PluginCatalogItem({
@@ -70,7 +70,7 @@ export function PluginCatalogItem({
             </button>
           </ActionTooltip>
         ) : showInstall ? (
-          <PluginInstallButton
+          <Button size="sm"
             onClick={(event) => {
               event.stopPropagation()
               onInstall?.()
@@ -78,7 +78,7 @@ export function PluginCatalogItem({
             style={{ backgroundColor: actionBackground(active) }}
           >
             {installLabel}
-          </PluginInstallButton>
+          </Button>
         ) : plugin.installed ? (
           plugin.enabled ? <Check size={16} aria-hidden /> : null
         ) : (
