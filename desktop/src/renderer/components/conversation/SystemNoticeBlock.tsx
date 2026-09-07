@@ -1,5 +1,5 @@
 import { Archive, ChevronsDown, GitFork } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { NoticeDivider } from './NoticeDivider'
 import { useT } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
 
@@ -51,65 +51,6 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
       icon={<ChevronsDown size={12} aria-hidden />}
       title={t(titleKey)}
     />
-  )
-}
-
-interface NoticeDividerProps {
-  ariaLabel: string
-  icon: ReactNode
-  title: string
-  detail?: string | null
-}
-
-function NoticeDivider({ ariaLabel, icon, title, detail }: NoticeDividerProps): JSX.Element {
-  return (
-    <div
-      role="separator"
-      aria-label={ariaLabel}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '14px 4px 14px 4px',
-        color: 'var(--text-secondary, #8a8a8a)',
-        fontSize: 11,
-        lineHeight: 1.4,
-        userSelect: 'none'
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          flex: 1,
-          height: 1,
-          background: 'var(--border-default)'
-        }}
-      />
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '2px 8px',
-          borderRadius: 999,
-          background: 'var(--bg-tertiary)'
-        }}
-      >
-        {icon}
-        <span style={{ fontWeight: 600 }}>{title}</span>
-        {detail && (
-          <span style={{ color: 'var(--text-dimmed, #9a9a9a)' }}>· {detail}</span>
-        )}
-      </span>
-      <span
-        aria-hidden
-        style={{
-          flex: 1,
-          height: 1,
-          background: 'var(--border-default)'
-        }}
-      />
-    </div>
   )
 }
 

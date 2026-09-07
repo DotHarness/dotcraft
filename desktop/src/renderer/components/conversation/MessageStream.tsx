@@ -9,6 +9,7 @@ import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
+import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
@@ -407,58 +408,6 @@ export function MessageStream(): JSX.Element {
           bottomOffsetPx={scrollButtonBottomOffsetPx}
         />
       )}
-    </div>
-  )
-}
-
-function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Element {
-  const t = useT()
-  const label = t(labelKey)
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-label={label}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '14px 4px',
-        color: 'var(--text-secondary, #8a8a8a)',
-        fontSize: 11,
-        lineHeight: 1.4,
-        userSelect: 'none'
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          flex: 1,
-          height: 1,
-          background: 'var(--border-default)'
-        }}
-      />
-      <span
-        className="tool-running-gradient-text"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          fontWeight: 600,
-          whiteSpace: 'nowrap'
-        }}
-      >
-        {label}
-      </span>
-      <span
-        aria-hidden
-        style={{
-          flex: 1,
-          height: 1,
-          background: 'var(--border-default)'
-        }}
-      />
     </div>
   )
 }

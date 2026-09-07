@@ -1,0 +1,5 @@
+.divider { display: flex; align-items: center; gap: 8px; padding: 14px 4px; color: var(--text-secondary); font-size: 11px; line-height: 16px; user-select: none; }
+.line { flex: 1; min-width: 8px; height: 0; border-top: 1px solid var(--border-default); }
+.label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px; font-weight: 600; overflow-wrap: anywhere; }
+.icon { display: inline-flex; flex-shrink: 0; }
+.detail { color: var(--text-dimmed); font-weight: 400; }
