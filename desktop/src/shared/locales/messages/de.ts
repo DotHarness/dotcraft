@@ -575,6 +575,7 @@ export const MESSAGES_DE = {
   'markdown.disableWordWrap': 'Zeilenumbruch deaktivieren',
   'conversation.selectAll': 'Alles auswählen',
   'conversation.copyImage': 'Bild kopieren',
+  'conversation.imageGeneration.saveFailed': 'Das Bild wurde generiert, die Datei konnte jedoch nicht gespeichert werden.',
   'conversation.imageGeneration.generating': 'Bild wird generiert',
   'conversation.imageGeneration.completed': 'Bild generiert',
   'conversation.imageGeneration.failed': 'Bildgenerierung fehlgeschlagen',

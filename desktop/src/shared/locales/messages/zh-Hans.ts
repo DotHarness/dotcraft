@@ -1203,6 +1203,7 @@ export const MESSAGES_ZH_HANS = {
   'markdown.disableWordWrap': '关闭自动换行',
   'conversation.selectAll': '全选',
   'conversation.copyImage': '复制图片',
+  'conversation.imageGeneration.saveFailed': '图片已生成，但文件保存失败。',
   'conversation.imageGeneration.generating': '正在生成图片',
   'conversation.imageGeneration.completed': '已生成图片',
   'conversation.imageGeneration.failed': '图片生成失败',

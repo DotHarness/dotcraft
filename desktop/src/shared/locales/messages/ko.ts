@@ -575,6 +575,7 @@ export const MESSAGES_KO = {
   'markdown.disableWordWrap': '자동 줄 바꿈 끄기',
   'conversation.selectAll': '모두 선택',
   'conversation.copyImage': '이미지 복사',
+  'conversation.imageGeneration.saveFailed': '이미지는 생성되었지만 파일을 저장하지 못했습니다.',
   'conversation.imageGeneration.generating': '이미지 생성 중',
   'conversation.imageGeneration.completed': '이미지가 생성되었습니다',
   'conversation.imageGeneration.failed': '이미지 생성 실패',

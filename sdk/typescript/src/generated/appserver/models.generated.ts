@@ -1582,11 +1582,16 @@ export interface HooksTrustPluginResult {
 
 export interface ImageGenerationPayload {
   callId: string;
+  errorCode?: string | null;
   errorMessage?: string | null;
   mediaType: string;
   result?: string | null;
   revisedPrompt?: string | null;
+  saveErrorCode?: string | null;
+  saveStatus?: string | null;
+  savedHostId?: string | null;
   savedPath?: string | null;
+  savedWorkspaceId?: string | null;
   status: string;
   [key: string]: unknown;
 }

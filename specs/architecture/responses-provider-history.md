@@ -227,3 +227,13 @@ provider response IDs, or any future provider-native recovery payload.
 - [Session Core](session-core.md)
 - [Prompt Cache](prompt-cache.md)
 - [OpenAI Subscription Auth](openai-subscription-auth.md)
+
+## Hosted image completion
+
+The Responses adapter owns image lifecycle normalization before SDK streaming conversion.
+Partial images and data-free completion notifications are not final results. Completed output
+items (including final response output) produce one hosted image result per call id, with the
+full image bytes preserved in model history and Session projection. A terminated Turn must
+not retain an in-progress image item. Missing results become explicit terminal failures.
+The per-Turn image lifecycle owns one call map containing each projected item and its captured
+artifact destination. Both provider-native and SDK result content use the same completion path.

@@ -118,6 +118,11 @@ export interface ConversationItem {
   mediaType?: string
   /** Local path where the generated image was persisted */
   savedPath?: string
+  saveStatus?: string
+  saveErrorCode?: string
+  savedHostId?: string
+  savedWorkspaceId?: string
+
   /** Tool call arguments from item/started payload for toolCall items */
   arguments?: Record<string, unknown>
   /** Raw incremental tool-call arguments JSON from item/toolCall/argumentsDelta */
@@ -634,6 +639,18 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       : undefined,
     savedPath: type === 'imageGeneration'
       ? ((raw.savedPath as string | undefined) ?? (payload.savedPath as string | undefined))
+      : undefined,
+    saveStatus: type === 'imageGeneration'
+      ? ((raw.saveStatus as string | undefined) ?? (payload.saveStatus as string | undefined))
+      : undefined,
+    saveErrorCode: type === 'imageGeneration'
+      ? ((raw.saveErrorCode as string | undefined) ?? (payload.saveErrorCode as string | undefined))
+      : undefined,
+    savedHostId: type === 'imageGeneration'
+      ? ((raw.savedHostId as string | undefined) ?? (payload.savedHostId as string | undefined))
+      : undefined,
+    savedWorkspaceId: type === 'imageGeneration'
+      ? ((raw.savedWorkspaceId as string | undefined) ?? (payload.savedWorkspaceId as string | undefined))
       : undefined,
     resultPreview: (raw.resultPreview as string | undefined)
       ?? (payload.resultPreview as string | undefined),

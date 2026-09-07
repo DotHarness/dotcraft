@@ -575,6 +575,7 @@ export const MESSAGES_FR = {
   'markdown.disableWordWrap': 'Désactiver le retour à la ligne',
   'conversation.selectAll': 'Tout sélectionner',
   'conversation.copyImage': "Copier l'image",
+  'conversation.imageGeneration.saveFailed': 'Image générée, mais le fichier n’a pas pu être enregistré.',
   'conversation.imageGeneration.generating': "Génération de l'image",
   'conversation.imageGeneration.completed': 'Image générée',
   'conversation.imageGeneration.failed': "Échec de la génération d'image",

@@ -88,6 +88,15 @@ internal sealed class WorkspaceLeaseManager(
         }
     }
 
+    public void CommitArtifact(string leaseId, string workspaceId, Action commit)
+    {
+        lock (_gate)
+        {
+            Validate(leaseId, workspaceId);
+            commit();
+        }
+    }
+
     public bool HasActiveLease
     {
         get

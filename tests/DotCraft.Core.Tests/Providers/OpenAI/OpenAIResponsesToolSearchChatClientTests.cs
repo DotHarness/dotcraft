@@ -23,7 +23,7 @@ using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class OpenAIResponsesToolSearchChatClientTests
+public sealed partial class OpenAIResponsesToolSearchChatClientTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -227,27 +227,6 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("A red square", content.RevisedPrompt);
         Assert.Equal("image/png", content.MediaType);
         Assert.Equal(imageBytes, content.ImageBytes);
-    }
-
-    [Fact]
-    public void TryCreateHostedImageGenerationContent_InvalidBase64_ReturnsVisibleErrorContent()
-    {
-        var update = CreateStreamingUpdate("""
-            {
-              "type": "response.image_generation_call.completed",
-              "sequence_number": 1,
-              "item_id": "ig_bad",
-              "output_index": 0,
-              "revised_prompt": "Broken",
-              "result": "not-base64"
-            }
-            """);
-
-        Assert.True(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(update, out var content));
-        Assert.False(content.Succeeded);
-        Assert.Equal("ig_bad", content.Id);
-        Assert.Equal("Image generation returned invalid image data.", content.ErrorMessage);
-        Assert.Null(content.ImageBytes);
     }
 
     [Fact]

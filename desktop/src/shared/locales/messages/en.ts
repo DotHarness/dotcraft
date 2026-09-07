@@ -1243,6 +1243,7 @@ export const MESSAGES_EN = {
   'markdown.disableWordWrap': 'Disable word wrap',
   'conversation.selectAll': 'Select All',
   'conversation.copyImage': 'Copy Image',
+  'conversation.imageGeneration.saveFailed': 'Image generated, but the file could not be saved.',
   'conversation.imageGeneration.generating': 'Generating image',
   'conversation.imageGeneration.completed': 'Generated image',
   'conversation.imageGeneration.failed': 'Image generation failed',

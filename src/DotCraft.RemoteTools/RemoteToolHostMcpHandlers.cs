@@ -39,6 +39,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     /// <summary>The Hub-assigned peer id is the host identity every Agent-side surface sees.</summary>
     public IReadOnlyList<McpServerRequestHandler> CreateExtensionHandlers(string peerId) =>
     [
+        Raw(RemoteImageWriteRequest.Method, (request, ct) => WriteImageAsync(request, peerId, ct)),
         Raw(
             RemoteToolHostProtocol.WorkspacesList,
             (request, ct) => HandleWorkspaceListAsync(request, peerId, ct)),

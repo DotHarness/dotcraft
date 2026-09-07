@@ -113,6 +113,14 @@ public sealed record ImageGenerationPayload
 
     public string? SavedPath { get; init; }
 
+    /// <summary>Artifact storage outcome, independent of image generation success.</summary>
+    public string? SaveStatus { get; init; }
+    public string? SaveErrorCode { get; init; }
+    public string? SavedHostId { get; init; }
+    public string? SavedWorkspaceId { get; init; }
+
+    public string? ErrorCode { get; init; }
+
     public string? ErrorMessage { get; init; }
 }
 

@@ -16,173 +16,29 @@ internal static partial class ResponsesToolSearchMapper
         out HostedImageGenerationContent content)
     {
         content = null!;
-
-        try
-        {
-            if (!TryReadJsonObjectFromRaw(item, out var rawObject))
-                return false;
-            if (!string.Equals(
-                    ReadJsonString(rawObject, "type"),
-                    HostedImageGenerationContent.ToolName + "_call",
-                    StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            var id = ReadJsonString(rawObject, "id")
-                ?? ReadJsonString(rawObject, "call_id")
-                ?? Guid.NewGuid().ToString("N");
-            var status = ReadJsonString(rawObject, "status") ?? "completed";
-            var revisedPrompt = ReadJsonString(rawObject, "revised_prompt");
-
-            if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
-            {
-                content = new HostedImageGenerationContent
-                {
-                    Id = id,
-                    Status = status,
-                    RevisedPrompt = revisedPrompt,
-                    ErrorMessage = ReadImageGenerationError(rawObject)
-                        ?? $"Image generation {status}."
-                };
-                return true;
-            }
-
-            if (!string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
-                return false;
-
-            var result = ReadJsonString(rawObject, "result");
-            if (string.IsNullOrWhiteSpace(result))
-            {
-                content = new HostedImageGenerationContent
-                {
-                    Id = id,
-                    Status = status,
-                    RevisedPrompt = revisedPrompt,
-                    ErrorMessage = "Image generation completed without image data."
-                };
-                return true;
-            }
-
-            byte[] imageBytes;
-            try
-            {
-                imageBytes = Convert.FromBase64String(result.Trim());
-            }
-            catch (FormatException)
-            {
-                content = new HostedImageGenerationContent
-                {
-                    Id = id,
-                    Status = status,
-                    RevisedPrompt = revisedPrompt,
-                    ErrorMessage = "Image generation returned invalid image data."
-                };
-                return true;
-            }
-
-            content = new HostedImageGenerationContent
-            {
-                Id = id,
-                Status = status,
-                RevisedPrompt = revisedPrompt,
-                ImageBytes = imageBytes,
-                MediaType = "image/png"
-            };
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
-        {
+        if (item is not ImageGenerationCallResponseItem image)
             return false;
-        }
-    }
-
-    internal static bool TryCreateHostedImageGenerationContent(
-        StreamingResponseUpdate update,
-        out HostedImageGenerationContent content)
-    {
-        content = null!;
-
-        try
+        var status = image.Status switch
         {
-            var rawJson = ModelReaderWriter.Write(update).ToString();
-            if (OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(rawJson) is not { } normalizedJson)
-                return false;
-
-            using var document = JsonDocument.Parse(normalizedJson);
-            var root = document.RootElement;
-            var eventType = ReadString(root, "type");
-            if (!string.Equals(eventType, "response.image_generation_call.completed", StringComparison.Ordinal) &&
-                !string.Equals(eventType, "response.image_generation_call.failed", StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            var id = ReadString(root, "item_id")
-                ?? ReadString(root, "id")
-                ?? ReadString(root, "call_id")
-                ?? Guid.NewGuid().ToString("N");
-            var revisedPrompt = ReadString(root, "revised_prompt");
-            var status = string.Equals(eventType, "response.image_generation_call.completed", StringComparison.Ordinal)
-                ? "completed"
-                : "failed";
-
-            if (!string.Equals(status, "completed", StringComparison.Ordinal))
-            {
-                content = new HostedImageGenerationContent
-                {
-                    Id = id,
-                    Status = status,
-                    RevisedPrompt = revisedPrompt,
-                    ErrorMessage = ReadImageGenerationError(root) ?? "Image generation failed."
-                };
-                return true;
-            }
-
-            var result = ReadString(root, "result");
-            if (string.IsNullOrWhiteSpace(result))
-            {
-                content = new HostedImageGenerationContent
-                {
-                    Id = id,
-                    Status = status,
-                    RevisedPrompt = revisedPrompt,
-                    ErrorMessage = "Image generation completed without image data."
-                };
-                return true;
-            }
-
-            byte[] imageBytes;
-            try
-            {
-                imageBytes = Convert.FromBase64String(result.Trim());
-            }
-            catch (FormatException)
-            {
-                content = new HostedImageGenerationContent
-                {
-                    Id = id,
-                    Status = status,
-                    RevisedPrompt = revisedPrompt,
-                    ErrorMessage = "Image generation returned invalid image data."
-                };
-                return true;
-            }
-
-            content = new HostedImageGenerationContent
-            {
-                Id = id,
-                Status = status,
-                RevisedPrompt = revisedPrompt,
-                ImageBytes = imageBytes,
-                MediaType = "image/png"
-            };
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
-        {
+            ImageGenerationCallStatus.Completed => "completed",
+            ImageGenerationCallStatus.Failed => "failed",
+            _ => null
+        };
+        if (status is null)
             return false;
-        }
+        var bytes = image.ImageResultBytes?.ToArray();
+        content = new HostedImageGenerationContent
+        {
+            Id = image.Id,
+            Status = status,
+            RevisedPrompt = image.RevisedPrompt,
+            ImageBytes = status == "completed" ? bytes : null,
+            MediaType = "image/png",
+            ErrorMessage = status == "failed"
+                ? (TryReadJsonObjectFromRaw(image, out var raw) ? ReadImageGenerationError(raw) : null) ?? "Image generation failed."
+                : bytes is not { Length: > 0 } ? "Image generation completed without image data." : null
+        };
+        return true;
     }
 
     private static string? ReadImageGenerationError(JsonObject rawObject)
@@ -195,23 +51,6 @@ internal static partial class ResponsesToolSearchMapper
 
         var message = ReadJsonString(errorObject, "message");
         var code = ReadJsonString(errorObject, "code");
-        return string.IsNullOrWhiteSpace(code)
-            ? message
-            : string.IsNullOrWhiteSpace(message)
-                ? code
-                : $"{code}: {message}";
-    }
-
-    private static string? ReadImageGenerationError(JsonElement root)
-    {
-        if (ReadString(root, "error") is { } textError)
-            return textError;
-
-        if (!TryGetProperty(root, "error", out var error) || error.ValueKind != JsonValueKind.Object)
-            return null;
-
-        var message = ReadString(error, "message");
-        var code = ReadString(error, "code");
         return string.IsNullOrWhiteSpace(code)
             ? message
             : string.IsNullOrWhiteSpace(message)

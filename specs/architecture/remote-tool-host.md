@@ -485,3 +485,16 @@ Conformance tests cover:
 
 When no Remote Tool Host is paired, the existing model tool schema and local execution behavior
 remain unchanged.
+
+## Generated image artifacts
+
+Hosted generation remains Agent-owned. The image's route is captured at generation start.
+The Agent persists image content in Session history and, when routed remotely, writes the
+artifact through `dotcraft/remoteToolHost/images/write` to the captured workspace's
+`.craft/generated_images/<threadId>/<callId>.png`. The Host computes this path, validates the
+lease and peer, applies WriteFile authorization and configured file size limits, and writes
+atomically without replacing an existing destination. These files survive lease release.
+A lost or changed route must not redirect output or fall back to local file storage. The
+write is not automatically retried after transmission. Generation success and storage failure
+are distinct: the image remains displayable while storage status reports the error. Saved
+locations include host/workspace provenance. Local generation retains the Agent data root.

@@ -102,6 +102,10 @@ public interface IRemoteToolHostClient
     /// <summary>Copies the parent's current route reference to a native child thread.</summary>
     bool TryForkRoute(string parentThreadId, string childThreadId);
 
+    /// <summary>Writes a generated image once to its captured remote workspace route.</summary>
+    ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
+        byte[] bytes, CancellationToken cancellationToken = default);
+
     /// <summary>Invokes an exact mirrored definition through the active remote workspace lease.</summary>
     ValueTask<ToolExecutionResult> InvokeAsync(
         RemoteToolRoute route,

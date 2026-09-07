@@ -575,6 +575,7 @@ export const MESSAGES_JA = {
   'markdown.disableWordWrap': '折り返しを無効にする',
   'conversation.selectAll': 'すべて選択',
   'conversation.copyImage': '画像をコピー',
+  'conversation.imageGeneration.saveFailed': '画像は生成されましたが、ファイルを保存できませんでした。',
   'conversation.imageGeneration.generating': '画像を生成中',
   'conversation.imageGeneration.completed': '画像を生成しました',
   'conversation.imageGeneration.failed': '画像生成に失敗しました',
