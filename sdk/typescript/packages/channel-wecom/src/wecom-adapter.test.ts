@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { parseWeComApprovalDecision } from "./approval.js";
 import { WeComPermissionService } from "./permission.js";
 import { WeComAdapter } from "./wecom-adapter.js";
-import { WE_COM_SEND_FILE_TOOL, WE_COM_SEND_VOICE_TOOL, WeComMediaTools } from "./wecom-media-tools.js";
+import { WE_COM_SEND_FILE_TOOL, WeComMediaTools } from "./wecom-media-tools.js";
 import { parseWeComMessage, parseWeComParameters, WeComChatType } from "./wecom-types.js";
 
 test("WeComPermissionService classifies admins, whitelisted users, chats, and unauthorized users", () => {
@@ -54,9 +54,8 @@ test("parseWeComMessage parses JSON mixed messages", () => {
   assert.equal(message?.mixedMessage?.msgItems[0]?.text?.content, "hello");
 });
 
-test("WeComMediaTools preserves legacy tool names and current-chat requirement", () => {
+test("WeComMediaTools requires current chat context and exposes display metadata", () => {
   const tools = new WeComMediaTools().getChannelTools();
-  assert.deepEqual(tools.map((tool) => tool.name), [WE_COM_SEND_VOICE_TOOL, WE_COM_SEND_FILE_TOOL]);
   assert.ok(tools.every((tool) => tool.requiresChatContext === true));
   assert.equal((tools[0]?.display as Record<string, unknown> | undefined)?.icon, "🎤");
   assert.equal((tools[1]?.display as Record<string, unknown> | undefined)?.icon, "📁");

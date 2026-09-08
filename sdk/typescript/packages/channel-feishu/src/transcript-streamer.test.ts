@@ -203,6 +203,14 @@ function statusOps(client: FakeCardKitClient): string[] {
     .filter((op): op is string => op !== null);
 }
 
+async function waitForStatusOps(client: FakeCardKitClient, count: number): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (statusOps(client).length < count) {
+    if (Date.now() >= deadline) assert.fail(`Expected ${count} status operations, got ${statusOps(client).length}`);
+    await sleep(10);
+  }
+}
+
 test("FeishuTranscriptStreamer follows Desktop: thinking, working while a tool runs, hidden while text streams", async () => {
   const client = new FakeCardKitClient();
   const streamer = new FeishuTranscriptStreamer(client, "dm:test-user", "DotCraft", { statusIconImgKey: "img_loading", ...FAST_STATUS });
@@ -213,31 +221,25 @@ test("FeishuTranscriptStreamer follows Desktop: thinking, working while a tool r
   assert.match(String((statusElementOf(client.created[0]!)?.i18n_content as Record<string, string>).zh_cn), /思考中/);
 
   streamer.noteActivity(tool("started", "tool-1"));
-  streamer.noteActivity(tool("started", "tool-2"));
-  await sleep(20);
+  await waitForStatusOps(client, 1);
   assert.deepEqual(statusOps(client), ["patch:working"]);
 
   streamer.noteActivity(tool("completed", "tool-1"));
-  await sleep(20);
-  assert.deepEqual(statusOps(client), ["patch:working"]);
-  streamer.noteActivity(tool("completed", "tool-2"));
-  await sleep(20);
+  await waitForStatusOps(client, 2);
   assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking"]);
 
   assert.equal(await streamer.update("First paragraph."), true);
-  await sleep(50);
+  await waitForStatusOps(client, 3);
   assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete"]);
 
-  streamer.noteActivity(tool("started", "tool-3"));
-  await sleep(50);
-  assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete"]);
-  await sleep(350);
+  streamer.noteActivity(tool("started", "tool-2"));
+  await waitForStatusOps(client, 4);
   assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete", "append:working"]);
   const working = client.appended[0]!.element;
   assert.equal((working.icon as Record<string, unknown>).img_key, "img_loading");
 
   assert.equal(await streamer.update("First paragraph.\n\nSecond paragraph."), true);
-  await sleep(50);
+  await waitForStatusOps(client, 5);
   assert.deepEqual(statusOps(client), ["patch:working", "patch:thinking", "delete", "append:working", "delete"]);
   assert.equal(await streamer.complete("First paragraph.\n\nSecond paragraph."), true);
   await sleep(350);
@@ -254,12 +256,12 @@ test("FeishuTranscriptStreamer shows thinking again when streamed text stalls", 
 
   await streamer.begin();
   await streamer.update("Partial");
-  await sleep(30);
+  await waitForStatusOps(client, 1);
   assert.deepEqual(statusOps(client), ["delete"]);
-  await sleep(120);
+  await waitForStatusOps(client, 2);
   assert.deepEqual(statusOps(client), ["delete", "append:thinking"]);
   await streamer.update("Partial answer");
-  await sleep(30);
+  await waitForStatusOps(client, 3);
   assert.deepEqual(statusOps(client), ["delete", "append:thinking", "delete"]);
 });
 

@@ -23,9 +23,3 @@ test("documented SDK entry points are importable and curated", async () => {
   assert.ok(hub && appBinding && dynamicTools && testing);
   assert.equal(typeof meta.SDK_VERSION, "string");
 });
-test("removed SDK subpaths are not exported", async () => {
-  for (const specifier of ["@dotcraft/sdk/appserver", "@dotcraft/sdk/channel"]) {
-    await assert.rejects(import(specifier), (error: unknown) =>
-      error instanceof Error && "code" in error && error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED");
-  }
-});

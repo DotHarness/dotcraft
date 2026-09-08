@@ -276,10 +276,16 @@ export class FeishuTranscriptStreamer {
 
   private armStallTimer(): void {
     if (this.stallTimer) clearTimeout(this.stallTimer);
-    this.stallTimer = setTimeout(() => {
+    const syncAfterStall = () => {
+      const remaining = this.textStallMs - (Date.now() - this.lastDeltaAt);
+      if (remaining > 0) {
+        this.stallTimer = setTimeout(syncAfterStall, remaining);
+        return;
+      }
       this.stallTimer = undefined;
       void this.syncStatus();
-    }, this.textStallMs);
+    };
+    this.stallTimer = setTimeout(syncAfterStall, this.textStallMs);
   }
 
   private async syncStatus(): Promise<void> {

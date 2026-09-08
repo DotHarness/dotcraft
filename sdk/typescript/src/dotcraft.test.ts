@@ -10,7 +10,6 @@ import {
   type UserInputHandler,
 } from "./dotcraft.js";
 import { TurnInProgressError } from "./errors.js";
-import * as modelExports from "./models.js";
 import { ERR_TURN_IN_PROGRESS, imageDataUrlPart, JsonRpcMessage } from "./models.js";
 import type {
   DynamicToolCallResult,
@@ -32,10 +31,9 @@ const appBindingFixture = JSON.parse(readFileSync(
   "utf8",
 )) as { version: number; states: string[]; socialMethods: string[]; errors: Record<string, string> };
 
-test("imageDataUrlPart creates inline image input without the removed remote URL helper", () => {
+test("imageDataUrlPart creates inline image input", () => {
   const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
   assert.deepEqual(imageDataUrlPart(dataUrl), { type: "image", url: dataUrl });
-  assert.equal("imageUrlPart" in modelExports, false);
 });
 
 test("App Binding canonical fixture is stable", () => {

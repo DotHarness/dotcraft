@@ -472,7 +472,7 @@ test("handleMessage resolves social binding before running slash commands", asyn
 
   (adapter as unknown as { running: boolean }).running = true;
   (adapter as unknown as { threadResolver: { setCachedThread(identityKey: string, threadId: string): void } })
-    .threadResolver.setCachedThread("u:group-123", "thread-legacy-1");
+    .threadResolver.setCachedThread("u:group-123", "thread-cached-1");
   client.request = async (method: unknown, params: unknown) => {
     if (method === "app/socialBinding/resolve") {
       resolveParams = params as Record<string, unknown>;

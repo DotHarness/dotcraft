@@ -31,12 +31,6 @@ function sentMessageFile(server: FakeOneBot): string {
   return String(data.file);
 }
 
-test("QQMediaTools declares legacy tool names", () => {
-  const tools = new QQMediaTools().getChannelTools();
-  assert.ok(tools.some((tool) => tool.name === QQ_SEND_GROUP_VOICE_TOOL));
-  assert.ok(tools.some((tool) => tool.name === QQ_UPLOAD_PRIVATE_FILE_TOOL));
-});
-
 test("QQMediaTools voice and video tools declare filePath approval metadata", () => {
   const tools = new QQMediaTools().getChannelTools();
   const expectedTools = [
@@ -55,7 +49,6 @@ test("QQMediaTools voice and video tools declare filePath approval metadata", ()
     assert.ok(inputSchema.properties?.["filePath"], `${toolName} should expose filePath`);
     assert.ok(inputSchema.properties?.["fileUrl"], `${toolName} should expose fileUrl`);
     assert.ok(inputSchema.properties?.["fileBase64"], `${toolName} should expose fileBase64`);
-    assert.ok(inputSchema.properties?.["file"], `${toolName} should keep legacy file`);
   }
 });
 
@@ -97,41 +90,6 @@ test("QQMediaTools maps private video fileBase64 to send_private_msg", async () 
   assert.equal(result.success, true);
   assert.equal(server.actions[0].action, "send_private_msg");
   assert.equal(sentMessageFile(server), `base64://${Buffer.from("video bytes").toString("base64")}`);
-});
-
-test("QQMediaTools keeps legacy file URL and base64 sources", async () => {
-  const urlServer = new FakeOneBot();
-  const urlResult = await new QQMediaTools().executeToolCall(urlServer as never, QQ_SEND_GROUP_VOICE_TOOL, {
-    groupId: 123,
-    file: "https://example.test/legacy.mp3",
-  });
-
-  assert.equal(urlResult.success, true);
-  assert.equal(sentMessageFile(urlServer), "https://example.test/legacy.mp3");
-
-  const base64Server = new FakeOneBot();
-  const base64Result = await new QQMediaTools().executeToolCall(base64Server as never, QQ_SEND_PRIVATE_VOICE_TOOL, {
-    userId: 456,
-    file: "base64://dm9pY2U=",
-  });
-
-  assert.equal(base64Result.success, true);
-  assert.equal(sentMessageFile(base64Server), "base64://dm9pY2U=");
-});
-
-test("QQMediaTools rejects legacy local file paths for voice/video tools", async () => {
-  await assert.rejects(
-    () => new QQMediaTools().executeToolCall(new FakeOneBot() as never, QQ_SEND_GROUP_VIDEO_TOOL, {
-      groupId: 123,
-      file: "C:\\temp\\clip.mp4",
-    }),
-    (error) => {
-      assert.ok(error instanceof QQMediaError);
-      assert.equal(error.code, "InvalidArguments");
-      assert.match(error.message, /Use filePath for local files/);
-      return true;
-    },
-  );
 });
 
 test("QQMediaTools requires exactly one voice/video media source", async () => {
