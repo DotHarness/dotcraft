@@ -1,6 +1,11 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_FR = {
+  'settings.followUpBehavior.label': 'Comportement des messages de suivi',
+  'settings.followUpBehavior.description': 'Mettez les messages de suivi en attente pendant une tâche ou utilisez-les pour guider le tour en cours.',
+  'settings.followUpBehavior.queue': 'En attente',
+  'settings.followUpBehavior.steer': 'Guider',
+  'settings.followUpBehavior.saveFailed': 'Impossible d’enregistrer le comportement de suivi : {{error}}',
   'app.titleWithWorkspace': 'DotCraft - {{name}}',
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': 'Précédent',

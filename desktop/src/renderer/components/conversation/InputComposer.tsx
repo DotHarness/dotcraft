@@ -4,6 +4,8 @@ import { Archive, Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide
 import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
+import { sendComposerFollowUp } from '../../utils/composerFollowUp'
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -337,6 +339,8 @@ function InputComposerCore({
   const desktopCommandContributions = useDesktopPluginRegistry((s) => s.commands)
 
   const isRunning = !hasSubmitOverride && turnStatus === 'running'
+  const followUpPreference = useComposerPreferencesStore((state) => state.followUpQueueMode)
+  const followUpMode = isRunning ? followUpPreference : 'queue'
   const isWaitingApproval = !hasSubmitOverride && turnStatus === 'waitingApproval'
   const isWaitingInput = !hasSubmitOverride && turnStatus === 'waitingInput'
   const isMaintenanceActive = !hasSubmitOverride && (maintenanceKind === 'compacting' || maintenanceKind === 'consolidating')
@@ -1152,27 +1156,11 @@ function InputComposerCore({
             files: inputFiles,
             images: inputImages
           })
-          if (isRunning) {
-            if (!activeTurnId || activeTurnId.startsWith('local-turn-')) {
-              throw new Error('The active turn is not ready for steering yet. Your draft was preserved.')
-            }
-            await window.api.appServer.sendRequest('turn/steer', {
-              threadId,
-              expectedTurnId: activeTurnId,
-              input: inputParts,
-              sender: undefined
-            })
-          } else {
-            await window.api.appServer.sendRequest('turn/enqueue', {
-              threadId,
-              input: inputParts,
-              sender: undefined
-            })
-          }
+          await sendComposerFollowUp({ mode: followUpMode, threadId, activeTurnId, input: inputParts })
         }
         resetComposerInput()
       } catch (err) {
-        console.error(isRunning ? 'turn/steer failed:' : 'turn/enqueue failed:', err)
+        console.error(`turn/${followUpMode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
         sendInFlightRef.current = false
@@ -1234,7 +1222,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isRunning, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
+  }, [activeTurnId, compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1918,7 +1906,7 @@ function InputComposerCore({
             submit={!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
-                  <ComposerSubmitButton mode={isRunning ? 'steer' : 'queue'} onClick={sendMessage} />
+                  <ComposerSubmitButton mode={followUpMode} onClick={sendMessage} />
                 ) : (
                   <ComposerSubmitButton
                     mode={interruptingTurnId ? 'stopping' : 'stop'}

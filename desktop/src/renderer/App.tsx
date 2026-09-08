@@ -12,6 +12,7 @@ import {
   type PendingApproval
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
+import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
 import { useViewerTabStore } from './stores/viewerTabStore'
 import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
@@ -1310,6 +1311,7 @@ export function App(): JSX.Element {
       .then((s) => {
         applyTheme(resolveTheme(s.theme))
         useUIStore.getState().setShowThinkingContent(s.showThinkingContent === true)
+        useComposerPreferencesStore.getState().hydrate(s)
         useUIStore.setState({
           projectsSectionCollapsed: s.projectsSectionCollapsed === true,
           pinnedSectionCollapsed: s.pinnedSectionCollapsed === true,

@@ -1,6 +1,11 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ZH_HANS = {
+  'settings.followUpBehavior.label': '后续消息行为',
+  'settings.followUpBehavior.description': '任务运行时，将后续消息排队等待，或用于引导当前轮次。',
+  'settings.followUpBehavior.queue': '排队',
+  'settings.followUpBehavior.steer': '引导',
+  'settings.followUpBehavior.saveFailed': '保存后续消息行为失败：{{error}}',
   'settings.tab.browserUse': '浏览器',
   'settings.tab.computerControl': '电脑操控',
   'settings.browserUse.plugin': '插件',
