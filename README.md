@@ -35,25 +35,31 @@ DotCraft turns your projects into **extensible environments for AI agents**.
 
 [![Your projects. Your agents. One desktop.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-desktop.png)](https://www.dotcraft.net/features/entry-points/desktop)
 
-Work on projects with agents in one desktop window, with plans, activity, and code changes in view. [Explore Desktop](https://www.dotcraft.net/features/entry-points/desktop).
+Work with agents on your projects in one desktop app.
 
 ### DotCraft.Harness
 
 [![Build agents into your .NET apps.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/developing/harness/)
 
-Embed the agent runtime, sessions, tools, and approvals in your .NET applications with the `DotCraft.Harness` NuGet package. [Build with Harness](https://www.dotcraft.net/developing/harness/).
+Embed a complete agent runtime in your .NET applications.
 
 ### Oratorio
 
 [![From task to reviewed delivery.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-oratorio.png)](https://www.dotcraft.net/features/oratorio)
 
-Bring local tasks, GitHub, and GitLab work onto one board, hand tasks to agents, then review and deliver the results. [Explore Oratorio](https://www.dotcraft.net/features/oratorio).
+Manage agent tasks from assignment to review on one board.
 
 ### Satellite
 
 [![Your agents. Another machine.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/features/agent-system/satellite)
 
-Let agents use an approved shared folder and tools on another computer while conversations, approvals, and history stay on yours. [Connect a Satellite](https://www.dotcraft.net/features/agent-system/satellite).
+Let your agents work in an approved shared folder on another computer.
+
+### Avatar
+
+[![Give your agents character.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
+
+Give your agents consistent, name-derived avatars with `@dotcraft/avatar`.
 
 ## Quick start
 

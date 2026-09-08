@@ -35,25 +35,31 @@ DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 
 [![你的项目，你的 Agent，同一个桌面。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-desktop.png)](https://www.dotcraft.net/zh/features/entry-points/desktop)
 
-在一个桌面窗口里与 Agent 处理项目，查看计划、运行过程和代码改动。[了解 Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop)。
+在一个桌面应用中与 Agent 一起处理项目。
 
 ### DotCraft.Harness
 
 [![把 Agent 能力嵌入你的 .NET 应用。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/zh/developing/harness/)
 
-通过 `DotCraft.Harness` NuGet 包，将 Agent 运行时、会话、工具与审批能力嵌入你的 .NET 应用。[使用 Harness 构建应用](https://www.dotcraft.net/zh/developing/harness/)。
+将完整的 Agent 运行时嵌入你的 .NET 应用。
 
 ### Oratorio
 
 [![从任务到审阅与交付。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-oratorio.png)](https://www.dotcraft.net/zh/features/oratorio)
 
-将本地任务、GitHub 和 GitLab 工作汇入同一看板，交给 Agent 执行，再审阅和交付结果。[了解 Oratorio](https://www.dotcraft.net/zh/features/oratorio)。
+在同一看板上管理 Agent 任务，从分配到审阅。
 
 ### 卫星
 
 [![让你的 Agent 到另一台电脑上工作。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/zh/features/agent-system/satellite)
 
-让 Agent 使用另一台电脑获准共享的文件夹与工具，对话、审批和历史仍留在你这边。[连接卫星](https://www.dotcraft.net/zh/features/agent-system/satellite)。
+让你的 Agent 在另一台电脑获准共享的文件夹中工作。
+
+### Avatar
+
+[![让你的 Agent 拥有鲜明个性。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
+
+用 `@dotcraft/avatar` 根据名称为 Agent 生成稳定一致的头像。
 
 ## 快速开始
 
