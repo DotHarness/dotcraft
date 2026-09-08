@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/avatar",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Name-derived DotCraft avatars and React SVG animation components",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,8 @@
     "./styles.css": "./dist/styles.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "sideEffects": [
     "**/*.css"

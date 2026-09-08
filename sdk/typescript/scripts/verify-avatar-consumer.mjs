@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve, relative, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
@@ -16,6 +16,32 @@ run(['pack','--workspace','@dotcraft/avatar','--pack-destination',join(work,'pac
 const tarball = join(work, 'packs', `dotcraft-avatar-${manifest.version}.tgz`)
 writeFileSync(join(work,'package.json'), JSON.stringify({private:true,type:'module',dependencies:{'@dotcraft/avatar':tarball,react:'^19.0.0','react-dom':'^19.0.0','@types/react':'^19.0.0'}}))
 run(['install','--ignore-scripts','--no-audit','--no-fund'], work)
+const installed = join(work, 'node_modules/@dotcraft/avatar')
+let mappedFiles = 0
+function verifyMaps(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const file = join(directory, entry.name)
+    if (entry.isDirectory()) { verifyMaps(file); continue }
+    if (!/\.(js|ts)$/.test(file)) continue
+    const reference = readFileSync(file, 'utf8').match(/\/\/# sourceMappingURL=(\S+)/)?.[1]
+    if (!reference) continue
+    mappedFiles++
+    const mapPath = resolve(dirname(file), reference)
+    assert.ok(!isAbsolute(reference) && !relative(installed, mapPath).startsWith('..'), 'Map stays inside package')
+    assert.ok(existsSync(mapPath), `Missing map: ${reference}`)
+    const map = JSON.parse(readFileSync(mapPath, 'utf8'))
+    assert.ok(!map.sourceRoot, 'Maps use package-relative source paths')
+    for (const source of map.sources) {
+      const sourcePath = resolve(dirname(mapPath), source)
+      assert.ok(!isAbsolute(source) && !/^[a-z]+:/i.test(source) && !relative(installed, sourcePath).startsWith('..'), 'Source stays inside package')
+      assert.ok(existsSync(sourcePath), `Missing mapped source: ${source}`)
+      readFileSync(sourcePath, 'utf8')
+    }
+  }
+}
+verifyMaps(join(installed, 'dist'))
+assert.ok(mappedFiles > 0, 'The package retains source maps')
+console.log(`Avatar source maps passed: ${mappedFiles} mapped files, all sources shipped.`)
 writeFileSync(join(work,'core.mjs'), `export { deriveAppearance } from '@dotcraft/avatar'`)
 const core = await build({entryPoints:[join(work,'core.mjs')],bundle:true,platform:'node',format:'esm',write:false,metafile:true})
 assert.ok(!Object.keys(core.metafile.inputs).some(path=>/node_modules\/react\//.test(path)))
@@ -30,10 +56,11 @@ execFileSync(process.execPath,[join(sdk,'node_modules/typescript/bin/tsc'),'-p',
 await build({entryPoints:[join(work,'app.tsx')],bundle:true,platform:'browser',format:'esm',outdir:join(work,'out'),logLevel:'silent'})
 const css=readFileSync(join(work,'out/app.css'),'utf8')
 assert.ok(css.includes('.dca-robot'))
-assert.ok(!css.includes('--text-primary') && !css.includes('html[data-reduce-motion'))
+const isolatedCss = !css.includes('--text-primary') && !css.includes('html[data-reduce-motion')
 writeFileSync(join(work,'ssr.mjs'), `import assert from 'node:assert/strict';
 import {createElement} from 'react'; import {renderToStaticMarkup} from 'react-dom/server';
 import {Avatar} from '@dotcraft/avatar/react';
 assert.ok(renderToStaticMarkup(createElement(Avatar,{name:'Reviewer',label:'Reviewer'})).includes('aria-label="Reviewer"'));`)
 execFileSync(process.execPath,[join(work,'ssr.mjs')],{stdio:'pipe'})
-console.log(`Avatar tarball consumer passed: core without React, TypeScript, browser CSS bundle, SSR. Artifacts: ${work}`)
+console.log(`Avatar consumer functional checks passed: core without React, TypeScript, browser CSS bundle, SSR. Artifacts: ${work}`)
+assert.ok(isolatedCss, 'Avatar CSS must not depend on host theme variables or selectors')
