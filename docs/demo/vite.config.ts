@@ -25,6 +25,7 @@ export default defineConfig({
       'react',
       'react-dom',
       'zustand',
+      'js-yaml',
       'highlight.js',
       'lucide-react',
       '@iconify/react',
