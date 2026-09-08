@@ -2792,7 +2792,8 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         IChatClient? compactionChatClient = null,
         IApprovalService? approvalService = null,
         IToolDispatcher? toolDispatcher = null,
-        PlanStore? planStore = null)
+        PlanStore? planStore = null,
+        string? workspacePath = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         configureConfig?.Invoke(config);
@@ -2800,7 +2801,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var skills = new SkillsLoader(_tempDir);
         return new AgentFactory(
             dotcraftPath: _tempDir,
-            workspacePath: _tempDir,
+            workspacePath: workspacePath ?? _tempDir,
             config: config,
             memoryStore: memory,
             skillsLoader: skills,

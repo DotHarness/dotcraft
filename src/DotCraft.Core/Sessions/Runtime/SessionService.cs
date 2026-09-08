@@ -1927,6 +1927,7 @@ public sealed partial class SessionService(
             Dictionary<int, string>? streamingToolNameByIndex = null;
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
             var turnCommitter = new TurnCommitter(this, thread, turn);
+            TurnModelHistory? turnModelHistory = null;
 
             void FinalizeStreamingAgentMessage()
                 => itemProjector.FinalizeAgentMessage();
@@ -2109,9 +2110,7 @@ public sealed partial class SessionService(
                 if (mailboxMessage == null)
                     return guidanceMessage;
 
-                return new ChatMessage(
-                    ChatRole.User,
-                    guidanceMessage.Contents.Concat(mailboxMessage.Contents).ToList());
+                return TurnModelHistory.Combine(guidanceMessage, mailboxMessage);
             }
 
             ChatMessage? TryDrainGoalSteeringMessage()
@@ -2134,10 +2133,12 @@ public sealed partial class SessionService(
                 if (!AgentPath.TryParse(currentPathValue, out var currentPath))
                     return null;
 
-                using (await _subAgentCommunicationRuntime.AcquireInboxAsync(
+                var inboxLease = await _subAgentCommunicationRuntime.AcquireInboxAsync(
                     rootThreadId,
                     currentPath.Value,
-                    drainCt))
+                    drainCt);
+                var staged = false;
+                try
                 {
                     var pending = await ListPendingSubAgentMailboxAsync(
                         rootThreadId,
@@ -2179,19 +2180,24 @@ public sealed partial class SessionService(
                     FinalizeStreamingAgentMessage();
                     FinalizeStreamingReasoning();
 
-                    turn.Items.Add(item);
-                    thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                    await MarkSubAgentMailboxDeliveredAsync(
-                        rootThreadId,
-                        pending.Select(entry => entry.Id).ToArray(),
-                        DateTimeOffset.UtcNow,
-                        CancellationToken.None);
-
-                    eventChannel.EmitItemStarted(item);
-                    eventChannel.EmitItemCompleted(item);
-                    return new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
+                    var message = new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)])
+                    {
+                        MessageId = item.Id
+                    };
+                    turnModelHistory!.Stage(message, pending.Select(entry => $"mailbox:{entry.Id}").ToArray(), async () =>
+                    {
+                        turn.Items.Add(item);
+                        thread.LastActiveAt = DateTimeOffset.UtcNow;
+                        await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                        await MarkSubAgentMailboxDeliveredAsync(rootThreadId, pending.Select(entry => entry.Id).ToArray(),
+                            DateTimeOffset.UtcNow, CancellationToken.None);
+                        eventChannel.EmitItemStarted(item);
+                        eventChannel.EmitItemCompleted(item);
+                    }, inboxLease);
+                    staged = true;
+                    return message;
                 }
+                finally { if (!staged) inboxLease.Dispose(); }
             }
 
             async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
@@ -2204,101 +2210,21 @@ public sealed partial class SessionService(
                     drainCt);
             }
 
-            async Task<ChatMessage?> DrainGuidanceCoreAsync(CancellationToken drainCt)
-            {
-                QueuedTurnInput? queued;
-                IReadOnlyList<QueuedTurnInput>? cleanupSnapshot = null;
-                using (await AcquireThreadQueueLockAsync(threadId, drainCt))
-                {
-                    var queue = thread.QueuedInputs.ToList();
-                    if (queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0)
-                    {
-                        thread.QueuedInputs = queue;
-                        thread.LastActiveAt = DateTimeOffset.UtcNow;
-                        await PersistThreadWithMaterializationAsync(thread, drainCt);
-                        cleanupSnapshot = queue.ToList();
-                    }
-
-                    var queueIndex = queue.FindIndex(q =>
-                        string.Equals(q.Status, "guidancePending", StringComparison.Ordinal) &&
-                        string.Equals(q.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal));
-                    queued = queueIndex < 0 ? null : queue[queueIndex];
-                }
-                if (cleanupSnapshot != null)
-                    PublishQueueUpdated(thread.Id, cleanupSnapshot);
-                if (queued == null)
-                    return null;
-
-                var contentParts = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
-                if (contentParts.Count == 0)
-                    return null;
-
-                var nativeParts = queued.NativeInputParts.ToList();
-                var materializedParts = queued.MaterializedInputParts.ToList();
-                var displayText = !string.IsNullOrWhiteSpace(queued.DisplayText)
-                    ? queued.DisplayText
-                    : SessionWireMapper.BuildDisplayText(nativeParts);
-                var images = ExtractUserMessageImages(contentParts);
-
-                var item = new SessionItem
-                {
-                    Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                    TurnId = turn.Id,
-                    Type = ItemType.UserMessage,
-                    Status = ItemStatus.Completed,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    CompletedAt = DateTimeOffset.UtcNow,
-                    Payload = new UserMessagePayload
-                    {
-                        Text = displayText,
-                        DeliveryMode = "guidance",
-                        NativeInputParts = nativeParts,
-                        MaterializedInputParts = materializedParts,
-                        SenderId = queued.Sender?.SenderId,
-                        SenderName = queued.Sender?.SenderName,
-                        SenderRole = queued.Sender?.SenderRole,
-                        ChannelName = turn.OriginChannel,
-                        ChannelContext = turn.Initiator?.ChannelContext,
-                        GroupId = queued.Sender?.GroupId ?? turn.Initiator?.GroupId,
-                        Images = images.Count > 0 ? images : null,
-                        TriggerKind = queued.TriggerKind,
-                        TriggerLabel = queued.TriggerLabel,
-                        TriggerRefId = queued.TriggerRefId,
-                        QueuedInputId = queued.Id,
-                        DeliveryBindingId = queued.DeliveryBindingId
-                    }
-                };
-
-                IReadOnlyList<QueuedTurnInput> queueSnapshot;
-                using (await AcquireThreadQueueLockAsync(threadId, CancellationToken.None))
-                {
-                    var queue = thread.QueuedInputs.ToList();
-                    var queueIndex = queue.FindIndex(q =>
-                        string.Equals(q.Id, queued.Id, StringComparison.Ordinal) &&
-                        string.Equals(q.Status, "guidancePending", StringComparison.Ordinal) &&
-                        string.Equals(q.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal));
-                    if (queueIndex < 0)
-                        return null;
-
-                    FinalizeStreamingAgentMessage();
-                    FinalizeStreamingReasoning();
-
-                    turn.Items.Add(item);
-                    queue.RemoveAt(queueIndex);
-                    thread.QueuedInputs = queue;
-                    thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                    queueSnapshot = queue.ToList();
-                }
-
-                eventChannel.EmitItemStarted(item);
-                eventChannel.EmitItemCompleted(item);
-                PublishQueueUpdated(thread.Id, queueSnapshot);
-                return new ChatMessage(ChatRole.User, contentParts);
-            }
+            Task<ChatMessage?> DrainGuidanceCoreAsync(CancellationToken drainCt) =>
+                AdmitGuidanceInputAsync(thread, turn, eventChannel, NextItemSeq, FinalizeStreamingAgentMessage,
+                    FinalizeStreamingReasoning, turnModelHistory!, drainCt);
 
             async Task RestoreUndrainedGuidanceAsync(Action? terminalTransition = null)
             {
+                turnModelHistory?.AbortPending();
+                if (turnModelHistory is { RequiresReconciliation: true } && !thread.Ephemeral)
+                {
+                    var durableHistory = await persistence.LoadModelHistoryAsync(thread.Id, CancellationToken.None);
+                    await ReconcilePersistedInputHistoryAsync(thread, durableHistory, CancellationToken.None);
+                    session!.Clear();
+                    session.AddRange(durableHistory);
+                    turnCommitter.PersistedModelHistoryCount = session.Count;
+                }
                 if (!_runtimeRegistry.IsCurrent(threadId, admittedRuntime))
                 {
                     terminalTransition?.Invoke();
@@ -2646,7 +2572,7 @@ public sealed partial class SessionService(
                     CancellationToken.None);
                 await MarkActiveGoalBlockedForTurnErrorAsync(turnKey, CancellationToken.None);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
-                if (session is not null)
+                if (session is not null && turnModelHistory is null)
                     TryAppendFailedTurnTailToSession(session, turn);
                 await PersistCurrentTurnCommitAsync();
             }
@@ -3152,7 +3078,12 @@ public sealed partial class SessionService(
                                 traceCollector?.RecordStreamAttemptDiagnostic(threadId, diagnostic)
                         });
 
-                    await foreach (var update in agent.RunStreamingAsync(userMessage, session)
+                    turnModelHistory = new TurnModelHistory(session, turn.Id, turnCommitter,
+                        (delta, historyCt) => thread.Ephemeral
+                            ? Task.CompletedTask
+                            : persistence.AppendModelHistoryAsync(threadId, delta, turn.Id, historyCt));
+                    await foreach (var update in agent.RunStreamingAsync(userMessage, session,
+                        new ChatClientAgentRunOptions { HistoryObserver = turnModelHistory })
                         .WithCancellation(executionCt))
                     {
                         var chatResponseUpdate = update;
@@ -3997,6 +3928,7 @@ public sealed partial class SessionService(
             }
             finally
             {
+                turnModelHistory?.AbortPending();
                 approvalOverride?.Dispose();
                 gateLock?.Dispose();
                 if (!retiredResourcesReleased)
@@ -4815,11 +4747,17 @@ public sealed partial class SessionService(
 
             var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
                 turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+            var persistedModelHistory = await persistence.LoadModelHistoryAsync(threadId, ct);
+            await ReconcilePersistedInputHistoryAsync(thread, persistedModelHistory, ct);
             if (interruptedTurn != null)
             {
                 interruptedTurn.Status = TurnStatus.Cancelled;
                 interruptedTurn.CompletedAt = DateTimeOffset.UtcNow;
-                await new TurnCommitter(this, thread, interruptedTurn).CommitAsync();
+                await new TurnCommitter(this, thread, interruptedTurn)
+                {
+                    Session = persistedModelHistory,
+                    PersistedModelHistoryCount = persistedModelHistory.Count
+                }.CommitAsync();
             }
 
             var runtime = _runtimeRegistry.SetThread(thread);

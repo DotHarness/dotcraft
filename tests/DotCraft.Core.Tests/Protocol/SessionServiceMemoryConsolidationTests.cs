@@ -329,7 +329,9 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
             chatClient,
             new FakeMemoryConsolidator(MemoryConsolidationResult.Skipped("no changes")),
             config => config.Memory.AutoConsolidateEnabled = false);
-        var service = CreateService(agentFactory, chatClient);
+        using var loop = new StreamingFunctionInvokingChatClient(chatClient);
+        var service = new SessionService(agentFactory, loop.AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(_tempDir)), new SessionGate());
         var thread = await service.CreateThreadAsync(MakeIdentity());
 
         var turnTask = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
@@ -854,9 +856,8 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
         {
             _started.TrySetResult();
             await _release.Task.WaitAsync(cancellationToken);
-            var guidanceRuntime = TurnGuidanceRuntimeScope.Current
-                ?? throw new InvalidOperationException("Expected an active turn guidance runtime.");
-            GuidanceMessage = await guidanceRuntime.TryDrainGuidanceMessageAsync(cancellationToken);
+            GuidanceMessage = chatMessages.LastOrDefault(message => message.Role == ChatRole.User
+                && message.Text.Contains(SessionInputPartResolver.RemoteImageOmittedText, StringComparison.Ordinal));
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
         }
 

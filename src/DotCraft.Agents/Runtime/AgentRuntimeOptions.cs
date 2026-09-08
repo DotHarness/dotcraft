@@ -54,6 +54,11 @@ public sealed class ChatClientAgentOptions
 /// </summary>
 public sealed class ChatClientAgentRunOptions
 {
+    /// <summary>
+    /// Owns incremental history instead of the Agent's completion-time commit.
+    /// </summary>
+    public IAgentHistoryObserver? HistoryObserver { get; set; }
+
     /// <summary>Gets or sets request-local chat option overrides.</summary>
     public ChatOptions? ChatOptions { get; set; }
 
@@ -73,6 +78,7 @@ public sealed class ChatClientAgentRunOptions
             ChatOptions = ChatOptions?.Clone(),
             AdditionalProperties = AdditionalProperties?.Clone(),
             ResponseFormat = ResponseFormat,
-            ChatClientFactory = ChatClientFactory
+            ChatClientFactory = ChatClientFactory,
+            HistoryObserver = HistoryObserver
         };
 }

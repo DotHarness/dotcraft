@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.2 |
 | **Status** | Living |
-| **Date** | 2026-09-06 |
+| **Date** | 2026-09-08 |
 | **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
@@ -1597,6 +1597,14 @@ Session Core manages the mapping:
 - **Fork**: A persistent fork writes its materialized model history into the fork rollout. It does not create a separate runtime-session blob.
 
 The domain history and exact model history are intentionally distinct durable representations. `turn_state_replaced` preserves client-visible Turn and Item lifecycle state. `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither representation is required to losslessly derive the other, and arbitrary model metadata must not be copied into client-visible Items merely to remove duplicate text.
+
+#### Running input and history consistency
+
+The active model/tool loop reports ordered conversation-history additions independently of its output event stream. Initial input, completed model responses, tool results, and accepted running input share that sequence. Steering and existing passive communications must survive subsequent Turns, cold loading, and recovery export; visibility in one request or persistence of a UserMessage Item alone does not establish delivery.
+
+Session Core opts into incremental history persistence. It persists the input's ordered model-history prefix before consuming its queued input or acknowledging an existing communication. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata; a restart reconciles that record without calling the model or repeating tools. A failed history write stops execution and cannot acknowledge delivery. A terminal commit appends only the uncommitted suffix, including on failure or cancellation. Completed neutral compaction replaces the history baseline; later commits must not restore its discarded prefix. Provider-native history retains its separate authority.
+
+The Agent foundation exposes a generic optional asynchronous history observer, containing no mailbox or application concepts. The observer owns incremental history; the foundation buffers history only for standalone successful-completion-only updates to caller-owned history, including no mutation on failure. Runtime input is not fabricated as assistant output, and request-local sanitization or generated prompt instructions do not become canonical history. Previously lost historical content is not automatically reconstructed from Items.
 
 Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may additionally
 persist a protocol-native history. For OpenAI Responses, that history is the source of the future wire

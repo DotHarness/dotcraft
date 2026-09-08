@@ -12,6 +12,7 @@ public sealed partial class StreamingFunctionInvokingChatClient
         var message = await context.TryDrainGuidanceMessageAsync(cancellationToken);
         if (message is null)
             return false;
+        await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
         history.Add(message);
         return true;
     }
@@ -27,6 +28,7 @@ public sealed partial class StreamingFunctionInvokingChatClient
         var message = await TryDrainMailboxAsync(cancellationToken);
         if (message is null)
             return false;
+        await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
         history.Add(message);
         return true;
     }
@@ -41,6 +43,7 @@ public sealed partial class StreamingFunctionInvokingChatClient
         var message = await callback(cancellationToken);
         if (message is null)
             return false;
+        await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
         history.Add(message);
         return true;
     }

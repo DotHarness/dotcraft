@@ -6,7 +6,11 @@ namespace DotCraft.Agents;
 public sealed record StreamingSamplingPreparation(
     IReadOnlyList<ChatMessage> Messages,
     bool NeutralHistoryWasReplaced,
-    bool HistoryWasReplaced);
+    bool HistoryWasReplaced)
+{
+    /// <summary>The installed neutral replacement before request-local sanitization, when present.</summary>
+    public IReadOnlyList<ChatMessage>? NeutralHistoryReplacement { get; init; }
+}
 
 /// <summary>Flows Session Core's compaction preparation into the foundation tool loop.</summary>
 public static class StreamingSamplingRuntimeScope
