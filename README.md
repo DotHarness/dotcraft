@@ -59,7 +59,7 @@ Let your agents work in an approved shared folder on another computer.
 
 [![Give your agents character.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
 
-Give your agents consistent, name-derived avatars with `@dotcraft/avatar`.
+Give your agents personality with expressive, customizable avatars.
 
 ## Quick start
 

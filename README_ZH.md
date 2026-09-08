@@ -59,7 +59,7 @@ DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 
 [![让你的 Agent 拥有鲜明个性。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
 
-用 `@dotcraft/avatar` 根据名称为 Agent 生成稳定一致的头像。
+用表情丰富、可自由搭配的头像，为你的 Agent 赋予鲜明个性。
 
 ## 快速开始
 
