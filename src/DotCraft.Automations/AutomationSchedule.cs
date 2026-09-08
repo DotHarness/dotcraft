@@ -7,7 +7,7 @@ public sealed record AutomationSchedule
 {
     [Description("Schedule kind: at, every, daily, weekdays, or weekly.")]
     public string Kind { get; init; } = "at";
-    [Description("Required for at: absolute UTC ISO 8601 timestamp.")]
+    [Description("Required for at: absolute UTC ISO 8601 JSON string, for example 2026-09-09T01:30:00Z. Never use an object.")]
     public DateTimeOffset? At { get; init; }
     [Description("Required for every: interval in milliseconds, positive and at most 315576000000 (ten years).")]
     public long? EveryMs { get; init; }

@@ -102,6 +102,11 @@ internal static class ToolSchemaEmitter
         {
             entries.Add("\"type\":\"array\"");
         }
+        else if (IsDateTime(typeWithoutNullable))
+        {
+            entries.Add(isNullable ? "\"type\":[\"string\",\"null\"]" : "\"type\":\"string\"");
+            entries.Add("\"format\":\"date-time\"");
+        }
         else if (IsString(typeWithoutNullable))
         {
             entries.Add(isNullable ? "\"type\":[\"string\",\"null\"]" : "\"type\":\"string\"");
@@ -336,6 +341,9 @@ internal static class ToolSchemaEmitter
     }
 
     internal static bool IsString(ITypeSymbol type) => type.SpecialType == SpecialType.System_String;
+
+    internal static bool IsDateTime(ITypeSymbol type) =>
+        IsNamed(type, "System", "DateTime") || IsNamed(type, "System", "DateTimeOffset");
 
     internal static bool IsBoolean(ITypeSymbol type) => type.SpecialType == SpecialType.System_Boolean;
 

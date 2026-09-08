@@ -827,6 +827,8 @@ public sealed class TraceStore
                 session.ToolCallCount++;
                 if (evt.DurationMs.HasValue)
                     session.AddToolDuration((long)Math.Round(evt.DurationMs.Value));
+                if (HasToolErrorCode(evt.MetadataJson))
+                    session.ErrorCount++;
                 break;
             case TraceEventType.TurnCompleted:
                 if (evt.DurationMs.HasValue)
@@ -858,6 +860,24 @@ public sealed class TraceStore
             case TraceEventType.Thinking:
                 session.ThinkingCount++;
                 break;
+        }
+    }
+
+    private static bool HasToolErrorCode(string? metadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(metadataJson);
+            return document.RootElement.TryGetProperty("errorCode", out var value)
+                && value.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(value.GetString());
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

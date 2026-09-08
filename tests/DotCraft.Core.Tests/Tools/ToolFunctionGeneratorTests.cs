@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Generators;
 using DotCraft.Tools;
@@ -19,6 +20,7 @@ public sealed class ToolFunctionGeneratorTests
         const string source = """
             using System.ComponentModel;
             using System.ComponentModel.DataAnnotations;
+            using System;
             using System.Text.Json;
             using System.Text.Json.Nodes;
             using System.Text.Json.Serialization;
@@ -44,6 +46,9 @@ public sealed class ToolFunctionGeneratorTests
 
                 [JsonIgnore]
                 public string? Hidden { get; init; }
+
+                [Description("Optional scheduled instant.")]
+                public DateTimeOffset? ScheduledAt { get; init; }
             }
 
             internal interface IFixtureDeclaration
@@ -75,6 +80,7 @@ public sealed class ToolFunctionGeneratorTests
                 public string Go(
                     [ToolParameter(Name = "input_value")]
                     [Description("Input value.")] string value,
+                    [Description("Optional execution time.")] DateTimeOffset? at = null,
                     [Description("Default execution mode.")] FixtureMode mode = FixtureMode.Inline) => value;
             }
 
@@ -123,6 +129,8 @@ public sealed class ToolFunctionGeneratorTests
         var nested = properties["nested"]!["properties"]!.AsObject();
         Assert.True(nested.ContainsKey("display_name"));
         Assert.False(nested.ContainsKey("hidden"));
+        Assert.Equal(["string", "null"], nested["scheduledAt"]!["type"]!.AsArray().Select(static value => value!.GetValue<string>()));
+        Assert.Equal("date-time", nested["scheduledAt"]!["format"]!.GetValue<string>());
         Assert.Equal(["display_name"], properties["nested"]!["required"]!.AsArray().Select(static value => value!.GetValue<string>()));
 
         var functions = assembly.GetType($"{generatedNamespace}.GeneratedToolFunctions");
@@ -141,8 +149,14 @@ public sealed class ToolFunctionGeneratorTests
         Assert.True(Assert.Single(descriptors, descriptor => descriptor.Name == "exec_alias").RpcEligible);
         var functionProperties = function.JsonSchema.GetProperty("properties");
         Assert.True(functionProperties.TryGetProperty("input_value", out _));
+        Assert.Equal(JsonValueKind.Array, functionProperties.GetProperty("at").GetProperty("type").ValueKind);
+        Assert.Equal("date-time", functionProperties.GetProperty("at").GetProperty("format").GetString());
         Assert.Equal("inline", functionProperties.GetProperty("mode").GetProperty("default").GetString());
-        var invocation = await function.InvokeAsync(new AIFunctionArguments { ["input_value"] = "ok" });
+        var invocation = await function.InvokeAsync(new AIFunctionArguments
+        {
+            ["input_value"] = "ok",
+            ["at"] = "2026-09-09T00:00:00Z"
+        });
         Assert.Equal("ok", ((System.Text.Json.JsonElement)invocation!).GetString());
 
         var toolAttributeFunction = Assert.IsAssignableFrom<AIFunction>(

@@ -1,6 +1,8 @@
 using DotCraft.Workspaces;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Automations;
+using DotCraft.Plugins;
 using DotCraft.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -20,8 +22,31 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
         Assert.Equal(ToolSourceKind.CoreNative, registration.Definition.Provenance.Kind);
         Assert.DoesNotContain("deliveryTarget", registration.Definition.InputSchema.GetRawText());
         var tools = new AutomationTools(service);
-        using var result = JsonDocument.Parse(await tools.Automation("create", automation: new AutomationInput {
-            Name = "Check", Prompt = "Check changes", Schedule = new() { Kind = "every", EveryMs = 60000 } }));
+        var schema = JsonNode.Parse(registration.Definition.InputSchema.GetRawText())!.AsObject();
+        var atSchema = schema["properties"]!["automation"]!["properties"]!["schedule"]!["properties"]!["at"]!;
+        Assert.Equal(["string", "null"], atSchema["type"]!.AsArray().Select(static item => item!.GetValue<string>()));
+        Assert.Equal("date-time", atSchema["format"]!.GetValue<string>());
+
+        var validArguments = JsonNode.Parse("""{"action":"create","automation":{"name":"Check","prompt":"Check changes","schedule":{"kind":"at","at":"2099-09-09T00:00:00Z"},"notificationPolicy":"all"}}""")!.AsObject();
+        Assert.True(PluginFunctionSchemaValidator.TryValidateArguments(schema, validArguments, out var validMessage), validMessage);
+        var invalidDate = JsonNode.Parse("""{"action":"create","automation":{"schedule":{"kind":"at","at":{"dateTime":"2099-09-09T00:00:00Z"}}}}""")!.AsObject();
+        Assert.False(PluginFunctionSchemaValidator.TryValidateArguments(schema, invalidDate, out _));
+        var invalidPolicy = JsonNode.Parse("""{"action":"create","notificationPolicy":"all","automation":{"schedule":{"kind":"every","everyMs":60000}}}""")!.AsObject();
+        Assert.False(PluginFunctionSchemaValidator.TryValidateArguments(schema, invalidPolicy, out _));
+
+        var invocation = new ToolInvocationContext(
+            "thread",
+            null,
+            "call",
+            ToolInvocationAudience.Model,
+            registration.Definition.Name,
+            registration.Definition.Id,
+            registration.Binding.Id,
+            registration.Binding.Revision,
+            DateTimeOffset.UtcNow);
+        var invoked = await registration.Binding.Runtime.InvokeAsync(invocation, validArguments);
+        Assert.True(invoked.Success, invoked.Error?.Message);
+        using var result = JsonDocument.Parse(invoked.Content!);
         Assert.Equal("create", result.RootElement.GetProperty("operation").GetString());
         var id = result.RootElement.GetProperty("automation").GetProperty("id").GetString()!;
         Assert.Equal(id, Assert.Single(await service.ListAsync()).Id);

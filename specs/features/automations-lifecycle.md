@@ -53,7 +53,10 @@ automation/updated sends { automationId, automation?, removed };
 automation/run/updated sends { run }. Reconnection reloads a snapshot.
 
 The Automation tool calls the same service for list/read/create/update/pause/resume/
-delete/run, returning { operation, automation?, run? }. Trusted
+delete/run, returning { operation, automation?, run? }. Its generated function schema
+uses the same JSON representation as AppServer: `schedule.at` is an ISO 8601
+`string` with `date-time` format, never an object shaped from CLR date properties.
+`notificationPolicy` belongs to the nested editable automation definition. Trusted
 core.automation presentation selects client cards. Queue acceptance is not run success.
 The deterministic /automate list|show|pause|resume|run|remove command is registered
 by the module as ICommandHandler. Its registration supplies a stable description key

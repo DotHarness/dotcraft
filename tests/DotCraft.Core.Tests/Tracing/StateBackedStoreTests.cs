@@ -1,7 +1,10 @@
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using DotCraft.Sessions;
+using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using Xunit;
 
@@ -68,6 +71,34 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(
             [secondSource],
             metadata.RootElement.GetProperty("sources").EnumerateArray().Select(source => source.GetString()));
+    }
+
+    [Fact]
+    public void TraceCollector_CountsToolFailuresAndPersistsOnlyTheErrorCode()
+    {
+        var writer = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var collector = new TraceCollector(writer);
+        var failure = StreamingFunctionInvokingChatClient.CreateToolFailureResult(
+            "failed-call",
+            "sensitive execution detail",
+            ToolErrorCodes.InputInvalid);
+
+        collector.RecordToolCallCompleted("tool-errors", failure, "Automation", 12);
+        collector.RecordToolCallCompleted(
+            "tool-errors",
+            new FunctionResultContent("successful-call", "ok"),
+            "CurrentTime",
+            3);
+
+        var reader = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var session = reader.GetSession("tool-errors");
+        Assert.NotNull(session);
+        Assert.Equal(2, session.ToolCallCount);
+        Assert.Equal(1, session.ErrorCount);
+        var failedEvent = Assert.Single(reader.GetEvents("tool-errors"), static evt => evt.CallId == "failed-call");
+        using var metadata = JsonDocument.Parse(failedEvent.MetadataJson!);
+        Assert.Equal(ToolErrorCodes.InputInvalid, metadata.RootElement.GetProperty("errorCode").GetString());
+        Assert.DoesNotContain("sensitive execution detail", failedEvent.MetadataJson);
     }
 
     [Fact]

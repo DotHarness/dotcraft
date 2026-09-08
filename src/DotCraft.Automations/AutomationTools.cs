@@ -18,9 +18,9 @@ public sealed class AutomationTools(AutomationService service)
 {
     [GeneratedTool]
     [Tool(Icon = "⏰")]
-    [Description("Manage scheduled work: list/read/create/update/pause/resume/delete/run/report. Use thread mode for follow-ups, independent for standalone work. Ask only if timing is ambiguous. Updates require expectedVersion. Report optionally records summary/importance/memory for the current automation run; ordinary turn completion ends it.")]
+    [Description("Manage scheduled work. For create/update, pass the complete definition inside automation. Use thread mode for follow-ups and independent for standalone work. Updates require expectedVersion. Report records optional summary, importance, and memory for the current run.")]
     public async Task<string> Automation(
-        [Description("Operation name.")] string action,
+        [Description("Operation: list, read, create, update, pause, resume, delete, run, or report.")] string action,
         [Description("Existing automation identifier.")] string? automationId = null,
         [Description("Editable definition for create/update.")] AutomationInput? automation = null,
         [Description("Current version required for update.")] int? expectedVersion = null,

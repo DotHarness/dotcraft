@@ -302,7 +302,7 @@ internal static class ToolGeneratorValidator
         if (IsCancellationToken(type))
             return true;
         var nonNullable = ToolSchemaEmitter.UnwrapNullable(type);
-        if (IsPrimitiveLike(nonNullable) || nonNullable.TypeKind == TypeKind.Enum)
+        if (IsPrimitiveLike(nonNullable) || ToolSchemaEmitter.IsDateTime(nonNullable) || nonNullable.TypeKind == TypeKind.Enum)
             return true;
         if (ToolSchemaEmitter.TryGetCollectionElement(nonNullable, out var element))
             return IsSupportedToolParameter(element);

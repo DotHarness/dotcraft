@@ -21,7 +21,7 @@ public record AutomationInput
     public string? AgentProfileId { get; init; }
     public string ApprovalPolicy { get; init; } = "workspaceScope";
     public AutomationSchedule Schedule { get; init; } = new();
-    [Description("important, all, or failures. Defaults to important for thread mode and all for independent mode.")]
+    [Description("Notification policy nested in this automation definition: important, all, or failures. Defaults to important for thread mode and all for independent mode.")]
     public string? NotificationPolicy { get; init; }
 }
 
