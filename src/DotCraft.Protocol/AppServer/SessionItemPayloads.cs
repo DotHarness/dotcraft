@@ -229,18 +229,23 @@ public sealed class ImageGenerationPayload : ExtensibleJsonObject
     public string? SavedPath { get; init; }
 
     [JsonPropertyName("errorCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ErrorCode { get; init; }
 
     [JsonPropertyName("saveStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> SaveStatus { get; init; }
 
     [JsonPropertyName("saveErrorCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> SaveErrorCode { get; init; }
 
     [JsonPropertyName("savedHostId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> SavedHostId { get; init; }
 
     [JsonPropertyName("savedWorkspaceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> SavedWorkspaceId { get; init; }
 
     [JsonPropertyName("errorMessage")]

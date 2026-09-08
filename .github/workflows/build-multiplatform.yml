@@ -12,19 +12,30 @@ on:
 
 jobs:
   test:
+    name: test / ${{ matrix.suite }}
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: core
+            os: ubuntu-latest
+          - suite: satellite
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
 
     - name: Setup Node.js
+      if: matrix.suite == 'core'
       uses: actions/setup-node@v6
       with:
         node-version: '22'
 
     - name: Test Docker configuration rendering
+      if: matrix.suite == 'core'
       run: node --test docker/dotcraft/render-config.test.mjs
 
     - name: Setup .NET
@@ -33,29 +44,19 @@ jobs:
         dotnet-version: '10.0.x'
 
     - name: Restore dependencies
+      if: matrix.suite == 'core'
       run: dotnet restore dotcraft.sln
 
     - name: Run tests
+      if: matrix.suite == 'core'
       run: dotnet test dotcraft.sln --configuration Release --no-restore
 
-  # The Satellite solution is Windows-only, so it cannot ride along with the Linux test job.
-  satellite:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
-    runs-on: windows-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: '10.0.x'
-
     - name: Build Satellite
+      if: matrix.suite == 'satellite'
       run: dotnet build src/DotCraft.Satellite/DotCraft.Satellite.sln --configuration Release
 
     - name: Run Satellite tests
+      if: matrix.suite == 'satellite'
       run: dotnet test tests/DotCraft.Satellite.Tests/DotCraft.Satellite.Tests.csproj --configuration Release --no-build
 
   build:

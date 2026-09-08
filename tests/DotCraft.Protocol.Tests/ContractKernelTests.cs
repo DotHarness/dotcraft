@@ -163,6 +163,61 @@ public sealed class ContractKernelTests
     }
 
     [Fact]
+    public void Image_Generation_Optional_Metadata_Preserves_Missing_Null_And_Value()
+    {
+        var missing = JsonSerializer.SerializeToElement(
+            new ImageGenerationPayload
+            {
+                CallId = "call_1",
+                Status = "completed",
+                MediaType = "image/png"
+            },
+            AppServerContractJson.Options);
+
+        Assert.All(
+            new[] { "errorCode", "saveStatus", "saveErrorCode", "savedHostId", "savedWorkspaceId" },
+            propertyName => Assert.False(missing.TryGetProperty(propertyName, out _)));
+
+        var explicitNull = JsonSerializer.SerializeToElement(
+            new ImageGenerationPayload
+            {
+                CallId = "call_1",
+                Status = "failed",
+                MediaType = "image/png",
+                ErrorCode = Optional<string?>.FromValue(null),
+                SaveStatus = Optional<string?>.FromValue(null),
+                SaveErrorCode = Optional<string?>.FromValue(null),
+                SavedHostId = Optional<string?>.FromValue(null),
+                SavedWorkspaceId = Optional<string?>.FromValue(null)
+            },
+            AppServerContractJson.Options);
+
+        Assert.All(
+            new[] { "errorCode", "saveStatus", "saveErrorCode", "savedHostId", "savedWorkspaceId" },
+            propertyName => Assert.Equal(JsonValueKind.Null, explicitNull.GetProperty(propertyName).ValueKind));
+
+        var values = JsonSerializer.SerializeToElement(
+            new ImageGenerationPayload
+            {
+                CallId = "call_1",
+                Status = "completed",
+                MediaType = "image/png",
+                ErrorCode = "generation_failed",
+                SaveStatus = "saved",
+                SaveErrorCode = "write_failed",
+                SavedHostId = "host_1",
+                SavedWorkspaceId = "workspace_1"
+            },
+            AppServerContractJson.Options);
+
+        Assert.Equal("generation_failed", values.GetProperty("errorCode").GetString());
+        Assert.Equal("saved", values.GetProperty("saveStatus").GetString());
+        Assert.Equal("write_failed", values.GetProperty("saveErrorCode").GetString());
+        Assert.Equal("host_1", values.GetProperty("savedHostId").GetString());
+        Assert.Equal("workspace_1", values.GetProperty("savedWorkspaceId").GetString());
+    }
+
+    [Fact]
     public void Sender_And_Initiator_RoundTrip_The_Canonical_Wire_Fields()
     {
         var sender = new SenderContext
