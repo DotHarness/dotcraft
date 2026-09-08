@@ -8,8 +8,10 @@ namespace DotCraft.Tests.Sessions.Protocol;
 
 public sealed partial class SessionServiceRuntimeSignalTests
 {
-    [Fact]
-    public async Task RunningInput_CombinedGuidanceAndExistingCommunicationAreDurableBeforeContinuation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunningInput_ExistingCommunicationIsDurableBeforeContinuation(bool withGuidance)
     {
         SessionService service = null!;
         SessionThread thread = null!;
@@ -17,24 +19,27 @@ public sealed partial class SessionServiceRuntimeSignalTests
         {
             if (call == 1)
             {
-                await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("human guidance")], ct: ct);
+                if (withGuidance)
+                    await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("human guidance")], ct: ct);
                 await service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
                 {
                     Id = "passive-one", RootThreadId = thread.Id, SenderAgentPath = "/root/worker",
                     TargetAgentPath = "/root", Message = "existing communication", Status = SubAgentMailboxStatus.Pending,
                     CreatedAt = DateTimeOffset.UtcNow
                 }, ct);
-                return new TextContent("first answer");
+                return withGuidance ? new TextContent("first answer") : HistoryBoundaryClient.Tool();
             }
             await using var reader = new ThreadStore(_tempDir);
             var history = await reader.LoadModelHistoryAsync(thread.Id, ct);
-            foreach (var input in new[] { "human guidance", "existing communication" })
+            foreach (var input in withGuidance ? new[] { "human guidance", "existing communication" } : ["existing communication"])
             {
                 Assert.Single(history, message => message.Text.Contains(input, StringComparison.Ordinal));
                 Assert.Single(messages, message => message.Text.Contains(input, StringComparison.Ordinal));
             }
             Assert.Empty(await service.ListPendingSubAgentMailboxAsync(thread.Id, "/root", ct));
             Assert.Empty(thread.QueuedInputs);
+            AssertResponsesUserMessageIds(messages);
+            AssertResponsesUserMessageIds(history);
             return new TextContent("done");
         });
         await using var factory = CreateAgentFactory(model);
@@ -43,7 +48,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
         await service.RefreshThreadAgentAsync(thread.Id);
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
         Assert.Equal(TurnStatus.Completed, thread.Turns[0].Status);
-        Assert.Single(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == "guidance");
+        Assert.Equal(withGuidance ? 1 : 0, thread.Turns[0].Items.Count(item => item.AsUserMessage?.DeliveryMode == "guidance"));
         Assert.Single(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == SubAgentMailboxDelivery.DeliveryMode);
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("next")]));
         Assert.Equal(3, model.Calls);
@@ -68,7 +73,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
         await persistence.AppendModelHistoryAsync(thread.Id,
             [new ChatMessage(ChatRole.User, "existing communication")
             {
-                MessageId = "admitted-item", AdditionalProperties = new()
+                AdditionalProperties = new()
                 {
                     ["dotcraft.history.inputs"] = JsonSerializer.SerializeToElement(new[]
                     {

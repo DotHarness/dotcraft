@@ -88,8 +88,8 @@ public sealed partial class SessionService
             finalizeStreamingAgentMessage();
             finalizeStreamingReasoning();
 
-            var message = new ChatMessage(ChatRole.User, contentParts) { MessageId = item.Id };
-            turnModelHistory.Stage(message, [queued.Id], async () =>
+            var message = new ChatMessage(ChatRole.User, contentParts);
+            turnModelHistory.Stage(message, item.Id, [queued.Id], async () =>
             {
                 turn.Items.Add(item);
                 queue.RemoveAt(queueIndex);

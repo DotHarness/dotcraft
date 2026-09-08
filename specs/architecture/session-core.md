@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.2 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
 | **Date** | 2026-09-08 |
 | **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
@@ -1603,6 +1603,8 @@ The domain history and exact model history are intentionally distinct durable re
 The active model/tool loop maintains an ordered history of initial input, model responses, tool results, and admitted steering and passive input. History updates and output events are separate execution outputs. Delivered input remains available to subsequent Turns, cold loading, and recovery export.
 
 Session Core persists the ordered model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata. Restart reconciliation uses persisted history and these identities to complete interrupted delivery confirmation. A history write failure stops execution and leaves delivery unconfirmed.
+
+Session input identities belong to this correlation metadata. `ChatMessage.MessageId` and protocol-native message IDs belong to the model provider's message identity domain.
 
 Completion, failure, and cancellation commit only the unpersisted history suffix. Neutral compaction installs a replacement history baseline that subsequent appends and terminal commits use.
 

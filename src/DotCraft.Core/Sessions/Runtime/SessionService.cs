@@ -2180,11 +2180,8 @@ public sealed partial class SessionService(
                     FinalizeStreamingAgentMessage();
                     FinalizeStreamingReasoning();
 
-                    var message = new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)])
-                    {
-                        MessageId = item.Id
-                    };
-                    turnModelHistory!.Stage(message, pending.Select(entry => $"mailbox:{entry.Id}").ToArray(), async () =>
+                    var message = new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
+                    turnModelHistory!.Stage(message, item.Id, pending.Select(entry => $"mailbox:{entry.Id}").ToArray(), async () =>
                     {
                         turn.Items.Add(item);
                         thread.LastActiveAt = DateTimeOffset.UtcNow;

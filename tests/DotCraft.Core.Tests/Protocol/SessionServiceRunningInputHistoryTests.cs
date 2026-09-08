@@ -1,3 +1,4 @@
+using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Agents;
@@ -28,6 +29,8 @@ public sealed partial class SessionServiceRuntimeSignalTests
             Assert.Single(messages, message => message.Text.Contains("stable guidance", StringComparison.Ordinal));
             var saved = await reader.LoadThreadAsync(thread.Id, ct);
             Assert.Empty(saved!.QueuedInputs);
+            AssertResponsesUserMessageIds(messages);
+            AssertResponsesUserMessageIds(persisted);
             return new TextContent("done");
         });
         await using var factory = CreateAgentFactory(model, workspacePath: Path.GetDirectoryName(_tempDir));
@@ -109,7 +112,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
         await persistence.AppendModelHistoryAsync(thread.Id,
             [new ChatMessage(ChatRole.User, [new TextContent("already incorporated"), incorporatedImage])
             {
-                MessageId = "admitted-item",
                 AdditionalProperties = new()
                 {
                     ["dotcraft.history.inputs"] = JsonSerializer.SerializeToElement(new[]
@@ -130,6 +132,17 @@ public sealed partial class SessionServiceRuntimeSignalTests
         Assert.Equal(0, model.Calls);
         await cold.ResumeThreadAsync(thread.Id);
         Assert.Single(await persistence.LoadModelHistoryAsync(thread.Id));
+    }
+
+    private static void AssertResponsesUserMessageIds(IReadOnlyList<ChatMessage> messages)
+    {
+        var options = ResponsesToolSearchMapper.CreateResponseOptions("gpt-test", messages, new ChatOptions());
+        using var body = JsonDocument.Parse(ModelReaderWriter.Write(options).ToString());
+        var users = body.RootElement.GetProperty("input").EnumerateArray()
+            .Where(item => item.GetProperty("type").GetString() == "message"
+                && item.GetProperty("role").GetString() == "user").ToArray();
+        Assert.NotEmpty(users);
+        Assert.All(users, item => Assert.StartsWith("msg_", item.GetProperty("id").GetString()));
     }
 
     private sealed class HistoryBoundaryClient(

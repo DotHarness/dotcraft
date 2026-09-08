@@ -48,11 +48,11 @@ public sealed partial class SessionService
             }
         }
 
-        public void Stage(ChatMessage message, IReadOnlyList<string> ids, Func<Task> commit, IDisposable lease)
+        public void Stage(ChatMessage message, string itemId, IReadOnlyList<string> ids, Func<Task> commit, IDisposable lease)
         {
             message.AdditionalProperties ??= new();
             message.AdditionalProperties[InputsKey] = JsonSerializer.SerializeToElement(
-                ids.Select(id => new InputIdentity(id, message.MessageId!, turnId)).ToArray());
+                ids.Select(id => new InputIdentity(id, itemId, turnId)).ToArray());
             _admissions.Add(new Admission(ids, commit, lease));
         }
 
