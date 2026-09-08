@@ -27,7 +27,7 @@ Example:
 {"action":"create","automation":{"name":"Build reminder","prompt":"Check the build and summarize failures.","status":"active","executionMode":"independent","schedule":{"kind":"at","at":"2030-01-15T09:00:00Z"},"notificationPolicy":"all"}}
 ```
 
-`schedule.at` is a string, never a CLR-style object. `notificationPolicy` belongs inside `automation`. Keep unrelated schedule fields out. Thread mode binds the current conversation when `targetThreadId` is omitted. Independent Git work defaults to a new worktree per run. Notifications default to important changes for thread mode and every result for independent mode.
+`schedule.at` is a string, never a CLR-style object. `notificationPolicy` belongs inside `automation`. Keep unrelated schedule fields out. Omit `workspaceMode` and `agentProfileId` when unset; `approvalPolicy` is `workspaceScope` or `fullAuto`. Thread mode binds the current conversation when `targetThreadId` is omitted. Independent Git work defaults to a new worktree per run. Notifications default to important changes for thread mode and every result for independent mode.
 
 ## Manage
 

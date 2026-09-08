@@ -27,7 +27,7 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
         Assert.Equal(["string", "null"], atSchema["type"]!.AsArray().Select(static item => item!.GetValue<string>()));
         Assert.Equal("date-time", atSchema["format"]!.GetValue<string>());
 
-        var validArguments = JsonNode.Parse("""{"action":"create","automation":{"name":"Check","prompt":"Check changes","schedule":{"kind":"at","at":"2099-09-09T00:00:00Z"},"notificationPolicy":"all"}}""")!.AsObject();
+        var validArguments = JsonNode.Parse("""{"action":"create","automation":{"name":"Check","prompt":"Check changes","status":"active","executionMode":"thread","targetThreadId":"","workspaceMode":"","agentProfileId":"","approvalPolicy":"","schedule":{"kind":"at","at":"2099-09-09T00:00:00Z","everyMs":0,"hour":0,"minute":0,"timeZone":"UTC","days":[]},"notificationPolicy":"important"}}""")!.AsObject();
         Assert.True(PluginFunctionSchemaValidator.TryValidateArguments(schema, validArguments, out var validMessage), validMessage);
         var invalidDate = JsonNode.Parse("""{"action":"create","automation":{"schedule":{"kind":"at","at":{"dateTime":"2099-09-09T00:00:00Z"}}}}""")!.AsObject();
         Assert.False(PluginFunctionSchemaValidator.TryValidateArguments(schema, invalidDate, out _));
@@ -48,8 +48,21 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
         Assert.True(invoked.Success, invoked.Error?.Message);
         using var result = JsonDocument.Parse(invoked.Content!);
         Assert.Equal("create", result.RootElement.GetProperty("operation").GetString());
-        var id = result.RootElement.GetProperty("automation").GetProperty("id").GetString()!;
+        var created = result.RootElement.GetProperty("automation");
+        var id = created.GetProperty("id").GetString()!;
+        Assert.Equal("thread", created.GetProperty("targetThreadId").GetString());
+        Assert.Equal("project", created.GetProperty("workspaceMode").GetString());
+        Assert.Equal("workspaceScope", created.GetProperty("approvalPolicy").GetString());
+        Assert.Equal(JsonValueKind.Null, created.GetProperty("agentProfileId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, created.GetProperty("schedule").GetProperty("timeZone").ValueKind);
         Assert.Equal(id, Assert.Single(await service.ListAsync()).Id);
+
+        var unsupportedApproval = JsonNode.Parse("""{"action":"create","automation":{"name":"Check","prompt":"Check changes","status":"active","executionMode":"independent","approvalPolicy":"auto","schedule":{"kind":"at","at":"2099-09-09T00:00:00Z"},"notificationPolicy":"all"}}""")!.AsObject();
+        var rejected = await registration.Binding.Runtime.InvokeAsync(invocation, unsupportedApproval);
+        Assert.False(rejected.Success);
+        Assert.Equal(ToolErrorCodes.InputInvalid, rejected.Error?.Code);
+        Assert.Equal("automation.invalidApprovalPolicy", rejected.Error?.Message);
+
         var invalid = await Assert.ThrowsAsync<ArgumentException>(() => tools.Automation("complete", automationId: id));
         Assert.Equal("automation.invalidAction", invalid.Message);
         await Assert.ThrowsAsync<InvalidOperationException>(() => tools.Automation("report", summary: "done"));

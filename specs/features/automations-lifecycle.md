@@ -56,8 +56,11 @@ The Automation tool calls the same service for list/read/create/update/pause/res
 delete/run, returning { operation, automation?, run? }. Its generated function schema
 uses the same JSON representation as AppServer: `schedule.at` is an ISO 8601
 `string` with `date-time` format, never an object shaped from CLR date properties.
-`notificationPolicy` belongs to the nested editable automation definition. Trusted
-core.automation presentation selects client cards. Queue acceptance is not run success.
+`notificationPolicy` belongs to the nested editable automation definition. At the
+model-tool boundary, blank optional identifiers and modes are treated as omitted,
+blank approval policy uses `workspaceScope`, and thread mode without a target binds
+the trusted thread from the tool planning snapshot. AppServer validation remains strict.
+Trusted core.automation presentation selects client cards. Queue acceptance is not run success.
 The deterministic /automate list|show|pause|resume|run|remove command is registered
 by the module as ICommandHandler. Its registration supplies a stable description key
 and module-owned English fallback for command discovery and dynamic channel menus.

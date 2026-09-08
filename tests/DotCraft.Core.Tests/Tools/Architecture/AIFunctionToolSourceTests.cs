@@ -103,6 +103,35 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Fact]
+    public async Task Runtime_ClassifiesArgumentFailuresAsInvalidInput()
+    {
+        var function = AIFunctionFactory.Create(
+            new Func<string>(() => throw new ArgumentException("automation.invalidApprovalPolicy")),
+            name: "Automation");
+        var definitionId = new ToolDefinitionId(
+            ToolSourceKind.CoreNative,
+            "test",
+            new SourceToolId("Automation"));
+
+        var result = await new AIFunctionToolRuntime(function).InvokeAsync(
+            new ToolInvocationContext(
+                "thread_test",
+                "turn_test",
+                "call_test",
+                ToolInvocationAudience.Model,
+                new ToolName(null, "Automation"),
+                definitionId,
+                new RuntimeBindingId("native:test:Automation:1"),
+                1,
+                DateTimeOffset.UtcNow),
+            new JsonObject());
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
+        Assert.Equal("automation.invalidApprovalPolicy", result.Error?.Message);
+    }
+
+    [Fact]
     public async Task Source_ProjectsGeneratedResultAndStreamingMetadata()
     {
         var function = GeneratedToolFunctions.ShellTools_Exec(

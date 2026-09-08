@@ -18,7 +18,9 @@ public record AutomationInput
     public string? TargetThreadId { get; init; }
     [Description("project or worktree; omitted defaults to worktree for Git workspaces, project otherwise.")]
     public string? WorkspaceMode { get; init; }
+    [Description("Optional existing agent profile identifier. Omit when no profile is selected.")]
     public string? AgentProfileId { get; init; }
+    [Description("Approval policy: workspaceScope (default) or fullAuto.")]
     public string ApprovalPolicy { get; init; } = "workspaceScope";
     public AutomationSchedule Schedule { get; init; } = new();
     [Description("Notification policy nested in this automation definition: important, all, or failures. Defaults to important for thread mode and all for independent mode.")]

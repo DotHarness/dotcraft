@@ -10,11 +10,11 @@ public sealed class AutomationToolSource(AutomationService service) : AIFunction
 {
     public override string SourceId => "automations";
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context) =>
-        [DotCraft.GeneratedTools.Automations.GeneratedToolFunctions.AutomationTools_Automation(new AutomationTools(service))];
+        [DotCraft.GeneratedTools.Automations.GeneratedToolFunctions.AutomationTools_Automation(new AutomationTools(service, context.ThreadId))];
     protected override ToolPresentationDescriptor? GetPresentation(AIFunction function, ToolPlanningContext context) => new(new PresentationId("core.automation"));
 }
 /// <summary>Conversation-driven automation lifecycle.</summary>
-public sealed class AutomationTools(AutomationService service)
+public sealed class AutomationTools(AutomationService service, string? planningThreadId = null)
 {
     [GeneratedTool]
     [Tool(Icon = "⏰")]
@@ -40,7 +40,9 @@ public sealed class AutomationTools(AutomationService service)
         if (action == "create")
         {
             if (automation == null) throw new ArgumentException("automation.definitionRequired");
-            if (automation.ExecutionMode == "thread" && automation.TargetThreadId == null && context != null) automation = automation with { TargetThreadId = context.ThreadId };
+            automation = Normalize(automation);
+            if (automation.ExecutionMode == "thread" && automation.TargetThreadId == null)
+                automation = automation with { TargetThreadId = context?.ThreadId ?? planningThreadId };
             var source = ChannelSessionScope.Current;
             var origin = source == null ? null : new AutomationOrigin { Channel = source.Channel, UserId = source.UserId, GroupId = source.GroupId, DeliveryTarget = source.DefaultDeliveryTarget };
             return Result(action, await service.CreateAsync(automation, origin, cancellationToken));
@@ -52,11 +54,48 @@ public sealed class AutomationTools(AutomationService service)
             run = await service.RunAsync(automationId, cancellationToken) }, AutomationStore.Json);
         if (action == "read") return Result(action, current);
         var next = action switch {
-            "update" => automation ?? throw new ArgumentException("automation.definitionRequired"),
+            "update" => Normalize(automation ?? throw new ArgumentException("automation.definitionRequired")),
             "pause" => current with { Status = "paused" }, "resume" => current with { Status = "active" },
             _ => throw new ArgumentException("automation.invalidAction") };
         var version = action == "update" ? expectedVersion ?? throw new ArgumentException("automation.expectedVersionRequired") : current.Version;
         return Result(action, await service.UpdateAsync(automationId, version, next, cancellationToken));
     }
+    private static AutomationInput Normalize(AutomationInput input) => input with
+    {
+        Status = input.Status?.Trim() ?? "",
+        ExecutionMode = input.ExecutionMode?.Trim() ?? "",
+        TargetThreadId = EmptyToNull(input.TargetThreadId),
+        WorkspaceMode = EmptyToNull(input.WorkspaceMode),
+        AgentProfileId = EmptyToNull(input.AgentProfileId),
+        ApprovalPolicy = string.IsNullOrWhiteSpace(input.ApprovalPolicy) ? "workspaceScope" : input.ApprovalPolicy.Trim(),
+        Schedule = Normalize(input.Schedule ?? throw new ArgumentException("automation.scheduleRequired")),
+        NotificationPolicy = EmptyToNull(input.NotificationPolicy)
+    };
+    private static AutomationSchedule Normalize(AutomationSchedule schedule)
+    {
+        var kind = schedule.Kind?.Trim() ?? "";
+        return kind switch
+        {
+            "at" => new() { Kind = kind, At = schedule.At },
+            "every" => new() { Kind = kind, EveryMs = schedule.EveryMs },
+            "daily" or "weekdays" => new()
+            {
+                Kind = kind,
+                Hour = schedule.Hour,
+                Minute = schedule.Minute,
+                TimeZone = EmptyToNull(schedule.TimeZone)
+            },
+            "weekly" => new()
+            {
+                Kind = kind,
+                Hour = schedule.Hour,
+                Minute = schedule.Minute,
+                TimeZone = EmptyToNull(schedule.TimeZone),
+                Days = schedule.Days
+            },
+            _ => schedule with { Kind = kind }
+        };
+    }
+    private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string Result(string operation, AutomationDefinition? automation) => JsonSerializer.Serialize(new { operation, automation }, AutomationStore.Json);
 }
