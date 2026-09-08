@@ -1,675 +1,245 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Ellipsis, Pencil, Play, Plus, Trash2 } from 'lucide-react'
-import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
-  useAutomationsStore,
-  type AutomationTemplate
-} from '../../stores/automationsStore'
-import { useCronStore } from '../../stores/cronStore'
+  Bell,
+  CalendarClock,
+  ChevronRight,
+  CircleDot,
+  FileSearch,
+  GripVertical,
+  MessageSquareText,
+  NotebookText,
+  Pencil,
+  type LucideIcon
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useT, useLocale } from '../../contexts/LocaleContext'
+import { useAutomationsStore, type AutomationDefinition, type AutomationInput, type AutomationPreset } from '../../stores/automationsStore'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useGitStore, normalizeGitPathKey } from '../../stores/gitStore'
+import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { TaskCard } from './TaskCard'
-import { NewTaskDialog } from './NewTaskDialog'
-import { TaskReviewPanel } from './TaskReviewPanel'
-import { CronJobCard } from './CronJobCard'
-import { CronReviewPanel } from './CronReviewPanel'
-import { useReviewPanelStore } from '../../stores/reviewPanelStore'
-import { RefreshIcon } from '../ui/AppIcons'
-import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { ConfirmDialog } from '../ui/ConfirmDialog'
-import {
-  CatalogCompactGrid,
-  CatalogScrollArea,
-  CatalogSection,
-  CatalogTabs,
-  CatalogToolbarIconButton,
-  CatalogTopBar,
-  styles as catalogStyles
-} from '../catalog/CatalogSurface'
+import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
+import { automationScheduleSummary } from '../../utils/automationScheduleSummary'
+import { ensureScheduleTimeZone, resolveSystemTimeZone } from '../../utils/automationTimeZone'
+import { CatalogFilterButton, CatalogSearchBox } from '../catalog/CatalogSurface'
+import { DragHandle } from '../layout/DragHandle'
+import { ResizeEdgeGlow } from '../layout/ResizeEdgeGlow'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { SplitButton } from '../ui/SplitButton'
+import { AutomationEditor } from './AutomationEditor'
+import { stageAutomationCreationInWelcome } from './automationDraft'
 
-function SkeletonCard(): JSX.Element {
-  return (
-    <div style={skeletonRow}>
-      <div style={{ ...skeletonBlock, width: '42px', height: '16px' }} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <div style={{ ...skeletonBlock, width: '70%', height: '14px' }} />
-        <div style={{ ...skeletonBlock, width: '40%', height: '12px' }} />
-      </div>
-    </div>
-  )
+const presetPresentation: Record<string, { icon: LucideIcon; tone: string }> = {
+  'daily-summary': { icon: Bell, tone: 'blue' },
+  'weekly-review': { icon: NotebookText, tone: 'violet' },
+  'ci-monitor': { icon: CircleDot, tone: 'orange' },
+  'follow-up': { icon: FileSearch, tone: 'green' }
 }
+const localizedPresetIds = new Set(Object.keys(presetPresentation))
 
 export function AutomationsView(): JSX.Element {
   const t = useT()
   const locale = useLocale()
-  const capabilities = useConnectionStore((s) => s.capabilities)
-  const hasTasks = capabilities?.automations === true
-  const hasCron = capabilities?.cronManagement === true
-  const automationsTab = useUIStore((s) => s.automationsTab)
-  const setAutomationsTab = useUIStore((s) => s.setAutomationsTab)
-
-  const { tasks, loading, error, fetchTasks } = useAutomationsStore()
-  const selectedTaskId = useAutomationsStore((s) => s.selectedTaskId)
-  const selectTask = useAutomationsStore((s) => s.selectTask)
-  const startPolling = useAutomationsStore((s) => s.startPolling)
-  const stopPolling = useAutomationsStore((s) => s.stopPolling)
-
-  const cronJobs = useCronStore((s) => s.jobs)
-  const cronLoading = useCronStore((s) => s.loading)
-  const cronError = useCronStore((s) => s.error)
-  const fetchCronJobs = useCronStore((s) => s.fetchJobs)
-  const startCronPolling = useCronStore((s) => s.startPolling)
-  const stopCronPolling = useCronStore((s) => s.stopPolling)
-  const selectedCronJobId = useCronStore((s) => s.selectedCronJobId)
-  const selectCronJob = useCronStore((s) => s.selectCronJob)
-
-  const [showNewTask, setShowNewTask] = useState(false)
-  const [newTaskTemplate, setNewTaskTemplate] = useState<AutomationTemplate | undefined>(undefined)
-  const [newDialogTab, setNewDialogTab] = useState<'task' | 'template'>('task')
-  const [editingTemplate, setEditingTemplate] = useState<AutomationTemplate | undefined>(undefined)
-  const [reviewAsDrawer, setReviewAsDrawer] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 980
-  )
-  const templates = useAutomationsStore((s) => s.templates)
-  const fetchTemplates = useAutomationsStore((s) => s.fetchTemplates)
-
-  const activePanel: 'tasks' | 'cron' =
-    automationsTab === 'tasks' && hasTasks
-      ? 'tasks'
-      : automationsTab === 'cron' && hasCron
-        ? 'cron'
-        : hasTasks
-          ? 'tasks'
-          : 'cron'
-
-  const showTabBar = hasTasks && hasCron
+  const store = useAutomationsStore()
+  const connected = useConnectionStore((state) => state.status === 'connected')
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const [manual, setManual] = useState<AutomationInput | null>(null)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [dirty, setDirty] = useState(false)
+  const [pending, setPending] = useState<(() => void) | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<AutomationDefinition | null>(null)
+  const [splitPercent, setSplitPercent] = useState(50)
+  const [dividerActive, setDividerActive] = useState(false)
+  const selected = store.automations.find((automation) => automation.id === store.selectedAutomationId)
+  const editing = selected != null || manual != null || store.selectedAutomationId != null
+  const onDirty = useCallback((value: boolean) => setDirty(value), [])
 
   useEffect(() => {
-    if (hasTasks && !hasCron) setAutomationsTab('tasks')
-    else if (!hasTasks && hasCron) setAutomationsTab('cron')
-  }, [hasTasks, hasCron, setAutomationsTab])
+    void store.fetchAutomations()
+    void store.fetchPresets(locale).catch(() => {})
+  }, [locale])
 
-  useEffect(() => {
-    if (activePanel === 'tasks' && selectedCronJobId) selectCronJob(null)
-    if (activePanel === 'cron' && selectedTaskId) {
-      useReviewPanelStore.getState().destroyReviewPanel()
-      selectTask(null)
-    }
-  }, [activePanel, selectedCronJobId, selectedTaskId, selectCronJob, selectTask])
+  const rows = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    return store.automations.filter((automation) =>
+      (filter === 'all' || automation.status === filter)
+      && (!normalizedQuery || `${automation.name} ${automation.prompt}`.toLocaleLowerCase().includes(normalizedQuery)))
+  }, [filter, query, store.automations])
 
-  useEffect(() => {
-    function updateReviewMode(): void {
-      setReviewAsDrawer(window.innerWidth < 980)
-    }
-    updateReviewMode()
-    window.addEventListener('resize', updateReviewMode)
-    return () => window.removeEventListener('resize', updateReviewMode)
-  }, [])
+  const presets = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    return store.presets.filter((preset) => {
+      const name = presetName(preset, t)
+      const prompt = presetPrompt(preset, t)
+      return !normalizedQuery || `${name} ${prompt}`.toLocaleLowerCase().includes(normalizedQuery)
+    })
+  }, [query, store.presets, t])
+  const hasDefinitions = store.automations.length > 0
+  const showDefinitions = store.loading || !!store.error || !!actionError || hasDefinitions
 
-  useEffect(() => {
-    if (!hasTasks) {
-      stopPolling()
-      return
-    }
-    startPolling()
-    return () => {
-      stopPolling()
-    }
-  }, [hasTasks, startPolling, stopPolling])
-
-  useEffect(() => {
-    if (hasTasks) {
-      void fetchTemplates(locale)
-    }
-  }, [hasTasks, locale, fetchTemplates])
-
-  useEffect(() => {
-    return () => {
-      useReviewPanelStore.getState().destroyReviewPanel()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (activePanel !== 'cron' || !hasCron) {
-      stopCronPolling()
-      return
-    }
-    void fetchCronJobs()
-    startCronPolling()
-    return () => {
-      stopCronPolling()
-    }
-  }, [activePanel, hasCron, fetchCronJobs, startCronPolling, stopCronPolling])
-
-  const sortedTasks = useMemo(
-    () =>
-      [...tasks].sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      ),
-    [tasks]
-  )
-
-  const templateSections = useMemo(() => buildTemplateSections(templates, t), [templates, t])
-  const reviewPanel =
-    selectedTaskId != null
-      ? <TaskReviewPanel />
-      : selectedCronJobId != null
-        ? <CronReviewPanel />
-        : null
-
-  function openNewTask(template?: AutomationTemplate): void {
-    setNewTaskTemplate(template)
-    setEditingTemplate(undefined)
-    setNewDialogTab('task')
-    setShowNewTask(true)
+  const navigate = (next: () => void): void => {
+    if (dirty) setPending(() => next)
+    else next()
   }
-
-  function openTemplateEditor(template?: AutomationTemplate): void {
-    setEditingTemplate(template)
-    setNewTaskTemplate(undefined)
-    setNewDialogTab('template')
-    setShowNewTask(true)
+  const close = (): void => navigate(() => {
+    store.selectAutomation(null)
+    setManual(null)
+  })
+  async function action(operation: () => Promise<unknown>): Promise<void> {
+    setActionError(null)
+    try { await operation() } catch (error) { setActionError(String(error)) }
   }
-
-  const refreshCurrent = (): void => {
-    if (activePanel === 'tasks') void fetchTasks()
-    else void fetchCronJobs()
+  function chat(prompt = t('automation.createPrompt')): void {
+    navigate(() => stageAutomationCreationInWelcome(prompt))
   }
-
-  function closeReviewPanel(): void {
-    if (selectedTaskId) {
-      useReviewPanelStore.getState().closeReviewPanel()
-    }
-    if (selectedCronJobId) {
-      selectCronJob(null)
-    }
+  function usePreset(preset: AutomationPreset): void {
+    const schedule = preset.schedule ? ensureScheduleTimeZone(preset.schedule) : null
+    const timing = schedule ? `\n${automationScheduleSummary(schedule, locale)}` : ''
+    chat(`${t('automation.createPrompt')}\n\n${presetPrompt(preset, t)}${timing}`)
+  }
+  async function createManual(): Promise<void> {
+    const path = useViewerTabStore.getState().currentWorkspacePath
+      ?? useUIStore.getState().welcomeDraftWorkspacePath
+      ?? useThreadStore.getState().activeThread?.workspacePath
+    if (path) await useGitStore.getState().ensureBranches(path)
+    const gitStatus = path
+      ? useGitStore.getState().branchesByPath[normalizeGitPathKey(path)]?.status
+      : undefined
+    navigate(() => {
+      store.selectAutomation(null)
+      setManual({
+        name: '', prompt: '', status: 'active', executionMode: 'independent',
+        workspaceMode: gitStatus === 'available' ? 'worktree' : gitStatus === 'unavailable' ? 'project' : undefined,
+        approvalPolicy: 'workspaceScope', notificationPolicy: 'all',
+        schedule: { kind: 'daily', hour: 9, minute: 0, timeZone: resolveSystemTimeZone() }
+      })
+    })
+  }
+  function startDrag(event: DragEvent<HTMLElement>, automation: AutomationDefinition): void {
+    event.dataTransfer.setData(AUTOMATION_TASK_DRAG_MIME, automation.id)
+    event.dataTransfer.setData('text/plain', automation.name)
+    event.dataTransfer.effectAllowed = 'link'
+  }
+  function resizeEditor(delta: number): void {
+    const width = surfaceRef.current?.getBoundingClientRect().width ?? 0
+    if (width <= 0) return
+    setSplitPercent((current) => Math.min(65, Math.max(35, current + delta / width * 100)))
   }
 
   return (
-    <div style={page}>
-      <CatalogTopBar
-        navigation={showTabBar ? (
-          <CatalogTabs
-            inTopBar
-            value={activePanel}
-            onChange={(next) => {
-              if (next === 'tasks' && hasTasks) setAutomationsTab('tasks')
-              if (next === 'cron' && hasCron) setAutomationsTab('cron')
-            }}
+    <div ref={surfaceRef} className="dc-automations" data-editing={editing || undefined}>
+      {!editing && (
+        <div className="dc-automations-topbar">
+          <SplitButton
+            label={t('automation.createButton')}
+            menuLabel={t('automation.createMenu')}
+            disabled={!connected}
+            onClick={() => chat()}
             items={[
-              { value: 'tasks', label: t('auto.tabTasks') },
-              { value: 'cron', label: t('auto.tabCron') }
+              { key: 'agent', label: t('automation.createWithAgent'), icon: <MessageSquareText size={15} />, onClick: () => chat() },
+              { key: 'manual', label: t('automation.manual'), icon: <Pencil size={15} />, onClick: () => { void createManual() } }
             ]}
           />
-        ) : undefined}
-        actions={(
-          <>
-            <CatalogToolbarIconButton
-              label={activePanel === 'tasks' ? t('auto.refreshTasks') : t('auto.refreshCron')}
-              onClick={refreshCurrent}
-              icon={<RefreshIcon size={15} />}
+        </div>
+      )}
+      <div className="dc-automations-body" style={editing ? { gridTemplateColumns: `${splitPercent}% ${100 - splitPercent}%` } : undefined}>
+        <main className="dc-automations-list">
+          <h1>{t(editing ? 'automation.title' : 'auto.viewTitle')}</h1>
+          <div className="dc-automations-filters">
+            <CatalogSearchBox value={query} placeholder={t('automation.search')} onChange={setQuery} />
+            <CatalogFilterButton
+              ariaLabel={t('automation.filter')}
+              groups={[{
+                label: t('automation.filter'), value: filter, onChange: setFilter,
+                options: ['all', 'active', 'paused', 'completed'].map((value) => ({ value, label: t(`automation.status.${value}`) }))
+              }]}
             />
-            {activePanel === 'tasks' && (
-              <Button
-                variant="primary"
-                size="toolbar"
-                aria-label={t('auto.createTask')}
-                onClick={() => openNewTask()}
-                iconLeft={<Plus size={14} aria-hidden />}
-              >
-                {t('auto.newTaskButtonLabel')}
-              </Button>
-            )}
+          </div>
+
+          {showDefinitions ? <section className="dc-automation-current">
+            <h2>{t('automation.yours')}</h2>
+            {store.loading ? <p role="status" className="dc-automation-empty">{t('common.loading')}</p> : null}
+            {store.error || actionError ? <p role="alert" className="dc-automation-error">{store.error ?? actionError}</p> : null}
+            {!store.loading && !rows.length ? <p className="dc-automation-empty">{t('automation.empty')}</p> : null}
+            <div className="dc-automation-list-rows">
+              {rows.map((automation) => (
+                <article key={automation.id} draggable data-selected={selected?.id === automation.id || undefined} onDragStart={(event) => startDrag(event, automation)}>
+                  <GripVertical className="dc-automation-grip" size={15} aria-hidden />
+                  <span className="dc-automation-row-icon"><CalendarClock size={17} aria-hidden /></span>
+                  <button type="button" onClick={() => navigate(() => { setManual(null); store.selectAutomation(automation.id) })}>
+                    <strong>{automation.name}</strong>
+                    <small>{automationScheduleSummary(automation.schedule, locale)} · {t(automation.executionMode === 'thread' ? 'automation.currentChat' : 'automation.newChat')}</small>
+                  </button>
+                  <ChevronRight size={15} aria-hidden />
+                </article>
+              ))}
+            </div>
+          </section> : null}
+
+          <h2>{t('automation.presets')}</h2>
+          <div className="dc-automation-suggestions">
+            {presets.map((preset) => <AutomationSuggestion key={preset.id} preset={preset} locale={locale} onClick={() => usePreset(preset)} />)}
+          </div>
+        </main>
+
+        {editing && (
+          <>
+            <div className="dc-automation-divider" style={{ left: `${splitPercent}%` }}>
+              <ResizeEdgeGlow active={dividerActive} testId="automation-editor-divider-glow" />
+            </div>
+            <DragHandle onDrag={resizeEditor} onActiveChange={setDividerActive} style={{ position: 'absolute', top: 0, bottom: 0, left: `calc(${splitPercent}% - 4px)` }} />
           </>
         )}
-      />
-
-      <header style={browseHeader}>
-        <h1 style={heroTitle}>{t('auto.viewTitle')}</h1>
-      </header>
-
-      <div style={contentShell}>
-        <div style={contentPane}>
-          {activePanel === 'tasks' && (
-            <CatalogScrollArea id="automations-task-list" role="tabpanel">
-              {templateSections.map((section) => (
-                <CatalogSection key={section.key} title={section.title}>
-                  <CatalogCompactGrid>
-                    {section.templates.map((tpl) => (
-                      <TemplateCard
-                        key={tpl.id}
-                        template={tpl}
-                        onSelect={() => openNewTask(tpl)}
-                        onEdit={() => openTemplateEditor(tpl)}
-                      />
-                    ))}
-                    {section.key === 'user' && (
-                      <CreateTemplateCard onClick={() => openTemplateEditor()} />
-                    )}
-                  </CatalogCompactGrid>
-                </CatalogSection>
-              ))}
-
-              {templateSections.length === 0 && (
-                <CatalogSection title={t('auto.templates.title')}>
-                  <p style={emptyText}>{t('auto.templates.empty')}</p>
-                </CatalogSection>
-              )}
-
-              <CatalogSection title={t('auto.tasks.title')}>
-                {loading && (
-                  <div style={listConstrained}>
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                  </div>
-                )}
-
-                {!loading && error && (
-                  <RetryState message={error} onRetry={() => void fetchTasks()} />
-                )}
-
-                {!loading && !error && sortedTasks.length === 0 && (
-                  <EmptyState title={t('auto.emptyTasks')} hint={t('auto.emptyTasksHint')} />
-                )}
-
-                {!loading && !error && sortedTasks.length > 0 && (
-                  <div style={listConstrained}>
-                    {sortedTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} />
-                    ))}
-                  </div>
-                )}
-              </CatalogSection>
-            </CatalogScrollArea>
-          )}
-
-          {activePanel === 'cron' && hasCron && (
-            <CatalogScrollArea id="automations-cron-list" role="tabpanel">
-              <CatalogSection title={t('auto.cron.title')}>
-                {cronLoading && (
-                  <div style={listConstrained}>
-                    <SkeletonCard />
-                    <SkeletonCard />
-                  </div>
-                )}
-
-                {!cronLoading && cronError && (
-                  <RetryState message={cronError} onRetry={() => void fetchCronJobs()} />
-                )}
-
-                {!cronLoading && !cronError && cronJobs.length === 0 && (
-                  <EmptyState title={t('auto.emptyCron')} hint={t('auto.emptyCronHint')} />
-                )}
-
-                {!cronLoading && !cronError && cronJobs.length > 0 && (
-                  <div style={listConstrained}>
-                    {cronJobs.map((job) => <CronJobCard key={job.id} job={job} />)}
-                  </div>
-                )}
-              </CatalogSection>
-            </CatalogScrollArea>
-          )}
-        </div>
-
-        {reviewPanel && !reviewAsDrawer && (
-          <aside style={reviewSidePanel}>{reviewPanel}</aside>
-        )}
-
-        {reviewPanel && reviewAsDrawer && (
-          <div style={reviewDrawerLayer} onMouseDown={closeReviewPanel}>
-            <aside style={reviewDrawer} onMouseDown={(event) => event.stopPropagation()}>
-              {reviewPanel}
-            </aside>
-          </div>
-        )}
+        {selected || manual ? (
+          <AutomationEditor
+            key={selected?.id ?? 'new'} automation={selected} initial={selected ?? manual!}
+            onDelete={() => selected && setRemoving(selected)}
+            onAction={(operation) => {
+              if (!selected) return
+              void action(() => operation === 'run'
+                ? store.run(selected.id)
+                : store.save({ ...selected, status: operation === 'pause' ? 'paused' : 'active' }, selected))
+            }}
+            onDirtyChange={onDirty} onClose={close}
+            onSaved={(automation) => { setManual(null); store.selectAutomation(automation.id) }}
+          />
+        ) : store.selectedAutomationId ? (
+          <aside className="dc-automation-editor dc-automation-editor-unavailable">
+            <p>{t('automation.unavailable')}</p>
+            <Button variant="ghost" onClick={close}>{t('common.close')}</Button>
+          </aside>
+        ) : null}
       </div>
-
-      {showNewTask && (
-        <NewTaskDialog
-          onClose={() => {
-            setShowNewTask(false)
-            setNewTaskTemplate(undefined)
-            setEditingTemplate(undefined)
-            setNewDialogTab('task')
-          }}
-          initialTemplate={newTaskTemplate}
-          initialTab={newDialogTab}
-          editingTemplate={editingTemplate}
-        />
-      )}
-
+      {pending ? <ConfirmDialog title={t('automation.discard')} message={t('automation.discardHint')} confirmLabel={t('automation.discard')} onConfirm={() => { const next = pending; setPending(null); setDirty(false); next() }} onCancel={() => setPending(null)} /> : null}
+      {removing ? <ConfirmDialog title={t('automation.delete')} message={t('automation.deleteHint')} danger onConfirm={() => { const automation = removing; setRemoving(null); void action(() => store.remove(automation.id)) }} onCancel={() => setRemoving(null)} /> : null}
     </div>
   )
 }
 
-function buildTemplateSections(
-  templates: AutomationTemplate[],
-  t: ReturnType<typeof useT>
-): Array<{ key: string; title: string; templates: AutomationTemplate[] }> {
-  const sections: Array<{ key: string; title: string; templates: AutomationTemplate[] }> = []
-  const userTemplates = templates.filter((tpl) => tpl.isUser)
-  sections.push({ key: 'user', title: t('auto.gallery.my.heading'), templates: userTemplates })
-
-  const grouped = new Map<string, AutomationTemplate[]>()
-  for (const template of templates.filter((tpl) => !tpl.isUser)) {
-    const key = template.category?.trim() || 'general'
-    grouped.set(key, [...(grouped.get(key) ?? []), template])
-  }
-
-  for (const [key, group] of grouped) {
-    sections.push({ key, title: templateCategoryTitle(key, t), templates: group })
-  }
-
-  return sections
-}
-
-function templateCategoryTitle(category: string, t: ReturnType<typeof useT>): string {
-  const key = `auto.templates.category.${category}`
-  const translated = t(key)
-  if (translated !== key) return translated
-  return category
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function TemplateCard({
-  template,
-  onSelect,
-  onEdit
-}: {
-  template: AutomationTemplate
-  onSelect(): void
-  onEdit(): void
-}): JSX.Element {
+function AutomationSuggestion({ preset, locale, onClick }: { preset: AutomationPreset; locale: ReturnType<typeof useLocale>; onClick(): void }): JSX.Element {
   const t = useT()
-  const [hovered, setHovered] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const deleteTemplate = useAutomationsStore((s) => s.deleteTemplate)
-
-  async function handleDelete(): Promise<void> {
-    setDeleting(true)
-    try {
-      await deleteTemplate(template.id)
-      setConfirmDelete(false)
-    } finally {
-      setDeleting(false)
-    }
-  }
-
+  const presentation = presetPresentation[preset.id] ?? { icon: CalendarClock, tone: 'blue' }
+  const Icon = presentation.icon
   return (
-    <>
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{ position: 'relative', minWidth: 0 }}
-      >
-        <button
-          type="button"
-          onClick={onSelect}
-          style={{
-            ...templateButton,
-            backgroundColor: hovered ? 'var(--bg-tertiary)' : 'transparent'
-          }}
-        >
-          <span style={templateIcon}>{template.icon ?? <Play size={17} aria-hidden />}</span>
-          <span style={templateText}>
-            <span style={templateTitle}>{template.title}</span>
-            {template.description && <span style={templateDescription}>{template.description}</span>}
-          </span>
-        </button>
-
-        {template.isUser && (
-          <IconButton
-            icon={<Ellipsis size={15} aria-hidden />}
-            label={t('auto.moreActions')}
-            tooltipLabel={t('auto.moreActions')}
-            tooltipPlacement="top"
-            size={28}
-            radius={8}
-            bordered
-            aria-expanded={menuPosition != null}
-            onClick={(event) => {
-              event.stopPropagation()
-              const rect = event.currentTarget.getBoundingClientRect()
-              setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
-            }}
-            style={{
-              ...smallIconButtonPosition,
-              opacity: hovered || menuPosition ? 1 : 0,
-              pointerEvents: hovered || menuPosition ? 'auto' : 'none'
-            }}
-          />
-        )}
-      </div>
-
-      {menuPosition && (
-        <ContextMenu
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
-          items={[
-            {
-              label: t('auto.gallery.my.edit'),
-              icon: <Pencil size={14} />,
-              onClick: onEdit
-            },
-            {
-              label: deleting ? t('auto.newTemplate.deleting') : t('auto.gallery.my.delete'),
-              icon: <Trash2 size={14} />,
-              danger: true,
-              disabled: deleting,
-              onClick: () => setConfirmDelete(true)
-            }
-          ]}
-        />
-      )}
-
-      {confirmDelete && (
-        <ConfirmDialog
-          title={t('auto.gallery.my.delete')}
-          message={t('auto.gallery.my.deleteConfirm')}
-          confirmLabel={deleting ? t('auto.newTemplate.deleting') : t('auto.newTemplate.deleteConfirmBtn')}
-          danger
-          onConfirm={() => void handleDelete()}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
-    </>
-  )
-}
-
-function CreateTemplateCard({ onClick }: { onClick(): void }): JSX.Element {
-  const t = useT()
-  return (
-    <button type="button" onClick={onClick} style={createTemplateButton}>
-      <span style={createTemplateIcon}>
-        <Plus size={18} aria-hidden />
-      </span>
-      <span style={templateText}>
-        <span style={templateTitle}>{t('auto.gallery.my.create')}</span>
-        <span style={templateDescription}>{t('auto.gallery.my.empty')}</span>
+    <button type="button" className="dc-automation-suggestion" data-tone={presentation.tone} onClick={onClick}>
+      <span className="dc-automation-suggestion-icon"><Icon size={17} strokeWidth={1.7} aria-hidden /></span>
+      <span>
+        <span className="dc-automation-suggestion-heading">
+          <strong>{presetName(preset, t)}</strong>
+          {preset.schedule ? <small>{automationScheduleSummary(preset.schedule, locale)}</small> : null}
+        </span>
+        <span className="dc-automation-suggestion-description">{presetPrompt(preset, t)}</span>
       </span>
     </button>
   )
 }
 
-function EmptyState({ title, hint }: { title: string; hint: string }): JSX.Element {
-  return (
-    <div style={emptyState}>
-      <p style={{ margin: 0 }}>{title}</p>
-      <p style={{ margin: '8px 0 0', fontSize: '12px' }}>{hint}</p>
-    </div>
-  )
+function presetName(preset: AutomationPreset, t: ReturnType<typeof useT>): string {
+  return localizedPresetIds.has(preset.id) ? t(`automation.preset.${preset.id}.name`) : preset.name
 }
-
-function RetryState({ message, onRetry }: { message: string; onRetry(): void }): JSX.Element {
-  const t = useT()
-  return (
-    <div style={emptyState}>
-      <p style={{ margin: 0, color: 'var(--error)' }}>{message}</p>
-      <Button variant="secondary" onClick={onRetry}>
-        {t('common.retry')}
-      </Button>
-    </div>
-  )
-}
-
-const page: CSSProperties = catalogStyles.page
-const browseHeader: CSSProperties = catalogStyles.browseHeader
-const heroTitle: CSSProperties = catalogStyles.heroTitle
-const emptyText: CSSProperties = catalogStyles.emptyText
-
-const listConstrained: CSSProperties = {
-  maxWidth: '760px',
-  margin: '0 auto'
-}
-
-const contentShell: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  minWidth: 0,
-  display: 'flex',
-  position: 'relative'
-}
-
-const contentPane: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column'
-}
-
-const reviewSidePanel: CSSProperties = {
-  width: 'min(480px, 42vw)',
-  minWidth: '360px',
-  maxWidth: '480px',
-  height: '100%',
-  flexShrink: 0
-}
-
-const reviewDrawerLayer: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 50,
-  display: 'flex',
-  justifyContent: 'flex-end',
-  backgroundColor: 'color-mix(in srgb, var(--bg-primary) 24%, transparent)'
-}
-
-const reviewDrawer: CSSProperties = {
-  width: 'min(480px, 92vw)',
-  height: '100%',
-  boxShadow: '-12px 0 30px color-mix(in srgb, var(--bg-primary) 28%, transparent)'
-}
-
-const skeletonRow: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
-  minHeight: '58px',
-  padding: '0 8px',
-  borderRadius: '8px'
-}
-
-const skeletonBlock: CSSProperties = {
-  borderRadius: '4px',
-  backgroundColor: 'var(--bg-tertiary)',
-  animation: 'pulse 1.5s ease-in-out infinite'
-}
-
-const templateButton: CSSProperties = {
-  width: '100%',
-  minWidth: 0,
-  minHeight: '72px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
-  padding: '8px',
-  border: 'none',
-  borderRadius: '8px',
-  backgroundColor: 'transparent',
-  color: 'var(--text-primary)',
-  cursor: 'pointer',
-  textAlign: 'left'
-}
-
-const templateText: CSSProperties = {
-  minWidth: 0,
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4px',
-  overflow: 'hidden'
-}
-
-const templateTitle: CSSProperties = {
-  fontSize: '13px',
-  lineHeight: 1.25,
-  fontWeight: 700,
-  color: 'var(--text-primary)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const templateDescription: CSSProperties = {
-  fontSize: '12px',
-  lineHeight: 1.35,
-  color: 'var(--text-secondary)',
-  display: '-webkit-box',
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: 'vertical',
-  overflow: 'hidden',
-  wordBreak: 'break-word'
-}
-
-const templateIcon: CSSProperties = {
-  width: '38px',
-  height: '38px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexShrink: 0,
-  borderRadius: '8px',
-  backgroundColor: 'var(--bg-secondary)',
-  fontSize: '19px'
-}
-
-const smallIconButtonPosition: CSSProperties = {
-  position: 'absolute',
-  top: '8px',
-  right: '8px',
-  transition: 'opacity 0.15s'
-}
-
-const createTemplateButton: CSSProperties = {
-  ...templateButton,
-  border: '1px dashed var(--border-default)'
-}
-
-const createTemplateIcon: CSSProperties = {
-  ...templateIcon,
-  backgroundColor: 'transparent',
-  border: '1px solid var(--border-default)',
-  color: 'var(--text-secondary)'
-}
-
-const emptyState: CSSProperties = {
-  maxWidth: '760px',
-  margin: '0 auto',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '34px 20px',
-  color: 'var(--text-tertiary)',
-  fontSize: '13px',
-  textAlign: 'center'
+function presetPrompt(preset: AutomationPreset, t: ReturnType<typeof useT>): string {
+  return localizedPresetIds.has(preset.id) ? t(`automation.preset.${preset.id}.prompt`) : preset.prompt
 }

@@ -60,7 +60,6 @@ internal static class InitializeContractMapper
         ModeSwitch = value.ModeSwitch,
         ConfigOverride = value.ConfigOverride,
         BackgroundTerminals = value.BackgroundTerminals,
-        CronManagement = value.CronManagement,
         SkillsManagement = value.SkillsManagement,
         PluginManagement = value.PluginManagement,
         PluginConfiguration = value.PluginConfiguration,

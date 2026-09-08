@@ -1,5 +1,4 @@
 using System.Reflection;
-using DotCraft.Cron;
 
 namespace DotCraft.Tools;
 
@@ -138,7 +137,6 @@ public static class ToolRegistry
             "FindFiles" => CoreToolDisplays.FindFilesResult(result),
             "Exec" => CoreToolDisplays.ExecResult(result),
             "LSP" => CoreToolDisplays.LspResult(result),
-            "Cron" => CronToolDisplays.CronResult(result),
             _ => null
         };
     }

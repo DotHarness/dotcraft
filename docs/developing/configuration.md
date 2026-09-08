@@ -361,22 +361,15 @@ OpenSandbox example:
 | Field | Description | Default |
 |-------|-------------|---------|
 | `Automations.Enabled` | Enables the Automations orchestrator | `true` |
-| `Automations.LocalTasksRoot` | Local task root. Empty uses `.craft/tasks/` | Empty |
-| `Automations.UserTemplatesRoot` | User-authored template root. Empty uses `.craft/automations/templates/` | Empty |
-| `Automations.PollingInterval` | Polling interval | `00:00:30` |
+| `Automations.PollingInterval` | Polling interval | `00:00:10` |
 | `Automations.MaxConcurrentTasks` | Maximum concurrent local tasks | `3` |
 | `Automations.TurnTimeout` | Single-turn timeout | `00:30:00` |
-| `Automations.StallTimeout` | Stall timeout without response | `00:10:00` |
-| `Automations.MaxRetries` | Maximum retry count | `3` |
-| `Automations.RetryInitialDelay` | Initial retry delay | `00:00:30` |
-| `Automations.RetryMaxDelay` | Maximum retry delay | `00:10:00` |
 | `Automations.WorktreeRetentionEnabled` | Enables retention cleanup for idle automation task worktrees | `true` |
 | `Automations.WorktreeRetentionIdlePeriod` | Idle period before a clean automation task worktree is eligible for cleanup | `21.00:00:00` |
 | `Goals.Enabled` | Enables goal storage, AppServer methods, goal context injection, usage accounting, and model goal tools | `true` |
 | `Goals.AutoContinueEnabled` | Allows active goals to continue when a Thread is idle | `true` |
 | `Hooks.Enabled` | Enables Hooks | `true` |
 | `Hooks.State` | Per-hook user state keyed by stable hook key. Stores `Enabled` and `TrustedHash` for Desktop toggle/trust actions | `{}` |
-| `Cron.Enabled` | Enables Cron scheduled tasks | `true` |
 
 `Automations.WorktreeRetentionIdlePeriod` must be at least `14.00:00:00`. The retention sweep only removes managed automation task worktrees that are idle, clean, and have no commits ahead of their base.
 
@@ -384,16 +377,14 @@ Automation AppServer methods:
 
 | Method | Description |
 |---|---|
-| `automation/task/list` | List local tasks |
-| `automation/task/read` | Read one local task |
-| `automation/task/create` | Create a local task |
-| `automation/task/run` | Run a local task immediately |
-| `automation/task/updateBinding` | Update or clear thread binding |
-| `automation/task/discardWorktree` | Remove a task's managed worktree and branch while keeping the task |
-| `automation/task/delete` | Delete a local task |
-| `automation/template/list` | List templates |
-| `automation/template/save` | Save a user template |
-| `automation/template/delete` | Delete a user template |
+| `automation/list` | List definitions |
+| `automation/read` | Read a definition |
+| `automation/create` | Create an automation |
+| `automation/update` | Save with expectedVersion |
+| `automation/run` | Queue one run |
+| `automation/delete` | Delete a definition |
+| `automation/runs/list` | Read run history |
+| `automation/presets/list` | List conversational presets |
 
 Goal AppServer methods:
 

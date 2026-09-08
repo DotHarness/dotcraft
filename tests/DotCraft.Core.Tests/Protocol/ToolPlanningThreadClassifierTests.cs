@@ -49,12 +49,10 @@ public sealed class ToolPlanningThreadClassifierTests
         Assert.Equal(ToolPlanningThreadKind.SubAgentChild, ToolPlanningThreadClassifier.Classify(originThread));
     }
 
-    [Theory]
-    [InlineData("automations")]
-    [InlineData("cron")]
-    public void Classify_UnattendedOrigin_ReturnsUnattended(string originChannel)
+    [Fact]
+    public void Classify_AutomationsOrigin_ReturnsUnattended()
     {
-        var thread = CreateThread(originChannel);
+        var thread = CreateThread("automations");
 
         Assert.Equal(ToolPlanningThreadKind.Unattended, ToolPlanningThreadClassifier.Classify(thread));
     }

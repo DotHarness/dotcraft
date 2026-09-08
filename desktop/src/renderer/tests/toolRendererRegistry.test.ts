@@ -24,6 +24,10 @@ function item(
 }
 
 describe('ToolRendererRegistry', () => {
+  it('uses unified automation presentation only for trusted sources', () => {
+    expect(coreToolRendererRegistry.resolve(item('core.automation'))?.family).toBe('automation')
+    expect(coreToolRendererRegistry.resolve(item('core.automation', 'Mcp'))).toBeNull()
+  })
   it('resolves a registered Core renderer from presentation and provenance', () => {
     const plan = coreToolRendererRegistry.resolve(item(
       CORE_TOOL_PRESENTATION_IDS.web,

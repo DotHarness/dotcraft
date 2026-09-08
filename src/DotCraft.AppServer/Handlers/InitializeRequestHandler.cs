@@ -49,7 +49,6 @@ internal sealed class InitializeRequestHandler(
             ModeSwitch = true,
             ConfigOverride = true,
             BackgroundTerminals = services.BackgroundTerminalService != null,
-            CronManagement = services.CronService != null,
             SkillsManagement = services.SkillsLoader != null,
             PluginManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             PluginConfiguration = services.PluginConfigStore != null,

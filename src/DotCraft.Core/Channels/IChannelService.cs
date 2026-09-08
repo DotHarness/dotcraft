@@ -1,4 +1,3 @@
-using DotCraft.Cron;
 using DotCraft.Security;
 
 namespace DotCraft.Channels;
@@ -14,11 +13,6 @@ public interface IChannelService : IAsyncDisposable, IChannelRuntime
     /// </summary>
     new string Name { get; }
 
-    /// <summary>
-    /// The shared CronService injected by the channel host before the channel starts.
-    /// Allows slash commands (/cron) to operate within this channel.
-    /// </summary>
-    CronService? CronService { get; set; }
 
     /// <summary>
     /// The channel-specific approval service, if any.

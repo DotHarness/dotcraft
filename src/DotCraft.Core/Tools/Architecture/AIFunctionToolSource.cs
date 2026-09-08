@@ -135,7 +135,6 @@ internal static class CoreToolPresentationCatalog
     public static ToolPresentationDescriptor? Resolve(string toolName) => toolName switch
     {
         "CreatePlan" => Descriptor("core.create-plan"),
-        "Cron" => Descriptor("core.cron"),
         "SkillManage" => Descriptor("core.skill-manage"),
         "SkillView" => Descriptor("core.skill-view"),
         "SpawnAgent" => Descriptor("core.subagent", "spawn"),

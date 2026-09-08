@@ -9,18 +9,18 @@ namespace DotCraft.Sessions;
 public sealed class TurnTriggerInfo
 {
     /// <summary>
-    /// Mechanism that synthesized this turn. Expected values include "cron",
+    /// Mechanism that synthesized this turn. Expected values include "automation",
     /// "automation", "goal", and future app-specific values such as "app" or "team".
     /// </summary>
     public string Kind { get; init; } = "";
 
     /// <summary>
-    /// Optional human-readable label (e.g. cron job name, local task identifier).
+    /// Optional human-readable label (e.g. automation name, local task identifier).
     /// </summary>
     public string? Label { get; init; }
 
     /// <summary>
-    /// Optional routing id for client-side navigation (e.g. cron job id, task id).
+    /// Optional routing id for client-side navigation (e.g. automation id, task id).
     /// </summary>
     public string? RefId { get; init; }
 }

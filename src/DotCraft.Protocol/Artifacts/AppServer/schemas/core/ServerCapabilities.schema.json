@@ -37,9 +37,6 @@
     "configOverride": {
       "type": "boolean"
     },
-    "cronManagement": {
-      "type": "boolean"
-    },
     "dreams": {
       "type": "boolean"
     },

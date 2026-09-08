@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\DashBoard.html" />
+    <EmbeddedResource Include="Resources\DashBoardAutomations.js" />
     <EmbeddedResource Include="Resources\DashBoardLogin.html" />
   </ItemGroup>
 

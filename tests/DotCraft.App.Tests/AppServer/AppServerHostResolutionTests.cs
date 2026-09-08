@@ -62,11 +62,14 @@ public sealed class AppServerHostResolutionTests
                 NullLogger.Instance));
     }
 
-    [Fact]
-    public async Task HostBuilder_BuildsAppServerHost_WithWorkspaceRuntimeRegistered()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HostBuilder_BuildsAppServerHost_WithWorkspaceRuntimeRegistered(bool automationsEnabled)
     {
         using var fixture = new WorkspaceFixture();
         var config = new AppConfig();
+        config.SetSection("Automations", new AutomationsConfig { Enabled = automationsEnabled });
         config.SetSection("AppServer", new AppServerConfig
         {
             Mode = AppServerMode.Stdio
@@ -91,6 +94,15 @@ public sealed class AppServerHostResolutionTests
 
         await using var disposableProvider = (ServiceProvider)provider;
         Assert.IsType<AppServerHost>(host);
+        var commands = provider.GetRequiredService<DotCraft.Commands.Core.CommandRegistry>().ListCommands();
+        Assert.Equal(automationsEnabled, commands.Any(command => command.Name == "/automate"));
+        Assert.Equal(automationsEnabled, provider.GetService<AutomationService>() != null);
+        Assert.Equal(automationsEnabled, provider.GetService<IAutomationsRequestHandler>() != null);
+        Assert.Equal(automationsEnabled, new DotCraft.Tools.ToolSourceCollector(registry, provider, config)
+            .Collect().Any(source => source.SourceId == "automations"));
+        var channels = new List<ChannelDescriptor>();
+        new ModuleRegistryChannelListContributor(registry, config).AppendBaseChannels(channels, new());
+        Assert.Equal(automationsEnabled, channels.Any(channel => channel.Name == "automations"));
         Assert.NotNull(provider.GetRequiredService<WorkspaceRuntime>());
         Assert.NotNull(provider.GetRequiredService<WireRuntimeAdditionalContextProvider>());
         Assert.Contains(
@@ -170,7 +182,13 @@ public sealed class AppServerHostResolutionTests
 
         public bool DisposeCalled { get; private set; }
 
-        public event Action<AutomationTask>? AutomationTaskUpdated
+        public event Action<DotCraft.Protocol.AppServer.AutomationUpdatedNotification>? AutomationUpdated
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<DotCraft.Protocol.AppServer.AutomationRunUpdatedNotification>? AutomationRunUpdated
         {
             add { }
             remove { }

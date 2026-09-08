@@ -5,7 +5,6 @@ using DotCraft.AppServer;
 using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Cron;
 using DotCraft.ExternalChannel;
 using DotCraft.Modules;
 using DotCraft.Security;
@@ -52,6 +51,7 @@ public sealed class ChannelRunnerExternalChannelUpsertTests : IDisposable
         await using var services = new ServiceCollection()
             .AddSingleton(modelProviders)
             .AddSingleton(chatClients)
+            .AddSingleton(DotCraft.Commands.Core.CommandRegistry.CreateDefault(".craft"))
             .AddSingleton(new PathBlacklist([]))
             .AddSingleton(externalChannels)
             .AddSingleton<IChannelRuntimeRegistry>(channelRuntimes)
@@ -67,12 +67,11 @@ public sealed class ChannelRunnerExternalChannelUpsertTests : IDisposable
         Assert.NotNull(runner);
 
         var sessionService = new TestableSessionService(new ThreadStore(craftPath));
-        using var cronService = new CronService(Path.Combine(craftPath, "cron-jobs.json"));
 
         try
         {
             runner.BuildPoolThroughBuildAll();
-            runner.CompleteAfterSession(sessionService, cronService);
+            runner.CompleteAfterSession(sessionService);
             await runner.ApplyExternalChannelUpsertAsync(entry, CancellationToken.None);
 
             Assert.True(externalChannels.TryGet(ChannelName, out var host));
@@ -83,7 +82,7 @@ public sealed class ChannelRunnerExternalChannelUpsertTests : IDisposable
             var factory = Assert.IsType<ExternalChannelRequestHandlerFactory>(typeof(ExternalChannelHost)
                 .GetField("_requestHandlerFactory", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetValue(host));
-            var handler = factory.Create(connection, transport, cronService);
+            var handler = factory.Create(connection, transport);
 
             await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
             {

@@ -2,7 +2,6 @@ using DotCraft.Workspaces;
 using DotCraft.Agents;
 using DotCraft.Automations;
 using DotCraft.Configuration;
-using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Modules;
 using DotCraft.Sessions;
@@ -23,7 +22,8 @@ public interface IWorkspaceRuntimeAppServerFeature : IAsyncDisposable
 
     string? DashboardUrl { get; }
 
-    event Action<AutomationTask>? AutomationTaskUpdated;
+    event Action<DotCraft.Protocol.AppServer.AutomationUpdatedNotification>? AutomationUpdated;
+    event Action<DotCraft.Protocol.AppServer.AutomationRunUpdatedNotification>? AutomationRunUpdated;
 
     Task StartAsync(WorkspaceRuntimeAppServerFeatureContext context, CancellationToken ct = default);
 
@@ -40,10 +40,7 @@ public sealed class WorkspaceRuntimeAppServerFeatureContext(
     DotCraftPaths paths,
     ModuleRegistry moduleRegistry,
     ISessionService sessionService,
-    AgentRunner agentRunner,
-    CronService cronService,
     DreamsService dreamsService,
-    Action<CronJob?, string, bool> emitCronStateChanged,
     Action<BackgroundJobResult> emitBackgroundJobResult)
 {
     public IServiceProvider Services { get; } = services;
@@ -56,14 +53,10 @@ public sealed class WorkspaceRuntimeAppServerFeatureContext(
 
     public ISessionService SessionService { get; } = sessionService;
 
-    public AgentRunner AgentRunner { get; } = agentRunner;
 
-    public CronService CronService { get; } = cronService;
 
     public DreamsService DreamsService { get; } = dreamsService;
 
-    public void EmitCronStateChanged(CronJob? job, string id, bool removed) =>
-        emitCronStateChanged(job, id, removed);
 
     public void EmitBackgroundJobResult(BackgroundJobResult result) =>
         emitBackgroundJobResult(result);

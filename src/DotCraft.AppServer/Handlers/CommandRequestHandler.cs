@@ -1,5 +1,4 @@
 using DotCraft.Commands.Core;
-using DotCraft.Cron;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -11,7 +10,6 @@ internal sealed class CommandRequestHandler(
     CommandRegistry commandRegistry,
     ISessionService sessionService,
     AppServerConnection connection,
-    CronService? cronService,
     string? workspaceCraftPath,
     Func<SessionThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync) : IAppServerDomainHandler
 {
@@ -31,11 +29,6 @@ internal sealed class CommandRequestHandler(
             .Where(c => !IsUnavailableWorkspaceCommand(c.Name))
             .Where(c => includeBuiltins != false ||
                 !string.Equals(c.Category, "builtin", StringComparison.OrdinalIgnoreCase))
-            .Where(c =>
-            {
-                var reg = commandRegistry.GetRegistration(c.Name);
-                return reg == null || IsServiceAvailableForRegistration(reg);
-            })
             .Select(c => new Contract.CommandInfo
             {
                 Name = c.Name,
@@ -86,9 +79,6 @@ internal sealed class CommandRequestHandler(
         if (registration != null && !IsSenderAllowed(registration, sender))
             throw AppServerErrors.CommandPermissionDenied(commandName);
 
-        if (registration != null && !IsServiceAvailableForRegistration(registration))
-            throw AppServerErrors.CommandServiceUnavailable(commandName);
-
         var thread = await sessionService.GetThreadAsync(threadId, ct);
         var rawText = BuildRawText(command, arguments);
         var senderId = Read(sender?.SenderId) ?? thread.UserId ?? connection.ClientInfo?.Name ?? "anonymous";
@@ -109,7 +99,6 @@ internal sealed class CommandRequestHandler(
             ChannelContext = thread.ChannelContext,
             WorkspacePath = thread.WorkspacePath,
             SessionService = sessionService,
-            CronService = cronService,
             CommandRegistry = commandRegistry
         };
 
@@ -139,15 +128,6 @@ internal sealed class CommandRequestHandler(
             Thread = resetThread is null ? null : AppServerContractMapper.ToContract(resetThread),
             ArchivedThreadIds = new Protocol.Optional<IReadOnlyList<string>?>(result.ArchivedThreadIds?.ToArray()),
             CreatedLazily = result.CreatedLazily
-        };
-    }
-
-    private bool IsServiceAvailableForRegistration(CommandRegistration registration)
-    {
-        return registration.RequiredService?.ToLowerInvariant() switch
-        {
-            "cron" => cronService != null,
-            _ => true
         };
     }
 

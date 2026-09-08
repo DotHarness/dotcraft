@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Contributions;
-using DotCraft.Cron;
 using DotCraft.Tracing;
 using DotCraft.Mcp;
 using DotCraft.Memory;
@@ -63,7 +62,6 @@ public sealed class AgentRuntimeContext
         ApprovalService = source.ApprovalService;
         PathBlacklist = source.PathBlacklist;
         BackgroundTerminalService = source.BackgroundTerminalService;
-        CronTools = source.CronTools;
         McpClientManager = source.McpClientManager;
         LspServerManager = source.LspServerManager;
         DeferredToolActivationIndex = source.DeferredToolActivationIndex;
@@ -263,10 +261,6 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public IBackgroundTerminalService? BackgroundTerminalService { get; init; }
 
-    /// <summary>
-    /// Optional cron tools for scheduled tasks.
-    /// </summary>
-    public CronTools? CronTools { get; init; }
 
     /// <summary>
     /// Optional MCP client manager for external tool integration.

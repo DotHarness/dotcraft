@@ -1,101 +1,32 @@
 using DotCraft.Workspaces;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Automations;
-using DotCraft.Automations.Local;
 using DotCraft.Tools;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-
 namespace DotCraft.Tests.Tools;
-
 public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
 {
-    private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"generated_automation_tools_{Guid.NewGuid():N}");
-
-    public GeneratedAutomationToolFunctionParityTests()
-    {
-        Directory.CreateDirectory(_tempRoot);
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_tempRoot))
-                Directory.Delete(_tempRoot, recursive: true);
-        }
-        catch
-        {
-            // Best-effort cleanup on Windows.
-        }
-    }
-
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "automation_tools_" + Guid.NewGuid().ToString("N"));
+    public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, true); }
     [Fact]
-    public async Task CompleteLocalTask_SourceDefinitionMatchesAIFunctionFactoryShape()
+    public async Task Automation_HasTrustedPresentationAndCannotAcceptOrigin()
     {
-        var store = CreateStore();
-        var taskDir = Path.Combine(_tempRoot, "task");
-        var workspace = Path.Combine(taskDir, "workspace");
-        Directory.CreateDirectory(workspace);
-        File.WriteAllText(Path.Combine(taskDir, "task.md"), "status: running");
-        var source = new LocalTaskCompletionToolSource(
-            store,
-            NullLogger<LocalTaskCompletionToolSource>.Instance);
-        var registration = Assert.Single(await source.GetRegistrationsAsync(
-            new ToolPlanningContext("thread_test", null, workspace, Path.Combine(workspace, ".craft"), "agent", "local-task", [], 1)));
-        var factory = CreateFactoryCompleteLocalTask(store, taskDir);
-
-        Assert.Equal(factory.Name, registration.Definition.Name.Name);
-        Assert.Equal(factory.Description, registration.Definition.Description);
-        AssertJsonEqual(factory.JsonSchema, registration.Definition.InputSchema, "CompleteLocalTask raw input schema");
-        AssertNullableJsonEqual(factory.ReturnJsonSchema, registration.Definition.OutputSchema, "CompleteLocalTask return schema");
-    }
-
-    private LocalTaskFileStore CreateStore()
-    {
-        var craftPath = Path.Combine(_tempRoot, ".craft");
-        Directory.CreateDirectory(craftPath);
-        return new LocalTaskFileStore(
-            new AutomationsConfig(),
-            new DotCraftPaths(_tempRoot, craftPath, userDataPath: null),
-            NullLogger<LocalTaskFileStore>.Instance);
-    }
-
-    private static AIFunction CreateFactoryCompleteLocalTask(LocalTaskFileStore store, string taskDir)
-    {
-        var methodsType = typeof(LocalTaskCompletionToolSource).Assembly.GetType(
-            "DotCraft.Automations.Local.LocalTaskCompletionToolMethods",
-            throwOnError: true)!;
-        var methods = Activator.CreateInstance(
-            methodsType,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            args: [store, NullLogger.Instance, taskDir],
-            culture: null)!;
-        var method = methodsType.GetMethod(
-            "CompleteLocalTask",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            types: [typeof(string), typeof(CancellationToken)],
-            modifiers: null)!;
-        var del = method.CreateDelegate<Func<string, CancellationToken, Task<string>>>(methods);
-        return AIFunctionFactory.Create(del);
-    }
-
-    private static void AssertNullableJsonEqual(JsonElement? expected, JsonElement? actual, string because)
-    {
-        Assert.Equal(expected.HasValue, actual.HasValue);
-        if (expected.HasValue)
-            AssertJsonEqual(expected.Value, actual!.Value, because);
-    }
-
-    private static void AssertJsonEqual(JsonElement expected, JsonElement actual, string because)
-    {
-        var expectedNode = JsonNode.Parse(expected.GetRawText());
-        var actualNode = JsonNode.Parse(actual.GetRawText());
-        Assert.True(JsonNode.DeepEquals(expectedNode, actualNode), $"{because}\nExpected: {expected}\nActual:   {actual}");
+        var service = new AutomationService(new(), new DotCraftPaths(_root, Path.Combine(_root, ".craft"), null), NullLogger<AutomationService>.Instance);
+        var registration = Assert.Single(await new AutomationToolSource(service).GetRegistrationsAsync(
+            new ToolPlanningContext("thread", null, _root, Path.Combine(_root, ".craft"), "agent", null, [], 1)));
+        Assert.Equal("Automation", registration.Definition.Name.Name);
+        Assert.Equal("core.automation", registration.Definition.Presentation!.Id.Value);
+        Assert.Equal(ToolSourceKind.CoreNative, registration.Definition.Provenance.Kind);
+        Assert.DoesNotContain("deliveryTarget", registration.Definition.InputSchema.GetRawText());
+        var tools = new AutomationTools(service);
+        using var result = JsonDocument.Parse(await tools.Automation("create", automation: new AutomationInput {
+            Name = "Check", Prompt = "Check changes", Schedule = new() { Kind = "every", EveryMs = 60000 } }));
+        Assert.Equal("create", result.RootElement.GetProperty("operation").GetString());
+        var id = result.RootElement.GetProperty("automation").GetProperty("id").GetString()!;
+        Assert.Equal(id, Assert.Single(await service.ListAsync()).Id);
+        var invalid = await Assert.ThrowsAsync<ArgumentException>(() => tools.Automation("complete", automationId: id));
+        Assert.Equal("automation.invalidAction", invalid.Message);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => tools.Automation("report", summary: "done"));
     }
 }

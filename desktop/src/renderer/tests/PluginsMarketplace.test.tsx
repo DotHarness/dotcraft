@@ -73,7 +73,8 @@ function renderPluginsView(): void {
  * filter's marketplace mode.
  */
 async function showMarketplaceGrouping(): Promise<void> {
-  fireEvent.click(await screen.findByRole('button', { name: 'Filter plugin publisher' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Filter plugins' }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Publisher' }))
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Marketplaces' }))
 }
 
@@ -222,7 +223,8 @@ describe('plugin marketplace surface', () => {
 
     renderPluginsView()
     await screen.findByText('Example Plugin')
-    fireEvent.click(await screen.findByRole('button', { name: 'Filter plugin publisher' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Filter plugins' }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Publisher' }))
 
     expect(await screen.findByRole('menuitem', { name: 'All publishers' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Marketplaces' })).not.toBeInTheDocument()

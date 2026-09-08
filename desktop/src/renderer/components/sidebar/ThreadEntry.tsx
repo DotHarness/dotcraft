@@ -12,7 +12,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { Archive, ArrowRightLeft, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
-import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
+import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { addToast } from '../../stores/toastStore'
@@ -244,16 +244,16 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     const taskId = raw.trim()
     if (!taskId) return
     const state = useAutomationsStore.getState()
-    const task = state.tasks.find((t) => t.id === taskId)
+    const task = state.automations.find((t) => t.id === taskId)
     if (!task) {
       addToast(t('auto.dnd.bindFailed', { error: taskId }), 'error')
       setAnim('fail')
       return
     }
     try {
-      await state.updateBinding(task, { threadId: thread.id, mode: 'run-in-thread' })
+      await state.save({ ...task, executionMode: 'thread', targetThreadId: thread.id }, task)
       addToast(
-        t('auto.dnd.bindSuccess', { task: title || task.title, thread: displayName }),
+        t('auto.dnd.bindSuccess', { task: title || task.name, thread: displayName }),
         'success'
       )
       setAnim('success')

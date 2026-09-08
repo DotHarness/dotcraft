@@ -35,7 +35,7 @@ const toolCatalog = [
   { name: 'WriteFile', description: 'Write files', icon: '🖊️' },
   { name: 'ReadFile', description: 'Read files', icon: '📄' },
   { name: 'TodoWrite', description: 'Track todos', icon: '📝' },
-  { name: 'Cron', description: 'Schedule jobs', icon: '⏰' },
+  { name: 'Automation', description: 'Schedule jobs', icon: '⏰' },
   { name: 'RequestUserInput', description: 'Ask the user', icon: '❓' }
 ]
 

@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Cron;
 using DotCraft.Text;
 using DotCraft.Logging;
 using DotCraft.Hosting;
@@ -65,8 +64,7 @@ public sealed class AppServerHost(
 
     private IAppServerChannelListContributor ChannelListContributor =>
         new ModuleRegistryChannelListContributor(
-            _services.GetRequiredService<ModuleRegistry>(),
-            runtime.CronService);
+            _services.GetRequiredService<ModuleRegistry>(), runtime.Config);
 
     /// <summary>
     /// Thread-safe set of currently connected transports. Used to broadcast
@@ -120,7 +118,8 @@ public sealed class AppServerHost(
                 _appServerFeature = _services.GetService<IWorkspaceRuntimeAppServerFeatureFactory>()?.Create(_services);
                 if (_appServerFeature != null)
                 {
-                    _appServerFeature.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
+                    _appServerFeature.AutomationUpdated += BroadcastAutomationUpdated;
+                    _appServerFeature.AutomationRunUpdated += BroadcastAutomationRunUpdated;
                     await _appServerFeature.StartAsync(
                         new WorkspaceRuntimeAppServerFeatureContext(
                             _services,
@@ -128,10 +127,7 @@ public sealed class AppServerHost(
                             runtime.Paths,
                             moduleRegistry,
                             runtime.SessionService,
-                            runtime.AgentRunner,
-                            runtime.CronService,
                             runtime.DreamsService,
-                            emitCronStateChanged: OnCronStateChanged,
                             emitBackgroundJobResult: OnBackgroundJobResultProduced),
                         cancellationToken);
                 }
@@ -179,7 +175,8 @@ public sealed class AppServerHost(
                         {
                             var feature = _appServerFeature;
                             _appServerFeature = null;
-                            feature.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
+                            feature.AutomationUpdated -= BroadcastAutomationUpdated;
+                            feature.AutomationRunUpdated -= BroadcastAutomationRunUpdated;
                             try
                             {
                                 await feature.StopAsync(CancellationToken.None);
@@ -317,13 +314,11 @@ public sealed class AppServerHost(
                 RemoteToolHostClient = runtime.RemoteToolHostClient,
                 BroadcastRemoteToolHostRouteChanged = BroadcastRemoteToolHostRouteChanged,
                 ServerVersion = AppVersion.Informational,
-                CronService = runtime.CronService,
                 SkillsLoader = runtime.SkillsLoader,
                 MemoryStore = runtime.MemoryStore,
                 WorkspaceCraftPath = runtime.Paths.Data.RootPath,
                 HostWorkspacePath = runtime.Paths.WorkspacePath,
                 AutomationsHandler = _services.GetService<IAutomationsRequestHandler>(),
-                BroadcastCronStateChanged = BroadcastCronStateChanged,
                 CommitMessageSuggest = runtime.CommitMessageSuggestService,
                 WelcomeSuggestionService = runtime.WelcomeSuggestionService,
                 DashboardUrl = _appServerFeature?.DashboardUrl,
@@ -959,18 +954,6 @@ public sealed class AppServerHost(
         BroadcastMcpStatusChanged(e.Status);
     }
 
-    private void OnCronStateChanged(CronJob? job, string id, bool removed)
-    {
-        if (removed)
-        {
-            BroadcastCronStateChanged(new Contract.CronJobWireInfo { Id = id }, removed: true);
-            return;
-        }
-
-        if (job != null)
-            BroadcastCronStateChanged(CronContractMapper.ToContract(job), removed: false);
-    }
-
     private void OnBackgroundJobResultProduced(BackgroundJobResult result)
     {
         BroadcastJobResult(
@@ -986,7 +969,7 @@ public sealed class AppServerHost(
 
     /// <summary>
     /// Broadcasts a <c>system/jobResult</c> JSON-RPC notification to all connected transports.
-    /// Called when a server-managed cron job completes and the job was created from
+    /// Called when a server-managed background job completes and the job was created from
     /// a CLI (non-social-channel) context. See spec Section 6.9.
     /// </summary>
     private void BroadcastJobResult(
@@ -1030,29 +1013,6 @@ public sealed class AppServerHost(
                 try
                 {
                     await transport.NotifyContractAsync(Contract.AppServerRpc.SystemJobResult, parameters, CancellationToken.None);
-                }
-                catch
-                {
-                    _activeTransports.TryRemove(transport, out _);
-                }
-            });
-        }
-    }
-
-    private void BroadcastCronStateChanged(Contract.CronJobWireInfo job, bool removed)
-    {
-        var parameters = new Contract.CronStateChangedNotification { Job = job, Removed = removed };
-
-        foreach (var (transport, connection) in _activeTransports)
-        {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.CronStateChanged))
-                continue;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.CronStateChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1614,28 +1574,24 @@ public sealed class AppServerHost(
     };
 
     /// <summary>
-    /// Broadcasts an <c>automation/task/updated</c> JSON-RPC notification to all connected transports.
+    /// Broadcasts an <c>automation/updated</c> JSON-RPC notification to all connected transports.
     /// Called by <see cref="AutomationsEventDispatcher"/> when a task status changes.
     /// </summary>
-    private void BroadcastAutomationTaskUpdated(AutomationTask task)
-    {
-        var parameters = AutomationsEventDispatcher.BuildNotificationParams(task, runtime.Paths.WorkspacePath);
+    private void BroadcastAutomationUpdated(Contract.AutomationUpdatedNotification parameters) =>
+        BroadcastAutomationNotification(Contract.AppServerRpc.AutomationUpdated, parameters);
 
+    private void BroadcastAutomationRunUpdated(Contract.AutomationRunUpdatedNotification parameters) =>
+        BroadcastAutomationNotification(Contract.AppServerRpc.AutomationRunUpdated, parameters);
+
+    private void BroadcastAutomationNotification<T>(DotCraft.Protocol.RpcNotification<T> descriptor, T parameters) where T : class
+    {
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AutomationTaskUpdated))
-                continue;
-
+            if (!connection.ShouldSendNotification(descriptor.Name)) continue;
             _ = Task.Run(async () =>
             {
-                try
-                {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.AutomationTaskUpdated, parameters, CancellationToken.None);
-                }
-                catch
-                {
-                    _activeTransports.TryRemove(transport, out _);
-                }
+                try { await transport.NotifyContractAsync(descriptor, parameters, CancellationToken.None); }
+                catch { _activeTransports.TryRemove(transport, out _); }
             });
         }
     }

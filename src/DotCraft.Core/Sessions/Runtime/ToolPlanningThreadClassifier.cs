@@ -6,7 +6,6 @@ namespace DotCraft.Sessions;
 internal static class ToolPlanningThreadClassifier
 {
     private const string AutomationsChannelName = "automations";
-    private const string CronChannelName = "cron";
 
     public static ToolPlanningThreadKind Classify(SessionThread thread)
     {
@@ -23,8 +22,7 @@ internal static class ToolPlanningThreadClassifier
         }
 
         if (!string.IsNullOrWhiteSpace(thread.Configuration?.AutomationTaskDirectory)
-            || IsOrigin(thread.OriginChannel, AutomationsChannelName)
-            || IsOrigin(thread.OriginChannel, CronChannelName))
+            || IsOrigin(thread.OriginChannel, AutomationsChannelName))
         {
             return ToolPlanningThreadKind.Unattended;
         }

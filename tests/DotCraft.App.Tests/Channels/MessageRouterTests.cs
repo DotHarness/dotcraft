@@ -1,5 +1,4 @@
 using DotCraft.Channels;
-using DotCraft.Cron;
 using DotCraft.Security;
 using Xunit;
 
@@ -7,6 +6,36 @@ namespace DotCraft.Tests.Channels;
 
 public sealed class MessageRouterTests
 {
+    [Fact]
+    public async Task DeliverRequiredAsync_RejectsUnavailableChannels()
+    {
+        var router = new MessageRouter(new ChannelRuntimeRegistry());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => router.DeliverRequiredAsync(
+            "missing", "group:42", new ChannelDeliveryMessage { Kind = "text", Text = "result" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeliverRequiredAsync_PropagatesChannelRejection()
+    {
+        var router = new MessageRouter(new ChannelRuntimeRegistry());
+        router.RegisterChannel(new StubChannel("telegram", [], new ChannelDeliveryResult
+        {
+            Delivered = false, ErrorCode = "Forbidden", ErrorMessage = "Bot removed from group"
+        }));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => router.DeliverRequiredAsync(
+            "telegram", "group:42", new ChannelDeliveryMessage { Kind = "text", Text = "result" }, CancellationToken.None));
+        Assert.Equal("Bot removed from group", error.Message);
+    }
+
+    [Fact]
+    public async Task DeliverRequiredAsync_CompletesWhenChannelConfirmsDelivery()
+    {
+        var router = new MessageRouter(new ChannelRuntimeRegistry());
+        router.RegisterChannel(new StubChannel("telegram", [], new ChannelDeliveryResult { Delivered = true }));
+        await router.DeliverRequiredAsync(
+            "telegram", "group:42", new ChannelDeliveryMessage { Kind = "text", Text = "result" }, CancellationToken.None);
+    }
+
     [Fact]
     public void UnregisterChannel_RemovesRuntimeRegistryEntry()
     {
@@ -53,7 +82,6 @@ public sealed class MessageRouterTests
         ChannelDeliveryResult result) : IChannelService
     {
         public string Name => name;
-        public CronService? CronService { get; set; }
         public IApprovalService? ApprovalService => null;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync() => Task.CompletedTask;
@@ -76,7 +104,6 @@ public sealed class MessageRouterTests
 
         public string Name => name;
         public int DeliverCount => _deliverCount;
-        public CronService? CronService { get; set; }
         public IApprovalService? ApprovalService => null;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync() => Task.CompletedTask;
@@ -107,7 +134,6 @@ public sealed class MessageRouterTests
 
         public string Name => name;
         public int DeliverCount => _deliverCount;
-        public CronService? CronService { get; set; }
         public IApprovalService? ApprovalService => null;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync() => Task.CompletedTask;

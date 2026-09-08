@@ -1,10 +1,7 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { isShellToolName } from './shellTools'
-import {
-  CRON_TOOL_NAME,
-  formatCronCollapsedLabel
-} from './cronToolDisplay'
+
 import {
   SKILL_MANAGE_TOOL_NAME,
   formatSkillManageLabel,
@@ -52,7 +49,7 @@ export const BUILTIN_TOOLS = new Set<string>([
   'ResumeAgent',
   'LSP',
   'SearchTools',
-  'Cron',
+  'Automation',
   'CommitSuggest',
   'CreatePlan',
   'UpdateTodos',
@@ -384,10 +381,6 @@ export function formatCollapsedToolLabel(
     return translate(locale, 'toolCall.ran', { cmd: short })
   }
 
-  if (toolName === CRON_TOOL_NAME) {
-    return formatCronCollapsedLabel(args, locale)
-  }
-
   if (toolName === SKILL_MANAGE_TOOL_NAME) {
     return formatSkillManageLabel(args, undefined, locale)
   }
@@ -689,13 +682,7 @@ export function getStreamingToolDisplay(
     case REQUEST_USER_INPUT_TOOL_NAME: {
       return { label: formatRequestUserInputStreamingLabel(rawArgs, locale) }
     }
-    case 'Cron': {
-      const action = extractPartialJsonStringValue(rawArgs, 'action')
-      if (action === 'add') return { label: translate(locale, 'toolCall.streaming.cronAdd') }
-      if (action === 'list') return { label: translate(locale, 'toolCall.streaming.cronList') }
-      if (action === 'remove') return { label: translate(locale, 'toolCall.streaming.cronRemove') }
-      return { label: translate(locale, 'toolCall.streaming.cronGeneric') }
-    }
+
     case 'CommitSuggest': {
       return { label: translate(locale, 'toolCall.streaming.commitSuggest') }
     }

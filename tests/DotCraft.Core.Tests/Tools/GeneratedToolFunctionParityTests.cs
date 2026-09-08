@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Cron;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
 using DotCraft.Memory;
@@ -56,13 +55,13 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     [Fact]
     public void GeneratedDeclarationsMatchExecutableFunctions()
     {
-        var function = GeneratedToolFunctions.CronTools_Cron(CreateCronTools());
-        var declaration = GeneratedToolDeclarations.CronTools_Cron_Declaration;
+        var function = GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest();
+        var declaration = GeneratedToolDeclarations.CommitSuggestMethods_CommitSuggest_Declaration;
 
         Assert.Equal(function.Name, declaration.Name);
         Assert.Equal(function.Description, declaration.Description);
-        AssertJsonEqual(function.JsonSchema, declaration.InputSchema, "Cron declaration input schema");
-        AssertNullableJsonEqual(function.ReturnJsonSchema, declaration.OutputSchema, "Cron declaration output schema");
+        AssertJsonEqual(function.JsonSchema, declaration.InputSchema, "CommitSuggest declaration input schema");
+        AssertNullableJsonEqual(function.ReturnJsonSchema, declaration.OutputSchema, "CommitSuggest declaration output schema");
     }
 
     [Fact]
@@ -104,12 +103,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             AIFunctionFactory.Create(factoryBuilder.SetAgentToolPolicy),
             arrayArgs);
 
-        var generatedCron = CreateCronTools();
-        var factoryCron = CreateCronTools();
-        await AssertInvocationMatchesAsync(
-            GeneratedToolFunctions.CronTools_Cron(generatedCron),
-            AIFunctionFactory.Create(factoryCron.Cron),
-            new AIFunctionArguments { ["action"] = "list" });
     }
 
     [Fact]
@@ -194,7 +187,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var builderMethods = CreateAgentBuilderMethods("schema-builder");
         var skillView = new SkillViewTool(new SkillsLoader(_tempRoot), variantModeEnabled: false, new SkillVariantTarget());
         var skillManage = CreateSkillManageTool();
-        var cronTools = CreateCronTools();
         var sandboxManager = new SandboxSessionManager(
             new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 },
             new StubSandboxProvider(),
@@ -248,7 +240,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.SkillViewTool_SkillView(skillView), AIFunctionFactory.Create(skillView.SkillView)),
             Pair(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManage), AIFunctionFactory.Create(skillManage.SkillManage)),
             Pair(GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest(), AIFunctionFactory.Create(CommitSuggestMethods.CommitSuggest)),
-            Pair(GeneratedToolFunctions.CronTools_Cron(cronTools), AIFunctionFactory.Create(cronTools.Cron)),
             Pair(GeneratedToolFunctions.SandboxFileTools_ReadFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.ReadFile)),
             Pair(GeneratedToolFunctions.SandboxFileTools_WriteFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.WriteFile)),
             Pair(GeneratedToolFunctions.SandboxFileTools_EditFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.EditFile)),
@@ -270,14 +261,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         ProfileBuilderDraftStore.Remove(threadId);
         ProfileBuilderDraftStore.Seed(threadId, "test-agent", AgentProfileSources.Workspace, string.Empty);
         return new AgentProfileBuilderToolMethods(threadId, skillsLoader: null, mcpClientManager: null);
-    }
-
-    private CronTools CreateCronTools()
-    {
-        var path = Path.Combine(_tempRoot, $"cron_{Guid.NewGuid():N}.json");
-        var service = new CronService(path);
-        _disposables.Add(service);
-        return new CronTools(service);
     }
 
     private SkillManageTool CreateSkillManageTool() =>

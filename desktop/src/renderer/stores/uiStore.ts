@@ -63,8 +63,6 @@ export type SelectedChannelKey = `module:${string}` | `external:${string}` | nul
 
 export type PluginCatalogSurface = 'plugins' | 'skills'
 
-/** Automations view: Tasks (orchestrator) vs Cron (scheduled jobs). */
-export type AutomationsTab = 'tasks' | 'cron'
 
 export interface WelcomeDraft {
   text: string
@@ -99,7 +97,6 @@ export interface UIState {
   activeMainView: ActiveMainView
   pluginCatalogSurface: PluginCatalogSurface
   /** Active tab inside Automations view (spec §21.1). */
-  automationsTab: AutomationsTab
   activeSettingsTab: SettingsTab
   /** Selected channel detail, kept outside ChannelsView so app history can restore it. */
   selectedChannelKey: SelectedChannelKey
@@ -199,7 +196,6 @@ interface UIStore extends UIState {
   setPluginCatalogSurface(surface: PluginCatalogSurface): void
   /** Deselect current thread and open Welcome composer in conversation view. */
   goToNewChat(options?: { workspacePath?: string; clearDraft?: boolean }): void
-  setAutomationsTab(tab: AutomationsTab): void
   setActiveSettingsTab(tab: SettingsTab): void
   setSelectedChannelKey(key: SelectedChannelKey): void
   requestCloseSettings(): void
@@ -352,7 +348,6 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
 export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   activeMainView: 'conversation',
   pluginCatalogSurface: 'plugins',
-  automationsTab: 'tasks',
   activeSettingsTab: 'general',
   selectedChannelKey: null,
   settingsCloseRequestSeq: 0,
@@ -414,9 +409,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({ activeMainView: 'conversation', planApprovalDismissed: {} })
   },
 
-  setAutomationsTab(tab) {
-    set({ automationsTab: tab })
-  },
 
   setActiveSettingsTab(tab) {
     set({ activeSettingsTab: normalizeSettingsTab(tab) })

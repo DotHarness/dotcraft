@@ -21,9 +21,7 @@ import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
-import { useCronStore, type CronJobWire } from './stores/cronStore'
-import { useReviewPanelStore } from './stores/reviewPanelStore'
-import type { AutomationTask } from './stores/automationsStore'
+import type { AutomationDefinition, AutomationRun } from './stores/automationsStore'
 import { useModelCatalogStore } from './stores/modelCatalogStore'
 import { useProvidersStore } from './stores/providersStore'
 import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
@@ -415,10 +413,8 @@ function resetWorkspaceScopedRendererState(): void {
     snapshotRevision: 0,
     completeSnapshotRevision: 0
   })
-  useCronStore.getState().reset()
-  useAutomationsStore.getState().selectTask(null)
+  useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
   useSubAgentStore.getState().reset()
-  useUIStore.getState().setAutomationsTab('tasks')
   useUIStore.getState().resetDetailTabs()
   if (useUIStore.getState().activeMainView !== 'settings') {
     useUIStore.getState().setActiveMainView('conversation')
@@ -1619,10 +1615,7 @@ export function App(): JSX.Element {
 
       const caps = useConnectionStore.getState().capabilities
       if (caps?.automations) {
-        void useAutomationsStore.getState().fetchTasks()
-      }
-      if (caps?.cronManagement) {
-        void useCronStore.getState().fetchJobs()
+        void useAutomationsStore.getState().fetchAutomations()
       }
       if (caps?.modelCatalogManagement) {
         void useModelCatalogStore.getState().loadIfNeeded(true)
@@ -1633,13 +1626,7 @@ export function App(): JSX.Element {
       if (caps?.pluginManagement) {
         void usePluginStore.getState().fetchPlugins()
       }
-      const hasTasks = caps?.automations === true
-      const hasCron = caps?.cronManagement === true
-      if (hasCron && !hasTasks) {
-        useUIStore.getState().setAutomationsTab('cron')
-      } else {
-        useUIStore.getState().setAutomationsTab('tasks')
-      }
+
     }
     if (status === 'disconnected' || status === 'error') {
       threadListReloadGenerationRef.current += 1
@@ -1708,10 +1695,7 @@ export function App(): JSX.Element {
           if (!threadId) return true
           return useThreadStore.getState().activeThreadId === threadId
         }
-        const shouldUpdateReviewThread = (threadId: string | null | undefined): boolean => {
-          if (!threadId) return false
-          return useReviewPanelStore.getState().reviewThreadId === threadId
-        }
+
 
         switch (method as string) {
           case 'thread/started': {
@@ -1898,10 +1882,7 @@ export function App(): JSX.Element {
             ) {
               conv.onTurnStarted(rawTurn)
             }
-            if (shouldUpdateReviewThread(startedThreadId)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onTurnStarted(rawTurn)
-            }
+
             break
           }
 
@@ -1931,10 +1912,7 @@ export function App(): JSX.Element {
                   .catch(() => { /* non-critical — ignore */ })
               }
             }
-            if (shouldUpdateReviewThread(completedThreadId)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onTurnCompleted(rawTurn)
-            }
+
             break
           }
 
@@ -1954,10 +1932,7 @@ export function App(): JSX.Element {
               }
               conv.onTurnFailed(rawTurn, error)
             }
-            if (shouldUpdateReviewThread(failedThreadId)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onTurnFailed(rawTurn, error)
-            }
+
             break
           }
 
@@ -1971,10 +1946,7 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(cancelledThreadId)) {
               conv.onTurnCancelled(rawTurn, reason)
             }
-            if (shouldUpdateReviewThread(cancelledThreadId)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onTurnCancelled(rawTurn, reason)
-            }
+
             break
           }
 
@@ -1983,10 +1955,7 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(tid)) {
               conv.onItemStarted(p)
             }
-            if (shouldUpdateReviewThread(tid)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onItemStarted(p)
-            }
+
             break
           }
 
@@ -1996,10 +1965,7 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onAgentMessageDelta(delta)
             }
-            if (shouldUpdateReviewThread(tid)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onAgentMessageDelta(delta)
-            }
+
             break
           }
 
@@ -2009,10 +1975,7 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onReasoningDelta(delta)
             }
-            if (shouldUpdateReviewThread(tid)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onReasoningDelta(delta)
-            }
+
             break
           }
 
@@ -2027,10 +1990,7 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onCommandExecutionDelta(params)
             }
-            if (shouldUpdateReviewThread(tid)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onCommandExecutionDelta(params)
-            }
+
             break
           }
 
@@ -2049,10 +2009,7 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onTerminalEvent(params)
             }
-            if (shouldUpdateReviewThread(tid)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onTerminalEvent(params)
-            }
+
             break
           }
 
@@ -2085,10 +2042,7 @@ export function App(): JSX.Element {
                 if (toolCall) autoOpenWorkflowLaunch(tid, toolCall.toolName ?? '', toolCall.result, toolCall.success)
               }
             }
-            if (shouldUpdateReviewThread(tid)) {
-              const rs = useReviewPanelStore.getState()
-              rs.onItemCompleted(p)
-            }
+
             break
           }
 
@@ -2213,31 +2167,14 @@ export function App(): JSX.Element {
             break
           }
 
-          case 'cron/stateChanged': {
-            const removed = p.removed === true
-            const job = p.job as CronJobWire | undefined
-            if (removed && job?.id) {
-              useCronStore.getState().removeJobLocal(job.id)
-              if (useCronStore.getState().selectedCronJobId === job.id) {
-                useCronStore.getState().selectCronJob(null)
-              }
-            } else if (job) {
-              useCronStore.getState().upsertJob(job)
-            }
+          case 'automation/updated': {
+            const store = useAutomationsStore.getState()
+            if (p.removed === true && typeof p.automationId === 'string') store.removeAutomation(p.automationId)
+            else if (p.automation) store.upsertAutomation(p.automation as AutomationDefinition)
             break
           }
-
-          case 'automation/task/updated': {
-            const task = (p.task ?? {}) as AutomationTask
-            useAutomationsStore.getState().upsertTask(task)
-            {
-              const rs = useReviewPanelStore.getState()
-              if (rs.openedTaskId === task.id && rs.taskDetail) {
-                useReviewPanelStore.setState({
-                  taskDetail: { ...rs.taskDetail, ...task }
-                })
-              }
-            }
+          case 'automation/run/updated': {
+            if (p.run) useAutomationsStore.getState().upsertRun(p.run as AutomationRun)
             break
           }
 

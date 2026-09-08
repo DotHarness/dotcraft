@@ -5,6 +5,7 @@ using DotCraft.Runtime;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Commands.Custom;
+using DotCraft.Commands.Core;
 using DotCraft.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.AI;
@@ -15,6 +16,37 @@ namespace DotCraft.Tests.Runtime;
 
 public sealed class WorkspaceRuntimeTests
 {
+    [Fact]
+    public async Task CommandRegistry_RegistersModuleHandlersWithoutStartingRuntime()
+    {
+        var root = NewTemporaryPath();
+        var builder = Host.CreateApplicationBuilder();
+        AddRuntimeTestServices(builder.Services, root, Path.Combine(root, ".craft"));
+        builder.Services.AddSingleton<ICommandHandler>(new ModuleCommandHandler());
+        using var host = builder.Build();
+
+        var registry = host.Services.GetRequiredService<CommandRegistry>();
+        Assert.Contains(registry.ListCommands(), command => command.Name == "/module-command");
+        var result = await registry.TryExecuteAsync(
+            "/module-command", new CommandContext { SessionId = "test", RawText = "/module-command" }, new ModuleCommandResponder());
+        Assert.True(result.Handled);
+        Assert.Equal("module result", result.Message);
+    }
+
+    private sealed class ModuleCommandHandler : ICommandHandler
+    {
+        public string[] Commands => ["/module-command"];
+
+        public Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder) =>
+            Task.FromResult(CommandResult.HandledResult("module result"));
+    }
+
+    private sealed class ModuleCommandResponder : ICommandResponder
+    {
+        public Task SendTextAsync(string text) => Task.CompletedTask;
+        public Task SendMarkdownAsync(string markdown) => Task.CompletedTask;
+    }
+
     [Fact]
     public void RegistrationAndHostBuild_DoNotCreateWorkspaceState()
     {

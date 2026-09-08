@@ -535,35 +535,6 @@ public sealed class SessionServiceLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task FindThreads_CrossChannelOrigins_IncludesCronWithSyntheticUserId()
-    {
-        var ws = "/ws/cron_cross";
-        var desktop = new SessionIdentity
-        {
-            ChannelName = "dotcraft-desktop",
-            UserId = "local",
-            WorkspacePath = ws,
-            ChannelContext = "workspace:" + ws
-        };
-        var cronIdentity = new SessionIdentity
-        {
-            ChannelName = "cron",
-            UserId = "cron:d9f53704",
-            WorkspacePath = ws,
-            ChannelContext = null
-        };
-        await _svc.CreateThreadAsync(desktop);
-        var cronThread = await _svc.CreateThreadAsync(cronIdentity);
-
-        var desktopOnly = await _svc.FindThreadsAsync(desktop);
-        Assert.Single(desktopOnly);
-
-        var merged = await _svc.FindThreadsAsync(desktop, crossChannelOrigins: ["cron"]);
-        Assert.Equal(2, merged.Count);
-        Assert.Contains(merged, s => s.Id == cronThread.Id && s.OriginChannel == "cron");
-    }
-
-    [Fact]
     public async Task FindThreads_WorkspaceScope_IncludesEveryOriginButNotOtherWorkspaces()
     {
         var workspace = "/ws/workspace_scope";
@@ -578,8 +549,8 @@ public sealed class SessionServiceLifecycleTests : IDisposable
         {
             desktop,
             new SessionIdentity { ChannelName = "oratorio", UserId = "operator", WorkspacePath = workspace, ChannelContext = "oratorio:bridge" },
-            new SessionIdentity { ChannelName = "cron", UserId = "cron:job", WorkspacePath = workspace },
-            new SessionIdentity { ChannelName = "cron", UserId = "cron:run", WorkspacePath = workspace },
+            new SessionIdentity { ChannelName = "automations", UserId = "automations:definition", WorkspacePath = workspace },
+            new SessionIdentity { ChannelName = "automations", UserId = "automations:run", WorkspacePath = workspace },
             new SessionIdentity { ChannelName = "future-channel", UserId = "future:user", WorkspacePath = workspace, ChannelContext = "future:context" }
         };
 

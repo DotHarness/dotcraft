@@ -625,7 +625,7 @@
         { "jsonrpc": "2.0", "id": 21, "result": {} },
         { "jsonrpc": "2.0", "id": 22, "method": "command/list", "params": {} },
         { "jsonrpc": "2.0", "id": 22, "result": {} },
-        { "jsonrpc": "2.0", "id": 23, "method": "cron/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 23, "method": "automation/list", "params": {} },
         { "jsonrpc": "2.0", "id": 23, "result": {} },
         { "jsonrpc": "2.0", "id": 24, "method": "dreams/list", "params": {} },
         { "jsonrpc": "2.0", "id": 24, "result": {} },
@@ -717,16 +717,16 @@
         {
           "jsonrpc": "2.0",
           "id": 12,
-          "method": "automation/task/list",
-          "params": { "includeDisabled": false }
+          "method": "automation/list",
+          "params": {}
         },
-        { "jsonrpc": "2.0", "id": 12, "result": { "tasks": [] } },
+        { "jsonrpc": "2.0", "id": 12, "result": { "automations": [] } },
         {
           "jsonrpc": "2.0",
-          "method": "automation/task/updated",
+          "method": "automation/updated",
           "params": {
-            "reason": "updated",
-            "task": { "id": "automation_fixture", "name": "Fixture automation", "enabled": true }
+            "automationId": "automation_fixture",
+            "removed": true
           }
         }
       ]

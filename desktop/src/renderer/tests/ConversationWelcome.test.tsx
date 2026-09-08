@@ -298,7 +298,6 @@ describe('ConversationWelcome composer', () => {
     })
     useUIStore.setState({
       activeMainView: 'conversation',
-      automationsTab: 'tasks',
       sidebarCollapsed: false,
       sidebarWidth: 240,
       detailPanelVisible: true,

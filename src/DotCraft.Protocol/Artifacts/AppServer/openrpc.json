@@ -1062,21 +1062,21 @@
       ]
     },
     {
-      "name": "automation/task/create",
+      "name": "automation/create",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskCreateParams.schema.json"
+            "$ref": "./schemas/automations/AutomationCreateParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskCreateResult.schema.json"
+          "$ref": "./schemas/automations/AutomationReadResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1087,7 +1087,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1095,21 +1095,21 @@
       ]
     },
     {
-      "name": "automation/task/delete",
+      "name": "automation/delete",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskDeleteParams.schema.json"
+            "$ref": "./schemas/automations/AutomationIdParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskDeleteResult.schema.json"
+          "$ref": "./schemas/automations/AutomationDeleteResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1120,7 +1120,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1128,21 +1128,21 @@
       ]
     },
     {
-      "name": "automation/task/discardWorktree",
+      "name": "automation/list",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskDiscardWorktreeParams.schema.json"
+            "$ref": "./schemas/core/RpcEmpty.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskDiscardWorktreeResult.schema.json"
+          "$ref": "./schemas/automations/AutomationListResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1153,7 +1153,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1161,21 +1161,21 @@
       ]
     },
     {
-      "name": "automation/task/list",
+      "name": "automation/presets/list",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskListParams.schema.json"
+            "$ref": "./schemas/automations/AutomationPresetsParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskListResult.schema.json"
+          "$ref": "./schemas/automations/AutomationPresetsResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1186,7 +1186,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1194,21 +1194,21 @@
       ]
     },
     {
-      "name": "automation/task/read",
+      "name": "automation/read",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskReadParams.schema.json"
+            "$ref": "./schemas/automations/AutomationIdParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTask.schema.json"
+          "$ref": "./schemas/automations/AutomationReadResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1219,7 +1219,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1227,21 +1227,21 @@
       ]
     },
     {
-      "name": "automation/task/run",
+      "name": "automation/run",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskRunParams.schema.json"
+            "$ref": "./schemas/automations/AutomationIdParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskRunResult.schema.json"
+          "$ref": "./schemas/automations/AutomationRunResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1252,7 +1252,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1260,21 +1260,21 @@
       ]
     },
     {
-      "name": "automation/task/updateBinding",
+      "name": "automation/runs/list",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTaskUpdateBindingParams.schema.json"
+            "$ref": "./schemas/automations/AutomationIdParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskUpdateBindingResult.schema.json"
+          "$ref": "./schemas/automations/AutomationRunsResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1285,7 +1285,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1293,21 +1293,21 @@
       ]
     },
     {
-      "name": "automation/template/delete",
+      "name": "automation/update",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/automations/AutomationTemplateDeleteParams.schema.json"
+            "$ref": "./schemas/automations/AutomationUpdateParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTemplateDeleteResult.schema.json"
+          "$ref": "./schemas/automations/AutomationReadResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1318,73 +1318,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "automation/template/list",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/automations/AutomationTemplateListParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/automations/AutomationTemplateListResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "automations",
-      "x-dotcraft-capability": "automations",
-      "x-dotcraft-scope": "workspace",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "automation/template/save",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/automations/AutomationTemplateSaveParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/automations/AutomationTemplateSaveResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "automations",
-      "x-dotcraft-capability": "automations",
-      "x-dotcraft-scope": "workspace",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-spec-ref": "specs/features/automations-lifecycle.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -1545,138 +1479,6 @@
       "x-dotcraft-kind": "request",
       "x-dotcraft-module": "core",
       "x-dotcraft-capability": null,
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "cron/enable",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/CronEnableParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/CronEnableResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "cronManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "cron/list",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/CronListParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/CronListResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "cronManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "cron/remove",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/CronRemoveParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/CronRemoveResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "cronManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "cron/run",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/CronRunParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/CronRunResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "cronManagement",
       "x-dotcraft-scope": "connection",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",

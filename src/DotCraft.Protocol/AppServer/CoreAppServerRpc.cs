@@ -40,15 +40,10 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, McpServerReloadResult> ConfigMcpServerReload = new("config/mcpServer/reload", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcRequest<CronEnableParams, CronEnableResult> CronEnable = new("cron/enable", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "cronManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<CronListParams, CronListResult> CronList = new("cron/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "cronManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<CronRemoveParams, CronRemoveResult> CronRemove = new("cron/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "cronManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<CronRunParams, CronRunResult> CronRun = new("cron/run", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "cronManagement", errors: CommonErrors);
 
-    public static readonly RpcNotification<CronStateChangedNotification> CronStateChanged = new("cron/stateChanged", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "cronManagement", notificationOptOut: true);
 
     public static readonly RpcRequest<DreamsRunIdParams, DreamsRunResult> DreamsApply = new("dreams/apply", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
 

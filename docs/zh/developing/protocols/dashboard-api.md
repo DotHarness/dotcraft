@@ -97,7 +97,7 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 
 ### `GET /dashboard/api/orchestrators/automations/state`
 
-返回 Automations 编排器状态，包括本地任务和 Cron 摘要。
+返回统一自动化服务的 `{ automations, countsByStatus, generatedAt }`。统计按定义状态（`active`、`paused`、`completed`）分组；逐次运行结果通过 `automation/runs/list` 查询。
 
 ### `POST /dashboard/api/orchestrators/automations/refresh`
 

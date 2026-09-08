@@ -258,12 +258,14 @@ describe('SkillsView marketplace browse and manage modes', () => {
     expect(screen.getByText('Git Local')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter skills' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Filter skills' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'System' }))
 
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.queryByText('Git Local')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter skills' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Filter skills' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Personal' }))
 
     expect(screen.queryByText('Memory')).not.toBeInTheDocument()

@@ -82,18 +82,18 @@ public sealed record UserMessagePayload
 
     /// <summary>
     /// Non-null when this user message was synthesized by an automation mechanism
-    /// (cron, automations) rather than typed by a human. Clients use this
+    /// (automations) rather than typed by a human. Clients use this
     /// to render a "Sent via automation" affordance.
     /// </summary>
     public string? TriggerKind { get; init; }
 
     /// <summary>
-    /// Optional human-readable label for the automation source (e.g. cron job name, local task identifier).
+    /// Optional human-readable label for the automation source (e.g. automation name, local task identifier).
     /// </summary>
     public string? TriggerLabel { get; init; }
 
     /// <summary>
-    /// Optional routing id for client-side click-through (e.g. cron job id, task id).
+    /// Optional routing id for client-side click-through (e.g. automation id, task id).
     /// </summary>
     public string? TriggerRefId { get; init; }
 

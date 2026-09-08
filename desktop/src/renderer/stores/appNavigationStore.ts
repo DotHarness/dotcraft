@@ -2,7 +2,6 @@ import { create } from 'zustand'
 
 import type {
   ActiveDetailTab,
-  AutomationsTab,
   DesktopPluginMainView,
   PluginCatalogSurface,
   SelectedChannelKey
@@ -13,7 +12,6 @@ import { useThreadStore } from './threadStore'
 import { usePluginStore } from './pluginStore'
 import { useSkillsStore } from './skillsStore'
 import { useAutomationsStore } from './automationsStore'
-import { useCronStore } from './cronStore'
 import { useViewerTabStore } from './viewerTabStore'
 import {
   findDesktopPluginMainView,
@@ -43,8 +41,7 @@ interface CatalogNavigationLocation {
 
 interface AutomationsNavigationLocation {
   kind: 'automations'
-  tab: AutomationsTab
-  selection: { kind: 'task' | 'cron'; id: string } | null
+  selection: { kind: 'automation'; id: string } | null
 }
 
 interface ChannelsNavigationLocation {
@@ -170,12 +167,8 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
   }
 
   if (ui.activeMainView === 'automations') {
-    const taskId = useAutomationsStore.getState().selectedTaskId
-    const cronId = useCronStore.getState().selectedCronJobId
-    const selection = ui.automationsTab === 'tasks'
-      ? taskId ? { kind: 'task' as const, id: taskId } : null
-      : cronId ? { kind: 'cron' as const, id: cronId } : null
-    return { kind: 'automations', tab: ui.automationsTab, selection }
+    const id = useAutomationsStore.getState().selectedAutomationId
+    return { kind: 'automations', selection: id ? { kind: 'automation', id } : null }
   }
 
   if (ui.activeMainView === 'channels') {
@@ -226,7 +219,6 @@ export function startAppNavigationHistory(workspaceKey: string): () => void {
     usePluginStore.subscribe(schedule),
     useSkillsStore.subscribe(schedule),
     useAutomationsStore.subscribe(schedule),
-    useCronStore.subscribe(schedule),
     useViewerTabStore.subscribe(schedule),
     useDesktopPluginRegistry.subscribe(schedule)
   ]
@@ -293,11 +285,7 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
   }
 
   if (location.kind === 'automations' && location.selection) {
-    if (location.selection.kind === 'task') {
-      const exists = useAutomationsStore.getState().tasks.some((task) => task.id === location.selection?.id)
-      return exists ? location : { ...location, selection: null }
-    }
-    const exists = useCronStore.getState().jobs.some((job) => job.id === location.selection?.id)
+    const exists = useAutomationsStore.getState().automations.some(a => a.id === location.selection?.id)
     return exists ? location : { ...location, selection: null }
   }
 
@@ -350,10 +338,8 @@ function restoreLocation(location: AppNavigationLocation): void {
   }
 
   if (location.kind === 'automations') {
-    ui.setAutomationsTab(location.tab)
     ui.setActiveMainView('automations')
-    useAutomationsStore.getState().selectTask(location.selection?.kind === 'task' ? location.selection.id : null)
-    useCronStore.getState().selectCronJob(location.selection?.kind === 'cron' ? location.selection.id : null)
+    useAutomationsStore.getState().selectAutomation(location.selection?.id ?? null)
     return
   }
 

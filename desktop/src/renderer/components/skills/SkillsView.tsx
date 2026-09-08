@@ -19,7 +19,7 @@ import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { CatalogBreadcrumb, CatalogFilterMenu, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogBreadcrumb, CatalogFilterButton, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 import { IconButton } from '../ui/IconButton'
 
@@ -383,16 +383,19 @@ function SkillFilterMenu({
 }): JSX.Element {
   const t = useT()
   return (
-    <CatalogFilterMenu
-      value={value}
+    <CatalogFilterButton
       ariaLabel={t('skills.filter.label')}
-      onChange={onChange}
-      options={[
-        { value: 'all', label: t('skills.filter.all') },
-        { value: 'system', label: t('skills.filter.system') },
-        { value: 'personal', label: t('skills.filter.personal') },
-        { value: 'market', label: t('skills.filter.market') }
-      ]}
+      groups={[{
+        label: t('skills.filter.label'),
+        value,
+        onChange: next => onChange(next as SourceFilter),
+        options: [
+          { value: 'all', label: t('skills.filter.all') },
+          { value: 'system', label: t('skills.filter.system') },
+          { value: 'personal', label: t('skills.filter.personal') },
+          { value: 'market', label: t('skills.filter.market') }
+        ]
+      }]}
     />
   )
 }

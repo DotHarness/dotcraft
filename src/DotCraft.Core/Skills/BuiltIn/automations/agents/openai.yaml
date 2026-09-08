@@ -1,0 +1,6 @@
+interface:
+  display_name: "Automations"
+  short_description: "Schedule and manage recurring agent work"
+  icon_small: "./assets/automation-small.svg"
+  icon_large: "./assets/automation.svg"
+  default_prompt: "Use $automations to help me create or manage an automation."

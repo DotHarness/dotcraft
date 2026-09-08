@@ -49,14 +49,14 @@ public sealed class AppServerWireDtoSerializationTests
     {
         var json = Serialize(new Contract.SystemJobResultNotification
         {
-            Source = "cron",
+            Source = "automations",
             JobId = "job-1",
             Result = "done",
             TokenUsage = new Contract.SystemJobTokenUsage { InputTokens = 4, OutputTokens = 2 }
         });
 
         Assert.Equal(
-            "{\"source\":\"cron\",\"jobId\":\"job-1\",\"result\":\"done\",\"tokenUsage\":{\"inputTokens\":4,\"outputTokens\":2}}",
+            "{\"source\":\"automations\",\"jobId\":\"job-1\",\"result\":\"done\",\"tokenUsage\":{\"inputTokens\":4,\"outputTokens\":2}}",
             json);
     }
 
@@ -151,7 +151,7 @@ public sealed class AppServerWireDtoSerializationTests
     {
         Assert.Equal(
             "{\"ok\":true}",
-            Serialize(new Contract.AutomationTaskDeleteResult { Ok = true }));
+            Serialize(new Contract.AutomationDeleteResult { Ok = true }));
     }
 
     private static string Serialize<T>(T value) =>

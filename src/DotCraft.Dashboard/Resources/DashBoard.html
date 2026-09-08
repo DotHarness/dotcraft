@@ -2271,7 +2271,7 @@ body {
         <div class="panel-body">
           <div class="stats-grid" id="automationsStats"></div>
           <p id="automationsGeneratedAt" style="font-size:12px;color:var(--text-secondary);margin:0 0 12px"></p>
-          <div id="automationsTable"><div class="empty-state">No automation tasks.</div></div>
+          <div id="automationsTable"><div class="empty-state">No automations.</div></div>
         </div>
       </div>
 
@@ -6199,33 +6199,6 @@ function handleDashboardHash() {
   }
 }
 
-/** Enables or disables the Automations nav tab based on /orchestrators/automations/state (must run after applySetupModeUi resets tab display). */
-function applyAutomationsNavState() {
-  const tab = document.getElementById('navTabAutomations');
-  if (!tab) return;
-  tab.disabled = !automationsAvailable;
-  tab.title = automationsAvailable
-    ? ''
-    : 'Automations requires AppServer with the Automations module enabled.';
-  if (!automationsAvailable && currentPanel === 'automations')
-    switchPanel('dashboard');
-}
-
-async function probeAutomations() {
-  if (!dashboardCapability('automations')) {
-    automationsAvailable = false;
-    applyAutomationsNavState();
-    return;
-  }
-  try {
-    const res = await fetch('/dashboard/api/orchestrators/automations/state');
-    automationsAvailable = res.ok;
-  } catch (_) {
-    automationsAvailable = false;
-  }
-  applyAutomationsNavState();
-}
-
 function fmtTokens(n) {
   if (n == null) return '-';
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
@@ -6233,114 +6206,7 @@ function fmtTokens(n) {
   return String(n);
 }
 
-function fmtIsoShort(iso) {
-  if (!iso) return '-';
-  try {
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
-  } catch (_) {
-    return '-';
-  }
-}
-
-function automationsStatusBadgeClass(status) {
-  const s = String(status || '').toLowerCase();
-  if (s === 'failed' || s === 'rejected') return 'badge-warning';
-  if (s === 'approved' || s === 'agent_completed') return 'badge-success';
-  if (s === 'pending' || s === 'dispatched') return 'badge-warning';
-  if (s === 'agent_running' || s === 'awaiting_review') return 'badge-info';
-  return 'badge-info';
-}
-
-function fmtRelative(ms) {
-  const now = Date.now();
-  const diff = ms - now;
-  if (diff <= 0) return 'now';
-  if (diff < 1000) return '<1s';
-  if (diff < 60000) return Math.ceil(diff / 1000) + 's';
-  return Math.ceil(diff / 60000) + 'm';
-}
-
-function renderAutomations(data) {
-  _automationsLastData = data;
-  const statsEl = document.getElementById('automationsStats');
-  const genEl = document.getElementById('automationsGeneratedAt');
-  const tableEl = document.getElementById('automationsTable');
-
-  if (genEl) {
-    genEl.textContent = data.generatedAt
-      ? 'Data as of ' + fmtIsoShort(data.generatedAt)
-      : '';
-  }
-
-  const cbs = data.countsByStatus || {};
-  const entries = Object.entries(cbs).sort((a, b) => b[1] - a[1]);
-  if (statsEl) {
-    statsEl.innerHTML = entries.length
-      ? entries.map(([k, v]) =>
-          `<div class="stat-card"><div class="stat-label">${escapeHtml(k)}</div><div class="stat-value accent">${v}</div></div>`
-        ).join('')
-      : '<div class="stat-card"><div class="stat-label">Tasks</div><div class="stat-value accent">0</div></div>';
-  }
-
-  const tasks = Array.isArray(data.tasks) ? data.tasks.slice() : [];
-
-  if (tasks.length === 0) {
-    tableEl.innerHTML = '<div class="empty-state">No automation tasks.</div>';
-    return;
-  }
-
-  let html = '<table class="config-table">';
-  html += '<thead><tr>';
-  html += '<th>Title</th><th>Status</th><th>Thread</th><th>Updated</th>';
-  html += '</tr></thead><tbody>';
-  for (const t of tasks) {
-    const title = escapeHtml(truncateText(t.title || t.id || '-', 64));
-    const st = escapeHtml(t.status || '-');
-    const badgeCls = automationsStatusBadgeClass(t.status);
-    const tid = t.threadId;
-    const threadCell = tid
-      ? `<a href="#" onclick="openSession(${JSON.stringify(String(tid))});return false;" class="text-accent">${escapeHtml(String(tid))}</a>`
-      : '-';
-    const upd = t.updatedAt != null ? fmtIsoShort(t.updatedAt) : (t.createdAt != null ? fmtIsoShort(t.createdAt) : '-');
-    html += '<tr>';
-    html += `<td style="font-weight:500" title=${JSON.stringify(t.title || '')}>${title}</td>`;
-    html += `<td><span class="badge ${badgeCls}">${st}</span></td>`;
-    html += `<td style="font-size:12px">${threadCell}</td>`;
-    html += `<td style="font-size:12px;color:var(--text-secondary)">${upd}</td>`;
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
-  tableEl.innerHTML = html;
-}
-
-function truncateText(text, max) {
-  if (!text || text.length <= max) return text;
-  return text.substring(0, max) + '...';
-}
-
-async function refreshAutomations() {
-  if (!automationsAvailable) return;
-  try {
-    const res = await fetch('/dashboard/api/orchestrators/automations/state');
-    if (!res.ok) return;
-    const data = await res.json();
-    renderAutomations(data);
-  } catch (e) {
-    console.error('Automations refresh failed:', e);
-  }
-}
-
-async function refreshAutomationsPanel() {
-  if (!dashboardCapability('automations')) return;
-  if (!automationsAvailable) return;
-  try {
-    await fetch('/dashboard/api/orchestrators/automations/refresh', { method: 'POST' });
-  } catch (e) {
-    console.error('Automations poll trigger failed:', e);
-  }
-  await refreshAutomations();
-}
+/* DOTCRAFT_AUTOMATIONS_SCRIPT */
 
 function openSession(sessionKey) {
   switchPanel('sessions');

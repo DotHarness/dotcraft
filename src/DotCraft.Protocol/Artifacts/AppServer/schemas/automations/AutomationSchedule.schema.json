@@ -4,32 +4,24 @@
   "title": "AutomationSchedule",
   "type": "object",
   "properties": {
-    "atMs": {
+    "at": {
       "anyOf": [
         {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "type": "string",
+          "format": "date-time"
         },
         {
           "type": "null"
         }
       ]
     },
-    "dailyHour": {
+    "days": {
       "anyOf": [
         {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "dailyMinute": {
-      "anyOf": [
-        {
-          "type": "integer"
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
         },
         {
           "type": "null"
@@ -48,22 +40,10 @@
         }
       ]
     },
-    "expr": {
+    "hour": {
       "anyOf": [
         {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "initialDelayMs": {
-      "anyOf": [
-        {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "type": "integer"
         },
         {
           "type": "null"
@@ -73,7 +53,17 @@
     "kind": {
       "type": "string"
     },
-    "tz": {
+    "minute": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "timeZone": {
       "anyOf": [
         {
           "type": "string"
@@ -84,5 +74,8 @@
       ]
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "kind"
+  ]
 }

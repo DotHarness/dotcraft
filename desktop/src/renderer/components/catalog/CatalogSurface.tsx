@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ComponentPropsWithoutRef, CSSProperties, MouseEvent, ReactNode } from 'react'
-import { ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, ListFilter, Search } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
@@ -41,6 +41,15 @@ export function CatalogToolbarIconButton({
 export interface CatalogFilterOption<T extends string> {
   value: T
   label: string
+}
+
+export interface CatalogFilterGroup<T extends string = string> {
+  label: string
+  icon?: ReactNode
+  value: T
+  options: Array<CatalogFilterOption<T>>
+  onChange: (value: T) => void
+  isActive?: boolean
 }
 
 interface CatalogHoverButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> {
@@ -204,8 +213,17 @@ export function CatalogSearchBox({
   onChange: (value: string) => void
   style?: CSSProperties
 }): JSX.Element {
+  const [focused, setFocused] = useState(false)
   return (
-    <div style={{ ...styles.searchBox, ...style }}>
+    <div
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
+      style={{
+        ...styles.searchBox,
+        ...style,
+        borderColor: focused ? 'var(--accent)' : style?.borderColor ?? 'var(--border-default)'
+      }}
+    >
       <Search size={15} aria-hidden />
       <Input
         bare
@@ -260,6 +278,65 @@ export function CatalogFilterMenu<T extends string>({
           items={options.map((option) => ({
             label: option.label,
             onClick: () => onChange(option.value)
+          }))}
+        />
+      )}
+    </>
+  )
+}
+
+/**
+ * Compact filter entry for a search band. Each filter dimension opens as a
+ * submenu so the row keeps one stable control regardless of filter count.
+ */
+export function CatalogFilterButton({
+  groups,
+  ariaLabel
+}: {
+  groups: Array<CatalogFilterGroup>
+  ariaLabel: string
+}): JSX.Element {
+  const [position, setPosition] = useState<ContextMenuPosition | null>(null)
+  const [hovered, setHovered] = useState(false)
+  const active = groups.some((group) => group.isActive ?? group.value !== 'all')
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="menu"
+        aria-expanded={position != null}
+        data-active={active ? '' : undefined}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          setPosition({ x: rect.right - 200, y: rect.bottom + 6 })
+        }}
+        style={{
+          ...styles.filterButton,
+          backgroundColor: hovered || position ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+          color: active ? 'var(--text-primary)' : 'var(--text-secondary)'
+        }}
+      >
+        <ListFilter size={16} aria-hidden />
+      </button>
+      {position && (
+        <ContextMenu
+          position={position}
+          onClose={() => setPosition(null)}
+          items={groups.map((group) => ({
+            label: group.label,
+            icon: group.icon,
+            onClick: () => {},
+            submenu: group.options.map((option) => ({
+              label: option.label,
+              trailing: group.value === option.value ? <Check size={14} aria-hidden /> : undefined,
+              onClick: () => group.onChange(option.value)
+            }))
           }))}
         />
       )}
@@ -444,7 +521,7 @@ export const styles = {
     alignItems: 'center',
     gap: '8px',
     padding: '0 11px',
-    borderRadius: '8px',
+    borderRadius: '999px',
     border: '1px solid var(--border-default)',
     backgroundColor: 'var(--bg-secondary)',
     color: 'var(--text-secondary)'
@@ -475,6 +552,20 @@ export const styles = {
     cursor: 'pointer',
     lineHeight: 1,
     whiteSpace: 'nowrap'
+  },
+  filterButton: {
+    width: '36px',
+    height: '36px',
+    flex: '0 0 36px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: 'var(--bg-secondary)',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer'
   },
   browseMain: {
     flex: 1,

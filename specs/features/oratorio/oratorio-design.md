@@ -516,7 +516,7 @@ comment-only finding:
   `requiresLargerChange`, `cannotAnchorSafely`, `investigateOnly`, or
   `leftSideOrDeletion`.
 
-`kind` is the authoritative branch discriminator. As with DotCraft Cron tools,
+`kind` is the authoritative branch discriminator. As with other discriminated tool inputs,
 fields declared for the other branch are ignored. Undeclared fields are rejected
 by the closed generated schema.
 

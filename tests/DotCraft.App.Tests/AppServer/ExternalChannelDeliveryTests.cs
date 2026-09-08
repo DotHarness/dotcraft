@@ -487,7 +487,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var factory = Assert.IsType<ExternalChannelRequestHandlerFactory>(typeof(ExternalChannelHost)
             .GetField("_requestHandlerFactory", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(host));
-        var handler = factory.Create(connection, transport, cronService: null);
+        var handler = factory.Create(connection, transport);
         var runLoop = typeof(ExternalChannelHost)
             .GetMethod("RunMessageLoopAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
         await Assert.IsAssignableFrom<Task>(

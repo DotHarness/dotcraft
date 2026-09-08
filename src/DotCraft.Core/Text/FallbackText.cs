@@ -37,20 +37,6 @@ public static class FallbackText
     public static string DebugEnabled => Format("debug.enabled");
     public static string DebugDisabled => Format("debug.disabled");
 
-    // Cron command
-    public static string CronUnavailable => Format("cron.unavailable");
-    public static string NoCronJobs => Format("cron.no_jobs");
-    public static string CronColSchedule => Format("cron.col_schedule");
-    public static string CronColNextRun => Format("cron.col_next_run");
-    public static string CronExecuteOnce => Format("cron.execute_once");
-    public static string CronEvery => Format("cron.every");
-    public static string CronEnabled => Format("cron.enabled");
-    public static string CronDisabled => Format("cron.disabled");
-    public static string CronRemoveUsage => Format("cron.remove_usage");
-    public static string CronJobDeleted => Format("cron.job_deleted");
-    public static string CronJobDeletedSuffix => Format("cron.job_deleted_suffix");
-    public static string CronJobNotFound => Format("cron.job_not_found");
-    public static string CronUsage => Format("cron.usage");
 
     // Commands
     public static string UnknownCommand => Format("command.unknown");
@@ -64,7 +50,6 @@ public static class FallbackText
     public static string CommandHelpTitle => Format("command.help.title");
     public static string CommandHelpCustomSection => Format("command.help.custom_section");
     public static string CommandHelpAdminSuffix => Format("command.help.admin_suffix");
-    public static string CommandCronListTitle => Format("command.cron.list_title");
 
     // Auth commands
     public static string AuthOpenAiLoginStarting => Format("auth.openai.login.starting");
@@ -95,7 +80,6 @@ public static class FallbackText
   "cmd.init": "Create an AGENTS.md file with instructions for DotCraft",
   "cmd.new": "Create a new session",
   "cmd.debug": "Toggle debug mode",
-  "cmd.cron_list": "List cron jobs",
   "init.initializing": "Initializing DotCraft workspace...",
   "init.failed_short": "Initialization failed",
   "init.status": "Status",
@@ -111,19 +95,6 @@ public static class FallbackText
   "init.ask_no": "No",
   "debug.enabled": "Debug mode enabled",
   "debug.disabled": "Debug mode disabled",
-  "cron.unavailable": "Cron service unavailable.",
-  "cron.no_jobs": "No cron jobs.",
-  "cron.col_schedule": "Schedule",
-  "cron.col_next_run": "Next Run",
-  "cron.execute_once": "At",
-  "cron.every": "Every",
-  "cron.enabled": "Enabled",
-  "cron.disabled": "Disabled",
-  "cron.remove_usage": "Usage: /cron remove <jobId>",
-  "cron.job_deleted": "Job",
-  "cron.job_deleted_suffix": "deleted.",
-  "cron.job_not_found": "Job not found",
-  "cron.usage": "Usage: /cron list | /cron remove <id> | /cron enable <id> | /cron disable <id>",
   "command.unknown": "Unknown command",
   "command.did_you_mean": "Did you mean",
   "command.view_all": "Type /help to see all available commands.",
@@ -136,7 +107,6 @@ public static class FallbackText
   "command.help.title": "Available commands:",
   "command.help.custom_section": "Custom commands:",
   "command.help.admin_suffix": "(admin)",
-  "command.cron.list_title": "Cron jobs ({0}):",
   "approval.file.operation": "Operation:",
   "approval.file.path": "Path:",
   "approval.file.title": "⚠️  Approval Required: File operation outside workspace",

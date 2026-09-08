@@ -41,7 +41,7 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
         }
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, DynamicWorkflowProtocolExtension>());
 
-        // AppServer owns channel routing, external channels, cron delivery, and channel tool discovery.
+        // AppServer owns channel routing, external channels, automation delivery, and channel tool discovery.
         services.TryAddSingleton<IChannelRuntimeRegistry, ChannelRuntimeRegistry>();
         services.TryAddSingleton(sp => new MessageRouter(sp.GetRequiredService<IChannelRuntimeRegistry>()));
         services.TryAddSingleton<ExternalChannelRegistry>();

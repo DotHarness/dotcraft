@@ -157,7 +157,6 @@ describe('InputComposer layout', () => {
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({
       activeMainView: 'conversation',
-      automationsTab: 'tasks',
       sidebarCollapsed: false,
       sidebarWidth: 240,
       detailPanelVisible: true,

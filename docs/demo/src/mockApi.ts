@@ -136,8 +136,10 @@ function handleAppServerRequest(method: string): unknown {
       return { skills: [] }
     case 'mcp/list':
       return { servers: [] }
-    case 'cron/list':
-      return { jobs: [] }
+    case 'automation/list':
+      return { automations: [] }
+    case 'automation/presets/list':
+      return { presets: [] }
     default:
       return {}
   }

@@ -4,7 +4,6 @@ using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Cron;
 using DotCraft.Modules;
 using DotCraft.Processes;
 using DotCraft.Logging;
@@ -101,7 +100,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ILoggerFactory? loggerFactory = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
         IContextPageManager? contextPageManager = null,
-        DotCraft.Contributions.IContributionView? contributions = null)
+        DotCraft.Contributions.IContributionView? contributions = null,
+        DotCraft.Commands.Core.CommandRegistry? commandRegistry = null)
         : this(
             config,
             sessionService,
@@ -122,7 +122,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             loggerFactory,
             wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
             contextPageManager: contextPageManager,
-            contributions: contributions)
+            contributions: contributions,
+            commandRegistry: commandRegistry)
     {
     }
 
@@ -147,7 +148,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         int maxConsecutiveFailures = 5,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
         IContextPageManager? contextPageManager = null,
-        DotCraft.Contributions.IContributionView? contributions = null)
+        DotCraft.Contributions.IContributionView? contributions = null,
+        DotCraft.Commands.Core.CommandRegistry? commandRegistry = null)
         : this(
             config,
             sessionService,
@@ -171,7 +173,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             maxConsecutiveFailures,
             wireRuntimeAdditionalContextProvider,
             contextPageManager,
-            contributions)
+            contributions,
+            commandRegistry)
     {
     }
 
@@ -198,7 +201,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         int maxConsecutiveFailures = 5,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
         IContextPageManager? contextPageManager = null,
-        DotCraft.Contributions.IContributionView? contributions = null)
+        DotCraft.Contributions.IContributionView? contributions = null,
+        DotCraft.Commands.Core.CommandRegistry? commandRegistry = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(sessionService);
@@ -226,7 +230,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             originPresentationProviders?.ToArray() ?? [],
             loggerFactory,
             wireRuntimeAdditionalContextProvider,
-            contributions);
+            contributions,
+            commandRegistry);
         _initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(1);
         _maxBackoff = maxBackoff ?? TimeSpan.FromSeconds(30);
         _maxConsecutiveFailures = maxConsecutiveFailures > 0
@@ -283,7 +288,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     AppServerConnection? IAdapterChannelToolRuntime.ChannelToolConnection =>
         Volatile.Read(ref _toolBinding)?.Connection;
 
-    public CronService? CronService { get; set; }
 
     /// <summary>
     /// External channels handle approval end-to-end via Wire Protocol.
@@ -562,7 +566,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         _transport = transport;
         var connection = new AppServerConnection();
         _connection = connection;
-        var handler = _requestHandlerFactory.Create(connection, transport, CronService);
 
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
@@ -570,6 +573,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         _logger.LogInformation("External channel adapter spawned with process {ProcessId}", process.Id);
 
         // Run the message loop
+        var handler = _requestHandlerFactory.Create(connection, transport);
         await RunMessageLoopAsync(transport, connection, handler, ct);
 
         // A cycle is not a successful start until the adapter completes its handshake.
@@ -825,7 +829,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
         _transport = transport;
         _connection = connection;
-        var handler = _requestHandlerFactory.Create(connection, transport, CronService);
         PublishToolBinding(transport, connection);
 
         _logger.LogInformation(
@@ -836,6 +839,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         // and the 'initialized' notification has also been consumed. Start heartbeat probing
         // explicitly since it won't be triggered via HandleNotification in WebSocket mode.
         StartHeartbeatTimer();
+        var handler = _requestHandlerFactory.Create(connection, transport);
         await RunMessageLoopAsync(transport, connection, handler, ct);
 
         // Connection closed — reset for next connection
@@ -872,7 +876,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
             _transport = transport;
             _connection = connection;
-            var handler = _requestHandlerFactory.Create(connection, transport, CronService);
             PublishToolBinding(transport, connection);
 
             _logger.LogInformation(
@@ -880,6 +883,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                 connection.ClientInfo?.Name ?? "unknown");
 
             StartHeartbeatTimer();
+            var handler = _requestHandlerFactory.Create(connection, transport);
             var messageLoopTask = RunMessageLoopAsync(transport, connection, handler, ct);
             var completedAfterAttach = await Task.WhenAny(messageLoopTask, exitTask);
             if (completedAfterAttach == exitTask)

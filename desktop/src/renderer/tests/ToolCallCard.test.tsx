@@ -4,7 +4,6 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ToolCallCard } from '../components/conversation/ToolCallCard'
 import { useConversationStore } from '../stores/conversationStore'
-import { useReviewPanelStore } from '../stores/reviewPanelStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useUIStore } from '../stores/uiStore'
@@ -158,7 +157,6 @@ describe('ToolCallCard default tool result rendering', () => {
 describe('ToolCallCard shell rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    useReviewPanelStore.setState({ shellRuntimeByCallId: new Map() })
     useSkillsStore.setState({
       skills: [],
       loading: false,
@@ -728,40 +726,6 @@ describe('ToolCallCard shell rendering', () => {
     vi.useRealTimers()
   })
 
-  it('subscribes to the review shell runtime without consuming the conversation runtime', () => {
-    const item: ConversationItem = {
-      id: 'tool-review-live-output',
-      type: 'toolCall',
-      status: 'started',
-      toolName: 'Exec',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
-      presentation: { presentationId: 'core.shell' },
-      toolCallId: 'exec-review-live-output',
-      arguments: { command: 'many-lines' },
-      executionStatus: 'inProgress',
-      createdAt: new Date().toISOString()
-    }
-    useConversationStore.setState({
-      shellRuntimeByCallId: new Map([[
-        'exec-review-live-output',
-        { source: 'terminal', output: 'conversation output\n' }
-      ]])
-    })
-    useReviewPanelStore.setState({
-      shellRuntimeByCallId: new Map([[
-        'exec-review-live-output',
-        { source: 'terminal', output: 'review output\n' }
-      ]])
-    })
-
-    renderWithLocale(
-      <ToolCallCard threadId="thread-1" item={item} turnId="turn-review" shellRuntimeScope="review" />
-    )
-    fireEvent.click(screen.getByTestId('tool-row'))
-
-    expect(screen.getByText('review output')).toBeInTheDocument()
-    expect(screen.queryByText('conversation output')).not.toBeInTheDocument()
-  })
 
   it('uses the streamed command while final arguments are still an empty object', () => {
     const item: ConversationItem = {

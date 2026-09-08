@@ -67,6 +67,16 @@ public sealed class MessageRouter
         }
     }
 
+    /// <summary>Delivers a scheduled result and propagates failures to its run record.</summary>
+    public async Task DeliverRequiredAsync(string channel, string target, ChannelDeliveryMessage message, CancellationToken ct)
+    {
+        if (!_runtimeRegistry.TryGet(channel, out var runtime) || runtime == null)
+            throw new InvalidOperationException($"Channel '{channel}' is unavailable.");
+        var result = await runtime.DeliverAsync(target, message, cancellationToken: ct);
+        if (!result.Delivered)
+            throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Delivery failed.");
+    }
+
     public async Task BroadcastToAdminsAsync(string content)
     {
         var message = new ChannelDeliveryMessage

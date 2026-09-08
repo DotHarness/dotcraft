@@ -5,7 +5,6 @@ using DotCraft.CLI;
 using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Cron;
 using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.ExternalChannel;
@@ -41,7 +40,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     private readonly object _channelsLock = new();
 
     private ISessionService? _sessionService;
-    private CronService? _cronService;
     private DreamsService? _dreamsService;
     private PathBlacklist? _pathBlacklist;
 
@@ -194,7 +192,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     /// </summary>
     public void CompleteAfterSession(
         ISessionService sessionService,
-        CronService cronService,
         DreamsService? dreamsService = null)
     {
         if (_pool == null)
@@ -204,7 +201,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         var tokenUsageStore = _sp.GetService<TokenUsageStore>();
         var orchestratorProviders = _sp.GetServices<IOrchestratorSnapshotProvider>().ToList();
         _sessionService = sessionService;
-        _cronService = cronService;
         _dreamsService = dreamsService;
         _pathBlacklist = _sp.GetRequiredService<PathBlacklist>();
 
@@ -237,7 +233,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 _sp.GetService<ILoggerFactory>(),
                 _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),
                 _sp.GetService<IContextPageManager>(),
-                _sp.GetService<DotCraft.Contributions.IContributionView>());
+                _sp.GetService<DotCraft.Contributions.IContributionView>(),
+                _sp.GetRequiredService<DotCraft.Commands.Core.CommandRegistry>());
 
             foreach (var extCh in ecManager.Channels)
             {
@@ -251,11 +248,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
         foreach (var ch in _allChannels.OfType<ISessionServiceConsumer>())
             ch.SetSessionService(sessionService);
-
-        foreach (var ch in _allChannels)
-        {
-            ch.CronService = cronService;
-        }
 
         _pool.ConfigureApps();
 
@@ -295,11 +287,10 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     /// </summary>
     public void Initialize(
         ISessionService sessionService,
-        CronService cronService,
         DreamsService dreamsService)
     {
         BuildPoolThroughBuildAll();
-        CompleteAfterSession(sessionService, cronService, dreamsService);
+        CompleteAfterSession(sessionService, dreamsService);
     }
 
     /// <summary>
@@ -312,7 +303,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         cancellationToken.ThrowIfCancellationRequested();
         UpsertExternalChannelConfig(entry);
 
-        if (_sessionService == null || _cronService == null || _pathBlacklist == null)
+        if (_sessionService == null || _pathBlacklist == null)
             return;
 
         ExternalChannelHost? replacedHost = null;
@@ -423,7 +414,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             loggerFactory: _sp.GetService<ILoggerFactory>(),
             wireRuntimeAdditionalContextProvider: _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),
             contextPageManager: _sp.GetService<IContextPageManager>(),
-            contributions: _sp.GetService<DotCraft.Contributions.IContributionView>());
+            contributions: _sp.GetService<DotCraft.Contributions.IContributionView>(),
+            commandRegistry: _sp.GetRequiredService<DotCraft.Commands.Core.CommandRegistry>());
     }
 
     private ExternalChannelHost? RemoveExternalChannelHost_NoLock(string channelName)
@@ -463,7 +455,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     }
 
     /// <summary>
-    /// Starts all Kestrel listeners before cron and channel loops.
+    /// Starts all Kestrel listeners before automation and channel loops.
     /// </summary>
     public async Task StartWebPoolAsync()
     {
@@ -475,7 +467,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
     /// <summary>
     /// Starts <see cref="IChannelService.StartAsync"/> for every channel (fire-and-forget tasks).
-    /// Call after the shared Cron service has been started when applicable.
     /// </summary>
     public void BeginChannelLoops(CancellationToken cancellationToken)
     {

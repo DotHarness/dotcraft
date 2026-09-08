@@ -8,8 +8,8 @@ export interface ServerNotificationMethods {
   "app/list/updated": { params: Models.AppListUpdatedNotification; result: Models.RpcEmpty };
   "auth/openai/authorizeUrl": { params: Models.AuthOpenAiAuthorizeUrlNotification; result: Models.RpcEmpty };
   "auth/openai/usageChanged": { params: Models.AuthOpenAiUsageResult; result: Models.RpcEmpty };
-  "automation/task/updated": { params: Models.AutomationTaskUpdatedNotification; result: Models.RpcEmpty };
-  "cron/stateChanged": { params: Models.CronStateChangedNotification; result: Models.RpcEmpty };
+  "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
+  "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
   "item/agentMessage/delta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
   "item/approval/resolved": { params: Models.ItemNotification; result: Models.RpcEmpty };
   "item/commandExecution/outputDelta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };

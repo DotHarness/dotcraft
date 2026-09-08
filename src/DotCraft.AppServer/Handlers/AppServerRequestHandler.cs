@@ -161,7 +161,6 @@ public sealed class AppServerRequestHandler(
     private IEnumerable<IAppServerDomainHandler> BuildDomainHandlers() =>
     [
         new InitializeRequestHandler(connection, services, _capabilityContributors, SkillVariants, ThreadProjector),
-        new CronRequestHandler(services.CronService, services.BroadcastCronStateChanged),
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new RemoteToolHostRequestHandler(
             services.RemoteToolHostClient,
@@ -198,7 +197,7 @@ public sealed class AppServerRequestHandler(
         new HookRequestHandler(services.HookRunner, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, WorkspaceConfig, RuntimeConfig, services.BuiltInPluginSourceRoots),
         new PluginRequestHandler(transport, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, services.LspServerManager, services.ContextPageManager, services.AppBindingService, WorkspaceConfig, RuntimeConfig, services.HookRunner, services.PluginWorkflowSummaryProvider, services.PluginDotnetRuntimeCoordinator, services.PluginConfigStore, services.BroadcastPluginSnapshotUpdated, services.PluginManagementState, services.LoggerFactory?.CreateLogger("DotCraft.Plugins")),
         new AgentProfileRequestHandler(sessionService, services.WorkspaceCraftPath, services.HostWorkspacePath, services.AppConfigMonitor),
-        new CommandRequestHandler(_commandRegistry, sessionService, connection, services.CronService, services.WorkspaceCraftPath, (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
+        new CommandRequestHandler(_commandRegistry, sessionService, connection, services.WorkspaceCraftPath, (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
         new ThreadRecoveryRequestHandler(sessionService),
         new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, services.WorkspaceCraftPath, services.StreamDebugLogger, _defaultApprovalDecision, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
         new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, SkillVariants, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),

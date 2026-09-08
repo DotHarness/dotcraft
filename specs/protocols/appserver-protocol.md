@@ -26,7 +26,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [12. Versioning and Compatibility](#12-versioning-and-compatibility)
 - [13. Full Turn Example](#13-full-turn-example)
 - [15. WebSocket Transport](#15-websocket-transport)
-- [16. Cron Management Methods](#16-cron-management-methods)
+- [16. Automation management](#16-automation-management)
 - [18. Skills Management Methods](#18-skills-management-methods)
 - [18B. Plugin and Marketplace Management Methods](#18b-plugin-and-marketplace-management-methods)
 - [18A. Tool Catalog Methods](#18a-tool-catalog-methods)
@@ -355,7 +355,6 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "requestUserInput": true,
     "modeSwitch": true,
     "configOverride": true,
-    "cronManagement": true,
     "skillsManagement": true,
     "pluginManagement": true,
     "pluginConfiguration": true,
@@ -412,7 +411,6 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.requestUserInput` | boolean | Server may expose the root-thread `RequestUserInput` tool and send `item/tool/requestUserInput` requests to capable clients. |
 | `capabilities.modeSwitch` | boolean | Server supports `thread/mode/set`. |
 | `capabilities.configOverride` | boolean | Server supports `thread/config/update`. |
-| `capabilities.cronManagement` | boolean | Server supports cron job management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`). Absent or `false` when the cron service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports the complete plugin discovery and lifecycle surface: `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, and `plugin/setTrusted`, plus the `plugin/snapshot/updated` notification. |
 | `capabilities.pluginConfiguration` | boolean | Server supports schema-backed plugin configuration through `plugin/config/get` and `plugin/config/mutate`. |
@@ -1548,7 +1546,7 @@ Before starting the agent or persisting a queued input, the server MUST normaliz
 Tag semantics:
 
 - `/command` denotes a custom command reference and is transmitted as `commandRef`.
-- Built-in slash commands such as `/new`, `/stop`, `/help`, `/debug`, and `/cron` are not valid `commandRef` values. Clients must trigger them via `command/execute` or dedicated UI controls. If a client sends a built-in command as `commandRef` in `turn/start`, the server rejects the request with `InvalidParams`.
+- Built-in slash commands such as `/new`, `/stop`, `/help`, `/debug`, and `/automate` are not valid `commandRef` values. Clients must trigger them via `command/execute` or dedicated UI controls. If a client sends a built-in command as `commandRef` in `turn/start`, the server rejects the request with `InvalidParams`.
 - `$skill` denotes a skill reference and is transmitted as `skillRef`.
 - `@path` denotes a file reference and is transmitted as `fileRef`.
 - If a UI presents skills inside a slash-command picker, selecting a skill still produces a `skillRef`, not a `commandRef`.
@@ -1572,7 +1570,7 @@ Tag semantics:
 | `status` | string | `"queued"` or `"guidancePending"`. |
 | `createdAt` | string | UTC timestamp. |
 | `readyAfterTurnId` | string? | Active turn observed when the input was queued. |
-| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"cron"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, or `"subagentInput"`. |
+| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"automation"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, or `"subagentInput"`. |
 | `triggerLabel` | string? | Optional human-readable source label. |
 | `triggerRefId` | string? | Optional stable source id for client-side click-through or audit correlation. |
 
@@ -2042,7 +2040,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional nullable `sentAsGoal` is `true` when the message was submitted as the thread goal. Optional `triggerKind` (`"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"workflow"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, workflow, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
+| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional nullable `sentAsGoal` is `true` when the message was submitted as the thread goal. Optional `triggerKind` (`"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"workflow"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, workflow, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
 | `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. Optional `deliveryMode = "async"` identifies a model-initiated user message emitted during a running Turn. It is delivered immediately, does not complete the Turn, is excluded from final-text aggregation, and is not restored into model-visible assistant history. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
 | `toolCall` | Native, plugin, and managed social calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
@@ -2521,7 +2519,7 @@ This notification is independent of the Turn event stream. Clients that do not n
 
 #### `system/jobResult`
 
-Emitted after a server-managed cron job completes. This allows connected wire clients to receive the agent's response as an out-of-band notification, without the client initiating a turn.
+Emitted after a server-managed automation run completes. This allows connected wire clients to receive the agent's response as an out-of-band notification, without the client initiating a turn.
 
 Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during `initialize`.
 
@@ -2529,7 +2527,7 @@ Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during
 
 ```json
 {
-  "source": "cron",
+  "source": "automation",
   "jobId": "9c933b01",
   "jobName": "喝水提醒",
   "threadId": "thread_abc123",
@@ -2541,8 +2539,8 @@ Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | `"cron"`. |
-| `jobId` | string? | Cron job ID. Present when `source` is `"cron"`. |
+| `source` | string | `"automation"`. |
+| `jobId` | string? | Automation ID. Present when `source` is `"automation"`. |
 | `jobName` | string? | Human-readable job name. |
 | `threadId` | string? | The thread ID used for execution. |
 | `result` | string? | Agent's text response. Null if the turn failed or produced no text output. |
@@ -2553,13 +2551,13 @@ Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during
 
 - Emitted to initialized protocol connections that are eligible to receive job-result notifications.
 - Server hosts that route job results through another delivery surface may omit `system/jobResult`.
-- Clients that do not wish to receive cron results can opt out via `optOutNotificationMethods: ["system/jobResult"]`.
+- Clients that do not wish to receive automation results can opt out via `optOutNotificationMethods: ["system/jobResult"]`.
 
 **Behavior notes**:
 
 - The `result` field carries the agent's full text output from the completed run.
 - The `threadId` field may be used with `thread/read`, `thread/turns/list`, and `thread/items/list` to retrieve the associated header and bounded conversation history.
-- `cron/stateChanged` may also be emitted for the same completion when the source is a cron job.
+- `automation/run/updated` records execution and delivery status independently.
 
 ### 6.10 Notification Delivery Guarantees
 
@@ -2820,12 +2818,12 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32014` | Turn not running | `turn/interrupt` called on a turn that is not in progress. |
 | `-32020` | Approval timeout | The client took too long to respond to an approval request. |
 | `-32030` | Channel rejected | The channel adapter name is not registered in server configuration. |
-| `-32031` | Cron job not found | The specified cron job ID does not exist. |
+| `-32031` | Automation not found | The specified automation ID does not exist. |
 | `-32040` | Skill not found | The requested skill name does not exist in any source (workspace, user, or builtin). |
 | `-32051` | Task not found | `automation/*`: the specified task does not exist. |
 | `-32052` | Task invalid status | `automation/*`: the operation is not valid for the task’s current status. |
-| `-32054` | Task already exists | `automation/task/create`: a task with the same ID already exists. |
-| `-32055` | Thread binding invalid | `automation/task/updateBinding` / `automation/task/create`: the target `threadId` does not exist or is archived. |
+| `-32054` | Task already exists | `automation/create`: a task with the same ID already exists. |
+| `-32055` | Thread binding invalid | `automation/update` / `automation/create`: the target `threadId` does not exist or is archived. |
 | `-32060` | Command not found | `command/*`: the requested command is not registered. |
 | `-32061` | Command permission denied | `command/execute`: the caller lacks permission for an admin-only command. |
 | `-32062` | Command service unavailable | `command/execute`: the command exists but a required backing service is unavailable. |
@@ -2852,7 +2850,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32100` | Remote Tool Host unavailable | `remoteToolHost/connect`: the machine is not paired, offline, failed authentication, or speaks an incompatible profile. `error.data.code` carries the Remote Tool Host error code (Section 19B). |
 | `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
 
-Automation task methods (`automation/task/*`, `automation/template/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
+Automation task methods (`automation/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
 
 ### 8.4 Turn-Level Errors
 
@@ -2916,8 +2914,7 @@ Clients can suppress specific notification methods per connection by listing exa
 | `item/usage/delta` | Client does not need real-time token consumption display; will use `turn/completed.tokenUsage` for final totals. |
 | `system/event` | Client does not need system maintenance status (compaction, consolidation). |
 | `plan/updated` | Client does not need real-time plan/todo progress display. |
-| `system/jobResult` | Client does not need cron result notifications (e.g. batch or headless client). |
-| `cron/stateChanged` | Client polls `cron/list` instead of reacting to server-push job state updates. |
+| `system/jobResult` | Client does not need automation result notifications (e.g. batch or headless client). |
 | `plugin/snapshot/updated` | Client refreshes plugin state with `plugin/list` on demand instead of reacting to snapshot invalidation. |
 
 **Example**:
@@ -2989,7 +2986,7 @@ Structured delivery path for text and media payloads.
     }
   },
   "metadata": {
-    "origin": "cron"
+    "origin": "automations"
   }
 }
 ```
@@ -3760,195 +3757,12 @@ The server sends native WebSocket ping frames every 30 seconds to detect stale c
 
 ---
 
-## 16. Cron Management Methods
+## 16. Automation management
 
-### 16.1 Scope
+The optional `automations` capability provides one definition and run lifecycle.
+[Automations lifecycle](../features/automations-lifecycle.md) defines its methods,
+models, version checks, events, scheduling, and delivery behavior.
 
-These methods extend the protocol beyond `ISessionService` to cover server-managed cron job lifecycle. They operate on shared server state that is independent of any session or thread.
-
-Unlike thread/turn methods, cron methods are not scoped to a session, thread, or channel identity. All connections on the same server process observe the same cron state.
-
-Clients must check `capabilities.cronManagement` in the `initialize` response before calling any `cron/*` method. If the flag is absent or `false`, the server returns `-32601` (method not found).
-
-### 16.2 `CronJobInfo` Wire DTO
-
-All cron methods that return job data use the following `CronJobInfo` wire object.
-
-```json
-{
-  "id": "9c933b01",
-  "name": "drink water reminder",
-  "schedule": {
-    "kind": "every",
-    "everyMs": 3600000,
-    "atMs": null,
-    "initialDelayMs": null,
-    "dailyHour": null,
-    "dailyMinute": null,
-    "tz": null
-  },
-  "enabled": true,
-  "createdAtMs": 1710590400000,
-  "deleteAfterRun": false,
-  "state": {
-    "nextRunAtMs": 1710594000000,
-    "lastRunAtMs": 1710590400000,
-    "lastStatus": "ok",
-    "lastError": null,
-    "lastThreadId": "thread_abc123",
-    "lastResult": "提醒：该喝水了！保持水分对健康很重要。"
-  }
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Short opaque job identifier (8 hex chars). |
-| `name` | string | Human-readable job name. |
-| `schedule.kind` | string | `"every"` (recurring), `"at"` (one-time), or `"daily"` (fixed local time of day). |
-| `schedule.everyMs` | integer? | Interval in milliseconds. Present when `kind` is `"every"`. |
-| `schedule.atMs` | integer? | Unix timestamp (ms) for one-time execution. Present when `kind` is `"at"`. |
-| `schedule.initialDelayMs` | integer? | Present when `kind` is `"every"`: optional delay (ms) before the **first** run only; omitted or `null` when not used. |
-| `schedule.dailyHour` | integer? | Present when `kind` is `"daily"`: local hour 0–23. |
-| `schedule.dailyMinute` | integer? | Present when `kind` is `"daily"`: local minute 0–59. |
-| `schedule.tz` | string? | IANA time zone id for `daily` schedules (e.g. `Asia/Shanghai`). Omitted or `null` means UTC. |
-| `enabled` | boolean | Whether the job is active and will fire when due. |
-| `createdAtMs` | integer | Unix timestamp (ms) when the job was created. |
-| `deleteAfterRun` | boolean | If `true`, the job is removed after its first successful execution. |
-| `state.nextRunAtMs` | integer? | Unix timestamp (ms) of the next scheduled run. `null` if the job has no valid schedule. May still be set when `enabled` is `false` (paused; the slot is preserved). |
-| `state.lastRunAtMs` | integer? | Unix timestamp (ms) of the last execution. `null` if never run. |
-| `state.lastStatus` | string? | `"ok"` or `"error"`. `null` if never run. |
-| `state.lastError` | string? | Error message from the last failed run. `null` when `lastStatus` is `"ok"` or never run. |
-| `state.lastThreadId` | string? | Thread ID used for the most recent execution. `null` if the job has never run. |
-| `state.lastResult` | string? | Agent's text response from the most recent execution, truncated to 500 characters. `null` if the job has never run or the last run produced no text output. |
-
-### 16.3 `cron/list`
-
-List cron jobs managed by the server.
-
-**Direction**: client → server (request)
-
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `includeDisabled` | boolean | no | Default `false`. When `true`, disabled jobs are included in the result. |
-
-**Result**: `{ "jobs": CronJobInfo[] }`
-
-**Behavior**: Returns the server's current job list. When `includeDisabled` is `false` (default), only jobs with `enabled: true` are returned.
-
-### 16.4 `cron/remove`
-
-Permanently remove a cron job from the server.
-
-**Direction**: client → server (request)
-
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `jobId` | string | yes | ID of the cron job to remove. |
-
-**Result**:
-
-```json
-{ "removed": true }
-```
-
-**Errors**:
-
-| Code | When |
-|------|------|
-| `-32031` | The specified `jobId` does not exist. |
-
-**Behavior**: Removes the job from the server-managed cron set. If the job fires concurrently, removal is applied after the current execution completes.
-
-### 16.5 `cron/enable`
-
-Enable or disable a cron job.
-
-**Direction**: client → server (request)
-
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `jobId` | string | yes | ID of the cron job to update. |
-| `enabled` | boolean | yes | `true` to enable the job; `false` to disable it. |
-
-**Result**:
-
-```json
-{
-  "job": { ... }
-}
-```
-
-The `job` field contains the updated `CronJobInfo` object reflecting the new `enabled` state. When **enabling** a job, `state.nextRunAtMs` is recomputed **only** if it was `null` or less than or equal to the current time (UTC, i.e. due or overdue); otherwise the existing future `nextRunAtMs` is kept so pause/resume does not shift the schedule.
-
-**Errors**:
-
-| Code | When |
-|------|------|
-| `-32031` | The specified `jobId` does not exist. |
-
-**Behavior**: Updates the job's enabled state and persists it immediately. Disabling does not clear `nextRunAtMs`; enabling updates `nextRunAtMs` only as described above.
-
-### 16.6 `cron/run`
-
-Manually queue one immediate run of a cron job.
-
-**Direction**: client → server (request)
-
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `jobId` | string | yes | ID of the cron job to run now. |
-
-**Result**:
-
-```json
-{ "queued": true, "job": { "...": "CronJobInfo" } }
-```
-
-**Behavior**: Queues one manual execution on the server's existing serialized cron execution queue and returns immediately. This does not change the job's `enabled` state; disabled jobs can still be run manually. The job state is updated when execution completes and is surfaced via `cron/stateChanged` / `system/jobResult` when those notifications are enabled.
-
-### 16.7 Notification Opt-Out
-
-Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) are request/response pairs. The `cron/stateChanged` notification (Section 16.8) is the real-time push for cron job state. The `system/jobResult` notification (Section 6.9) remains the full result delivery mechanism. Clients that do not need either can opt out:
-
-| Method | When to opt out |
-|--------|-----------------|
-| `cron/stateChanged` | Client polls `cron/list` instead of reacting to push updates. |
-| `system/jobResult` | Client does not need cron result notifications. |
-
-### 16.8 `cron/stateChanged` Notification
-
-**Direction**: server → client (notification)
-
-Emitted when a cron job's state changes.
-
-**Triggers**:
-
-| Trigger | What changed |
-|---------|-------------|
-| Job execution completes (success or error) | `state.lastRunAtMs`, `state.lastStatus`, `state.lastError`, `state.lastThreadId`, `state.lastResult`, `state.nextRunAtMs` updated. |
-| `cron/enable` called | `enabled` updated; `state.nextRunAtMs` may change when enabling only if the previous next run was missing or in the past (otherwise unchanged). |
-| `cron/run` called | No immediate persisted field changes; completion later emits the normal execution update. |
-| `cron/remove` called | Notifies clients the job no longer exists (see `removed` field). |
-
-**Params**: `{ "job": CronJobInfo, "removed": boolean }`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `job` | CronJobInfo | The updated job state. |
-| `removed` | boolean | `true` when the notification is triggered by `cron/remove`. When `true`, only `job.id` is guaranteed to be present. |
-
-**Delivery**: Broadcast to all initialized connections that have not opted out of `cron/stateChanged`.
-
----
 
 ## 18. Skills Management Methods
 
@@ -5167,7 +4981,7 @@ Built-in slash commands must be invoked through this method (or equivalent dedic
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Target thread for command execution context. |
-| `command` | string | yes | Slash command string, for example `"/stop"` or `"/cron"`. |
+| `command` | string | yes | Slash command string, for example `"/stop"` or `"/automate"`. |
 | `arguments` | string[] | no | Optional parsed arguments. Server also accepts empty/omitted and performs standard parsing from `command` when needed. |
 | `sender` | SenderContext | no | Optional sender identity used for permission evaluation and auditing. |
 

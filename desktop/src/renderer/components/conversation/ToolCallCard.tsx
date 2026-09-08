@@ -3,12 +3,7 @@ import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useReviewPanelStore } from '../../stores/reviewPanelStore'
-import {
-  formatCronRunningLabel,
-  formatCronResultLines,
-  hasCronCreatedDisplayData
-} from '../../utils/cronToolDisplay'
+
 import {
   formatInvocationDisplay,
   formatResultSummary,
@@ -29,7 +24,7 @@ import {
 } from '../../utils/toolCallDisplay'
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
-import { CronCreatedCard } from './CronCreatedCard'
+import { AutomationToolCard, parseAutomationResult } from './AutomationToolCard'
 import { AgentBuilderEditCard } from './AgentBuilderEditCard'
 import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../agents/agentBuilderDraftSync'
 import { renderSkillToolLabel } from './SkillToolLabel'
@@ -93,9 +88,6 @@ function formatRunningToolLabel(
         command: firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine
       })
       : translate(locale, 'toolCall.runningCommand')
-  }
-  if (rendererFamily === 'cron' && args) {
-    return formatCronRunningLabel(args, locale)
   }
   if (rendererFamily === 'skillManage' && args) {
     return formatSkillManageRunningLabel(args, locale)
@@ -250,14 +242,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       ? state.shellRuntimeByCallId.get(item.toolCallId)
       : undefined
   )
-  const reviewShellRuntime = useReviewPanelStore((state) =>
-    shellRuntimeScope === 'review' && item.toolCallId
-      ? state.shellRuntimeByCallId.get(item.toolCallId)
-      : undefined
-  )
-  const liveShellRuntime = shellRuntimeScope === 'review'
-    ? reviewShellRuntime
-    : conversationShellRuntime
+  const liveShellRuntime = conversationShellRuntime
   const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
   const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
@@ -443,13 +428,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <CreatePlanCard item={item} locale={locale} />
   }
 
-  if (
-    rendererFamily === 'cron'
-    && !isRunning
-    && success
-    && hasCronCreatedDisplayData(item.result, locale)
-  ) {
-    return <CronCreatedCard item={item} locale={locale} />
+  if (rendererFamily === 'automation' && !isRunning && success && parseAutomationResult(item.result)) {
+    return <AutomationToolCard item={item} locale={locale} />
   }
 
   const workflowRunId = !isRunning ? parseWorkflowRunId(toolName, item.result) : null
@@ -775,28 +755,6 @@ function ExpandedContent({
         )}
       </div>
     )
-  }
-
-  if (rendererFamily === 'cron') {
-    const lines = formatCronResultLines(result, locale)
-    if (lines && lines.length > 0) {
-      const errSample = translate(locale, 'cron.result.errorPrefix', { error: 'x' })
-      const errMarker = errSample.indexOf('x')
-      const errPrefix = errMarker >= 0 ? errSample.slice(0, errMarker) : 'Error: '
-      return (
-        <div className="selectable" style={{ fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-          <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span aria-hidden>⏰</span>
-            <span>Cron</span>
-          </div>
-          {lines.map((line, i) => (
-            <div key={i} style={{ color: line.startsWith(errPrefix) ? 'var(--error)' : 'var(--text-secondary)' }}>
-              {line}
-            </div>
-          ))}
-        </div>
-      )
-    }
   }
 
   if (rendererFamily === 'requestUserInput') {

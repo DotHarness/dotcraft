@@ -6,26 +6,26 @@ using DotCraft.Sessions;
 namespace DotCraft.Automations.Protocol;
 
 /// <summary>
-/// In-process wrapper over <see cref="ISessionService"/> for use by the automations orchestrator.
+/// In-process wrapper over <see cref="ISessionService"/> for use by the automation runner.
 /// </summary>
-public sealed class AutomationSessionClient(ISessionService sessionService, DotCraftPaths paths)
+public sealed class AutomationSessionClient(ISessionService sessionService, DotCraftPaths paths) : IAutomationSessionClient, IAutomationWorktreeRetentionClient
 {
     /// <summary>Host project workspace root (same as <see cref="SessionIdentity.WorkspacePath"/> for automations).</summary>
     public string ProjectWorkspacePath => paths.WorkspacePath;
 
     public string DataPath => paths.Data.RootPath;
 
-    public string GetTaskWorktreeBranchName(string taskId) =>
-        "dotcraft/task-" + SanitizeTaskIdForWorktree(taskId);
+    public string GetRunWorktreeBranchName(string runId) =>
+        "dotcraft/automation-" + SanitizeRunIdForWorktree(runId);
 
-    public string GetTaskWorktreePath(string taskId) =>
-        paths.Data.Resolve("worktrees", "task-" + SanitizeTaskIdForWorktree(taskId));
+    public string GetRunWorktreePath(string runId) =>
+        paths.Data.Resolve("worktrees", "automation-" + SanitizeRunIdForWorktree(runId));
 
     /// <summary>
-    /// Creates a new thread or resumes an existing one for the same workspace + channel + user.
+    /// Creates a fresh thread for one independent automation run.
     /// Configures <see cref="ThreadConfiguration"/> (workspace override, tool profile, approval policy).
     /// </summary>
-    public async Task<string> CreateOrResumeThreadAsync(
+    public async Task<string> CreateThreadAsync(
         string channelName,
         string userId,
         ThreadConfiguration config,
@@ -39,17 +39,6 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
             WorkspacePath = paths.WorkspacePath
         };
 
-        var existing = await sessionService.FindThreadsAsync(identity, includeArchived: false, ct: ct);
-        var match = existing.FirstOrDefault(t =>
-            string.Equals(t.OriginChannel, channelName, StringComparison.OrdinalIgnoreCase));
-
-        if (match != null)
-        {
-            await sessionService.UpdateThreadConfigurationAsync(match.Id, config, ct);
-            await sessionService.EnsureThreadLoadedAsync(match.Id, ct);
-            return match.Id;
-        }
-
         var thread = await sessionService.CreateThreadAsync(
             identity,
             config,
@@ -58,40 +47,27 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
         return thread.Id;
     }
 
-    public async Task<ThreadWorktreeInfo> EnsureTaskWorktreeAsync(
+    public async Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(
         string threadId,
-        string taskId,
+        string runId,
         CancellationToken ct)
     {
         var result = await sessionService.EnsureManagedWorktreeAsync(
             new WorktreeEnsureOptions
             {
                 ThreadId = threadId,
-                BranchName = GetTaskWorktreeBranchName(taskId),
-                Path = GetTaskWorktreePath(taskId),
+                BranchName = GetRunWorktreeBranchName(runId),
+                Path = GetRunWorktreePath(runId),
                 BaseRef = "HEAD",
-                OwnerKind = "automationTask",
-                OwnerId = taskId
+                OwnerKind = "automationRun",
+                OwnerId = runId
             },
             ct);
         return result.Worktree;
     }
 
-    public Task ConfigureTaskExecutionWorkspaceAsync(
-        string threadId,
-        string? executionWorkspacePath,
-        CancellationToken ct) =>
-        sessionService.ConfigureThreadExecutionWorkspaceAsync(
-            new ThreadExecutionWorkspaceOptions
-            {
-                ThreadId = threadId,
-                ExecutionWorkspaceOverride = executionWorkspacePath,
-                ClearWorktree = true
-            },
-            ct);
-
-    public Task RemoveTaskWorktreeAsync(
-        string taskId,
+    public Task RemoveRunWorktreeAsync(
+        string runId,
         string? threadId,
         CancellationToken ct) =>
         sessionService.RemoveManagedWorktreeAsync(
@@ -99,8 +75,8 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
             {
                 ThreadId = threadId,
                 WorkspacePath = paths.WorkspacePath,
-                BranchName = GetTaskWorktreeBranchName(taskId),
-                Path = GetTaskWorktreePath(taskId),
+                BranchName = GetRunWorktreeBranchName(runId),
+                Path = GetRunWorktreePath(runId),
                 DeleteBranch = true
             },
             ct);
@@ -122,22 +98,28 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
         string threadId,
         string message,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct,
-        TurnTriggerInfo? trigger = null)
+        TurnTriggerInfo? trigger = null,
+        Func<CancellationToken, Task>? beforeAdmission = null)
     {
         // The scope only needs to be active while SubmitInputAsync synchronously
         // builds the UserMessage item; we can release it before enumerating the
         // event stream.
         IAsyncEnumerable<SessionEvent> stream;
-        if (trigger != null)
+        while (true)
         {
-            using (TurnTriggerScope.Set(trigger))
+            if (beforeAdmission != null) await beforeAdmission(ct);
+            try
             {
+                using var scope = trigger == null ? null : TurnTriggerScope.Set(trigger);
                 stream = sessionService.SubmitInputAsync(threadId, message, sender: null, messages: null, ct);
+                break;
             }
-        }
-        else
-        {
-            stream = sessionService.SubmitInputAsync(threadId, message, sender: null, messages: null, ct);
+            catch (InvalidOperationException)
+            {
+                var current = await sessionService.GetThreadAsync(threadId, ct);
+                if (!current.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)) throw;
+                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            }
         }
 
         await foreach (var evt in stream.WithCancellation(ct))
@@ -152,13 +134,16 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
 
     /// <summary>
     /// Attempts to load a thread by id. Returns null when the thread does not exist or has been deleted,
-    /// so the orchestrator can mark tasks whose binding target is gone as failed without throwing.
+    /// so the runner can mark runs whose binding target is gone as failed without throwing.
     /// </summary>
     public async Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct)
     {
         try
         {
-            return await sessionService.GetThreadAsync(threadId, ct);
+            var thread = await sessionService.GetThreadAsync(threadId, ct);
+            if (thread.Status != ThreadStatus.Archived)
+                await sessionService.EnsureThreadLoadedAsync(threadId, ct);
+            return thread;
         }
         catch (KeyNotFoundException)
         {
@@ -178,9 +163,9 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
             await sessionService.CancelTurnAsync(threadId, running.Id, ct);
     }
 
-    private static string SanitizeTaskIdForWorktree(string taskId)
+    private static string SanitizeRunIdForWorktree(string runId)
     {
-        var value = string.IsNullOrWhiteSpace(taskId) ? "task" : taskId.Trim();
+        var value = string.IsNullOrWhiteSpace(runId) ? "run" : runId.Trim();
         var chars = new List<char>(value.Length);
         var previousDash = false;
         foreach (var ch in value.ToLowerInvariant())
@@ -202,7 +187,7 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
 
         var slug = new string(chars.ToArray()).Trim('-');
         if (string.IsNullOrWhiteSpace(slug))
-            slug = "task";
+            slug = "run";
 
         var canonical = value.ToLowerInvariant();
         var changed = !string.Equals(slug, canonical, StringComparison.Ordinal);

@@ -401,7 +401,6 @@ The table below covers common method families used by AppServer clients.
 | Initialization | `initialize`, `initialized` | Negotiate client and server capabilities. |
 | Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | Conversation lifecycle, bounded history, and subscriptions. |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | User input, queues, and cancellation. |
-| Cron | `cron/list`, `cron/remove`, `cron/enable` | Scheduled task management. |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, effective view, restore original, enablement, and removable skill deletion. |
 | Tools | `tool/list` | Built-in tool catalog (name, description, icon, Plan-mode availability) for agent profile tool pickers. |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | Plugin discovery, detail, installation, removal, enablement, and .NET trust management. |
@@ -411,7 +410,7 @@ The table below covers common method families used by AppServer clients.
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP configuration and status. |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | External channel configuration. |
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | Subagent profile management. |
-| Automations | `automation/task/list`, `automation/task/create`, `automation/task/discardWorktree` | Local task lifecycle, binding, and managed worktree cleanup. |
+| Automations | `automation/list`, `automation/create`, `automation/runs/list` | Local task lifecycle, binding, and managed worktree cleanup. |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | Managed Git worktree status and handoff. |
 | Workspace config | `workspace/config/update` | Workspace configuration updates. |
 | App Binding | `app/connection/authenticate`, `app/binding/activate`, `app/threadInput/enqueue` | Extension module for external apps, gated by `capabilities.appBindingVersion`. |
@@ -422,13 +421,13 @@ Skill entries returned by `skills/list` may include `hasVariant: true`, which me
 
 App Binding clients negotiate `capabilities.appBindingVersion: 1`. An authenticated app-principal connection may call only the app-role allowlist — connection authentication, refresh, status, and revoke, binding request, activation, rebind, and list, `app/surface/publish`, and `app/threadInput/enqueue` — and its tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`, undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [DotCraft App](../integrations/app-binding).
 
-### Automation and worktree status
+### Automation runs and worktrees
 
-Automation task wires use canonical `workspaceMode` values: `project` or `worktree`. A worktree-mode task reports `worktree: null` in three cases: no managed worktree is provisioned yet, the server fell back to the task workspace, or the worktree was discarded.
-
-Clients that render automation review UI can call `worktree/status` for the task thread. `ThreadWorktreeStatus` includes `hasUncommittedChanges`, `hasCommitsAheadOfBase`, and `aheadCount`, which are enough for compact review indicators and delete/discard warnings.
-
-Use `automation/task/discardWorktree` with `{ taskId }` to remove a task's managed worktree and branch while keeping the task. The server rejects discard while the task is running. Use `thread/worktree/handoff` with `mode: "local"` when the user wants to keep reviewing the work locally.
+Automation definitions and run records are separate. Read `automation/runs/list` to
+locate the exact `threadId` and `turnId` for a result. Independent Git runs use a managed
+worktree per run. Explicit worktree provisioning failures are surfaced as run failures.
+Use the run's thread with `worktree/status` to inspect changes and
+`thread/worktree/handoff` to continue reviewing locally.
 
 ### Plugin and skill management
 

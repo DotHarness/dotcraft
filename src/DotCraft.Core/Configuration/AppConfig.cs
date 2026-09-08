@@ -158,9 +158,6 @@ public sealed class AppConfig
     public PermissionsConfig Permissions { get; set; } = new();
 
     [ConfigField(Ignore = true)]
-    public CronConfig Cron { get; set; } = new();
-
-    [ConfigField(Ignore = true)]
     public GoalsConfig Goals { get; set; } = new();
 
     [ConfigField(Ignore = true)]
@@ -1062,14 +1059,6 @@ public sealed class AppConfig
         [ConfigField(Hint = "Workspace default approval policy for threads using the default policy. One of: default, autoApprove.")]
         [JsonConverter(typeof(ApprovalPolicyJsonConverter))]
         public ApprovalPolicy DefaultApprovalPolicy { get; set; } = ApprovalPolicy.Default;
-    }
-
-    [ConfigSection("Cron", DisplayName = "Cron", Order = 60)]
-    public sealed class CronConfig
-    {
-        public bool Enabled { get; set; } = true;
-
-        public string StorePath { get; set; } = "cron/jobs.json";
     }
 
     [ConfigSection("Goals", DisplayName = "Goals", Order = 62)]

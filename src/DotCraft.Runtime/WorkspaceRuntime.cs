@@ -4,7 +4,6 @@ using DotCraft.Configuration;
 using DotCraft.Commands.Custom;
 using DotCraft.Context;
 using DotCraft.Contributions;
-using DotCraft.Cron;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
@@ -39,8 +38,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         ICommitMessageSuggester commitMessageSuggestService,
         IWelcomeSuggester welcomeSuggestions,
         WelcomeSuggestionService welcomeSuggestionService,
-        AgentRunner agentRunner,
-        CronService cronService,
         DreamsService dreamsService,
         DotNetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
@@ -59,9 +56,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         /// <summary>The runtime-owned built-in, kept for disposal; consumers get the registry-resolving <see cref="WelcomeSuggestions"/>.</summary>
         public WelcomeSuggestionService WelcomeSuggestionService { get; } = welcomeSuggestionService;
 
-        public AgentRunner AgentRunner { get; } = agentRunner;
 
-        public CronService CronService { get; } = cronService;
 
         public DreamsService DreamsService { get; } = dreamsService;
 
@@ -134,11 +129,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public IWelcomeSuggester WelcomeSuggestionService => EnsureStarted().WelcomeSuggestions;
 
-    public CronService CronService => EnsureStarted().CronService;
 
     public DreamsService DreamsService => EnsureStarted().DreamsService;
 
-    public AgentRunner AgentRunner => EnsureStarted().AgentRunner;
 
     public IReadOnlyList<ConfigSchemaSection> ConfigSchema => EnsureStarted().ConfigSchema;
 
@@ -189,7 +182,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             SkillsLoader.SetDisabledSkills(Config.Skills.DisabledSkills);
 
             var traceCollector = Services.GetService<TraceCollector>();
-            var cronTools = Services.GetService<CronTools>();
             var backgroundTerminalService = Services.GetRequiredService<IBackgroundTerminalService>();
             var chatClientRegistry = Services.GetRequiredService<ChatClientRegistry>();
             var contextPageManager = new ContextPageManager();
@@ -290,7 +282,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         ApprovalService = scopedApproval,
                         PathBlacklist = PathBlacklist,
                         BackgroundTerminalService = backgroundTerminalService,
-                        CronTools = cronTools,
                         McpClientManager = McpClientManager,
                         LspServerManager = LspServerManager,
                         TraceCollector = traceCollector,
@@ -358,8 +349,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     new ContributedCommitMessageSuggestService(contributionRegistry, commitMessageSuggestService);
                 var welcomeSuggestions =
                     new ContributedWelcomeSuggestionService(contributionRegistry, welcomeSuggestionService);
-                var cronService = Services.GetRequiredService<CronService>();
-                var agentRunner = new AgentRunner(Paths.WorkspacePath, sessionService, quiet: true);
 
                 var configSchema = Services.GetService<IConfigSchemaProvider>()?.GetConfigSchema()
                     ?? throw new InvalidOperationException(
@@ -395,8 +384,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     commitMessageSuggest,
                     welcomeSuggestions,
                     welcomeSuggestionService,
-                    agentRunner,
-                    cronService,
                     dreamsService,
                     pluginRuntime,
                     configSchema,
@@ -520,17 +507,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             try
             {
                 await started.WelcomeSuggestionService.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                (errors ??= []).Add(ex);
-            }
-
-            try
-            {
-                started.CronService.OnJob = null;
-                started.CronService.CronJobPersistedAfterExecution = null;
-                started.CronService.Stop();
             }
             catch (Exception ex)
             {

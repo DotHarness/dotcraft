@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using DotCraft.Plugins;
@@ -11,7 +10,7 @@ namespace DotCraft.Skills;
 /// Loader for agent skills from Skills/ directory.
 /// Skills are markdown files (SKILL.md) that teach the agent specific capabilities.
 /// </summary>
-public sealed class SkillsLoader
+public sealed partial class SkillsLoader
 {
     private const int MaxIconBytes = 512 * 1024;
 
@@ -143,7 +142,7 @@ public sealed class SkillsLoader
             }
         }
 
-        // Built-in workspace skills are kept for compatibility and are lower priority than plugin-contained skills.
+        // Deployed built-ins remain lower priority than plugin-contained skills.
         if (Directory.Exists(WorkspaceSkillsPath))
         {
             foreach (var dir in EnumerateSkillDirectories(WorkspaceSkillsPath))
@@ -153,7 +152,7 @@ public sealed class SkillsLoader
                     continue;
 
                 var name = Path.GetFileName(dir);
-                if (_disabledPluginSkillNames.Contains(name))
+                if (!_availableBuiltInSkills.Contains(name) || _disabledPluginSkillNames.Contains(name))
                     continue;
 
                 AddSkillInfo(skills, name, skillFile, "builtin");
@@ -392,130 +391,6 @@ public sealed class SkillsLoader
     }
 
     /// <summary>
-    /// Deploy built-in skills (embedded in the assembly) to the user skills directory.
-    /// Skips skills that were created by the user (no .builtin marker) and skills
-    /// that are already up to date.
-    /// </summary>
-    /// <param name="resourceAssembly">
-    /// The assembly that contains the embedded skill resources.
-    /// Pass <c>typeof(Program).Assembly</c> (or equivalent) from the host application.
-    /// Falls back to the assembly containing <see cref="SkillsLoader"/> when null.
-    /// </param>
-    public void DeployBuiltInSkills(Assembly? resourceAssembly = null)
-    {
-        const string resourcePrefix = "DotCraft.Skills.BuiltIn.";
-        const string markerFile = ".builtin";
-
-        var assembly = resourceAssembly ?? typeof(SkillsLoader).Assembly;
-        var currentVersion = PluginHostVersion.Current.ProductText;
-
-        // Group resources by skill name
-        var resourcesBySkill = assembly.GetManifestResourceNames()
-            .Where(name => name.StartsWith(resourcePrefix, StringComparison.Ordinal))
-            .Select(name =>
-            {
-                var remainder = name[resourcePrefix.Length..];
-                var dotIndex = remainder.IndexOf('.');
-                // Resources at the BuiltIn root (e.g. .gitkeep) have no skill prefix
-                if (dotIndex <= 0)
-                    return (SkillName: string.Empty, FileName: remainder, ResourceName: name);
-                return (
-                    SkillName: remainder[..dotIndex],
-                    FileName: remainder[(dotIndex + 1)..],
-                    ResourceName: name
-                );
-            })
-            .Where(r => !string.IsNullOrEmpty(r.SkillName))
-            .GroupBy(r => r.SkillName);
-
-        Directory.CreateDirectory(WorkspaceSkillsPath);
-
-        foreach (var skillGroup in resourcesBySkill)
-        {
-            var embeddedSkillName = skillGroup.Key;
-            var skillName = ReadBuiltInSkillName(assembly, skillGroup) ?? embeddedSkillName;
-            var skillDir = Path.Combine(WorkspaceSkillsPath, skillName);
-            var markerPath = Path.Combine(skillDir, markerFile);
-            MigrateLegacyBuiltInSkillDir(embeddedSkillName, skillName, markerFile);
-
-            // If the skill directory exists but has no .builtin marker, the user owns it
-            if (Directory.Exists(skillDir) && !File.Exists(markerPath))
-                continue;
-
-            // If the skill is already at the current version, skip it
-            if (File.Exists(markerPath) && File.ReadAllText(markerPath).Trim() == currentVersion)
-                continue;
-
-            Directory.CreateDirectory(skillDir);
-
-            foreach (var resource in skillGroup)
-            {
-                using var stream = assembly.GetManifestResourceStream(resource.ResourceName);
-                if (stream == null)
-                    continue;
-
-                var targetPath = Path.Combine(skillDir, NormalizeBuiltInResourceFileName(resource.FileName));
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-                using var file = File.Create(targetPath);
-                stream.CopyTo(file);
-            }
-
-            File.WriteAllText(markerPath, currentVersion);
-        }
-    }
-
-    private static string? ReadBuiltInSkillName(
-        Assembly assembly,
-        IEnumerable<(string SkillName, string FileName, string ResourceName)> resources)
-    {
-        var skillResource = resources.FirstOrDefault(
-            resource => string.Equals(resource.FileName, "SKILL.md", StringComparison.OrdinalIgnoreCase));
-        if (string.IsNullOrEmpty(skillResource.ResourceName))
-            return null;
-
-        using var stream = assembly.GetManifestResourceStream(skillResource.ResourceName);
-        if (stream == null)
-            return null;
-
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        var content = reader.ReadToEnd();
-        return ReadFrontmatterValue(content, "name");
-    }
-
-    private static string NormalizeBuiltInResourceFileName(string fileName)
-    {
-        if (fileName.StartsWith("agents.", StringComparison.Ordinal))
-            return Path.Combine("agents", fileName["agents.".Length..]);
-        if (fileName.StartsWith("assets.", StringComparison.Ordinal))
-            return Path.Combine("assets", fileName["assets.".Length..]);
-        if (fileName.StartsWith("scripts.", StringComparison.Ordinal))
-            return Path.Combine("scripts", fileName["scripts.".Length..]);
-        if (fileName.StartsWith("references.", StringComparison.Ordinal))
-            return Path.Combine("references", fileName["references.".Length..]);
-        return fileName;
-    }
-
-    private void MigrateLegacyBuiltInSkillDir(string legacyName, string canonicalName, string markerFile)
-    {
-        if (string.Equals(legacyName, canonicalName, StringComparison.Ordinal))
-            return;
-
-        var legacyDir = Path.Combine(WorkspaceSkillsPath, legacyName);
-        if (!Directory.Exists(legacyDir) || !File.Exists(Path.Combine(legacyDir, markerFile)))
-            return;
-
-        var canonicalDir = Path.Combine(WorkspaceSkillsPath, canonicalName);
-        if (!Directory.Exists(canonicalDir))
-        {
-            Directory.Move(legacyDir, canonicalDir);
-            return;
-        }
-
-        // Legacy built-ins are generated artifacts. Keep user-owned canonical skills intact.
-        Directory.Delete(legacyDir, recursive: true);
-    }
-
-    /// <summary>
     /// Build a summary of all skills (for progressive loading).
     /// The agent can read the full skill content using ReadFile when needed.
     /// Shows availability status and missing requirements for unavailable skills.
@@ -676,7 +551,7 @@ public sealed class SkillsLoader
             }
         }
 
-        if (File.Exists(workspaceSkill) && !_disabledPluginSkillNames.Contains(name))
+        if (File.Exists(workspaceSkill) && _availableBuiltInSkills.Contains(name) && !_disabledPluginSkillNames.Contains(name))
             return workspaceSkill;
 
         if (UserSkillsPath is not null)
@@ -1017,7 +892,7 @@ public sealed class SkillsLoader
             return null;
 
         // Check for 'requires' field with bins and env
-        var hasRequirements = metadata.ContainsKey("bins") || metadata.ContainsKey("env") || metadata.ContainsKey("tools");
+        var hasRequirements = metadata.ContainsKey("bins") || metadata.ContainsKey("env") || metadata.ContainsKey("tools") || metadata.ContainsKey("allowed-tools");
 
         if (!hasRequirements)
             return null;
@@ -1042,7 +917,13 @@ public sealed class SkillsLoader
 
         // Parse tools (comma-separated). Tool requirements are evaluated against
         // the per-agent tool list when building the prompt.
-        if (metadata.TryGetValue("tools", out var toolsStr))
+        if (metadata.TryGetValue("allowed-tools", out var allowedToolsStr))
+        {
+            requirements.Tools.AddRange(allowedToolsStr.Split(',')
+                .Select(t => t.Trim())
+                .Where(t => !string.IsNullOrEmpty(t)));
+        }
+        else if (metadata.TryGetValue("tools", out var toolsStr))
         {
             requirements.Tools.AddRange(toolsStr.Split(',')
                 .Select(t => t.Trim())
