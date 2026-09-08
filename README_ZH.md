@@ -37,11 +37,15 @@ DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 
 在一个桌面应用中与 Agent 一起处理项目。
 
+[Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [入口总览](https://www.dotcraft.net/zh/features/entry-points/)
+
 ### DotCraft.Harness
 
 [![把 Agent 能力嵌入你的 .NET 应用。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/zh/developing/harness/)
 
 将完整的 Agent 运行时嵌入你的 .NET 应用。
+
+[Harness 总览](https://www.dotcraft.net/zh/developing/harness/) · [安装 Harness 包](https://www.dotcraft.net/zh/developing/harness/nuget-package) · [托管 Harness](https://www.dotcraft.net/zh/developing/harness/hosting-lifecycle) · [Thread 与 Turn](https://www.dotcraft.net/zh/developing/harness/threads-turns)
 
 ### Oratorio
 
@@ -49,17 +53,23 @@ DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
 
 在同一看板上管理 Agent 任务，从分配到审阅。
 
+[Oratorio](https://www.dotcraft.net/zh/features/oratorio) · [Oratorio 工作流](https://www.dotcraft.net/zh/features/oratorio/workflow) · [接入 GitHub](https://www.dotcraft.net/zh/features/oratorio/github) · [配置 Oratorio](https://www.dotcraft.net/zh/features/oratorio/settings)
+
 ### 卫星
 
 [![让你的 Agent 到另一台电脑上工作。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/zh/features/agent-system/satellite)
 
 让你的 Agent 在另一台电脑获准共享的文件夹中工作。
 
+[DotCraft 卫星](https://www.dotcraft.net/zh/features/agent-system/satellite) · [Remote Tool Host](https://www.dotcraft.net/zh/developing/architecture/remote-tool-host) · [安全与沙箱](https://www.dotcraft.net/zh/features/self-hosted/security)
+
 ### Avatar
 
 [![让你的 Agent 拥有鲜明个性。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
 
 用表情丰富、可自由搭配的头像，为你的 Agent 赋予鲜明个性。
+
+[Avatar 包](https://www.dotcraft.net/zh/developing/sdks/typescript#avatar-包) · [Agent 预设](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [包 README](./sdk/typescript/packages/avatar/README.md)
 
 ## 快速开始
 
