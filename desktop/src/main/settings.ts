@@ -24,6 +24,7 @@ import type {
   BinarySource,
   BrowserUseApprovalMode,
   ConnectionMode,
+  FollowUpQueueMode,
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
 export type {
@@ -98,6 +99,8 @@ export interface VoiceSettings {
 }
 
 export interface AppSettings {
+  /** Desktop follow-up behavior during an active turn; omitted defaults to steer. */
+  followUpQueueMode?: FollowUpQueueMode
   lastWorkspacePath?: string
   lastForegroundEntry?: LastForegroundEntry
   modulesDirectory?: string

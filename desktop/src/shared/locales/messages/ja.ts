@@ -1,6 +1,11 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_JA = {
+  'settings.followUpBehavior.label': 'フォローアップの動作',
+  'settings.followUpBehavior.description': 'タスクの実行中に送信したメッセージをキューに追加するか、現在のターンに反映します。',
+  'settings.followUpBehavior.queue': 'キュー',
+  'settings.followUpBehavior.steer': '方向修正',
+  'settings.followUpBehavior.saveFailed': 'フォローアップの動作を保存できませんでした：{{error}}',
   'app.titleWithWorkspace': 'DotCraft - {{name}}',
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': '戻る',

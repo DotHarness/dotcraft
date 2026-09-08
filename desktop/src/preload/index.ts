@@ -82,6 +82,7 @@ import type {
   BinarySource,
   BrowserUseApprovalMode,
   ConnectionMode,
+  FollowUpQueueMode,
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
 export type {
@@ -1380,6 +1381,7 @@ const api = {
       translucentSidebar?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
+      followUpQueueMode?: FollowUpQueueMode
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
@@ -1437,6 +1439,7 @@ const api = {
       translucentSidebar?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
+      followUpQueueMode?: FollowUpQueueMode
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean

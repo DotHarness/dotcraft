@@ -76,6 +76,8 @@ import {
 import { SettingsSelect } from './ui/SettingsSelect'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
+import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
+import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
@@ -2460,6 +2462,7 @@ export function SettingsView({
         )
         setShowInMenuBar(isMac ? s.showInMenuBar !== false : false)
         setShowThinkingContent(s.showThinkingContent === true)
+        useComposerPreferencesStore.getState().hydrate(s)
         setBrowserUseApprovalMode((s.browserUse?.approvalMode ?? 'alwaysAsk') as BrowserUseApprovalMode)
         setBrowserUseBlockedDomains([...(s.browserUse?.blockedDomains ?? [])])
         setBrowserUseAllowedDomains([...(s.browserUse?.allowedDomains ?? [])])
@@ -3339,6 +3342,10 @@ export function SettingsView({
                       />
                     }
                   />
+                </SettingsGroup>
+
+                <SettingsGroup>
+                  <FollowUpBehaviorRow />
                 </SettingsGroup>
 
                 <SettingsGroup title={t('settings.group.permissions')}>

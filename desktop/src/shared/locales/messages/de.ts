@@ -1,6 +1,11 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_DE = {
+  'settings.followUpBehavior.label': 'Verhalten bei Folgenachrichten',
+  'settings.followUpBehavior.description': 'Folgenachrichten während einer laufenden Aufgabe in die Warteschlange stellen oder den aktuellen Turn damit steuern.',
+  'settings.followUpBehavior.queue': 'Warteschlange',
+  'settings.followUpBehavior.steer': 'Steuern',
+  'settings.followUpBehavior.saveFailed': 'Verhalten bei Folgenachrichten konnte nicht gespeichert werden: {{error}}',
   'app.titleWithWorkspace': 'DotCraft - {{name}}',
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': 'Zurück',

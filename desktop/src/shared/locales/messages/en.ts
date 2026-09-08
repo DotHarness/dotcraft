@@ -1,4 +1,9 @@
 export const MESSAGES_EN = {
+  'settings.followUpBehavior.label': 'Follow-up behavior',
+  'settings.followUpBehavior.description': 'Queue follow-up messages while a task runs, or use them to steer the current turn.',
+  'settings.followUpBehavior.queue': 'Queue',
+  'settings.followUpBehavior.steer': 'Steer',
+  'settings.followUpBehavior.saveFailed': 'Failed to save follow-up behavior: {{error}}',
   // App / window
   'app.titleWithWorkspace': 'DotCraft — {{name}}',
   'app.brandSubtitle': 'DotCraft',

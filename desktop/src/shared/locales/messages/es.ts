@@ -1,6 +1,11 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ES = {
+  'settings.followUpBehavior.label': 'Comportamiento de los mensajes de seguimiento',
+  'settings.followUpBehavior.description': 'Pon los mensajes de seguimiento en cola mientras se ejecuta una tarea o úsalos para guiar el turno actual.',
+  'settings.followUpBehavior.queue': 'En cola',
+  'settings.followUpBehavior.steer': 'Guiar',
+  'settings.followUpBehavior.saveFailed': 'No se pudo guardar el comportamiento de seguimiento: {{error}}',
   'app.titleWithWorkspace': 'DotCraft - {{name}}',
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': 'Atrás',
