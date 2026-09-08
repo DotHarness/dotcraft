@@ -30,7 +30,7 @@
 }
 
 .dc-automations-list {
-  width: min(1040px, calc(100% - 64px));
+  width: min(760px, calc(100% - 64px));
   min-width: 0;
   margin: 16px auto 0;
   padding-bottom: 48px;
@@ -40,9 +40,10 @@
 .dc-automations-list > h1 {
   margin: 0 0 24px;
   text-align: center;
-  font-size: 28px;
-  line-height: 36px;
+  font-size: 26px;
+  line-height: 1.2;
   font-weight: 700;
+  letter-spacing: 0;
 }
 
 .dc-automations-filters {

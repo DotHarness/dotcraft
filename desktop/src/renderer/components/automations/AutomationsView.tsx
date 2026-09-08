@@ -229,7 +229,7 @@ function AutomationSuggestion({ preset, locale, onClick }: { preset: AutomationP
       <span>
         <span className="dc-automation-suggestion-heading">
           <strong>{presetName(preset, t)}</strong>
-          {preset.schedule ? <small>{automationScheduleSummary(preset.schedule, locale)}</small> : null}
+          {preset.schedule ? <small>{automationScheduleSummary(preset.schedule, locale, { includeTimeZone: false })}</small> : null}
         </span>
         <span className="dc-automation-suggestion-description">{presetPrompt(preset, t)}</span>
       </span>

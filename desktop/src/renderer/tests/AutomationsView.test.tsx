@@ -108,7 +108,8 @@ it("leads with suggestions when there are no definitions", async () => {
       <AutomationsView />
     </LocaleProvider>,
   );
-  await screen.findByRole("button", { name: /Daily summary/ });
+  const suggestion = await screen.findByRole("button", { name: /Daily summary/ });
+  expect(suggestion).not.toHaveTextContent(/\([A-Za-z_]+\/[A-Za-z_]+\)|\(UTC\)/);
   expect(
     screen.queryByRole("heading", { name: "Your automations" }),
   ).not.toBeInTheDocument();
