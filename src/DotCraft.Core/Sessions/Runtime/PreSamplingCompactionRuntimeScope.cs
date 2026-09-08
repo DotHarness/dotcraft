@@ -84,7 +84,10 @@ internal static class PreSamplingCompactionRuntimeScope
         return new StreamingSamplingPreparation(
             preparedMessages,
             NeutralHistoryWasReplaced: neutralReplacement != null,
-            HistoryWasReplaced: execution?.Replacement != null);
+            HistoryWasReplaced: execution?.Replacement != null)
+        {
+            NeutralHistoryReplacement = neutralReplacement?.Messages
+        };
     }
 
     private sealed class Scope(

@@ -141,6 +141,8 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);
+        var invocationHistory = AgentHistoryRuntimeScope.Current;
+        if (invocationHistory is not null) invocationHistory.LoopObserved = true;
         var originalMessages = messages.ToList();
         var providerHistoryBridge = ProviderRequestContextScope.Current?.History
                                     ?? GetService(typeof(IProviderConversationHistory)) as IProviderConversationHistory;
@@ -166,6 +168,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         var initialMailbox = await TryDrainMailboxAsync(cancellationToken);
         if (initialMailbox != null)
         {
+            await AgentHistoryRuntimeScope.AppendAsync([initialMailbox], cancellationToken);
             originalMessages.Add(initialMailbox);
             currentMessages = originalMessages;
         }
@@ -176,6 +179,8 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
             var preparation = await PrepareMessagesForSamplingAsync(currentMessages, options, cancellationToken);
             var preparedMessages = preparation.Messages;
+            if (preparation.NeutralHistoryWasReplaced && invocationHistory is not null)
+                await invocationHistory.ReplaceAsync(preparation.NeutralHistoryReplacement!, cancellationToken);
             if (preparation.NeutralHistoryWasReplaced && providerHistoryBridge != null)
             {
                 await providerHistoryBridge.HistoryReplacedAsync(
@@ -203,42 +208,52 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             Dictionary<ChatResponseUpdate, IReadOnlyList<ToolCallArgumentsDeltaContent>>? previewContentsByUpdate = null;
             var requestMarked = false;
 
-            using var promptCacheRequestIndexScope = PromptCacheRequestShapeTraceScope.UseRequestIndex(iteration + 1);
-            await foreach (var update in base.GetStreamingResponseAsync(samplingMessages, options, cancellationToken))
+            var samplingCompleted = false;
+            try
             {
-                if (update is null)
-                    throw new InvalidOperationException("The inner chat client streamed a null response update.");
-
-                if (!requestMarked)
+                using var promptCacheRequestIndexScope = PromptCacheRequestShapeTraceScope.UseRequestIndex(iteration + 1);
+                await foreach (var update in base.GetStreamingResponseAsync(samplingMessages, options, cancellationToken))
                 {
-                    TokenUsageRequestMetadata.MarkRequestStart(update, iteration + 1);
-                    requestMarked = true;
+                    if (update is null)
+                        throw new InvalidOperationException("The inner chat client streamed a null response update.");
+
+                    if (!requestMarked)
+                    {
+                        TokenUsageRequestMetadata.MarkRequestStart(update, iteration + 1);
+                        requestMarked = true;
+                    }
+
+                    var addedPreviewContents = AddToolCallArgumentPreviews(update, toolCallPreviewTrackers);
+                    if (addedPreviewContents is { Count: > 0 })
+                        (previewContentsByUpdate ??= [])[update] = addedPreviewContents;
+                    NormalizeFunctionCallArguments(update.Contents);
+                    updates.Add(update);
+                    CopyFunctionCalls(update.Contents, functionCalls);
+
+                    if (functionCalls.Count == 0)
+                    {
+                        lastYieldedUpdateIndex++;
+                        yield return update;
+                        RemoveToolCallArgumentPreviews(update, addedPreviewContents);
+                    }
                 }
 
-                var addedPreviewContents = AddToolCallArgumentPreviews(update, toolCallPreviewTrackers);
-                if (addedPreviewContents is { Count: > 0 })
-                    (previewContentsByUpdate ??= [])[update] = addedPreviewContents;
-                NormalizeFunctionCallArguments(update.Contents);
-                updates.Add(update);
-                CopyFunctionCalls(update.Contents, functionCalls);
+                MarkServerHandledFunctionCalls(updates, functionCalls);
 
-                if (functionCalls.Count == 0)
+                for (; lastYieldedUpdateIndex < updates.Count; lastYieldedUpdateIndex++)
                 {
-                    lastYieldedUpdateIndex++;
+                    var update = updates[lastYieldedUpdateIndex];
+                    IReadOnlyList<ToolCallArgumentsDeltaContent>? addedPreviewContents = null;
+                    previewContentsByUpdate?.TryGetValue(update, out addedPreviewContents);
                     yield return update;
                     RemoveToolCallArgumentPreviews(update, addedPreviewContents);
                 }
+                samplingCompleted = true;
             }
-
-            MarkServerHandledFunctionCalls(updates, functionCalls);
-
-            for (; lastYieldedUpdateIndex < updates.Count; lastYieldedUpdateIndex++)
+            finally
             {
-                var update = updates[lastYieldedUpdateIndex];
-                IReadOnlyList<ToolCallArgumentsDeltaContent>? addedPreviewContents = null;
-                previewContentsByUpdate?.TryGetValue(update, out addedPreviewContents);
-                yield return update;
-                RemoveToolCallArgumentPreviews(update, addedPreviewContents);
+                if (!samplingCompleted && updates.Count > 0 && invocationHistory is not null)
+                    await invocationHistory.AppendAsync(updates.ToChatResponse().Messages, CancellationToken.None);
             }
 
             var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);
@@ -271,6 +286,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             awaitingPostToolContinuation = false;
 
             var response = updates.ToChatResponse();
+            await AgentHistoryRuntimeScope.AppendAsync(response.Messages, cancellationToken);
             (responseMessages ??= []).AddRange(response.Messages);
 
             if (ShouldTerminateLoopBasedOnHandleableFunctions(functionCalls, options))
@@ -333,6 +349,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             var anyTerminated = false;
             foreach (var message in toolMessages.Messages)
             {
+                await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
                 nextHistory.Add(message);
                 responseMessages.Add(message);
                 yield return new ChatResponseUpdate
@@ -349,6 +366,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
             foreach (var message in toolMessages.ModelOnlyMessages)
             {
+                await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
                 nextHistory.Add(message);
                 responseMessages.Add(message);
             }

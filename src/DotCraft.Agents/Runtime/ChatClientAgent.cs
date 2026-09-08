@@ -107,6 +107,8 @@ public sealed class ChatClientAgent
                 cancellationToken)
             .ConfigureAwait(false);
         var updates = new List<ChatResponseUpdate>();
+        var invocationHistory = new AgentInvocationHistory(history, runOptions?.HistoryObserver);
+        await invocationHistory.AppendAsync(inputMessages, cancellationToken);
         Exception? failure = null;
         var completed = false;
 
@@ -120,6 +122,7 @@ public sealed class ChatClientAgent
                 ChatResponseUpdate update;
                 try
                 {
+                    using var historyScope = AgentHistoryRuntimeScope.Set(invocationHistory);
                     if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
                     {
                         completed = true;
@@ -142,6 +145,7 @@ public sealed class ChatClientAgent
         {
             try
             {
+                using var historyScope = AgentHistoryRuntimeScope.Set(invocationHistory);
                 await enumerator.DisposeAsync().ConfigureAwait(false);
             }
             catch (Exception ex) when (failure is not null || !completed)
@@ -151,6 +155,8 @@ public sealed class ChatClientAgent
 
             if (!completed)
             {
+                if (!invocationHistory.LoopObserved && updates.Count > 0)
+                    await invocationHistory.AppendAsync(updates.ToChatResponse().Messages, CancellationToken.None);
                 failure ??= new OperationCanceledException(
                     "The agent response stream was not consumed to completion.");
             }
@@ -165,7 +171,9 @@ public sealed class ChatClientAgent
         }
 
         var response = updates.ToChatResponse();
-        CommitHistory(history, inputMessages, response.Messages);
+        if (!invocationHistory.LoopObserved)
+            await invocationHistory.AppendAsync(response.Messages, cancellationToken);
+        invocationHistory.Commit();
     }
 
     public Task<ChatResponse> RunAsync(
@@ -198,8 +206,11 @@ public sealed class ChatClientAgent
             .ConfigureAwait(false);
 
         ChatResponse response;
+        var invocationHistory = new AgentInvocationHistory(history, runOptions?.HistoryObserver);
+        await invocationHistory.AppendAsync(inputMessages, cancellationToken);
         try
         {
+            using var historyScope = AgentHistoryRuntimeScope.Set(invocationHistory);
             response = await invocation.ChatClient
                 .GetResponseAsync(invocation.Messages, invocation.Options, cancellationToken)
                 .ConfigureAwait(false);
@@ -224,7 +235,9 @@ public sealed class ChatClientAgent
                 failure: null,
                 cancellationToken)
             .ConfigureAwait(false);
-        CommitHistory(history, inputMessages, response.Messages);
+        if (!invocationHistory.LoopObserved)
+            await invocationHistory.AppendAsync(response.Messages, cancellationToken);
+        invocationHistory.Commit();
         return response;
     }
 
@@ -407,20 +420,6 @@ public sealed class ChatClientAgent
             {
                 // Preserve the model, cancellation, or stream-disposal failure.
             }
-        }
-    }
-
-    private void CommitHistory(
-        IList<ChatMessage> history,
-        IReadOnlyList<ChatMessage> input,
-        IEnumerable<ChatMessage> response)
-    {
-        foreach (var message in input)
-            history.Add(message);
-        foreach (var message in response)
-        {
-            message.AuthorName ??= Name;
-            history.Add(message);
         }
     }
 

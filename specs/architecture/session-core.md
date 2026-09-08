@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-09-06 |
+| **Date** | 2026-09-08 |
 | **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
@@ -1597,6 +1597,18 @@ Session Core manages the mapping:
 - **Fork**: A persistent fork writes its materialized model history into the fork rollout. It does not create a separate runtime-session blob.
 
 The domain history and exact model history are intentionally distinct durable representations. `turn_state_replaced` preserves client-visible Turn and Item lifecycle state. `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither representation is required to losslessly derive the other, and arbitrary model metadata must not be copied into client-visible Items merely to remove duplicate text.
+
+#### Running input and history consistency
+
+The active model/tool loop maintains an ordered history of initial input, model responses, tool results, and admitted steering and passive input. History updates and output events are separate execution outputs. Delivered input remains available to subsequent Turns, cold loading, and recovery export.
+
+Session Core persists the ordered model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata. Restart reconciliation uses persisted history and these identities to complete interrupted delivery confirmation. A history write failure stops execution and leaves delivery unconfirmed.
+
+Session input identities belong to this correlation metadata. `ChatMessage.MessageId` and protocol-native message IDs belong to the model provider's message identity domain.
+
+Completion, failure, and cancellation commit only the unpersisted history suffix. Neutral compaction installs a replacement history baseline that subsequent appends and terminal commits use.
+
+The Agent foundation reports history appends and replacements through an optional asynchronous observer. Session Core uses the observer to own incremental persistence. Standalone execution buffers changes and commits caller-owned history on successful completion. Request sanitization and generated prompt instructions remain local to sampling requests.
 
 Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may additionally
 persist a protocol-native history. For OpenAI Responses, that history is the source of the future wire
