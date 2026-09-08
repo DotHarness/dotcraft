@@ -31,45 +31,35 @@ DotCraft turns your projects into **extensible environments for AI agents**.
 
 ## Explore DotCraft
 
-### Desktop
+### [Desktop](https://www.dotcraft.net/features/entry-points/desktop)
 
 [![Your projects. Your agents. One desktop.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-desktop.png)](https://www.dotcraft.net/features/entry-points/desktop)
 
 Work with agents on your projects in one desktop app.
 
-[Desktop](https://www.dotcraft.net/features/entry-points/desktop) · [Getting Started](https://www.dotcraft.net/getting-started) · [Entry points](https://www.dotcraft.net/features/entry-points/)
-
-### DotCraft.Harness
+### [DotCraft.Harness](https://www.dotcraft.net/developing/harness/)
 
 [![Build agents into your .NET apps.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/developing/harness/)
 
 Embed a complete agent runtime in your .NET applications.
 
-[Harness overview](https://www.dotcraft.net/developing/harness/) · [Install the package](https://www.dotcraft.net/developing/harness/nuget-package) · [Hosting](https://www.dotcraft.net/developing/harness/hosting-lifecycle) · [Threads and Turns](https://www.dotcraft.net/developing/harness/threads-turns)
-
-### Oratorio
+### [Oratorio](https://www.dotcraft.net/features/oratorio)
 
 [![From task to reviewed delivery.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-oratorio.png)](https://www.dotcraft.net/features/oratorio)
 
 Manage agent tasks from assignment to review on one board.
 
-[Oratorio](https://www.dotcraft.net/features/oratorio) · [Workflow](https://www.dotcraft.net/features/oratorio/workflow) · [Connect GitHub](https://www.dotcraft.net/features/oratorio/github) · [Configure](https://www.dotcraft.net/features/oratorio/settings)
-
-### Satellite
+### [Satellite](https://www.dotcraft.net/features/agent-system/satellite)
 
 [![Your agents. Another machine.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/features/agent-system/satellite)
 
 Let your agents work in an approved shared folder on another computer.
 
-[Satellite](https://www.dotcraft.net/features/agent-system/satellite) · [Remote Tool Host](https://www.dotcraft.net/developing/architecture/remote-tool-host) · [Security & Sandbox](https://www.dotcraft.net/features/self-hosted/security)
-
-### Avatar
+### [Avatar](https://www.dotcraft.net/developing/sdks/typescript#avatar-package)
 
 [![Give your agents character.](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
 
 Give your agents personality with expressive, customizable avatars.
-
-[Avatar package](https://www.dotcraft.net/developing/sdks/typescript#avatar-package) · [Agent Profiles](https://www.dotcraft.net/features/agent-system/agent-profiles) · [Package README](./sdk/typescript/packages/avatar/README.md)
 
 ## Quick start
 
