@@ -131,8 +131,11 @@ jobs:
         run: npm ci
         working-directory: sdk/typescript
 
-      - name: Build and test
-        run: npm run test:all
+      - name: Build and test release packages
+        run: |
+          npm run test
+          npm run test --workspace @dotcraft/plugin
+          npm run test --workspace @dotcraft/avatar
         working-directory: sdk/typescript
 
       - name: Verify package consumers and contents
