@@ -39,7 +39,7 @@
   top: 6%;
   width: 7px;
   height: 7px;
-  background: var(--success);
+  background: var(--dca-theme-success);
   clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
   animation: composer-mascot-sparkle 900ms ease-out forwards;
 }
@@ -125,7 +125,7 @@
   font-family: Georgia, serif;
   font-size: 13px;
   font-weight: 700;
-  color: var(--text-dimmed);
+  color: var(--dca-theme-dimmed);
   opacity: 0;
   animation: composer-mascot-zzz 2.8s ease-out infinite;
 }

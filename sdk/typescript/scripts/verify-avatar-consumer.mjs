@@ -56,11 +56,19 @@ execFileSync(process.execPath,[join(sdk,'node_modules/typescript/bin/tsc'),'-p',
 await build({entryPoints:[join(work,'app.tsx')],bundle:true,platform:'browser',format:'esm',outdir:join(work,'out'),logLevel:'silent'})
 const css=readFileSync(join(work,'out/app.css'),'utf8')
 assert.ok(css.includes('.dca-robot'))
-const isolatedCss = !css.includes('--text-primary') && !css.includes('html[data-reduce-motion')
+const forbiddenCssDependencies = [
+  'var(--success',
+  'var(--text-dimmed',
+  'var(--text-primary',
+  'var(--bg-primary',
+  'html[data-theme',
+  'html[data-reduce-motion'
+]
+const foundCssDependencies = forbiddenCssDependencies.filter((dependency) => css.includes(dependency))
 writeFileSync(join(work,'ssr.mjs'), `import assert from 'node:assert/strict';
 import {createElement} from 'react'; import {renderToStaticMarkup} from 'react-dom/server';
 import {Avatar} from '@dotcraft/avatar/react';
 assert.ok(renderToStaticMarkup(createElement(Avatar,{name:'Reviewer',label:'Reviewer'})).includes('aria-label="Reviewer"'));`)
 execFileSync(process.execPath,[join(work,'ssr.mjs')],{stdio:'pipe'})
 console.log(`Avatar consumer functional checks passed: core without React, TypeScript, browser CSS bundle, SSR. Artifacts: ${work}`)
-assert.ok(isolatedCss, 'Avatar CSS must not depend on host theme variables or selectors')
+assert.deepEqual(foundCssDependencies, [], `Avatar CSS contains host theme dependencies: ${foundCssDependencies.join(', ')}`)

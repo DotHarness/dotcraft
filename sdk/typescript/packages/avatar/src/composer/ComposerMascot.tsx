@@ -7,7 +7,7 @@ import { useComposerProfile } from './useComposerProfile.js'
 import { useComposerMotion } from './useComposerMotion.js'
 import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_ACTIVE_IDLE_MIN_MS, MASCOT_ACTIVE_IDLE_JITTER_MS, MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS, MASCOT_ACTIVE_IDLE_TRAVEL_MS, MASCOT_ACTIVE_IDLE_HOLD_MS, MASCOT_SPARKLES, pickMascotActiveIdle, type MascotActiveIdleState, type MascotActiveIdleMotion } from './constants.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
-export function ComposerMascot({ name, motion = 'system', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', contextMax = false, anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+export function ComposerMascot({ name, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', contextMax = false, anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
   const reduced = !useComposerMotion(motion)
   const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced)
   useEffect(() => { onNameRendered?.(avatar) }, [avatar, onNameRendered])
@@ -406,6 +406,7 @@ export function ComposerMascot({ name, motion = 'system', focused = false, dragO
       ref={rootRef}
       className={rootClassName}
       data-mascot-name={avatar ?? ''}
+      data-mascot-theme={theme}
       data-mascot-effort={reasoningEffort}
       data-mascot-speed={speed}
       data-mascot-context={contextMax ? 'max' : 'default'}

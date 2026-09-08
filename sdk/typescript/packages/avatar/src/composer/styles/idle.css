@@ -78,7 +78,7 @@
   width: 31px;
   height: 5px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+  background: color-mix(in srgb, var(--dca-theme-ink) 15%, transparent);
   filter: blur(2px);
   pointer-events: none;
   transform: translateX(-50%);

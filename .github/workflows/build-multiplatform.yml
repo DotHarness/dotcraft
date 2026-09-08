@@ -38,6 +38,16 @@ jobs:
       if: matrix.suite == 'core'
       run: node --test docker/dotcraft/render-config.test.mjs
 
+    - name: Install TypeScript SDK dependencies
+      if: matrix.suite == 'core'
+      run: npm ci
+      working-directory: sdk/typescript
+
+    - name: Verify Avatar package consumer
+      if: matrix.suite == 'core'
+      run: npm run build --workspace @dotcraft/avatar && node scripts/verify-avatar-consumer.mjs
+      working-directory: sdk/typescript
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
       with:

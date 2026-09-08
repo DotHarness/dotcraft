@@ -1,3 +1,17 @@
+[data-mascot-theme='dark'] {
+  --dca-theme-surface: #141515;
+  --dca-theme-ink: #eeeeec;
+  --dca-theme-dimmed: color-mix(in srgb, var(--dca-theme-ink) 42%, var(--dca-theme-surface));
+  --dca-theme-success: #22c55e;
+}
+
+[data-mascot-theme='light'] {
+  --dca-theme-surface: #ffffff;
+  --dca-theme-ink: #1a1c1f;
+  --dca-theme-dimmed: color-mix(in srgb, var(--dca-theme-ink) 50%, var(--dca-theme-surface));
+  --dca-theme-success: #16a34a;
+}
+
 @keyframes composer-mascot-breathe {
   0%,
   100% {
@@ -40,8 +54,8 @@
 [data-mascot-speed='fast'] .composer-mascot-motion {
   --mascot-fast-shift-base: oklch(from var(--mascot-energy-accent)
     clamp(0.5, calc(l + 0.22), 0.96) clamp(0.06, calc(c * 0.88), 0.27) calc(h + 92));
-  --mascot-fast-echo-left: color-mix(in oklab, var(--mascot-energy-accent) 68%, var(--text-primary));
-  --mascot-fast-echo-right: color-mix(in oklab, var(--mascot-fast-shift-base) 78%, var(--text-primary));
+  --mascot-fast-echo-left: color-mix(in oklab, var(--mascot-energy-accent) 68%, var(--dca-theme-ink));
+  --mascot-fast-echo-right: color-mix(in oklab, var(--mascot-fast-shift-base) 78%, var(--dca-theme-ink));
 }
 
 [data-mascot-speed='fast'] .composer-mascot-fast-echo {
@@ -66,14 +80,14 @@
   }
 }
 
-html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-motion {
+[data-mascot-theme='light'][data-mascot-speed='fast'] .composer-mascot-motion {
   --mascot-fast-light-edge-base: oklch(from var(--mascot-energy-accent)
     clamp(0.38, calc(l + 0.12), 0.94) clamp(0.05, calc(c * 0.92), 0.28) calc(h + 8));
-  --mascot-fast-light-echo-left: color-mix(in oklab, var(--mascot-fast-light-edge-base) 58%, var(--bg-primary));
-  --mascot-fast-light-echo-right: color-mix(in oklab, var(--mascot-fast-shift-base) 54%, var(--bg-primary));
+  --mascot-fast-light-echo-left: color-mix(in oklab, var(--mascot-fast-light-edge-base) 58%, var(--dca-theme-surface));
+  --mascot-fast-light-echo-right: color-mix(in oklab, var(--mascot-fast-shift-base) 54%, var(--dca-theme-surface));
 }
 
-html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+[data-mascot-theme='light'][data-mascot-speed='fast'] .composer-mascot-fast-echo {
   animation-name: composer-mascot-fast-soft-echo-light;
 }
 

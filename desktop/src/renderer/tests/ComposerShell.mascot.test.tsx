@@ -8,6 +8,7 @@ import {
   clearDesktopPluginRegistry,
   registerDesktopPluginSurface
 } from '../plugins/desktopPluginRegistry'
+import { THEME_CHANGED_EVENT } from '../../shared/theme'
 
 let resizeObserverCallback: ResizeObserverCallback | null = null
 
@@ -66,6 +67,7 @@ describe('ComposerShell mascot energy and active idle', () => {
     clearDesktopPluginRegistry()
     vi.useFakeTimers()
     vi.spyOn(Math, 'random').mockReturnValue(0)
+    document.documentElement.removeAttribute('data-theme')
     document.documentElement.removeAttribute('data-reduce-motion')
     Object.defineProperty(document, 'hidden', { configurable: true, value: false })
     Object.defineProperty(window, 'matchMedia', {
@@ -84,6 +86,7 @@ describe('ComposerShell mascot energy and active idle', () => {
     act(() => clearDesktopPluginRegistry())
     vi.useRealTimers()
     vi.restoreAllMocks()
+    document.documentElement.removeAttribute('data-theme')
     document.documentElement.removeAttribute('data-reduce-motion')
     delete (document as Document & { hidden?: boolean }).hidden
     delete (globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver
@@ -100,6 +103,22 @@ describe('ComposerShell mascot energy and active idle', () => {
     expect(mascot(container)).toHaveAttribute('data-mascot-speed', 'fast')
     expect(mascot(container)).toHaveAttribute('data-mascot-context', 'max')
     expect(container.querySelector('.composer-mascot-fast-echo')).not.toBeNull()
+  })
+
+  it('tracks the applied document theme', () => {
+    document.documentElement.dataset.theme = 'light'
+    const view = renderComposer()
+
+    expect(mascot(view.container)).toHaveAttribute('data-mascot-theme', 'light')
+
+    act(() => {
+      document.documentElement.dataset.theme = 'dark'
+      window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, {
+        detail: { mode: 'dark', seedRevision: 0 }
+      }))
+    })
+
+    expect(mascot(view.container)).toHaveAttribute('data-mascot-theme', 'dark')
   })
 
   it('maps decisions to the waiting sign and reserves the laptop for active work', () => {

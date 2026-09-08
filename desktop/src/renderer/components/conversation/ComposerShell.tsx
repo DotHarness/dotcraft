@@ -19,6 +19,7 @@ import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './
 import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
+import { useDocumentThemeMode } from '../../utils/theme'
 
 export interface ComposerMascotBubble {
   tone?: MascotBubbleTone
@@ -115,6 +116,7 @@ export function ComposerShell({
   mascotName,
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
+  const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
   const [hovered, setHovered] = useState(false)
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
@@ -186,6 +188,7 @@ export function ComposerShell({
     >
       {showMascot && (
         <ComposerMascot
+          theme={mascotTheme}
           focused={focused}
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}

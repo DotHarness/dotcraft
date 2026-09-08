@@ -30,6 +30,9 @@ respecting reduced-motion preferences. Use `paused` to freeze playback and incre
 `eventSequence` to replay an event. Provide a localized `label`, or omit it for decorative artwork.
 See the [component props](./src/Avatar.tsx) for all options.
 
+`ComposerMascot` accepts `theme="light"` or `theme="dark"` for host-aware effects. It defaults
+to `dark`; pass the host's applied theme when the surrounding application supports both variants.
+
 ## Derive an appearance
 
 ```ts

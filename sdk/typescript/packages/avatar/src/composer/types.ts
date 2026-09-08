@@ -15,6 +15,7 @@ export interface ComposerMascotContext {
 export interface ComposerMascotProps {
   name?: string
   motion?: 'system' | 'on' | 'off'
+  theme?: 'light' | 'dark'
   focused?: boolean
   dragOver?: boolean
   bounceSignal?: number

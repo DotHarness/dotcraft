@@ -30,6 +30,11 @@ test('Composer swaps only at the midpoint, cancels superseded names and disposes
   const render = props => act(async () => root.render(createElement(ComposerMascot, { focused: true, onNameRendered, ...props })))
   try {
     await render({name: ''})
+    assert.equal(document.querySelector('[data-mascot-theme]').dataset.mascotTheme, 'dark')
+    await render({name: '', theme: 'light'})
+    assert.equal(document.querySelector('[data-mascot-theme]').dataset.mascotTheme, 'light')
+    await render({name: '', theme: 'dark'})
+    assert.equal(document.querySelector('[data-mascot-theme]').dataset.mascotTheme, 'dark')
     await render({name: 'Researcher'})
     assert.equal(document.querySelector('[data-mascot-profile-transition]').dataset.mascotProfileTransition, 'active')
     await advance(619); assert.equal(names.at(-1), '')

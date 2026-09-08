@@ -29,7 +29,7 @@ Contracts has no Node.js, WebSocket, or runtime I/O dependency, so Renderer code
 
 ## Avatar package
 
-`@dotcraft/avatar/react` provides the React 19 `Avatar` component for DotCraft's name-derived visual identity. Pass `name` and `size`, with optional `state`, `motion`, `paused`, `eventSequence`, and `label` props. The framework-neutral package root exports `deriveAppearance`, which trims and NFC-normalizes the name before deriving an appearance. The same normalized name produces the same identity; an empty name produces the original DotCraft appearance.
+`@dotcraft/avatar/react` provides the React 19 `Avatar` component for DotCraft's name-derived visual identity. Pass `name` and `size`, with optional `state`, `motion`, `paused`, `eventSequence`, and `label` props. Its `ComposerMascot` component accepts the host's applied `light` or `dark` theme through the optional `theme` prop, which defaults to `dark`. The framework-neutral package root exports `deriveAppearance`, which trims and NFC-normalizes the name before deriving an appearance. The same normalized name produces the same identity; an empty name produces the original DotCraft appearance.
 
 ## High-level API
 
