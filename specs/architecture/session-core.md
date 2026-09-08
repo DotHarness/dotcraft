@@ -1600,11 +1600,13 @@ The domain history and exact model history are intentionally distinct durable re
 
 #### Running input and history consistency
 
-The active model/tool loop reports ordered conversation-history additions independently of its output event stream. Initial input, completed model responses, tool results, and accepted running input share that sequence. Steering and existing passive communications must survive subsequent Turns, cold loading, and recovery export; visibility in one request or persistence of a UserMessage Item alone does not establish delivery.
+The active model/tool loop maintains an ordered history of initial input, model responses, tool results, and admitted steering and passive input. History updates and output events are separate execution outputs. Delivered input remains available to subsequent Turns, cold loading, and recovery export.
 
-Session Core opts into incremental history persistence. It persists the input's ordered model-history prefix before consuming its queued input or acknowledging an existing communication. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata; a restart reconciles that record without calling the model or repeating tools. A failed history write stops execution and cannot acknowledge delivery. A terminal commit appends only the uncommitted suffix, including on failure or cancellation. Completed neutral compaction replaces the history baseline; later commits must not restore its discarded prefix. Provider-native history retains its separate authority.
+Session Core persists the ordered model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata. Restart reconciliation uses persisted history and these identities to complete interrupted delivery confirmation. A history write failure stops execution and leaves delivery unconfirmed.
 
-The Agent foundation exposes a generic optional asynchronous history observer, containing no mailbox or application concepts. The observer owns incremental history; the foundation buffers history only for standalone successful-completion-only updates to caller-owned history, including no mutation on failure. Runtime input is not fabricated as assistant output, and request-local sanitization or generated prompt instructions do not become canonical history. Previously lost historical content is not automatically reconstructed from Items.
+Completion, failure, and cancellation commit only the unpersisted history suffix. Neutral compaction installs a replacement history baseline that subsequent appends and terminal commits use.
+
+The Agent foundation reports history appends and replacements through an optional asynchronous observer. Session Core uses the observer to own incremental persistence. Standalone execution buffers changes and commits caller-owned history on successful completion. Request sanitization and generated prompt instructions remain local to sampling requests.
 
 Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may additionally
 persist a protocol-native history. For OpenAI Responses, that history is the source of the future wire
