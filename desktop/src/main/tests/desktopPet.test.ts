@@ -121,6 +121,20 @@ describe('desktop pet native ownership', () => {
     expect(owner.setOpacity).toHaveBeenLastCalledWith(1)
     expect(events(owner).at(-1)).toEqual({ type: 'ownership', detached: false })
   })
+  it('recovers immediately when the sandboxed preload fails', () => {
+    const error = new Error('Cannot find module ./chunks/desktopPet.js')
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const pet = detach(true)
+
+    pet.webContents.emit('preload-error', {}, 'C:/DotCraft/resources/app.asar/out/preload/pet.js', error)
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('companion preload failed'), error)
+    expect(pet.destroyed).toBe(true)
+    expect(owner.show).toHaveBeenCalled()
+    expect(owner.setOpacity).toHaveBeenLastCalledWith(1)
+    expect(events(owner).at(-1)).toEqual({ type: 'ownership', detached: false })
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('does not open duplicate companions or replay a leave animation', async () => {
     const pet = detach()
     detach()

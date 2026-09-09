@@ -29,6 +29,11 @@ export function useDesktopPet(root: RefObject<HTMLDivElement | null>, enabled: b
     let lastSnapshot = ''
     let suppressClick = false
     let tether: SVGSVGElement | null = null
+    const releaseSourcePointer = (): void => {
+      const pointer = sourcePointer
+      sourcePointer = null
+      if (pointer !== null && element.hasPointerCapture(pointer)) element.releasePointerCapture(pointer)
+    }
     const snapshot = (): PetSnapshot => ({
       activity: petActivity(element.querySelector<HTMLElement>('[data-composer-avatar-pose]')?.dataset.composerAvatarPose),
       name: element.querySelector<HTMLElement>('[data-mascot-name]')?.dataset.mascotName ?? '',
@@ -45,7 +50,7 @@ export function useDesktopPet(root: RefObject<HTMLDivElement | null>, enabled: b
         owns = false
         element.removeAttribute('data-pet-owner')
         detached = false
-        sourcePointer = null
+        releaseSourcePointer()
         clearInterval(timer)
         document.documentElement.removeAttribute('data-desktop-pet-detached')
         reset()
@@ -152,7 +157,7 @@ export function useDesktopPet(root: RefObject<HTMLDivElement | null>, enabled: b
         document.documentElement.toggleAttribute('data-desktop-pet-detached', detached)
         if (detached) command({ type: 'hidden' })
         reset()
-        if (!detached) { owns = false; sourcePointer = null; element.removeAttribute('data-pet-owner'); clearInterval(timer); savedFocus?.focus() }
+        if (!detached) { owns = false; releaseSourcePointer(); element.removeAttribute('data-pet-owner'); clearInterval(timer); savedFocus?.focus() }
       } else if (event.type === 'return-seat') {
         reset()
         command({ type: 'seat', seat: seatOf(element) })

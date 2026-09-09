@@ -123,7 +123,14 @@ class DesktopPet {
     overlay.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     overlay.webContents.on('will-navigate', event => event.preventDefault())
     overlay.webContents.once('render-process-gone', this.onFailure)
-    overlay.webContents.once('did-fail-load', this.onFailure)
+    overlay.webContents.once('did-fail-load', (_event, code, description) => {
+      console.error(`[desktop-pet] companion failed to load (${code}): ${description}`)
+      this.onFailure()
+    })
+    overlay.webContents.once('preload-error', (_event, preloadPath, error) => {
+      console.error(`[desktop-pet] companion preload failed: ${preloadPath}`, error)
+      this.onFailure()
+    })
     overlay.once('closed', () => { if (this.overlay === overlay) this.recover() })
     const url = this.owner.webContents.getURL()
     const load = url.startsWith('http')

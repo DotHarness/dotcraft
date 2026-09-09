@@ -96,7 +96,9 @@ function verifyResourcesDir(target) {
     'node_modules/@vscode/ripgrep/lib/index.js',
     'node_modules/ignore-walk/lib/index.js',
     'node_modules/@fugood/whisper.node/lib/index.js',
-    'out/main/voiceWorker.js'
+    'out/main/voiceWorker.js',
+    'out/preload/pet.js',
+    'out/renderer/pet.html'
   ]
   for (const required of requiredAsarEntries) {
     if (!entries.has(required)) {
@@ -105,9 +107,21 @@ function verifyResourcesDir(target) {
   }
 
   verifyDevToolsPolicy(appAsar)
+  verifyDesktopPetPreload(appAsar)
 
   if (process.exitCode !== 1) {
     console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
+  }
+}
+
+function verifyDesktopPetPreload(appAsar) {
+  const preloadBundle = extractAsarText(appAsar, 'out/preload/pet.js')
+  const relativeModule = /(?:require\s*\(|from\s+|import\s*\()\s*['"]\./.exec(preloadBundle)
+  if (relativeModule) {
+    fail(`Sandboxed desktop-pet preload has a relative module dependency: ${relativeModule[0]}`)
+  }
+  if (!preloadBundle.includes('desktop-pet:command')) {
+    fail('Sandboxed desktop-pet preload does not contain its IPC bridge.')
   }
 }
 
