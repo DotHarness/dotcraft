@@ -241,10 +241,6 @@ jobs:
           }
         }
 
-    - name: Build and stage Unity bundled plugin
-      if: matrix.runtime_id == 'win-x64'
-      run: tools\DotCraft.Unity\build.bat -BundledPluginRoot desktop\resources\plugins\dotcraft-bundled\plugins
-
     - name: Stage bundled modules for desktop - macOS
       if: runner.os == 'macOS'
       shell: bash

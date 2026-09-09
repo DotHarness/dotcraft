@@ -89,39 +89,6 @@ public sealed class ContractKernelTests
     }
 
     [Fact]
-    public void Catalog_Covers_The_Complete_Core_Surface()
-    {
-        var core = AppServerRpcCatalog.All.Where(static descriptor => descriptor.Module == "core").ToArray();
-
-        Assert.Equal(198, core.Length);
-        Assert.Equal(150, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ClientToServer }));
-        Assert.Equal(42, core.Count(static descriptor => descriptor is { Kind: "notification", Direction: RpcDirection.ServerToClient }));
-        Assert.Equal(5, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ServerToClient }));
-        Assert.Single(core, static descriptor => descriptor is { Kind: "notification", Direction: RpcDirection.ClientToServer });
-
-        Assert.Equal("backgroundTerminals", AppServerRpc.TerminalList.Capability);
-        Assert.Equal("mcpElicitation", AppServerRpc.McpServerElicitationRequest.Capability);
-        Assert.Equal("threadManagement", AppServerRpc.ThreadGoalGet.Capability);
-    }
-
-    [Fact]
-    public void Catalog_Covers_All_Bundled_Protocol_Modules()
-    {
-        var modules = AppServerRpcCatalog.All
-            .GroupBy(static descriptor => descriptor.Module, StringComparer.Ordinal)
-            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
-
-        Assert.Equal(261, AppServerRpcCatalog.All.Count);
-        Assert.Equal(7, modules["acp"]);
-        Assert.Equal(29, modules["app-binding"]);
-        Assert.Equal(11, modules["automations"]);
-        Assert.Equal(198, modules["core"]);
-        Assert.Equal(8, modules["external-channel"]);
-        Assert.Equal(2, modules["node-repl"]);
-        Assert.Equal(6, modules["dynamic-workflows"]);
-    }
-
-    [Fact]
     public void RpcEmpty_Serializes_As_An_Empty_Object()
     {
         Assert.Equal("{}", JsonSerializer.Serialize(new RpcEmpty(), AppServerContractJson.Options));

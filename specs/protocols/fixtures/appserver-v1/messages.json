@@ -626,7 +626,7 @@
         { "jsonrpc": "2.0", "id": 22, "method": "command/list", "params": {} },
         { "jsonrpc": "2.0", "id": 22, "result": {} },
         { "jsonrpc": "2.0", "id": 23, "method": "automation/list", "params": {} },
-        { "jsonrpc": "2.0", "id": 23, "result": {} },
+        { "jsonrpc": "2.0", "id": 23, "result": { "automations": [] } },
         { "jsonrpc": "2.0", "id": 24, "method": "dreams/list", "params": {} },
         { "jsonrpc": "2.0", "id": 24, "result": {} },
         { "jsonrpc": "2.0", "id": 25, "method": "hooks/list", "params": {} },

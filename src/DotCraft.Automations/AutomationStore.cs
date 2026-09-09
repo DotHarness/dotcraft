@@ -72,14 +72,15 @@ public sealed class AutomationStore(string root)
     }
     private static async Task<AutomationRun?> ReadRunAsync(string file, CancellationToken ct)
     {
-        for (var attempt = 0; attempt < 3; attempt++)
+        const int attempts = 10;
+        for (var attempt = 0; attempt < attempts; attempt++)
         {
             try
             {
                 await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 return await JsonSerializer.DeserializeAsync<AutomationRun>(stream, Json, ct);
             }
-            catch (FileNotFoundException) when (attempt < 2)
+            catch (IOException) when (attempt < attempts - 1)
             {
                 await Task.Delay(5, ct);
             }

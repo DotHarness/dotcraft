@@ -50,4 +50,19 @@ public sealed class AutomationReadStateTests : IDisposable
         await Task.WhenAll(store.SetRunsReadAsync("task", ["first"], true, default), store.SetRunsReadAsync("task", ["second"], true, default));
         Assert.All(await store.RunsAsync("task", default), run => Assert.NotNull(run.ReadAt));
     }
+
+    [Fact]
+    public async Task RunsRetryTransientFileSharingConflicts()
+    {
+        var store = new AutomationStore(_root);
+        await store.SaveRunAsync(Run(), default);
+        var path = Path.Combine(_root, "task", "runs", "run.json");
+
+        var locked = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var read = store.RunsAsync("task", default);
+        await Task.Delay(20);
+        await locked.DisposeAsync();
+
+        Assert.Single(await read);
+    }
 }

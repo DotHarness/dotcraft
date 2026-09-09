@@ -221,8 +221,9 @@ public sealed class AppServerSkillsManagementTests : IDisposable
     {
         var craftPath = Path.Combine(_tempRoot, ".craft");
         var loader = new SkillsLoader(craftPath);
-        WriteSkill(loader, "builtin-skill", "Built-in body.");
-        File.WriteAllText(Path.Combine(loader.WorkspaceSkillsPath, "builtin-skill", ".builtin"), string.Empty);
+        loader.DeployBuiltInSkills();
+        var builtinSkill = loader.ListSkills(filterUnavailable: false)
+            .First(skill => string.Equals(skill.Source, "builtin", StringComparison.OrdinalIgnoreCase));
 
         var pluginSkillsPath = Path.Combine(_tempRoot, "plugin", "skills");
         WriteSkillAtRoot(pluginSkillsPath, "plugin-skill", "Plugin body.");
@@ -233,10 +234,10 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "builtin-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = builtinSkill.Name }));
         using var builtinResponse = harness.Transport.TryReadSent()!;
         AppServerTestHarness.AssertIsErrorResponse(builtinResponse, AppServerErrors.InvalidParamsCode);
-        Assert.True(Directory.Exists(Path.Combine(loader.WorkspaceSkillsPath, "builtin-skill")));
+        Assert.True(Directory.Exists(Path.GetDirectoryName(builtinSkill.Path)));
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "plugin-skill" }));
         using var pluginResponse = harness.Transport.TryReadSent()!;
