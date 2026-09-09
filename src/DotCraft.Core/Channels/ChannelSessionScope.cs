@@ -2,7 +2,7 @@ namespace DotCraft.Channels;
 
 /// <summary>
 /// Channel-agnostic session metadata set by each channel adapter at the start
-/// of a request. Consumed by shared infrastructure (e.g. CronTools) so it does
+/// of a request. Consumed by shared infrastructure (e.g. automation tools) so it does
 /// not need to reference channel-specific types.
 /// </summary>
 public sealed class ChannelSessionInfo

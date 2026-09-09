@@ -28,7 +28,6 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
   const t = useT()
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [loading, setLoading] = useState(false)
-  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -48,7 +47,6 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
       .finally(() => {
         if (cancelled) return
         setLoading(false)
-        setLoaded(true)
       })
     return () => {
       cancelled = true
@@ -56,12 +54,6 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
   }, [])
 
   const selected = value ? profiles.find((p) => p.id === value) : undefined
-
-  // Silently fall back to the default agent when a pre-filled id (e.g. from a template whose profile
-  // was deleted) no longer resolves, so we never persist a dangling binding.
-  useEffect(() => {
-    if (loaded && value && !profiles.some((p) => p.id === value)) onChange(null)
-  }, [loaded, value, profiles, onChange])
 
   const label = value ? (selected?.name || selected?.id || value) : t('auto.newTask.agentDefault')
   const icon =

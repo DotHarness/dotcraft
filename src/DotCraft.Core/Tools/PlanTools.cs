@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 using DotCraft.Diagnostics;
 using DotCraft.Memory;
 
@@ -76,7 +77,7 @@ public sealed class PlanTools(
     [Description("Update the status of one or more tasks in the current plan. Call this to mark tasks as in_progress when you start working on them and completed when done.")]
     [Tool(Icon = "✅", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.UpdateTodos))]
     public async Task<string> UpdateTodos(
-        [Description("Status updates. Each item has 'id' (task id) and 'status' (pending | in_progress | completed | cancelled).")]
+        [Description("Status updates. Each item has a task id and its new status.")]
         List<TodoStatusUpdateInput> updates)
     {
         try
@@ -104,7 +105,7 @@ public sealed class PlanTools(
             var results = new List<string>();
             foreach (var upd in updates)
             {
-                if (string.IsNullOrWhiteSpace(upd.Id) || string.IsNullOrWhiteSpace(upd.Status))
+                if (string.IsNullOrWhiteSpace(upd.Id))
                     continue;
 
                 var todo = plan.Todos.FirstOrDefault(t => t.Id == upd.Id.Trim());
@@ -114,16 +115,9 @@ public sealed class PlanTools(
                     continue;
                 }
 
-                var normalizedStatus = upd.Status.Trim().ToLowerInvariant();
-                if (normalizedStatus is not (PlanTodoStatus.Pending or PlanTodoStatus.InProgress
-                    or PlanTodoStatus.Completed or PlanTodoStatus.Cancelled))
-                {
-                    results.Add($"{upd.Id} -> invalid status '{upd.Status}'");
-                    continue;
-                }
-
-                todo.Status = normalizedStatus;
-                results.Add($"{upd.Id} -> {normalizedStatus}");
+                var status = ToStatus(upd.Status);
+                todo.Status = status;
+                results.Add($"{upd.Id} -> {status}");
             }
 
             if (results.Count == 0)
@@ -171,8 +165,6 @@ public sealed class PlanTools(
         - false (default): Replace the entire todo list with the provided items
         - true: Merge updates into the existing list by id. Matched items are updated; new items are added; unmentioned items are left unchanged
 
-        Task states: pending, in_progress, completed, cancelled
-
         Rules:
         - Mark tasks completed IMMEDIATELY after finishing (do not batch completions)
         - Only ONE task should be in_progress at a time
@@ -180,7 +172,7 @@ public sealed class PlanTools(
         """)]
     [Tool(Icon = "📝", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.TodoWrite))]
     public async Task<string> TodoWrite(
-        [Description("Array of todo items. Each item has 'id' (short kebab-case), 'content' (task description), and 'status' (pending | in_progress | completed | cancelled).")]
+        [Description("Todo items with a short kebab-case id, task description, and status.")]
         List<TodoWriteInput> todos,
         [Description("When false (default), replace the entire todo list. When true, merge updates into the existing list by id.")]
         bool merge = false)
@@ -215,14 +207,13 @@ public sealed class PlanTools(
                 plan = existing;
                 foreach (var item in validItems)
                 {
-                    var normalizedStatus = NormalizeStatus(item.Status);
+                    var status = ToStatus(item.Status);
                     var existingTodo = plan.Todos.FirstOrDefault(t => t.Id == item.Id.Trim());
                     if (existingTodo != null)
                     {
                         if (!string.IsNullOrWhiteSpace(item.Content))
                             existingTodo.Content = item.Content.Trim();
-                        if (!string.IsNullOrWhiteSpace(normalizedStatus))
-                            existingTodo.Status = normalizedStatus;
+                        existingTodo.Status = status;
                     }
                     else
                     {
@@ -231,7 +222,7 @@ public sealed class PlanTools(
                             Id = item.Id.Trim(),
                             Content = item.Content.Trim(),
                             Priority = PlanTodoPriority.Medium,
-                            Status = normalizedStatus is { Length: > 0 } s ? s : PlanTodoStatus.Pending
+                            Status = status
                         });
                     }
                 }
@@ -246,7 +237,7 @@ public sealed class PlanTools(
                         Id = t.Id.Trim(),
                         Content = t.Content.Trim(),
                         Priority = PlanTodoPriority.Medium,
-                        Status = NormalizeStatus(t.Status) is { Length: > 0 } s ? s : PlanTodoStatus.Pending
+                        Status = ToStatus(t.Status)
                     })
                     .ToList();
 
@@ -275,15 +266,24 @@ public sealed class PlanTools(
         }
     }
 
-    private static string NormalizeStatus(string? status)
+    private static string ToStatus(PlanTodoInputStatus status) => status switch
     {
-        if (string.IsNullOrWhiteSpace(status))
-            return "";
-        var s = status.Trim().ToLowerInvariant();
-        return s is PlanTodoStatus.Pending or PlanTodoStatus.InProgress
-            or PlanTodoStatus.Completed or PlanTodoStatus.Cancelled
-            ? s : "";
-    }
+        PlanTodoInputStatus.Pending => PlanTodoStatus.Pending,
+        PlanTodoInputStatus.InProgress => PlanTodoStatus.InProgress,
+        PlanTodoInputStatus.Completed => PlanTodoStatus.Completed,
+        PlanTodoInputStatus.Cancelled => PlanTodoStatus.Cancelled,
+        _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+    };
+}
+
+/// <summary>Status accepted by plan todo tools.</summary>
+public enum PlanTodoInputStatus
+{
+    Pending,
+    [JsonStringEnumMemberName("in_progress")]
+    InProgress,
+    Completed,
+    Cancelled
 }
 
 public sealed record ParsedPlanMarkdown(string Title, string Overview, string Content);
@@ -434,7 +434,7 @@ public sealed class PlanTodoInput
 public sealed class TodoStatusUpdateInput
 {
     public string Id { get; set; } = "";
-    public string Status { get; set; } = "";
+    public required PlanTodoInputStatus Status { get; set; }
 }
 
 /// <summary>
@@ -444,5 +444,5 @@ public sealed class TodoWriteInput
 {
     public string Id { get; set; } = "";
     public string Content { get; set; } = "";
-    public string Status { get; set; } = PlanTodoStatus.Pending;
+    public PlanTodoInputStatus Status { get; set; } = PlanTodoInputStatus.Pending;
 }

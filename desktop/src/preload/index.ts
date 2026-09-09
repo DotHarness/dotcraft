@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
+import { desktopPet } from './desktopPet'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
@@ -422,6 +423,7 @@ let oratorioSubscriptionCount = 0
 let satellitesSubscriptionCount = 0
 
 const api = {
+  desktopPet,
   platform: process.platform as 'darwin' | 'win32' | 'linux',
 
   initialTheme,

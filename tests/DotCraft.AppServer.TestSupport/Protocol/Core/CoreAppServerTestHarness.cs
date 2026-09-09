@@ -103,7 +103,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         Monitor = appConfigMonitor ?? new AppConfigMonitor(defaultConfig);
         Handler = new AppServerRequestHandler(
             Service, Connection, Transport,
-            channelListContributor ?? new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
+            channelListContributor ?? new ModuleRegistryChannelListContributor(new ModuleRegistry()),
             new AppServerConnectionServices
             {
                 ServerVersion = "0.0.1-test",

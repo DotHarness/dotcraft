@@ -703,195 +703,155 @@ export interface AuthOpenAiUsageWindow {
   [key: string]: unknown;
 }
 
-export interface AutomationSchedule {
-  atMs?: number | null;
-  dailyHour?: number | null;
-  dailyMinute?: number | null;
-  everyMs?: number | null;
-  expr?: string | null;
-  initialDelayMs?: number | null;
-  kind?: string;
-  tz?: string | null;
+export interface AutomationCreateParams {
+  automation: AutomationInput;
   [key: string]: unknown;
 }
 
-export interface AutomationTask {
+export interface AutomationDefinition {
   agentProfileId?: string | null;
-  agentSummary?: string | null;
-  approvalPolicy?: string | null;
-  createdAt?: string | null;
-  description?: string | null;
-  id?: string;
+  approvalPolicy: string;
+  createdAt: string;
+  executionMode: string;
+  id: string;
+  name: string;
   nextRunAt?: string | null;
-  schedule?: AutomationSchedule | null;
-  status?: string;
-  threadBinding?: AutomationThreadBinding | null;
-  threadId?: string | null;
-  title?: string;
-  updatedAt?: string | null;
-  workspaceMode?: string;
-  worktree?: AutomationTaskWorktree | null;
+  notificationPolicy: string;
+  origin?: AutomationOrigin | null;
+  prompt: string;
+  schedule: AutomationSchedule;
+  status: string;
+  targetThreadId?: string | null;
+  updatedAt: string;
+  version: number;
+  workspaceMode: string;
   [key: string]: unknown;
 }
 
-export interface AutomationTaskCreateParams {
+export interface AutomationDeleteResult {
+  ok: boolean;
+  [key: string]: unknown;
+}
+
+export interface AutomationIdParams {
+  automationId: string;
+  [key: string]: unknown;
+}
+
+export interface AutomationInput {
   agentProfileId?: string | null;
-  approvalPolicy?: string | null;
-  description?: string | null;
-  schedule?: AutomationSchedule | null;
-  templateId?: string | null;
-  threadBinding?: AutomationThreadBinding | null;
-  title?: string;
-  workflowTemplate?: string | null;
+  approvalPolicy: string;
+  executionMode: string;
+  name: string;
+  notificationPolicy?: string | null;
+  prompt: string;
+  schedule: AutomationSchedule;
+  status: string;
+  targetThreadId?: string | null;
   workspaceMode?: string | null;
-  workspacePath?: string;
   [key: string]: unknown;
 }
 
-export interface AutomationTaskCreateResult {
-  taskDirectory?: string;
-  taskId?: string;
+export interface AutomationListResult {
+  automations: AutomationDefinition[];
   [key: string]: unknown;
 }
 
-export interface AutomationTaskDeleteParams {
-  taskId?: string;
-  workspacePath?: string;
+export interface AutomationOrigin {
+  channel: string;
+  deliveryTarget?: string | null;
+  groupId?: string | null;
+  userId: string;
   [key: string]: unknown;
 }
 
-export interface AutomationTaskDeleteResult {
-  ok?: boolean;
+export interface AutomationPreset {
+  id: string;
+  name: string;
+  prompt: string;
+  schedule?: AutomationSchedule | null;
   [key: string]: unknown;
 }
 
-export interface AutomationTaskDiscardWorktreeParams {
-  taskId?: string;
-  workspacePath?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskDiscardWorktreeResult {
-  task?: AutomationTask;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskListParams {
-  workspacePath?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskListResult {
-  tasks?: AutomationTask[];
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskReadParams {
-  taskId?: string;
-  workspacePath?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskRunParams {
-  taskId?: string;
-  workspacePath?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskRunResult {
-  task?: AutomationTask;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskUpdateBindingParams {
-  taskId?: string;
-  threadBinding?: AutomationThreadBinding | null;
-  workspacePath?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskUpdateBindingResult {
-  task?: AutomationTask;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskUpdatedNotification {
-  task?: AutomationTask;
-  workspacePath?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTaskWorktree {
-  branchName?: string;
-  path?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTemplate {
-  category?: string | null;
-  createdAt?: string | null;
-  defaultAgentProfileId?: string | null;
-  defaultApprovalPolicy?: string | null;
-  defaultDescription?: string | null;
-  defaultSchedule?: AutomationSchedule | null;
-  defaultTitle?: string | null;
-  defaultWorkspaceMode?: string | null;
-  description?: string | null;
-  icon?: string | null;
-  id?: string;
-  isUser?: boolean;
-  needsThreadBinding?: boolean | null;
-  title?: string;
-  updatedAt?: string | null;
-  workflowMarkdown?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTemplateDeleteParams {
-  id?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationTemplateDeleteResult {
-  ok?: boolean;
-  [key: string]: unknown;
-}
-
-export interface AutomationTemplateListParams {
+export interface AutomationPresetsParams {
   locale?: string | null;
   [key: string]: unknown;
 }
 
-export interface AutomationTemplateListResult {
-  templates?: AutomationTemplate[];
+export interface AutomationPresetsResult {
+  presets: AutomationPreset[];
   [key: string]: unknown;
 }
 
-export interface AutomationTemplateSaveParams {
-  category?: string | null;
-  defaultAgentProfileId?: string | null;
-  defaultApprovalPolicy?: string | null;
-  defaultDescription?: string | null;
-  defaultSchedule?: AutomationSchedule | null;
-  defaultTitle?: string | null;
-  defaultWorkspaceMode?: string | null;
-  description?: string | null;
-  icon?: string | null;
-  id?: string | null;
-  needsThreadBinding?: boolean;
-  title?: string;
-  workflowMarkdown?: string;
+export interface AutomationReadResult {
+  automation: AutomationDefinition;
   [key: string]: unknown;
 }
 
-export interface AutomationTemplateSaveResult {
-  template?: AutomationTemplate;
+export interface AutomationRun {
+  automationId: string;
+  completedAt?: string | null;
+  createdAt: string;
+  definitionVersion: number;
+  deliveryError?: string | null;
+  deliveryStatus: string;
+  error?: string | null;
+  id: string;
+  readAt?: string | null;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  status: string;
+  summary?: string | null;
+  threadId?: string | null;
+  turnId?: string | null;
+  worktree?: ThreadWorktreeInfo | null;
   [key: string]: unknown;
 }
 
-export interface AutomationThreadBinding {
-  mode?: string | null;
-  threadId?: string;
+export interface AutomationRunReadParams {
+  automationId: string;
+  read: boolean;
+  runIds: string[];
+  [key: string]: unknown;
+}
+
+export interface AutomationRunResult {
+  run: AutomationRun;
+  [key: string]: unknown;
+}
+
+export interface AutomationRunUpdatedNotification {
+  run: AutomationRun;
+  [key: string]: unknown;
+}
+
+export interface AutomationRunsResult {
+  runs: AutomationRun[];
+  [key: string]: unknown;
+}
+
+export interface AutomationSchedule {
+  at?: string | null;
+  days?: number[] | null;
+  everyMs?: number | null;
+  hour?: number | null;
+  kind: string;
+  minute?: number | null;
+  timeZone?: string | null;
+  [key: string]: unknown;
+}
+
+export interface AutomationUpdateParams {
+  automation: AutomationInput;
+  automationId: string;
+  expectedVersion: number;
+  [key: string]: unknown;
+}
+
+export interface AutomationUpdatedNotification {
+  automation?: AutomationDefinition | null;
+  automationId: string;
+  removed: boolean;
   [key: string]: unknown;
 }
 
@@ -1158,86 +1118,6 @@ export interface ContextUsageSnapshot {
   source?: string | null;
   tokens?: number;
   warningThreshold?: number;
-  [key: string]: unknown;
-}
-
-export interface CronEnableParams {
-  enabled?: boolean;
-  jobId?: string;
-  [key: string]: unknown;
-}
-
-export interface CronEnableResult {
-  job?: CronJobWireInfo;
-  [key: string]: unknown;
-}
-
-export interface CronJobStateWireInfo {
-  lastError?: string | null;
-  lastResult?: string | null;
-  lastRunAtMs?: number | null;
-  lastStatus?: string | null;
-  lastThreadId?: string | null;
-  nextRunAtMs?: number | null;
-  [key: string]: unknown;
-}
-
-export interface CronJobWireInfo {
-  createdAtMs?: number;
-  deleteAfterRun?: boolean;
-  enabled?: boolean;
-  id?: string;
-  name?: string;
-  schedule?: CronScheduleWireInfo;
-  state?: CronJobStateWireInfo;
-  [key: string]: unknown;
-}
-
-export interface CronListParams {
-  includeDisabled?: boolean;
-  [key: string]: unknown;
-}
-
-export interface CronListResult {
-  jobs?: CronJobWireInfo[];
-  [key: string]: unknown;
-}
-
-export interface CronRemoveParams {
-  jobId?: string;
-  [key: string]: unknown;
-}
-
-export interface CronRemoveResult {
-  removed?: boolean;
-  [key: string]: unknown;
-}
-
-export interface CronRunParams {
-  jobId?: string;
-  [key: string]: unknown;
-}
-
-export interface CronRunResult {
-  job?: CronJobWireInfo | null;
-  queued?: boolean;
-  [key: string]: unknown;
-}
-
-export interface CronScheduleWireInfo {
-  atMs?: number | null;
-  dailyHour?: number | null;
-  dailyMinute?: number | null;
-  everyMs?: number | null;
-  initialDelayMs?: number | null;
-  kind?: string;
-  tz?: string | null;
-  [key: string]: unknown;
-}
-
-export interface CronStateChangedNotification {
-  job?: CronJobWireInfo;
-  removed?: boolean;
   [key: string]: unknown;
 }
 
@@ -2865,7 +2745,6 @@ export interface ServerCapabilities {
   channelStatus?: boolean;
   commandManagement?: boolean;
   configOverride?: boolean;
-  cronManagement?: boolean;
   dreams?: boolean;
   dynamicToolRebind?: boolean;
   extensions?: ServerCapabilityExtensions | null;

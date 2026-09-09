@@ -56,7 +56,7 @@ export function Sidebar({
   const desktopMainViews = useDesktopPluginRegistry((state) => state.mainViews)
 
   const automationsAvailable =
-    capabilities?.automations === true || capabilities?.cronManagement === true
+    capabilities?.automations === true
   if (sidebarCollapsed) {
     return <CollapsedSidebar />
   }
@@ -238,7 +238,7 @@ function CollapsedSidebar(): JSX.Element {
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const collapsedAutomationsAvailable =
-    collapsedCaps?.automations === true || collapsedCaps?.cronManagement === true
+    collapsedCaps?.automations === true
 
   const colorMap: Record<string, string> = {
     connecting: 'var(--warning)',

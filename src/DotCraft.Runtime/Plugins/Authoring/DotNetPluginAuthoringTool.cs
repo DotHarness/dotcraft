@@ -132,14 +132,12 @@ internal sealed class DotNetPluginAuthoringToolMethods(
     Lazy<DotNetPluginApiInspector> inspector)
 {
     [GeneratedTool(Name = "Inspect")]
-    [ToolSchema(DisallowAdditionalProperties = true)]
     [Description("Find public managed plugin API types and members in the current DotCraft Host, including their XML documentation summaries.")]
     public IReadOnlyList<DotNetPluginApiSymbol> Inspect(
         [Description("Fully-qualified name, simple type name, or member name to find.")] string query) =>
         inspector.Value.Inspect(query);
 
     [GeneratedTool(Name = "Build")]
-    [ToolSchema(DisallowAdditionalProperties = true)]
     [Description("Compile, preflight, publish, and activate one project under .craft/plugin-projects. The new contributions become available on the next Turn.")]
     public async Task<DotNetPluginBuildResult> BuildAsync(
         [Description("Canonical id of the workspace .NET plugin project to build.")] string pluginId,

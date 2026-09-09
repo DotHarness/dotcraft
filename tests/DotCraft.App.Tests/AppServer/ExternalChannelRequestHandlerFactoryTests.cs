@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
+using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.ExternalChannel;
 using DotCraft.Modules;
@@ -17,6 +18,57 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
     private readonly string _tempDir = Path.Combine(
         Path.GetTempPath(),
         "ExternalChannelRequestHandlerFactoryTests_" + Guid.NewGuid().ToString("N")[..8]);
+
+    [Fact]
+    public async Task Handler_ExposesAndExecutesWorkspaceModuleCommands()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var service = new TestableSessionService(new ThreadStore(_tempDir));
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "telegram", UserId = "user-1", WorkspacePath = _tempDir
+        });
+        await using var transport = new InMemoryTransport();
+        var providers = new ModelProviderRegistry([new OpenAIClientProvider()]);
+        var commands = CommandRegistry.CreateDefault(".craft");
+        commands.RegisterHandler(new AutomationTestCommand());
+        var factory = new ExternalChannelRequestHandlerFactory(
+            service, "test", new ModuleRegistry(), _tempDir,
+            new ChatClientRegistry(providers), providers,
+            streamDebugLogger: null, appConfigMonitor: null, protocolExtensions: [],
+            appBindingService: null, originPresentationProviders: [], loggerFactory: null,
+            commandRegistry: commands);
+        var handler = factory.Create(new AppServerConnection(), transport);
+        await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
+        {
+            clientInfo = new { name = "channel-test", version = "test" }
+        }));
+        using var initialized = await ReadResponseAsync(transport, 1);
+        handler.HandleInitializedNotification();
+
+        await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("command/list", new { }, id: 2));
+        using var listed = await ReadResponseAsync(transport, 2);
+        var names = listed.RootElement.GetProperty("result").GetProperty("commands")
+            .EnumerateArray().Select(command => command.GetProperty("name").GetString()).ToArray();
+        Assert.Contains("/automate", names);
+
+        await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("command/execute", new
+        {
+            threadId = thread.Id, command = "/automate", arguments = new[] { "pause", "a1" },
+            sender = new { senderId = "user-1", senderName = "User", senderRole = "user", groupId = "group:42" }
+        }, id: 3));
+        using var executed = await ReadResponseAsync(transport, 3);
+        var result = executed.RootElement.GetProperty("result");
+        Assert.True(result.GetProperty("handled").GetBoolean());
+        Assert.Equal("pause a1 group:42", result.GetProperty("message").GetString());
+    }
+
+    private sealed class AutomationTestCommand : ICommandHandler
+    {
+        public string[] Commands => ["/automate"];
+        public Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder) =>
+            Task.FromResult(CommandResult.HandledResult($"{string.Join(' ', context.Arguments)} {context.GroupId}"));
+    }
 
     [Fact]
     public async Task Handler_RuntimeAdditionalContextCapability_MatchesStartAndResumeSupport()
@@ -44,7 +96,7 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
             originPresentationProviders: [],
             loggerFactory: null,
             wireRuntimeAdditionalContextProvider: runtimeContextProvider);
-        var handler = factory.Create(connection, transport, cronService: null);
+        var handler = factory.Create(connection, transport);
 
         await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
         {
@@ -126,7 +178,7 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
             appBindingService: null,
             originPresentationProviders: [],
             loggerFactory: null);
-        var handler = factory.Create(connection, transport, cronService: null);
+        var handler = factory.Create(connection, transport);
 
         var initialize = InMemoryTransport.BuildRequest("initialize", new
         {

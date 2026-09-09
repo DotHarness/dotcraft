@@ -14,6 +14,7 @@ interface ComposerAvatarBehaviorOptions {
   activeIdle: boolean
   bounceSignal: number
   reducedMotion: boolean
+  directionalGestures?: boolean
 }
 
 export function useComposerAvatarBehavior(options: ComposerAvatarBehaviorOptions): {
@@ -60,7 +61,7 @@ export function useComposerAvatarBehavior(options: ComposerAvatarBehaviorOptions
               : value < 0.86
                 ? 'antenna-bob'
                 : undefined
-          if (next) {
+          if (next && (options.directionalGestures !== false || (next !== 'look-left' && next !== 'look-right'))) {
             setGesture(next)
             setGestureSequence((sequence) => sequence + 1)
           }
@@ -70,7 +71,7 @@ export function useComposerAvatarBehavior(options: ComposerAvatarBehaviorOptions
     }
     schedule()
     return () => { window.clearTimeout(timer) }
-  }, [options.sleeping, options.activeIdle, options.reducedMotion, options.baseExpression])
+  }, [options.sleeping, options.activeIdle, options.reducedMotion, options.baseExpression, options.directionalGestures])
 
   const clearGesture = useCallback(() => setGesture(undefined), [])
   const completeGesture = useCallback((sequence: number) => {

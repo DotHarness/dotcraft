@@ -1,7 +1,7 @@
 import { Bot, CornerDownRight, MessagesSquare, Target, Workflow } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
-import { useCronStore } from '../../stores/cronStore'
+import { useAutomationsStore } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
@@ -56,7 +56,7 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
   if (!label) return translate(locale, 'automation.triggeredBy.generic')
   return translate(
     locale,
-    kind === 'cron' ? 'automation.triggeredBy.cron' : 'automation.triggeredBy.task',
+    'automation.triggeredBy.task',
     { label }
   )
 }
@@ -81,8 +81,7 @@ export function MessageOriginLine({
 }): JSX.Element {
   const locale = useLocale()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
-  const setAutomationsTab = useUIStore((s) => s.setAutomationsTab)
-  const selectCronJob = useCronStore((s) => s.selectCronJob)
+  const selectAutomation = useAutomationsStore((s) => s.selectAutomation)
 
   const badgeText = badgeTextFor(locale, kind)
   const detailText = detailTextFor(locale, kind, label)
@@ -94,7 +93,7 @@ export function MessageOriginLine({
   const hint = label ? detailText : null
 
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
-  const canNavigate = (kind === 'cron' || kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId
+  const canNavigate = (kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId
 
   const onClick = canNavigate
     ? () => {
@@ -115,12 +114,7 @@ export function MessageOriginLine({
           return
         }
         setActiveMainView('automations')
-        if (kind === 'cron') {
-          setAutomationsTab('cron')
-          if (refId) selectCronJob(refId)
-        } else if (kind === 'automation') {
-          setAutomationsTab('tasks')
-        }
+        if (kind === 'automation' && refId) selectAutomation(refId)
       }
     : undefined
 

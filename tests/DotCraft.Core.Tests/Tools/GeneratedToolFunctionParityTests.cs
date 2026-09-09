@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Cron;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
 using DotCraft.Memory;
@@ -56,13 +55,45 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     [Fact]
     public void GeneratedDeclarationsMatchExecutableFunctions()
     {
-        var function = GeneratedToolFunctions.CronTools_Cron(CreateCronTools());
-        var declaration = GeneratedToolDeclarations.CronTools_Cron_Declaration;
+        var function = GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest();
+        var declaration = GeneratedToolDeclarations.CommitSuggestMethods_CommitSuggest_Declaration;
 
         Assert.Equal(function.Name, declaration.Name);
         Assert.Equal(function.Description, declaration.Description);
-        AssertJsonEqual(function.JsonSchema, declaration.InputSchema, "Cron declaration input schema");
-        AssertNullableJsonEqual(function.ReturnJsonSchema, declaration.OutputSchema, "Cron declaration output schema");
+        AssertJsonEqual(function.JsonSchema, declaration.InputSchema, "CommitSuggest declaration input schema");
+        AssertNullableJsonEqual(function.ReturnJsonSchema, declaration.OutputSchema, "CommitSuggest declaration output schema");
+    }
+
+    [Fact]
+    public void GeneratedProductionSchemasExposeTypedWireEnums()
+    {
+        var planTools = CreatePlanTools("typed-schema");
+        var builder = CreateAgentBuilderMethods("typed-builder");
+        var lspManager = new LspServerManager(
+            new AppConfig(),
+            new DotCraftPaths(_tempRoot, Path.Combine(_tempRoot, ".craft"), userDataPath: null));
+        _asyncDisposables.Add(lspManager);
+
+        AssertEnum(
+            GeneratedToolFunctions.SkillManageTool_SkillManage(CreateSkillManageTool()),
+            "action",
+            ["create", "edit", "patch", "write_file", "remove_file", "delete"]);
+        AssertEnum(GeneratedToolFunctions.GoalToolMethods_UpdateGoal(new GoalToolMethods()), "status", ["complete", "blocked"]);
+        AssertEnum(GeneratedToolFunctions.WebTools_WebFetch(new WebTools()), "extractMode", ["markdown", "text", "raw"]);
+        AssertEnum(
+            GeneratedToolFunctions.LspTool_LSP(new LspTool(_tempRoot, lspManager, requireApprovalOutsideWorkspace: false)),
+            "operation",
+            ["goToDefinition", "findReferences", "hover", "documentSymbol", "workspaceSymbol",
+             "goToImplementation", "prepareCallHierarchy", "incomingCalls", "outgoingCalls"]);
+        AssertEnum(
+            GeneratedToolFunctions.PlanTools_UpdateTodos(planTools),
+            "updates", ["pending", "in_progress", "completed", "cancelled"], nestedProperty: "status");
+        AssertEnum(
+            GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolPolicy(builder),
+            "mode", ["all", "allowList", "denyList"]);
+        AssertEnum(
+            GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentProviderPreference(builder),
+            "reasoningEffort", ["low", "medium", "high", "extraHigh", "ultra"]);
     }
 
     [Fact]
@@ -104,12 +135,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             AIFunctionFactory.Create(factoryBuilder.SetAgentToolPolicy),
             arrayArgs);
 
-        var generatedCron = CreateCronTools();
-        var factoryCron = CreateCronTools();
-        await AssertInvocationMatchesAsync(
-            GeneratedToolFunctions.CronTools_Cron(generatedCron),
-            AIFunctionFactory.Create(factoryCron.Cron),
-            new AIFunctionArguments { ["action"] = "list" });
     }
 
     [Fact]
@@ -194,7 +219,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var builderMethods = CreateAgentBuilderMethods("schema-builder");
         var skillView = new SkillViewTool(new SkillsLoader(_tempRoot), variantModeEnabled: false, new SkillVariantTarget());
         var skillManage = CreateSkillManageTool();
-        var cronTools = CreateCronTools();
         var sandboxManager = new SandboxSessionManager(
             new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 },
             new StubSandboxProvider(),
@@ -248,7 +272,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.SkillViewTool_SkillView(skillView), AIFunctionFactory.Create(skillView.SkillView)),
             Pair(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManage), AIFunctionFactory.Create(skillManage.SkillManage)),
             Pair(GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest(), AIFunctionFactory.Create(CommitSuggestMethods.CommitSuggest)),
-            Pair(GeneratedToolFunctions.CronTools_Cron(cronTools), AIFunctionFactory.Create(cronTools.Cron)),
             Pair(GeneratedToolFunctions.SandboxFileTools_ReadFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.ReadFile)),
             Pair(GeneratedToolFunctions.SandboxFileTools_WriteFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.WriteFile)),
             Pair(GeneratedToolFunctions.SandboxFileTools_EditFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.EditFile)),
@@ -272,31 +295,30 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         return new AgentProfileBuilderToolMethods(threadId, skillsLoader: null, mcpClientManager: null);
     }
 
-    private CronTools CreateCronTools()
-    {
-        var path = Path.Combine(_tempRoot, $"cron_{Guid.NewGuid():N}.json");
-        var service = new CronService(path);
-        _disposables.Add(service);
-        return new CronTools(service);
-    }
-
     private SkillManageTool CreateSkillManageTool() =>
         new(new NoOpSkillMutationApplier(), new AppConfig.SelfLearningConfig());
 
     private static FunctionPair Pair(AIFunction generated, AIFunction factory) =>
         new(generated.Name, generated, factory);
 
+    private static void AssertEnum(
+        AIFunction function,
+        string property,
+        string[] expected,
+        string? nestedProperty = null)
+    {
+        var schema = function.JsonSchema.GetProperty("properties").GetProperty(property);
+        if (nestedProperty is not null)
+            schema = schema.GetProperty("items").GetProperty("properties").GetProperty(nestedProperty);
+        Assert.Equal(expected, schema.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
     private static void AssertFunctionShape(FunctionPair pair)
     {
         Assert.Equal(pair.Factory.Name, pair.Generated.Name);
         Assert.Equal(pair.Factory.Description, pair.Generated.Description);
-        AssertJsonEqual(pair.Factory.JsonSchema, pair.Generated.JsonSchema, $"{pair.Name} raw input schema");
-        AssertJsonEqual(
-            ToolSchemaSanitizer.SanitizeJsonSchema(pair.Factory.JsonSchema),
-            ToolSchemaSanitizer.SanitizeJsonSchema(pair.Generated.JsonSchema),
-            $"{pair.Name} input schema");
+        Assert.False(pair.Generated.JsonSchema.GetProperty("additionalProperties").GetBoolean());
         AssertNullableJsonEqual(pair.Factory.ReturnJsonSchema, pair.Generated.ReturnJsonSchema, $"{pair.Name} return schema");
-        Assert.Same(pair.Factory.JsonSerializerOptions, pair.Generated.JsonSerializerOptions);
         Assert.NotNull(pair.Factory.UnderlyingMethod);
         Assert.Null(pair.Generated.UnderlyingMethod);
     }

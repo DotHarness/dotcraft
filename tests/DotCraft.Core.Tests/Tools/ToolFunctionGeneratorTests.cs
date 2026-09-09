@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Generators;
 using DotCraft.Tools;
@@ -19,6 +20,7 @@ public sealed class ToolFunctionGeneratorTests
         const string source = """
             using System.ComponentModel;
             using System.ComponentModel.DataAnnotations;
+            using System;
             using System.Text.Json;
             using System.Text.Json.Nodes;
             using System.Text.Json.Serialization;
@@ -28,10 +30,9 @@ public sealed class ToolFunctionGeneratorTests
 
             internal enum FixtureMode
             {
-                [JsonStringEnumMemberName("inline")]
                 Inline,
-                [JsonStringEnumMemberName("saved")]
-                Saved
+                [JsonStringEnumMemberName("saved_value")]
+                SavedValue
             }
 
             internal sealed class NestedInput
@@ -44,12 +45,14 @@ public sealed class ToolFunctionGeneratorTests
 
                 [JsonIgnore]
                 public string? Hidden { get; init; }
+
+                [Description("Optional scheduled instant.")]
+                public DateTimeOffset? ScheduledAt { get; init; }
             }
 
             internal interface IFixtureDeclaration
             {
                 [ToolDeclaration(Name = "schema_test")]
-                [ToolSchema(DisallowAdditionalProperties = true)]
                 [Description("Schema-only declaration.")]
                 void Run(
                     [ToolParameter(Name = "mode_name")]
@@ -75,6 +78,7 @@ public sealed class ToolFunctionGeneratorTests
                 public string Go(
                     [ToolParameter(Name = "input_value")]
                     [Description("Input value.")] string value,
+                    [Description("Optional execution time.")] DateTimeOffset? at = null,
                     [Description("Default execution mode.")] FixtureMode mode = FixtureMode.Inline) => value;
             }
 
@@ -110,7 +114,7 @@ public sealed class ToolFunctionGeneratorTests
         Assert.False(schema["additionalProperties"]!.GetValue<bool>());
         Assert.Equal(["mode_name"], schema["required"]!.AsArray().Select(static value => value!.GetValue<string>()));
         var properties = schema["properties"]!.AsObject();
-        Assert.Equal(["inline", "saved"], properties["mode_name"]!["enum"]!.AsArray().Select(static value => value!.GetValue<string>()));
+        Assert.Equal(["inline", "saved_value"], properties["mode_name"]!["enum"]!.AsArray().Select(static value => value!.GetValue<string>()));
         Assert.Equal(0, properties["count"]!["minimum"]!.GetValue<int>());
         Assert.Null(properties["count"]!["maximum"]);
         Assert.Equal(2, properties["text"]!["minLength"]!.GetValue<int>());
@@ -119,10 +123,14 @@ public sealed class ToolFunctionGeneratorTests
         Assert.Null(properties["payload"]!["type"]);
         Assert.Null(properties["element"]!["type"]);
         Assert.Equal("object", properties["obj"]!["type"]!.GetValue<string>());
+        Assert.Null(properties["obj"]!["additionalProperties"]);
         Assert.Equal("array", properties["array"]!["type"]!.GetValue<string>());
         var nested = properties["nested"]!["properties"]!.AsObject();
+        Assert.False(properties["nested"]!["additionalProperties"]!.GetValue<bool>());
         Assert.True(nested.ContainsKey("display_name"));
         Assert.False(nested.ContainsKey("hidden"));
+        Assert.Equal(["string", "null"], nested["scheduledAt"]!["type"]!.AsArray().Select(static value => value!.GetValue<string>()));
+        Assert.Equal("date-time", nested["scheduledAt"]!["format"]!.GetValue<string>());
         Assert.Equal(["display_name"], properties["nested"]!["required"]!.AsArray().Select(static value => value!.GetValue<string>()));
 
         var functions = assembly.GetType($"{generatedNamespace}.GeneratedToolFunctions");
@@ -141,9 +149,27 @@ public sealed class ToolFunctionGeneratorTests
         Assert.True(Assert.Single(descriptors, descriptor => descriptor.Name == "exec_alias").RpcEligible);
         var functionProperties = function.JsonSchema.GetProperty("properties");
         Assert.True(functionProperties.TryGetProperty("input_value", out _));
+        Assert.Equal(JsonValueKind.Array, functionProperties.GetProperty("at").GetProperty("type").ValueKind);
+        Assert.Equal("date-time", functionProperties.GetProperty("at").GetProperty("format").GetString());
         Assert.Equal("inline", functionProperties.GetProperty("mode").GetProperty("default").GetString());
-        var invocation = await function.InvokeAsync(new AIFunctionArguments { ["input_value"] = "ok" });
+        var invocation = await function.InvokeAsync(new AIFunctionArguments
+        {
+            ["input_value"] = "ok",
+            ["at"] = "2026-09-09T00:00:00Z",
+            ["mode"] = "saved_value"
+        });
         Assert.Equal("ok", ((System.Text.Json.JsonElement)invocation!).GetString());
+
+        await Assert.ThrowsAsync<JsonException>(() => function.InvokeAsync(new AIFunctionArguments
+        {
+            ["input_value"] = "no",
+            ["mode"] = 1
+        }).AsTask());
+        await Assert.ThrowsAsync<JsonException>(() => function.InvokeAsync(new AIFunctionArguments
+        {
+            ["input_value"] = "no",
+            ["mode"] = "Inline"
+        }).AsTask());
 
         var toolAttributeFunction = Assert.IsAssignableFrom<AIFunction>(
             functions.GetMethod("FixtureToolAttribute_Run", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, null));

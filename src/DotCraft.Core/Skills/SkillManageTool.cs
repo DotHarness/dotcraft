@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -8,6 +9,19 @@ using DotCraft.Security;
 using DotCraft.Tools;
 
 namespace DotCraft.Skills;
+
+/// <summary>Operations supported by <see cref="SkillManageTool"/>.</summary>
+public enum SkillManageAction
+{
+    Create,
+    Edit,
+    Patch,
+    [JsonStringEnumMemberName("write_file")]
+    WriteFile,
+    [JsonStringEnumMemberName("remove_file")]
+    RemoveFile,
+    Delete
+}
 
 /// <summary>
 /// Agent-facing tools for creating and maintaining workspace skills.
@@ -27,9 +41,6 @@ public sealed class SkillManageTool(
     private const string SkillManageDescription =
         """
         Manage workspace skills. Updates normally write a workspace adaptation so the original skill is not modified.
-        The 'action' parameter must be one of:
-        'create', 'edit', 'patch', 'write_file', 'remove_file' or `delete`.
-
         Examples:
         SkillManage(action: "create", name: "my-skill", content: "<full SKILL.md>") - create a new workspace skill;
         SkillManage(action: "patch", name: "my-skill", oldString: "...", newString: "...") - targeted fix in the effective SKILL.md;
@@ -53,8 +64,8 @@ public sealed class SkillManageTool(
     [Description(SkillManageDescription)]
     [StreamArguments(false)]
     public async Task<string> SkillManage(
-        [Description("Must be one of: 'create', 'edit', 'patch', 'write_file', 'remove_file' or `delete`.")]
-        string action,
+        [Description("Operation to perform.")]
+        SkillManageAction action,
         [Description("Lowercase skill name using letters, numbers, hyphens, dots, or underscores. Required for every action.")]
         string name,
         [Description("Full SKILL.md content. Required for 'create' and 'edit'.")]
@@ -71,23 +82,19 @@ public sealed class SkillManageTool(
         bool replaceAll = false,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(action))
-            return Error("action is required. Use one of: create, edit, patch, write_file, remove_file, delete.");
-
-        var normalizedAction = action.Trim().ToLowerInvariant();
         var validationError = ValidateNameOnly(name);
         if (validationError != null)
             return Error(validationError);
 
-        return normalizedAction switch
+        return action switch
         {
-            "create" => await CreateAsync(name, content, cancellationToken),
-            "edit" => await EditAsync(name, content, cancellationToken),
-            "patch" => await PatchAsync(name, oldString, newString, filePath, replaceAll, cancellationToken),
-            "delete" => await DeleteAsync(name, cancellationToken),
-            "write_file" => await WriteFileAsync(name, filePath, fileContent, cancellationToken),
-            "remove_file" => await RemoveFileAsync(name, filePath, cancellationToken),
-            _ => Error($"Unknown action '{action}'. Use: create, edit, patch, delete, write_file, remove_file.")
+            SkillManageAction.Create => await CreateAsync(name, content, cancellationToken),
+            SkillManageAction.Edit => await EditAsync(name, content, cancellationToken),
+            SkillManageAction.Patch => await PatchAsync(name, oldString, newString, filePath, replaceAll, cancellationToken),
+            SkillManageAction.Delete => await DeleteAsync(name, cancellationToken),
+            SkillManageAction.WriteFile => await WriteFileAsync(name, filePath, fileContent, cancellationToken),
+            SkillManageAction.RemoveFile => await RemoveFileAsync(name, filePath, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
         };
     }
 

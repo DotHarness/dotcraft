@@ -2500,36 +2500,574 @@
       },
       "additionalProperties": true
     },
+    "AutomationCreateParams": {
+      "title": "AutomationCreateParams",
+      "type": "object",
+      "properties": {
+        "automation": {
+          "$ref": "#/$defs/AutomationInput"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automation"
+      ]
+    },
+    "AutomationDefinition": {
+      "title": "AutomationDefinition",
+      "type": "object",
+      "properties": {
+        "agentProfileId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approvalPolicy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "executionMode": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nextRunAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notificationPolicy": {
+          "type": "string"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationOrigin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "schedule": {
+          "$ref": "#/$defs/AutomationSchedule"
+        },
+        "status": {
+          "type": "string"
+        },
+        "targetThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "workspaceMode": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "approvalPolicy",
+        "createdAt",
+        "executionMode",
+        "id",
+        "name",
+        "notificationPolicy",
+        "prompt",
+        "schedule",
+        "status",
+        "updatedAt",
+        "version",
+        "workspaceMode"
+      ]
+    },
+    "AutomationDeleteResult": {
+      "title": "AutomationDeleteResult",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "ok"
+      ]
+    },
+    "AutomationIdParams": {
+      "title": "AutomationIdParams",
+      "type": "object",
+      "properties": {
+        "automationId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automationId"
+      ]
+    },
+    "AutomationInput": {
+      "title": "AutomationInput",
+      "type": "object",
+      "properties": {
+        "agentProfileId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approvalPolicy": {
+          "type": "string"
+        },
+        "executionMode": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "notificationPolicy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "schedule": {
+          "$ref": "#/$defs/AutomationSchedule"
+        },
+        "status": {
+          "type": "string"
+        },
+        "targetThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspaceMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "approvalPolicy",
+        "executionMode",
+        "name",
+        "prompt",
+        "schedule",
+        "status"
+      ]
+    },
+    "AutomationListResult": {
+      "title": "AutomationListResult",
+      "type": "object",
+      "properties": {
+        "automations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationDefinition"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automations"
+      ]
+    },
+    "AutomationOrigin": {
+      "title": "AutomationOrigin",
+      "type": "object",
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "deliveryTarget": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "groupId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "channel",
+        "userId"
+      ]
+    },
+    "AutomationPreset": {
+      "title": "AutomationPreset",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationSchedule"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "name",
+        "prompt"
+      ]
+    },
+    "AutomationPresetsParams": {
+      "title": "AutomationPresetsParams",
+      "type": "object",
+      "properties": {
+        "locale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationPresetsResult": {
+      "title": "AutomationPresetsResult",
+      "type": "object",
+      "properties": {
+        "presets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationPreset"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "presets"
+      ]
+    },
+    "AutomationReadResult": {
+      "title": "AutomationReadResult",
+      "type": "object",
+      "properties": {
+        "automation": {
+          "$ref": "#/$defs/AutomationDefinition"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automation"
+      ]
+    },
+    "AutomationRun": {
+      "title": "AutomationRun",
+      "type": "object",
+      "properties": {
+        "automationId": {
+          "type": "string"
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "definitionVersion": {
+          "type": "integer"
+        },
+        "deliveryError": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deliveryStatus": {
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "readAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scheduledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "worktree": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadWorktreeInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automationId",
+        "createdAt",
+        "definitionVersion",
+        "deliveryStatus",
+        "id",
+        "status"
+      ]
+    },
+    "AutomationRunReadParams": {
+      "title": "AutomationRunReadParams",
+      "type": "object",
+      "properties": {
+        "automationId": {
+          "type": "string"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "runIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automationId",
+        "read",
+        "runIds"
+      ]
+    },
+    "AutomationRunResult": {
+      "title": "AutomationRunResult",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/AutomationRun"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "run"
+      ]
+    },
+    "AutomationRunUpdatedNotification": {
+      "title": "AutomationRunUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/AutomationRun"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "run"
+      ]
+    },
+    "AutomationRunsResult": {
+      "title": "AutomationRunsResult",
+      "type": "object",
+      "properties": {
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationRun"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "runs"
+      ]
+    },
     "AutomationSchedule": {
       "title": "AutomationSchedule",
       "type": "object",
       "properties": {
-        "atMs": {
+        "at": {
           "anyOf": [
             {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
+              "type": "string",
+              "format": "date-time"
             },
             {
               "type": "null"
             }
           ]
         },
-        "dailyHour": {
+        "days": {
           "anyOf": [
             {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dailyMinute": {
-          "anyOf": [
-            {
-              "type": "integer"
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
             },
             {
               "type": "null"
@@ -2548,22 +3086,10 @@
             }
           ]
         },
-        "expr": {
+        "hour": {
           "anyOf": [
             {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "initialDelayMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
+              "type": "integer"
             },
             {
               "type": "null"
@@ -2573,7 +3099,17 @@
         "kind": {
           "type": "string"
         },
-        "tz": {
+        "minute": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeZone": {
           "anyOf": [
             {
               "type": "string"
@@ -2584,753 +3120,58 @@
           ]
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "kind"
+      ]
     },
-    "AutomationTask": {
-      "title": "AutomationTask",
+    "AutomationUpdateParams": {
+      "title": "AutomationUpdateParams",
       "type": "object",
       "properties": {
-        "agentProfileId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "automation": {
+          "$ref": "#/$defs/AutomationInput"
         },
-        "agentSummary": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "approvalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "createdAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "id": {
+        "automationId": {
           "type": "string"
         },
-        "nextRunAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "schedule": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationSchedule"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "status": {
-          "type": "string"
-        },
-        "threadBinding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationThreadBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "workspaceMode": {
-          "type": "string"
-        },
-        "worktree": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationTaskWorktree"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "expectedVersion": {
+          "type": "integer"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "automation",
+        "automationId",
+        "expectedVersion"
+      ]
     },
-    "AutomationTaskCreateParams": {
-      "title": "AutomationTaskCreateParams",
+    "AutomationUpdatedNotification": {
+      "title": "AutomationUpdatedNotification",
       "type": "object",
       "properties": {
-        "agentProfileId": {
+        "automation": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/AutomationDefinition"
             },
             {
               "type": "null"
             }
           ]
         },
-        "approvalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "schedule": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationSchedule"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "templateId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadBinding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationThreadBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
+        "automationId": {
           "type": "string"
         },
-        "workflowTemplate": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "workspaceMode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskCreateResult": {
-      "title": "AutomationTaskCreateResult",
-      "type": "object",
-      "properties": {
-        "taskDirectory": {
-          "type": "string"
-        },
-        "taskId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskDeleteParams": {
-      "title": "AutomationTaskDeleteParams",
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskDeleteResult": {
-      "title": "AutomationTaskDeleteResult",
-      "type": "object",
-      "properties": {
-        "ok": {
+        "removed": {
           "type": "boolean"
         }
       },
-      "additionalProperties": true
-    },
-    "AutomationTaskDiscardWorktreeParams": {
-      "title": "AutomationTaskDiscardWorktreeParams",
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskDiscardWorktreeResult": {
-      "title": "AutomationTaskDiscardWorktreeResult",
-      "type": "object",
-      "properties": {
-        "task": {
-          "$ref": "#/$defs/AutomationTask"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskListParams": {
-      "title": "AutomationTaskListParams",
-      "type": "object",
-      "properties": {
-        "workspacePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskListResult": {
-      "title": "AutomationTaskListResult",
-      "type": "object",
-      "properties": {
-        "tasks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AutomationTask"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskReadParams": {
-      "title": "AutomationTaskReadParams",
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskRunParams": {
-      "title": "AutomationTaskRunParams",
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskRunResult": {
-      "title": "AutomationTaskRunResult",
-      "type": "object",
-      "properties": {
-        "task": {
-          "$ref": "#/$defs/AutomationTask"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskUpdateBindingParams": {
-      "title": "AutomationTaskUpdateBindingParams",
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "threadBinding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationThreadBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskUpdateBindingResult": {
-      "title": "AutomationTaskUpdateBindingResult",
-      "type": "object",
-      "properties": {
-        "task": {
-          "$ref": "#/$defs/AutomationTask"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskUpdatedNotification": {
-      "title": "AutomationTaskUpdatedNotification",
-      "type": "object",
-      "properties": {
-        "task": {
-          "$ref": "#/$defs/AutomationTask"
-        },
-        "workspacePath": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskWorktree": {
-      "title": "AutomationTaskWorktree",
-      "type": "object",
-      "properties": {
-        "branchName": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplate": {
-      "title": "AutomationTemplate",
-      "type": "object",
-      "properties": {
-        "category": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "createdAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultAgentProfileId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultApprovalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultDescription": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultSchedule": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationSchedule"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultTitle": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultWorkspaceMode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "icon": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "isUser": {
-          "type": "boolean"
-        },
-        "needsThreadBinding": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "workflowMarkdown": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateDeleteParams": {
-      "title": "AutomationTemplateDeleteParams",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateDeleteResult": {
-      "title": "AutomationTemplateDeleteResult",
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateListParams": {
-      "title": "AutomationTemplateListParams",
-      "type": "object",
-      "properties": {
-        "locale": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateListResult": {
-      "title": "AutomationTemplateListResult",
-      "type": "object",
-      "properties": {
-        "templates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AutomationTemplate"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateSaveParams": {
-      "title": "AutomationTemplateSaveParams",
-      "type": "object",
-      "properties": {
-        "category": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultAgentProfileId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultApprovalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultDescription": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultSchedule": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationSchedule"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultTitle": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultWorkspaceMode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "icon": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "needsThreadBinding": {
-          "type": "boolean"
-        },
-        "title": {
-          "type": "string"
-        },
-        "workflowMarkdown": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateSaveResult": {
-      "title": "AutomationTemplateSaveResult",
-      "type": "object",
-      "properties": {
-        "template": {
-          "$ref": "#/$defs/AutomationTemplate"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationThreadBinding": {
-      "title": "AutomationThreadBinding",
-      "type": "object",
-      "properties": {
-        "mode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "automationId",
+        "removed"
+      ]
     },
     "BackgroundTerminalSnapshot": {
       "title": "BackgroundTerminalSnapshot",
@@ -4739,292 +4580,6 @@
         },
         "warningThreshold": {
           "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronEnableParams": {
-      "title": "CronEnableParams",
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "jobId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronEnableResult": {
-      "title": "CronEnableResult",
-      "type": "object",
-      "properties": {
-        "job": {
-          "$ref": "#/$defs/CronJobWireInfo"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronJobStateWireInfo": {
-      "title": "CronJobStateWireInfo",
-      "type": "object",
-      "properties": {
-        "lastError": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "lastResult": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "lastRunAtMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "lastStatus": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "lastThreadId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "nextRunAtMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronJobWireInfo": {
-      "title": "CronJobWireInfo",
-      "type": "object",
-      "properties": {
-        "createdAtMs": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "deleteAfterRun": {
-          "type": "boolean"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "schedule": {
-          "$ref": "#/$defs/CronScheduleWireInfo"
-        },
-        "state": {
-          "$ref": "#/$defs/CronJobStateWireInfo"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronListParams": {
-      "title": "CronListParams",
-      "type": "object",
-      "properties": {
-        "includeDisabled": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronListResult": {
-      "title": "CronListResult",
-      "type": "object",
-      "properties": {
-        "jobs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/CronJobWireInfo"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronRemoveParams": {
-      "title": "CronRemoveParams",
-      "type": "object",
-      "properties": {
-        "jobId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronRemoveResult": {
-      "title": "CronRemoveResult",
-      "type": "object",
-      "properties": {
-        "removed": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronRunParams": {
-      "title": "CronRunParams",
-      "type": "object",
-      "properties": {
-        "jobId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronRunResult": {
-      "title": "CronRunResult",
-      "type": "object",
-      "properties": {
-        "job": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CronJobWireInfo"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "queued": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronScheduleWireInfo": {
-      "title": "CronScheduleWireInfo",
-      "type": "object",
-      "properties": {
-        "atMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dailyHour": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dailyMinute": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "everyMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "initialDelayMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "kind": {
-          "type": "string"
-        },
-        "tz": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "CronStateChangedNotification": {
-      "title": "CronStateChangedNotification",
-      "type": "object",
-      "properties": {
-        "job": {
-          "$ref": "#/$defs/CronJobWireInfo"
-        },
-        "removed": {
-          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -11272,9 +10827,6 @@
           "type": "boolean"
         },
         "configOverride": {
-          "type": "boolean"
-        },
-        "cronManagement": {
           "type": "boolean"
         },
         "dreams": {

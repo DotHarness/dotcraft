@@ -37,6 +37,13 @@ test("parseTargetChatId supports raw and prefixed targets", () => {
   assert.equal(parseTargetChatId("bad-target"), null);
 });
 
+test("buildTelegramBotCommands exposes the host automation command", async () => {
+  const commands = await buildTelegramBotCommands(async () => [
+    { name: "/automate", description: "Manage automations" },
+  ]);
+  assert.ok(commands.some(({ command }) => command === "automate"));
+});
+
 test("TelegramAdapter builds social binding target from chat context", () => {
   const adapter = new TelegramAdapter() as unknown as {
     buildSocialTarget: (

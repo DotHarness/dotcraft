@@ -4,3 +4,5 @@ export { DecorationSwatch, PrimaryDecoration, SecondaryDecoration } from './Deco
 export { ComposerMascot } from './composer/ComposerMascot.js'
 export type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './composer/types.js'
 export { ComposerMascotShadow } from './composer/ComposerMascotShadow.js'
+export { useComposerAvatarBehavior } from './composer/useComposerAvatarBehavior.js'
+export { MASCOT_SLEEP_AFTER_MS } from './composer/constants.js'

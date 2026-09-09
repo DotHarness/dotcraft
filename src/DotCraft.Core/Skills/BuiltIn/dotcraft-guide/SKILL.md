@@ -32,7 +32,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | A bundle of skills, tools, hooks, MCP servers, or UI | A plugin — `$plugin-creator` |
 | External data or actions from another program | `McpServers` |
 | "From now on, whenever X happens, do Y", mechanically | A hook — `$create-hooks`. Not memory, and not prose in a file |
-| Something on a schedule | `$cron`, or an Automation |
+| Something on a schedule | the `Automation` tool |
 | Parallel orchestration across many items | `$workflow-authoring` |
 | A chat bot on QQ, WeCom, Feishu, Telegram, or Weixin | Desktop Settings > Channels, and `/features/channels/` for setup |
 
@@ -59,7 +59,7 @@ Read the one that matches the task. They sit next to this file, in the directory
 ## Hand off
 
 - A failure that needs logs, rollouts, or `state.db` — `dotcraft-doctor`, in the bundled `dotcraft` plugin. If it is not installed, say so and point to Desktop > Plugins rather than guessing at a cause. An error already visible in this conversation you can simply answer.
-- Writing or installing a skill — `$skill-authoring`, `$skill-installer`. Plugins — `$plugin-creator`. Hooks — `$create-hooks`. Schedules — `$cron`. Workflows — `$workflow-authoring`. Charts and interactive views — `$visualize`.
+- Writing or installing a skill — `$skill-authoring`, `$skill-installer`. Plugins — `$plugin-creator`. Hooks — `$create-hooks`. Schedules — the `Automation` tool. Workflows — `$workflow-authoring`. Charts and interactive views — `$visualize`.
 - How memory retrieval and consolidation work — `$memory`. The `Memory` and `Dreams` settings stay here.
 - Building an application on the SDKs, in-process Harness, or AppServer protocol — `$dotcraft-api`.
 - Editing DotCraft's own source or documentation — `dotcraft-dev-guide`, `dotcraft-docs-guide`.

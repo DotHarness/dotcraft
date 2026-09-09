@@ -97,7 +97,7 @@ Returns the Dashboard host mode, full workspace path, and capability flags. In s
 
 ### `GET /dashboard/api/orchestrators/automations/state`
 
-Returns Automations orchestrator state, including local tasks and Cron summaries.
+Returns `{ automations, countsByStatus, generatedAt }` from the unified automation service. Counts describe definitions (`active`, `paused`, `completed`); per-run results are available through `automation/runs/list`.
 
 ### `POST /dashboard/api/orchestrators/automations/refresh`
 

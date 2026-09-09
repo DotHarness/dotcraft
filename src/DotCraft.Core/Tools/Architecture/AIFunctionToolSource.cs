@@ -135,7 +135,6 @@ internal static class CoreToolPresentationCatalog
     public static ToolPresentationDescriptor? Resolve(string toolName) => toolName switch
     {
         "CreatePlan" => Descriptor("core.create-plan"),
-        "Cron" => Descriptor("core.cron"),
         "SkillManage" => Descriptor("core.skill-manage"),
         "SkillView" => Descriptor("core.skill-view"),
         "SpawnAgent" => Descriptor("core.subagent", "spawn"),
@@ -205,12 +204,12 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(arguments);
 
-        var values = new Dictionary<string, object?>(StringComparer.Ordinal);
-        foreach (var (key, value) in arguments)
-            values[key] = value?.Deserialize<object>(_function.JsonSerializerOptions);
-
         try
         {
+            var values = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var (key, value) in arguments)
+                values[key] = value?.Deserialize<object>(_function.JsonSerializerOptions);
+
             var result = await _function.InvokeAsync(new AIFunctionArguments(values), cancellationToken)
                 .ConfigureAwait(false);
             if (result is IEnumerable<AIContent> richContent)
@@ -225,6 +224,16 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (ArgumentException ex)
+        {
+            return ToolExecutionResult.Failed(
+                new ToolError(ToolErrorCodes.InputInvalid, ex.Message));
+        }
+        catch (JsonException ex)
+        {
+            return ToolExecutionResult.Failed(
+                new ToolError(ToolErrorCodes.InputInvalid, ex.Message));
         }
         catch (Exception ex)
         {

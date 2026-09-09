@@ -262,6 +262,14 @@ export function Select<T extends string = string>({
   }, [open, options, position, updatePosition])
 
   useLayoutEffect(() => {
+    if (!open || !position || activeIndex < 0) return
+    const activeOption = document.getElementById(`${listboxId}-option-${activeIndex}`)
+    if (typeof activeOption?.scrollIntoView === 'function') {
+      activeOption.scrollIntoView({ block: 'nearest' })
+    }
+  }, [activeIndex, listboxId, open, position])
+
+  useLayoutEffect(() => {
     if (!open || !adaptive) return
     const metrics = measureAdaptiveTarget()
     if (!metrics) return

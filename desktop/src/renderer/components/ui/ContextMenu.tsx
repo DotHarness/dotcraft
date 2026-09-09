@@ -9,6 +9,8 @@ export interface ContextMenuItem {
   label: string
   onClick: () => void
   icon?: ReactNode
+  /** Content aligned to the trailing edge, such as a selected-state check. */
+  trailing?: ReactNode
   /** Native tooltip describing what the item does (shown on hover). */
   title?: string
   danger?: boolean
@@ -258,6 +260,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
               </span>
             )}
             {item.label}
+            {item.trailing ? <MenuItemTrailing>{item.trailing}</MenuItemTrailing> : null}
             {item.submenu && (
               <ChevronRight
                 size={14}
@@ -372,6 +375,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                   </span>
                 )}
                 {item.label}
+                {item.trailing ? <MenuItemTrailing>{item.trailing}</MenuItemTrailing> : null}
               </button>
             )
           })}
@@ -381,6 +385,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   )
 
   return createPortal(menu, document.body) as JSX.Element
+}
+
+function MenuItemTrailing({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, marginLeft: 'auto', flexShrink: 0 }}>
+      {children}
+    </span>
+  )
 }
 
 function getSubmenuAnchor(

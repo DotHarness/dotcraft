@@ -1,353 +1,98 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAutomationsStore, type AutomationTask } from '../stores/automationsStore'
-import { useCronStore } from '../stores/cronStore'
+import { useAutomationsStore, type AutomationDefinition } from '../stores/automationsStore'
+import { validSchedule } from '../components/automations/AutomationScheduleEditor'
+import { parseAutomationResult } from '../components/conversation/AutomationToolCard'
+import { stageAutomationCreationInWelcome } from '../components/automations/automationDraft'
+import { useUIStore } from '../stores/uiStore'
+import { ensureScheduleTimeZone } from '../utils/automationTimeZone'
+const definition: AutomationDefinition = { id: 'a', version: 3, name: 'Check CI', prompt: 'Check build results', status: 'active', executionMode: 'thread', targetThreadId: 't', workspaceMode: 'project', approvalPolicy: 'workspaceScope', notificationPolicy: 'important', schedule: { kind: 'every', everyMs: 60000 }, createdAt: '2026-09-08T00:00:00Z', updatedAt: '2026-09-08T00:00:00Z' }
+const sendRequest = vi.fn()
+beforeEach(() => {
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
+  Object.defineProperty(window, 'api', { configurable: true, value: { appServer: { sendRequest } } })
+  sendRequest.mockReset()
+  useAutomationsStore.setState({ automations: [definition], runs: {}, selectedAutomationId: 'a' })
+  useAutomationsStore.setState({ pendingActions: {} })
+})
+describe('unified automations', () => {
+  it('stages the automation skill in Welcome before conversation creation', () => {
+    useUIStore.setState({ activeMainView: 'automations', welcomeDraft: null })
 
-describe('automationsStore templates', () => {
-  const sendRequest = vi.fn()
+    stageAutomationCreationInWelcome('Set up a weekly review.')
 
-  beforeEach(() => {
-    sendRequest.mockReset()
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: {}
-    })
-    Object.defineProperty(globalThis.window, 'api', {
-      configurable: true,
-      value: {
-        appServer: {
-          sendRequest
-        }
-      }
-    })
-
-    useAutomationsStore.setState({
-      tasks: [],
-      loading: false,
-      error: null,
-      selectedTaskId: null,
-      templates: [],
-      templatesLoaded: false,
-      templatesLocale: undefined
-    })
-    useCronStore.setState({
-      jobs: [],
-      loading: false,
-      listLoadedOnce: false,
-      error: null,
-      selectedCronJobId: null
-    })
+    const state = useUIStore.getState()
+    expect(state.activeMainView).toBe('conversation')
+    expect(state.welcomeDraft?.segments).toEqual([
+      { type: 'skill', skillName: 'automations' },
+      { type: 'text', value: ' Set up a weekly review.' }
+    ])
+    expect(state.welcomeDraft?.text).toContain('$automations')
   })
-
-  it('passes the requested locale when fetching templates', async () => {
-    sendRequest.mockResolvedValueOnce({
-      templates: [
-        {
-          id: 'scan-commits-for-bugs',
-          title: '扫描近期提交中的潜在缺陷',
-          workflowMarkdown: '---\n---'
-        }
-      ]
-    })
-
-    await useAutomationsStore.getState().fetchTemplates('zh-Hans')
-
-    expect(sendRequest).toHaveBeenCalledWith('automation/template/list', {
-      locale: 'zh-Hans'
-    })
-    expect(useAutomationsStore.getState().templatesLocale).toBe('zh-Hans')
-    expect(useAutomationsStore.getState().templates[0]?.title).toBe(
-      '扫描近期提交中的潜在缺陷'
-    )
+  it('sends optimistic concurrency and only editable fields', async () => {
+    sendRequest.mockResolvedValue({ automation: { ...definition, version: 4 } })
+    await useAutomationsStore.getState().save({ ...definition, name: 'Updated' }, definition)
+    expect(sendRequest).toHaveBeenCalledWith('automation/update', expect.objectContaining({ automationId: 'a', expectedVersion: 3, automation: expect.objectContaining({ name: 'Updated', targetThreadId: 't' }) }))
+    expect(sendRequest.mock.calls[0][1].automation).not.toHaveProperty('version')
+    expect(sendRequest.mock.calls[0][1].automation).not.toHaveProperty('origin')
   })
-
-  it('refetches when locale changes but reuses the same-locale cache', async () => {
-    sendRequest
-      .mockResolvedValueOnce({
-        templates: [{ id: 'weekly-report', title: 'Weekly activity report', workflowMarkdown: '' }]
-      })
-      .mockResolvedValueOnce({
-        templates: [{ id: 'weekly-report', title: '每周活动报告', workflowMarkdown: '' }]
-      })
-
-    await useAutomationsStore.getState().fetchTemplates('en')
-    await useAutomationsStore.getState().fetchTemplates('en')
-    await useAutomationsStore.getState().fetchTemplates('zh-Hans')
-
-    expect(sendRequest).toHaveBeenCalledTimes(2)
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/template/list', {
-      locale: 'en'
-    })
-    expect(sendRequest).toHaveBeenNthCalledWith(2, 'automation/template/list', {
-      locale: 'zh-Hans'
-    })
-    expect(useAutomationsStore.getState().templates[0]?.title).toBe('每周活动报告')
+  it('preserves definition on rejected writes', async () => {
+    sendRequest.mockRejectedValue(new Error('Version conflict'))
+    await expect(useAutomationsStore.getState().save({ ...definition, name: 'Draft' }, definition)).rejects.toThrow('Version conflict')
+    expect(useAutomationsStore.getState().automations[0].name).toBe('Check CI')
   })
-
-  it('does not send task-level review fields when creating tasks', async () => {
-    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
-
-    await useAutomationsStore.getState().createTask({
-      title: 'Ship cleanup',
-      description: 'Remove stale review gates',
-      approvalPolicy: 'workspaceScope',
-      workspaceMode: 'project'
-    })
-
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/create', {
-      title: 'Ship cleanup',
-      description: 'Remove stale review gates',
-      approvalPolicy: 'workspaceScope',
-      workspaceMode: 'project'
-    })
-    expect(sendRequest.mock.calls[0][1]).not.toHaveProperty('requireApproval')
+  it('deletes the definition without deleting conversation history', async () => {
+    sendRequest.mockResolvedValue({ ok: true })
+    await useAutomationsStore.getState().remove('a')
+    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('automation/delete', { automationId: 'a' })
+    expect(useAutomationsStore.getState().automations).toEqual([])
   })
-
-  it('sends canonical worktree mode when creating tasks', async () => {
-    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
-
-    await useAutomationsStore.getState().createTask({
-      title: 'Build game',
-      description: 'Create a mini game',
-      workspaceMode: 'worktree'
-    })
-
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/create', {
-      title: 'Build game',
-      description: 'Create a mini game',
-      approvalPolicy: 'workspaceScope',
-      workspaceMode: 'worktree'
-    })
+  it('records queued runs without treating acceptance as success', async () => {
+    sendRequest.mockResolvedValue({ run: { id: 'r', automationId: 'a', status: 'queued', threadId: 't', turnId: 'turn' } })
+    await useAutomationsStore.getState().run('a')
+    expect(useAutomationsStore.getState().runs.a[0].status).toBe('queued')
+    expect(useAutomationsStore.getState().automations[0].status).toBe('active')
   })
-
-  it('fetches managed worktree status for a worktree task', async () => {
-    const status = {
-      threadId: 'thread-1',
-      worktree: {
-        id: 'wt-1',
-        sourceThreadId: 'thread-1',
-        workspacePath: 'C:/repo',
-        sourceWorkspacePath: 'C:/repo',
-        path: 'C:/repo/.craft/worktrees/task-demo',
-        branchName: 'dotcraft/task-demo',
-        baseRef: 'HEAD',
-        baseHead: 'abc123',
-        head: 'def456',
-        ownerKind: 'automationTask',
-        ownerId: 'demo',
-        createdAt: '2026-05-04T00:00:00Z'
-      },
-      path: 'C:/repo/.craft/worktrees/task-demo',
-      branchName: 'dotcraft/task-demo',
-      head: 'def456',
-      exists: true,
-      isGitWorktree: true,
-      hasUncommittedChanges: true,
-      hasCommitsAheadOfBase: true,
-      aheadCount: 2
-    }
-    sendRequest.mockResolvedValueOnce({ status })
-
-    const result = await useAutomationsStore.getState().getTaskWorktreeStatus({
-      id: 'demo',
-      title: 'Demo',
-      status: 'completed',
-      threadId: 'thread-1',
-      workspaceMode: 'worktree',
-      worktree: {
-        branchName: 'dotcraft/task-demo',
-        path: 'C:/repo/.craft/worktrees/task-demo'
-      },
-      createdAt: '2026-05-04T00:00:00Z',
-      updatedAt: '2026-05-04T00:00:00Z'
-    })
-
-    expect(sendRequest).toHaveBeenCalledWith('worktree/status', {
-      threadId: 'thread-1'
-    })
-    expect(result).toEqual(status)
+  it('validates weekly day selection and explicit time zones', () => {
+    expect(validSchedule({ kind: 'weekly', hour: 9, minute: 0, timeZone: 'UTC', days: [] })).toBe(false)
+    expect(validSchedule({ kind: 'weekly', hour: 9, minute: 0, timeZone: 'UTC', days: [1,5] })).toBe(true)
+    expect(validSchedule({ kind: 'daily', hour: 9, minute: 0, timeZone: 'not-a-zone' })).toBe(false)
   })
-
-  it('discards a managed worktree and refreshes tasks silently', async () => {
-    const task: AutomationTask = {
-      id: 'demo',
-      title: 'Demo',
-      status: 'completed',
-      threadId: 'thread-1',
-      workspaceMode: 'worktree',
-      worktree: {
-        branchName: 'dotcraft/task-demo',
-        path: 'C:/repo/.craft/worktrees/task-demo'
-      },
-      createdAt: '2026-05-04T00:00:00Z',
-      updatedAt: '2026-05-04T00:00:00Z'
-    }
-    const updated = {
-      ...task,
-      worktree: null,
-      updatedAt: '2026-05-04T00:01:00Z'
-    }
-    sendRequest
-      .mockResolvedValueOnce({ task: updated })
-      .mockResolvedValueOnce({ tasks: [updated] })
-
-    const result = await useAutomationsStore.getState().discardTaskWorktree(task)
-
-    expect(sendRequest).toHaveBeenNthCalledWith(
-      1,
-      'automation/task/discardWorktree',
-      { taskId: 'demo' },
-      180_000
-    )
-    expect(sendRequest).toHaveBeenNthCalledWith(2, 'automation/task/list', {})
-    expect(result.worktree).toBeNull()
-    expect(useAutomationsStore.getState().tasks[0]?.worktree).toBeNull()
+  it('parses operation snapshots without requiring a live definition', () => {
+    expect(parseAutomationResult(JSON.stringify({ operation: 'delete', automation: definition }))?.automation?.name).toBe('Check CI')
+    expect(parseAutomationResult(JSON.stringify({ operation: 'complete', automation: definition }))).toBeNull()
+    expect(parseAutomationResult('invalid')).toBeNull()
   })
-
-  it('does not expose approve or reject task actions', () => {
-    const state = useAutomationsStore.getState() as unknown as Record<string, unknown>
-
-    expect('approveTask' in state).toBe(false)
-    expect('rejectTask' in state).toBe(false)
-    expect('statusFilter' in state).toBe(false)
+  it('fills a missing calendar time zone and preserves a stored one', () => {
+    const inferred = ensureScheduleTimeZone({ kind: 'daily', hour: 9, minute: 0 })
+    expect(inferred.timeZone).toBeTruthy()
+    expect(ensureScheduleTimeZone({ ...inferred, timeZone: 'America/New_York' }).timeZone).toBe('America/New_York')
+    expect(ensureScheduleTimeZone({ kind: 'every', everyMs: 60000 })).not.toHaveProperty('timeZone')
   })
+})
 
-  it('runs a local automation task now and refreshes silently', async () => {
-    sendRequest
-      .mockResolvedValueOnce({
-        task: {
-          id: 'weekly-report',
-          title: 'Weekly report',
-          status: 'pending',
-          threadId: null,
-          createdAt: '2026-05-04T00:00:00Z',
-          updatedAt: '2026-05-04T00:00:00Z',
-          nextRunAt: null
-        }
-      })
-      .mockResolvedValueOnce({ tasks: [] })
+it('refreshes a selected cached definition and removes it on not found', async () => {
+  sendRequest.mockResolvedValueOnce({ automation: { ...definition, version: 4 } })
+  useAutomationsStore.getState().selectAutomation('a')
+  await vi.waitFor(() => expect(useAutomationsStore.getState().automations[0].version).toBe(4))
+  sendRequest.mockRejectedValueOnce({ code: -32051 })
+  useAutomationsStore.getState().selectAutomation('a')
+  await vi.waitFor(() => expect(useAutomationsStore.getState().automations).toEqual([]))
+  expect(useAutomationsStore.getState().selectedAutomationId).toBe('a')
+})
 
-    await useAutomationsStore.getState().runTaskNow({
-      id: 'weekly-report',
-      title: 'Weekly report',
-      status: 'completed',
-      threadId: null,
-      createdAt: '2026-05-04T00:00:00Z',
-      updatedAt: '2026-05-04T00:00:00Z'
-    })
-
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/run', {
-      taskId: 'weekly-report'
-    })
-    expect(sendRequest).toHaveBeenNthCalledWith(2, 'automation/task/list', {})
-  })
-
-  it('runs a cron job now and refreshes silently', async () => {
-    sendRequest.mockResolvedValueOnce({ queued: true }).mockResolvedValueOnce({ jobs: [] })
-
-    await useCronStore.getState().runJobNow('job-1')
-
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'cron/run', { jobId: 'job-1' })
-    expect(sendRequest).toHaveBeenNthCalledWith(2, 'cron/list', {
-      includeDisabled: true
-    })
-  })
-
-  it('does not send template-level default review fields when saving templates', async () => {
-    sendRequest.mockResolvedValueOnce({
-      template: {
-        id: 'cleanup',
-        title: 'Cleanup',
-        workflowMarkdown: '---\n---'
-      }
-    })
-
-    await useAutomationsStore.getState().saveTemplate({
-      title: 'Cleanup',
-      workflowMarkdown: '---\n---',
-      defaultApprovalPolicy: 'workspaceScope',
-      needsThreadBinding: false
-    })
-
-    expect(sendRequest).toHaveBeenCalledWith('automation/template/save', {
-      title: 'Cleanup',
-      workflowMarkdown: '---\n---',
-      needsThreadBinding: false,
-      defaultApprovalPolicy: 'workspaceScope'
-    })
-    expect(sendRequest.mock.calls[0][1]).not.toHaveProperty('defaultRequireApproval')
-  })
-
-  it('sends canonical worktree default when saving templates', async () => {
-    sendRequest.mockResolvedValueOnce({
-      template: {
-        id: 'game',
-        title: 'Game',
-        workflowMarkdown: '---\nworkspace: worktree\n---'
-      }
-    })
-
-    await useAutomationsStore.getState().saveTemplate({
-      title: 'Game',
-      workflowMarkdown: '---\nworkspace: worktree\n---',
-      defaultWorkspaceMode: 'worktree',
-      needsThreadBinding: false
-    })
-
-    expect(sendRequest).toHaveBeenCalledWith('automation/template/save', {
-      title: 'Game',
-      workflowMarkdown: '---\nworkspace: worktree\n---',
-      needsThreadBinding: false,
-      defaultWorkspaceMode: 'worktree'
-    })
-  })
-
-  it('sends the bound agent profile id when creating tasks', async () => {
-    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
-
-    await useAutomationsStore.getState().createTask({
-      title: 'Reviewed task',
-      description: 'Run as the reviewer agent',
-      agentProfileId: 'reviewer'
-    })
-
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/create', {
-      title: 'Reviewed task',
-      description: 'Run as the reviewer agent',
-      approvalPolicy: 'workspaceScope',
-      workspaceMode: 'project',
-      agentProfileId: 'reviewer'
-    })
-  })
-
-  it('omits the agent profile id when creating a default-agent task', async () => {
-    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
-
-    await useAutomationsStore.getState().createTask({
-      title: 'Default task',
-      description: 'Runs with the default agent',
-      agentProfileId: null
-    })
-
-    expect(sendRequest.mock.calls[0][1]).not.toHaveProperty('agentProfileId')
-  })
-
-  it('sends the default agent profile id when saving templates', async () => {
-    sendRequest.mockResolvedValueOnce({
-      template: { id: 'reviewed', title: 'Reviewed', workflowMarkdown: '---\n---' }
-    })
-
-    await useAutomationsStore.getState().saveTemplate({
-      title: 'Reviewed',
-      workflowMarkdown: '---\n---',
-      needsThreadBinding: false,
-      defaultAgentProfileId: 'reviewer'
-    })
-
-    expect(sendRequest).toHaveBeenCalledWith('automation/template/save', {
-      title: 'Reviewed',
-      workflowMarkdown: '---\n---',
-      needsThreadBinding: false,
-      defaultAgentProfileId: 'reviewer'
-    })
-  })
+it('shares pending pause state, blocks duplicate requests, and keeps failure state unchanged', async () => {
+  let reject!: (reason: Error) => void
+  sendRequest.mockImplementationOnce(() => new Promise((_resolve, failure) => { reject = failure }))
+  const first = useAutomationsStore.getState().setEnabled('a', false)
+  expect(useAutomationsStore.getState().pendingActions.a).toBe(true)
+  await useAutomationsStore.getState().setEnabled('a', false)
+  expect(sendRequest).toHaveBeenCalledTimes(1)
+  reject(new Error('offline'))
+  await expect(first).rejects.toThrow('offline')
+  expect(useAutomationsStore.getState().automations[0].status).toBe('active')
+  expect(useAutomationsStore.getState().pendingActions.a).toBe(false)
+  sendRequest.mockResolvedValueOnce({ automation: { ...definition, status: 'paused', version: 4, nextRunAt: null } })
+  await useAutomationsStore.getState().setEnabled('a', false)
+  expect(useAutomationsStore.getState().automations[0]).toMatchObject({ status: 'paused', nextRunAt: null })
+  expect(sendRequest.mock.calls.every(([method]) => method === 'automation/update')).toBe(true)
 })

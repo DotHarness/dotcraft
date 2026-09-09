@@ -3412,6 +3412,623 @@
       "variants": []
     },
     {
+      "id": "automations.AutomationCreateParams",
+      "name": "AutomationCreateParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationCreateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automation",
+          "type": "automations.AutomationInput",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationDefinition",
+      "name": "AutomationDefinition",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationDefinition.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "agentProfileId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "approvalPolicy",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "executionMode",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nextRunAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "notificationPolicy",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "origin",
+          "type": "automations.AutomationOrigin",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "schedule",
+          "type": "automations.AutomationSchedule",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "targetThreadId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "updatedAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspaceMode",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationDeleteResult",
+      "name": "AutomationDeleteResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationDeleteResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "ok",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationIdParams",
+      "name": "AutomationIdParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationIdParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationInput",
+      "name": "AutomationInput",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationInput.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "agentProfileId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "approvalPolicy",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "executionMode",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "notificationPolicy",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "schedule",
+          "type": "automations.AutomationSchedule",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "targetThreadId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "workspaceMode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationListResult",
+      "name": "AutomationListResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automations",
+          "type": "array<automations.AutomationDefinition>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationOrigin",
+      "name": "AutomationOrigin",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationOrigin.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "channel",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "deliveryTarget",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "groupId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "userId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationPreset",
+      "name": "AutomationPreset",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationPreset.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "schedule",
+          "type": "automations.AutomationSchedule",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationPresetsParams",
+      "name": "AutomationPresetsParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationPresetsParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "locale",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationPresetsResult",
+      "name": "AutomationPresetsResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationPresetsResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "presets",
+          "type": "array<automations.AutomationPreset>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationReadResult",
+      "name": "AutomationReadResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automation",
+          "type": "automations.AutomationDefinition",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationRun",
+      "name": "AutomationRun",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationRun.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "completedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "definitionVersion",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "deliveryError",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "deliveryStatus",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "error",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "readAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "scheduledAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "startedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "worktree",
+          "type": "core.ThreadWorktreeInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationRunReadParams",
+      "name": "AutomationRunReadParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationRunReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "read",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runIds",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationRunResult",
+      "name": "AutomationRunResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationRunResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "run",
+          "type": "automations.AutomationRun",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationRunUpdatedNotification",
+      "name": "AutomationRunUpdatedNotification",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationRunUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "run",
+          "type": "automations.AutomationRun",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationRunsResult",
+      "name": "AutomationRunsResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationRunsResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "runs",
+          "type": "array<automations.AutomationRun>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "automations.AutomationSchedule",
       "name": "AutomationSchedule",
       "module": "automations",
@@ -3420,24 +4037,15 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "atMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "dailyHour",
-          "type": "integer",
+          "name": "at",
+          "type": "date-time",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
-          "name": "dailyMinute",
-          "type": "integer",
+          "name": "days",
+          "type": "array<integer>",
           "required": false,
           "nullable": true,
           "const": null
@@ -3452,30 +4060,28 @@
           "maximum": 9007199254740991
         },
         {
-          "name": "expr",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "initialDelayMs",
+          "name": "hour",
           "type": "integer",
           "required": false,
           "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "const": null
         },
         {
           "name": "kind",
           "type": "string",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
-          "name": "tz",
+          "name": "minute",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "timeZone",
           "type": "string",
           "required": false,
           "nullable": true,
@@ -3485,196 +4091,31 @@
       "variants": []
     },
     {
-      "id": "automations.AutomationTask",
-      "name": "AutomationTask",
+      "id": "automations.AutomationUpdateParams",
+      "name": "AutomationUpdateParams",
       "module": "automations",
       "kind": "object",
-      "schema": "schemas/automations/AutomationTask.schema.json",
+      "schema": "schemas/automations/AutomationUpdateParams.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "agentProfileId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "agentSummary",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "approvalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "createdAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
+          "name": "automation",
+          "type": "automations.AutomationInput",
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
-          "name": "nextRunAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "schedule",
-          "type": "automations.AutomationSchedule",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "status",
+          "name": "automationId",
           "type": "string",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
-          "name": "threadBinding",
-          "type": "automations.AutomationThreadBinding",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "updatedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "workspaceMode",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "worktree",
-          "type": "automations.AutomationTaskWorktree",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskCreateParams",
-      "name": "AutomationTaskCreateParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskCreateParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "agentProfileId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "approvalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "schedule",
-          "type": "automations.AutomationSchedule",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "templateId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "threadBinding",
-          "type": "automations.AutomationThreadBinding",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workflowTemplate",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "workspaceMode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
+          "name": "expectedVersion",
+          "type": "integer",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -3682,654 +4123,31 @@
       "variants": []
     },
     {
-      "id": "automations.AutomationTaskCreateResult",
-      "name": "AutomationTaskCreateResult",
+      "id": "automations.AutomationUpdatedNotification",
+      "name": "AutomationUpdatedNotification",
       "module": "automations",
       "kind": "object",
-      "schema": "schemas/automations/AutomationTaskCreateResult.schema.json",
+      "schema": "schemas/automations/AutomationUpdatedNotification.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "taskDirectory",
-          "type": "string",
+          "name": "automation",
+          "type": "automations.AutomationDefinition",
           "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "automationId",
+          "type": "string",
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
-          "name": "taskId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskDeleteParams",
-      "name": "AutomationTaskDeleteParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskDeleteParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "taskId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskDeleteResult",
-      "name": "AutomationTaskDeleteResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskDeleteResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "ok",
+          "name": "removed",
           "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskDiscardWorktreeParams",
-      "name": "AutomationTaskDiscardWorktreeParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskDiscardWorktreeParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "taskId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskDiscardWorktreeResult",
-      "name": "AutomationTaskDiscardWorktreeResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskDiscardWorktreeResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "task",
-          "type": "automations.AutomationTask",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskListParams",
-      "name": "AutomationTaskListParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskListParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskListResult",
-      "name": "AutomationTaskListResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskListResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "tasks",
-          "type": "array<automations.AutomationTask>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskReadParams",
-      "name": "AutomationTaskReadParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskReadParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "taskId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskRunParams",
-      "name": "AutomationTaskRunParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskRunParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "taskId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskRunResult",
-      "name": "AutomationTaskRunResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskRunResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "task",
-          "type": "automations.AutomationTask",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskUpdateBindingParams",
-      "name": "AutomationTaskUpdateBindingParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskUpdateBindingParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "taskId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadBinding",
-          "type": "automations.AutomationThreadBinding",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskUpdateBindingResult",
-      "name": "AutomationTaskUpdateBindingResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskUpdateBindingResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "task",
-          "type": "automations.AutomationTask",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskUpdatedNotification",
-      "name": "AutomationTaskUpdatedNotification",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskUpdatedNotification.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "task",
-          "type": "automations.AutomationTask",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workspacePath",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskWorktree",
-      "name": "AutomationTaskWorktree",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskWorktree.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "branchName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "path",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplate",
-      "name": "AutomationTemplate",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplate.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "category",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "createdAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultAgentProfileId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultApprovalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultDescription",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultSchedule",
-          "type": "automations.AutomationSchedule",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultTitle",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultWorkspaceMode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "icon",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "isUser",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "needsThreadBinding",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "updatedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "workflowMarkdown",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateDeleteParams",
-      "name": "AutomationTemplateDeleteParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateDeleteParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateDeleteResult",
-      "name": "AutomationTemplateDeleteResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateDeleteResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "ok",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateListParams",
-      "name": "AutomationTemplateListParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateListParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "locale",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateListResult",
-      "name": "AutomationTemplateListResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateListResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "templates",
-          "type": "array<automations.AutomationTemplate>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateSaveParams",
-      "name": "AutomationTemplateSaveParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateSaveParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "category",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultAgentProfileId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultApprovalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultDescription",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultSchedule",
-          "type": "automations.AutomationSchedule",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultTitle",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultWorkspaceMode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "icon",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "needsThreadBinding",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workflowMarkdown",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateSaveResult",
-      "name": "AutomationTemplateSaveResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateSaveResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "template",
-          "type": "automations.AutomationTemplate",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationThreadBinding",
-      "name": "AutomationThreadBinding",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationThreadBinding.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "mode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -5757,374 +5575,6 @@
         {
           "name": "warningThreshold",
           "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronEnableParams",
-      "name": "CronEnableParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronEnableParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "jobId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronEnableResult",
-      "name": "CronEnableResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronEnableResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "job",
-          "type": "core.CronJobWireInfo",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronJobStateWireInfo",
-      "name": "CronJobStateWireInfo",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronJobStateWireInfo.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "lastError",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "lastResult",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "lastRunAtMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "lastStatus",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "lastThreadId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "nextRunAtMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronJobWireInfo",
-      "name": "CronJobWireInfo",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronJobWireInfo.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "createdAtMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "deleteAfterRun",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "schedule",
-          "type": "core.CronScheduleWireInfo",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "state",
-          "type": "core.CronJobStateWireInfo",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronListParams",
-      "name": "CronListParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronListParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "includeDisabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronListResult",
-      "name": "CronListResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronListResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "jobs",
-          "type": "array<core.CronJobWireInfo>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronRemoveParams",
-      "name": "CronRemoveParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronRemoveParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "jobId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronRemoveResult",
-      "name": "CronRemoveResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronRemoveResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "removed",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronRunParams",
-      "name": "CronRunParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronRunParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "jobId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronRunResult",
-      "name": "CronRunResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronRunResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "job",
-          "type": "core.CronJobWireInfo",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "queued",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronScheduleWireInfo",
-      "name": "CronScheduleWireInfo",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronScheduleWireInfo.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "atMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "dailyHour",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dailyMinute",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "everyMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "initialDelayMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "kind",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "tz",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.CronStateChangedNotification",
-      "name": "CronStateChangedNotification",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/CronStateChangedNotification.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "job",
-          "type": "core.CronJobWireInfo",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "removed",
-          "type": "boolean",
           "required": false,
           "nullable": false,
           "const": null
@@ -14126,13 +13576,6 @@
         },
         {
           "name": "configOverride",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "cronManagement",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -25365,12 +24808,12 @@
       "stability": "stable"
     },
     {
-      "name": "automation/task/create",
-      "descriptorMember": "AutomationTaskCreate",
+      "name": "automation/create",
+      "descriptorMember": "AutomationCreate",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskCreateParams",
-      "resultType": "automations.AutomationTaskCreateResult",
+      "paramsType": "automations.AutomationCreateParams",
+      "resultType": "automations.AutomationReadResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25381,16 +24824,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/task/delete",
-      "descriptorMember": "AutomationTaskDelete",
+      "name": "automation/delete",
+      "descriptorMember": "AutomationDelete",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskDeleteParams",
-      "resultType": "automations.AutomationTaskDeleteResult",
+      "paramsType": "automations.AutomationIdParams",
+      "resultType": "automations.AutomationDeleteResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25401,16 +24844,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/task/discardWorktree",
-      "descriptorMember": "AutomationTaskDiscardWorktree",
+      "name": "automation/list",
+      "descriptorMember": "AutomationList",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskDiscardWorktreeParams",
-      "resultType": "automations.AutomationTaskDiscardWorktreeResult",
+      "paramsType": "core.RpcEmpty",
+      "resultType": "automations.AutomationListResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25421,16 +24864,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/task/list",
-      "descriptorMember": "AutomationTaskList",
+      "name": "automation/presets/list",
+      "descriptorMember": "AutomationPresetsList",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskListParams",
-      "resultType": "automations.AutomationTaskListResult",
+      "paramsType": "automations.AutomationPresetsParams",
+      "resultType": "automations.AutomationPresetsResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25441,16 +24884,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/task/read",
-      "descriptorMember": "AutomationTaskRead",
+      "name": "automation/read",
+      "descriptorMember": "AutomationRead",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskReadParams",
-      "resultType": "automations.AutomationTask",
+      "paramsType": "automations.AutomationIdParams",
+      "resultType": "automations.AutomationReadResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25461,16 +24904,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/task/run",
-      "descriptorMember": "AutomationTaskRun",
+      "name": "automation/run",
+      "descriptorMember": "AutomationRun",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskRunParams",
-      "resultType": "automations.AutomationTaskRunResult",
+      "paramsType": "automations.AutomationIdParams",
+      "resultType": "automations.AutomationRunResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25481,35 +24924,15 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/task/updateBinding",
-      "descriptorMember": "AutomationTaskUpdateBinding",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "automations.AutomationTaskUpdateBindingParams",
-      "resultType": "automations.AutomationTaskUpdateBindingResult",
-      "module": "automations",
-      "capability": "automations",
-      "scope": "workspace",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "automation/task/updated",
-      "descriptorMember": "AutomationTaskUpdated",
+      "name": "automation/run/updated",
+      "descriptorMember": "AutomationRunUpdated",
       "kind": "notification",
       "direction": "serverToClient",
-      "paramsType": "automations.AutomationTaskUpdatedNotification",
+      "paramsType": "automations.AutomationRunUpdatedNotification",
       "resultType": "core.RpcEmpty",
       "module": "automations",
       "capability": "automations",
@@ -25517,16 +24940,16 @@
       "notificationOptOut": true,
       "errors": [],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/template/delete",
-      "descriptorMember": "AutomationTemplateDelete",
+      "name": "automation/runs/list",
+      "descriptorMember": "AutomationRunsList",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTemplateDeleteParams",
-      "resultType": "automations.AutomationTemplateDeleteResult",
+      "paramsType": "automations.AutomationIdParams",
+      "resultType": "automations.AutomationRunsResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25537,16 +24960,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/template/list",
-      "descriptorMember": "AutomationTemplateList",
+      "name": "automation/runs/read",
+      "descriptorMember": "AutomationRunsRead",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTemplateListParams",
-      "resultType": "automations.AutomationTemplateListResult",
+      "paramsType": "automations.AutomationRunReadParams",
+      "resultType": "automations.AutomationRunsResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25557,16 +24980,16 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
-      "name": "automation/template/save",
-      "descriptorMember": "AutomationTemplateSave",
+      "name": "automation/update",
+      "descriptorMember": "AutomationUpdate",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "automations.AutomationTemplateSaveParams",
-      "resultType": "automations.AutomationTemplateSaveResult",
+      "paramsType": "automations.AutomationUpdateParams",
+      "resultType": "automations.AutomationReadResult",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -25577,7 +25000,23 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
+      "specRef": "specs/features/automations-lifecycle.md",
+      "stability": "stable"
+    },
+    {
+      "name": "automation/updated",
+      "descriptorMember": "AutomationUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "automations.AutomationUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "automations",
+      "capability": "automations",
+      "scope": "workspace",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/features/automations-lifecycle.md",
       "stability": "stable"
     },
     {
@@ -25676,102 +25115,6 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "cron/enable",
-      "descriptorMember": "CronEnable",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.CronEnableParams",
-      "resultType": "core.CronEnableResult",
-      "module": "core",
-      "capability": "cronManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "cron/list",
-      "descriptorMember": "CronList",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.CronListParams",
-      "resultType": "core.CronListResult",
-      "module": "core",
-      "capability": "cronManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "cron/remove",
-      "descriptorMember": "CronRemove",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.CronRemoveParams",
-      "resultType": "core.CronRemoveResult",
-      "module": "core",
-      "capability": "cronManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "cron/run",
-      "descriptorMember": "CronRun",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.CronRunParams",
-      "resultType": "core.CronRunResult",
-      "module": "core",
-      "capability": "cronManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "cron/stateChanged",
-      "descriptorMember": "CronStateChanged",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "core.CronStateChangedNotification",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": "cronManagement",
-      "scope": "connection",
-      "notificationOptOut": true,
-      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

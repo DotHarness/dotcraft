@@ -921,6 +921,18 @@ Three shapes exist, the first two `--bg-primary` with an `8–10px` radius:
   paints the frame and owns the focus state; the field contributes only the shared
   reset. A bare field never appears on its own.
 
+Search uses one composed control across catalog and feature pages: a pill-radius
+shell containing the search glyph and a bare `Input`. When filters are available,
+one compact filter icon sits beside the shell and opens filter dimensions as
+submenus; pages do not place a row of select fields beside search. The shell keeps
+the ordinary field focus border. Filter dimensions use semantic leading icons only
+when every peer dimension has one; the selected option uses a trailing check so its
+label stays aligned with the other options.
+
+An always-editable page or detail title reads as text rather than a form box. It
+stays frameless while focused; the caret and text selection communicate editing,
+so the title does not add an underline or a surrounding focus frame.
+
 Desktop-owned text fields use the shared `Input` and `Textarea` components rather
 than a locally styled native element, so height, radius, placeholder, hover,
 focus, invalid, and disabled treatments stay identical. The components own their
@@ -1236,3 +1248,56 @@ Don't:
   dialogs.
 - Wrap an inline reference — a file, skill, link, agent, job, or profile value —
   in a pill, border, or fill, at rest or on hover; hover lifts the text instead.
+
+## Automation editing and run identity
+
+Automations uses one list and one directly editable detail surface. The hierarchy is
+editable title, prompt, labelled detail rows, frequency rows, and collapsed advanced
+settings. Agent Profile is an identity choice and includes the profile avatar and description.
+Dirty drafts expose Cancel and Save; pending saves disable duplicate submission
+and errors retain the draft. There is no second settings modal. Show fields only for the
+selected execution mode. The primary creation action stages the built-in `$automations` skill
+in the Welcome composer and starts a conversation; it does not add a handoff banner inside
+the list. Manual creation uses the same editor. Suggestions are direct-add templates: hover or
+focus exchanges their identity icon for Add, pending creation shows activity, and success inserts
+the task without leaving the surface or opening its detail. The list and editor reuse the shared
+resizable divider and edge glow. The
+action row relies on spacing and does not add a horizontal rule above Cancel and Save.
+
+Trusted automation tool cards show an operation snapshot and open the latest definition.
+Run cards navigate by definition and run ids, and locate the exact turn for follow-ups.
+Their summary uses the scheduled-work calendar reference, and their compact disclosure
+shows timing, execution, and notification metadata rather than repeating the prompt.
+Previous runs are compact conversation-selection rows rather than result cards: the whole
+available row opens the exact run, status is a small leading marker, identity stays in the
+middle, and relative time stays on the trailing edge. Do not repeat an "open run" action in
+every row. An automation attached to an existing conversation exposes one page-level
+"Open chat" action in the detail footer; that action opens the attached conversation rather
+than a particular historical turn. DotCraft-only run actions such as worktree review remain
+secondary to the row's navigation target.
+History markers express running, unread, and archived state in that priority order;
+execution errors remain in accessible status tooltips. Archived rows retain their
+place, fade their title, and exchange the trailing time for Unarchive on hover or
+keyboard focus without shifting layout. The context menu owns reading and archive
+actions; the section menu owns bulk actions. Touch surfaces expose a menu button.
+Task-list state controls and the detail pause/resume button share persisted state
+and pending protection. Paused tasks show Play; active tasks reveal Pause over an idle
+circle when the status control is hovered or focused. Completed tasks show completion,
+and running tasks show activity before every other list marker. Pending schedule changes
+retain the current icon instead of impersonating execution. The second line keeps the schedule
+for active, paused, and running tasks; only active tasks add the next-run countdown, running
+tasks add their in-progress label, and completed tasks replace timing with completion.
+Preserve dirty drafts when controls update.
+
+Task rows reserve one trailing action slot. An unread-run marker occupies it at rest; row hover,
+keyboard focus, or an open menu exchanges the marker for More actions without moving title or
+timing. The menu owns Run now, Pause/Resume, and Delete as allowed by task state. Completed
+tasks expose only Delete. Coarse-pointer surfaces keep the menu trigger visible. The scheduled
+task group label names the objects directly; it does not use a possessive "Your" heading.
+The task subtitle places schedule and relative next-run time together, without a
+repeated execution-mode label or a duplicate next-run paragraph in details. Pause
+keeps the schedule but omits next-run timing; completion replaces the subtitle with
+its lifecycle label. Countdown text
+refreshes each minute and on visibility changes; overdue timestamps read as due now.
+The design system mounts production components and deterministic stateful fixtures; it
+covers editing, save errors/conflicts, pause/resume, history, long content and narrow widths.

@@ -17,7 +17,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
     private const string ToolAttributeFqn = "DotCraft.Tools.ToolAttribute";
     private const string GeneratedToolAttributeFqn = "DotCraft.Tools.GeneratedToolAttribute";
     private const string ToolDeclarationAttributeFqn = "DotCraft.Tools.ToolDeclarationAttribute";
-    private const string ToolSchemaAttributeFqn = "DotCraft.Tools.ToolSchemaAttribute";
     private const string ToolRpcAttributeFqn = "DotCraft.Tools.ToolRpcAttribute";
     private const string ToolParameterAttributeFqn = "DotCraft.Tools.ToolParameterAttribute";
     private const string DescriptionAttributeFqn = "System.ComponentModel.DescriptionAttribute";
@@ -105,7 +104,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         var toolAttribute = FindAttribute(method, ToolAttributeFqn);
         var generatedAttribute = FindAttribute(method, GeneratedToolAttributeFqn);
         var declarationAttribute = FindAttribute(method, ToolDeclarationAttributeFqn);
-        var schemaAttribute = FindAttribute(method, ToolSchemaAttributeFqn);
         var rpcEligible = FindAttribute(method, ToolRpcAttributeFqn) != null;
         var generateFunction = generateFunctionOverride ?? declarationAttribute == null;
         var description = GetDescription(method);
@@ -146,7 +144,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             RpcEligible: rpcEligible,
             GenerateFunction: generateFunction,
             IsAbstract: method.IsAbstract,
-            DisallowAdditionalProperties: GetNamedBool(schemaAttribute, "DisallowAdditionalProperties", false),
             Parameters: parameters,
             Location: method.Locations.FirstOrDefault());
     }
@@ -322,7 +319,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             else
             {
                 sb.AppendLine($"            var result = await {invocation}.ConfigureAwait(false);");
-                sb.AppendLine($"            return global::DotCraft.Tools.GeneratedToolArgumentBinder.MarshalResult(result, typeof({returnType}), JsonSerializerOptions);");
+                sb.AppendLine($"            return global::DotCraft.Tools.GeneratedToolArgumentBinder.MarshalResult(result, typeof({returnType}), OutputJsonSerializerOptions);");
             }
         }
         else if (tool.ReturnType == "void")
@@ -333,7 +330,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         else
         {
             sb.AppendLine($"            var result = {invocation};");
-            sb.AppendLine($"            return global::DotCraft.Tools.GeneratedToolArgumentBinder.MarshalResult(result, typeof({tool.ReturnType}), JsonSerializerOptions);");
+            sb.AppendLine($"            return global::DotCraft.Tools.GeneratedToolArgumentBinder.MarshalResult(result, typeof({tool.ReturnType}), OutputJsonSerializerOptions);");
         }
 
         sb.AppendLine("        }");
@@ -503,7 +500,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             bool RpcEligible,
             bool GenerateFunction,
             bool IsAbstract,
-            bool DisallowAdditionalProperties,
             IReadOnlyList<ParameterInfo> Parameters,
             Location? Location)
         {
@@ -529,7 +525,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.RpcEligible = RpcEligible;
             this.GenerateFunction = GenerateFunction;
             this.IsAbstract = IsAbstract;
-            this.DisallowAdditionalProperties = DisallowAdditionalProperties;
             this.Parameters = Parameters;
             this.Location = Location;
         }
@@ -556,7 +551,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public bool RpcEligible { get; }
         public bool GenerateFunction { get; }
         public bool IsAbstract { get; }
-        public bool DisallowAdditionalProperties { get; }
         public IReadOnlyList<ParameterInfo> Parameters { get; }
         public Location? Location { get; }
     }

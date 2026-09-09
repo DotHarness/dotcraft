@@ -71,7 +71,7 @@ public enum ToolPlanningThreadKind
     UserTopLevel,
     /// <summary>A child session created by the SubAgent runtime.</summary>
     SubAgentChild,
-    /// <summary>Unattended automation, cron, or equivalent background work.</summary>
+    /// <summary>Unattended automation, or equivalent background work.</summary>
     Unattended,
     /// <summary>An internal or ephemeral DotCraft helper thread.</summary>
     Internal,

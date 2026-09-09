@@ -168,7 +168,6 @@ export interface ConversationItem {
    * thread spawned by another thread (see thread.source.spawnedFromThreadId).
    */
   triggerKind?:
-    | 'cron'
     | 'automation'
     | 'goal'
     | 'app'
@@ -177,9 +176,9 @@ export interface ConversationItem {
     | 'subagentFollowupTask'
     | 'subagentMailbox'
     | 'subagentInput'
-  /** Optional human-readable label for the automation source (e.g. cron job name). */
+  /** Optional human-readable label for the automation source (e.g. automation name). */
   triggerLabel?: string
-  /** Optional routing id for client-side click-through (e.g. cron job id, task id). */
+  /** Optional routing id for client-side click-through (e.g. automation id). */
   triggerRefId?: string
   /**
    * True when this user message established the thread goal (the objective was sent "as a goal").
@@ -728,7 +727,6 @@ function normalizeTriggerKind(
   if (normalized === 'subagentmailbox') return 'subagentMailbox'
   if (normalized === 'subagentinput') return 'subagentInput'
   if (
-    normalized === 'cron' ||
     normalized === 'automation' ||
     normalized === 'goal' ||
     normalized === 'app' ||

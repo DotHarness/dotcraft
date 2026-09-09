@@ -11,7 +11,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
-import { useAutomationsStore, type AutomationTask } from '../stores/automationsStore'
+import { useAutomationsStore, type AutomationDefinition } from '../stores/automationsStore'
 import { useUIStore } from '../stores/uiStore'
 import type { ContextUsageSnapshotWire, ThreadSummary } from '../types/thread'
 import type { ApprovalDecision, InputPart } from '../types/conversation'
@@ -296,9 +296,9 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
-    case 'automation/task/updated': {
-      const task = (p.task ?? {}) as AutomationTask
-      useAutomationsStore.getState().upsertTask(task)
+    case 'automation/updated': {
+      const task = (p.automation ?? {}) as AutomationDefinition
+      useAutomationsStore.getState().upsertAutomation(task)
       break
     }
 
@@ -1736,29 +1736,14 @@ describe('notification dispatch payload format', () => {
     }).not.toThrow()
   })
 
-  it('upserts flattened automation task statuses from task updates', () => {
-    for (const status of ['running', 'completed', 'failed'] as const) {
-      dispatch({
-        method: 'automation/task/updated',
-        params: {
-          task: {
-            id: `task-${status}`,
-            title: status,
-            status,
-            threadId: null,
-            createdAt: NOW,
-            updatedAt: NOW
-          }
-        }
-      })
+  it('upserts automation definition states independently from runs', () => {
+    useAutomationsStore.setState({ automations: [] })
+    for (const status of ['active', 'paused', 'completed']) {
+      dispatch({ method: 'automation/updated', params: { automation: { id: status, name: status, status, version: 1 } } })
     }
-
-    expect(useAutomationsStore.getState().tasks.map((task) => task.status).sort()).toEqual([
-      'completed',
-      'failed',
-      'running'
-    ])
+    expect(useAutomationsStore.getState().automations.map(a => a.status).sort()).toEqual(['active', 'completed', 'paused'])
   })
+
 })
 
 describe('thread lifecycle notification dispatch', () => {

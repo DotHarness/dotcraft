@@ -2,9 +2,7 @@ using DotCraft.Workspaces;
 using DotCraft.Channels;
 using DotCraft.Agents;
 using DotCraft.AppServer;
-using DotCraft.Automations;
 using DotCraft.Configuration;
-using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Modules;
@@ -12,7 +10,7 @@ using DotCraft.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
-using AutomationTask = DotCraft.Automations.AutomationTask;
+using Contract = DotCraft.Protocol.AppServer;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SenderContext = DotCraft.Sessions.SenderContext;
@@ -28,46 +26,6 @@ namespace DotCraft.Tests.AppServer;
 
 public sealed class AppServerWorkspaceRuntimeFeatureTests
 {
-    [Theory]
-    [InlineData(null)]
-    [InlineData("Scheduled task failed")]
-    public async Task CronRun_DeliversBackgroundResult_WithThreadAndTrigger(string? error)
-    {
-        using var fixture = new WorkspaceFixture();
-        await using var provider = CreateProvider(null, null);
-        var feature = CreateFeature(provider);
-        var sessionService = new FakeSessionService { RunError = error };
-        BackgroundJobResult? delivered = null;
-        var context = CreateContext(fixture, sessionService, result => delivered = result);
-        var job = context.CronService.AddJob(
-            "Scheduled check",
-            new CronSchedule { Kind = "every", EveryMs = 60_000 },
-            new CronPayload { Message = "Check status", Deliver = true, Channel = "cli" });
-
-        await feature.StartAsync(context);
-        try
-        {
-            var result = await context.CronService.OnJob!(job);
-
-            Assert.Equal(error == null, result.Ok);
-            Assert.NotNull(delivered);
-            Assert.Equal("cron", delivered.Source);
-            Assert.Equal(job.Id, delivered.JobId);
-            Assert.Equal(job.Name, delivered.JobName);
-            Assert.Equal("scheduled-thread", delivered.ThreadId);
-            Assert.Equal(error == null ? "Status checked" : null, delivered.Result);
-            Assert.Equal(error, delivered.Error);
-            Assert.Equal("cron", sessionService.LastIdentity?.ChannelName);
-            Assert.Equal($"cron:{job.Id}", sessionService.LastIdentity?.UserId);
-            Assert.Equal("cron", sessionService.LastTrigger?.Kind);
-            Assert.Equal(job.Id, sessionService.LastTrigger?.RefId);
-        }
-        finally
-        {
-            await feature.StopAsync();
-        }
-    }
-
     [Fact]
     public async Task StartStop_WiresLifecycleCallbacks_AndForwardsAutomationUpdates()
     {
@@ -85,13 +43,11 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         var feature = CreateFeature(provider);
         var context = CreateContext(fixture);
 
-        AutomationTask? forwardedTask = null;
-        feature.AutomationTaskUpdated += task => forwardedTask = task;
+        Contract.AutomationUpdatedNotification? forwardedTask = null;
+        feature.AutomationUpdated += task => forwardedTask = task;
 
         await feature.StartAsync(context);
 
-        Assert.NotNull(context.CronService.CronJobPersistedAfterExecution);
-        Assert.NotNull(context.CronService.OnJob);
         Assert.Equal(1, automationFactory.Instance.StartCalls);
         Assert.Same(context, automationFactory.Instance.LastContext);
         Assert.Equal(1, runnerFactory.Instance!.InitializeCalls);
@@ -103,19 +59,17 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         Assert.Same(runnerFactory.Instance, feature.ChannelStatusProvider);
         Assert.Equal(FakeChannelRunner.DashboardAddress, feature.DashboardUrl);
 
-        var task = new FakeAutomationTask
-        {
-            Id = "task-1",
-            Title = "Test Task",
-            Status = AutomationTaskStatus.Pending
-        };
+        var task = new Contract.AutomationUpdatedNotification { AutomationId = "automation-1" };
         automationFactory.Instance.EmitTaskUpdated(task);
         Assert.Same(task, forwardedTask);
+        Contract.AutomationRunUpdatedNotification? forwardedRun = null;
+        feature.AutomationRunUpdated += run => forwardedRun = run;
+        var runUpdate = new Contract.AutomationRunUpdatedNotification();
+        automationFactory.Instance.EmitRunUpdated(runUpdate);
+        Assert.Same(runUpdate, forwardedRun);
 
         await feature.StopAsync();
 
-        Assert.Null(context.CronService.CronJobPersistedAfterExecution);
-        Assert.Null(context.CronService.OnJob);
         Assert.Equal(1, automationFactory.Instance.StopCalls);
         Assert.Equal(1, automationFactory.Instance.DisposeCalls);
         Assert.Equal(1, runnerFactory.Instance.DisposeCalls);
@@ -153,8 +107,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => failingFeature.StartAsync(failingContext));
 
-        Assert.Null(failingContext.CronService.CronJobPersistedAfterExecution);
-        Assert.Null(failingContext.CronService.OnJob);
         Assert.Equal(1, failingAutomationFactory.Instance.StartCalls);
         Assert.Equal(1, failingAutomationFactory.Instance.StopCalls);
         Assert.Equal(1, failingAutomationFactory.Instance.DisposeCalls);
@@ -167,7 +119,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         var successfulContext = CreateContext(fixture);
 
         await successfulFeature.StartAsync(successfulContext);
-        Assert.NotNull(successfulContext.CronService.OnJob);
         await successfulFeature.StopAsync();
     }
 
@@ -276,17 +227,10 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         FakeSessionService? sessionService = null,
         Action<BackgroundJobResult>? emitBackgroundJobResult = null)
     {
-        var config = new AppConfig
-        {
-            Cron = new AppConfig.CronConfig
-            {
-                Enabled = false
-            }
-        };
+        var config = new AppConfig();
 
         var paths = new DotCraftPaths(fixture.WorkspacePath, fixture.BotPath, userDataPath: null);
         sessionService ??= new FakeSessionService();
-        var cronService = new CronService(Path.Combine(fixture.BotPath, "cron-jobs.json"));
         var dreamStore = new DreamStore(fixture.BotPath);
         var dreamsService = new DreamsService(
             config,
@@ -307,10 +251,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             paths,
             new ModuleRegistry(),
             sessionService,
-            new AgentRunner(fixture.WorkspacePath, sessionService, quiet: true),
-            cronService,
             dreamsService,
-            emitCronStateChanged: (_, _, _) => { },
             emitBackgroundJobResult: emitBackgroundJobResult ?? (_ => { }));
     }
 
@@ -377,11 +318,9 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         public void Initialize(
             ISessionService sessionService,
-            CronService cronService,
             DreamsService dreamsService)
         {
             _ = sessionService;
-            _ = cronService;
             _ = dreamsService;
             InitializeCalls++;
             LifecycleCalls?.Add("channel.initialize");
@@ -463,7 +402,8 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public List<string>? LifecycleCalls { get; init; }
         public WorkspaceRuntimeAppServerFeatureContext? LastContext { get; private set; }
 
-        public event Action<AutomationTask>? AutomationTaskUpdated;
+        public event Action<Contract.AutomationUpdatedNotification>? AutomationUpdated;
+        public event Action<Contract.AutomationRunUpdatedNotification>? AutomationRunUpdated;
 
         public Task StartAsync(WorkspaceRuntimeAppServerFeatureContext context, CancellationToken ct = default)
         {
@@ -492,9 +432,11 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             return ValueTask.CompletedTask;
         }
 
-        public void EmitTaskUpdated(AutomationTask task)
+        public void EmitRunUpdated(Contract.AutomationRunUpdatedNotification run) => AutomationRunUpdated?.Invoke(run);
+
+        public void EmitTaskUpdated(Contract.AutomationUpdatedNotification task)
         {
-            AutomationTaskUpdated?.Invoke(task);
+            AutomationUpdated?.Invoke(task);
         }
     }
 
@@ -517,8 +459,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             return Task.FromResult(new ChannelDeliveryResult { Delivered = true });
         }
     }
-
-    private sealed class FakeAutomationTask : AutomationTask;
 
     private sealed class FakeSessionService : ISessionService
     {

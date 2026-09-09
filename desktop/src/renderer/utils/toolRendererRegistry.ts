@@ -4,7 +4,7 @@ import { isBuilderField } from '../components/agents/agentBuilderDraftSync'
 
 export type ToolRendererFamily =
   | 'createPlan'
-  | 'cron'
+  | 'automation'
   | 'skillManage'
   | 'skillView'
   | 'subagent'
@@ -122,7 +122,7 @@ function hasOperation(...allowed: readonly string[]) {
 
 export const CORE_TOOL_PRESENTATION_IDS = {
   createPlan: 'core.create-plan',
-  cron: 'core.cron',
+  automation: 'core.automation',
   skillManage: 'core.skill-manage',
   skillView: 'core.skill-view',
   subagent: 'core.subagent',
@@ -143,7 +143,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.createPlan, 'createPlan', {
     mode: 'standalone', placement: 'pin-last-per-turn'
   }),
-  registration(CORE_TOOL_PRESENTATION_IDS.cron, 'cron', { mode: 'standalone' }),
+  registration(CORE_TOOL_PRESENTATION_IDS.automation, 'automation', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.skillManage, 'skillManage', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.skillView, 'skillView', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.subagent, 'subagent', {

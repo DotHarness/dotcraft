@@ -218,7 +218,7 @@ Fields:
   - Absolute path to the workspace this Thread belongs to.
 - `UserId` (string, nullable)
   - Opaque user identifier from the originating channel. Used for thread discovery ("show me my threads").
-  - May be null for system-initiated threads; Cron uses a synthetic `cron:<jobId>` user ID.
+  - May be null for system-initiated threads; Independent automation runs use a distinct identity for each run.
 - `OriginChannel` (string)
   - Name of the channel that created this Thread (e.g., `"qq"`, `"acp"`, `"cli"`).
   - Informational only; does not restrict which channels can resume the Thread.
@@ -311,7 +311,7 @@ Fields:
 - `ReadyAfterTurnId` (string, nullable)
   - Active Turn ID observed when the input was queued.
 - `TriggerKind` (string, nullable)
-  - Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `goal`, `cron`, `automation`, `app`, or `team`.
+  - Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `goal`, `automation`, `app`, or `team`.
 - `TriggerLabel` (string, nullable)
   - Optional human-readable source label.
 - `TriggerRefId` (string, nullable)
@@ -503,15 +503,15 @@ Each Item type has a specific payload structure:
       "fileName": string   // Optional original filename
     }
   ],
-  "triggerKind": string,   // Optional trigger marker: "cron" | "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput"
-  "triggerLabel": string,  // Optional human-readable source label (e.g. cron job name, task title, agent label)
-  "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. cron job id, task id, agent path)
+  "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput"
+  "triggerLabel": string,  // Optional human-readable source label (e.g. automation name, task title, agent label)
+  "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
 }
 ```
 
 `nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` supports compatibility and preview generation; it is not the source of truth for user-message reconstruction.
 
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so cron- and automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
+The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
 
 #### AgentMessage
 
@@ -1471,7 +1471,7 @@ For each submitted turn, Session Core must:
 
 - Session Core owns orchestration.
 - Adapters own presentation.
-- A host entry point that wraps a turn (for example the cron runner) delegates to Session Core; it is not a second session model.
+- A host entry point that wraps a turn (for example the automation runner) delegates to Session Core; it is not a second session model.
 
 ## 9. Persistence Specification
 
@@ -1767,7 +1767,7 @@ This means cross-channel discovery is **natural for channels that share the same
 - When `crossChannelOrigins` is **null** or **empty**, behavior is identical to the default discovery above (no extra threads).
 - When **non-empty**, the result set is the union of:
   1. Threads that satisfy the default identity predicate (`WorkspacePath` + `UserId` + `ChannelContext` as in the table above), **and**
-  2. Threads that match `WorkspacePath` (case-insensitive) + `OriginChannel` contained in `crossChannelOrigins` (case-insensitive string match), **ignoring `ChannelContext`**. This branch does **not** require `UserId` to match the request identity, so channels that use per-job or per-session synthetic user IDs (e.g. `cron:{jobId}`) still appear when the user opts in to that origin.
+  2. Threads that match `WorkspacePath` (case-insensitive) + `OriginChannel` contained in `crossChannelOrigins` (case-insensitive string match), **ignoring `ChannelContext`**. This branch does **not** require `UserId` to match the request identity, so channels that use per-job or per-session synthetic user IDs (e.g. `automation:{runId}`) still appear when the user opts in to that origin.
 
 The union is deduplicated by thread ID and ordered by `LastActiveAt` descending.
 
@@ -1777,7 +1777,7 @@ This opt-in path exists so clients such as **DotCraft Desktop** (which uses a no
 
 Trusted workspace-owner clients may request workspace-scoped discovery. This mode still requires an exact case-insensitive `WorkspacePath` match, but does not filter by `UserId`, `ChannelContext`, or `OriginChannel`. `crossChannelOrigins` is redundant and ignored in this mode.
 
-Workspace-scoped discovery does not weaken the default identity scope. Clients and adapters that omit the scope continue to use the identity rules above. Archived, sub-agent, internal-thread, query, channel-name, and pagination controls remain independent filters. DotCraft Desktop uses workspace scope so every non-internal thread in the current workspace is discoverable, including cron, App Binding origins, and external origins the client does not know in advance.
+Workspace-scoped discovery does not weaken the default identity scope. Clients and adapters that omit the scope continue to use the identity rules above. Archived, sub-agent, internal-thread, query, channel-name, and pagination controls remain independent filters. DotCraft Desktop uses workspace scope so every non-internal thread in the current workspace is discoverable, including automation, App Binding origins, and external origins the client does not know in advance.
 
 #### Resume flow
 
@@ -2081,7 +2081,7 @@ Slash commands are modeled as a managed subsystem with a single server-side comm
 | `/new` | `ISessionService.ResetConversation(identity)` (archive reusable threads + create fresh thread) | Session Core |
 | `/load`, `/sessions` | `ISessionService.FindThreads(identity)` + `ResumeThread` | Session Core |
 | `/help` | Managed command metadata listing | Session Core + Adapter rendering |
-| `/cron` | Cron management operations | AppServer-hosted service |
+| `/automate` | Automation management operations | AppServer-hosted service |
 | `/debug` | Debug mode toggle operation | AppServer-hosted service |
 | `/init` | Expand a repository-guidelines prompt into a normal agent turn | Session Core command pipeline |
 | Custom commands | `CustomCommandLoader.TryResolve` | Session Core command pipeline |

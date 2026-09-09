@@ -13,7 +13,7 @@ public static class AppServerRequestContext
 
     /// <summary>
     /// The transport currently executing an incoming request, or null when not in a handler
-    /// (e.g. cron, CLI, or code paths that do not wrap <c>HandleRequestAsync</c>).
+    /// (e.g. automation, CLI, or code paths that do not wrap <c>HandleRequestAsync</c>).
     /// </summary>
     public static IAppServerTransport? CurrentTransport
     {

@@ -251,6 +251,8 @@ Every first-party tool whose model-visible contract is known at C# compile time 
 
 Declaration-only contracts MUST use the typed declaration surface rather than embedding JSON Schema strings or constructing static schema objects by hand. Conditional input relationships SHOULD use an explicit discriminator plus runtime validation when they cannot be represented by the supported typed schema attributes. Production declarations MUST NOT embed raw JSON Schema fragments as an escape hatch.
 
+Generated tool parameter objects are closed by default, including statically known nested DTOs; explicitly open JSON values such as `JsonObject` and `JsonNode` remain open. CLR enum parameters are model-visible strings whose default wire names are camelCase. `JsonStringEnumMemberName` is reserved for values that cannot be derived by that convention. Generated invocation wrappers deserialize enum inputs with the same naming rules and reject numeric enum values without changing result serialization.
+
 Schemas discovered or supplied at runtime are exempt from this rule. Exempt sources include MCP servers, plugins, channel adapters, App Bindings, runtime dynamic tools, and provider translation layers that preserve or transform a schema owned by another boundary.
 
 ## 8. Snapshot and invalidation semantics

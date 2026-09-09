@@ -139,7 +139,7 @@ internal readonly record struct AppServerTypedResult<TResult>(TResult? Result, b
 }
 
 /// <summary>
-/// A built-in domain handler that owns a slice of the AppServer surface (e.g. cron/*, skills/*).
+/// A built-in domain handler that owns a slice of the AppServer surface (e.g. automation/*, skills/*).
 /// Implementations register their methods into the shared <see cref="AppServerMethodTable"/>.
 /// Mirrors the external <see cref="IAppServerProtocolExtension"/> contract for in-process domains,
 /// so built-ins and extensions ultimately dispatch through the same lookup.

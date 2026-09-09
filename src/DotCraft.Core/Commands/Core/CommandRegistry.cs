@@ -67,15 +67,12 @@ public sealed class CommandRegistry
     /// <summary>
     /// Lists command metadata for help rendering and SDK discovery.
     /// </summary>
-    /// <param name="context">When set, filters commands whose required services are unavailable.</param>
+    /// <param name="context">Optional context for thread-scoped contributions.</param>
     public IReadOnlyList<CommandInfo> ListCommands(CommandContext? context = null)
     {
         var result = new List<CommandInfo>();
         foreach (var registration in _registrations.Values.OrderBy(registration => registration.Name, StringComparer.OrdinalIgnoreCase))
         {
-            if (!IsServiceAvailable(registration, context))
-                continue;
-
             result.Add(new CommandInfo
             {
                 Name = registration.Name,
@@ -179,11 +176,6 @@ public sealed class CommandRegistry
                     return CommandResult.HandledResult();
                 }
 
-                if (!IsServiceAvailable(registration, context))
-                {
-                    await responder.SendTextAsync(FallbackText.CommandServiceUnavailable);
-                    return CommandResult.HandledResult();
-                }
             }
 
             return await handler.HandleAsync(context, responder);
@@ -294,12 +286,6 @@ public sealed class CommandRegistry
             Name = "/init",
             DescriptionKey = "cmd.init"
         });
-        registry.RegisterHandler(new CronCommandHandler(), new CommandRegistration
-        {
-            Name = "/cron",
-            DescriptionKey = "cmd.cron_list",
-            RequiredService = "cron"
-        });
 
         return registry;
     }
@@ -333,31 +319,18 @@ public sealed class CommandRegistry
         return [.. aliases];
     }
 
-    private static bool IsServiceAvailable(CommandRegistration registration, CommandContext? context)
-    {
-        if (context == null || string.IsNullOrWhiteSpace(registration.RequiredService))
-            return true;
-
-        return registration.RequiredService.ToLowerInvariant() switch
-        {
-            "cron" => context.CronService != null,
-            _ => true
-        };
-    }
-
     private static string ResolveDescription(CommandRegistration registration)
     {
-        if (string.IsNullOrWhiteSpace(registration.DescriptionKey))
-            return registration.Name;
-
-        var fallback = FallbackText.Format(registration.DescriptionKey);
-        if (!string.Equals(fallback, registration.DescriptionKey, StringComparison.Ordinal))
-            return fallback;
-
-        return registration.DescriptionKey switch
+        if (!string.IsNullOrWhiteSpace(registration.DescriptionKey))
         {
-            _ => registration.Name
-        };
+            var description = FallbackText.Format(registration.DescriptionKey);
+            if (!string.Equals(description, registration.DescriptionKey, StringComparison.Ordinal))
+                return description;
+        }
+
+        return string.IsNullOrWhiteSpace(registration.FallbackDescription)
+            ? registration.Name
+            : registration.FallbackDescription;
     }
 
     private static CommandRegistration BuildFallbackMetadata(ICommandHandler handler)
@@ -382,9 +355,10 @@ public sealed record CommandRegistration
     public required string Name { get; init; }
     public string[] Aliases { get; init; } = [];
     public string DescriptionKey { get; init; } = string.Empty;
+    /// <summary>Module-owned English description used when the key has no built-in fallback.</summary>
+    public string? FallbackDescription { get; init; }
     public string Category { get; init; } = "builtin";
     public bool RequiresAdmin { get; init; }
-    public string? RequiredService { get; init; }
 }
 
 /// <summary>

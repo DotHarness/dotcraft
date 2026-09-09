@@ -46,7 +46,7 @@ Session Core 发给适配器的是结构化事件流，不是渲染好的文本�
 典型场景：
 
 - 早上在 Desktop 让 Agent 起草 PR，下班在地铁里用 ACP 移动客户端继续 review，仍然是同一个 Thread。
-- 自动化任务在 Cron 里跑到一半遇到审批，Desktop 收到通知，你接力批准或修改。
+- 定时跟进继续已有对话，并保持该对话的会话策略。
 - 微信收到用户提问，机器人回复后，研发人员在 Desktop 的同一个 Thread 里看历史并接手。
 
 ## Hub 与 AppServer 的分工

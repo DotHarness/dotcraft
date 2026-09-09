@@ -12,8 +12,14 @@ import { HighlightProvider } from './highlight/react/HighlightProvider'
 import { CdpDebugIndicator } from './components/layout/CdpDebugIndicator'
 import { ColorPickerDialogHost } from './components/ui/ColorPickerDialog'
 import './styles/index.css'
+import { observeDesktopPetOwnership } from './components/desktopPet/desktopPetOwnership'
+import { DesktopPet } from './components/desktopPet/DesktopPet'
 
-const stopDesktopPluginRuntime = startDesktopPluginRuntime()
+const isPetWindow = document.documentElement.hasAttribute('data-desktop-pet-window')
+const stopPetOwnership = isPetWindow ? () => {} : observeDesktopPetOwnership()
+window.addEventListener('beforeunload', stopPetOwnership, { once: true })
+
+const stopDesktopPluginRuntime = isPetWindow ? () => {} : startDesktopPluginRuntime()
 window.addEventListener('beforeunload', stopDesktopPluginRuntime, { once: true })
 
 const params = new URLSearchParams(window.location.search)
@@ -22,7 +28,7 @@ const initialTheme = resolveTheme(params.get('theme') ?? window.api?.initialThem
 // seed, and with nothing stored yet that re-derive would clear it until settings load.
 const initialAppearance = window.api?.initialAppearance
 applyThemeSeeds(initialAppearance?.accent ?? null, initialAppearance?.themeSeeds)
-applyTheme(initialTheme)
+applyTheme(initialTheme, { syncTitleBarOverlay: !isPetWindow })
 
 // Apply the remaining (non-theme) appearance preferences once settings load. Defaults are
 // no-ops, so only users who customized see a one-tick adjustment after first paint.
@@ -46,8 +52,9 @@ const appSurfaceContext = { rootElement }
 
 createRoot(rootElement).render(
   <StrictMode>
-    <LocaleProvider>
+    <LocaleProvider loadSettings={!isPetWindow}>
       <HighlightProvider>
+        {isPetWindow ? <DesktopPet /> : <>
         <div className="dotcraft-plugin-background-seat">
           <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
         </div>
@@ -64,6 +71,7 @@ createRoot(rootElement).render(
           <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
         </div>
         <ColorPickerDialogHost />
+        </>}
       </HighlightProvider>
     </LocaleProvider>
   </StrictMode>

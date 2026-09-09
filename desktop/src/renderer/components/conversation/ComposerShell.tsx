@@ -20,6 +20,7 @@ import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import { useDocumentThemeMode } from '../../utils/theme'
+import { useDesktopPet } from '../desktopPet/useDesktopPet'
 
 export interface ComposerMascotBubble {
   tone?: MascotBubbleTone
@@ -117,6 +118,8 @@ export function ComposerShell({
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
+  const petRoot = useRef<HTMLDivElement>(null)
+  useDesktopPet(petRoot, showMascot, !desktopPluginSurfaceContext.awaitingApproval && mascotInteraction?.hold !== 'sign')
   const [hovered, setHovered] = useState(false)
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
@@ -174,6 +177,7 @@ export function ComposerShell({
   return (
     <div
       data-composer-root
+      ref={petRoot}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{

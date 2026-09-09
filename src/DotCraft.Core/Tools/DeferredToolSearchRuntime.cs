@@ -12,7 +12,6 @@ namespace DotCraft.Tools;
 internal interface IDeferredToolSearchDeclaration
 {
     [ToolDeclaration(Name = NativeToolSearchTool.ToolName)]
-    [ToolSchema(DisallowAdditionalProperties = true)]
     [Description("Search for deferred tools and activate matching definitions.")]
     void Search(
         [Description("Search keywords for deferred tools.")] string query,

@@ -401,7 +401,6 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | 初始化 | `initialize`, `initialized` | 建立连接能力和 server 能力。 |
 | Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | 会话生命周期、有界历史和订阅。 |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | 用户输入、队列和取消。 |
-| Cron | `cron/list`, `cron/remove`, `cron/enable` | 定时任务管理。 |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、有效内容查看、恢复原始技能、开关和可卸载 skill 删除。 |
 | Tools | `tool/list` | 内置工具目录（名称、描述、图标、Plan 模式可用性），用于 agent profile 的工具选择器。 |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | 插件发现、详情、安装、移除、启用状态与 .NET trust 管理。 |
@@ -411,7 +410,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP 配置和状态。 |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | 外部 channel 配置。 |
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | subagent profile 管理。 |
-| Automations | `automation/task/list`, `automation/task/create`, `automation/task/discardWorktree` | 本地任务生命周期、绑定和受管 worktree 清理。 |
+| Automations | `automation/list`, `automation/create`, `automation/runs/list` | 本地任务生命周期、绑定和受管 worktree 清理。 |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | 受管 Git worktree 状态和交接。 |
 | Workspace config | `workspace/config/update` | 工作区配置更新。 |
 | App Binding | `app/connection/authenticate`、`app/binding/activate`、`app/threadInput/enqueue` | 面向外部应用的扩展模块，由 `capabilities.appBindingVersion` 门控。 |
@@ -422,13 +421,12 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 App Binding 客户端通过 `capabilities.appBindingVersion: 1` 协商版本。完成认证的 App principal 连接只能调用 app-role allowlist：连接认证、刷新、状态与撤销，binding 请求、激活、rebind 与列表，`app/surface/publish`，以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`，未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../integrations/app-binding)。
 
-### Automation 和 worktree 状态
+### 自动化运行与 worktree
 
-Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`。Worktree 模式任务在三种情况下返回 `worktree: null`：受管 worktree 尚未创建、server 回退到任务 workspace、worktree 已被丢弃。
-
-渲染自动化审核 UI 的 client 可以对任务 Thread 调用 `worktree/status`。`ThreadWorktreeStatus` 包含 `hasUncommittedChanges`、`hasCommitsAheadOfBase` 和 `aheadCount`，足够用于紧凑状态提示以及删除/丢弃前的警告。
-
-使用 `automation/task/discardWorktree` 和 `{ taskId }` 可以移除任务的受管 worktree 和分支，同时保留任务本身。任务正在运行时，server 会拒绝丢弃。用户想继续在本地审核时，使用 `thread/worktree/handoff` 并传入 `mode: "local"`。
+自动化定义和运行记录相互独立。使用 `automation/runs/list` 获取结果对应的
+`threadId` 和 `turnId`。Git 项目的独立运行每次使用一个受管 worktree，显式请求的
+worktree 创建失败会显示为运行失败。使用该次运行的线程调用 `worktree/status`
+检查改动，使用 `thread/worktree/handoff` 继续在本地审核。
 
 ### Plugins 和 Skills 管理
 

@@ -69,8 +69,8 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
     - [6.1.2 Plugin app connection and conversation binding](#612-plugin-app-connection-and-conversation-binding)
     - [6.1.3 Desktop Plugins](#613-desktop-plugins)
   - [6.2 Automations](#62-automations)
-  - [6.3 Cron Jobs](#63-cron-jobs)
-  - [6.4 Cron Run Review](#64-cron-run-review)
+  - [6.3 Automation cards](#63-automation-cards)
+  - [6.4 Automation run review](#64-automation-run-review)
   - [6.5 Model Selection](#65-model-selection)
   - [6.6 Archived chats](#66-archived-chats)
   - [6.7 Settings Surface](#67-settings-surface)
@@ -106,6 +106,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - [10. Auxiliary Surfaces](#10-auxiliary-surfaces)
   - [10.1 Viewer Panel](#101-viewer-panel)
   - [10.2 Browser Automation](#102-browser-automation)
+  - [10.3 Desktop Pet](#103-desktop-pet)
 
 ---
 
@@ -323,7 +324,7 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 | `plan/updated` | Structured task progress becomes available in the current conversation context. |
 | `system/event` | Maintenance steps may be surfaced when relevant but must not overshadow core turn output. Provider stream retry events (`kind = "streamError"`) are shown as transient, tool-like rows at the active turn tail while the turn is running, then cleared on turn completion, failure, cancellation, or thread reload. |
 | `system/jobResult` | Automation output becomes visible as an out-of-band result associated with its source run. |
-| `cron/stateChanged` | Automation status views refresh to reflect the current job state. |
+| `automation/updated`, `automation/run/updated` | Definition and run views refresh independently. |
 | `thread/goal/updated` | Goal-aware surfaces for the affected thread update from the server snapshot without forcing thread navigation. |
 | `thread/goal/cleared` | Goal-aware surfaces for the affected thread remove the current goal snapshot without forcing thread navigation. |
 | `workspace/configChanged` | Settings-adjacent surfaces re-fetch impacted regions (`skills`, `mcp`, `externalChannel`, workspace config fields, including welcome-suggestion personalization state and Dreams memory settings) without requiring manual full-page refresh. |
@@ -570,7 +571,7 @@ If the interruption request fails before it is accepted, Desktop clears the stop
 ### 5.11 Cross-Channel Visibility
 
 - Desktop requests workspace-scoped thread discovery for foreground, secondary-project, archived, and Desktop-tool thread lists.
-- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context. This includes cron, App Binding origins, and unknown external origins.
+- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context. This includes automations, App Binding origins, and unknown external origins.
 - App Binding origin declarations provide attribution and branding; they are not a thread-visibility allowlist.
 - The UX contract is that origin differences must not make the thread list confusing:
   - origin may be shown when useful
@@ -815,32 +816,36 @@ The manifest, SDK, contribution, lifecycle, and Host API contracts are defined i
 
 ### 6.2 Automations
 
-The Automations surface remains within Desktop scope as a workflow, not a UI design.
+The `automations` capability controls the unified destination. Missing capability hides
+it; loading errors and empty lists are distinct supported states. One store consumes
+`automation/updated` and `automation/run/updated`, and reloads on reconnection.
 
-Required behavior:
+Creation starts at the Welcome composer by default. Desktop stages a localized instruction
+plus the built-in `$automations` skill reference in the workspace-scoped Welcome draft before
+navigating; it does not show an intermediate prompt card on the Automations page. The Create
+split menu repeats this agent path and offers manual setup. Manual creation and editing use
+the same inline detail surface. Edits use explicit Save/Cancel, retain failed drafts, and
+reject stale versions. Fields are conditional on follow-up or independent execution. Agent
+Profile choices use the shared profile identity picker, including each profile's avatar and
+description. The list/detail divider reuses the Desktop resize handle and edge glow. The
+bottom action row has no additional divider.
 
-- Users can enter an Automations view if at least one relevant automation capability is available.
-- The sidebar hides the Automations destination when neither `automations` nor `cronManagement` is available; it does not render an unavailable disabled destination.
-- The client separates capability availability from current data availability:
-  - unsupported features are disabled
-  - supported but empty features show empty states
-- Automation data refreshes on entry and after server-side state changes.
+### 6.3 Automation cards
 
-### 6.3 Cron Jobs
+Trusted `core.automation` cards retain the operation snapshot and open the current
+definition by id. Creation, update, pause, resume and completion have distinct labels.
+Manual run acceptance displays queued, not succeeded. Missing or deleted definitions
+remain understandable as historical snapshots, with no dead edit controls.
+The card reuses the scheduled-work reference treatment: a calendar-clock identity mark
+and automation name share the summary row, while the compact disclosure lists schedule,
+next run, execution mode, and notification policy. The automation prompt stays out of
+the tool result card.
 
-Required behavior:
+### 6.4 Automation run review
 
-- Users can list cron jobs when `cronManagement` is available.
-- Users can inspect each job's enabled state, recent result summary, and most recent associated thread when available.
-- Users can enable, disable, or remove jobs when supported by the server.
-- If job state changes elsewhere, the list refreshes through `cron/stateChanged` or explicit reload.
-- If a job has a recent execution thread, users can open that thread's history for review.
-
-### 6.4 Cron Run Review
-
-- Reviewing a cron run is a read-only workflow.
-- The review experience must expose the conversation and outputs associated with the most recent run thread.
-- Users must be able to leave the review state without losing their place in the automations list.
+Every result opens by automation id and run id. Follow-ups locate the exact turn in
+an existing conversation; independent runs open their own conversation. Worktree
+review belongs to a run, never to a definition's mutable latest-thread pointer.
 
 ### 6.5 Model Selection
 
@@ -1106,8 +1111,8 @@ User input request delivery follows the same reliability expectation: if the dia
 
 ### 8.6 Automation Errors
 
-- If cron list loading fails, the Automations view remains usable enough to retry.
-- If a cron action fails due to stale state, the client refreshes server truth and reconciles the visible state.
+- If automation definition loading fails, the Automations view remains usable enough to retry.
+- If an automation action fails due to stale state, the client refreshes server truth and reconciles the visible state.
 - If automation review data is missing, the user sees that the run exists but cannot currently be inspected.
 
 ---
@@ -1154,3 +1159,16 @@ Surfaces beyond the conversation follow the same rules as the rest of this docum
 - While an agent is actively operating a browser tab, Desktop must surface an automation state on the tab chrome, including the session name when available and a concise last-action hint when useful.
 - Coordinate and locator-driven browser actions should render a virtual cursor inside the page whenever the page can accept the injected overlay. Failure to render the overlay must not block the underlying browser action.
 - Navigation, screenshots, DOM snapshots, console-log inspection, and coordinate input remain subject to Desktop's browser policy, including local-url defaults and external-domain approval or blocking.
+
+### 10.3 Desktop Pet
+
+Desktop pet mode is a Desktop presentation of the composer mascot and its existing conversation. It preserves the current workspace, thread, draft, and running work.
+
+- Dragging the shared composer mascot into a trigger zone at any of the four window edges starts pet mode immediately, without waiting for release. The character continues following the held pointer as the main window fades. Releasing beyond the detach distance also enters pet mode away from the edges. A short drag outside these zones or Escape returns it to its seat.
+- Only one mascot is visible during transfer. The main window fades out after the companion is ready. Returning uses a brief anticipation, an arcing jump, and a soft landing at the current composer seat before revealing the main window. Reduced motion preserves this order without travel or fading.
+- The pet can be moved within display work areas and snaps near side edges. Existing app restore actions return to the main window. If the source composer disappears, return uses an available composer seat; companion failure restores access to the main window.
+- The companion's actions appear on hover or keyboard focus, on its right side (left when constrained by the screen edge). Quick Chat opens below it. Clicking greets, dragging provides directional feedback, and release acknowledges landing through the shared Avatar animations. Idle gaze follows nearby mouse movement, yielding to interaction animations and reduced-motion preferences.
+- The pet reuses Composer's idle micro-gestures and sleeps after 90 seconds without activity. Pointer or keyboard activity wakes it; chatting, dragging, transitions, and source work states prevent sleep. Gaze owns directional looking, while blink and antenna gestures remain available. Source working, thinking, waiting, blocked, and done poses carry into the companion; idle antics never replace them.
+- Quick Chat reuses the Desktop composer input and circular send control in a compact single row, without an extra panel, title, separator, or helper copy. It shares the source editor's draft and delegates sending to its existing submission behavior. Late updates must not replace newer typing.
+- Approval and user-input decisions return to the full Desktop decision interface. Pet mode must not resolve a pending decision or create an independent conversation state.
+- A plugin replacement of `composer.mascot` keeps its own character and opts out of the native drag transfer.

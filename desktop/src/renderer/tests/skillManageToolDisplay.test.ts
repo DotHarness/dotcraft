@@ -33,6 +33,11 @@ describe('skillManageToolDisplay', () => {
     expect(display.variantUpdated).toBe(true)
   })
 
+  it('accepts only exact action wire values', () => {
+    expect(getSkillManageDisplay({ action: 'PATCH', name: 'demo' }, undefined).action).toBeNull()
+    expect(getSkillManageDisplay({ action: 'patch', name: 'demo' }, undefined).action).toBe('patch')
+  })
+
   it('formats collapsed labels without exposing raw JSON', () => {
     expect(formatSkillManageLabel(
       { action: 'write_file', name: 'demo', filePath: 'scripts/check.ps1' },

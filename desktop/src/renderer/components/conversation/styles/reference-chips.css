@@ -36,14 +36,14 @@
 
 .dc-ref-command,
 .dc-ref-skill,
-.dc-ref-cron,
+.dc-ref-automation,
 .dc-ref-link,
 .dc-ref-profile {
   font-weight: 600;
 }
 
 .dc-ref-command,
-.dc-ref-cron {
+.dc-ref-automation {
   color: var(--accent);
 }
 
@@ -60,14 +60,6 @@ a.dc-ref:hover,
 button.dc-ref:hover,
 .dc-ref[data-ref-type]:hover {
   color: var(--text-primary);
-}
-
-/* Composer pills only lift (their hover reveals the remove icon); navigating refs also underline. */
-a.dc-ref:hover,
-button.dc-ref:not([disabled]):hover {
-  text-decoration: underline dashed;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
 }
 
 button.dc-ref[disabled] {

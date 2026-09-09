@@ -120,22 +120,6 @@ public sealed class SkillsLoaderTests : IDisposable
     }
 
     [Fact]
-    public void DeployBuiltInSkills_RemovesLegacyUnderscoreBuiltIns()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        var loader = new SkillsLoader(_tempRoot);
-        var legacyDir = Path.Combine(loader.WorkspaceSkillsPath, "skill_authoring");
-        Directory.CreateDirectory(legacyDir);
-        File.WriteAllText(Path.Combine(legacyDir, "SKILL.md"), "legacy");
-        File.WriteAllText(Path.Combine(legacyDir, ".builtin"), "0.0.0.0");
-
-        loader.DeployBuiltInSkills();
-
-        Assert.False(Directory.Exists(legacyDir));
-        Assert.True(Directory.Exists(Path.Combine(loader.WorkspaceSkillsPath, "skill-authoring")));
-    }
-
-    [Fact]
     public void DeployBuiltInSkills_WritesCanonicalProductVersion()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -149,6 +133,66 @@ public sealed class SkillsLoaderTests : IDisposable
                 loader.WorkspaceSkillsPath,
                 "plugin-creator",
                 ".builtin")));
+    }
+
+    [Fact]
+    public void DeployBuiltInSkills_IncludesAutomations()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var loader = new SkillsLoader(_tempRoot);
+
+        loader.DeployBuiltInSkills();
+
+        var skill = loader.ResolveSkillInfo("automations");
+        Assert.NotNull(skill);
+        Assert.Equal("builtin", skill.Source);
+        Assert.Contains("Automation", loader.LoadSkill("automations"));
+    }
+
+    [Fact]
+    public void UnavailableBuiltIn_IsNotListedOrLoaded_AndFilesRemain()
+    {
+        const string name = "unavailable-test-skill";
+        var loader = new SkillsLoader(_tempRoot);
+        var directory = Path.Combine(loader.WorkspaceSkillsPath, name);
+        Directory.CreateDirectory(directory);
+        var source = Path.Combine(directory, "SKILL.md");
+        File.WriteAllText(source, $"---\nname: {name}\ndescription: Unavailable built-in\n---\nUnavailable instructions");
+        File.WriteAllText(Path.Combine(directory, ".builtin"), "unavailable-version");
+
+        Assert.Null(loader.LoadSkill(name));
+        loader.DeployBuiltInSkills();
+
+        Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == name);
+        Assert.Null(loader.ResolveSkillInfo(name));
+        Assert.Null(loader.LoadSkill(name));
+        Assert.Null(loader.LoadEffectiveSkill(name, variantModeEnabled: false, target: null));
+        Assert.Contains("Unavailable instructions", File.ReadAllText(source));
+        Assert.Equal("unavailable-version", File.ReadAllText(Path.Combine(directory, ".builtin")));
+        Assert.NotNull(loader.LoadSkill("plugin-creator"));
+    }
+
+    [Fact]
+    public void UnavailableBuiltIn_DoesNotHideSameNameUserSkill()
+    {
+        var userSkills = Path.Combine(_tempRoot, "user-skills");
+        var loader = new SkillsLoader(_tempRoot, userSkills);
+        var unavailable = Path.Combine(loader.WorkspaceSkillsPath, "unavailable-test-skill");
+        var user = Path.Combine(userSkills, "unavailable-test-skill");
+        Directory.CreateDirectory(unavailable);
+        Directory.CreateDirectory(user);
+        File.WriteAllText(Path.Combine(unavailable, "SKILL.md"), "Unavailable instructions");
+        File.WriteAllText(Path.Combine(unavailable, ".builtin"), "unavailable-version");
+        File.WriteAllText(Path.Combine(user, "SKILL.md"), "---\nname: unavailable-test-skill\ndescription: User skill\n---\nUser instructions");
+
+        Assert.Equal("user", loader.ResolveSkillInfo("unavailable-test-skill")!.Source);
+        Assert.Contains("User instructions", loader.LoadSkill("unavailable-test-skill"));
+
+        File.Delete(Path.Combine(unavailable, ".builtin"));
+        File.WriteAllText(Path.Combine(unavailable, "SKILL.md"), "---\nname: unavailable-test-skill\ndescription: Workspace skill\n---\nWorkspace instructions");
+        loader.DeployBuiltInSkills();
+        Assert.Equal("workspace", loader.ResolveSkillInfo("unavailable-test-skill")!.Source);
+        Assert.Contains("Workspace instructions", loader.LoadSkill("unavailable-test-skill"));
     }
 
     public void Dispose()

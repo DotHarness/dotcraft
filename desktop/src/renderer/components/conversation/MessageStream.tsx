@@ -1,3 +1,4 @@
+import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore, type StreamRetrySignal } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -130,6 +131,7 @@ export function MessageStream(): JSX.Element {
     (effectiveSystemLabel?.length ?? 0)
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
+  useAutomationRunReveal(scrollRef)
   // The dock floats over the bottom of the scroll region, so its height is reserved
   // below the last message and the scroll-to-bottom button is lifted by the same amount.
   const dockHeightPx = estimateQueuedInputDockHeightPx(queuedInputCount)
@@ -314,6 +316,7 @@ export function MessageStream(): JSX.Element {
             return (
               <div
                 key={turn.id}
+                data-turn-id={turn.id}
                 className="dc-conversation-turn-shell"
                 data-active={isActiveTurn ? 'true' : undefined}
               >

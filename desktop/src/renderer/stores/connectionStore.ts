@@ -22,7 +22,7 @@ export interface ServerCapabilities {
   approvalFlow?: boolean
   modeSwitch?: boolean
   configOverride?: boolean
-  cronManagement?: boolean
+  automations?: boolean
   skillsManagement?: boolean
   toolCatalog?: boolean
   pluginManagement?: boolean

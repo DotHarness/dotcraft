@@ -22,7 +22,7 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_CreateWithValidContent_WritesWorkspaceSkill()
     {
-        var result = await Invoke(() => _tool.SkillManage("create", "demo-skill", content: ValidSkill("demo-skill")));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "demo-skill", content: ValidSkill("demo-skill")));
 
         Assert.True(result.Success);
         Assert.True(File.Exists(Path.Combine(_skillsLoader.WorkspaceSkillsPath, "demo-skill", "SKILL.md")));
@@ -31,7 +31,7 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_CreateWithMissingFrontmatter_ReturnsError()
     {
-        var result = await Invoke(() => _tool.SkillManage("create", "bad-skill", content: "# Bad\n\nMissing frontmatter."));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "bad-skill", content: "# Bad\n\nMissing frontmatter."));
 
         Assert.False(result.Success);
         Assert.Contains("frontmatter", result.Error, StringComparison.OrdinalIgnoreCase);
@@ -41,7 +41,7 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_CreateWithInvalidName_ReturnsError()
     {
-        var result = await Invoke(() => _tool.SkillManage("create", "Bad Skill", content: ValidSkill("Bad Skill")));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "Bad Skill", content: ValidSkill("Bad Skill")));
 
         Assert.False(result.Success);
         Assert.Contains("Invalid skill name", result.Error);
@@ -50,9 +50,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_CreateWithDuplicateName_ReturnsError()
     {
-        await Invoke(() => _tool.SkillManage("create", "demo-skill", content: ValidSkill("demo-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "demo-skill", content: ValidSkill("demo-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("create", "demo-skill", content: ValidSkill("demo-skill")));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "demo-skill", content: ValidSkill("demo-skill")));
 
         Assert.False(result.Success);
         Assert.Contains("already exists", result.Error);
@@ -64,7 +64,7 @@ public sealed class SkillManageToolTests : IDisposable
         var approval = new RecordingApprovalService(approved: true);
         var tool = CreateTool(approval);
 
-        var result = await Invoke(() => tool.SkillManage("create", "approved-skill", content: ValidSkill("approved-skill")));
+        var result = await Invoke(() => tool.SkillManage(SkillManageAction.Create, "approved-skill", content: ValidSkill("approved-skill")));
 
         Assert.True(result.Success);
         Assert.Equal(("skill", "create", "approved-skill"), Assert.Single(approval.Requests));
@@ -77,7 +77,7 @@ public sealed class SkillManageToolTests : IDisposable
         var approval = new RecordingApprovalService(approved: false);
         var tool = CreateTool(approval);
 
-        var result = await Invoke(() => tool.SkillManage("create", "rejected-skill", content: ValidSkill("rejected-skill")));
+        var result = await Invoke(() => tool.SkillManage(SkillManageAction.Create, "rejected-skill", content: ValidSkill("rejected-skill")));
 
         Assert.False(result.Success);
         Assert.Contains("rejected by user", result.Error);
@@ -86,20 +86,11 @@ public sealed class SkillManageToolTests : IDisposable
     }
 
     [Fact]
-    public async Task SkillManage_UnknownAction_ReturnsError()
-    {
-        var result = await Invoke(() => _tool.SkillManage("unknown", "demo-skill"));
-
-        Assert.False(result.Success);
-        Assert.Contains("Unknown action", result.Error);
-    }
-
-    [Fact]
     public async Task SkillManage_PatchRequiresOldAndNewStrings()
     {
-        await Invoke(() => _tool.SkillManage("create", "patch-skill", content: ValidSkill("patch-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "patch-skill", content: ValidSkill("patch-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("patch", "patch-skill", oldString: "Follow"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Patch, "patch-skill", oldString: "Follow"));
 
         Assert.False(result.Success);
         Assert.Contains("newString is required", result.Error);
@@ -108,9 +99,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_PatchRequiresUniqueMatchUnlessReplaceAll()
     {
-        await Invoke(() => _tool.SkillManage("create", "patch-skill", content: ValidSkill("patch-skill", "Repeat\nRepeat\n")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "patch-skill", content: ValidSkill("patch-skill", "Repeat\nRepeat\n")));
 
-        var result = await Invoke(() => _tool.SkillManage("patch", "patch-skill", oldString: "Repeat", newString: "Done"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Patch, "patch-skill", oldString: "Repeat", newString: "Done"));
 
         Assert.False(result.Success);
         Assert.Contains("matched 2 times", result.Error);
@@ -119,9 +110,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_PatchWithReplaceAll_UpdatesAllMatches()
     {
-        await Invoke(() => _tool.SkillManage("create", "patch-skill", content: ValidSkill("patch-skill", "Repeat\nRepeat\n")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "patch-skill", content: ValidSkill("patch-skill", "Repeat\nRepeat\n")));
 
-        var result = await Invoke(() => _tool.SkillManage("patch", "patch-skill", oldString: "Repeat", newString: "Done", replaceAll: true));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Patch, "patch-skill", oldString: "Repeat", newString: "Done", replaceAll: true));
         var content = File.ReadAllText(Path.Combine(_skillsLoader.WorkspaceSkillsPath, "patch-skill", "SKILL.md"));
 
         Assert.True(result.Success);
@@ -132,11 +123,11 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task Patch_DoesNotRequestApproval()
     {
-        await Invoke(() => _tool.SkillManage("create", "patch-skill", content: ValidSkill("patch-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "patch-skill", content: ValidSkill("patch-skill")));
         var approval = new RecordingApprovalService(approved: false);
         var tool = CreateTool(approval);
 
-        var result = await Invoke(() => tool.SkillManage("patch", "patch-skill", oldString: "Follow these steps.", newString: "Follow these updated steps."));
+        var result = await Invoke(() => tool.SkillManage(SkillManageAction.Patch, "patch-skill", oldString: "Follow these steps.", newString: "Follow these updated steps."));
 
         Assert.True(result.Success);
         Assert.Empty(approval.Requests);
@@ -145,9 +136,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_Edit_ReplacesSkillContent()
     {
-        await Invoke(() => _tool.SkillManage("create", "edit-skill", content: ValidSkill("edit-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "edit-skill", content: ValidSkill("edit-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("edit", "edit-skill", content: ValidSkill("edit-skill", "Changed workflow.")));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Edit, "edit-skill", content: ValidSkill("edit-skill", "Changed workflow.")));
         var content = File.ReadAllText(Path.Combine(_skillsLoader.WorkspaceSkillsPath, "edit-skill", "SKILL.md"));
 
         Assert.True(result.Success);
@@ -157,11 +148,11 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task Edit_DoesNotRequestApproval()
     {
-        await Invoke(() => _tool.SkillManage("create", "edit-skill", content: ValidSkill("edit-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "edit-skill", content: ValidSkill("edit-skill")));
         var approval = new RecordingApprovalService(approved: false);
         var tool = CreateTool(approval);
 
-        var result = await Invoke(() => tool.SkillManage("edit", "edit-skill", content: ValidSkill("edit-skill", "Changed workflow.")));
+        var result = await Invoke(() => tool.SkillManage(SkillManageAction.Edit, "edit-skill", content: ValidSkill("edit-skill", "Changed workflow.")));
 
         Assert.True(result.Success);
         Assert.Empty(approval.Requests);
@@ -170,9 +161,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_WriteFile_WritesSupportingFile()
     {
-        await Invoke(() => _tool.SkillManage("create", "file-skill", content: ValidSkill("file-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "file-skill", content: ValidSkill("file-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("write_file", "file-skill", filePath: "scripts/guide.md", fileContent: "Guide"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.WriteFile, "file-skill", filePath: "scripts/guide.md", fileContent: "Guide"));
 
         Assert.True(result.Success);
         Assert.True(File.Exists(Path.Combine(_skillsLoader.WorkspaceSkillsPath, "file-skill", "scripts", "guide.md")));
@@ -183,9 +174,9 @@ public sealed class SkillManageToolTests : IDisposable
     [InlineData("templates/template.md")]
     public async Task SkillManage_WriteFileRejectsUnsupportedSupportingPath(string filePath)
     {
-        await Invoke(() => _tool.SkillManage("create", "file-skill", content: ValidSkill("file-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "file-skill", content: ValidSkill("file-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("write_file", "file-skill", filePath: filePath, fileContent: "Guide"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.WriteFile, "file-skill", filePath: filePath, fileContent: "Guide"));
 
         Assert.False(result.Success);
         Assert.Contains("scripts, assets", result.Error);
@@ -194,9 +185,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_WriteFileRejectsTraversal()
     {
-        await Invoke(() => _tool.SkillManage("create", "file-skill", content: ValidSkill("file-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "file-skill", content: ValidSkill("file-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("write_file", "file-skill", filePath: "../escape.md", fileContent: "bad"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.WriteFile, "file-skill", filePath: "../escape.md", fileContent: "bad"));
 
         Assert.False(result.Success);
         Assert.Contains("Path traversal", result.Error);
@@ -205,10 +196,10 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_RemoveFile_RemovesSupportingFile()
     {
-        await Invoke(() => _tool.SkillManage("create", "file-skill", content: ValidSkill("file-skill")));
-        await Invoke(() => _tool.SkillManage("write_file", "file-skill", filePath: "assets/guide.md", fileContent: "Guide"));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "file-skill", content: ValidSkill("file-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.WriteFile, "file-skill", filePath: "assets/guide.md", fileContent: "Guide"));
 
-        var result = await Invoke(() => _tool.SkillManage("remove_file", "file-skill", filePath: "assets/guide.md"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.RemoveFile, "file-skill", filePath: "assets/guide.md"));
 
         Assert.True(result.Success);
         Assert.False(File.Exists(Path.Combine(_skillsLoader.WorkspaceSkillsPath, "file-skill", "assets", "guide.md")));
@@ -217,9 +208,9 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task SkillManage_Delete_RemovesWorkspaceSkill()
     {
-        await Invoke(() => _tool.SkillManage("create", "delete-skill", content: ValidSkill("delete-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "delete-skill", content: ValidSkill("delete-skill")));
 
-        var result = await Invoke(() => _tool.SkillManage("delete", "delete-skill"));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Delete, "delete-skill"));
 
         Assert.True(result.Success);
         Assert.False(Directory.Exists(Path.Combine(_skillsLoader.WorkspaceSkillsPath, "delete-skill")));
@@ -228,11 +219,11 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task Delete_RequestsSkillApproval_AndExecutesOnAccept()
     {
-        await Invoke(() => _tool.SkillManage("create", "delete-skill", content: ValidSkill("delete-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "delete-skill", content: ValidSkill("delete-skill")));
         var approval = new RecordingApprovalService(approved: true);
         var tool = CreateTool(approval);
 
-        var result = await Invoke(() => tool.SkillManage("delete", "delete-skill"));
+        var result = await Invoke(() => tool.SkillManage(SkillManageAction.Delete, "delete-skill"));
 
         Assert.True(result.Success);
         Assert.Equal(("skill", "delete", "delete-skill"), Assert.Single(approval.Requests));
@@ -242,11 +233,11 @@ public sealed class SkillManageToolTests : IDisposable
     [Fact]
     public async Task Delete_RejectedApproval_KeepsSkillOnDisk_ReturnsRejectionMessage()
     {
-        await Invoke(() => _tool.SkillManage("create", "delete-skill", content: ValidSkill("delete-skill")));
+        await Invoke(() => _tool.SkillManage(SkillManageAction.Create, "delete-skill", content: ValidSkill("delete-skill")));
         var approval = new RecordingApprovalService(approved: false);
         var tool = CreateTool(approval);
 
-        var result = await Invoke(() => tool.SkillManage("delete", "delete-skill"));
+        var result = await Invoke(() => tool.SkillManage(SkillManageAction.Delete, "delete-skill"));
 
         Assert.False(result.Success);
         Assert.Contains("rejected by user", result.Error);
@@ -262,7 +253,7 @@ public sealed class SkillManageToolTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(skillDir, "SKILL.md"), ValidSkill("builtin-skill"));
         await File.WriteAllTextAsync(Path.Combine(skillDir, ".builtin"), "test");
 
-        var result = await Invoke(() => _tool.SkillManage("edit", "builtin-skill", content: ValidSkill("builtin-skill", "Changed.")));
+        var result = await Invoke(() => _tool.SkillManage(SkillManageAction.Edit, "builtin-skill", content: ValidSkill("builtin-skill", "Changed.")));
 
         Assert.False(result.Success);
         Assert.Contains("builtin", result.Error, StringComparison.OrdinalIgnoreCase);

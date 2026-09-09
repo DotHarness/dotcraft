@@ -2,7 +2,6 @@ using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
-using DotCraft.Cron;
 using DotCraft.Logging;
 using DotCraft.Modules;
 using DotCraft.Sessions;
@@ -28,24 +27,24 @@ internal sealed class ExternalChannelRequestHandlerFactory(
     IReadOnlyList<IThreadOriginPresentationProvider> originPresentationProviders,
     ILoggerFactory? loggerFactory,
     WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-    DotCraft.Contributions.IContributionView? contributions = null)
+    DotCraft.Contributions.IContributionView? contributions = null,
+    DotCraft.Commands.Core.CommandRegistry? commandRegistry = null)
 {
     private readonly string _workspaceCraftPath = Path.Combine(hostWorkspacePath, ".craft");
 
     public AppServerRequestHandler Create(
         AppServerConnection connection,
-        IAppServerTransport transport,
-        CronService? cronService)
+        IAppServerTransport transport)
     {
         return new AppServerRequestHandler(
             sessionService,
             connection,
             transport,
-            new ModuleRegistryChannelListContributor(moduleRegistry, cronService),
+            new ModuleRegistryChannelListContributor(moduleRegistry, appConfigMonitor?.Current),
             new AppServerConnectionServices
             {
                 ServerVersion = serverVersion,
-                CronService = cronService,
+                CommandRegistry = commandRegistry,
                 WorkspaceCraftPath = _workspaceCraftPath,
                 HostWorkspacePath = hostWorkspacePath,
                 StreamDebugLogger = streamDebugLogger,

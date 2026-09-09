@@ -25,17 +25,18 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
 
-export function LocaleProvider({ children }: { children: ReactNode }): JSX.Element {
+export function LocaleProvider({ children, loadSettings = true }: { children: ReactNode; loadSettings?: boolean }): JSX.Element {
   const [locale, setLocale] = useState<AppLocale>(() =>
     normalizeLocale(window.api?.initialLocale ?? DEFAULT_LOCALE)
   )
 
   useEffect(() => {
+    if (!loadSettings) return
     window.api.settings
       .get()
       .then((s) => setLocale(normalizeLocale(s.locale)))
       .catch(() => {})
-  }, [])
+  }, [loadSettings])
 
   useEffect(() => {
     document.documentElement.lang = localeToHtmlLang(locale)

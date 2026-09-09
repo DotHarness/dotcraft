@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -14,23 +13,15 @@ namespace DotCraft.DynamicWorkflows;
 
 internal enum DynamicWorkflowToolMode
 {
-    [JsonStringEnumMemberName("script")]
     Script,
-
-    [JsonStringEnumMemberName("path")]
     Path,
-
-    [JsonStringEnumMemberName("name")]
     Name,
-
-    [JsonStringEnumMemberName("resume")]
     Resume
 }
 
 internal interface IDynamicWorkflowToolDeclaration
 {
     [ToolDeclaration(Name = "Workflow")]
-    [ToolSchema(DisallowAdditionalProperties = true)]
     [Description("Start or resume a background Dynamic Workflow.")]
     void Workflow(
         [Description("Required workflow source mode.")] DynamicWorkflowToolMode mode,

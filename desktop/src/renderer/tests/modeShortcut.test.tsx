@@ -59,7 +59,6 @@ describe('mode shortcut', () => {
     useThreadStore.getState().reset()
     useUIStore.setState({
       activeMainView: 'conversation',
-      automationsTab: 'tasks',
       sidebarCollapsed: false,
       sidebarWidth: 240,
       detailPanelVisible: true,

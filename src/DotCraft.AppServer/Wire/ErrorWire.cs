@@ -18,8 +18,6 @@ internal sealed record WorktreeConflictErrorParams(
 /// <summary>Error parameters identifying an external channel.</summary>
 internal sealed record ChannelErrorParams([property: JsonPropertyName("channelName")] string ChannelName);
 
-/// <summary>Error parameters identifying a cron job.</summary>
-internal sealed record CronJobErrorParams([property: JsonPropertyName("jobId")] string JobId);
 
 /// <summary>Error parameters identifying a named protocol resource.</summary>
 internal sealed record NamedResourceErrorParams([property: JsonPropertyName("name")] string Name);
@@ -45,7 +43,6 @@ internal sealed record AgentProfileDiagnosticsErrorParams(
     [property: JsonPropertyName("diagnostics")] object Diagnostics);
 
 /// <summary>Error parameters identifying an automation task.</summary>
-internal sealed record TaskErrorParams([property: JsonPropertyName("taskId")] string TaskId);
 
 /// <summary>Error parameters naming who holds a busy remote workspace lease.</summary>
 internal sealed record RemoteToolBusyErrorParams([property: JsonPropertyName("owner")] string Owner);

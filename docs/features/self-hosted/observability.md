@@ -47,7 +47,7 @@ The **Instructions** filter shows the `AGENTS.md` content the session actually c
 
 ### Check automation and dream runs
 
-**Automations** lists the local tasks and Cron entries AppServer hosts, along with their current activity. **Dreams** is where you review what the background pass produced and decide whether to apply or discard it.
+**Automations** lists the automation definitions AppServer hosts, along with their current activity. **Dreams** is where you review what the background pass produced and decide whether to apply or discard it.
 
 ## Consume the events yourself
 

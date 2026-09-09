@@ -407,7 +407,8 @@ If the adapter does not respond within the configured timeout, `ExternalChannelH
 - Running the `AppServerRequestHandler` message loop for the adapter's connection, giving the adapter full access to `ISessionService`.
 - Composing that request handler with the owning workspace runtime's shared `ChatClientRegistry` and `ModelProviderRegistry`. A session-capable adapter connection must never fall back to an empty provider registry.
 - Implementing unified delivery via `ext/channel/send` for both text and media.
-- Forwarding injected `CronService` delivery events to the adapter through the negotiated delivery path.
+- Receiving scheduled Automation results through the existing MessageRouter and negotiated delivery path; adapters do not own a scheduler.
+- Reusing the workspace CommandRegistry, including enabled module handlers, for `command/list` and `command/execute`. `/automate list|show|pause|resume|run|remove` is the deterministic host command.
 - Monitoring adapter responsiveness via `ext/channel/heartbeat` and triggering restarts when the adapter becomes unresponsive.
 - Subprocess lifecycle management (subprocess mode only): spawning, monitoring exit, and restarting with backoff.
 
@@ -454,7 +455,7 @@ If the adapter process exits unexpectedly, `ExternalChannelHost` logs the exit c
 | `DeliverAsync(target, message, metadata)` | Structured delivery entry point used for text and media. |
 | `ApprovalService` | `null` — approval is handled end-to-end by the adapter via Wire Protocol. |
 | `ChannelClient` | `null` — platform client is out-of-process. |
-| `CronService` | Injected by the AppServer workspace runtime; job results are forwarded through the negotiated delivery path. |
+| Scheduled results | Unified Automations preserves the origin delivery target and sends results through MessageRouter. No scheduling service is injected into the channel interface. |
 
 ---
 
@@ -592,7 +593,7 @@ This section defines the protocol-level obligations that any conforming external
 
 - The adapter **must** populate `SenderContext` in `turn/start` with at minimum `senderId` and `senderName`. This enables correct attribution in the turn's `initiator` record and cross-channel audit logging.
 - The adapter is responsible for permission checks before forwarding a message to DotCraft. DotCraft trusts the `SenderContext` presented by the adapter.
-- The `groupId` field **must** be set to the platform-specific delivery target for the current chat or group (e.g. the Telegram `chat_id`). The server uses this value as the default delivery target when a cron job is created during the turn: if the cron payload does not specify a `to` field, the server falls back to `SenderContext.groupId`. Adapters that participate in unified delivery must therefore ensure `groupId` contains a value that their `ext/channel/send` implementation can accept as `target`. If no meaningful group context exists, omit `groupId`; the server will fall back to `senderId` instead.
+- The `groupId` field **must** be set to the platform-specific delivery target for the current chat or group (e.g. the Telegram `chat_id`). The server uses this value as the default delivery target when an automation is created during the turn: the host captures the origin delivery target from `SenderContext.groupId`. Adapters that participate in unified delivery must therefore ensure `groupId` contains a value that their `ext/channel/send` implementation can accept as `target`. If no meaningful group context exists, omit `groupId`; the server will fall back to `senderId` instead.
 
 ### 10.4 Server-to-Client Requests
 
@@ -716,7 +717,7 @@ This section describes the design intent of the reference Telegram adapter (`sdk
 The Telegram adapter demonstrates the following protocol obligations defined in §10:
 
 - **Thread management**: On each incoming message, `thread/list` is called to find the active thread for the chat's `SessionIdentity`. If none exists, `thread/start` creates one.
-- **SenderContext**: The Telegram user ID and display name are forwarded as `SenderContext` on every `turn/start`. The Telegram `chat_id` is also forwarded as `groupId`, which the server uses as the default delivery target for any cron jobs created during the session.
+- **SenderContext**: The Telegram user ID and display name are forwarded as `SenderContext` on every `turn/start`. The Telegram `chat_id` is also forwarded as `groupId`, which the server uses as the default delivery target for any automations created during the session.
 - **Approval**: The adapter intercepts `item/approval/request` mid-stream, presents a platform-native prompt, and sends the JSON-RPC response before resuming event consumption.
 - **Delivery**: `ext/channel/send` is mapped to the adapter's message-send API for both text and structured media payloads, using the stored chat ID for the given `target`.
 - **Channel tools**: tool descriptors are declared during `initialize`; if the adapter declares any, it must also implement `ext/channel/toolCall` for those tools.

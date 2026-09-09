@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Cron;
 using DotCraft.Sessions;
 
 namespace DotCraft.Commands.Core;
@@ -72,10 +71,6 @@ public sealed record CommandContext
     /// </summary>
     public ISessionService? SessionService { get; init; }
 
-    /// <summary>
-    /// The cron service (may be null if not enabled).
-    /// </summary>
-    public CronService? CronService { get; init; }
 
     /// <summary>
     /// The agent factory for token tracking.

@@ -427,6 +427,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
     public void RecordToolCallCompleted(string sessionKey, FunctionResultContent fr, string? toolName, double durationMs)
     {
         var result = Agents.ImageContentSanitizingChatClient.DescribeResult(fr.Result);
+        var errorCode = StreamingFunctionInvokingChatClient.GetToolResultErrorCode(fr);
         store.Record(new TraceEvent
         {
             Type = TraceEventType.ToolCallCompleted,
@@ -436,7 +437,8 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
             ToolResult = result,
             DurationMs = durationMs,
             Content = fr.CallId,
-            CallId = fr.CallId
+            CallId = fr.CallId,
+            MetadataJson = errorCode == null ? null : SerializeMetadata(new { schemaVersion = 1, errorCode })
         });
     }
 

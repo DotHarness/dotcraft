@@ -58,7 +58,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         var connection = new AppServerConnection();
         var handler = new AppServerRequestHandler(
             _service, connection, serverTransport,
-            new ModuleRegistryChannelListContributor(new ModuleRegistry(), null),
+            new ModuleRegistryChannelListContributor(new ModuleRegistry()),
             new AppServerConnectionServices
             {
                 ServerVersion = "0.0.1-test",

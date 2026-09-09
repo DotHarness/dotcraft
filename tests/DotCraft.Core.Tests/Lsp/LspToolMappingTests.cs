@@ -28,7 +28,7 @@ public class LspToolMappingTests
         }));
 
         var tool = new LspTool(workspace, manager, requireApprovalOutsideWorkspace: false);
-        var result = await tool.LSP("goToDefinition", "sample.cs", 3, 7);
+        var result = await tool.LSP(LspOperation.GoToDefinition, "sample.cs", 3, 7);
 
         Assert.Single(manager.RequestMethods);
         Assert.Equal("textDocument/definition", manager.RequestMethods[0]);
@@ -83,7 +83,7 @@ public class LspToolMappingTests
         }));
 
         var tool = new LspTool(workspace, manager, requireApprovalOutsideWorkspace: false);
-        var result = await tool.LSP("incomingCalls", "sample.cs", 2, 2);
+        var result = await tool.LSP(LspOperation.IncomingCalls, "sample.cs", 2, 2);
 
         Assert.Equal(
             ["textDocument/prepareCallHierarchy", "callHierarchy/incomingCalls"],

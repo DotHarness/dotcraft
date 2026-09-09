@@ -28,7 +28,7 @@ describe('PluginsView catalog', () => {
     expect(await screen.findByText('Installed locally')).toBeInTheDocument()
     expect(screen.getByText('External Process Echo')).toBeInTheDocument()
     expect(screen.getByText('Browser')).toBeInTheDocument()
-    expect(screen.getByText('All publishers')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter plugins' })).toBeInTheDocument()
   })
 
   it('installs a plugin from a picked disk folder via plugin/installLocal', async () => {
@@ -125,7 +125,8 @@ describe('PluginsView catalog', () => {
     renderPluginsView()
 
     expect(await screen.findByText('Workflow App')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Filter plugin category' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filter plugins' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Category' }))
 
     expect(screen.getByRole('menuitem', { name: 'Coding' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Design' })).toBeInTheDocument()

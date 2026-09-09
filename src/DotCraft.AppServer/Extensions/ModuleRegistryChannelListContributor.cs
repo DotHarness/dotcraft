@@ -1,15 +1,13 @@
-using DotCraft.Cron;
 using DotCraft.Modules;
+using DotCraft.Configuration;
 
 namespace DotCraft.AppServer;
 
 /// <summary>
 /// Builds <c>channel/list</c> base entries from registered <see cref="DotCraft.Modules.IDotCraftModule"/> instances
-/// plus optional Core <see cref="CronService"/> (system channels).
 /// </summary>
 public sealed class ModuleRegistryChannelListContributor(
-    ModuleRegistry moduleRegistry,
-    CronService? cronService) : IAppServerChannelListContributor
+    ModuleRegistry moduleRegistry, AppConfig? config = null) : IAppServerChannelListContributor
 {
     private readonly Lazy<IReadOnlyList<ChannelDescriptor>> _bundledTypeScriptChannels =
         new(BundledTypeScriptModuleScanner.ScanFromEnvironment);
@@ -24,7 +22,7 @@ public sealed class ModuleRegistryChannelListContributor(
             channels.Add(new ChannelDescriptor { Name = name, Category = category });
         }
 
-        foreach (var module in moduleRegistry.Modules.OfType<ISessionChannelModule>())
+        foreach (var module in moduleRegistry.GetEnabledModules(config ?? new AppConfig()).OfType<ISessionChannelModule>())
         {
             foreach (var e in module.GetSessionChannelListEntries())
                 Add(e.Name, e.Category);
@@ -33,7 +31,5 @@ public sealed class ModuleRegistryChannelListContributor(
         foreach (var channel in _bundledTypeScriptChannels.Value)
             Add(channel.Name, channel.Category);
 
-        if (cronService != null)
-            Add("cron", "system");
     }
 }

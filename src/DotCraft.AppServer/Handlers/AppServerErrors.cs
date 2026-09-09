@@ -78,7 +78,6 @@ public static class AppServerErrors
     public const int TurnNotRunningCode = -32014;
     public const int ApprovalTimeoutCode = -32020;
     public const int ChannelRejectedCode = -32030;
-    public const int CronJobNotFoundCode = -32031;
 
     public const int SkillNotFoundCode = -32040;
 
@@ -118,9 +117,9 @@ public static class AppServerErrors
     public const int RemoteToolWorkspaceBusyCode = -32101;
     // ── Automation-specific codes (-32050 to -32059) ──
 
-    public const int TaskNotFoundCode = -32051;
-    public const int TaskInvalidStatusCode = -32052;
-    public const int TaskAlreadyExistsCode = -32054;
+    public const int AutomationNotFoundCode = -32051;
+    public const int AutomationUnavailableCode = -32052;
+    public const int AutomationVersionConflictCode = -32056;
 
     // ── Factory methods ──
 
@@ -237,8 +236,6 @@ public static class AppServerErrors
     public static AppServerException ChannelRejected(string channelName) =>
         Create(ChannelRejectedCode, "ChannelRejected", "errors.channelRejected", $"Channel adapter rejected: '{channelName}' is not registered in server configuration", new ChannelErrorParams(channelName));
 
-    public static AppServerException CronJobNotFound(string jobId) =>
-        Create(CronJobNotFoundCode, "CronJobNotFound", "errors.cronJobNotFound", $"Cron job not found: {jobId}", new CronJobErrorParams(jobId));
 
     public static AppServerException SkillNotFound(string name) =>
         Create(SkillNotFoundCode, "SkillNotFound", "errors.skillNotFound", $"Skill not found: {name}", new NamedResourceErrorParams(name));
@@ -372,14 +369,13 @@ public static class AppServerErrors
     public static AppServerException AgentProfileConflict(string detail) =>
         Create(AgentProfileConflictCode, "AgentProfileConflict", "errors.agentProfileConflict", "Agent profile conflict", detail: detail);
 
-    public static AppServerException TaskAlreadyExists(string taskId) =>
-        Create(TaskAlreadyExistsCode, "TaskAlreadyExists", "errors.taskAlreadyExists", $"Task already exists: {taskId}", new TaskErrorParams(taskId));
+    public static AppServerException AutomationFailure(string code, string fallback) =>
+        Create(code == "automation.versionConflict" ? AutomationVersionConflictCode
+            : code == "automation.notFound" ? AutomationNotFoundCode : AutomationUnavailableCode,
+            code, code, fallback);
 
-    public static AppServerException TaskNotFound(string taskId) =>
-        Create(TaskNotFoundCode, "TaskNotFound", "errors.taskNotFound", $"Task not found: {taskId}", new TaskErrorParams(taskId));
-
-    public static AppServerException TaskInvalidStatus(string detail) =>
-        Create(TaskInvalidStatusCode, "TaskInvalidStatus", "errors.taskInvalidStatus", detail, detail: detail);
+    public static AppServerException AutomationValidationFailure(string code) =>
+        Create(InvalidParamsCode, code, code, "The automation definition is invalid.", detail: code);
 
     /// <summary>
     /// Maps a Remote Tool Host failure onto its JSON-RPC error, carrying the stable code verbatim

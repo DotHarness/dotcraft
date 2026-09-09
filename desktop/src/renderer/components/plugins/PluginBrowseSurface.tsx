@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Ellipsis, Settings, Trash2 } from 'lucide-react'
+import { AtSign, Ellipsis, Settings, Tags, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { MarketplaceEntry, PluginDiagnosticEntry, PluginEntry } from '../../stores/pluginStore'
 import type { PluginCatalogSurface } from '../../stores/uiStore'
 import {
-  CatalogFilterMenu,
+  CatalogFilterButton,
   CatalogScrollArea,
   CatalogSearchBox,
   CatalogTabs,
@@ -152,23 +152,30 @@ export function PluginBrowseSurface({
         <h1 style={heroTitle}>{t('plugins.heroTitle')}</h1>
         <div style={searchRow}>
           <CatalogSearchBox value={query} placeholder={t('plugins.searchPlaceholder')} onChange={onQueryChange} />
-          <CatalogFilterMenu
-            value={publisherFilter}
-            ariaLabel={t('plugins.filter.publisher.label')}
-            onChange={onPublisherFilterChange}
-            options={[
-              { value: 'dotcraft', label: t('plugins.filter.publisher.dotcraft') },
-              { value: 'all', label: t('plugins.filter.publisher.all') },
-              ...(pluginMarketplaces && marketplaces.length > 0
-                ? [{ value: 'marketplaces' as const, label: t('plugins.filter.publisher.marketplaces') }]
-                : [])
+          <CatalogFilterButton
+            ariaLabel={t('plugins.filter.label')}
+            groups={[
+              {
+                label: t('plugins.filter.publisher.label'),
+                icon: <AtSign size={14} aria-hidden />,
+                value: publisherFilter,
+                onChange: value => onPublisherFilterChange(value as PublisherFilter),
+                options: [
+                  { value: 'all', label: t('plugins.filter.publisher.all') },
+                  { value: 'dotcraft', label: t('plugins.filter.publisher.dotcraft') },
+                  ...(pluginMarketplaces && marketplaces.length > 0
+                    ? [{ value: 'marketplaces', label: t('plugins.filter.publisher.marketplaces') }]
+                    : [])
+                ]
+              },
+              {
+                label: t('plugins.filter.category.label'),
+                icon: <Tags size={14} aria-hidden />,
+                value: categoryFilter,
+                onChange: value => onCategoryFilterChange(value as CategoryFilter),
+                options: categoryOptions
+              }
             ]}
-          />
-          <CatalogFilterMenu
-            value={categoryFilter}
-            ariaLabel={t('plugins.filter.category.label')}
-            onChange={onCategoryFilterChange}
-            options={categoryOptions}
           />
         </div>
       </header>

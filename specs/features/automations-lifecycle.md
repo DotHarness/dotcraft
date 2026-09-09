@@ -1,185 +1,152 @@
-# DotCraft Automations Lifecycle
+# Automations lifecycle
 
 | Field | Value |
-|-------|-------|
-| **Version** | 0.2.0 |
-| **Status** | Living |
-| **Date** | 2026-08-10 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../architecture/session-core.md) |
+|---|---|
+| Version | 1.0.0 |
+| Status | Living |
+| Date | 2026-09-08 |
 
-DotCraft native Automations covers local tasks only. It watches local task files in the current workspace, dispatches Agents for runnable tasks, preserves scheduling and thread binding, and records completion through `CompleteLocalTask`.
+Automations is the single workspace capability for scheduled agent work. The optional
+DotCraft.Automations module owns storage, scheduling, execution, presets and delivery.
+Hosts supply their existing ISessionService. Core and Runtime do not depend on the module.
 
-## Scope
+## Contracts
 
-- Local task files under `.craft/tasks/` or `Automations.LocalTasksRoot`.
-- Local schedule initialization and re-arm.
-- Manual run.
-- Thread binding.
-- Local templates under `.craft/automations/templates/` or `Automations.UserTemplatesRoot`.
-- Managed worktree review, discard, and conservative retention cleanup.
-- Task deletion.
-- Activity notifications via `automation/task/updated`.
-- Completion via `CompleteLocalTask`.
+JSON uses camelCase. AutomationDefinition has id, version (positive integer), name,
+prompt, status (active/paused/completed), executionMode (thread/independent), nullable
+targetThreadId, workspaceMode (project/worktree), optional agentProfileId,
+approvalPolicy (workspaceScope/fullAuto), schedule, notificationPolicy (important/all/failures),
+optional origin, createdAt, updatedAt and nullable nextRunAt (UTC ISO timestamps).
+Origin preserves channel, userId, groupId and deliveryTarget independently of execution.
+The host captures origin; models cannot impersonate a creator.
 
-## Task Identity
+Completed is a server-owned terminal state for a one-shot definition after its attempt.
+Create and update inputs accept active or paused only. A completed definition is read-only;
+it may be run manually or deleted, but it cannot be edited, paused or resumed.
 
-Tasks are addressed by `taskId` only. The AppServer automation task methods do not accept or return source identifiers.
+AutomationRun has id, automationId, definitionVersion, status
+(queued/running/succeeded/failed/cancelled/interrupted), createdAt, nullable startedAt,
+completedAt, scheduledAt (null for manual runs), threadId, turnId, summary, error and worktree, plus deliveryStatus
+(pending/sent/skipped/failed) and nullable deliveryError. Worktrees belong to runs.
 
-## AppServer Surface
+Store definitions atomically at .craft/automations/<id>/automation.json, memory.md and
+runs/<runId>.json. Only this namespace is loaded; other `.craft` data remains untouched.
+The prompt is the only execution content.
 
-| Method | Params | Result |
-|--------|--------|--------|
-| `automation/task/list` | `{}` | `{ tasks: AutomationTaskWire[] }` |
-| `automation/task/read` | `{ taskId }` | `AutomationTaskWire` |
-| `automation/task/create` | `{ title, description, workflowTemplate?, approvalPolicy?, workspaceMode?, schedule?, threadBinding?, templateId?, agentProfileId? }` | `{ taskId: string, taskDirectory: string }` |
-| `automation/task/run` | `{ taskId }` | `{ task: AutomationTaskWire }` |
-| `automation/task/updateBinding` | `{ taskId, threadBinding?: AutomationThreadBindingWire | null }` | `{ task: AutomationTaskWire }` |
-| `automation/task/discardWorktree` | `{ taskId }` | `{ task: AutomationTaskWire }` |
-| `automation/task/delete` | `{ taskId }` | `{ ok: true }` |
-| `automation/template/list` | `{ locale? }` | `{ templates: AutomationTemplateWire[] }` |
-| `automation/template/save` | `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding?, defaultTitle?, defaultDescription?, defaultAgentProfileId? }` | `{ template: AutomationTemplateWire }` |
-| `automation/template/delete` | `{ id }` | `{ ok: true }` |
+| Method | Parameters | Result |
+|---|---|---|
+| automation/list | {} | { automations } |
+| automation/read | { automationId } | { automation } |
+| automation/create | { automation } (editable fields) | { automation } |
+| automation/update | { automationId, expectedVersion, automation } | { automation } |
+| automation/delete | { automationId } | { ok } |
+| automation/run | { automationId } | { run } |
+| automation/runs/list | { automationId } | { runs } |
+| automation/runs/read | { automationId, runIds, read } | { runs } |
+| automation/presets/list | { locale? } | { presets } |
 
-## `AutomationTaskWire`
+All require the automations capability. Update checks expectedVersion and rejects
+stale writes with `automation.versionConflict` (-32056). Missing definitions return
+`automation.notFound` (-32051); unavailable lifecycle operations use -32052 with a
+stable `automation.*` code. Invalid definitions use -32602 with a specific validation
+code. Error data contains the stable code/messageKey and an English fallback. Server-owned id, version, origin and timestamps are not editable.
+automation/updated sends { automationId, automation?, removed };
+automation/run/updated sends { run }. Reconnection reloads a snapshot.
 
-```json
-{
-  "id": "weekly-report",
-  "title": "Weekly report",
-  "description": "Summarize recent work",
-  "status": "pending",
-  "threadId": null,
-  "approvalPolicy": "workspaceScope",
-  "agentProfileId": "reviewer",
-  "workspaceMode": "worktree",
-  "worktree": {
-    "branchName": "dotcraft/task-weekly-report",
-    "path": "<workspace>/.craft/worktrees/task-weekly-report"
-  },
-  "createdAt": "2026-05-05T00:00:00Z",
-  "updatedAt": "2026-05-05T00:00:00Z",
-  "schedule": null,
-  "threadBinding": null,
-  "nextRunAt": null
-}
-```
+Run `readAt` is nullable and persisted separately from execution state. Missing receipts
+mean unread. A receipt refers to the observed completion timestamp, so completion
+produces unread results without execution writes overwriting later reading actions.
+The read operation validates the complete batch (1–200 distinct run IDs) before
+writing and publishes the affected runs through `automation/run/updated`.
 
-`status` is one of `pending`, `running`, `completed`, or `failed`.
-`workspaceMode` uses the canonical `project` or `worktree` names. Other values are rejected.
-`worktree` is populated after a managed task worktree is provisioned and is
-`null` for project-mode tasks, bound tasks, and non-Git fallback execution.
-`agentProfileId` is the optional Agent Profile bound to the task; `null` when
-the task runs with the default automation agent. Only the id is persisted; the
-profile is resolved to a `ThreadConfiguration` at dispatch (see
-[Agent Profile Binding](#agent-profile-binding)).
+Previous runs derive archived state from their associated chat, retain archived
+rows, and restore the chat through `thread/unarchive`. Archiving uses `thread/archive`,
+including its effect on other runs in that chat; it never changes the automation's
+schedule. Running chats cannot be archived. Reading succeeds only after the target
+turn is displayed. Bulk archive deduplicates chat IDs and reports partial failures.
+Task-list and detail pause/resume share a pending state and preserve unsaved drafts.
+The task-list subtitle owns schedule and relative next-run timing. Active tasks show
+the schedule followed by the next-run countdown; paused and completed tasks show
+their lifecycle label without a countdown. Details do not repeat next-run timing.
 
-## Workspace Modes
+The Automation tool calls the same service for list/read/create/update/pause/resume/
+delete/run, returning { operation, automation?, run? }. Its generated function schema
+uses the same JSON representation as AppServer: `schedule.at` is an ISO 8601
+`string` with `date-time` format, never an object shaped from CLR date properties.
+The model-visible action, lifecycle, execution, workspace, approval, notification and
+schedule-kind fields are closed enums. Text and numeric bounds are expressed in the
+schema as well as enforced by the service.
+`notificationPolicy` belongs to the nested editable automation definition. At the
+model-tool boundary, blank optional identifiers are treated as omitted, omitted modes
+use their declared defaults, and thread mode without a target binds
+the trusted thread from the tool planning snapshot. AppServer validation remains strict.
+Trusted core.automation presentation selects client cards. Queue acceptance is not run success.
+The deterministic /automate list|show|pause|resume|run|remove command is registered
+by the module as ICommandHandler. Its registration supplies a stable description key
+and module-owned English fallback for command discovery and dynamic channel menus.
+Runtime registers DI handlers using the Core contract.
+Disabled modules expose neither commands nor tools.
 
-Unbound tasks run in either `project` or `worktree` mode. `project` mode uses
-the project workspace as the execution root. `worktree` mode is canonical for
-isolated task execution and keeps task thread state in the project workspace
-while setting only the execution workspace to the task worktree.
+## Schedule and execution
 
-For Git workspaces, worktree-mode tasks use one reusable managed worktree per
-task under `.craft/worktrees/`, on a branch named
-`dotcraft/task-<sanitizedTaskId>`. Provisioning does not copy uncommitted
-project workspace changes into the task worktree. If Git worktree provisioning
-fails, the task falls back to its task-local `workspace/` directory and still
-reports `workspaceMode: "worktree"` with `worktree: null`.
+AutomationSchedule has kind (at/every/daily/weekdays/weekly), nullable at (UTC ISO),
+everyMs, hour, minute, timeZone, days (ISO Monday=1 through Sunday=7).
+Wall-clock schedules require a valid explicit time zone. Desktop creation resolves the
+current system IANA time zone, falling back to UTC, and persists it without exposing a
+routine time-zone field. Editing preserves the stored zone. Weekly means calendar dates,
+not 168 hours. Interval schedules advance from planned times, not completion times.
+DST gaps advance to the next valid local instant; repeated local times fire once.
 
-Bound tasks submit into their bound thread and ignore `workspaceMode`.
+A definition runs serially. Missed triggers coalesce into at most one run, including
+restart recovery. A durable run claim records scheduledAt so recovery advances an
+occurrence even if the host stopped before saving the definition nextRunAt. Busy target conversations wait without interrupting user work.
+Pause prevents subsequent dispatch and does not cancel active work. Edits apply to
+later runs; current runs use a definition snapshot. Manual run preserves paused state
+and periodic nextRunAt. Running definitions cannot be deleted. One-shot definitions
+complete after the attempt and retain history. Failures are not automatically replayed;
+periodic jobs continue at the next occurrence. Interrupted runs are recorded on restart.
 
-## Local Task Files
+Follow-ups default to thread mode and continue the specified conversation. Independent
+runs create a new conversation each time and share automation memory. Record exact
+turn ids. Git workspaces default to a fresh worktree per run; non-Git use project mode.
+Reported summaries and replacement memory have hard size limits. Persisted memory is
+also bounded when it is read so legacy or externally modified files cannot inject an
+unbounded fragment into later model context.
+Explicit worktree provisioning failure is an error, never a silent fallback. Missing or
+archived targets and missing profiles fail clearly. Bound threads inherit capabilities;
+independent runs resolve the selected profile and apply unattended workspace policy.
+Ordinary turn completion ends the run; no CompleteLocalTask or workflow iteration.
 
-```text
-<workspace>/
-  .craft/
-    tasks/
-      <task-id>/
-        task.md
-        workflow.md
-```
+The host must be online. This feature provides no cloud execution. Deletion stops future
+work but preserves historical conversations and dirty worktrees. Conservative clean
+worktree retention remains available.
 
-The local file store owns parsing and persistence. `task.md` contains task metadata and description. `workflow.md` is the Agent workflow prompt. Templates copy their workflow body into new local tasks.
+## Delivery and user experience
 
-## Runtime Ownership
+Follow-ups default to important notifications, independent runs to all results. Failures
+qualify for notification. An optional structured outcome may mark unchanged successful
+work as non-important; missing importance is conservatively important. Every run persists.
+MessageRouter uses saved origin and existing channel delivery formats, including group
+targets. Persist the execution terminal state before attempting delivery. Delivery failure is
+distinct from execution failure and cannot replay agent work. If the host stops during
+delivery, recovery marks the pending delivery as failed without resending or rerunning.
 
-The AppServer automation runtime is the single lifecycle owner for each
-`AutomationOrchestrator` instance. It owns startup, shutdown, and
-`automation/task/updated` event forwarding. A second start request for one
-orchestrator instance is rejected instead of replacing its polling resources.
-
-## Dispatch
-
-1. The orchestrator polls local task files.
-2. Runnable tasks are keyed by `taskId`.
-3. Scheduled tasks initialize `nextRunAt`; recurring schedules re-arm after a run.
-4. Bound tasks submit into the bound thread when it is active and available.
-5. Unbound tasks create or resume the task conversation in the project workspace.
-   Worktree-mode tasks then ensure a managed Git worktree under
-   `.craft/worktrees/` and use it only as the execution workspace.
-6. When the task is bound to an Agent Profile, the orchestrator resolves the
-   profile into the task thread configuration and applies the automation
-   operational overrides on top (see [Agent Profile Binding](#agent-profile-binding)).
-   A missing or invalid bound profile fails the run.
-7. The local task tool profile is registered with `CompleteLocalTask`.
-8. Completion writes the Agent summary and emits `automation/task/updated`.
-
-## Agent Profile Binding
-
-A task may bind an [Agent Profile](../protocols/appserver-protocol.md#23a-agent-profile-management-methods)
-via `agentProfileId`. Binding is optional; an unbound task runs with the default
-automation agent and the source tool profile, unchanged from prior behavior.
-
-Capability vs. operation is split:
-
-- The **Agent Profile governs capabilities** — the resolved `ThreadConfiguration`
-  supplies tools, MCP servers, skills, model, and agent instructions.
-- The **automation governs operation** — regardless of the profile, the
-  orchestrator force-overrides the operational fields it owns:
-  `approvalPolicy` is forced to auto-approve (unattended runs must never block on
-  approval), `automationTaskDirectory` is set to the task directory,
-  `requireApprovalOutsideWorkspace` is derived from the task's approval policy,
-  and the automation `toolProfile` is applied so the `CompleteLocalTask`
-  completion tool is injected. Workspace mode and schedule remain task-owned.
-
-When a profile is bound, the profile's tool / MCP / skills policy is the source
-of truth for the agent's general capabilities; the default source tool profile's
-capability set is not merged on top. The one exception is operational: the
-completion tool (`CompleteLocalTask`) is always injected and kept reachable even
-under a restrictive profile allow-list, so the run can always finish.
-
-Only the binding is persisted in `task.md`, as the optional `agent_profile_id`
-front-matter key. The profile is resolved to a `ThreadConfiguration` snapshot at
-each dispatch, so edits to the profile take effect on the task's next run. If the bound profile cannot be resolved (deleted
-or invalid) at dispatch, the run **fails** (`status: failed`) rather than
-silently falling back to the default agent — the task explicitly requested that
-capability set. Clients are expected to surface the failure reason.
-
-Templates carry the binding as `defaultAgentProfileId`, a default that pre-fills
-the Agent picker when a task is created from the template; it is not itself
-executable. A template referencing a profile id that no longer resolves
-pre-fills as the default agent.
-
-## Managed Worktree Review
-
-For unbound `worktree` tasks, clients use `worktree/status` on the task thread to
-refresh review indicators:
-
-- `hasUncommittedChanges` reports dirty worktree state.
-- `hasCommitsAheadOfBase` and `aheadCount` report commits on the task branch
-  ahead of the recorded creation base.
-
-`automation/task/discardWorktree` removes the task worktree and managed branch
-while preserving the task. It rejects running tasks. If the task runs again, the
-orchestrator provisions a fresh managed worktree.
-
-## Managed Worktree Retention
-
-When `Automations.WorktreeRetentionEnabled` is true, the orchestrator
-periodically removes idle automation task worktrees that are clean and have no
-commits ahead of their recorded base. `Automations.WorktreeRetentionIdlePeriod`
-defaults to 21 days and must be at least 14 days.
-
-Retention never removes a running task's worktree, a worktree with uncommitted
-changes, or a worktree with commits ahead of base.
+Creation defaults to conversation. The primary action opens the Welcome composer with a
+localized starting instruction and an explicit `$automations` skill reference; the built-in
+skill teaches the unified Automation tool and is available only when that tool is available.
+The Automations page does not insert an intermediate creation banner. Manual creation and
+editing share a detail panel:
+editable title, prompt, detail rows, frequency rows and advanced settings. Dirty drafts
+show Save/Cancel; failed saves preserve drafts. Fields depend on execution mode. Presets
+contain name, prompt and optional defaults and seed conversation without creating a job.
+The browse surface uses the DotCraft catalog title and search/filter controls. Existing
+definitions precede suggestions when present; the empty surface leads with suggestions.
+The detail rail preserves both the definition list and suggestions. Active uses the small
+accent status treatment. Pause/resume is a direct toolbar action; the overflow contains
+icon-labelled Run now and Delete actions. Completed definitions render as read-only history.
+Desktop uses a menu-based, locale-formatted time selector rather than native time input
+chrome, while the stored time zone remains explicit in the definition.
+Cards preserve the operation snapshot and open the latest definition; deletion is handled
+without stale navigation. Run navigation uses automation id and run id, locating the exact
+turn for follow-ups. triggerKind is automation; triggerRefId is the definition id.
+Production components mount in the maintained design system with deterministic fixtures.

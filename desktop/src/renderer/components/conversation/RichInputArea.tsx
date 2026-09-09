@@ -26,6 +26,7 @@ import {
   type ComposerRefCatalog
 } from './richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
+import { usePetEditorBridge } from '../desktopPet/editorBridge'
 
 const MAX_ROWS = 8
 const MAX_TEXT_LEN = 100_000
@@ -758,6 +759,8 @@ export const RichInputArea = forwardRef(function RichInputArea(
       },
       [refCatalog, setStructuredContent]
     )
+
+    usePetEditorBridge(editorRef, { getText, setText: setContent, submit: onSubmit, enabled: !disabled && !suppressSubmit })
 
     useImperativeHandle(
       ref,

@@ -48,27 +48,16 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<AppViewParams, AppViewResult> AppView = new("app/view", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskCreateParams, AutomationTaskCreateResult> AutomationTaskCreate = new("automation/task/create", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskDeleteParams, AutomationTaskDeleteResult> AutomationTaskDelete = new("automation/task/delete", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskDiscardWorktreeParams, AutomationTaskDiscardWorktreeResult> AutomationTaskDiscardWorktree = new("automation/task/discardWorktree", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskListParams, AutomationTaskListResult> AutomationTaskList = new("automation/task/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskReadParams, AutomationTask> AutomationTaskRead = new("automation/task/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskRunParams, AutomationTaskRunResult> AutomationTaskRun = new("automation/task/run", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTaskUpdateBindingParams, AutomationTaskUpdateBindingResult> AutomationTaskUpdateBinding = new("automation/task/updateBinding", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcNotification<AutomationTaskUpdatedNotification> AutomationTaskUpdated = new("automation/task/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", notificationOptOut: true);
 
-    public static readonly RpcRequest<AutomationTemplateDeleteParams, AutomationTemplateDeleteResult> AutomationTemplateDelete = new("automation/template/delete", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTemplateListParams, AutomationTemplateListResult> AutomationTemplateList = new("automation/template/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
-    public static readonly RpcRequest<AutomationTemplateSaveParams, AutomationTemplateSaveResult> AutomationTemplateSave = new("automation/template/save", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
 
     public static readonly RpcRequest<AcpFsReadTextFileParams, AcpFsReadTextFileResult> ExtAcpFsReadTextFile = new("ext/acp/fs/readTextFile", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 

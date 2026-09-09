@@ -369,6 +369,45 @@ test("ThreadResolver binds runtime context once and restores it after connection
   }]);
 });
 
+test("CommandRouter executes automation commands without creating an agent turn", async () => {
+  const fake = new FakeRuntimeClient();
+  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
+  const requests: Record<string, unknown>[] = [];
+  const delivered: Array<{ target: string; text: string }> = [];
+  fake.commandExecute = async (params) => {
+    requests.push(params);
+    return { handled: true, message: "Automation paused" };
+  };
+  const router = new CommandRouter({
+    client: asWire(fake),
+    threadResolver: resolver,
+    identityKey: (userId, context) => `${userId}:${context}`,
+    getDefaultWorkspacePath: () => "/w",
+    deliver: async (target, text) => {
+      delivered.push({ target, text });
+      return true;
+    },
+    enqueueMessage: () => assert.fail("Management must not enqueue an agent turn"),
+  });
+  const opts = { userId: "u", userName: "User", text: "/automate pause a1", channelContext: "group:42" };
+  resolver.setCachedThread("u:group:42", "thread-1");
+  assert.equal(await router.routeBeforeQueue(opts), "handled");
+  assert.deepEqual(await router.routeForTurn({
+    identityKey: "u:group:42", opts, threadId: "thread-1",
+    sender: { senderId: "u", senderName: "User", groupId: "group:42" }, workspacePath: "/w",
+  }), { kind: "handled" });
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.equal(request.command, "/automate");
+    assert.deepEqual(request.arguments, ["pause", "a1"]);
+    assert.equal((request.sender as Record<string, unknown>).groupId, "group:42");
+  }
+  assert.deepEqual(delivered, [
+    { target: "group:42", text: "Automation paused" },
+    { target: "group:42", text: "Automation paused" },
+  ]);
+});
+
 test("CommandRouter handles expanded prompts, reset payloads, and JsonRpcError delivery", async () => {
   const fake = new FakeRuntimeClient();
   const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });

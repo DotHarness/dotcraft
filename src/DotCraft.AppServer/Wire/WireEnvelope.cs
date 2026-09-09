@@ -274,13 +274,6 @@ public sealed class ServerCapabilitySnapshot
     public bool BackgroundTerminals { get; set; }
 
     /// <summary>
-    /// Server supports cron management methods (cron/list, cron/remove, cron/enable, cron/run).
-    /// False when the cron service is not configured. See spec Section 16.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool CronManagement { get; set; }
-
-    /// <summary>
     /// Server supports skills management methods (skills/list, skills/read, skills/view, skills/restoreOriginal, skills/setEnabled, skills/uninstall). See spec Section 18.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -315,7 +308,7 @@ public sealed class ServerCapabilitySnapshot
     public bool CommandManagement { get; set; }
 
     /// <summary>
-    /// Server supports automation task methods (automation/task/*).
+    /// Server supports automation task methods (automation/*).
     /// False when the Automations module is not loaded.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

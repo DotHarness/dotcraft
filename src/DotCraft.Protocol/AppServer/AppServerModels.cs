@@ -292,9 +292,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool BackgroundTerminals { get; init; }
 
-    [JsonPropertyName("cronManagement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool CronManagement { get; init; }
 
     [JsonPropertyName("skillsManagement")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

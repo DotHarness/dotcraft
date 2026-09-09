@@ -10,17 +10,15 @@ DotCraft has two ways to keep the agent working when you are not driving every t
 
 Automations run local work in your workspace, on a schedule or whenever you trigger them. Use them for the routine jobs you would otherwise remember to do yourself: a weekly report, a nightly check, a cleanup pass.
 
-Create and manage tasks from the Desktop **Automations** panel. A task has two parts: a short brief (what to do, and when) and a workflow prompt (how to do it). Tasks live with your project under `.craft/tasks/`, so they travel with the repository. A task you run often can be saved as a template to start from next time.
+Ask DotCraft what to do and when, for example: “Every Friday at 9, summarize this week's changes.” The agent creates the automation and shows its schedule. Open **Automations** to edit it directly, pause it, or run it now. Manual setup is available from the same page.
 
-A task can be bound to an existing conversation so every later run continues there. It can also run as a saved [Agent Profile](./agent-profiles), using just that agent's tools, skills, and model — without one, it runs as the workspace agent. When the work is done, the agent writes a short completion summary.
-
-Schedule formats, workflow variables, and the full set of task fields are in the [Configuration Reference](../../developing/configuration#automations-goals-and-hooks).
+Follow-up requests continue an existing conversation. Independent scheduled work starts a new conversation for each run and shares memory across runs. Advanced settings let you select an [Agent Profile](./agent-profiles) and execution directory. The host running the automation must be online.
 
 ## Review task output
 
-A task that is not bound to an existing conversation runs in a managed Git worktree when the project is a Git repository, so its changes stay out of the workspace you are working in. The Desktop review panel shows the branch it used, whether the worktree has uncommitted changes, and whether it has commits ahead of the base.
+Select an automation to see its previous runs, then open the result you want. Each run points to its own conversation or the specific turn in the followed conversation. Independent runs in Git projects use separate managed worktrees by default, and their changes can be reviewed from the run's conversation.
 
-From the review panel you can open the task's conversation, hand the worktree back to your local workspace, or discard it. Discarding removes the task's worktree output along with its managed branch, so use it once you are sure you no longer need the changes.
+Follow-ups notify you about important changes; independent jobs notify you after each run. You can change this in the automation details. Pausing prevents future runs while allowing current work to finish.
 
 ## Goals
 

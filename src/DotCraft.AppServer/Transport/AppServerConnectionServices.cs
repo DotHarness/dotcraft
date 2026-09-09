@@ -4,7 +4,6 @@ using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Contributions;
-using DotCraft.Cron;
 using DotCraft.Hooks;
 using DotCraft.Logging;
 using DotCraft.Lsp;
@@ -47,7 +46,6 @@ public sealed record AppServerConnectionServices
     /// </summary>
     public SessionApprovalDecision DefaultApprovalDecision { get; init; } = SessionApprovalDecision.Reject;
 
-    public CronService? CronService { get; init; }
     public SkillsLoader? SkillsLoader { get; init; }
     public MemoryStore? MemoryStore { get; init; }
 
@@ -61,7 +59,6 @@ public sealed record AppServerConnectionServices
     public string? HostWorkspacePath { get; init; }
 
     public IAutomationsRequestHandler? AutomationsHandler { get; init; }
-    public Action<Contract.CronJobWireInfo, bool>? BroadcastCronStateChanged { get; init; }
     public Action<McpServerStatusSnapshot>? BroadcastMcpStatusChanged { get; init; }
     public Action<string, string, object?>? NotifyAppPrincipal { get; init; }
     public Action<string, object?>? BroadcastTrustedNotification { get; init; }

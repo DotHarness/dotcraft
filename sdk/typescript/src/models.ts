@@ -103,4 +103,3 @@ export const ERR_TURN_NOT_FOUND = -32013;
 export const ERR_TURN_NOT_RUNNING = -32014;
 export const ERR_APPROVAL_TIMEOUT = -32020;
 export const ERR_CHANNEL_REJECTED = -32030;
-export const ERR_CRON_NOT_FOUND = -32031;

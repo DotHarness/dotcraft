@@ -6,6 +6,14 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Tools;
 
+/// <summary>Content extraction mode for HTML responses.</summary>
+public enum WebFetchExtractionMode
+{
+    Markdown,
+    Text,
+    Raw
+}
+
 /// <summary>
 /// Web tools: WebSearch and WebFetch.
 /// </summary>
@@ -108,7 +116,7 @@ public sealed class WebTools
     [Tool(Icon = "🌐", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WebFetch))]
     public async Task<string> WebFetch(
         [Description("The URL to fetch.")] string url,
-        [Description("Extraction mode: 'markdown', 'text', or 'raw' for HTML.")] string extractMode = "markdown",
+        [Description("Extraction mode for HTML.")] WebFetchExtractionMode extractMode = WebFetchExtractionMode.Markdown,
         [Description("Maximum characters to extract.")] int? maxChars = null)
     {
         var actualMaxChars = maxChars ?? _maxChars;
@@ -150,12 +158,12 @@ public sealed class WebTools
                      content.TrimStart().StartsWith("<html", StringComparison.OrdinalIgnoreCase))
             {
                 // HTML content - extract readable parts
-                if (extractMode == "markdown")
+                if (extractMode == WebFetchExtractionMode.Markdown)
                 {
                     extractedContent = HtmlToMarkdown(content);
                     extractor = "markdown";
                 }
-                else if (extractMode == "text")
+                else if (extractMode == WebFetchExtractionMode.Text)
                 {
                     extractedContent = HtmlToText(content);
                     extractor = "text";

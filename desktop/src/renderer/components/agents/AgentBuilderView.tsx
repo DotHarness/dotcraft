@@ -145,7 +145,7 @@ const TOOL_ICON_BY_NAME: Record<string, LucideIcon> = {
   WriteFile: Pencil,
   ReadFile: FileText,
   TodoWrite: ListChecks,
-  Cron: Clock,
+  Automation: Clock,
   RequestUserInput: CircleHelp
 }
 

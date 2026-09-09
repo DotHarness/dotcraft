@@ -379,7 +379,7 @@ function buildDigestTurns(threadId: string, s: DigestThreadStrings): Array<Recor
           id: t('i-user'),
           type: 'userMessage',
           text: s.userMessage,
-          triggerKind: 'cron',
+          triggerKind: 'automation',
           triggerLabel: s.triggerLabel,
           createdAt: minutesAgo(495)
         },

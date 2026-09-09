@@ -92,31 +92,28 @@ internal sealed class GoalToolMethods
     }
 
     [GeneratedTool]
-    [Description("Update the current thread goal. Allowed statuses are status='complete' when the goal is actually complete, or status='blocked' when progress is genuinely blocked.")]
+    [Description("Update the current thread goal when it is actually complete or genuinely blocked.")]
     public async Task<string> UpdateGoal(
-        [Description("Only 'complete' or 'blocked' is accepted. pause/resume/budget-limit/usage-limit are controlled by Session Core or the user UI.")] string status)
+        [Description("New terminal status. Pause, resume, and limits are controlled by Session Core or the user UI.")] GoalUpdateStatus status)
     {
         var context = GoalToolRuntimeScope.Current;
         if (context is null)
             return Serialize(new { error = "Goal tools are only available inside a Session Core turn." });
 
-        var normalizedStatus = status?.Trim() ?? string.Empty;
-        var targetStatus = normalizedStatus switch
+        var targetStatus = status switch
         {
-            _ when string.Equals(normalizedStatus, "complete", StringComparison.OrdinalIgnoreCase) => ThreadGoalStatus.Complete,
-            _ when string.Equals(normalizedStatus, "blocked", StringComparison.OrdinalIgnoreCase) => ThreadGoalStatus.Blocked,
-            _ => (ThreadGoalStatus?)null
+            GoalUpdateStatus.Complete => ThreadGoalStatus.Complete,
+            GoalUpdateStatus.Blocked => ThreadGoalStatus.Blocked,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
         };
-        if (targetStatus is null)
-            return Serialize(new { error = "UpdateGoal only accepts status='complete' or status='blocked'." });
 
         try
         {
             var goal = await context.SessionService.SetThreadGoalAsync(
                 context.ThreadId,
-                new ThreadGoalUpdate { Status = targetStatus.Value },
+                new ThreadGoalUpdate { Status = targetStatus },
                 GoalSetMode.UpdateOnly);
-            if (targetStatus.Value == ThreadGoalStatus.Blocked)
+            if (targetStatus == ThreadGoalStatus.Blocked)
                 return Serialize(ToResult(goal));
 
             var payload = ToResult(goal);
@@ -156,4 +153,10 @@ internal sealed class GoalToolMethods
 
     private static string Serialize<T>(T value) =>
         JsonSerializer.Serialize(value, JsonOptions);
+}
+
+internal enum GoalUpdateStatus
+{
+    Complete,
+    Blocked
 }

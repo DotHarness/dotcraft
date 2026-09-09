@@ -49,14 +49,13 @@ internal static class ToolSchemaEmitter
         };
         if (required.Count > 0)
             entries.Add($"\"required\":[{string.Join(",", required)}]");
-        if (tool.DisallowAdditionalProperties)
-            entries.Add("\"additionalProperties\":false");
+        entries.Add("\"additionalProperties\":false");
         return "{" + string.Join(",", entries) + "}";
     }
 
     public static string GetEnumJsonName(IFieldSymbol field) =>
         FindAttribute(field, JsonStringEnumMemberNameAttributeFqn)?.ConstructorArguments.FirstOrDefault().Value?.ToString()
-        ?? field.Name;
+        ?? ToCamelCase(field.Name);
 
     private static string BuildTypeSchema(
         ITypeSymbol type,
@@ -65,7 +64,8 @@ internal static class ToolSchemaEmitter
         string? description,
         ISymbol annotatedSymbol,
         bool emitDefault,
-        HashSet<ITypeSymbol> visiting)
+        HashSet<ITypeSymbol> visiting,
+        bool applyConstraints = true)
     {
         var typeWithoutNullable = UnwrapNullable(type);
         var isNullable = !SymbolEqualityComparer.Default.Equals(typeWithoutNullable, type)
@@ -96,11 +96,17 @@ internal static class ToolSchemaEmitter
                 description: null,
                 annotatedSymbol,
                 emitDefault: false,
-                visiting: visiting)}");
+                visiting: visiting,
+                applyConstraints: false)}");
         }
         else if (IsJsonArray(typeWithoutNullable))
         {
             entries.Add("\"type\":\"array\"");
+        }
+        else if (IsDateTime(typeWithoutNullable))
+        {
+            entries.Add(isNullable ? "\"type\":[\"string\",\"null\"]" : "\"type\":\"string\"");
+            entries.Add("\"format\":\"date-time\"");
         }
         else if (IsString(typeWithoutNullable))
         {
@@ -131,9 +137,14 @@ internal static class ToolSchemaEmitter
                 entries.AddRange(objectSchema);
                 visiting.Remove(typeWithoutNullable);
             }
+            else
+            {
+                entries.Add("\"additionalProperties\":false");
+            }
         }
 
-        AppendConstraints(entries, typeWithoutNullable, annotatedSymbol);
+        if (applyConstraints)
+            AppendConstraints(entries, typeWithoutNullable, annotatedSymbol);
         if (hasDefault && emitDefault)
             entries.Add($"\"default\":{FormatJsonDefault(defaultValue, typeWithoutNullable)}");
         return "{" + string.Join(",", entries) + "}";
@@ -169,6 +180,7 @@ internal static class ToolSchemaEmitter
             yield return $"\"properties\":{{{string.Join(",", properties)}}}";
         if (required.Count > 0)
             yield return $"\"required\":[{string.Join(",", required)}]";
+        yield return "\"additionalProperties\":false";
     }
 
     private static void AppendConstraints(List<string> entries, ITypeSymbol type, ISymbol symbol)
@@ -336,6 +348,9 @@ internal static class ToolSchemaEmitter
     }
 
     internal static bool IsString(ITypeSymbol type) => type.SpecialType == SpecialType.System_String;
+
+    internal static bool IsDateTime(ITypeSymbol type) =>
+        IsNamed(type, "System", "DateTime") || IsNamed(type, "System", "DateTimeOffset");
 
     internal static bool IsBoolean(ITypeSymbol type) => type.SpecialType == SpecialType.System_Boolean;
 

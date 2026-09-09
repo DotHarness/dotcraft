@@ -10,7 +10,6 @@ namespace DotCraft.DynamicWorkflows;
 internal interface IStructuredWorkflowResultToolDeclaration
 {
     [ToolDeclaration(Name = "SubmitWorkflowResult")]
-    [ToolSchema(DisallowAdditionalProperties = true)]
     [Description("Submit the final structured result for the current task.")]
     void SubmitWorkflowResult(
         [Description("Final structured result for the current task.")] JsonNode? result);

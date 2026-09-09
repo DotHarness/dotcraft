@@ -13,11 +13,11 @@ public enum TraceReviewStatus
     ProviderUnavailable
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
 internal enum TraceFindingSeverity { Major, Minor, Suggestion }
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
 internal enum TraceFindingBasis { Confirmed, Inferred }
+
+internal enum TraceFindingDimension { Reliability, Latency, ToolBehavior, TokenEfficiency, PromptCache }
 
 internal sealed record TraceEvidenceReference(string EventId, string? EndEventId, string Label);
 
@@ -28,16 +28,18 @@ internal sealed class TraceEvidenceSubmission
     public required string Label { get; init; }
 }
 
-internal sealed record TraceFindingSubmission(
-    string Id,
-    string Severity,
-    string Dimension,
-    string Title,
-    string Body,
-    string Impact,
-    string Recommendation,
-    string Basis,
-    IReadOnlyList<TraceEvidenceSubmission> Evidence);
+internal sealed class TraceFindingSubmission
+{
+    public required string Id { get; init; }
+    public required TraceFindingSeverity Severity { get; init; }
+    public required TraceFindingDimension Dimension { get; init; }
+    public required string Title { get; init; }
+    public required string Body { get; init; }
+    public required string Impact { get; init; }
+    public required string Recommendation { get; init; }
+    public required TraceFindingBasis Basis { get; init; }
+    public required IReadOnlyList<TraceEvidenceSubmission> Evidence { get; init; }
+}
 
 internal sealed record TraceFinding(
     string Id,

@@ -46,7 +46,7 @@ Session Core hands adapters a structured event stream rather than rendered text.
 Typical flows:
 
 - Draft a PR in Desktop in the morning, continue review on a phone via ACP after work — same Thread.
-- A Cron-triggered automation hits an approval midway, Desktop notifies, you approve or amend.
+- A scheduled follow-up continues an existing conversation and preserves its session policy.
 - A user pings a WeChat bot, the bot replies, an engineer opens Desktop and sees the same Thread to follow up.
 
 ## Hub and AppServer

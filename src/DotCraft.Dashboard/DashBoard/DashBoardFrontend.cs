@@ -9,7 +9,8 @@ public static class DashBoardFrontend
     {
         if (_cachedHtml != null) return _cachedHtml;
 
-        _cachedHtml = LoadEmbeddedResource("DotCraft.Resources.DashBoard.html");
+        _cachedHtml = LoadEmbeddedResource("DotCraft.Resources.DashBoard.html")
+            .Replace("/* DOTCRAFT_AUTOMATIONS_SCRIPT */", LoadEmbeddedResource("DotCraft.Resources.DashBoardAutomations.js"), StringComparison.Ordinal);
         return _cachedHtml;
     }
 

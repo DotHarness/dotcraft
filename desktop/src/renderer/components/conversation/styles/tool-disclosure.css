@@ -172,13 +172,13 @@
   transform: rotate(90deg);
 }
 
-.dc-cron-detail {
+.dc-automation-tool-details {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.dc-cron-detail__value {
+.dc-automation-tool-details__value {
   color: var(--text-secondary);
 }
 

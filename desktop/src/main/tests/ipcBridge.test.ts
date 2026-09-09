@@ -1816,7 +1816,7 @@ describe('task completion notifications', () => {
     const win = createWindow(false)
 
     broadcastNotification(win, 'system/jobResult', {
-      jobName: 'Cron',
+      jobName: 'Automation',
       result: 'Done'
     }, {
       notifications: { taskCompletionMode: 'never' }
@@ -1827,7 +1827,7 @@ describe('task completion notifications', () => {
     expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
       method: 'system/jobResult',
       params: {
-        jobName: 'Cron',
+        jobName: 'Automation',
         result: 'Done'
       }
     })

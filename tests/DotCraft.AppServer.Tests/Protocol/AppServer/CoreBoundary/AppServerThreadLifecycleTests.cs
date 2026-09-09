@@ -1800,8 +1800,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         {
             _h.Identity,
             new SessionIdentity { ChannelName = "oratorio", UserId = "operator", WorkspacePath = workspacePath, ChannelContext = "oratorio:bridge" },
-            new SessionIdentity { ChannelName = "cron", UserId = "cron:job", WorkspacePath = workspacePath },
-            new SessionIdentity { ChannelName = "cron", UserId = "cron:run", WorkspacePath = workspacePath },
+            new SessionIdentity { ChannelName = "automations", UserId = "automations:definition", WorkspacePath = workspacePath },
+            new SessionIdentity { ChannelName = "automations", UserId = "automations:run", WorkspacePath = workspacePath },
             new SessionIdentity { ChannelName = "unknown-origin", UserId = "unknown:user", WorkspacePath = workspacePath }
         };
         foreach (var identity in visibleIdentities)

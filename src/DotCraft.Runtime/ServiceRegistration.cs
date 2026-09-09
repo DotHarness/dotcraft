@@ -4,7 +4,6 @@ using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
-using DotCraft.Cron;
 using DotCraft.Hooks;
 using DotCraft.InlineVisualizations;
 using DotCraft.Tracing;
@@ -112,21 +111,19 @@ public static class ServiceRegistration
             new WorkspaceFileSkillMutationApplier(sp.GetRequiredService<SkillsLoader>()));
 
         services.AddSingleton(_ => new CustomCommandLoader(paths));
-        services.AddSingleton(sp => CommandRegistry.CreateDefault(
-            Path.GetFileName(paths.Data.RootPath),
-            sp.GetRequiredService<CustomCommandLoader>(),
-            sp.GetServices<IPromptCommandProvider>(),
-            sp.GetRequiredService<IContributionView>(),
-            sp.GetService<ILoggerFactory>()));
-
-        var cronStorePath = paths.Data.Resolve(config.Cron.StorePath);
         services.AddSingleton(sp =>
         {
-            var cronLogger = sp.GetService<ILoggerFactory>()?.CreateLogger<CronService>();
-            return new CronService(cronStorePath, cronLogger);
+            var registry = CommandRegistry.CreateDefault(
+                Path.GetFileName(paths.Data.RootPath),
+                sp.GetRequiredService<CustomCommandLoader>(),
+                sp.GetServices<IPromptCommandProvider>(),
+                sp.GetRequiredService<IContributionView>(),
+                sp.GetService<ILoggerFactory>());
+            foreach (var handler in sp.GetServices<ICommandHandler>())
+                registry.RegisterHandler(handler);
+            return registry;
         });
-        services.AddSingleton<CronTools>(sp => new CronTools(sp.GetRequiredService<CronService>()));
-        services.AddSingleton<IToolSource>(sp => new CronToolSource(sp.GetRequiredService<CronTools>()));
+
         services.AddSingleton<IToolSource>(sp => new GoalToolSource(sp.GetRequiredService<AppConfig>()));
         services.AddSingleton<InlineVisualizationAssetStore>();
 

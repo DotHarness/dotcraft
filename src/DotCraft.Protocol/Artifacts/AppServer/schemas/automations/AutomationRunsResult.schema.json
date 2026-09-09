@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationRunsResult.schema.json",
+  "title": "AutomationRunsResult",
+  "type": "object",
+  "properties": {
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "./AutomationRun.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "runs"
+  ]
+}

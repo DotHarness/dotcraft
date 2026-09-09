@@ -399,12 +399,23 @@ function scheduleDebouncedIndexInvalidate(): void {
   }, INDEX_INVALIDATE_DEBOUNCE_MS)
 }
 
+export function shouldInvalidateFileIndexForWatchEvent(
+  filename: string | Buffer | null | undefined
+): boolean {
+  if (filename == null) return true
+  const relativePath = filename.toString().replace(/\\/g, '/').replace(/^\.\/+/, '')
+  return relativePath !== '.craft' && !relativePath.startsWith('.craft/')
+}
+
 function ensureFsWatchForWorkspace(resolvedRoot: string): void {
   if (fileIndexWatcher) {
     return
   }
   try {
-    fileIndexWatcher = fsWatch(resolvedRoot, { recursive: true }, () => {
+    fileIndexWatcher = fsWatch(resolvedRoot, { recursive: true }, (_eventType, filename) => {
+      // `.craft` is excluded from the index, and the index worker writes its cache there.
+      // Rebuilding for those events creates a self-sustaining watch/write loop.
+      if (!shouldInvalidateFileIndexForWatchEvent(filename)) return
       scheduleDebouncedIndexInvalidate()
     })
   } catch {

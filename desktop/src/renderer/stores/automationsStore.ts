@@ -1,396 +1,108 @@
+import type { AutomationDefinition, AutomationRun, AutomationInput, AutomationPreset } from '../types/automation'
 import { create } from 'zustand'
-import { useReviewPanelStore } from './reviewPanelStore'
-import { DEFAULT_LOCALE, type AppLocale } from '../../shared/locales/types'
-
-/** Polling interval for task list while Automations view is mounted (ms). */
-const AUTOMATIONS_POLL_MS = 15_000
-
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
-export type AutomationTaskStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-
-/**
- * Wire projection of `CronSchedule` reused by automation tasks. Mirrors C# `AutomationScheduleWire`.
- * `kind` is one of `once` (not persisted — sentinel for "no schedule") | `every` | `at` | `daily`.
- */
-export interface AutomationSchedule {
-  kind: 'once' | 'every' | 'at' | 'daily' | string
-  atMs?: number
-  everyMs?: number
-  initialDelayMs?: number
-  dailyHour?: number
-  dailyMinute?: number
-  expr?: string
-  tz?: string
-}
-
-export interface AutomationThreadBinding {
-  threadId: string
-  mode?: string
-}
-
-export type AutomationWorkspaceMode = 'project' | 'worktree'
-
-export interface AutomationTaskWorktree {
-  branchName: string
-  path: string
-}
-
-export interface AutomationWorktreeStatus {
-  threadId: string
-  worktree: {
-    id: string
-    sourceThreadId: string
-    workspacePath: string
-    sourceWorkspacePath: string
-    path: string
-    branchName: string
-    baseRef: string
-    baseHead?: string
-    head: string
-    ownerKind?: string | null
-    ownerId?: string | null
-    createdAt: string
-  }
-  path: string
-  branchName: string
-  head?: string | null
-  exists: boolean
-  isGitWorktree: boolean
-  hasUncommittedChanges: boolean
-  hasCommitsAheadOfBase?: boolean
-  aheadCount?: number
-}
-
-export interface AutomationTask {
-  id: string
-  title: string
-  status: AutomationTaskStatus
-  threadId: string | null
-  description?: string
-  agentSummary?: string | null
-  /** Wire: `workspaceScope` (default) or `fullAuto`. */
-  approvalPolicy?: string | null
-  /** Canonical declared workspace mode. */
-  workspaceMode?: AutomationWorkspaceMode | string | null
-  /** Managed worktree identity once provisioned. */
-  worktree?: AutomationTaskWorktree | null
-  createdAt: string
-  updatedAt: string
-  /** Optional recurring schedule; when absent the task is one-shot (legacy behavior). */
-  schedule?: AutomationSchedule | null
-  /** Optional binding to a pre-existing thread (turns submit directly into it). */
-  threadBinding?: AutomationThreadBinding | null
-  /** ISO 8601 UTC. Null when the task has no schedule or is ready to dispatch immediately. */
-  nextRunAt?: string | null
-  /** Optional Agent Profile bound to the task; governs the agent's capabilities at run time. */
-  agentProfileId?: string | null
-}
-
-/** Built-in local task template, fetched once per view mount as a New Task preset source. */
-export interface AutomationTemplate {
-  id: string
-  title: string
-  description?: string
-  icon?: string
-  category?: string
-  workflowMarkdown: string
-  defaultSchedule?: AutomationSchedule | null
-  defaultWorkspaceMode?: AutomationWorkspaceMode | string | null
-  defaultApprovalPolicy?: 'workspaceScope' | 'fullAuto' | string | null
-  needsThreadBinding?: boolean | null
-  defaultTitle?: string | null
-  defaultDescription?: string | null
-  /** Optional Agent Profile id pre-filled into the task Agent picker when the template is applied. */
-  defaultAgentProfileId?: string | null
-  /** True for user-authored templates (editable + deletable); false/absent for built-ins. */
-  isUser?: boolean
-  /** ISO-8601 UTC, only present for user templates. */
-  createdAt?: string | null
-  /** ISO-8601 UTC, only present for user templates. */
-  updatedAt?: string | null
-}
-
-/** Authoring payload for creating / updating a user template. */
-export interface SaveTemplateInput {
-  /** Absent for new templates; present to update an existing user template in place. */
-  id?: string
-  title: string
-  description?: string | null
-  icon?: string | null
-  category?: string | null
-  workflowMarkdown: string
-  defaultSchedule?: AutomationSchedule | null
-  defaultWorkspaceMode?: AutomationWorkspaceMode | null
-  defaultApprovalPolicy?: 'workspaceScope' | 'fullAuto' | null
-  needsThreadBinding?: boolean
-  defaultTitle?: string | null
-  defaultDescription?: string | null
-  /** Agent Profile id pre-filled into the task Agent picker when the template is applied. Null clears it. */
-  defaultAgentProfileId?: string | null
-}
-
-export interface CreateTaskInput {
-  title: string
-  description: string
-  workflowTemplate?: string
-  approvalPolicy?: 'workspaceScope' | 'fullAuto'
-  workspaceMode?: AutomationWorkspaceMode
-  schedule?: AutomationSchedule | null
-  threadBinding?: AutomationThreadBinding | null
-  templateId?: string
-  /** Optional Agent Profile binding the task's run to a profile. */
-  agentProfileId?: string | null
-}
+export type { AutomationDefinition, AutomationRun, AutomationInput, AutomationPreset, AutomationSchedule } from '../types/automation'
 
 interface AutomationsState {
-  tasks: AutomationTask[]
+  pendingActions: Record<string, boolean>
+  setEnabled(id: string, enabled: boolean): Promise<void>
+  markRunsRead(id: string, runIds: string[], read: boolean): Promise<void>
+  automations: AutomationDefinition[]
+  runs: Record<string, AutomationRun[]>
+  presets: AutomationPreset[]
   loading: boolean
   error: string | null
-  selectedTaskId: string | null
-  /** Cached built-in templates (lazy-loaded on first fetchTemplates call). */
-  templates: AutomationTemplate[]
-  templatesLoaded: boolean
-  templatesLocale?: AppLocale
-
-  /** Full refresh (shows loading). Use for initial load and explicit user refresh. */
-  fetchTasks(options?: { silent?: boolean }): Promise<void>
-  /** Starts periodic silent refresh; call from AutomationsView on mount. */
-  startPolling(): void
-  /** Stops periodic refresh; call on unmount. */
-  stopPolling(): void
-  createTask(input: CreateTaskInput): Promise<void>
-  runTaskNow(task: AutomationTask): Promise<void>
-  getTaskWorktreeStatus(task: AutomationTask): Promise<AutomationWorktreeStatus | null>
-  discardTaskWorktree(task: AutomationTask): Promise<AutomationTask>
-  deleteTask(task: AutomationTask): Promise<void>
-  /** Updates the task's thread binding. Pass null to unbind. */
-  updateBinding(
-    task: AutomationTask,
-    binding: AutomationThreadBinding | null
-  ): Promise<AutomationTask>
-  /** Fetches and caches the built-in + user local templates. No-op if already loaded. */
-  fetchTemplates(locale?: AppLocale, force?: boolean): Promise<void>
-  /** Creates or updates a user-authored template. Refreshes the cached templates list. */
-  saveTemplate(input: SaveTemplateInput): Promise<AutomationTemplate>
-  /** Deletes a user-authored template. Built-in ids are rejected by the server. */
-  deleteTemplate(id: string): Promise<void>
-  selectTask(taskId: string | null): void
-  upsertTask(task: AutomationTask): void
-  removeTask(taskId: string): void
+  selectedAutomationId: string | null
+  fetchAutomations(): Promise<void>
+  readAutomation(id: string): Promise<AutomationDefinition>
+  fetchRuns(id: string): Promise<void>
+  fetchPresets(locale: string): Promise<void>
+  save(input: AutomationInput, existing?: AutomationDefinition): Promise<AutomationDefinition>
+  remove(id: string): Promise<void>
+  run(id: string): Promise<AutomationRun>
+  selectAutomation(id: string | null): void
+  upsertAutomation(automation: AutomationDefinition): void
+  removeAutomation(id: string): void
+  upsertRun(run: AutomationRun): void
 }
-
+const request = (method: string, params: unknown) => window.api.appServer.sendRequest(method as Parameters<typeof window.api.appServer.sendRequest>[0], params as never)
 export const useAutomationsStore = create<AutomationsState>((set, get) => ({
-  tasks: [],
-  loading: false,
-  error: null,
-  selectedTaskId: null,
-  templates: [],
-  templatesLoaded: false,
-  templatesLocale: undefined,
-
-  async fetchTasks(options?: { silent?: boolean }) {
-    const silent = options?.silent === true
-    if (!silent) set({ loading: true, error: null })
+  pendingActions: {},
+  async setEnabled(id, enabled) {
+    if (get().pendingActions[id]) return
+    const existing = get().automations.find(item => item.id === id)
+    if (!existing || existing.status === 'completed') return
+    set(state => ({ pendingActions: { ...state.pendingActions, [id]: true } }))
+    try { await get().save({ ...existing, status: enabled ? 'active' : 'paused' }, existing) }
+    finally { set(state => ({ pendingActions: { ...state.pendingActions, [id]: false } })) }
+  },
+  async markRunsRead(id, runIds, read) {
+    for (let offset = 0; offset < runIds.length; offset += 200) {
+      const { runs } = await request('automation/runs/read', { automationId: id, runIds: runIds.slice(offset, offset + 200), read }) as { runs: AutomationRun[] }
+      for (const run of runs) get().upsertRun(run)
+    }
+  },
+  automations: [], runs: {}, presets: [], loading: false, error: null, selectedAutomationId: null,
+  async fetchAutomations() {
+    set({ loading: true, error: null })
     try {
-      const result = (await window.api.appServer.sendRequest('automation/task/list', {})) as {
-        tasks?: AutomationTask[]
-      }
-      set({ tasks: result.tasks ?? [], loading: false })
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (!silent) set({ error: msg, loading: false })
-      else set({ loading: false })
-    }
+      const result = await request('automation/list', {}) as { automations: AutomationDefinition[] }
+      set({ automations: result.automations, loading: false })
+    } catch (error) { set({ loading: false, error: String(error) }) }
   },
-
-  startPolling() {
-    if (pollTimer != null) return
-    pollTimer = setInterval(() => {
-      void useAutomationsStore.getState().fetchTasks({ silent: true })
-    }, AUTOMATIONS_POLL_MS)
-  },
-
-  stopPolling() {
-    if (pollTimer != null) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
-  },
-
-  async createTask(input: CreateTaskInput) {
-    const params: Record<string, unknown> = {
-      title: input.title,
-      description: input.description,
-      approvalPolicy: input.approvalPolicy ?? 'workspaceScope',
-      workspaceMode: input.workspaceMode ?? 'project'
-    }
-    if (input.workflowTemplate) params.workflowTemplate = input.workflowTemplate
-    if (input.schedule && input.schedule.kind !== 'once') params.schedule = input.schedule
-    if (input.threadBinding && input.threadBinding.threadId) params.threadBinding = input.threadBinding
-    if (input.templateId) params.templateId = input.templateId
-    if (input.agentProfileId) params.agentProfileId = input.agentProfileId
-    await window.api.appServer.sendRequest('automation/task/create', params)
-    await get().fetchTasks()
-  },
-
-  async runTaskNow(task: AutomationTask) {
-    const result = (await window.api.appServer.sendRequest('automation/task/run', {
-      taskId: task.id
-    })) as { task?: AutomationTask }
-    if (result.task) get().upsertTask(result.task)
-    await get().fetchTasks({ silent: true })
-  },
-
-  async getTaskWorktreeStatus(task: AutomationTask) {
-    if (!task.threadId || !task.worktree) return null
-    const result = (await window.api.appServer.sendRequest('worktree/status', {
-      threadId: task.threadId
-    })) as { status?: AutomationWorktreeStatus }
-    return result.status ?? null
-  },
-
-  async discardTaskWorktree(task: AutomationTask) {
-    const result = (await window.api.appServer.sendRequest(
-      'automation/task/discardWorktree',
-      { taskId: task.id },
-      180_000
-    )) as { task?: AutomationTask }
-    const updated = result.task ?? { ...task, worktree: null }
-    get().upsertTask(updated)
-    await get().fetchTasks({ silent: true })
-    return updated
-  },
-
-  async updateBinding(task: AutomationTask, binding: AutomationThreadBinding | null) {
-    const params: Record<string, unknown> = {
-      taskId: task.id
-    }
-    if (binding && binding.threadId) {
-      params.threadBinding = {
-        threadId: binding.threadId,
-        mode: binding.mode ?? 'run-in-thread'
-      }
-    }
-    const result = (await window.api.appServer.sendRequest(
-      'automation/task/updateBinding',
-      params
-    )) as { task?: AutomationTask }
-    const updated = result.task ?? { ...task, threadBinding: binding }
-    get().upsertTask(updated)
-    return updated
-  },
-
-  async fetchTemplates(locale?: AppLocale, force?: boolean) {
-    const requestedLocale = locale ?? DEFAULT_LOCALE
-    if (
-      !force &&
-      get().templatesLoaded &&
-      get().templatesLocale === requestedLocale
-    ) {
-      return
-    }
+  async readAutomation(automationId) {
     try {
-      const result = (await window.api.appServer.sendRequest(
-        'automation/template/list',
-        { locale: requestedLocale }
-      )) as { templates?: AutomationTemplate[] }
-      set({
-        templates: result.templates ?? [],
-        templatesLoaded: true,
-        templatesLocale: requestedLocale
-      })
-    } catch {
-      set({ templates: [], templatesLoaded: true, templatesLocale: requestedLocale })
+      const { automation } = await request('automation/read', { automationId }) as { automation: AutomationDefinition }
+      get().upsertAutomation(automation)
+      return automation
+    } catch (error) {
+      const failure = error as { code?: number; data?: { code?: string } }
+      if (failure?.code === -32051 || failure?.data?.code === 'automation.notFound' || /automation\.notFound|automation not found/i.test(String(error))) get().removeAutomation(automationId)
+      throw error
     }
   },
-
-  async saveTemplate(input: SaveTemplateInput) {
-    const params: Record<string, unknown> = {
-      title: input.title,
-      workflowMarkdown: input.workflowMarkdown,
-      needsThreadBinding: input.needsThreadBinding ?? false
-    }
-    if (input.id) params.id = input.id
-    if (input.description != null && input.description !== '')
-      params.description = input.description
-    if (input.icon != null && input.icon !== '') params.icon = input.icon
-    if (input.category != null && input.category !== '') params.category = input.category
-    if (input.defaultSchedule && input.defaultSchedule.kind !== 'once')
-      params.defaultSchedule = input.defaultSchedule
-    if (input.defaultWorkspaceMode) params.defaultWorkspaceMode = input.defaultWorkspaceMode
-    if (input.defaultApprovalPolicy) params.defaultApprovalPolicy = input.defaultApprovalPolicy
-    if (input.defaultTitle != null && input.defaultTitle !== '')
-      params.defaultTitle = input.defaultTitle
-    if (input.defaultDescription != null && input.defaultDescription !== '')
-      params.defaultDescription = input.defaultDescription
-    if (input.defaultAgentProfileId) params.defaultAgentProfileId = input.defaultAgentProfileId
-
-    const result = (await window.api.appServer.sendRequest(
-      'automation/template/save',
-      params
-    )) as { template?: AutomationTemplate }
-    const saved = result.template
-    if (!saved) throw new Error('Server did not return the saved template')
-
-    set((state) => {
-      const idx = state.templates.findIndex((t) => t.id === saved.id)
-      if (idx >= 0) {
-        const updated = [...state.templates]
-        updated[idx] = saved
-        return { templates: updated }
-      }
-      return { templates: [...state.templates, saved] }
-    })
-    return saved
+  async fetchRuns(automationId) {
+    const { runs } = await request('automation/runs/list', { automationId }) as { runs: AutomationRun[] }
+    set(state => ({ runs: { ...state.runs, [automationId]: runs } }))
   },
-
-  async deleteTemplate(id: string) {
-    await window.api.appServer.sendRequest('automation/template/delete', { id })
-    set((state) => ({ templates: state.templates.filter((t) => t.id !== id) }))
+  async fetchPresets(locale) {
+    const { presets } = await request('automation/presets/list', { locale }) as { presets: AutomationPreset[] }
+    set({ presets })
   },
-
-  async deleteTask(task: AutomationTask) {
-    await window.api.appServer.sendRequest('automation/task/delete', {
-      taskId: task.id
-    })
-    if (task.threadId) {
-      try {
-        await window.api.appServer.sendRequest('thread/delete', { threadId: task.threadId })
-      } catch {
-        // Thread may already be gone; task folder is already removed.
-      }
-    }
-    get().removeTask(task.id)
-    if (get().selectedTaskId === task.id) {
-      set({ selectedTaskId: null })
-      useReviewPanelStore.getState().destroyReviewPanel()
-    }
+  async save(input, existing) {
+    const automation = editableAutomation(input)
+    const result = await request(existing ? 'automation/update' : 'automation/create', existing
+      ? { automationId: existing.id, expectedVersion: existing.version, automation }
+      : { automation }) as { automation: AutomationDefinition }
+    get().upsertAutomation(result.automation)
+    return result.automation
   },
-
-  removeTask(taskId: string) {
-    set((state) => ({
-      tasks: state.tasks.filter((t) => t.id !== taskId)
-    }))
+  async remove(automationId) {
+    await request('automation/delete', { automationId })
+    get().removeAutomation(automationId)
   },
-
-  selectTask(taskId: string | null) {
-    set({ selectedTaskId: taskId })
+  async run(automationId) {
+    const { run } = await request('automation/run', { automationId }) as { run: AutomationRun }
+    get().upsertRun(run)
+    return run
   },
-
-  upsertTask(task: AutomationTask) {
-    set((state) => {
-      const idx = state.tasks.findIndex((t) => t.id === task.id)
-      if (idx >= 0) {
-        const updated = [...state.tasks]
-        updated[idx] = { ...updated[idx], ...task }
-        return { tasks: updated }
-      }
-      return { tasks: [task, ...state.tasks] }
-    })
+  selectAutomation(selectedAutomationId) {
+    set({ selectedAutomationId, error: null })
+    if (selectedAutomationId) void get().readAutomation(selectedAutomationId).catch(error => set({ error: String(error) }))
+  },
+  upsertAutomation(automation) {
+    set(state => ({ automations: [automation, ...state.automations.filter(a => a.id !== automation.id)] }))
+  },
+  removeAutomation(id) {
+    set(state => ({ automations: state.automations.filter(a => a.id !== id) }))
+  },
+  upsertRun(run) {
+    set(state => ({ runs: { ...state.runs, [run.automationId]: [run, ...(state.runs[run.automationId] ?? []).filter(r => r.id !== run.id)].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) } }))
   }
 }))
+
+export function editableAutomation(value: AutomationInput): AutomationInput {
+  return { name: value.name, prompt: value.prompt, status: value.status, executionMode: value.executionMode,
+    targetThreadId: value.executionMode === 'thread' ? value.targetThreadId : null,
+    workspaceMode: value.workspaceMode, agentProfileId: value.executionMode === 'independent' ? value.agentProfileId : null,
+    approvalPolicy: value.approvalPolicy, schedule: value.schedule, notificationPolicy: value.notificationPolicy }
+}

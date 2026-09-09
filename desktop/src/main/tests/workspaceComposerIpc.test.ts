@@ -7,8 +7,25 @@ import {
   cleanupWorkspaceCache,
   ensureFileIndex,
   invalidateFileIndex,
-  listWorkspaceFiles
+  listWorkspaceFiles,
+  shouldInvalidateFileIndexForWatchEvent
 } from '../workspaceComposerIpc'
+
+describe('workspace file index watch events', () => {
+  it('ignores DotCraft-owned workspace state that is excluded from the index', () => {
+    expect(shouldInvalidateFileIndexForWatchEvent('.craft/cache/desktop-file-index-v1.json')).toBe(
+      false
+    )
+    expect(shouldInvalidateFileIndexForWatchEvent('.craft\\cache\\sessions.json')).toBe(false)
+    expect(shouldInvalidateFileIndexForWatchEvent(Buffer.from('.craft/cache/state.json'))).toBe(false)
+  })
+
+  it('invalidates for source changes and unknown filenames', () => {
+    expect(shouldInvalidateFileIndexForWatchEvent('src/main/index.ts')).toBe(true)
+    expect(shouldInvalidateFileIndexForWatchEvent('.craft-notes.md')).toBe(true)
+    expect(shouldInvalidateFileIndexForWatchEvent(null)).toBe(true)
+  })
+})
 
 describe('workspace composer cache cleanup', () => {
   let tempRoot = ''
