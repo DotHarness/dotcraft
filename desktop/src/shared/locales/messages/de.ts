@@ -2086,6 +2086,8 @@ export const MESSAGES_DE = {
   'plugins.content.mcp.shadowedWorkspace': 'Im Schatten des Arbeitsbereichs',
   'plugins.content.mcpServer': 'MCP Server',
   'plugins.content.skill': 'Geschicklichkeit',
+  'plugins.content.dotnet': '.NET-Erweiterung',
+  'plugins.content.dotnet.description': 'Wird prozessintern mit DotCraft {{version}} oder neuer ausgeführt',
   'plugins.content.tool': 'Werkzeug',
   'plugins.defaultPromptFallback': 'Dieses Plugin in der aktuellen Konversation verwenden',
   'plugins.detail.developer': 'Entwickler',

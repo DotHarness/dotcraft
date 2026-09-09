@@ -1635,6 +1635,8 @@ export const MESSAGES_EN = {
   'plugins.defaultPromptFallback': 'Use this plugin in the current conversation',
   'plugins.content.app': 'App',
   'plugins.content.desktopPlugin': 'Desktop Plugin',
+  'plugins.content.dotnet': '.NET extension',
+  'plugins.content.dotnet.description': 'Runs in process with DotCraft {{version}} or later',
   'plugins.content.hooks': 'Hooks',
   'plugins.content.hooks.title': 'Lifecycle hooks',
   'plugins.content.hooks.description': '{{count}} hook handlers across {{events}}',

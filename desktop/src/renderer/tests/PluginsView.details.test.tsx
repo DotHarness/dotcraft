@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   appServerSendRequest,
+  dotnetPlugin,
   localPlugin,
   lspOnlyPlugin,
   mcpOnlyPlugin,
@@ -113,6 +114,21 @@ describe('PluginsView details', () => {
     expect(await screen.findByText('csharp-lsp:csharp')).toBeInTheDocument()
     expect(screen.getByText('LSP server')).toBeInTheDocument()
     expect(screen.getByText('STDIO · Inactive · .cs')).toBeInTheDocument()
+  })
+
+  it('shows the declared .NET extension before the plugin is installed', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [dotnetPlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: dotnetPlugin, snapshotRevision: 1 }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Review Core'))
+
+    expect(await screen.findByText('Acme.Review.dll')).toBeInTheDocument()
+    expect(screen.getByText('.NET extension')).toBeInTheDocument()
+    expect(screen.getByText('Runs in process with DotCraft 0.5.0 or later')).toBeInTheDocument()
   })
 
 

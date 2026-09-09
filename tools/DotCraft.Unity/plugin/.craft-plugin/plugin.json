@@ -9,9 +9,16 @@
   "interface": {
     "displayName": "Unity",
     "shortDescription": "Automate Unity Editor",
-    "longDescription": "Inspect and automate a running Unity Editor.",
+    "longDescription": "Inspect and automate a running Unity Editor through DotCraft's native Unity tools.",
+    "developerName": "DotHarness",
+    "category": "Engineering",
+    "capabilities": ["Skill", "Unity", "Read", "Write"],
+    "defaultPrompt": "Inspect or automate the connected Unity Editor.",
     "composerIcon": "./assets/unity.svg",
-    "logo": "./assets/unity.svg"
+    "logo": "./assets/unity.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft/tree/main/tools/DotCraft.Unity",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
   },
   "dotnet": {
     "minHostVersion": "0.5.0",

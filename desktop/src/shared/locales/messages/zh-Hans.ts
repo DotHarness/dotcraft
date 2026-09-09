@@ -1590,6 +1590,8 @@ export const MESSAGES_ZH_HANS = {
   'plugins.defaultPromptFallback': '在当前对话中使用这个插件',
   'plugins.content.app': '应用',
   'plugins.content.desktopPlugin': '桌面插件',
+  'plugins.content.dotnet': '.NET 扩展',
+  'plugins.content.dotnet.description': '在 DotCraft {{version}} 或更高版本中以进程内方式运行',
   'plugins.content.hooks': 'Hooks',
   'plugins.content.hooks.title': '生命周期 Hooks',
   'plugins.content.hooks.description': '{{count}} 个 hook handler，覆盖 {{events}}',

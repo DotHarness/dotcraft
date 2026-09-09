@@ -4,6 +4,7 @@ import { getPluginDesktopContent } from './pluginDesktop'
 export type PluginContentType =
   | 'app'
   | 'desktopPlugin'
+  | 'dotnet'
   | 'hooks'
   | 'skill'
   | 'tool'
@@ -47,6 +48,13 @@ export function getPluginContentSummaries(plugin: PluginEntry, t: Translate): Pl
       title: desktop.title,
       description: desktop.description
     })),
+    ...(plugin.dotnet == null ? [] : [{
+      key: 'dotnet',
+      type: 'dotnet' as const,
+      kind: t('plugins.content.dotnet'),
+      title: plugin.dotnet.entryAssembly.split(/[\\/]/).at(-1) || plugin.displayName,
+      description: t('plugins.content.dotnet.description', { version: plugin.dotnet.minHostVersion })
+    }]),
     ...(plugin.apps ?? []).map((app) => ({
       key: `app:${app.appId}`,
       type: 'app' as const,
