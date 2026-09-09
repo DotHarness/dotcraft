@@ -162,12 +162,12 @@
 
 .dc-tool-row > summary:hover .dc-tool-chevron,
 .dc-tool-row > summary:focus-visible .dc-tool-chevron,
-.dc-tool-row[open] .dc-tool-chevron,
+.dc-tool-row[open] > summary .dc-tool-chevron,
 .dc-tool-chevron[data-visible="true"] {
   opacity: 1;
 }
 
-.dc-tool-row[open] .dc-tool-chevron,
+.dc-tool-row[open] > summary .dc-tool-chevron,
 .dc-tool-chevron[data-expanded="true"] {
   transform: rotate(90deg);
 }
