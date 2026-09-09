@@ -44,6 +44,12 @@ internal sealed partial class PluginRequestHandler
             Dotnet = manifest.Dotnet is { } dotnet
                 ? Protocol.Optional<Contract.PluginDotnetInfo?>.FromValue(new Contract.PluginDotnetInfo
                 {
+                    DisplayName = dotnet.DisplayName is { } displayName
+                        ? Protocol.Optional<string>.FromValue(displayName)
+                        : default,
+                    Description = dotnet.Description is { } dotnetDescription
+                        ? Protocol.Optional<string>.FromValue(dotnetDescription)
+                        : default,
                     EntryAssembly = dotnet.EntryAssembly,
                     EntryType = dotnet.EntryType,
                     ExportedApiAssemblies = dotnet.ExportedApiAssemblies.ToArray(),

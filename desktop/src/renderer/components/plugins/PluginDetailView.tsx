@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Anchor, Box, Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Settings, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginEntry } from '../../stores/pluginStore'
-import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
+import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import {
   CatalogBreadcrumb,
   CatalogHoverButton,
@@ -17,6 +17,7 @@ import { IconButton } from '../ui/IconButton'
 import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
+import { PluginContentIcon } from './PluginContentIcon'
 import { displayCategory } from './pluginCatalogModel'
 import styles from './PluginDetailView.module.css'
 
@@ -301,17 +302,6 @@ function resolvePluginExternalUrl(href?: string | null): string | null {
     return null
   }
   return null
-}
-
-function PluginContentIcon({ type, size }: { type: PluginContentType; size: number }): JSX.Element {
-  if (type === 'app') return <Link size={size} aria-hidden />
-  if (type === 'desktopPlugin') return <Settings size={size} aria-hidden />
-  if (type === 'dotnet') return <Code2 size={size} aria-hidden />
-  if (type === 'hooks') return <Anchor size={size} aria-hidden />
-  if (type === 'skill') return <Box size={size} aria-hidden />
-  if (type === 'mcp') return <Server size={size} aria-hidden />
-  if (type === 'lsp') return <Code2 size={size} aria-hidden />
-  return <Wrench size={size} aria-hidden />
 }
 
 const page: CSSProperties = catalogStyles.page

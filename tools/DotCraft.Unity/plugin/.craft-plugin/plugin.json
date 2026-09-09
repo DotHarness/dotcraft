@@ -21,6 +21,8 @@
     "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
   },
   "dotnet": {
+    "displayName": "Unity integration",
+    "description": "Provides native C# execution tools for Unity Editor.",
     "minHostVersion": "0.5.0",
     "entryAssembly": "./lib/DotCraft.Unity.dll",
     "entryType": "DotCraft.Unity.Plugin"

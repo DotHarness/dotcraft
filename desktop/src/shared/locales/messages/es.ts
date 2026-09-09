@@ -2085,8 +2085,6 @@ export const MESSAGES_ES = {
   'plugins.content.mcpServer': 'MCP servidor',
   'plugins.content.skill': 'Habilidad',
   'plugins.content.dotnet': 'Extensión .NET',
-  'plugins.content.dotnet.description': 'Se ejecuta en proceso con DotCraft {{version}} o posterior',
-  'plugins.content.tool': 'Herramienta',
   'plugins.defaultPromptFallback': 'Usar este complemento en la conversación actual',
   'plugins.detail.developer': 'Desarrollador',
   'plugins.detail.info': 'Información',

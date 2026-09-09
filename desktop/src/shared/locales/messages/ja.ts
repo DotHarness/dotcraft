@@ -2080,8 +2080,6 @@ export const MESSAGES_JA = {
   'plugins.content.mcpServer': 'MCP サーバー',
   'plugins.content.skill': 'スキル',
   'plugins.content.dotnet': '.NET 拡張機能',
-  'plugins.content.dotnet.description': 'DotCraft {{version}} 以降でインプロセス実行',
-  'plugins.content.tool': 'ツール',
   'plugins.defaultPromptFallback': '現在の会話でこのプラグインを使用します',
   'plugins.detail.developer': '開発者',
   'plugins.detail.info': '情報',

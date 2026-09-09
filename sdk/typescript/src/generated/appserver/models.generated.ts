@@ -2247,6 +2247,8 @@ export interface PluginDiagnostic {
 }
 
 export interface PluginDotnetInfo {
+  description?: string;
+  displayName?: string;
   entryAssembly?: string;
   entryType?: string;
   exportedApiAssemblies?: string[];

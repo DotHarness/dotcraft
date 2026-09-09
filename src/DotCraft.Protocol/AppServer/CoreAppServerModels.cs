@@ -2934,6 +2934,14 @@ public sealed class PluginDiagnostic : ExtensibleJsonObject
 /// <summary>Static metadata for a code-plugin bundle.</summary>
 public sealed class PluginDotnetInfo : ExtensibleJsonObject
 {
+    [JsonPropertyName("displayName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> DisplayName { get; init; }
+
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Description { get; init; }
+
     [JsonPropertyName("entryAssembly")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> EntryAssembly { get; init; }

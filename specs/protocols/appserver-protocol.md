@@ -4191,6 +4191,8 @@ in-process code before the user commits to it. Listing or viewing a plugin never
 
 ```json
 {
+  "displayName": "Review integration",
+  "description": "Provides native review capabilities.",
   "entryAssembly": "./dotnet/Acme.Review.Ui.dll",
   "entryType": "Acme.Review.Ui.ReviewPlugin",
   "exportedApiAssemblies": ["./dotnet/Acme.Review.Contracts.dll"],
@@ -4200,6 +4202,8 @@ in-process code before the user commits to it. Listing or viewing a plugin never
 
 | Field | Type | Presence | Description |
 |-------|------|----------|-------------|
+| `displayName` | string | optional | Trimmed user-facing name for the .NET contribution. Clients fall back to the plugin display name when it is omitted. |
+| `description` | string | optional | Trimmed user-facing summary of the contribution's purpose. Clients fall back to the plugin long description and then the plugin description when it is omitted. |
 | `entryAssembly` | string | required | Validated manifest-relative entry assembly path. |
 | `entryType` | string | required | Full CLR entry type name. |
 | `exportedApiAssemblies` | string[] | required | Validated manifest-relative exported API paths; empty when none are declared. |

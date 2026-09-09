@@ -109,7 +109,10 @@ describe('PluginsView installation', () => {
     renderPluginsView()
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }))
 
-    expect(await screen.findByRole('heading', { name: 'Install Review Core' })).toBeInTheDocument()
+    const dialog = (await screen.findByRole('heading', { name: 'Install Review Core' })).closest('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    expect(dialog!.querySelector('[data-plugin-content-icon="dotnet"]')).toBeInTheDocument()
+    expect(within(dialog as HTMLElement).getByText('Review integration · .NET extension')).toBeInTheDocument()
     expect(screen.queryByText('Security authorization')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add to DotCraft' })).toBeInTheDocument()
   })

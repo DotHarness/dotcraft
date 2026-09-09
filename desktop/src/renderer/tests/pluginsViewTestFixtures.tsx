@@ -57,6 +57,8 @@ export const dotnetPlugin: PluginEntry = {
   functions: [],
   skills: [],
   dotnet: {
+    displayName: 'Review integration',
+    description: 'Provides native review capabilities.',
     entryAssembly: './dotnet/Acme.Review.dll',
     entryType: 'Acme.Review.Plugin',
     exportedApiAssemblies: [],

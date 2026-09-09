@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Anchor, Box, Check, Code2, ExternalLink, Link2, RefreshCw, Server, Settings, Wrench, X } from 'lucide-react'
+import { AlertTriangle, Check, ExternalLink, Link2, RefreshCw, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
 import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { openAppHandoff } from './AppBindingPanel'
-import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
+import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { IdentityMark } from '../ui/IdentityMark'
+import { PluginContentIcon } from './PluginContentIcon'
 
 type NativeStatus = 'installed' | 'missing' | 'unknown'
 type SetupStage = 'pluginInstall' | 'trustRequired' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
@@ -263,22 +264,12 @@ function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
     <div style={chips}>
       {contents.map((item) => (
         <span key={item.key} style={chip}>
-          <PluginContentChipIcon type={item.type} />
-                  <span>{item.type === 'desktopPlugin' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
+          <PluginContentIcon type={item.type} size={12} />
+                  <span>{item.type === 'desktopPlugin' || item.type === 'dotnet' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
         </span>
       ))}
     </div>
   )
-}
-
-function PluginContentChipIcon({ type }: { type: PluginContentType }): JSX.Element {
-  if (type === 'app') return <Link2 size={12} aria-hidden />
-  if (type === 'desktopPlugin') return <Settings size={12} aria-hidden />
-  if (type === 'hooks') return <Anchor size={12} aria-hidden />
-  if (type === 'skill') return <Box size={12} aria-hidden />
-  if (type === 'mcp') return <Server size={12} aria-hidden />
-  if (type === 'lsp') return <Code2 size={12} aria-hidden />
-  return <Wrench size={12} aria-hidden />
 }
 
 function CurrentSetupStage({

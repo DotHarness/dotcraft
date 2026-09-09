@@ -465,6 +465,8 @@ public sealed partial class AppServerPluginManagementTests
         var plugin = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "dotnet-demo");
+        Assert.Equal("Review integration", plugin.GetProperty("dotnet").GetProperty("displayName").GetString());
+        Assert.Equal("Provides native review capabilities.", plugin.GetProperty("dotnet").GetProperty("description").GetString());
         Assert.Equal("./dotnet/DotnetDemo.dll", plugin.GetProperty("dotnet").GetProperty("entryAssembly").GetString());
         Assert.Equal("0.1.0", plugin.GetProperty("dotnet").GetProperty("minHostVersion").GetString());
         var dependency = Assert.Single(plugin.GetProperty("dependencies").EnumerateArray());

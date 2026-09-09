@@ -554,6 +554,8 @@ interface:
               "displayName": "Dotnet Demo",
               "capabilities": ["dotnet"],
               "dotnet": {
+                "displayName": "Review integration",
+                "description": "Provides native review capabilities.",
                 "minHostVersion": "0.1.0",
                 "entryAssembly": "./dotnet/DotnetDemo.dll",
                 "entryType": "DotnetDemo.Plugin",

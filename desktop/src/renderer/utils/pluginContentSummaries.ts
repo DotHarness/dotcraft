@@ -7,7 +7,6 @@ export type PluginContentType =
   | 'dotnet'
   | 'hooks'
   | 'skill'
-  | 'tool'
   | 'mcp'
   | 'lsp'
 
@@ -52,8 +51,11 @@ export function getPluginContentSummaries(plugin: PluginEntry, t: Translate): Pl
       key: 'dotnet',
       type: 'dotnet' as const,
       kind: t('plugins.content.dotnet'),
-      title: plugin.dotnet.entryAssembly.split(/[\\/]/).at(-1) || plugin.displayName,
-      description: t('plugins.content.dotnet.description', { version: plugin.dotnet.minHostVersion })
+      title: plugin.dotnet.displayName || plugin.interface?.displayName || plugin.displayName,
+      description: plugin.dotnet.description
+        || plugin.interface?.longDescription
+        || plugin.description
+        || plugin.displayName
     }]),
     ...(plugin.apps ?? []).map((app) => ({
       key: `app:${app.appId}`,
@@ -70,13 +72,6 @@ export function getPluginContentSummaries(plugin: PluginEntry, t: Translate): Pl
       title: skill.displayName || skill.name,
       description: skill.shortDescription || skill.description,
       skillName: skill.name
-    })),
-    ...plugin.functions.map((fn) => ({
-      key: `function:${fn.name}`,
-      type: 'tool' as const,
-      kind: t('plugins.content.tool'),
-      title: fn.name,
-      description: fn.description
     })),
     ...(plugin.mcpServers ?? []).map((server) => ({
       key: `mcp:${server.runtimeName}`,

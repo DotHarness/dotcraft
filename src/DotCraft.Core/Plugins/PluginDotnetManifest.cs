@@ -6,6 +6,12 @@ namespace DotCraft.Plugins;
 /// <summary>Statically admitted .NET entry metadata from a plugin manifest.</summary>
 public sealed record PluginDotnetManifest
 {
+    /// <summary>Gets the optional user-facing name of this .NET contribution.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Gets the optional user-facing summary of this .NET contribution.</summary>
+    public string? Description { get; init; }
+
     /// <summary>Gets the minimum DotCraft Host version this plugin runs on, canonical <c>MAJOR.MINOR.PATCH</c>.</summary>
     public required string MinHostVersion { get; init; }
 
@@ -124,6 +130,24 @@ internal static partial class PluginDotnetManifestAdmission
         JsonElement dotnet,
         List<PluginDiagnostic> diagnostics)
     {
+        var displayNameValue = ReadSingleProperty(dotnet, "displayName", out var duplicateDisplayName);
+        if (duplicateDisplayName)
+            AddAdmissionFailure(diagnostics, pluginId, "dotnet.displayName", "duplicate");
+        var displayName = ReadOptionalString(
+            pluginId,
+            displayNameValue,
+            "dotnet.displayName",
+            diagnostics);
+
+        var descriptionValue = ReadSingleProperty(dotnet, "description", out var duplicateDescription);
+        if (duplicateDescription)
+            AddAdmissionFailure(diagnostics, pluginId, "dotnet.description", "duplicate");
+        var description = ReadOptionalString(
+            pluginId,
+            descriptionValue,
+            "dotnet.description",
+            diagnostics);
+
         var minHostVersionValue = ReadSingleProperty(dotnet, "minHostVersion", out var duplicateMinHostVersion);
         if (duplicateMinHostVersion)
             AddAdmissionFailure(diagnostics, pluginId, "dotnet.minHostVersion", "duplicate");
@@ -167,6 +191,8 @@ internal static partial class PluginDotnetManifestAdmission
 
         return new PluginDotnetManifest
         {
+            DisplayName = displayName,
+            Description = description,
             MinHostVersion = minHostVersion,
             EntryAssembly = entryAssembly,
             EntryType = entryType,
@@ -399,6 +425,25 @@ internal static partial class PluginDotnetManifestAdmission
         }
 
         return result;
+    }
+
+    private static string? ReadOptionalString(
+        string pluginId,
+        JsonElement value,
+        string field,
+        List<PluginDiagnostic> diagnostics)
+    {
+        if (value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+            return null;
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            AddAdmissionFailure(diagnostics, pluginId, field, "invalidType");
+            return null;
+        }
+
+        var result = value.GetString()?.Trim();
+        return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 
     private static string? ReadRequiredCanonicalVersion(

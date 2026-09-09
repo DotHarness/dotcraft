@@ -2084,8 +2084,6 @@ export const MESSAGES_KO = {
   'plugins.content.mcpServer': 'MCP 서버',
   'plugins.content.skill': '스킬',
   'plugins.content.dotnet': '.NET 확장',
-  'plugins.content.dotnet.description': 'DotCraft {{version}} 이상에서 프로세스 내 실행',
-  'plugins.content.tool': '도구',
   'plugins.defaultPromptFallback': '현재 대화에서 이 플러그인을 사용하세요',
   'plugins.detail.developer': '개발자',
   'plugins.detail.info': '정보',

@@ -116,19 +116,36 @@ describe('PluginsView details', () => {
     expect(screen.getByText('STDIO · Inactive · .cs')).toBeInTheDocument()
   })
 
-  it('shows the declared .NET extension before the plugin is installed', async () => {
+  it.each([
+    ['before installation', dotnetPlugin],
+    ['while disabled', { ...dotnetPlugin, installed: true, installable: false }],
+    ['while active', {
+      ...dotnetPlugin,
+      installed: true,
+      installable: false,
+      enabled: true,
+      functions: [
+        { name: 'inspect', namespace: 'review', description: 'Inspect a change.' },
+        { name: 'apply', namespace: 'review', description: 'Apply a review fix.' }
+      ]
+    }]
+  ])('shows stable declared .NET content %s', async (_state, plugin) => {
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [dotnetPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: dotnetPlugin, snapshotRevision: 1 }
+      if (method === 'plugin/list') return { plugins: [plugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin, snapshotRevision: 1 }
       return {}
     })
 
     renderPluginsView()
     fireEvent.click(await screen.findByText('Review Core'))
 
-    expect(await screen.findByText('Acme.Review.dll')).toBeInTheDocument()
+    expect(await screen.findByText('Review integration')).toBeInTheDocument()
     expect(screen.getByText('.NET extension')).toBeInTheDocument()
-    expect(screen.getByText('Runs in process with DotCraft 0.5.0 or later')).toBeInTheDocument()
+    expect(screen.getByText('Provides native review capabilities.')).toBeInTheDocument()
+    expect(document.querySelector('[data-plugin-content-icon="dotnet"]')).toBeInTheDocument()
+    expect(screen.queryByText('Acme.Review.dll')).not.toBeInTheDocument()
+    expect(screen.queryByText('inspect')).not.toBeInTheDocument()
+    expect(screen.queryByText('apply')).not.toBeInTheDocument()
   })
 
 

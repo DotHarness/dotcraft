@@ -38,6 +38,8 @@ export interface PluginFunctionInfo {
 }
 
 export interface PluginDotnetInfo {
+  displayName?: string
+  description?: string
   entryAssembly: string
   entryType: string
   exportedApiAssemblies: string[]

@@ -72,9 +72,54 @@ public sealed class PluginDotnetManifestTests : IDisposable
         Assert.NotNull(result.Manifest?.Dotnet);
         Assert.Equal("1.2.3", result.Manifest!.Version);
         Assert.Equal("0.1.0", result.Manifest.Dotnet!.MinHostVersion);
+        Assert.Null(result.Manifest.Dotnet.DisplayName);
+        Assert.Null(result.Manifest.Dotnet.Description);
         Assert.Equal("2.0.0", result.Manifest.Dependencies["acme.core"]);
         Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error);
         Assert.False(File.Exists(markerPath));
+    }
+
+    [Fact]
+    public void Load_TrimsOptionalDotnetPresentationMetadata()
+    {
+        var pluginRoot = Path.Combine(_root, "presentation-metadata");
+        WriteManifest(
+            pluginRoot,
+            dotnetPresentationJson: "\"displayName\": \"  Review integration  \", \"description\": \"  Provides native review capabilities.  \"");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.NotNull(result.Manifest?.Dotnet);
+        Assert.Equal("Review integration", result.Manifest!.Dotnet!.DisplayName);
+        Assert.Equal("Provides native review capabilities.", result.Manifest.Dotnet.Description);
+    }
+
+    [Fact]
+    public void Load_TreatsBlankDotnetPresentationMetadataAsOmitted()
+    {
+        var pluginRoot = Path.Combine(_root, "blank-presentation-metadata");
+        WriteManifest(
+            pluginRoot,
+            dotnetPresentationJson: "\"displayName\": \"   \", \"description\": null");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.NotNull(result.Manifest?.Dotnet);
+        Assert.Null(result.Manifest!.Dotnet!.DisplayName);
+        Assert.Null(result.Manifest.Dotnet.Description);
+    }
+
+    [Fact]
+    public void Load_RejectsInvalidDotnetPresentationMetadataType()
+    {
+        var pluginRoot = Path.Combine(_root, "invalid-presentation-metadata");
+        WriteManifest(pluginRoot, dotnetPresentationJson: "\"displayName\": 42");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.NotNull(result.Manifest);
+        Assert.Null(result.Manifest!.Dotnet);
+        AssertAdmissionFailure(result, "dotnet.displayName", "invalidType");
     }
 
     [Theory]
@@ -471,16 +516,20 @@ public sealed class PluginDotnetManifestTests : IDisposable
         string minHostVersionJson = "\"0.1.0\"",
         string entryAssemblyJson = "\"./dotnet/Acme.Plugin.dll\"",
         string exportsJson = "\"./dotnet/Acme.Api.dll\"",
-        string dependenciesJson = "\"acme.core\": \"2.0.0\"")
+        string dependenciesJson = "\"acme.core\": \"2.0.0\"",
+        string dotnetPresentationJson = "")
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         var minHostVersion = string.IsNullOrEmpty(minHostVersionJson)
             ? string.Empty
             : $"\n      \"minHostVersion\": {minHostVersionJson},";
+        var dotnetPresentation = string.IsNullOrEmpty(dotnetPresentationJson)
+            ? string.Empty
+            : $"\n      {dotnetPresentationJson},";
         var dotnet = includeDotnet
             ? $$"""
               ,
-                "dotnet": { {{minHostVersion}}
+                "dotnet": { {{dotnetPresentation}}{{minHostVersion}}
                   "entryAssembly": {{entryAssemblyJson}},
                   "entryType": "Acme.ReviewPlugin",
                   "exportedApiAssemblies": [{{exportsJson}}]

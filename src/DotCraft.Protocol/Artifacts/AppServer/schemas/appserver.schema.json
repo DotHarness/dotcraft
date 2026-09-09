@@ -8844,6 +8844,12 @@
       "title": "PluginDotnetInfo",
       "type": "object",
       "properties": {
+        "description": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
         "entryAssembly": {
           "type": "string"
         },
