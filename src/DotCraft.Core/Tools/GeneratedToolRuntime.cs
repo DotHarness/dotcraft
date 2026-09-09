@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -103,6 +105,7 @@ internal interface IGeneratedToolMetadata
 /// </summary>
 public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 {
+    private static readonly JsonSerializerOptions ToolInputSerializerOptions = CreateToolInputSerializerOptions();
     private readonly GeneratedToolDeclaration _declaration;
     private readonly GeneratedToolDescriptor _metadata;
 
@@ -133,7 +136,10 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 
     public override JsonElement? ReturnJsonSchema => _declaration.OutputSchema;
 
-    public override JsonSerializerOptions JsonSerializerOptions => AIJsonUtilities.DefaultOptions;
+    public override JsonSerializerOptions JsonSerializerOptions => ToolInputSerializerOptions;
+
+    /// <summary>Gets the serializer options used only for generated tool results.</summary>
+    protected JsonSerializerOptions OutputJsonSerializerOptions => AIJsonUtilities.DefaultOptions;
 
     public bool StreamArgumentsEnabled => _metadata.StreamArgumentsEnabled;
 
@@ -144,6 +150,49 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
     public Func<IDictionary<string, object?>?, string>? DisplayFormatter => _metadata.DisplayFormatter;
 
     public bool RpcEligible => _metadata.RpcEligible;
+
+    private static JsonSerializerOptions CreateToolInputSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(AIJsonUtilities.DefaultOptions);
+        options.Converters.Insert(0, new StrictToolInputEnumConverterFactory());
+        return options;
+    }
+}
+
+internal sealed class StrictToolInputEnumConverterFactory : JsonConverterFactory
+{
+    public override bool CanConvert(Type typeToConvert) => typeToConvert.IsEnum;
+
+    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
+        (JsonConverter)Activator.CreateInstance(typeof(StrictToolInputEnumConverter<>).MakeGenericType(typeToConvert))!;
+
+    private sealed class StrictToolInputEnumConverter<TEnum> : JsonConverter<TEnum>
+        where TEnum : struct, Enum
+    {
+        private static readonly IReadOnlyDictionary<string, TEnum> Values = Enum.GetValues<TEnum>()
+            .ToDictionary(WireName, static value => value, StringComparer.Ordinal);
+
+        public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String)
+                throw new JsonException($"Expected a string value for {typeof(TEnum).Name}.");
+
+            var wireValue = reader.GetString();
+            return wireValue is not null && Values.TryGetValue(wireValue, out var value)
+                ? value
+                : throw new JsonException($"Invalid value '{wireValue}' for {typeof(TEnum).Name}.");
+        }
+
+        public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(WireName(value));
+
+        private static string WireName(TEnum value)
+        {
+            var field = typeof(TEnum).GetField(Enum.GetName(value)!, BindingFlags.Public | BindingFlags.Static)!;
+            return field.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name
+                ?? JsonNamingPolicy.CamelCase.ConvertName(field.Name);
+        }
+    }
 }
 
 internal static class GeneratedToolMetadataResolver

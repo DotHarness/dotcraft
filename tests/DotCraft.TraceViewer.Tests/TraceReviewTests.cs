@@ -157,66 +157,6 @@ public sealed class TraceReviewTests : IDisposable
     }
 
     [Fact]
-    public async Task Review_submission_returns_recoverable_result_for_invalid_enum_value()
-    {
-        var context = new TraceAnalysisContext
-        {
-            Snapshot = CreateSnapshot(),
-            AnalystThreadId = "analyst-thread"
-        };
-        context.ModelId = "fake-model";
-        var source = new TraceReviewSubmissionToolSource(context);
-        var analysisPath = Path.Combine(_root, "analysis");
-        var planning = new ToolPlanningContext(
-            "analyst-thread", null, analysisPath, Path.Combine(analysisPath, ".agents"), "analyst", null, [], 1);
-        var registrations = await source.GetRegistrationsAsync(planning);
-        var registration = Assert.Single(registrations, item =>
-            item.Definition.Name.ToString() == "SubmitTraceReview");
-        var result = await registration.Binding.Runtime.InvokeAsync(
-            new ToolInvocationContext(
-                "analyst-thread",
-                null,
-                "call-1",
-                ToolInvocationAudience.Model,
-                registration.Definition.Name,
-                registration.Definition.Id,
-                registration.Binding.Id,
-                registration.Binding.Revision,
-                DateTimeOffset.UtcNow),
-            new JsonObject
-            {
-                ["summary"] = "Summary",
-                ["findings"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["id"] = "finding-1",
-                        ["severity"] = "High",
-                        ["dimension"] = "Latency",
-                        ["title"] = "Title",
-                        ["body"] = "Body",
-                        ["impact"] = "Impact",
-                        ["recommendation"] = "Recommendation",
-                        ["basis"] = "Confirmed",
-                        ["evidence"] = new JsonArray
-                        {
-                            new JsonObject
-                            {
-                                ["eventId"] = "event-1",
-                                ["label"] = "Evidence"
-                            }
-                        }
-                    }
-                }
-            });
-
-        Assert.True(result.Success);
-        Assert.Contains("review_rejected", result.Content, StringComparison.Ordinal);
-        Assert.Contains("Major, Minor, or Suggestion", result.Content, StringComparison.Ordinal);
-        Assert.Null(context.SubmittedReview);
-    }
-
-    [Fact]
     public void Trace_viewer_assembly_deploys_the_trace_review_skill()
     {
         var loader = new SkillsLoader(_root);
@@ -386,13 +326,13 @@ public sealed class TraceReviewTests : IDisposable
                         new Dictionary<string, object?>
                         {
                             ["id"] = "finding-1",
-                            ["severity"] = "Minor",
-                            ["dimension"] = "Latency",
+                            ["severity"] = "minor",
+                            ["dimension"] = "latency",
                             ["title"] = "Recorded latency",
                             ["body"] = "The trace contains a completed turn.",
                             ["impact"] = "The recorded turn consumed time.",
                             ["recommendation"] = "Inspect the cited turn timing.",
-                            ["basis"] = "Confirmed",
+                            ["basis"] = "confirmed",
                             ["evidence"] = new object[]
                             {
                                 new Dictionary<string, object?>

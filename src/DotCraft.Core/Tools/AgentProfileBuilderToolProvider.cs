@@ -8,6 +8,13 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
+internal enum AgentToolPolicyMode { All, AllowList, DenyList }
+internal enum AgentToolControl { Full, Disabled, AllowList }
+internal enum AgentReasoningEffort { Low, Medium, High, ExtraHigh, Ultra }
+internal enum AgentInferenceSpeed { Standard, Fast }
+internal enum AgentContextWindowMode { Default, Max }
+internal enum AgentApprovalPolicy { Default, Prompt, AutoApprove, Interrupt }
+
 /// <summary>
 /// Exposes the conversational Agent Builder's fine-grained, model-visible profile-editing tools
 /// (see specs/features/agent-profiles.md §12A). Each tool mutates exactly one field of the thread's
@@ -145,14 +152,12 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
 
     [GeneratedTool]
-    [Description("Atomically set the agent's built-in tool policy. mode is 'all', 'allowList', or 'denyList'; names is the complete active list and must be empty for 'all'.")]
+    [Description("Atomically set the agent's built-in tool policy. names is the complete active list and must be empty for all mode.")]
     public string SetAgentToolPolicy(
-        [Description("Tool policy mode: 'all', 'allowList', or 'denyList'.")] string mode,
+        [Description("Tool policy mode.")] AgentToolPolicyMode mode,
         [Description("Complete built-in tool list for allowList or denyList; use an empty list for all.")] string[] names)
     {
-        var modeValue = (mode ?? string.Empty).Trim();
-        if (modeValue is not ("all" or "allowList" or "denyList"))
-            return Reject("tools.policy", $"Invalid tool policy mode '{mode}'. Expected one of: all, allowList, denyList.");
+        var modeValue = ToWireValue(mode);
 
         var requestedNames = CleanList(names);
         if (modeValue == "all" && requestedNames.Count > 0)
@@ -172,12 +177,10 @@ internal sealed class AgentProfileBuilderToolMethods(
     }
 
     [GeneratedTool]
-    [Description("Set how the agent may control its own tool access. One of: 'full', 'disabled', 'allowList'.")]
-    public string SetAgentToolControl([Description("'full', 'disabled', or 'allowList'.")] string value)
+    [Description("Set how the agent may control its own tool access.")]
+    public string SetAgentToolControl([Description("Agent tool-control mode.")] AgentToolControl value)
     {
-        var v = (value ?? string.Empty).Trim();
-        if (!AgentProfileDraftEditor.IsAgentControl(v))
-            return Reject("tools.agentControl", $"Invalid agentControl '{value}'. Expected one of: {string.Join(", ", AgentProfileDraftEditor.AgentControlValues)}.");
+        var v = ToWireValue(value);
         return Mutate("tools.agentControl", draft => { draft.AgentControl = v; return Change("set", value: v); });
     }
 
@@ -229,20 +232,17 @@ internal sealed class AgentProfileBuilderToolMethods(
         [Description("Provider id.")] string providerId,
         [Description("Model id.")] string model,
         [Description("Whether reasoning is enabled.")] bool reasoningEnabled,
-        [Description("Reasoning effort: 'low', 'medium', 'high', 'extraHigh', or 'ultra'.")] string reasoningEffort,
-        [Description("Inference speed: 'standard' or 'fast'.")] string speed,
-        [Description("Context-window mode: 'default' or 'max'.")] string contextWindowMode)
+        [Description("Reasoning effort.")] AgentReasoningEffort reasoningEffort,
+        [Description("Inference speed.")] AgentInferenceSpeed speed,
+        [Description("Context-window mode.")] AgentContextWindowMode contextWindowMode)
     {
         var providerIdValue = providerId?.Trim() ?? string.Empty;
         var modelValue = model?.Trim() ?? string.Empty;
-        var effortValue = reasoningEffort?.Trim() ?? string.Empty;
-        var speedValue = speed?.Trim() ?? string.Empty;
-        var contextWindowValue = contextWindowMode?.Trim() ?? string.Empty;
+        var effortValue = ToWireValue(reasoningEffort);
+        var speedValue = ToWireValue(speed);
+        var contextWindowValue = ToWireValue(contextWindowMode);
         if (providerIdValue.Length == 0
-            || modelValue.Length == 0
-            || !AgentProfileDraftEditor.IsReasoningEffort(effortValue)
-            || !AgentProfileDraftEditor.IsSpeed(speedValue)
-            || !AgentProfileDraftEditor.IsContextWindowMode(contextWindowValue))
+            || modelValue.Length == 0)
         {
             return Reject(
                 "providerPreference",
@@ -289,19 +289,15 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
 
     [GeneratedTool]
-    [Description("Set the agent's approval posture. policy is one of 'default', 'prompt', 'autoApprove', or 'interrupt'.")]
+    [Description("Set the agent's approval posture.")]
     public string SetAgentApproval(
-        [Description("Approval policy: 'default', 'prompt', 'autoApprove', or 'interrupt'. Omit to leave unchanged.")] string? policy = null,
+        [Description("Approval policy. Omit to leave unchanged.")] AgentApprovalPolicy? policy = null,
         [Description("Whether to require approval for actions outside the workspace. Omit to leave unchanged.")] bool? requireApprovalOutsideWorkspace = null)
     {
-        var policyValue = (policy ?? string.Empty).Trim();
-        if (!string.IsNullOrEmpty(policyValue) && !AgentProfileDraftEditor.IsApprovalPolicy(policyValue))
-            return Reject("approval", $"Invalid approvalPolicy '{policy}'. Expected one of: {string.Join(", ", AgentProfileDraftEditor.ApprovalPolicyValues)}.");
-
         return Mutate("approval", draft =>
         {
-            if (!string.IsNullOrEmpty(policyValue))
-                draft.ApprovalPolicy = policyValue;
+            if (policy.HasValue)
+                draft.ApprovalPolicy = ToWireValue(policy.Value);
             if (requireApprovalOutsideWorkspace.HasValue)
                 draft.RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace.Value;
             return Change("set", value: draft.ApprovalPolicy);
@@ -390,6 +386,9 @@ internal sealed class AgentProfileBuilderToolMethods(
 
     private static List<string> CleanList(string[]? names) =>
         (names ?? []).Select(n => n?.Trim()).Where(n => !string.IsNullOrEmpty(n)).Select(n => n!).ToList();
+
+    private static string ToWireValue<TEnum>(TEnum value) where TEnum : struct, Enum =>
+        JsonNamingPolicy.CamelCase.ConvertName(value.ToString());
 
     private static string Serialize<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
 }

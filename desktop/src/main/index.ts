@@ -1,4 +1,5 @@
 import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage, nativeTheme } from 'electron'
+import { attachDesktopPet, restoreDesktopPet } from './desktopPet'
 import {
   registerViewerScheme,
   installViewerProtocolHandler,
@@ -126,6 +127,7 @@ import type {
 import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatus'
 import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
 import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
+import { installStandardIoErrorGuard } from './standardIoGuards'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
 import {
   applyNativeChromeTheme,
@@ -286,32 +288,25 @@ if (isTrayMode) {
 
 configureAppIdentity()
 
-let devProcessGuardsInstalled = false
+let processGuardsInstalled = false
 
-function isBrokenStdIoError(error: unknown): boolean {
-  const code = (error as NodeJS.ErrnoException | undefined)?.code
-  if (code === 'EIO' || code === 'EPIPE') return true
-  const message = error instanceof Error ? error.message : String(error ?? '')
-  return /write EIO|EPIPE/i.test(message)
-}
-
-function installDevProcessGuards(): void {
-  if (!import.meta.env.DEV || devProcessGuardsInstalled) return
-  devProcessGuardsInstalled = true
+function installProcessGuards(): void {
+  if (processGuardsInstalled) return
+  processGuardsInstalled = true
 
   const parentPid = process.ppid
   const quitDevApp = (): void => {
     if (isAppQuitting) return
     app.quit()
   }
-  const handleStdIoError = (error: unknown): void => {
-    if (isBrokenStdIoError(error)) {
-      quitDevApp()
-    }
+  const onBrokenPipe = (): void => {
+    if (import.meta.env.DEV) quitDevApp()
   }
 
-  process.stdout.on('error', handleStdIoError)
-  process.stderr.on('error', handleStdIoError)
+  installStandardIoErrorGuard(process.stdout, onBrokenPipe)
+  installStandardIoErrorGuard(process.stderr, onBrokenPipe)
+
+  if (!import.meta.env.DEV) return
 
   const watchdog = setInterval(() => {
     if (process.ppid === 1 || process.ppid !== parentPid) {
@@ -321,6 +316,8 @@ function installDevProcessGuards(): void {
   }, 1500)
   watchdog.unref()
 }
+
+installProcessGuards()
 
 function normalizeWorkspaceConnectionKey(workspacePath: string): string {
   return normalizeWorkspaceProjectKey(workspacePath)
@@ -1183,6 +1180,7 @@ async function teardownRuntime(
 
 function showWindowSafely(win: BrowserWindow): void {
   if (win.isDestroyed()) return
+  if (restoreDesktopPet(win)) return
   if (win.isMinimized()) {
     win.restore()
   }
@@ -1471,6 +1469,7 @@ function createWindow(
   })
 
   const workspaceName = workspaceTitleName(workspacePath, initialLocale)
+  attachDesktopPet(win)
   win.setTitle(translate(initialLocale, 'app.titleWithWorkspace', { name: workspaceName }))
 
   // Keep native window chrome in sync when the OS appearance changes while in `system` theme
@@ -2973,7 +2972,6 @@ app.on('open-url', (event, url) => {
 
 app.whenReady().then(async () => {
   isAppQuitting = false
-  installDevProcessGuards()
   if (isTrayMode) {
     if (process.platform === 'darwin') {
       app.dock?.hide()

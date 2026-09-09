@@ -403,6 +403,7 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
 
       aria-hidden={interaction ? undefined : true}
       data-composer-mascot-motion={reduced ? 'off' : 'on'}
+      data-composer-avatar-pose={semanticAvatarPose}
       ref={rootRef}
       className={rootClassName}
       data-mascot-name={avatar ?? ''}

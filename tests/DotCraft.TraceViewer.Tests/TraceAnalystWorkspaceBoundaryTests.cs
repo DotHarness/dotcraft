@@ -96,13 +96,13 @@ public sealed class TraceAnalystWorkspaceBoundaryTests : IDisposable
             new Dictionary<string, object?>
             {
                 ["id"] = "finding-1",
-                ["severity"] = "Minor",
-                ["dimension"] = "Latency",
+                ["severity"] = "minor",
+                ["dimension"] = "latency",
                 ["title"] = "Recorded latency",
                 ["body"] = "The trace contains a completed turn.",
                 ["impact"] = "The recorded turn consumed time.",
                 ["recommendation"] = "Inspect the cited turn timing.",
-                ["basis"] = "Confirmed",
+                ["basis"] = "confirmed",
                 ["evidence"] = new object[]
                 {
                     new Dictionary<string, object?>

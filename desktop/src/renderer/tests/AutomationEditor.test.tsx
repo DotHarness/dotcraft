@@ -9,7 +9,7 @@ let request = vi.fn()
 beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn()
   request = vi.fn(async (method: string) => method === 'automation/runs/list' ? { runs: [] } : {})
-  installDesktopApiMock({ settings: { get: async () => ({ locale: 'en' }) }, appServer: { sendRequest: request } })
+  installDesktopApiMock({ settings: { get: async () => ({ locale: 'en' }) }, appServer: { onNotification: () => () => {}, sendRequest: request } })
 })
 const props = { initial: automation, automation, onClose: vi.fn(), onSaved: vi.fn(), onDirtyChange: vi.fn() }
 it('preserves edited text and exposes a failed save', async () => {

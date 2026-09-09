@@ -50,6 +50,7 @@ public sealed record AutomationOrigin
 /// <summary>One execution attempt and its independently tracked delivery.</summary>
 public sealed record AutomationRun
 {
+    public DateTimeOffset? ReadAt { get; init; }
     public string Id { get; init; } = "";
     public string AutomationId { get; init; } = "";
     public int DefinitionVersion { get; init; }

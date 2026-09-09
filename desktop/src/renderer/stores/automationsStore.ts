@@ -3,6 +3,9 @@ import { create } from 'zustand'
 export type { AutomationDefinition, AutomationRun, AutomationInput, AutomationPreset, AutomationSchedule } from '../types/automation'
 
 interface AutomationsState {
+  pendingActions: Record<string, boolean>
+  setEnabled(id: string, enabled: boolean): Promise<void>
+  markRunsRead(id: string, runIds: string[], read: boolean): Promise<void>
   automations: AutomationDefinition[]
   runs: Record<string, AutomationRun[]>
   presets: AutomationPreset[]
@@ -23,6 +26,21 @@ interface AutomationsState {
 }
 const request = (method: string, params: unknown) => window.api.appServer.sendRequest(method as Parameters<typeof window.api.appServer.sendRequest>[0], params as never)
 export const useAutomationsStore = create<AutomationsState>((set, get) => ({
+  pendingActions: {},
+  async setEnabled(id, enabled) {
+    if (get().pendingActions[id]) return
+    const existing = get().automations.find(item => item.id === id)
+    if (!existing || existing.status === 'completed') return
+    set(state => ({ pendingActions: { ...state.pendingActions, [id]: true } }))
+    try { await get().save({ ...existing, status: enabled ? 'active' : 'paused' }, existing) }
+    finally { set(state => ({ pendingActions: { ...state.pendingActions, [id]: false } })) }
+  },
+  async markRunsRead(id, runIds, read) {
+    for (let offset = 0; offset < runIds.length; offset += 200) {
+      const { runs } = await request('automation/runs/read', { automationId: id, runIds: runIds.slice(offset, offset + 200), read }) as { runs: AutomationRun[] }
+      for (const run of runs) get().upsertRun(run)
+    }
+  },
   automations: [], runs: {}, presets: [], loading: false, error: null, selectedAutomationId: null,
   async fetchAutomations() {
     set({ loading: true, error: null })
@@ -78,7 +96,7 @@ export const useAutomationsStore = create<AutomationsState>((set, get) => ({
     set(state => ({ automations: state.automations.filter(a => a.id !== id) }))
   },
   upsertRun(run) {
-    set(state => ({ runs: { ...state.runs, [run.automationId]: [run, ...(state.runs[run.automationId] ?? []).filter(r => r.id !== run.id)] } }))
+    set(state => ({ runs: { ...state.runs, [run.automationId]: [run, ...(state.runs[run.automationId] ?? []).filter(r => r.id !== run.id)].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) } }))
   }
 }))
 

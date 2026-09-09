@@ -2,6 +2,7 @@ namespace DotCraft.Protocol.AppServer;
 
 public static partial class AppServerRpc
 {
+    public static readonly RpcRequest<AutomationRunReadParams, AutomationRunsResult> AutomationRunsRead = new("automation/runs/read", RpcDirection.ClientToServer, "1", "specs/features/automations-lifecycle.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AutomationListResult> AutomationList = new("automation/list", RpcDirection.ClientToServer, "1", "specs/features/automations-lifecycle.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
     public static readonly RpcRequest<AutomationIdParams, AutomationReadResult> AutomationRead = new("automation/read", RpcDirection.ClientToServer, "1", "specs/features/automations-lifecycle.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);
     public static readonly RpcRequest<AutomationCreateParams, AutomationReadResult> AutomationCreate = new("automation/create", RpcDirection.ClientToServer, "1", "specs/features/automations-lifecycle.md", module: "automations", scope: "workspace", capability: "automations", errors: CommonErrors);

@@ -6,6 +6,7 @@ import { readThreadTurnsPage } from '../utils/threadHistory'
 import { wireTurnToConversationTurn } from '../types/conversation'
 import { addToast } from '../stores/toastStore'
 import { useT } from '../contexts/LocaleContext'
+import { useAutomationsStore } from '../stores/automationsStore'
 export function useAutomationRunReveal(container: RefObject<HTMLDivElement | null>): void {
   const target = useAutomationRunNavigation(s => s.target)
   const active = useThreadStore(s => s.activeThreadId)
@@ -17,12 +18,20 @@ export function useAutomationRunReveal(container: RefObject<HTMLDivElement | nul
     let cancelled = false
     const found = turns.some(turn => turn.id === target.turnId)
     if (found) {
-      const frame = requestAnimationFrame(() => {
+      let shown = false
+      const reveal = (): void => {
+        if (shown || cancelled) return
         const node = [...(container.current?.querySelectorAll<HTMLElement>('[data-turn-id]') ?? [])].find(el => el.dataset.turnId === target.turnId)
-        node?.scrollIntoView({ block: 'start' })
+        if (!node) return
+        shown = true
+        node.scrollIntoView({ block: 'start' })
+        void useAutomationsStore.getState().markRunsRead(target.automationId, [target.id], true).catch(error => addToast(String(error), 'error'))
         useAutomationRunNavigation.setState({ target: null })
-      })
-      return () => cancelAnimationFrame(frame)
+      }
+      const observer = new MutationObserver(reveal)
+      if (container.current) observer.observe(container.current, { childList: true, subtree: true })
+      const frame = requestAnimationFrame(reveal)
+      return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame) }
     }
     if (!cursors.turnCursor) {
       addToast(t('automation.runUnavailable'), 'error')

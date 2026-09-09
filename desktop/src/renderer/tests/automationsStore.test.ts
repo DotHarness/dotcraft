@@ -12,6 +12,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'api', { configurable: true, value: { appServer: { sendRequest } } })
   sendRequest.mockReset()
   useAutomationsStore.setState({ automations: [definition], runs: {}, selectedAutomationId: 'a' })
+  useAutomationsStore.setState({ pendingActions: {} })
 })
 describe('unified automations', () => {
   it('stages the automation skill in Welcome before conversation creation', () => {
@@ -77,4 +78,21 @@ it('refreshes a selected cached definition and removes it on not found', async (
   useAutomationsStore.getState().selectAutomation('a')
   await vi.waitFor(() => expect(useAutomationsStore.getState().automations).toEqual([]))
   expect(useAutomationsStore.getState().selectedAutomationId).toBe('a')
+})
+
+it('shares pending pause state, blocks duplicate requests, and keeps failure state unchanged', async () => {
+  let reject!: (reason: Error) => void
+  sendRequest.mockImplementationOnce(() => new Promise((_resolve, failure) => { reject = failure }))
+  const first = useAutomationsStore.getState().setEnabled('a', false)
+  expect(useAutomationsStore.getState().pendingActions.a).toBe(true)
+  await useAutomationsStore.getState().setEnabled('a', false)
+  expect(sendRequest).toHaveBeenCalledTimes(1)
+  reject(new Error('offline'))
+  await expect(first).rejects.toThrow('offline')
+  expect(useAutomationsStore.getState().automations[0].status).toBe('active')
+  expect(useAutomationsStore.getState().pendingActions.a).toBe(false)
+  sendRequest.mockResolvedValueOnce({ automation: { ...definition, status: 'paused', version: 4, nextRunAt: null } })
+  await useAutomationsStore.getState().setEnabled('a', false)
+  expect(useAutomationsStore.getState().automations[0]).toMatchObject({ status: 'paused', nextRunAt: null })
+  expect(sendRequest.mock.calls.every(([method]) => method === 'automation/update')).toBe(true)
 })

@@ -797,6 +797,7 @@ export interface AutomationRun {
   deliveryStatus: string;
   error?: string | null;
   id: string;
+  readAt?: string | null;
   scheduledAt?: string | null;
   startedAt?: string | null;
   status: string;
@@ -804,6 +805,13 @@ export interface AutomationRun {
   threadId?: string | null;
   turnId?: string | null;
   worktree?: ThreadWorktreeInfo | null;
+  [key: string]: unknown;
+}
+
+export interface AutomationRunReadParams {
+  automationId: string;
+  read: boolean;
+  runIds: string[];
   [key: string]: unknown;
 }
 

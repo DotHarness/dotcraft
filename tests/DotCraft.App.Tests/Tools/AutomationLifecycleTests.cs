@@ -155,6 +155,22 @@ public sealed class AutomationLifecycleTests : IDisposable
         finally { await service.StopAsync(); }
     }
     [Fact]
+    public async Task PersistedMemory_IsBoundedBeforeEnteringTheRunPrompt()
+    {
+        var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
+        var definition = await service.CreateAsync(Input() with { Status = "paused" });
+        var memoryPath = Path.Combine(_root, ".craft", "automations", definition.Id, "memory.md");
+        await File.WriteAllTextAsync(memoryPath, new string('x', AutomationService.MaxMemoryChars) + "must-not-reach-context");
+        await service.StartAsync();
+        try
+        {
+            await Finish(service, await service.RunAsync(definition.Id));
+            Assert.NotNull(client.LastMessage);
+            Assert.DoesNotContain("must-not-reach-context", client.LastMessage);
+        }
+        finally { await service.StopAsync(); }
+    }
+    [Fact]
     public async Task OneShotFailure_CompletesDefinition_WithoutRetries_AndAllowsManualRun()
     {
         var service = Service(); var client = new Sessions { Fail = true }; service.SetSessionClient(client);
@@ -271,6 +287,7 @@ public sealed class AutomationLifecycleTests : IDisposable
         public int Submissions;
         public bool Fail;
         public Action<string>? DuringTurn;
+        public string? LastMessage;
         public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null) => Task.FromResult(userId);
         public Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(string threadId, string taskId, CancellationToken ct) => throw new InvalidOperationException("worktree failed");
         public Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct) => Task.FromResult<SessionThread?>(new() { Id = threadId });
@@ -278,7 +295,7 @@ public sealed class AutomationLifecycleTests : IDisposable
             TurnTriggerInfo? trigger = null, Func<CancellationToken, Task>? beforeAdmission = null)
         {
             if (beforeAdmission != null) await beforeAdmission(ct);
-            Submissions++; Assert.Equal("automation", trigger?.Kind);
+            Submissions++; LastMessage = message; Assert.Equal("automation", trigger?.Kind);
             yield return new() { EventType = SessionEventType.TurnStarted, ThreadId = threadId, TurnId = "turn-1" };
             await Task.Yield(); DuringTurn?.Invoke(threadId);
             yield return new() { EventType = Fail ? SessionEventType.TurnFailed : SessionEventType.TurnCompleted, ThreadId = threadId, TurnId = "turn-1", Payload = new SessionTurn { Id = "turn-1" } };

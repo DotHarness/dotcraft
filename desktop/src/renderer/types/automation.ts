@@ -29,6 +29,7 @@ export interface AutomationDefinition extends AutomationInput {
   nextRunAt?: string | null
 }
 export interface AutomationRun {
+  readAt?: string | null
   id: string
   automationId: string
   definitionVersion: number

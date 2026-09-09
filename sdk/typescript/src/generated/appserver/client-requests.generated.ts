@@ -42,6 +42,7 @@ export interface ClientRequestMethods {
   "automation/read": { params: Models.AutomationIdParams; result: Models.AutomationReadResult };
   "automation/run": { params: Models.AutomationIdParams; result: Models.AutomationRunResult };
   "automation/runs/list": { params: Models.AutomationIdParams; result: Models.AutomationRunsResult };
+  "automation/runs/read": { params: Models.AutomationRunReadParams; result: Models.AutomationRunsResult };
   "automation/update": { params: Models.AutomationUpdateParams; result: Models.AutomationReadResult };
   "channel/list": { params: Models.RpcEmpty; result: Models.ChannelListResult };
   "channel/status": { params: Models.RpcEmpty; result: Models.ChannelStatusResult };

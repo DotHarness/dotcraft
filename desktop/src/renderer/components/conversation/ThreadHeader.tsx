@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -446,7 +446,7 @@ export function ThreadHeader({
             shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
             tooltipPlacement="bottom"
             onClick={toggleDetailPanel}
-            icon={<PanelRightOpen size={16} aria-hidden />}
+            icon={<PanelLeft size={16} aria-hidden />}
           />
         )}
       </div>

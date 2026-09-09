@@ -38,6 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DotCraft.Harness\DotCraft.Harness.csproj" GlobalPropertiesToRemove="Platform" />
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" GlobalPropertiesToRemove="Platform" />
   </ItemGroup>

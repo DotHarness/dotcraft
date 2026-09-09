@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ChevronRight, CirclePause, CirclePlay, MoreHorizontal, Play, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, CirclePause, CirclePlay, MoreHorizontal, Play, Trash2, X } from 'lucide-react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { useT, useLocale } from '../../contexts/LocaleContext'
+import { useT } from '../../contexts/LocaleContext'
 import { useAutomationsStore, editableAutomation, type AutomationDefinition, type AutomationInput } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useUIStore } from '../../stores/uiStore'
 import { Button } from '../ui/Button'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { Input, Textarea } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { AgentProfileDropdown } from './AgentProfileDropdown'
@@ -21,7 +23,6 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
   onDirtyChange(value: boolean): void
 }): JSX.Element {
   const t = useT()
-  const locale = useLocale()
   const [menu, setMenu] = useState<ContextMenuPosition | null>(null)
   const [base, setBase] = useState(automation)
   const [draft, setDraft] = useState<AutomationInput>(() => editableAutomation(initial))
@@ -29,8 +30,10 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
   const [error, setError] = useState<string | null>(null)
   const threads = useThreadStore((state) => state.threadList)
   const store = useAutomationsStore()
+  const actionPending = !!(automation && store.pendingActions[automation.id])
   const completed = automation?.status === 'completed'
   const dirty = !base || JSON.stringify(draft) !== JSON.stringify(editableAutomation(base))
+  const targetChatId = !dirty && draft.executionMode === 'thread' ? draft.targetThreadId : null
   const conflict = !!base && !!automation && base.version !== automation.version
   const valid = !!draft.name.trim() && !!draft.prompt.trim() && validSchedule(draft.schedule) && (draft.executionMode !== 'thread' || !!draft.targetThreadId)
   const executionOptions = [
@@ -97,9 +100,11 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
           </Button>
         ) : null}
         {automation && onAction && !completed ? (
-          <Button variant="ghost" size="iconSm" disabled={dirty || saving} aria-label={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')} onClick={() => onAction(automation.status === 'paused' ? 'resume' : 'pause')}>
+          <ActionTooltip label={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')} disabledReason={dirty ? t('automation.saveBeforeAction') : undefined}>
+          <Button variant="ghost" size="iconSm" disabled={dirty || saving || actionPending} aria-label={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')} onClick={() => onAction(automation.status === 'paused' ? 'resume' : 'pause')}>
             {automation.status === 'paused' ? <CirclePlay size={17} /> : <CirclePause size={17} />}
           </Button>
+          </ActionTooltip>
         ) : null}
         <Button variant="ghost" size="iconSm" aria-label={t('common.close')} onClick={onClose}><X size={18} /></Button>
       </header>
@@ -108,7 +113,7 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
         { label: t('automation.delete'), icon: <Trash2 size={15} />, danger: true, onClick: () => { setMenu(null); onDelete?.() } }
       ]} /> : null}
       <div className="dc-automation-editor-body">
-        <fieldset disabled={saving || completed} className="dc-automation-editor-form">
+        <fieldset disabled={saving || completed || actionPending} className="dc-automation-editor-form">
         <Input frameless className="dc-automation-title" maxLength={200} aria-label={t('automation.name')} placeholder={t('automation.name')} value={draft.name} onChange={(event) => update({ name: event.target.value })} />
         <Textarea frameless className="dc-automation-prompt" maxLength={10000} rows={3} aria-label={t('automation.prompt')} placeholder={t('automation.prompt')} value={draft.prompt} onChange={(event) => update({ prompt: event.target.value })} />
 
@@ -145,13 +150,31 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
           </details>
         ) : null}
 
-          {base?.nextRunAt ? <p className="dc-automation-hint">{t('automation.nextRun')}: {new Date(base.nextRunAt).toLocaleString(locale)}</p> : null}
         </fieldset>
-        {base ? <AutomationRunHistory automationId={base.id} /> : null}
+        {base ? <AutomationRunHistory automationId={base.id} automationName={base.name} /> : null}
         {conflict ? <div role="alert">{t('automation.conflict')} <Button variant="secondary" onClick={reset}>{t('automation.reload')}</Button></div> : null}
       </div>
       {error ? <p role="alert" className="dc-automation-save-error">{error}</p> : null}
-      {dirty && !completed ? <footer className="dc-automation-editor-footer"><Button variant="secondary" disabled={saving} onClick={reset}>{t('common.cancel')}</Button><Button variant="primary" disabled={!valid || saving || conflict} onClick={() => void save()}>{t(saving ? 'automation.saving' : automation ? 'automation.save' : 'automation.createButton')}</Button></footer> : null}
+      {dirty && !completed ? (
+        <footer className="dc-automation-editor-footer">
+          <Button variant="secondary" disabled={saving} onClick={reset}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={!valid || saving || conflict} onClick={() => void save()}>{t(saving ? 'automation.saving' : automation ? 'automation.save' : 'automation.createButton')}</Button>
+        </footer>
+      ) : targetChatId ? (
+        <footer className="dc-automation-editor-footer" data-chat-action>
+          <Button
+            variant="outline"
+            size="toolbar"
+            onClick={() => {
+              useThreadStore.getState().setActiveThreadId(targetChatId)
+              useUIStore.getState().setActiveMainView('conversation')
+            }}
+          >
+            <span className="dc-button__label">{t('automation.openChat')}</span>
+            <ArrowUpRight size={13} aria-hidden />
+          </Button>
+        </footer>
+      ) : null}
     </aside>
   )
 }

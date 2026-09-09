@@ -79,6 +79,13 @@ public sealed partial class AutomationService(AutomationsConfig config, DotCraft
         await NotifyAsync(null, id, true);
     }
     public Task<IReadOnlyList<AutomationRun>> ListRunsAsync(string id, CancellationToken ct = default) => _store.RunsAsync(id, ct);
+    /// <summary>Updates reading state and notifies connected clients of the affected records.</summary>
+    public async Task<IReadOnlyList<AutomationRun>> SetRunsReadAsync(string id, IReadOnlyList<string> runIds, bool read, CancellationToken ct = default)
+    {
+        var runs = await _store.SetRunsReadAsync(id, runIds, read, ct);
+        foreach (var run in runs) await NotifyRunAsync(run);
+        return runs;
+    }
     public IReadOnlyList<AutomationPreset> Presets() => [
         new("daily-summary", "Daily summary", "Every weekday morning, summarize important changes in this project.",
             new AutomationSchedule { Kind = "weekdays", Hour = 8, Minute = 0 }),
@@ -129,6 +136,12 @@ public sealed partial class AutomationService(AutomationsConfig config, DotCraft
     private async Task SaveRunAsync(AutomationRun run)
     {
         await _store.SaveRunAsync(run, CancellationToken.None);
+        if (RunUpdated == null) return;
+        var current = (await _store.RunsAsync(run.AutomationId, CancellationToken.None)).First(r => r.Id == run.Id);
+        await NotifyRunAsync(current);
+    }
+    private async Task NotifyRunAsync(AutomationRun run)
+    {
         if (RunUpdated == null) return;
         foreach (Func<AutomationRun, Task> handler in RunUpdated.GetInvocationList())
             try { await handler(run); } catch (Exception ex) { logger.LogWarning(ex, "Automation run observer failed"); }

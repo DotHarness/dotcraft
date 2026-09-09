@@ -9,6 +9,11 @@ namespace DotCraft.Automations;
 
 public sealed partial class AutomationService
 {
+    /// <summary>Maximum summary length accepted from an automation outcome report.</summary>
+    public const int MaxOutcomeSummaryChars = 4000;
+
+    /// <summary>Maximum persisted memory length admitted to a later model turn.</summary>
+    public const int MaxMemoryChars = 10000;
     public IAppConfigMonitor? AppConfigMonitor { get; set; }
     private readonly SemaphoreSlim _executionSlots = new(Math.Max(1, config.MaxConcurrentTasks));
     private readonly ConcurrentDictionary<string, AutomationOutcome> _outcomes = new();
@@ -23,6 +28,8 @@ public sealed partial class AutomationService
     /// <summary>Records optional semantics for the current attempt without setting execution status.</summary>
     public void ReportOutcome(string threadId, string turnId, string? summary, bool? important, string? memory)
     {
+        if (summary?.Length > MaxOutcomeSummaryChars || memory?.Length > MaxMemoryChars)
+            throw new ArgumentException("automation.outcomeTooLong");
         if (!_outcomes.TryGetValue(threadId, out var outcome) || outcome.TurnId != turnId)
             throw new InvalidOperationException("automation.noActiveRun");
         outcome.Summary = summary; outcome.Important = important; outcome.Memory = memory;
@@ -83,8 +90,8 @@ public sealed partial class AutomationService
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             if (config.TurnTimeout > TimeSpan.Zero) timeout.CancelAfter(config.TurnTimeout);
             var memoryPath = Path.Combine(_store.DirectoryFor(definition.Id), "memory.md");
-            var memory = File.Exists(memoryPath) ? await File.ReadAllTextAsync(memoryPath, ct) : "";
-            var prompt = definition.Prompt + "\n\nYou may call Automation(action: report) to record a summary, whether anything important changed, and replacement memory for the next run. Ordinary turn completion ends this run."
+            var memory = await ReadMemoryAsync(memoryPath, ct);
+            var prompt = definition.Prompt + "\n\nOptionally call Automation(action: report) to save this run's summary, importance, and bounded memory."
                 + (string.IsNullOrWhiteSpace(memory) ? "" : "\n\nPrevious automation memory:\n" + memory);
             using var channelScope = definition.Origin == null ? null : ChannelSessionScope.Set(new ChannelSessionInfo
             { Channel = definition.Origin.Channel, UserId = definition.Origin.UserId, GroupId = definition.Origin.GroupId, DefaultDeliveryTarget = definition.Origin.DeliveryTarget });
@@ -111,7 +118,7 @@ public sealed partial class AutomationService
             if (!completed) throw new InvalidOperationException("automation.turnEndedWithoutResult");
             run = run with { Summary = outcome.Summary ?? run.Summary };
             if (outcome.Memory != null) await File.WriteAllTextAsync(memoryPath, outcome.Memory, ct);
-            else if (!string.IsNullOrWhiteSpace(run.Summary)) await File.WriteAllTextAsync(memoryPath, run.Summary, ct);
+            else if (!string.IsNullOrWhiteSpace(run.Summary)) await File.WriteAllTextAsync(memoryPath, run.Summary[..Math.Min(run.Summary.Length, MaxMemoryChars)], ct);
         }
         catch (OperationCanceledException ex)
         { run = run with { Status = ct.IsCancellationRequested ? "interrupted" : "cancelled", Error = ex.Message }; }
@@ -161,5 +168,15 @@ public sealed partial class AutomationService
                 threadGate?.Release();
             }
         }
+    }
+
+    private static async Task<string> ReadMemoryAsync(string path, CancellationToken ct)
+    {
+        if (!File.Exists(path)) return "";
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        var buffer = new char[MaxMemoryChars];
+        var count = await reader.ReadBlockAsync(buffer.AsMemory(), ct);
+        return new string(buffer, 0, count);
     }
 }

@@ -2893,6 +2893,17 @@
         "id": {
           "type": "string"
         },
+        "readAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "scheduledAt": {
           "anyOf": [
             {
@@ -2967,6 +2978,30 @@
         "deliveryStatus",
         "id",
         "status"
+      ]
+    },
+    "AutomationRunReadParams": {
+      "title": "AutomationRunReadParams",
+      "type": "object",
+      "properties": {
+        "automationId": {
+          "type": "string"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "runIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "automationId",
+        "read",
+        "runIds"
       ]
     },
     "AutomationRunResult": {

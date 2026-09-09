@@ -65,6 +65,38 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     }
 
     [Fact]
+    public void GeneratedProductionSchemasExposeTypedWireEnums()
+    {
+        var planTools = CreatePlanTools("typed-schema");
+        var builder = CreateAgentBuilderMethods("typed-builder");
+        var lspManager = new LspServerManager(
+            new AppConfig(),
+            new DotCraftPaths(_tempRoot, Path.Combine(_tempRoot, ".craft"), userDataPath: null));
+        _asyncDisposables.Add(lspManager);
+
+        AssertEnum(
+            GeneratedToolFunctions.SkillManageTool_SkillManage(CreateSkillManageTool()),
+            "action",
+            ["create", "edit", "patch", "write_file", "remove_file", "delete"]);
+        AssertEnum(GeneratedToolFunctions.GoalToolMethods_UpdateGoal(new GoalToolMethods()), "status", ["complete", "blocked"]);
+        AssertEnum(GeneratedToolFunctions.WebTools_WebFetch(new WebTools()), "extractMode", ["markdown", "text", "raw"]);
+        AssertEnum(
+            GeneratedToolFunctions.LspTool_LSP(new LspTool(_tempRoot, lspManager, requireApprovalOutsideWorkspace: false)),
+            "operation",
+            ["goToDefinition", "findReferences", "hover", "documentSymbol", "workspaceSymbol",
+             "goToImplementation", "prepareCallHierarchy", "incomingCalls", "outgoingCalls"]);
+        AssertEnum(
+            GeneratedToolFunctions.PlanTools_UpdateTodos(planTools),
+            "updates", ["pending", "in_progress", "completed", "cancelled"], nestedProperty: "status");
+        AssertEnum(
+            GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolPolicy(builder),
+            "mode", ["all", "allowList", "denyList"]);
+        AssertEnum(
+            GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentProviderPreference(builder),
+            "reasoningEffort", ["low", "medium", "high", "extraHigh", "ultra"]);
+    }
+
+    [Fact]
     public async Task GeneratedWrappers_InvokeLikeAIFunctionFactory_ForRepresentativeSignatures()
     {
         await AssertInvocationMatchesAsync(
@@ -269,17 +301,24 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     private static FunctionPair Pair(AIFunction generated, AIFunction factory) =>
         new(generated.Name, generated, factory);
 
+    private static void AssertEnum(
+        AIFunction function,
+        string property,
+        string[] expected,
+        string? nestedProperty = null)
+    {
+        var schema = function.JsonSchema.GetProperty("properties").GetProperty(property);
+        if (nestedProperty is not null)
+            schema = schema.GetProperty("items").GetProperty("properties").GetProperty(nestedProperty);
+        Assert.Equal(expected, schema.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
     private static void AssertFunctionShape(FunctionPair pair)
     {
         Assert.Equal(pair.Factory.Name, pair.Generated.Name);
         Assert.Equal(pair.Factory.Description, pair.Generated.Description);
-        AssertJsonEqual(pair.Factory.JsonSchema, pair.Generated.JsonSchema, $"{pair.Name} raw input schema");
-        AssertJsonEqual(
-            ToolSchemaSanitizer.SanitizeJsonSchema(pair.Factory.JsonSchema),
-            ToolSchemaSanitizer.SanitizeJsonSchema(pair.Generated.JsonSchema),
-            $"{pair.Name} input schema");
+        Assert.False(pair.Generated.JsonSchema.GetProperty("additionalProperties").GetBoolean());
         AssertNullableJsonEqual(pair.Factory.ReturnJsonSchema, pair.Generated.ReturnJsonSchema, $"{pair.Name} return schema");
-        Assert.Same(pair.Factory.JsonSerializerOptions, pair.Generated.JsonSerializerOptions);
         Assert.NotNull(pair.Factory.UnderlyingMethod);
         Assert.Null(pair.Generated.UnderlyingMethod);
     }

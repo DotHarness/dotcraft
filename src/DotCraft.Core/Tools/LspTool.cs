@@ -6,6 +6,20 @@ using DotCraft.Security;
 
 namespace DotCraft.Tools;
 
+/// <summary>Language Server Protocol operation.</summary>
+public enum LspOperation
+{
+    GoToDefinition,
+    FindReferences,
+    Hover,
+    DocumentSymbol,
+    WorkspaceSymbol,
+    GoToImplementation,
+    PrepareCallHierarchy,
+    IncomingCalls,
+    OutgoingCalls
+}
+
 /// <summary>
 /// Provides language-intelligence operations through configured LSP servers.
 /// </summary>
@@ -18,35 +32,19 @@ public sealed class LspTool(
     PathBlacklist? blacklist = null,
     IReadOnlyList<string>? workspaceRoots = null)
 {
-    private static readonly HashSet<string> SupportedOperations = new(StringComparer.Ordinal)
-    {
-        "goToDefinition",
-        "findReferences",
-        "hover",
-        "documentSymbol",
-        "workspaceSymbol",
-        "goToImplementation",
-        "prepareCallHierarchy",
-        "incomingCalls",
-        "outgoingCalls"
-    };
-
     private readonly string _workspaceRoot = Path.GetFullPath(workspaceRoot);
     private readonly FileAccessGuard _fileAccessGuard =
         new(workspaceRoot, requireApprovalOutsideWorkspace, approvalService, blacklist, workspaceRoots: workspaceRoots);
 
-    [Description("Interact with Language Server Protocol (LSP) servers for code intelligence. Supported operations: goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls. line and character are 1-based positions.")]
+    [Description("Interact with Language Server Protocol (LSP) servers for code intelligence. line and character are 1-based positions.")]
     [Tool(Icon = "🧭", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.LSP), MaxResultChars = 100_000)]
     [ToolRpc]
     public async Task<string> LSP(
-        [Description("LSP operation name")] string operation,
+        [Description("LSP operation")] LspOperation operation,
         [Description("The absolute or relative file path")] string filePath,
         [Description("1-based line number")] int line,
         [Description("1-based character position")] int character)
     {
-        if (!SupportedOperations.Contains(operation))
-            return $"Error: Unsupported LSP operation: {operation}";
-
         if (line <= 0 || character <= 0)
             return "Error: line and character must be positive 1-based values.";
 
@@ -78,14 +76,14 @@ public sealed class LspTool(
         if (result == null)
             return $"No LSP server available for file type: {Path.GetExtension(fullPath)}";
 
-        if (operation is "incomingCalls" or "outgoingCalls")
+        if (operation is LspOperation.IncomingCalls or LspOperation.OutgoingCalls)
         {
             var callItems = result.Value;
             if (callItems.ValueKind != JsonValueKind.Array || callItems.GetArrayLength() == 0)
                 return "No call hierarchy item found at this position.";
 
             var firstItem = callItems[0].Clone();
-            var callMethod = operation == "incomingCalls"
+            var callMethod = operation == LspOperation.IncomingCalls
                 ? "callHierarchy/incomingCalls"
                 : "callHierarchy/outgoingCalls";
 
@@ -100,7 +98,7 @@ public sealed class LspTool(
     }
 
     private static (string Method, object Params) BuildRequest(
-        string operation,
+        LspOperation operation,
         string fullPath,
         int line,
         int character)
@@ -114,46 +112,46 @@ public sealed class LspTool(
 
         return operation switch
         {
-            "goToDefinition" => ("textDocument/definition", new
+            LspOperation.GoToDefinition => ("textDocument/definition", new
             {
                 textDocument = new { uri },
                 position
             }),
-            "findReferences" => ("textDocument/references", new
+            LspOperation.FindReferences => ("textDocument/references", new
             {
                 textDocument = new { uri },
                 position,
                 context = new { includeDeclaration = true }
             }),
-            "hover" => ("textDocument/hover", new
+            LspOperation.Hover => ("textDocument/hover", new
             {
                 textDocument = new { uri },
                 position
             }),
-            "documentSymbol" => ("textDocument/documentSymbol", new
+            LspOperation.DocumentSymbol => ("textDocument/documentSymbol", new
             {
                 textDocument = new { uri }
             }),
-            "workspaceSymbol" => ("workspace/symbol", new
+            LspOperation.WorkspaceSymbol => ("workspace/symbol", new
             {
                 query = string.Empty
             }),
-            "goToImplementation" => ("textDocument/implementation", new
+            LspOperation.GoToImplementation => ("textDocument/implementation", new
             {
                 textDocument = new { uri },
                 position
             }),
-            "prepareCallHierarchy" => ("textDocument/prepareCallHierarchy", new
+            LspOperation.PrepareCallHierarchy => ("textDocument/prepareCallHierarchy", new
             {
                 textDocument = new { uri },
                 position
             }),
-            "incomingCalls" => ("textDocument/prepareCallHierarchy", new
+            LspOperation.IncomingCalls => ("textDocument/prepareCallHierarchy", new
             {
                 textDocument = new { uri },
                 position
             }),
-            "outgoingCalls" => ("textDocument/prepareCallHierarchy", new
+            LspOperation.OutgoingCalls => ("textDocument/prepareCallHierarchy", new
             {
                 textDocument = new { uri },
                 position
@@ -162,39 +160,39 @@ public sealed class LspTool(
         };
     }
 
-    private static string FormatResult(string operation, JsonElement? result, string workspaceRoot)
+    private static string FormatResult(LspOperation operation, JsonElement? result, string workspaceRoot)
     {
         if (result == null || result.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
             return NoResultMessage(operation);
 
         return operation switch
         {
-            "goToDefinition" => FormatLocations(result.Value, workspaceRoot, "definition"),
-            "goToImplementation" => FormatLocations(result.Value, workspaceRoot, "implementation"),
-            "findReferences" => FormatReferences(result.Value, workspaceRoot),
-            "hover" => FormatHover(result.Value),
-            "documentSymbol" => FormatDocumentSymbols(result.Value, workspaceRoot),
-            "workspaceSymbol" => FormatWorkspaceSymbols(result.Value, workspaceRoot),
-            "prepareCallHierarchy" => FormatPrepareCallHierarchy(result.Value, workspaceRoot),
-            "incomingCalls" => FormatIncomingCalls(result.Value, workspaceRoot),
-            "outgoingCalls" => FormatOutgoingCalls(result.Value, workspaceRoot),
+            LspOperation.GoToDefinition => FormatLocations(result.Value, workspaceRoot, "definition"),
+            LspOperation.GoToImplementation => FormatLocations(result.Value, workspaceRoot, "implementation"),
+            LspOperation.FindReferences => FormatReferences(result.Value, workspaceRoot),
+            LspOperation.Hover => FormatHover(result.Value),
+            LspOperation.DocumentSymbol => FormatDocumentSymbols(result.Value, workspaceRoot),
+            LspOperation.WorkspaceSymbol => FormatWorkspaceSymbols(result.Value, workspaceRoot),
+            LspOperation.PrepareCallHierarchy => FormatPrepareCallHierarchy(result.Value, workspaceRoot),
+            LspOperation.IncomingCalls => FormatIncomingCalls(result.Value, workspaceRoot),
+            LspOperation.OutgoingCalls => FormatOutgoingCalls(result.Value, workspaceRoot),
             _ => result.Value.ToString()
         };
     }
 
-    private static string NoResultMessage(string operation)
+    private static string NoResultMessage(LspOperation operation)
     {
         return operation switch
         {
-            "goToDefinition" => "No definition found.",
-            "goToImplementation" => "No implementation found.",
-            "findReferences" => "No references found.",
-            "hover" => "No hover information available.",
-            "documentSymbol" => "No symbols found in document.",
-            "workspaceSymbol" => "No symbols found in workspace.",
-            "prepareCallHierarchy" => "No call hierarchy item found at this position.",
-            "incomingCalls" => "No incoming calls found.",
-            "outgoingCalls" => "No outgoing calls found.",
+            LspOperation.GoToDefinition => "No definition found.",
+            LspOperation.GoToImplementation => "No implementation found.",
+            LspOperation.FindReferences => "No references found.",
+            LspOperation.Hover => "No hover information available.",
+            LspOperation.DocumentSymbol => "No symbols found in document.",
+            LspOperation.WorkspaceSymbol => "No symbols found in workspace.",
+            LspOperation.PrepareCallHierarchy => "No call hierarchy item found at this position.",
+            LspOperation.IncomingCalls => "No incoming calls found.",
+            LspOperation.OutgoingCalls => "No outgoing calls found.",
             _ => "No result."
         };
     }

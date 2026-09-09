@@ -1,13 +1,13 @@
 import {
   Bell,
   CalendarClock,
-  ChevronRight,
   CircleDot,
   FileSearch,
-  GripVertical,
+  LoaderCircle,
   MessageSquareText,
   NotebookText,
   Pencil,
+  Plus,
   type LucideIcon
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
@@ -28,6 +28,7 @@ import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { SplitButton } from '../ui/SplitButton'
 import { AutomationEditor } from './AutomationEditor'
+import { AutomationTaskRow } from './AutomationTaskRow'
 import { stageAutomationCreationInWelcome } from './automationDraft'
 
 const presetPresentation: Record<string, { icon: LucideIcon; tone: string }> = {
@@ -50,6 +51,8 @@ export function AutomationsView(): JSX.Element {
   const [dirty, setDirty] = useState(false)
   const [pending, setPending] = useState<(() => void) | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [quickPendingId, setQuickPendingId] = useState<string | null>(null)
+  const [creatingPresetId, setCreatingPresetId] = useState<string | null>(null)
   const [removing, setRemoving] = useState<AutomationDefinition | null>(null)
   const [splitPercent, setSplitPercent] = useState(50)
   const [dividerActive, setDividerActive] = useState(false)
@@ -61,22 +64,38 @@ export function AutomationsView(): JSX.Element {
     void store.fetchAutomations()
     void store.fetchPresets(locale).catch(() => {})
   }, [locale])
+  useEffect(() => {
+    for (const automation of store.automations) {
+      if (!store.runs[automation.id]) void store.fetchRuns(automation.id).catch(() => {})
+    }
+  }, [store.automations])
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
-    return store.automations.filter((automation) =>
+    const filtered = store.automations.filter((automation) =>
       (filter === 'all' || automation.status === filter)
       && (!normalizedQuery || `${automation.name} ${automation.prompt}`.toLocaleLowerCase().includes(normalizedQuery)))
-  }, [filter, query, store.automations])
+    return filtered.sort((left, right) => {
+      const leftUnread = (store.runs[left.id] ?? []).some(run => !run.readAt)
+      const rightUnread = (store.runs[right.id] ?? []).some(run => !run.readAt)
+      if (leftUnread !== rightUnread) return leftUnread ? -1 : 1
+      const rank = { active: 0, paused: 1, completed: 2 }
+      if (rank[left.status] !== rank[right.status]) return rank[left.status] - rank[right.status]
+      const leftNext = left.nextRunAt ? Date.parse(left.nextRunAt) : Number.POSITIVE_INFINITY
+      const rightNext = right.nextRunAt ? Date.parse(right.nextRunAt) : Number.POSITIVE_INFINITY
+      return leftNext - rightNext || left.name.localeCompare(right.name, locale)
+    })
+  }, [filter, locale, query, store.automations, store.runs])
 
   const presets = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     return store.presets.filter((preset) => {
       const name = presetName(preset, t)
       const prompt = presetPrompt(preset, t)
-      return !normalizedQuery || `${name} ${prompt}`.toLocaleLowerCase().includes(normalizedQuery)
+      const alreadyAdded = store.automations.some(automation => automation.name === name && automation.prompt === prompt)
+      return !alreadyAdded && (!normalizedQuery || `${name} ${prompt}`.toLocaleLowerCase().includes(normalizedQuery))
     })
-  }, [query, store.presets, t])
+  }, [query, store.automations, store.presets, t])
   const hasDefinitions = store.automations.length > 0
   const showDefinitions = store.loading || !!store.error || !!actionError || hasDefinitions
 
@@ -92,13 +111,25 @@ export function AutomationsView(): JSX.Element {
     setActionError(null)
     try { await operation() } catch (error) { setActionError(String(error)) }
   }
+  async function quickAction(automationId: string, operation: () => Promise<unknown>): Promise<void> {
+    if (quickPendingId) return
+    setQuickPendingId(automationId)
+    try { await action(operation) } finally { setQuickPendingId(null) }
+  }
   function chat(prompt = t('automation.createPrompt')): void {
     navigate(() => stageAutomationCreationInWelcome(prompt))
   }
-  function usePreset(preset: AutomationPreset): void {
-    const schedule = preset.schedule ? ensureScheduleTimeZone(preset.schedule) : null
-    const timing = schedule ? `\n${automationScheduleSummary(schedule, locale)}` : ''
-    chat(`${t('automation.createPrompt')}\n\n${presetPrompt(preset, t)}${timing}`)
+  async function addPreset(preset: AutomationPreset): Promise<void> {
+    if (creatingPresetId || !preset.schedule) return
+    setCreatingPresetId(preset.id)
+    setActionError(null)
+    try {
+      await store.save({
+        name: presetName(preset, t), prompt: presetPrompt(preset, t), status: 'active', executionMode: 'independent',
+        approvalPolicy: 'workspaceScope', notificationPolicy: 'all', schedule: ensureScheduleTimeZone(preset.schedule)
+      })
+    } catch (error) { setActionError(String(error)) }
+    finally { setCreatingPresetId(null) }
   }
   async function createManual(): Promise<void> {
     const path = useViewerTabStore.getState().currentWorkspacePath
@@ -166,22 +197,23 @@ export function AutomationsView(): JSX.Element {
             {!store.loading && !rows.length ? <p className="dc-automation-empty">{t('automation.empty')}</p> : null}
             <div className="dc-automation-list-rows">
               {rows.map((automation) => (
-                <article key={automation.id} draggable data-selected={selected?.id === automation.id || undefined} onDragStart={(event) => startDrag(event, automation)}>
-                  <GripVertical className="dc-automation-grip" size={15} aria-hidden />
-                  <span className="dc-automation-row-icon"><CalendarClock size={17} aria-hidden /></span>
-                  <button type="button" onClick={() => navigate(() => { setManual(null); store.selectAutomation(automation.id) })}>
-                    <strong>{automation.name}</strong>
-                    <small>{automationScheduleSummary(automation.schedule, locale)} · {t(automation.executionMode === 'thread' ? 'automation.currentChat' : 'automation.newChat')}</small>
-                  </button>
-                  <ChevronRight size={15} aria-hidden />
-                </article>
+                <AutomationTaskRow key={automation.id} automation={automation} selected={selected?.id === automation.id}
+                  disabled={!connected || (selected?.id === automation.id && dirty)}
+                  disabledReason={!connected ? t('connection.disconnected') : selected?.id === automation.id && dirty ? t('automation.saveBeforeAction') : undefined}
+                  actionPending={quickPendingId === automation.id}
+                  onSelect={() => navigate(() => { setManual(null); store.selectAutomation(automation.id) })}
+                  onToggle={() => void action(() => store.setEnabled(automation.id, automation.status === 'paused'))}
+                  onRun={() => void quickAction(automation.id, () => store.run(automation.id))}
+                  onDelete={() => setRemoving(automation)} onDragStart={(event) => startDrag(event, automation)} />
               ))}
             </div>
           </section> : null}
 
           <h2>{t('automation.presets')}</h2>
           <div className="dc-automation-suggestions">
-            {presets.map((preset) => <AutomationSuggestion key={preset.id} preset={preset} locale={locale} onClick={() => usePreset(preset)} />)}
+            {presets.map((preset) => <AutomationSuggestion key={preset.id} preset={preset} locale={locale}
+              creating={creatingPresetId === preset.id} disabled={creatingPresetId != null || !connected || !preset.schedule}
+              onClick={() => void addPreset(preset)} />)}
           </div>
         </main>
 
@@ -201,7 +233,7 @@ export function AutomationsView(): JSX.Element {
               if (!selected) return
               void action(() => operation === 'run'
                 ? store.run(selected.id)
-                : store.save({ ...selected, status: operation === 'pause' ? 'paused' : 'active' }, selected))
+                : store.setEnabled(selected.id, operation === 'resume'))
             }}
             onDirtyChange={onDirty} onClose={close}
             onSaved={(automation) => { setManual(null); store.selectAutomation(automation.id) }}
@@ -214,18 +246,28 @@ export function AutomationsView(): JSX.Element {
         ) : null}
       </div>
       {pending ? <ConfirmDialog title={t('automation.discard')} message={t('automation.discardHint')} confirmLabel={t('automation.discard')} onConfirm={() => { const next = pending; setPending(null); setDirty(false); next() }} onCancel={() => setPending(null)} /> : null}
-      {removing ? <ConfirmDialog title={t('automation.delete')} message={t('automation.deleteHint')} danger onConfirm={() => { const automation = removing; setRemoving(null); void action(() => store.remove(automation.id)) }} onCancel={() => setRemoving(null)} /> : null}
+      {removing ? <ConfirmDialog title={t('automation.delete')} message={t('automation.deleteHint')} danger onConfirm={() => {
+        const automation = removing; setRemoving(null); void action(async () => {
+          await store.remove(automation.id)
+          if (store.selectedAutomationId === automation.id) { store.selectAutomation(null); setManual(null) }
+        })
+      }} onCancel={() => setRemoving(null)} /> : null}
     </div>
   )
 }
 
-function AutomationSuggestion({ preset, locale, onClick }: { preset: AutomationPreset; locale: ReturnType<typeof useLocale>; onClick(): void }): JSX.Element {
+function AutomationSuggestion({ preset, locale, creating, disabled, onClick }: {
+  preset: AutomationPreset; locale: ReturnType<typeof useLocale>; creating: boolean; disabled: boolean; onClick(): void
+}): JSX.Element {
   const t = useT()
   const presentation = presetPresentation[preset.id] ?? { icon: CalendarClock, tone: 'blue' }
   const Icon = presentation.icon
   return (
-    <button type="button" className="dc-automation-suggestion" data-tone={presentation.tone} onClick={onClick}>
-      <span className="dc-automation-suggestion-icon"><Icon size={17} strokeWidth={1.7} aria-hidden /></span>
+    <button type="button" className="dc-automation-suggestion" data-tone={presentation.tone} data-creating={creating || undefined} disabled={disabled} onClick={onClick}>
+      <span className="dc-automation-suggestion-icon">{creating ? <LoaderCircle size={17} className="animate-spin-custom" aria-hidden /> : <>
+        <Icon className="dc-automation-suggestion-original-icon" size={17} strokeWidth={1.7} aria-hidden />
+        <Plus className="dc-automation-suggestion-add-icon" size={18} strokeWidth={1.7} aria-hidden />
+      </>}</span>
       <span>
         <span className="dc-automation-suggestion-heading">
           <strong>{presetName(preset, t)}</strong>

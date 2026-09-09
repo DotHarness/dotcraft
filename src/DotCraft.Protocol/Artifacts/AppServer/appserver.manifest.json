@@ -3884,6 +3884,13 @@
           "const": null
         },
         {
+          "name": "readAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "scheduledAt",
           "type": "date-time",
           "required": false,
@@ -3930,6 +3937,38 @@
           "type": "core.ThreadWorktreeInfo",
           "required": false,
           "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationRunReadParams",
+      "name": "AutomationRunReadParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationRunReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "automationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "read",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runIds",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -24910,6 +24949,26 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "automations.AutomationIdParams",
+      "resultType": "automations.AutomationRunsResult",
+      "module": "automations",
+      "capability": "automations",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/features/automations-lifecycle.md",
+      "stability": "stable"
+    },
+    {
+      "name": "automation/runs/read",
+      "descriptorMember": "AutomationRunsRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "automations.AutomationRunReadParams",
       "resultType": "automations.AutomationRunsResult",
       "module": "automations",
       "capability": "automations",

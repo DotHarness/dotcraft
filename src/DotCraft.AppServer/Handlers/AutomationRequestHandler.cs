@@ -12,6 +12,7 @@ internal sealed class AutomationRequestHandler(IAutomationsRequestHandler? autom
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
+        table.Map(Contract.AppServerRpc.AutomationRunsRead, (request, ct) => Route(request, (h, p) => h.HandleRunsReadAsync(p, ct)));
         table.Map(Contract.AppServerRpc.AutomationList, (request, ct) => Route(request, (h, p) => h.HandleListAsync(p, ct)));
         table.Map(Contract.AppServerRpc.AutomationRead, (request, ct) => Route(request, (h, p) => h.HandleReadAsync(p, ct)));
         table.Map(Contract.AppServerRpc.AutomationCreate, (request, ct) => Route(request, (h, p) => h.HandleCreateAsync(p, ct)));

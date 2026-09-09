@@ -158,6 +158,9 @@ public sealed class AutomationDefinition
 [ContractModule("automations")]
 public sealed class AutomationRun
 {
+    [JsonPropertyName("readAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? ReadAt { get; init; }
     [JsonPropertyName("id")]
     public string Id { get; init; } = "";
 

@@ -5,7 +5,7 @@ import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2, Bot, Workflow } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, Workflow } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
@@ -318,7 +318,7 @@ export function DetailPanel({
           tooltipWrapperStyle={{ alignSelf: 'center' }}
           onClick={toggleDetailPanel}
           style={{ marginRight: '4px' }}
-          icon={<PanelRightClose size={16} aria-hidden />}
+          icon={<PanelRight size={16} aria-hidden />}
         />
       </div>
 

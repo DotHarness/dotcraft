@@ -106,6 +106,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - [10. Auxiliary Surfaces](#10-auxiliary-surfaces)
   - [10.1 Viewer Panel](#101-viewer-panel)
   - [10.2 Browser Automation](#102-browser-automation)
+  - [10.3 Desktop Pet](#103-desktop-pet)
 
 ---
 
@@ -1158,3 +1159,16 @@ Surfaces beyond the conversation follow the same rules as the rest of this docum
 - While an agent is actively operating a browser tab, Desktop must surface an automation state on the tab chrome, including the session name when available and a concise last-action hint when useful.
 - Coordinate and locator-driven browser actions should render a virtual cursor inside the page whenever the page can accept the injected overlay. Failure to render the overlay must not block the underlying browser action.
 - Navigation, screenshots, DOM snapshots, console-log inspection, and coordinate input remain subject to Desktop's browser policy, including local-url defaults and external-domain approval or blocking.
+
+### 10.3 Desktop Pet
+
+Desktop pet mode is a Desktop presentation of the composer mascot and its existing conversation. It preserves the current workspace, thread, draft, and running work.
+
+- Dragging the shared composer mascot into a trigger zone at any of the four window edges starts pet mode immediately, without waiting for release. The character continues following the held pointer as the main window fades. Releasing beyond the detach distance also enters pet mode away from the edges. A short drag outside these zones or Escape returns it to its seat.
+- Only one mascot is visible during transfer. The main window fades out after the companion is ready. Returning uses a brief anticipation, an arcing jump, and a soft landing at the current composer seat before revealing the main window. Reduced motion preserves this order without travel or fading.
+- The pet can be moved within display work areas and snaps near side edges. Existing app restore actions return to the main window. If the source composer disappears, return uses an available composer seat; companion failure restores access to the main window.
+- The companion's actions appear on hover or keyboard focus, on its right side (left when constrained by the screen edge). Quick Chat opens below it. Clicking greets, dragging provides directional feedback, and release acknowledges landing through the shared Avatar animations. Idle gaze follows nearby mouse movement, yielding to interaction animations and reduced-motion preferences.
+- The pet reuses Composer's idle micro-gestures and sleeps after 90 seconds without activity. Pointer or keyboard activity wakes it; chatting, dragging, transitions, and source work states prevent sleep. Gaze owns directional looking, while blink and antenna gestures remain available. Source working, thinking, waiting, blocked, and done poses carry into the companion; idle antics never replace them.
+- Quick Chat reuses the Desktop composer input and circular send control in a compact single row, without an extra panel, title, separator, or helper copy. It shares the source editor's draft and delegates sending to its existing submission behavior. Late updates must not replace newer typing.
+- Approval and user-input decisions return to the full Desktop decision interface. Pet mode must not resolve a pending decision or create an independent conversation state.
+- A plugin replacement of `composer.mascot` keeps its own character and opts out of the native drag transfer.

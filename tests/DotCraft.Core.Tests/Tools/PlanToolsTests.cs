@@ -183,7 +183,7 @@ public sealed class PlanToolsTests
                 {
                     Id = "cache-metrics",
                     Content = "Expose cache hit rate",
-                    Status = PlanTodoStatus.InProgress
+                    Status = PlanTodoInputStatus.InProgress
                 }
             ]);
 

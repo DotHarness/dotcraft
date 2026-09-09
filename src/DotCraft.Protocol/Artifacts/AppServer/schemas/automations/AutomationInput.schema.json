@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationInput.schema.json",
+  "title": "AutomationInput",
+  "type": "object",
+  "properties": {
+    "agentProfileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "approvalPolicy": {
+      "type": "string"
+    },
+    "executionMode": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "notificationPolicy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "schedule": {
+      "$ref": "./AutomationSchedule.schema.json"
+    },
+    "status": {
+      "type": "string"
+    },
+    "targetThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspaceMode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "approvalPolicy",
+    "executionMode",
+    "name",
+    "prompt",
+    "schedule",
+    "status"
+  ]
+}

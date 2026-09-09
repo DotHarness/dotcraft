@@ -22,18 +22,17 @@ export interface SkillManageDisplay {
   variantUpdated: boolean
 }
 
-function normalizeAction(value: unknown): SkillManageAction | null {
+function readAction(value: unknown): SkillManageAction | null {
   if (typeof value !== 'string') return null
-  const action = value.trim().toLowerCase()
   if (
-    action === 'create'
-    || action === 'edit'
-    || action === 'patch'
-    || action === 'write_file'
-    || action === 'remove_file'
-    || action === 'delete'
+    value === 'create'
+    || value === 'edit'
+    || value === 'patch'
+    || value === 'write_file'
+    || value === 'remove_file'
+    || value === 'delete'
   ) {
-    return action
+    return value
   }
   return null
 }
@@ -68,7 +67,7 @@ export function getSkillManageDisplay(
   const result = parseSkillManageResult(resultText)
   const message = result?.error || result?.message || ''
   return {
-    action: normalizeAction(args?.action),
+    action: readAction(args?.action),
     name: readString(args?.name).trim(),
     result,
     message,
@@ -125,7 +124,7 @@ export function formatSkillManageRunningLabel(
   args: Record<string, unknown> | undefined,
   locale: AppLocale
 ): string {
-  const action = normalizeAction(args?.action)
+  const action = readAction(args?.action)
   const name = readString(args?.name).trim()
   const vars = { name: name || translate(locale, 'skillManage.tool.skillFallback') }
   switch (action) {

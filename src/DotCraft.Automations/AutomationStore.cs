@@ -5,6 +5,8 @@ namespace DotCraft.Automations;
 /// <summary>Atomic JSON storage rooted in the automations namespace.</summary>
 public sealed class AutomationStore(string root)
 {
+    private readonly SemaphoreSlim _readingGate = new(1, 1);
+    private sealed record ReadReceipt(DateTimeOffset? ReadAt, DateTimeOffset? CompletedAt);
     public static JsonSerializerOptions Json { get; } = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     public string DirectoryFor(string id)
     {
@@ -32,10 +34,61 @@ public sealed class AutomationStore(string root)
         var result = new List<AutomationRun>();
         foreach (var file in Directory.EnumerateFiles(directory, "*.json"))
         {
-            await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            result.Add((await JsonSerializer.DeserializeAsync<AutomationRun>(stream, Json, ct))!);
+            var run = await ReadRunAsync(file, ct);
+            if (run != null) result.Add(run);
         }
-        return result.OrderByDescending(r => r.CreatedAt).ToArray();
+        var receipts = await ReadReceiptsAsync(id, ct);
+        return result.Select(run => run with { ReadAt = receipts.TryGetValue(run.Id, out var receipt)
+            && receipt.CompletedAt == run.CompletedAt ? receipt.ReadAt : null }).OrderByDescending(r => r.CreatedAt).ToArray();
+    }
+    private async Task<Dictionary<string, ReadReceipt>> ReadReceiptsAsync(string id, CancellationToken ct)
+    {
+        var path = Path.Combine(DirectoryFor(id), "reading.json");
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return await JsonSerializer.DeserializeAsync<Dictionary<string, ReadReceipt>>(stream, Json, ct) ?? [];
+        }
+        catch (FileNotFoundException) { return []; }
+        catch (DirectoryNotFoundException) { return []; }
+    }
+    /// <summary>Stores reading receipts without changing the scheduler-owned run files.</summary>
+    public async Task<IReadOnlyList<AutomationRun>> SetRunsReadAsync(string id, IReadOnlyList<string> runIds, bool read, CancellationToken ct)
+    {
+        if (runIds == null || runIds.Count is < 1 or > 200 || runIds.Any(string.IsNullOrWhiteSpace)
+            || runIds.Distinct().Count() != runIds.Count) throw new ArgumentException("automation.invalidRunIds");
+        await _readingGate.WaitAsync(ct);
+        try
+        {
+            var runs = (await RunsAsync(id, ct)).ToDictionary(run => run.Id);
+            if (runIds.Any(runId => !runs.ContainsKey(runId))) throw new ArgumentException("automation.runNotFound");
+            var receipts = await ReadReceiptsAsync(id, ct);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var runId in runIds) receipts[runId] = new(read ? now : null, runs[runId].CompletedAt);
+            await WriteAsync(Path.Combine(DirectoryFor(id), "reading.json"), receipts, ct);
+            return (await RunsAsync(id, ct)).Where(run => runIds.Contains(run.Id)).ToArray();
+        }
+        finally { _readingGate.Release(); }
+    }
+    private static async Task<AutomationRun?> ReadRunAsync(string file, CancellationToken ct)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                return await JsonSerializer.DeserializeAsync<AutomationRun>(stream, Json, ct);
+            }
+            catch (FileNotFoundException) when (attempt < 2)
+            {
+                await Task.Delay(5, ct);
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+        }
+        return null;
     }
     public Task SaveAsync(AutomationDefinition definition, CancellationToken ct) =>
         WriteAsync(Path.Combine(DirectoryFor(definition.Id), "automation.json"), definition, ct);

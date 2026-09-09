@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationPreset.schema.json",
+  "title": "AutomationPreset",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "schedule": {
+      "anyOf": [
+        {
+          "$ref": "./AutomationSchedule.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "name",
+    "prompt"
+  ]
+}

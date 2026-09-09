@@ -10,7 +10,6 @@ namespace DotCraft.Tools;
 internal interface IAnthropicToolSearchDeclaration
 {
     [ToolDeclaration(Name = AnthropicToolSearchTool.ToolName)]
-    [ToolSchema(DisallowAdditionalProperties = true)]
     [Description("Fetches full schema definitions for deferred tools so they can be called.")]
     void Search(
         [Description("Query to find deferred tools. Use \"select:<tool_name>\" for direct selection, or keywords to search.")] string query,

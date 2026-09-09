@@ -101,6 +101,25 @@ public sealed class LocalAutomationProtocolTests : IDisposable
         Assert.Equal(3_600_000, result.Presets.Single(preset => preset.Id == "ci-monitor").Schedule!.EveryMs);
     }
 
+    [Fact]
+    public async Task ReadingState_RoundTripsThroughProtocolAndPublishesRunUpdates()
+    {
+        var created = await _handler.HandleCreateAsync(new() { Automation = Input() }, default);
+        var paths = new DotCraftPaths(_root, Path.Combine(_root, ".craft"), null);
+        var store = new AutomationStore(paths.Data.Resolve("automations"));
+        await store.SaveRunAsync(new AutomationRun { Id = "run", AutomationId = created.Automation.Id,
+            Status = "succeeded", CompletedAt = DateTimeOffset.UtcNow }, default);
+        var notifications = new List<AutomationRun>();
+        _service.RunUpdated += run => { notifications.Add(run); return Task.CompletedTask; };
+        var read = await _handler.HandleRunsReadAsync(new() { AutomationId = created.Automation.Id, RunIds = ["run"], Read = true }, default);
+        Assert.NotNull(Assert.Single(read.Runs).ReadAt);
+        Assert.NotNull(Assert.Single(notifications).ReadAt);
+        var listed = await _handler.HandleRunsListAsync(new() { AutomationId = created.Automation.Id }, default);
+        Assert.Equal(read.Runs[0].ReadAt, Assert.Single(listed.Runs).ReadAt);
+        var unread = await _handler.HandleRunsReadAsync(new() { AutomationId = created.Automation.Id, RunIds = ["run"], Read = false }, default);
+        Assert.Null(Assert.Single(unread.Runs).ReadAt);
+    }
+
     private static Contract.AutomationInput Input(string name = "Weekly report", string status = "active") => new()
     {
         Name = name, Prompt = "Summarize changes", Status = status, WorkspaceMode = "project",

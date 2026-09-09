@@ -10,6 +10,9 @@ public sealed class AutomationsRequestHandler(AutomationService service) : IAuto
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    public async Task<Contract.AutomationRunsResult> HandleRunsReadAsync(Contract.AutomationRunReadParams parameters, CancellationToken ct) =>
+        new() { Runs = (await service.SetRunsReadAsync(parameters.AutomationId, parameters.RunIds, parameters.Read, ct)).Select(ToWire).ToList() };
+
     public async Task<Contract.AutomationListResult> HandleListAsync(DotCraft.Protocol.RpcEmpty parameters, CancellationToken ct) =>
         new() { Automations = (await service.ListAsync(ct)).Select(ToWire).ToList() };
 

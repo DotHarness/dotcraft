@@ -43,7 +43,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
         var methods = Seed(threadId);
         var knownTool = BuiltInToolCatalog.Enumerate()[0].Name;
 
-        var result = Parse(methods.SetAgentToolPolicy("allowList", [knownTool]));
+        var result = Parse(methods.SetAgentToolPolicy(AgentToolPolicyMode.AllowList, [knownTool]));
         var change = result.GetProperty("change");
 
         Assert.True(result.GetProperty("ok").GetBoolean());
@@ -64,7 +64,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
         var threadId = NewThread();
         var methods = Seed(threadId);
 
-        var result = Parse(methods.SetAgentToolPolicy("denyList", ["TotallyNotARealTool"]));
+        var result = Parse(methods.SetAgentToolPolicy(AgentToolPolicyMode.DenyList, ["TotallyNotARealTool"]));
 
         Assert.False(result.GetProperty("ok").GetBoolean());
         Assert.Equal("tools.policy", result.GetProperty("field").GetString());
@@ -76,28 +76,12 @@ public sealed class AgentProfileBuilderToolMethodsTests
     }
 
     [Fact]
-    public void SetAgentToolControl_RejectsInvalidValue()
+    public void SetAgentApproval_AcceptsPolicy()
     {
         var threadId = NewThread();
         var methods = Seed(threadId);
 
-        var result = Parse(methods.SetAgentToolControl("bogus"));
-
-        Assert.False(result.GetProperty("ok").GetBoolean());
-        Assert.Equal("tools.agentControl", result.GetProperty("field").GetString());
-
-        ProfileBuilderDraftStore.Remove(threadId);
-    }
-
-    [Fact]
-    public void SetAgentApproval_RejectsInvalidPolicy_AndAcceptsValid()
-    {
-        var threadId = NewThread();
-        var methods = Seed(threadId);
-
-        Assert.False(Parse(methods.SetAgentApproval("nope")).GetProperty("ok").GetBoolean());
-
-        var ok = Parse(methods.SetAgentApproval("interrupt", requireApprovalOutsideWorkspace: true));
+        var ok = Parse(methods.SetAgentApproval(AgentApprovalPolicy.Interrupt, requireApprovalOutsideWorkspace: true));
         Assert.True(ok.GetProperty("ok").GetBoolean());
 
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
@@ -117,9 +101,9 @@ public sealed class AgentProfileBuilderToolMethodsTests
             providerId: "openai",
             model: "gpt-5.6",
             reasoningEnabled: true,
-            reasoningEffort: "ultra",
-            speed: "fast",
-            contextWindowMode: "max"));
+            reasoningEffort: AgentReasoningEffort.Ultra,
+            speed: AgentInferenceSpeed.Fast,
+            contextWindowMode: AgentContextWindowMode.Max));
 
         Assert.True(result.GetProperty("ok").GetBoolean());
         Assert.Equal("providerPreference", result.GetProperty("field").GetString());
@@ -150,12 +134,12 @@ public sealed class AgentProfileBuilderToolMethodsTests
         var methods = Seed(threadId);
 
         var result = Parse(methods.SetAgentProviderPreference(
-            providerId: "openai",
+            providerId: "",
             model: "gpt-5.6",
             reasoningEnabled: false,
-            reasoningEffort: "",
-            speed: "standard",
-            contextWindowMode: "default"));
+            reasoningEffort: AgentReasoningEffort.Low,
+            speed: AgentInferenceSpeed.Standard,
+            contextWindowMode: AgentContextWindowMode.Default));
 
         Assert.False(result.GetProperty("ok").GetBoolean());
         Assert.Equal("providerPreference", result.GetProperty("field").GetString());
@@ -172,9 +156,9 @@ public sealed class AgentProfileBuilderToolMethodsTests
             providerId: "openai",
             model: "gpt-5.6",
             reasoningEnabled: false,
-            reasoningEffort: "medium",
-            speed: "standard",
-            contextWindowMode: "default");
+            reasoningEffort: AgentReasoningEffort.Medium,
+            speed: AgentInferenceSpeed.Standard,
+            contextWindowMode: AgentContextWindowMode.Default);
 
         var result = Parse(methods.ClearAgentProviderPreference());
 

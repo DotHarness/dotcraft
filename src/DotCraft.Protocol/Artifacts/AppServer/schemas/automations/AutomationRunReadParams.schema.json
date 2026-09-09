@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationRunReadParams.schema.json",
+  "title": "AutomationRunReadParams",
+  "type": "object",
+  "properties": {
+    "automationId": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean"
+    },
+    "runIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "automationId",
+    "read",
+    "runIds"
+  ]
+}

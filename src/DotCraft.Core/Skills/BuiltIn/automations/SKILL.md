@@ -34,8 +34,3 @@ Example:
 Use `list` or `read` before changing a definition when its version is unknown. Updates require `expectedVersion`. Use `pause`, `resume`, or `delete` for lifecycle changes. Completed is assigned by DotCraft after a one-shot run and is read-only. `run` queues an execution; report it as queued.
 
 Use supported schedule fields instead of arbitrary RRULE expressions. Do not retry task execution because result delivery failed.
-
-## Validation recovery
-
-- Put a rejected root `notificationPolicy` inside `automation`.
-- For an invalid `schedule.at`, retry with one ISO 8601 string; do not invent object fields such as `kind` or `dateTime` inside `at`.

@@ -13,18 +13,6 @@ public sealed class ToolDeclarationAttribute : Attribute
 }
 
 /// <summary>
-/// Controls schema behavior that cannot be expressed through standard .NET annotations.
-/// </summary>
-[AttributeUsage(AttributeTargets.Method, Inherited = false)]
-public sealed class ToolSchemaAttribute : Attribute
-{
-    /// <summary>
-    /// Emits <c>additionalProperties: false</c> for the generated top-level object schema.
-    /// </summary>
-    public bool DisallowAdditionalProperties { get; set; }
-}
-
-/// <summary>
 /// Controls the model-visible declaration of one generated tool parameter.
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter, Inherited = false)]

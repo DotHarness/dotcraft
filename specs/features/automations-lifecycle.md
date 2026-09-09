@@ -42,6 +42,7 @@ The prompt is the only execution content.
 | automation/delete | { automationId } | { ok } |
 | automation/run | { automationId } | { run } |
 | automation/runs/list | { automationId } | { runs } |
+| automation/runs/read | { automationId, runIds, read } | { runs } |
 | automation/presets/list | { locale? } | { presets } |
 
 All require the automations capability. Update checks expectedVersion and rejects
@@ -52,13 +53,32 @@ code. Error data contains the stable code/messageKey and an English fallback. Se
 automation/updated sends { automationId, automation?, removed };
 automation/run/updated sends { run }. Reconnection reloads a snapshot.
 
+Run `readAt` is nullable and persisted separately from execution state. Missing receipts
+mean unread. A receipt refers to the observed completion timestamp, so completion
+produces unread results without execution writes overwriting later reading actions.
+The read operation validates the complete batch (1–200 distinct run IDs) before
+writing and publishes the affected runs through `automation/run/updated`.
+
+Previous runs derive archived state from their associated chat, retain archived
+rows, and restore the chat through `thread/unarchive`. Archiving uses `thread/archive`,
+including its effect on other runs in that chat; it never changes the automation's
+schedule. Running chats cannot be archived. Reading succeeds only after the target
+turn is displayed. Bulk archive deduplicates chat IDs and reports partial failures.
+Task-list and detail pause/resume share a pending state and preserve unsaved drafts.
+The task-list subtitle owns schedule and relative next-run timing. Active tasks show
+the schedule followed by the next-run countdown; paused and completed tasks show
+their lifecycle label without a countdown. Details do not repeat next-run timing.
+
 The Automation tool calls the same service for list/read/create/update/pause/resume/
 delete/run, returning { operation, automation?, run? }. Its generated function schema
 uses the same JSON representation as AppServer: `schedule.at` is an ISO 8601
 `string` with `date-time` format, never an object shaped from CLR date properties.
+The model-visible action, lifecycle, execution, workspace, approval, notification and
+schedule-kind fields are closed enums. Text and numeric bounds are expressed in the
+schema as well as enforced by the service.
 `notificationPolicy` belongs to the nested editable automation definition. At the
-model-tool boundary, blank optional identifiers and modes are treated as omitted,
-blank approval policy uses `workspaceScope`, and thread mode without a target binds
+model-tool boundary, blank optional identifiers are treated as omitted, omitted modes
+use their declared defaults, and thread mode without a target binds
 the trusted thread from the tool planning snapshot. AppServer validation remains strict.
 Trusted core.automation presentation selects client cards. Queue acceptance is not run success.
 The deterministic /automate list|show|pause|resume|run|remove command is registered
@@ -89,6 +109,9 @@ periodic jobs continue at the next occurrence. Interrupted runs are recorded on 
 Follow-ups default to thread mode and continue the specified conversation. Independent
 runs create a new conversation each time and share automation memory. Record exact
 turn ids. Git workspaces default to a fresh worktree per run; non-Git use project mode.
+Reported summaries and replacement memory have hard size limits. Persisted memory is
+also bounded when it is read so legacy or externally modified files cannot inject an
+unbounded fragment into later model context.
 Explicit worktree provisioning failure is an error, never a silent fallback. Missing or
 archived targets and missing profiles fail clearly. Bound threads inherit capabilities;
 independent runs resolve the selected profile and apply unattended workspace policy.

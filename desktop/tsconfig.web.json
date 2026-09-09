@@ -20,6 +20,7 @@
     "src/renderer/**/*",
     "src/preload/api.d.ts",
     "src/preload/index.ts",
+    "src/preload/desktopPet.ts",
     "src/preload/notificationDispatcher.ts",
     "src/shared/**/*"
   ],

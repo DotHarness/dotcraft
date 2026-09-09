@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using DotCraft.GeneratedTools.TraceViewer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -26,11 +27,12 @@ internal sealed class TraceReviewSubmissionToolSource(TraceAnalysisContext conte
 
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext planningContext)
     {
-        yield return AIFunctionFactory.Create(SubmitTraceReview, name: "SubmitTraceReview");
+        yield return GeneratedToolFunctions.TraceReviewSubmissionToolSource_SubmitTraceReview(this);
     }
 
-    [Description("Submits the final Trace Review. Use severity Major, Minor, or Suggestion; basis Confirmed or Inferred; and dimension Reliability, Latency, Tool behavior, Token efficiency, or Prompt cache. Every finding must cite valid Event evidence from the current Evidence Bundle. If rejected, correct the structured input and submit again.")]
-    private string SubmitTraceReview(
+    [GeneratedTool]
+    [Description("Submits the final Trace Review. Every finding must cite valid Event evidence from the current Evidence Bundle. If rejected, correct the structured input and submit again.")]
+    internal string SubmitTraceReview(
         [Description("A concise overall assessment of the recorded Session Trace.")] string summary,
         [Description("Evidence-linked findings. Use an empty array when no supported findings exist.")] TraceFindingSubmission[] findings)
     {
@@ -68,24 +70,30 @@ internal sealed class TraceReviewSubmissionToolSource(TraceAnalysisContext conte
     {
         if (finding is null)
             throw new InvalidDataException("Review findings cannot contain null values.");
-        if (!Enum.TryParse<TraceFindingSeverity>(finding.Severity, ignoreCase: true, out var severity))
-            throw new InvalidDataException($"Unsupported finding severity '{finding.Severity}'. Use Major, Minor, or Suggestion.");
-        if (!Enum.TryParse<TraceFindingBasis>(finding.Basis, ignoreCase: true, out var basis))
-            throw new InvalidDataException($"Unsupported finding basis '{finding.Basis}'. Use Confirmed or Inferred.");
         if (finding.Evidence is null)
             throw new InvalidDataException($"Finding '{finding.Id}' requires evidence.");
 
         return new TraceFinding(
             finding.Id,
-            severity,
-            finding.Dimension,
+            finding.Severity,
+            DimensionValue(finding.Dimension),
             finding.Title,
             finding.Body,
             finding.Impact,
             finding.Recommendation,
-            basis,
+            finding.Basis,
             finding.Evidence.Select(ToEvidence).ToArray());
     }
+
+    private static string DimensionValue(TraceFindingDimension value) => value switch
+    {
+        TraceFindingDimension.Reliability => "Reliability",
+        TraceFindingDimension.Latency => "Latency",
+        TraceFindingDimension.ToolBehavior => "Tool behavior",
+        TraceFindingDimension.TokenEfficiency => "Token efficiency",
+        TraceFindingDimension.PromptCache => "Prompt cache",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
 
     private static TraceEvidenceReference ToEvidence(TraceEvidenceSubmission evidence)
     {
