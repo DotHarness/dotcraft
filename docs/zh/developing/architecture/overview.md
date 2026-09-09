@@ -1,6 +1,6 @@
 # 架构总览
 
-DotCraft 是使用 .NET 10 / C# 构建的 Agent Harness。它按程序集划分职责：与模型提供商无关的 Agent 基础、产品内核、可复用的宿主能力、对外协议，以及官方应用的组合根。本页为集成方和贡献者定义这些边界。
+DotCraft 是使用 .NET 10 / C# 构建的 Agent Runtime。它按程序集划分职责：与模型提供商无关的 Agent 基础、产品内核、可复用的宿主能力、对外协议，以及官方应用的组合根。本页为集成方和贡献者定义这些边界。
 
 ![DotCraft 运行时架构拓扑图](/runtime-architecture-topology.svg)
 

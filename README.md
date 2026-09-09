@@ -7,12 +7,12 @@
 [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/DotHarness/dotcraft/releases)
 [![Discussions](https://img.shields.io/badge/community-Discussions-brightgreen)](https://github.com/DotHarness/dotcraft/discussions)
 
-![DotCraft — the agent runtime for real projects](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
+![DotCraft — an agent runtime you embed and extend](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
 
 [中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Quick Start](https://www.dotcraft.net/getting-started) · [Releases](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
 
-DotCraft is an open-source, self-hosted, and embeddable **AI agent runtime** built with C#/.NET.
+DotCraft is an open-source, self-hosted **AI agent runtime** built with C#/.NET. Run it as a desktop app, add it to your own .NET application, and extend both with plugins.
 
 </div>
 
@@ -22,12 +22,12 @@ DotCraft turns your projects into **extensible environments for AI agents**.
 
 ![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-- **Modern agent capabilities, ready to use:** Plan, Agent Builder, Agent Profiles, Subagents, Automations, Goals, Dreams, Dynamic Workflows, and more are built in.
-- **Your work travels with the project:** Conversations, memory, agents, skills, and plugins move with the project, so you can switch entry points and keep going.
-- **Lower token costs:** DotCraft uses built-in trajectory tracking to maximize prefix cache reuse across sessions and reduce token usage.
-- **Run it your way:** Run DotCraft locally or on your own server, and choose a compatible model provider or use your ChatGPT subscription.
-- **A complete Agent Harness for .NET:** Bring complete agent capabilities into the .NET applications you already build, from desktop tools to services and automation.
-- **Easy to integrate with existing products:** APIs, SDKs, App Binding, and plugins bring DotCraft directly into your applications.
+- **Complete agent capabilities, ready to use:** Plan, Agent Builder, Agent Profiles, Subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in, so you do not have to assemble agent infrastructure from scratch.
+- **Your work travels with the project:** Conversations, memory, agents, skills, and plugins live with the workspace. Move between Desktop, the CLI, editors, and bots, and pick up where you left off.
+- **Bring a complete agent runtime into your product:** Embed the same runtime behind DotCraft Desktop in .NET tools, services, and automations, or connect existing products through AppServer, SDKs, and App Binding.
+- **Let the agent extend its own runtime:** Ask the agent to create and build a .NET plugin in the workspace. It uses the same extension model as built-in features to add tools, prompts, commands, and lifecycle logic, and can be replaced while the host keeps running.
+- **Shape Desktop around your workflow:** TypeScript and React plugins use native UI components to extend Desktop's interface and interactions.
+- **Own your deployment, models, and costs:** Run locally or on your own server, and choose a compatible model provider or use your ChatGPT subscription. DotCraft keeps reusable prompt prefixes byte-stable to improve provider cache reuse and lower repeated-input costs.
 
 ## Explore DotCraft
 
@@ -71,7 +71,7 @@ DotCraft supports OpenAI, Anthropic model providers, or you can sign in using yo
 
 1. Download the latest build from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases).
 2. Open a real project folder as a workspace.
-3. Configuration model providers and preferences.
+3. Configure model providers and preferences.
 
 ### CLI
 

@@ -1,7 +1,7 @@
 ---
 layout: page
 title: DotCraft
-description: 用于构建可扩展 AI Agent 的项目原生运行时，让 Agent 随项目持续演进。
+description: 基于 C#/.NET 构建的开源、自托管 AI Agent Runtime。既可以直接使用 Desktop 应用，也可以把运行时引入你自己的 .NET 应用，两者都能用插件扩展。
 aside: false
 sidebar: false
 editLink: false
@@ -13,9 +13,9 @@ lastUpdated: false
     <div class="dc-hero__field" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="dc-hero__inner">
       <div class="dc-hero__copy t-stagger">
-        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">项目原生 Agent 运行时</p>
-        <h1 class="t-stagger-line t-stagger-line--2">随<em>项目</em>持续演进的 AI Agent。</h1>
-        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">为扩展而生。</p>
+        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">开源，基于 .NET 10 构建</p>
+        <h1 class="t-stagger-line t-stagger-line--2">可<em>嵌入</em>、可<em>扩展</em>的 Agent Runtime。</h1>
+        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">直接运行，或装进你的应用。</p>
         <div class="dc-hero__cta t-stagger-line t-stagger-line--4">
           <div class="dc-actions">
             <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>
@@ -106,16 +106,31 @@ lastUpdated: false
     <article class="dc-story">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">为应用而生</p>
-          <h2>把运行时带进你自己的产品，也可以直接扩展 Desktop。</h2>
+          <p class="dc-story__eyebrow">插件</p>
+          <h2>用 C# 扩展运行时，用 TypeScript 扩展 Desktop。</h2>
           <div class="dc-story__links">
-            <a class="dc-link" href="./developing/integrations/app-binding">DotCraft App</a>
-            <a class="dc-link" href="./developing/sdks/">SDK</a>
+            <a class="dc-link" href="./developing/integrations/dotnet-plugins">.NET 插件</a>
             <a class="dc-link" href="./developing/integrations/desktop-plugins">Desktop Plugins</a>
           </div>
         </div>
         <figure class="dc-story__media">
           <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/desktop-plugins.gif" alt="安装 Desktop Plugin 并在 DotCraft Desktop 中启用视觉定制" loading="lazy" />
+        </figure>
+      </div>
+    </article>
+    <article class="dc-story dc-story--flip">
+      <div class="dc-story__inner dc-reveal">
+        <div class="dc-story__copy">
+          <p class="dc-story__eyebrow">为应用而生</p>
+          <h2>把 DotCraft 带进你自己的产品。</h2>
+          <div class="dc-story__links">
+            <a class="dc-link" href="./developing/harness/">DotCraft Harness</a>
+            <a class="dc-link" href="./developing/integrations/app-binding">DotCraft App</a>
+            <a class="dc-link" href="./developing/sdks/">SDK</a>
+          </div>
+        </div>
+        <figure class="dc-story__media">
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft-unity/app-binding.gif" alt="Agent 通过 App Binding 从 DotCraft 驱动 Unity" loading="lazy" />
         </figure>
       </div>
     </article>

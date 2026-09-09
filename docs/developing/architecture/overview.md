@@ -1,6 +1,6 @@
 # Architecture overview
 
-DotCraft is a .NET 10 / C# Agent Harness. Its assemblies split the work into the provider-neutral agent foundation, the product kernel, reusable hosting, the external protocol, and the official application's composition root. This page defines those boundaries for integrators and contributors.
+DotCraft is a .NET 10 / C# agent runtime. Its assemblies split the work into the provider-neutral agent foundation, the product kernel, reusable hosting, the external protocol, and the official application's composition root. This page defines those boundaries for integrators and contributors.
 
 ![DotCraft runtime architecture topology](/runtime-architecture-topology.svg)
 

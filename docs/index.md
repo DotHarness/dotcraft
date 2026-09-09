@@ -1,7 +1,7 @@
 ---
 layout: page
 title: DotCraft
-description: A project-native AI agent runtime for building extensible agents that evolve with your projects.
+description: An open-source, self-hosted AI agent runtime built with C#/.NET. Run the Desktop app, add the runtime to your own .NET application, and extend both with plugins.
 aside: false
 sidebar: false
 editLink: false
@@ -13,9 +13,9 @@ lastUpdated: false
     <div class="dc-hero__field" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="dc-hero__inner">
       <div class="dc-hero__copy t-stagger">
-        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">Project-native agent runtime</p>
-        <h1 class="t-stagger-line t-stagger-line--2">AI agents that evolve with your <em>projects.</em></h1>
-        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">Built to extend.</p>
+        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">Open source, built on .NET 10</p>
+        <h1 class="t-stagger-line t-stagger-line--2">An agent runtime you <em>embed</em> and <em>extend.</em></h1>
+        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">Run the app, or add the package.</p>
         <div class="dc-hero__cta t-stagger-line t-stagger-line--4">
           <div class="dc-actions">
             <a class="dc-button dc-button--primary" href="./getting-started">Get started</a>
@@ -106,16 +106,31 @@ lastUpdated: false
     <article class="dc-story">
       <div class="dc-story__inner dc-reveal">
         <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">Built for applications</p>
-          <h2>Embed the runtime, or extend Desktop around your product.</h2>
+          <p class="dc-story__eyebrow">Plugins</p>
+          <h2>Extend the runtime in C#, and Desktop in TypeScript.</h2>
           <div class="dc-story__links">
-            <a class="dc-link" href="./developing/integrations/app-binding">DotCraft App</a>
-            <a class="dc-link" href="./developing/sdks/">SDKs</a>
+            <a class="dc-link" href="./developing/integrations/dotnet-plugins">.NET Plugins</a>
             <a class="dc-link" href="./developing/integrations/desktop-plugins">Desktop Plugins</a>
           </div>
         </div>
         <figure class="dc-story__media">
           <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-plugins.gif" alt="Installing a Desktop Plugin and enabling its visual customization in DotCraft Desktop" loading="lazy" />
+        </figure>
+      </div>
+    </article>
+    <article class="dc-story dc-story--flip">
+      <div class="dc-story__inner dc-reveal">
+        <div class="dc-story__copy">
+          <p class="dc-story__eyebrow">Built for applications</p>
+          <h2>Bring DotCraft into your own product.</h2>
+          <div class="dc-story__links">
+            <a class="dc-link" href="./developing/harness/">DotCraft Harness</a>
+            <a class="dc-link" href="./developing/integrations/app-binding">DotCraft App</a>
+            <a class="dc-link" href="./developing/sdks/">SDKs</a>
+          </div>
+        </div>
+        <figure class="dc-story__media">
+          <img src="https://github.com/DotHarness/resources/raw/master/dotcraft-unity/app-binding.gif" alt="An agent driving Unity from DotCraft through App Binding" loading="lazy" />
         </figure>
       </div>
     </article>

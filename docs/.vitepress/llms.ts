@@ -129,7 +129,7 @@ export function renderLlmsTxt(sections: PageSection[], hostname: string, summary
     '',
     `> ${summary}`,
     '',
-    'DotCraft is a .NET agent harness: the CLI, the Desktop app, IDE integrations, and chat bots all',
+    'DotCraft is a .NET agent runtime: the CLI, the Desktop app, IDE integrations, and chat bots all',
     'connect to one workspace and share its sessions, memory, skills, and tools under `.craft/`.',
     'Pages under /features/ describe what the agent can do; pages under /developing/ cover embedding it,',
     'extending it, and the protocols behind it. Every configuration field, with defaults and JSON',

@@ -122,7 +122,7 @@ rewrites['zh/hooks/reference.md'] = 'zh/developing/configuration.md#automations-
 
 export default withMermaid(defineConfig({
   title: 'DotCraft',
-  description: 'A project-native AI agent runtime for building extensible agents that evolve with your projects.',
+  description: 'An open-source, self-hosted AI agent runtime built with C#/.NET. Run the Desktop app, add the runtime to your own .NET application, and extend both with plugins.',
   base,
   cleanUrls: true,
   lastUpdated: true,
@@ -180,7 +180,7 @@ export default withMermaid(defineConfig({
       label: 'English',
       lang: 'en-US',
       title: 'DotCraft',
-      description: 'A project-native AI agent runtime for building extensible agents that evolve with your projects.',
+      description: 'An open-source, self-hosted AI agent runtime built with C#/.NET. Run the Desktop app, add the runtime to your own .NET application, and extend both with plugins.',
       themeConfig: {
         nav: enNav,
         sidebar: enSidebar,
@@ -195,7 +195,7 @@ export default withMermaid(defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       title: 'DotCraft',
-      description: '用于构建可扩展 AI Agent 的项目原生运行时，让 Agent 随项目持续演进。',
+      description: '基于 C#/.NET 构建的开源、自托管 AI Agent Runtime。既可以直接使用 Desktop 应用，也可以把运行时引入你自己的 .NET 应用，两者都能用插件扩展。',
       themeConfig: {
         nav: zhNav,
         sidebar: zhSidebar,
