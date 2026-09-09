@@ -1,5 +1,5 @@
 ---
-version: "0.15.0"
+version: "0.16.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1176,6 +1176,15 @@ block is the shared `Skeleton` family (`Skeleton`, `SkeletonRow`,
 - Skeleton animation honors `data-reduce-motion` via the global reduced-motion
   rule; never gate the *meaning* of a loading state on motion — under reduced
   motion the skeleton still reads as a placeholder.
+
+The workspace launch transition is the one wait with no shape to match, because the
+workspace it is opening does not exist on screen yet. While it connects or prepares, the
+brand mark breathes on a slow four-second loop, peaking three percent above rest and
+scaled about its own centre so it never drifts. This is not a second running signal
+beside the shimmering caption: the caption reports progress, and the breath only keeps
+the surface from reading as a hung frame during a wait that has no upper bound. It
+carries no state, appears on no other surface, and rests at both ends of its loop so the
+reduced-motion collapse leaves the mark still.
 
 ## Appearance Preferences
 

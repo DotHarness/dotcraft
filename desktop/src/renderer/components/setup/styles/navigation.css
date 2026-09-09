@@ -62,6 +62,20 @@
   }
 }
 
+@keyframes launch-logo-breathe {
+  0%,
+  100% {
+    transform:
+      translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+      scale(var(--launch-logo-to-scale, 1));
+  }
+  50% {
+    transform:
+      translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+      scale(calc(var(--launch-logo-to-scale, 1) * 1.03));
+  }
+}
+
 @keyframes logo-handoff-fade {
   from {
     opacity: 1;
