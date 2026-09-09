@@ -44,6 +44,7 @@ export function AutomationsView(): JSX.Element {
   const locale = useLocale()
   const store = useAutomationsStore()
   const connected = useConnectionStore((state) => state.status === 'connected')
+  const connectionEpoch = useConnectionStore((state) => state.connectionEpoch)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [manual, setManual] = useState<AutomationInput | null>(null)
   const [query, setQuery] = useState('')
@@ -61,9 +62,10 @@ export function AutomationsView(): JSX.Element {
   const onDirty = useCallback((value: boolean) => setDirty(value), [])
 
   useEffect(() => {
+    if (!connected) return
     void store.fetchAutomations()
     void store.fetchPresets(locale).catch(() => {})
-  }, [locale])
+  }, [connected, connectionEpoch, locale])
   useEffect(() => {
     for (const automation of store.automations) {
       if (!store.runs[automation.id]) void store.fetchRuns(automation.id).catch(() => {})

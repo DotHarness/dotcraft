@@ -8,6 +8,7 @@ vi.mock('electron', async () => {
   const { EventEmitter } = await import('events')
   class Window extends EventEmitter {
     destroyed = false
+    options: any
     private contents = Object.assign(new EventEmitter(), {
       send: vi.fn(), isDestroyed: () => false, getZoomFactor: () => 1.25,
       getURL: () => 'http://localhost:5173', setWindowOpenHandler: vi.fn(), setBackgroundThrottling: vi.fn()
@@ -30,7 +31,7 @@ vi.mock('electron', async () => {
     isDestroyed = () => this.destroyed
     getContentBounds = () => ({ x: -1200, y: 50, width: 1000, height: 800 })
     destroy = (): void => { this.destroyed = true; this.emit('closed') }
-    constructor(..._args: unknown[]) { super(); mocks.windows.push(this) }
+    constructor(options?: any) { super(); this.options = options; mocks.windows.push(this) }
   }
   return { BrowserWindow: Window,
     ipcMain: { removeHandler: () => { mocks.handler = null }, handle: (_name: string, handler: typeof mocks.handler) => { mocks.handler = handler } },
@@ -42,7 +43,7 @@ vi.mock('electron', async () => {
 import { BrowserWindow } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from '../desktopPet'
 
-const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, reducedMotion: false, canChat: true }
+const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, locale: 'en' as const, reducedMotion: false, canChat: true }
 let owner: any
 function send(sender: any, command: PetCommand): void { mocks.handler!({ sender: sender.webContents }, command) }
 function detach(pointerHeld = false): any {
@@ -59,6 +60,11 @@ beforeEach(() => {
 afterEach(() => { owner.emit('closed'); vi.useRealTimers() })
 
 describe('desktop pet native ownership', () => {
+  it('uses a sandboxed window with the dedicated preload', () => {
+    const pet = detach()
+    expect(pet.options.webPreferences).toMatchObject({ contextIsolation: true, nodeIntegration: false, sandbox: true })
+    expect(pet.options.webPreferences.preload).toMatch(/[\\/]preload[\\/]pet\.js$/)
+  })
   it('fades on edge entry while preserving source capture until release', async () => {
     const pet = detach(true)
     send(pet, { type: 'ready' })

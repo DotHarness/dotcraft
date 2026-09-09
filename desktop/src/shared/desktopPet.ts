@@ -1,3 +1,5 @@
+import type { AppLocale } from './locales/types'
+
 export interface PetPoint { x: number; y: number }
 export interface PetRect extends PetPoint { width: number; height: number }
 export type PetActivity = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked' | 'done'
@@ -9,6 +11,7 @@ export interface PetSnapshot {
   name: string
   text: string
   theme: 'dark' | 'light'
+  locale: AppLocale
   reducedMotion: boolean
   canChat: boolean
   editRevision?: number

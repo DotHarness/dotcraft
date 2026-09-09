@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '@dotcraft/avatar/react'
 import { MessageSquare, PanelTop } from 'lucide-react'
 import { PetQuickChat } from './PetQuickChat'
-import { useT } from '../../contexts/LocaleContext'
+import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import { applyTheme } from '../../utils/theme'
 import type { PetPoint, PetSnapshot } from '../../../shared/desktopPet'
 import { usePetReaction } from './usePetReaction'
@@ -30,11 +30,13 @@ export function DesktopPet(): JSX.Element | null {
   const chatRef = useRef(chat)
   chatRef.current = chat
   const t = useT()
+  const setUiLocale = useSetUiLocale()
   const api = window.api.desktopPet
   useEffect(() => {
     const off = api.onEvent(event => {
       if (event.type === 'snapshot') {
         setSnapshot(event.snapshot)
+        setUiLocale(event.snapshot.locale)
         if ((event.snapshot.editRevision ?? 0) >= revision.current) setText(event.snapshot.text)
         applyTheme(event.snapshot.theme, { syncTitleBarOverlay: false })
       } else if (event.type === 'position') {
@@ -65,7 +67,7 @@ export function DesktopPet(): JSX.Element | null {
     window.addEventListener('pointermove', hitTest)
     window.addEventListener('keydown', escape)
     return () => { off(); window.removeEventListener('pointermove', hitTest); window.removeEventListener('keydown', escape) }
-  }, [api])
+  }, [api, setUiLocale])
   if (!snapshot) return null
   const chatX = Math.max(12, Math.min(position.x, window.innerWidth - 372))
   const chatTop = Math.min(position.y + position.size + 12, window.innerHeight - 60)

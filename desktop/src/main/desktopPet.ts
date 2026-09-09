@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { clampPet, petActivity, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../shared/desktopPet'
 import { PET_RETURN_DURATION, samplePetReturn, type PetReturnFrame } from '../shared/desktopPetMotion'
+import { SUPPORTED_LOCALE_VALUES } from '../shared/locales/types'
 
 let active: DesktopPet | null = null
 
@@ -114,8 +115,8 @@ class DesktopPet {
     const overlay = new BrowserWindow({
       ...area, show: false, frame: false, transparent: true, backgroundColor: '#00000000',
       resizable: false, hasShadow: false, skipTaskbar: true, alwaysOnTop: true,
-      webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true,
-        nodeIntegration: false, sandbox: false, backgroundThrottling: false }
+      webPreferences: { preload: join(__dirname, '../preload/pet.js'), contextIsolation: true,
+        nodeIntegration: false, sandbox: true, backgroundThrottling: false }
     })
     this.overlay = overlay
     overlay.setIgnoreMouseEvents(true, { forward: true })
@@ -302,6 +303,7 @@ function validSnapshot(value: unknown): value is PetSnapshot {
   return !!snapshot && typeof snapshot.name === 'string' && snapshot.name.length <= 1000
     && typeof snapshot.text === 'string' && snapshot.text.length <= 100000
     && (snapshot.theme === 'dark' || snapshot.theme === 'light')
+    && SUPPORTED_LOCALE_VALUES.includes(snapshot.locale)
     && typeof snapshot.reducedMotion === 'boolean' && typeof snapshot.canChat === 'boolean'
     && (snapshot.activity === undefined || petActivity(snapshot.activity) === snapshot.activity)
 }

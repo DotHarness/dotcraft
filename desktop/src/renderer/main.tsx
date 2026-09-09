@@ -52,7 +52,7 @@ const appSurfaceContext = { rootElement }
 
 createRoot(rootElement).render(
   <StrictMode>
-    <LocaleProvider>
+    <LocaleProvider loadSettings={!isPetWindow}>
       <HighlightProvider>
         {isPetWindow ? <DesktopPet /> : <>
         <div className="dotcraft-plugin-background-seat">

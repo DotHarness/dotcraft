@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AutomationsView } from "../components/automations/AutomationsView";
 import { LocaleProvider } from "../contexts/LocaleContext";
 import { useAutomationsStore } from "../stores/automationsStore";
@@ -34,7 +34,7 @@ const presets = [
 ];
 
 beforeEach(() => {
-  useConnectionStore.setState({ status: "connected" });
+  useConnectionStore.setState({ status: "connected", connectionEpoch: 0 });
   useAutomationsStore.setState({
     automations: [],
     runs: {},
@@ -57,6 +57,29 @@ beforeEach(() => {
       }),
     },
   });
+});
+
+it("loads automations after reconnecting", async () => {
+  const send = vi.fn(async (method: string) => {
+    if (method === "automation/list") return { automations: [automation] };
+    if (method === "automation/presets/list") return { presets };
+    if (method === "automation/runs/list") return { runs: [] };
+    return {};
+  });
+  installDesktopApiMock({
+    settings: { get: async () => ({ locale: "en" }) },
+    appServer: { sendRequest: send, onNotification: () => () => {} },
+  });
+  useConnectionStore.setState({ status: "disconnected", connectionEpoch: 0 });
+
+  render(<LocaleProvider><AutomationsView /></LocaleProvider>);
+  expect(send).not.toHaveBeenCalledWith("automation/list", {});
+
+  act(() => useConnectionStore.getState().setStatus({ status: "connected" }));
+
+  await screen.findByRole("button", { name: /Review changes/ });
+  expect(send).toHaveBeenCalledWith("automation/list", {});
+  expect(send).toHaveBeenCalledWith("automation/presets/list", { locale: "en" });
 });
 
 it("lists definitions before suggestions, retains them in detail, and exposes the drag payload", async () => {

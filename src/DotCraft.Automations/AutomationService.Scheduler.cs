@@ -34,21 +34,39 @@ public sealed partial class AutomationService
         }
         _lifetime = new CancellationTokenSource();
         _loop = Task.Run(() => LoopAsync(_lifetime.Token));
+        _acceptingRuns = true;
         }
         finally { _gate.Release(); }
     }
     /// <summary>Stops dispatch and waits until running attempts have persisted their terminal states.</summary>
     public async Task StopAsync(CancellationToken ct = default)
     {
-        if (_lifetime == null) return;
-        await _lifetime.CancelAsync();
-        if (_loop != null) await _loop.WaitAsync(ct);
+        CancellationTokenSource lifetime;
+        Task? loop;
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (_lifetime == null) return;
+            _acceptingRuns = false;
+            lifetime = _lifetime;
+            loop = _loop;
+        }
+        finally { _gate.Release(); }
+        await lifetime.CancelAsync();
+        if (loop != null) await loop.WaitAsync(ct);
         Task[] running;
         await _gate.WaitAsync(ct);
         try { running = _running.Values.ToArray(); }
         finally { _gate.Release(); }
         await Task.WhenAll(running).WaitAsync(ct);
-        _lifetime.Dispose(); _lifetime = null;
+        await _gate.WaitAsync(ct);
+        try
+        {
+            lifetime.Dispose();
+            _lifetime = null;
+            _loop = null;
+        }
+        finally { _gate.Release(); }
     }
     private async Task LoopAsync(CancellationToken ct)
     {
@@ -81,7 +99,7 @@ public sealed partial class AutomationService
         {
             await LoadAsync(ct);
             var definition = Get(id);
-            if (_client == null || _lifetime == null) throw new InvalidOperationException("automation.hostOffline");
+            if (_client == null || _lifetime == null || !_acceptingRuns) throw new InvalidOperationException("automation.hostOffline");
             if (_running.ContainsKey(id))
             {
                 if (manual) throw new InvalidOperationException("automation.alreadyRunning");

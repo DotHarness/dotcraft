@@ -3,6 +3,7 @@ import type { PetRect, PetSnapshot } from '../../../shared/desktopPet'
 import { inPetDetachZone, petActivity } from '../../../shared/desktopPet'
 import { findPetEditor } from './editorBridge'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
+import { normalizeLocale } from '../../../shared/locales'
 
 function seatOf(root: HTMLElement): PetRect | null {
   const mascot = root.querySelector<HTMLElement>('.composer-mascot-jelly')
@@ -34,6 +35,7 @@ export function useDesktopPet(root: RefObject<HTMLDivElement | null>, enabled: b
       text: findPetEditor(element)?.getText() ?? '',
       editRevision,
       theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
+      locale: normalizeLocale(document.documentElement.lang),
       reducedMotion: document.documentElement.dataset.reduceMotion === 'on' ||
         (document.documentElement.dataset.reduceMotion !== 'off' && matchMedia('(prefers-reduced-motion: reduce)').matches),
       canChat: latest.current && !!findPetEditor(element)?.enabled

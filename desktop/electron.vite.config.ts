@@ -17,7 +17,15 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })]
+    plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          pet: resolve('src/preload/pet.ts')
+        }
+      }
+    }
   },
   renderer: {
     define: {

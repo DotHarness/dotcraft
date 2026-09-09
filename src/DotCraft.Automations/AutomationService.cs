@@ -15,6 +15,7 @@ public sealed partial class AutomationService(AutomationsConfig config, DotCraft
     private IAutomationSessionClient? _client;
     private CancellationTokenSource? _lifetime;
     private Task? _loop;
+    private bool _acceptingRuns;
     private bool _loaded;
     public event Func<AutomationDefinition?, string, bool, Task>? Updated;
     public event Func<AutomationRun, Task>? RunUpdated;

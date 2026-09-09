@@ -134,6 +134,40 @@ public sealed class AutomationLifecycleTests : IDisposable
         }
     }
     [Fact]
+    public async Task Stop_RejectsNewRunsAndWaitsForAcceptedRun()
+    {
+        var service = Service(); var client = new BlockingSessions(); service.SetSessionClient(client);
+        Task? stopping = null;
+        await service.StartAsync();
+        try
+        {
+            var accepted = await service.CreateAsync(Input() with { Status = "paused" });
+            var rejected = await service.CreateAsync(Input() with { Status = "paused", Name = "Second" });
+            var run = await service.RunAsync(accepted.Id);
+            await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+            stopping = service.StopAsync();
+            await client.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RunAsync(rejected.Id));
+            Assert.Equal("automation.hostOffline", error.Message);
+            Assert.Empty(await service.ListRunsAsync(rejected.Id));
+            Assert.False(stopping.IsCompleted);
+
+            client.Release.TrySetResult();
+            await stopping.WaitAsync(TimeSpan.FromSeconds(3));
+            var completed = Assert.Single(await service.ListRunsAsync(accepted.Id), item => item.Id == run.Id);
+            Assert.NotNull(completed.CompletedAt);
+            Assert.NotEqual("pending", completed.DeliveryStatus);
+        }
+        finally
+        {
+            client.Release.TrySetResult();
+            if (stopping == null) await service.StopAsync();
+            else await stopping;
+        }
+    }
+    [Fact]
     public async Task ImportantPolicy_SkipsUnchangedSuccess_AndRestoresChannelOrigin()
     {
         var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
@@ -301,8 +335,26 @@ public sealed class AutomationLifecycleTests : IDisposable
             yield return new() { EventType = Fail ? SessionEventType.TurnFailed : SessionEventType.TurnCompleted, ThreadId = threadId, TurnId = "turn-1", Payload = new SessionTurn { Id = "turn-1" } };
         }
     }
+    private sealed class BlockingSessions : IAutomationSessionClient
+    {
+        public string DataPath => "unused";
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null) => Task.FromResult(userId);
+        public Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(string threadId, string taskId, CancellationToken ct) => throw new InvalidOperationException("unused");
+        public Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct) => Task.FromResult<SessionThread?>(new() { Id = threadId });
+        public async IAsyncEnumerable<SessionEvent> SubmitTurnAsync(string threadId, string message, [EnumeratorCancellation] CancellationToken ct,
+            TurnTriggerInfo? trigger = null, Func<CancellationToken, Task>? beforeAdmission = null)
+        {
+            if (beforeAdmission != null) await beforeAdmission(ct);
+            using var registration = ct.Register(() => Cancelled.TrySetResult());
+            Started.TrySetResult();
+            yield return new() { EventType = SessionEventType.TurnStarted, ThreadId = threadId, TurnId = "turn-1" };
+            await Release.Task;
+            yield return new() { EventType = SessionEventType.TurnCompleted, ThreadId = threadId, TurnId = "turn-1", Payload = new SessionTurn { Id = "turn-1" } };
+        }
+    }
 }
-
-
 
 
