@@ -50,6 +50,21 @@ describe('desktop pet quick chat session', () => {
     act(() => listener({ type: 'snapshot', snapshot: { ...snapshot, text: '', editRevision: 2 } }))
     expect(screen.getByLabelText('draft')).toHaveValue('')
   })
+  it('hangs the quick chat centred under the pet and clamps it at the screen edges', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
+    const { container } = render(<DesktopPet />)
+    act(() => listener({ type: 'snapshot', snapshot }))
+    const left = (x: number): string => {
+      act(() => listener({ type: 'position', point: { x, y: 200 }, size: 59, phase: 'pet' }))
+      return container.querySelector<HTMLElement>('.desktop-pet-chat-position')!.style.left
+    }
+    act(() => listener({ type: 'position', point: { x: 200, y: 200 }, size: 59, phase: 'pet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'desktopPet.chat' }))
+    // The 360px panel centres on the pet's midline at 229.5.
+    expect(left(200)).toBe('49.5px')
+    expect(left(4)).toBe('12px')
+    expect(left(990)).toBe('652px')
+  })
   it('routes approval work back to the desktop without submitting a decision', () => {
     render(<DesktopPet />)
     act(() => listener({ type: 'snapshot', snapshot: { ...snapshot, canChat: false } }))

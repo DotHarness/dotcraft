@@ -69,7 +69,11 @@ export function DesktopPet(): JSX.Element | null {
     return () => { off(); window.removeEventListener('pointermove', hitTest); window.removeEventListener('keydown', escape) }
   }, [api, setUiLocale])
   if (!snapshot) return null
-  const chatX = Math.max(12, Math.min(position.x, window.innerWidth - 372))
+  const chatWidth = Math.min(360, window.innerWidth - 24)
+  const chatX = Math.max(12, Math.min(
+    position.x + position.size / 2 - chatWidth / 2,
+    window.innerWidth - chatWidth - 12
+  ))
   const chatTop = Math.min(position.y + position.size + 12, window.innerHeight - 60)
   return <>
     {landing && <span className="desktop-pet-landing" style={{ left: landing.x, top: landing.y }} />}
