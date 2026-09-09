@@ -69,7 +69,9 @@ internal sealed class UnityToolSource(UnityAttachService service, string workspa
             var id = new ToolDefinitionId(ToolSourceKind.PluginNative, SourceId, new SourceToolId(operation));
             var definition = new ToolDefinition(id, new ToolName("unity", operation), declaration.Description, declaration.InputSchema,
                 declaration.OutputSchema,
-                policyHints: new ToolPolicyHints(RequiresApproval: false, ReadOnly: operation is "list" or "status"));
+                policyHints: new ToolPolicyHints(
+                    RequiresApproval: operation is "connect" or "execute" or "disconnect",
+                    ReadOnly: operation is "list" or "status"));
             registrations.Add(new ToolRegistration(definition,
                 new ToolRuntimeBinding(new RuntimeBindingId($"{SourceId}:{operation}:{context.Revision}"), id,
                     new Invocation(service, workspace, operation, context.Mode), ToolBindingLeases.AlwaysAvailable, SourceId, context.Revision),
