@@ -1,0 +1,5 @@
+src/bin/
+src/obj/
+native/obj/
+plugin/lib/
+plugin/native/
