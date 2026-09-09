@@ -1,0 +1,6 @@
+interface:
+  display_name: "Unity"
+  short_description: "Inspect and automate a running Unity Editor"
+  icon_small: "../../assets/unity.svg"
+  icon_large: "../../assets/unity.svg"
+  default_prompt: "Inspect or automate the running Unity Editor."

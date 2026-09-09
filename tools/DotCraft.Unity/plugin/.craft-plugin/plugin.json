@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "DotCraft.Unity",
+  "version": "0.1.0",
+  "displayName": "Unity",
+  "description": "Inspect and automate a running Unity Editor.",
+  "capabilities": ["dotnet", "skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Unity",
+    "shortDescription": "Automate Unity Editor",
+    "longDescription": "Inspect and automate a running Unity Editor.",
+    "composerIcon": "./assets/unity.svg",
+    "logo": "./assets/unity.svg"
+  },
+  "dotnet": {
+    "minHostVersion": "0.5.0",
+    "entryAssembly": "./lib/DotCraft.Unity.dll",
+    "entryType": "DotCraft.Unity.Plugin"
+  }
+}
