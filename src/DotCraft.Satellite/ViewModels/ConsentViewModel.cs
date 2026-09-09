@@ -8,7 +8,6 @@ namespace DotCraft.Satellite.ViewModels;
 
 internal sealed partial class ConsentViewModel : ObservableObject
 {
-    private const int MaxPurposeLength = 280;
     private const int MaxNameLength = 120;
 
     private readonly RemoteToolInvite _invite;
@@ -19,9 +18,6 @@ internal sealed partial class ConsentViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool FullAccess { get; set; }
-
-    [ObservableProperty]
-    public partial bool Acknowledged { get; set; }
 
     [ObservableProperty]
     public partial string FolderPath { get; set; } = string.Empty;
@@ -45,8 +41,8 @@ internal sealed partial class ConsentViewModel : ObservableObject
         _accept = accept;
         _strings = strings;
         FolderPath = _defaultFolder;
+        FullAccess = true;
         InviterName = Sanitize(invite.InviterDisplayName, MaxNameLength);
-        Purpose = Sanitize(invite.Purpose, MaxPurposeLength);
         if (IsExpired)
             Warning = strings["consent.warningExpired"];
     }
@@ -55,29 +51,15 @@ internal sealed partial class ConsentViewModel : ObservableObject
 
     public string InviterName { get; }
 
-    public string Purpose { get; }
-
-    public bool HasPurpose => Purpose.Length > 0;
-
     public string WindowTitle => _strings["consent.windowTitle"];
 
     public string Title => _strings.Format("consent.title", InviterName);
 
     public string HubLine => _strings.Format("consent.hub", _invite.HubEndpoint.Authority);
 
-    public string PurposeHeading => _strings["consent.purposeHeading"];
-
     public string FolderHeading => _strings["consent.folderHeading"];
 
     public string ChangeFolderText => _strings["consent.folderChange"];
-
-    public string GrantsHeading => _strings.Format("consent.grantsHeading", InviterName);
-
-    public string GrantFiles => _strings["consent.grantFiles"];
-
-    public string GrantCommands => _strings["consent.grantCommands"];
-
-    public string GrantSignedIn => _strings["consent.grantSignedIn"];
 
     public string AllowText => _strings["consent.allow"];
 
@@ -92,19 +74,43 @@ internal sealed partial class ConsentViewModel : ObservableObject
     public string PreferredDescription => _strings["consent.preferredDescription"];
     public string FullText => _strings["consent.full"];
     public string FullDescription => _strings["consent.fullDescription"];
-    public string AcknowledgementText => _strings["consent.acknowledgement"];
+    public string FullNarration => _strings.Format("consent.fullNarration", FullText, FullDescription);
+    public string PreferredNarration => _strings.Format("consent.preferredNarration", PreferredText, PreferredDescription);
     public bool WorkspacePreferred => !FullAccess;
     public bool CanChangeFolder { get; set; } = true;
-    public bool CanAllow => !IsBusy && !IsExpired && (!FullAccess || Acknowledged)
-        && (FolderPath == _defaultFolder || IsShareableFolder(FolderPath));
+    public bool CanPickFolder => CanChangeFolder && WorkspacePreferred;
+
+    private bool FolderIsUsable => FolderPath == _defaultFolder || IsShareableFolder(FolderPath);
+
+    /// <summary>Full access is not scoped to a folder, so an unusable one must not block it.</summary>
+    private string EffectiveFolder => FolderIsUsable ? FolderPath : _defaultFolder;
+
+    public bool CanAllow => !IsBusy && !IsExpired && (FullAccess || FolderIsUsable);
 
     partial void OnFullAccessChanged(bool value)
     {
-        Acknowledged = false;
         OnPropertyChanged(nameof(WorkspacePreferred));
+        OnPropertyChanged(nameof(CanPickFolder));
+        RefreshWarning();
         OnPropertyChanged(nameof(CanAllow));
     }
-    partial void OnAcknowledgedChanged(bool value) => OnPropertyChanged(nameof(CanAllow));
+
+    [RelayCommand]
+    private void SelectFullAccess() => FullAccess = true;
+
+    /// <summary>
+    /// The picker opens on the unselected to selected transition alone, so clicking the card again,
+    /// or restoring the mode of an existing pairing, never reopens it.
+    /// </summary>
+    [RelayCommand]
+    private async Task SelectWorkspaceModeAsync()
+    {
+        if (!FullAccess)
+            return;
+        FullAccess = false;
+        if (CanChangeFolder)
+            await ChangeFolderAsync();
+    }
 
     [RelayCommand]
     private async Task ChangeFolderAsync()
@@ -122,9 +128,10 @@ internal sealed partial class ConsentViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            await _accept(new RemoteToolJoinDecision(_invite, FolderPath,
+            var folder = EffectiveFolder;
+            await _accept(new RemoteToolJoinDecision(_invite, folder,
                 FullAccess ? RemoteToolAuthorization.FullAccess : RemoteToolAuthorization.WorkspacePreferred,
-                FolderPath == _defaultFolder), CancellationToken.None);
+                folder == _defaultFolder), CancellationToken.None);
             Finished?.Invoke(this, true);
         }
         catch (Exception ex)
@@ -142,12 +149,15 @@ internal sealed partial class ConsentViewModel : ObservableObject
 
     partial void OnFolderPathChanged(string value)
     {
-        if (!IsExpired)
-            Warning = FolderWarning(value);
-        OnPropertyChanged(nameof(HasWarning));
+        RefreshWarning();
         OnPropertyChanged(nameof(CanAllow));
         AllowCommand.NotifyCanExecuteChanged();
     }
+
+    private void RefreshWarning() =>
+        Warning = IsExpired ? _strings["consent.warningExpired"]
+            : FullAccess ? string.Empty
+            : FolderWarning(FolderPath);
 
     private string FolderWarning(string value)
     {

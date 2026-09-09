@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.4.0 |
+| Version | 0.5.0 |
 | Status | Draft |
-| Date | 2026-09-06 |
+| Date | 2026-09-09 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 | Related Specs | [Hub Architecture](hub-architecture.md), [Satellite](../clients/satellite.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
@@ -367,17 +367,16 @@ failed to open the requested data connection.
 ## 9. Pairing, authentication, and local state
 
 Pairing is initiated by the Agent side. `invite` asks the Hub to mint an invite: an opaque,
-single-use invite id with a default validity of 24 hours, an optional display label, an optional
-short purpose, and the invite URL served by the Hub's satellite listener. An invitation never names
+single-use invite id with a default validity of 24 hours, an optional display label, and the
+invite URL served by the Hub's satellite listener. An invitation never names
 a folder: which folder is shared is the invited machine owner's decision, made on that machine. The
 invite id is a bearer secret while it is valid; the Hub stores only its hash, so invites survive a
 Hub restart without a plaintext copy on disk, and the Hub MUST NOT write invite ids to request logs.
-The label and purpose are stored beside that hash and are what the invited machine is shown before
-it decides.
+The label is stored beside that hash and is what the invited machine is shown before it decides.
 
 The invite URL is content-negotiated by the Hub, so the same link serves a person opening it in a
 browser, a client asking for the invitation's details, and the CLI. A client MUST be able to read
-label, purpose, and expiry with a single `GET` of the invite URL that neither consumes the
+the label and expiry with a single `GET` of the invite URL that neither consumes the
 invitation nor writes any state on either machine; only the control-channel handshake below
 consumes it. The variants are specified by [Hub Architecture](hub-architecture.md) §6.1.
 

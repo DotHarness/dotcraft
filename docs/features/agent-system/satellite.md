@@ -6,35 +6,35 @@ Satellite lets your agent use files and run tools on another Windows PC, such as
 
 ## Person inviting: create an invitation
 
-Open **Settings → Connections → Satellites** and choose **Invite**. Describe what you need the PC for, then create and copy the invitation link and send it to the other person.
+Open **Settings → Connections → Satellites** and choose **Invite**. The link is ready as soon as the dialog opens: copy it and send it to the other person.
 
 If Windows asks whether to allow DotCraft through the firewall on your first invitation, allow it on a private network you trust. The shared PC must be able to reach the address in the invitation link.
 
 ## Person sharing: install and open Satellite
 
-Open the invitation link on the PC you want to share, check the inviter and purpose, and choose **Download DotCraft Satellite**. Complete the installation to open **Share this PC**. Satellite installs for your Windows user without requesting administrator access.
+Open the invitation link on the PC you want to share, check who is asking, and choose **Download DotCraft Satellite**. Complete the installation to open **Share this PC**. Satellite installs for your Windows user without requesting administrator access.
 
 If Satellite is already installed, use the invitation page's option to open it.
 
 ## Person sharing: choose an access mode
 
-### Workspace preferred (recommended)
-
-Keep **Workspace preferred** selected and choose **Allow connection** to use the suggested task folder. To use an existing project, choose **Change folder…** beneath this option before allowing the connection.
-
-The agent can read and change files in the task folder. Other file access and local commands need your approval.
-
-![Workspace preferred selected, with the task folder and Change folder button directly beneath it](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-workspace.png)
+Satellite offers two access modes side by side, each stating what it allows. **Full access** is selected when the window opens.
 
 ### Full access
 
-Choose **Full access** only when you trust the other person to operate this PC. Read the warning, select the confirmation checkbox, and choose **Allow connection**. This mode does not show a task folder picker.
+Choose **Allow connection**. Files and commands then run with your Windows permissions without asking each time. Operating system permissions and explicit host restrictions still apply, so choose this mode only when you trust the other person to operate this PC.
 
-Full access allows file access and commands with your Windows permissions without asking each time. Operating system permissions and explicit host restrictions still apply.
+![Full access selected on the left, with Folder only offered beside it](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-full.png)
 
-![Full access selected, showing its warning and confirmation checkbox without a task folder picker](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-full.png)
+### Folder only
 
-Workspace preferred uses approval for additional access; it is not a strict filesystem sandbox. In either mode, **Decline** leaves the PC unpaired and does not create the suggested task folder.
+Choose **Folder only** and Satellite asks you to pick the folder to share. Cancel that picker to use the suggested task folder instead, which is created only when you allow the connection. **Change…** on the card picks a different folder.
+
+The agent can read and change files in that folder. Other file access and local commands need your approval, which is not a strict filesystem sandbox.
+
+![Folder only selected, showing the folder it shares and a Change link](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-workspace.png)
+
+**Decline** leaves the PC unpaired and does not create the suggested task folder.
 
 ## Person inviting: choose where to run
 
@@ -44,7 +44,7 @@ File, Shell, and language tools run on the selected PC. If the PC is offline or 
 
 ## Person sharing: handle additional access
 
-In Workspace preferred mode, Satellite opens an approval window for additional access. Check the inviter, operation, and path or full command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder.
+In Folder only mode, Satellite opens an approval window for additional access. Check the inviter, operation, and path or full command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder.
 
 ![Approval window showing Ann's request to run dotnet build Demo.sln, with Decline and Allow once buttons](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/approve-command.png)
 
@@ -56,6 +56,6 @@ If Desktop is also installed on this PC, open **Settings → Connections → Sha
 
 ![Share this PC showing two paired computers with their access modes and task folders](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/manage-access.png)
 
-Right-click the Satellite tray icon, choose **Manage access**, and select a person to change their access mode. Choose **Pause sharing** to stop sharing and resume it later. Choose **Revoke** and select a person to remove their access.
+Right-click the Satellite tray icon and choose a machine to open its actions: **Manage access** changes its access mode, **Open folder** opens its task folder, **Disconnect** ends its current session, and **Revoke** removes its access. **Pause sharing** stops every machine at once and can be resumed later.
 
 The person inviting can also remove the PC from **Settings → Connections → Satellites**. Sharing again requires a new invitation.

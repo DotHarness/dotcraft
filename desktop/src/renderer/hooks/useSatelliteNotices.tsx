@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Monitor } from 'lucide-react'
 import { translate, type AppLocale } from '../../shared/locales'
 import type { Satellite, SatelliteEvent } from '../../shared/satellites'
 import { useLocale } from '../contexts/LocaleContext'
@@ -41,7 +42,7 @@ function announceArrival(event: SatelliteEvent, locale: AppLocale): void {
     description: translate(locale, 'satellite.toast.joined.description', {
       user: capitalize(satellite?.userName ?? name)
     }),
-    leading: { fallback: name },
+    icon: <Monitor size={16} strokeWidth={2.2} aria-hidden />,
     ...(routable
       ? {
           action: {

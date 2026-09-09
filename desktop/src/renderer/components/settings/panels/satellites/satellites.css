@@ -184,29 +184,11 @@
   box-shadow: var(--shadow-level-3);
 }
 
-.dc-satellite-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.dc-satellite-invite-dialog .dc-satellite-field {
-  margin-bottom: 16px;
-}
-
 .dc-satellite-field__label {
   color: var(--text-primary);
   font-size: var(--type-ui-size);
   font-weight: 600;
   line-height: var(--type-ui-line-height);
-}
-
-.dc-satellite-field__hint {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--type-hint-size);
-  line-height: var(--type-hint-line-height);
 }
 
 .dc-satellite-invite-result {
@@ -227,12 +209,6 @@
   line-height: var(--type-secondary-line-height);
 }
 
-.dc-satellite-invite-note__glyph {
-  display: inline-flex;
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--success);
-}
 
 .dc-satellite-invite-banner {
   margin-bottom: 16px;

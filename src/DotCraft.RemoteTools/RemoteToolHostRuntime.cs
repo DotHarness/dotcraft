@@ -180,7 +180,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         return new RemoteToolInvite(
             segments[1],
             invite.Host,
-            string.Empty,
             new Uri($"{invite.Scheme}://{invite.Authority}"),
             null);
     }
@@ -207,7 +206,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             return parsed with
             {
                 InviterDisplayName = details.InviterDisplayName ?? parsed.InviterDisplayName,
-                Purpose = details.Purpose ?? parsed.Purpose,
                 ExpiresAt = details.ExpiresAt ?? parsed.ExpiresAt
             };
         }
@@ -470,7 +468,6 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
 
     private sealed record InviteDetails(
         string? InviterDisplayName,
-        string? Purpose,
         DateTimeOffset? ExpiresAt);
 
     [GeneratedRegex("[^A-Za-z0-9._-]+", RegexOptions.CultureInvariant)]

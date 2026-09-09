@@ -78,7 +78,6 @@ export function InputWithAction({
           aria-label={actionLabel}
           disabled={isActionDisabled}
           onClick={onAction}
-          style={inlineActionStyle(isActionDisabled)}
         >
           {actionIcon}
         </button>
@@ -109,21 +108,3 @@ function innerInputStyle(): CSSProperties {
   }
 }
 
-function inlineActionStyle(disabled: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '34px',
-    minWidth: '34px',
-    border: 'none',
-    borderLeft: '1px solid var(--border-default)',
-    background: 'transparent',
-    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.65 : 1,
-    padding: 0,
-    transition: 'background-color 120ms ease, color 120ms ease',
-    outline: 'none'
-  }
-}

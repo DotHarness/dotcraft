@@ -18,7 +18,11 @@
                     <Color x:Key="SystemAccentColorDark2">#354F9F</Color>
                     <Color x:Key="SystemAccentColorDark3">#2C4387</Color>
                     <SolidColorBrush x:Key="SatelliteSurfaceBrush" Color="#0C0C0C" />
-                    <SolidColorBrush x:Key="SatelliteQuoteBrush" Color="#1D1F22" />
+                    <SolidColorBrush x:Key="SatelliteCardBrush" Color="#1A1B1D" />
+                    <SolidColorBrush x:Key="SatelliteCardPointerOverBrush" Color="#212326" />
+                    <SolidColorBrush x:Key="SatelliteCardBorderBrush" Color="#1AEEEEEC" />
+                    <SolidColorBrush x:Key="SatelliteCardBorderPointerOverBrush" Color="#2EEEEEEC" />
+                    <SolidColorBrush x:Key="SatelliteCardSelectedFillBrush" Color="#14718DE0" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <Color x:Key="SystemAccentColor">#4566CC</Color>
@@ -29,7 +33,11 @@
                     <Color x:Key="SystemAccentColorDark2">#354F9F</Color>
                     <Color x:Key="SystemAccentColorDark3">#2C4387</Color>
                     <SolidColorBrush x:Key="SatelliteSurfaceBrush" Color="#F9F9F9" />
-                    <SolidColorBrush x:Key="SatelliteQuoteBrush" Color="#EBECEF" />
+                    <SolidColorBrush x:Key="SatelliteCardBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="SatelliteCardPointerOverBrush" Color="#F4F5F7" />
+                    <SolidColorBrush x:Key="SatelliteCardBorderBrush" Color="#141A1C1F" />
+                    <SolidColorBrush x:Key="SatelliteCardBorderPointerOverBrush" Color="#1F1A1C1F" />
+                    <SolidColorBrush x:Key="SatelliteCardSelectedFillBrush" Color="#143E5BB8" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
             <Style x:Key="ConsentTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
@@ -46,6 +54,144 @@
             </Style>
             <Style x:Key="ConsentHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource ConsentBodyStyle}">
                 <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="ConsentCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource ConsentBodyStyle}">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="ConsentModeCardStyle" TargetType="RadioButton">
+                <Setter Property="Background" Value="{ThemeResource SatelliteCardBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource SatelliteCardBorderBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Setter Property="Padding" Value="14,12,14,12" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Top" />
+                <Setter Property="FontFamily" Value="{ThemeResource ContentControlThemeFontFamily}" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="FocusVisualMargin" Value="-2" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Grid x:Name="RootGrid" CornerRadius="{TemplateBinding CornerRadius}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="CardBorder" Storyboard.TargetProperty="Background">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource SatelliteCardPointerOverBrush}" />
+                                                </ObjectAnimationUsingKeyFrames>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="CardBorder" Storyboard.TargetProperty="BorderBrush">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource SatelliteCardBorderPointerOverBrush}" />
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="CardBorder" Storyboard.TargetProperty="Background">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource SatelliteCardPointerOverBrush}" />
+                                                </ObjectAnimationUsingKeyFrames>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="CardBorder" Storyboard.TargetProperty="BorderBrush">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" To="0.45" Duration="0" />
+                                            </Storyboard>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                    <VisualStateGroup x:Name="CheckStates">
+                                        <VisualState x:Name="Checked">
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="SelectionRing" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" />
+                                                <DoubleAnimation Storyboard.TargetName="IndicatorRing" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" />
+                                                <DoubleAnimation Storyboard.TargetName="IndicatorScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.15" />
+                                                <DoubleAnimation Storyboard.TargetName="IndicatorScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.15" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Unchecked">
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="SelectionRing" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12" />
+                                                <DoubleAnimation Storyboard.TargetName="IndicatorRing" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12" />
+                                                <DoubleAnimation Storyboard.TargetName="IndicatorScale" Storyboard.TargetProperty="ScaleX" To="0" Duration="0:0:0.15" />
+                                                <DoubleAnimation Storyboard.TargetName="IndicatorScale" Storyboard.TargetProperty="ScaleY" To="0" Duration="0:0:0.15" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Indeterminate" />
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+
+                                <Border
+                                    x:Name="CardBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{TemplateBinding CornerRadius}">
+                                    <Border.BackgroundTransition>
+                                        <BrushTransition Duration="0:0:0.12" />
+                                    </Border.BackgroundTransition>
+                                </Border>
+
+                                <Border
+                                    x:Name="SelectionRing"
+                                    Background="{ThemeResource SatelliteCardSelectedFillBrush}"
+                                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                    BorderThickness="1.5"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    IsHitTestVisible="False"
+                                    Opacity="0"
+                                    UseLayoutRounding="False" />
+
+                                <Grid ColumnSpacing="12" Padding="{TemplateBinding Padding}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Width="16" Height="16" Margin="0,2,0,0" VerticalAlignment="Top">
+                                        <Ellipse
+                                            Width="16"
+                                            Height="16"
+                                            Stroke="{ThemeResource SatelliteCardBorderPointerOverBrush}"
+                                            StrokeThickness="1.5"
+                                            UseLayoutRounding="False" />
+                                        <Ellipse
+                                            x:Name="IndicatorRing"
+                                            Width="16"
+                                            Height="16"
+                                            Opacity="0"
+                                            Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                                            StrokeThickness="1.5"
+                                            UseLayoutRounding="False" />
+                                        <Ellipse
+                                            Width="8"
+                                            Height="8"
+                                            Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                            RenderTransformOrigin="0.5,0.5"
+                                            UseLayoutRounding="False">
+                                            <Ellipse.RenderTransform>
+                                                <ScaleTransform x:Name="IndicatorScale" ScaleX="0" ScaleY="0" />
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                    </Grid>
+                                    <ContentPresenter
+                                        Grid.Column="1"
+                                        AutomationProperties.AccessibilityView="Raw"
+                                        Content="{TemplateBinding Content}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                </Grid>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

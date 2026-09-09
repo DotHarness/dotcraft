@@ -1588,13 +1588,8 @@ const api = {
     list(): Promise<SatelliteListResult> {
       return ipcRenderer.invoke('satellites:list')
     },
-    createInvite(input?: {
-      name?: string
-      host?: string
-      purpose?: string
-      ttlHours?: number
-    }): Promise<SatelliteInvite> {
-      return ipcRenderer.invoke('satellites:create-invite', input ?? {})
+    createInvite(): Promise<SatelliteInvite> {
+      return ipcRenderer.invoke('satellites:create-invite')
     },
     revoke(peerId: string): Promise<{ ok: boolean }> {
       return ipcRenderer.invoke('satellites:revoke', { peerId })

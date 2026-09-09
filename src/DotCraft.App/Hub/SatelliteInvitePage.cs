@@ -22,7 +22,6 @@ internal static class SatelliteInvitePage
         string hubEndpoint) => new(
         inviteId,
         invite.Label,
-        invite.Purpose ?? string.Empty,
         invite.ExpiresAt,
         hubEndpoint);
 
@@ -42,8 +41,6 @@ internal static class SatelliteInvitePage
         builder.Append("<p class=\"lead\">DotCraft Satellite runs in the tray of this PC and lets that ")
             .Append("person's agent read and change files in one folder you choose, and run commands here. ")
             .Append("You approve the folder first, and you can stop sharing at any time.</p>");
-        if (details.Purpose.Length > 0)
-            builder.Append("<p class=\"purpose\">“").Append(Escape(details.Purpose)).Append("”</p>");
         builder.Append("<div class=\"actions\"><a class=\"primary\" href=\"").Append(InstallerPath)
             .Append("\">Download DotCraft Satellite</a>");
         builder.Append("<a class=\"secondary\" href=\"").Append(Escape(deepLink))
@@ -76,8 +73,6 @@ internal static class SatelliteInvitePage
         main{max-width:520px;padding:40px 32px}
         h1{margin:0 0 16px;font-size:24px;line-height:1.25;font-weight:650}
         .lead{margin:0 0 20px;color:#55585e}
-        .purpose{margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#ebecef;
-        white-space:pre-wrap;overflow-wrap:anywhere}
         .actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
         a{display:inline-block;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600}
         .primary{background:#1a1c1f;color:#fff}
@@ -86,7 +81,6 @@ internal static class SatelliteInvitePage
         @media (prefers-color-scheme:dark){
         body{background:#111214;color:#f1f1f2}
         .lead,.hint,.expiry{color:#a0a3a9}
-        .purpose{background:#1d1f22}
         .primary{background:#f1f1f2;color:#1a1c1f}
         .secondary{color:#f1f1f2;box-shadow:inset 0 0 0 1px #3a3d42}}
         """;
@@ -95,6 +89,5 @@ internal static class SatelliteInvitePage
 internal sealed record SatelliteInviteDetails(
     string InviteId,
     string InviterDisplayName,
-    string Purpose,
     DateTimeOffset ExpiresAt,
     string HubEndpoint);

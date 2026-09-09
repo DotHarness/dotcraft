@@ -161,7 +161,7 @@ export function ToastCard({
             {toast.leading ? (
               <IdentityMark role="compact" size={20} src={toast.leading.src} fallback={toast.leading.fallback} />
             ) : (
-              <ToastIcon type={toast.type} />
+              toast.icon ?? <ToastIcon type={toast.type} />
             )}
           </span>
           <div className="dc-toast__body">

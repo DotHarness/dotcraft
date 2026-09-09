@@ -13,9 +13,7 @@ const createInvite = vi.fn()
 const onEvent = vi.fn()
 const writeText = vi.fn()
 
-const CREATED_NOTE =
-  'Link ready. It works once and expires in 24 hours — send it only to the person you meant.'
-const COPIED_NOTE = 'Copied. The link works once and expires in 24 hours.'
+const TERMS_NOTE = 'Works once. Expires in 24 hours.'
 
 const LIVE: SatelliteInvite = {
   inviteId: 'i1',
@@ -43,6 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   writeText.mockResolvedValue(undefined)
   onEvent.mockReturnValue(() => undefined)
+  createInvite.mockResolvedValue(LIVE)
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
   installDesktopApiMock({
     initialLocale: 'en',
@@ -91,15 +90,12 @@ async function openFromHeader(satellites: Satellite[] = [MACHINE]): Promise<HTML
 }
 
 describe('SatelliteInviteDialog', () => {
-  it('opens from the header action and mints a link from the optional purpose', async () => {
-    createInvite.mockResolvedValue(LIVE)
+  it('opens from the header action and mints a link with nothing to fill in', async () => {
     await openFromHeader()
 
-    fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'perf run' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
-
-    await waitFor(() => expect(createInvite).toHaveBeenCalledWith({ purpose: 'perf run' }))
+    await waitFor(() => expect(createInvite).toHaveBeenCalledWith())
     expect(await screen.findByLabelText('Invite link')).toHaveValue(LIVE.url)
+    expect(screen.queryByLabelText('Purpose')).not.toBeInTheDocument()
   })
 
   it('opens from the empty state call to action', async () => {
@@ -107,44 +103,44 @@ describe('SatelliteInviteDialog', () => {
     press(await screen.findByRole('button', { name: 'Invite a machine' }))
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create invite link' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Invite link')).toHaveValue(LIVE.url)
   })
 
-  it('sends nothing for fields the user left alone', async () => {
-    createInvite.mockResolvedValue(LIVE)
+  it('mints exactly one link per opening', async () => {
     await openFromHeader()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
-    await waitFor(() => expect(createInvite).toHaveBeenCalledWith({}))
+    expect(await screen.findByLabelText('Invite link')).toBeInTheDocument()
+    expect(createInvite).toHaveBeenCalledTimes(1)
   })
 
-  it('holds every feedback line back until the link exists, then swaps it on copy', async () => {
-    createInvite.mockResolvedValue(LIVE)
+  it('states the link terms once it exists and keeps them through a copy', async () => {
+    let settle: (invite: SatelliteInvite) => void = () => undefined
+    createInvite.mockReturnValue(new Promise<SatelliteInvite>((resolve) => (settle = resolve)))
     await openFromHeader()
 
-    expect(screen.queryByText(CREATED_NOTE)).not.toBeInTheDocument()
-    expect(screen.queryByText(COPIED_NOTE)).not.toBeInTheDocument()
+    expect(await screen.findByLabelText('Creating the link…')).toBeInTheDocument()
+    expect(screen.queryByText(TERMS_NOTE)).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
-    expect(await screen.findByText(CREATED_NOTE)).toBeInTheDocument()
-    expect(screen.queryByText(COPIED_NOTE)).not.toBeInTheDocument()
+    await act(async () => settle(LIVE))
+    expect(await screen.findByText(TERMS_NOTE)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(writeText).toHaveBeenCalledWith(LIVE.url)
-    expect(await screen.findByText(COPIED_NOTE)).toBeInTheDocument()
-    expect(screen.queryByText(CREATED_NOTE)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+
+    // The action reports the copy; the note keeps stating the terms.
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull()
+    expect(screen.getByText(TERMS_NOTE)).toBeInTheDocument()
   })
 
-  it('puts the form back for another invitation', async () => {
+  it('mints a second link for another invitation', async () => {
     useSatellitesStore.setState({ invite: LIVE })
     await openFromHeader()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create another' }))
-    expect(screen.getByRole('button', { name: 'Create invite link' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Invite link')).not.toBeInTheDocument()
-    expect(screen.queryByText(CREATED_NOTE)).not.toBeInTheDocument()
+
+    await waitFor(() => expect(createInvite).toHaveBeenCalledTimes(1))
+    expect(await screen.findByLabelText('Invite link')).toHaveValue(LIVE.url)
   })
 
   it('closes on Done and gives the focus back to the Invite button', async () => {
@@ -156,15 +152,15 @@ describe('SatelliteInviteDialog', () => {
     expect(document.activeElement).toBe(opener)
   })
 
-  it('shows the kept link again instead of a blank form', async () => {
+  it('shows the kept link again instead of minting a second one', async () => {
     useSatellitesStore.setState({ invite: LIVE })
     await openFromHeader()
 
     expect(screen.getByLabelText('Invite link')).toHaveValue(LIVE.url)
-    expect(screen.queryByLabelText('Purpose')).not.toBeInTheDocument()
+    expect(createInvite).not.toHaveBeenCalled()
   })
 
-  it('shows the creation form after the kept link is consumed', async () => {
+  it('mints again after the kept link is consumed', async () => {
     useSatellitesStore.setState({ invite: LIVE })
     await openFromHeader()
 
@@ -180,35 +176,35 @@ describe('SatelliteInviteDialog', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Invite' }))
 
-    expect(await screen.findByRole('button', { name: 'Create invite link' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Invite link')).not.toBeInTheDocument()
+    await waitFor(() => expect(createInvite).toHaveBeenCalledTimes(1))
   })
 
   it('offers a new link once the kept invitation has expired', async () => {
-    createInvite.mockResolvedValue(LIVE)
     useSatellitesStore.setState({ invite: EXPIRED })
     await openFromHeader()
 
     expect(screen.getByText('This link has expired.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Copy link' })).not.toBeInTheDocument()
+    expect(createInvite).not.toHaveBeenCalled()
+
     fireEvent.click(screen.getByRole('button', { name: 'New link' }))
 
     await waitFor(() => expect(createInvite).toHaveBeenCalled())
-    expect(await screen.findByText(CREATED_NOTE)).toBeInTheDocument()
+    expect(await screen.findByText(TERMS_NOTE)).toBeInTheDocument()
   })
 
   it('reports a Hub failure in a banner with no dismiss control', async () => {
     createInvite.mockRejectedValue(new Error('hub said no'))
     await openFromHeader()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
     expect(await screen.findByText('Couldn’t create an invite link. Try again.')).toBeInTheDocument()
     expect(screen.getByText('hub said no')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /dismiss/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create invite link' })).toBeInTheDocument()
   })
 
-  it('closes on Escape', async () => {
+  it('closes on Escape while the link is still being minted', async () => {
+    createInvite.mockReturnValue(new Promise<SatelliteInvite>(() => undefined))
     await openFromHeader()
 
     fireEvent.keyDown(document, { key: 'Escape' })

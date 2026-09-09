@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { create } from 'zustand'
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error'
@@ -25,6 +26,8 @@ export interface Toast {
   markdown?: boolean
   action?: ToastAction
   leading?: ToastLeading
+  /** Glyph for a subject that has no identity mark of its own, such as a machine. */
+  icon?: ReactNode
   /** Fired once if the toast goes without the action being taken: timeout, close, or replacement. */
   onExpire?: () => void
 }
@@ -120,6 +123,7 @@ export interface ShowToastOptions {
   markdown?: boolean
   action?: ToastAction
   leading?: ToastLeading
+  icon?: ReactNode
   onExpire?: () => void
 }
 
@@ -143,6 +147,7 @@ export const showToast = (options: ShowToastOptions): string =>
     ...(options.markdown ? { markdown: true } : {}),
     ...(options.action ? { action: options.action } : {}),
     ...(options.leading ? { leading: options.leading } : {}),
+    ...(options.icon ? { icon: options.icon } : {}),
     ...(options.onExpire ? { onExpire: options.onExpire } : {})
   })
 

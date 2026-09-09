@@ -17,48 +17,69 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16">
-                <StackPanel Spacing="6" Visibility="{x:Bind ViewModel.HasPurpose}">
-                    <TextBlock Style="{StaticResource ConsentHeadingStyle}" Text="{x:Bind ViewModel.PurposeHeading}" />
-                    <Border
-                        Background="{ThemeResource SatelliteQuoteBrush}"
-                        CornerRadius="8"
-                        Padding="12,10">
-                        <TextBlock
-                            IsTextSelectionEnabled="True"
-                            Style="{StaticResource ConsentBodyStyle}"
-                            Text="{x:Bind ViewModel.Purpose}" />
-                    </Border>
-                </StackPanel>
-
                 <StackPanel Spacing="8">
-                    <TextBlock Style="{StaticResource ConsentHeadingStyle}" Text="{x:Bind ViewModel.ModeHeading}" />
-                    <RadioButton GroupName="Mode" IsChecked="{x:Bind ViewModel.WorkspacePreferred, Mode=OneWay}" Checked="PreferredChecked" Content="{x:Bind ViewModel.PreferredText}" />
-                    <TextBlock Style="{StaticResource ConsentBodyStyle}" Text="{x:Bind ViewModel.PreferredDescription}" Visibility="{x:Bind ViewModel.WorkspacePreferred, Mode=OneWay}" />
-                    <StackPanel Spacing="6" Margin="28,0,0,8" Visibility="{x:Bind ViewModel.WorkspacePreferred, Mode=OneWay}">
-                        <TextBlock Style="{StaticResource ConsentHeadingStyle}" Text="{x:Bind ViewModel.FolderHeading}" />
-                        <Grid ColumnSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox
-                                Grid.Column="0"
-                                IsReadOnly="True"
-                                Text="{x:Bind ViewModel.FolderPath, Mode=OneWay}" />
-                            <Button
-                                Grid.Column="1"
-                                IsEnabled="{x:Bind ViewModel.CanChangeFolder}"
-                                Command="{x:Bind ViewModel.ChangeFolderCommand}"
-                                Content="{x:Bind ViewModel.ChangeFolderText}" />
-                        </Grid>
-                    </StackPanel>
+                    <TextBlock
+                        AutomationProperties.HeadingLevel="Level3"
+                        Style="{StaticResource ConsentHeadingStyle}"
+                        Text="{x:Bind ViewModel.ModeHeading}" />
 
-                    <RadioButton GroupName="Mode" IsChecked="{x:Bind ViewModel.FullAccess, Mode=TwoWay}" Content="{x:Bind ViewModel.FullText}" />
-                    <controls:InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.FullAccess, Mode=OneWay}"
-                        Message="{x:Bind ViewModel.FullDescription}" Severity="Warning" />
-                    <CheckBox Visibility="{x:Bind ViewModel.FullAccess, Mode=OneWay}" IsChecked="{x:Bind ViewModel.Acknowledged, Mode=TwoWay}">
-                        <TextBlock TextWrapping="Wrap" Text="{x:Bind ViewModel.AcknowledgementText}" />
-                    </CheckBox>
+                    <Grid
+                        AutomationProperties.AccessibilityView="Control"
+                        AutomationProperties.Name="{x:Bind ViewModel.ModeHeading}"
+                        ColumnSpacing="12"
+                        XYFocusKeyboardNavigation="Enabled">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <RadioButton
+                            Grid.Column="0"
+                            AutomationProperties.Name="{x:Bind ViewModel.FullNarration}"
+                            AutomationProperties.PositionInSet="1"
+                            AutomationProperties.SizeOfSet="2"
+                            Checked="FullAccessCardChecked"
+                            GroupName="Mode"
+                            IsChecked="{x:Bind ViewModel.FullAccess, Mode=OneWay}"
+                            Style="{StaticResource ConsentModeCardStyle}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Style="{StaticResource ConsentHeadingStyle}" Text="{x:Bind ViewModel.FullText}" />
+                                <TextBlock Style="{StaticResource ConsentCaptionStyle}" Text="{x:Bind ViewModel.FullDescription}" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton
+                            Grid.Column="1"
+                            AutomationProperties.Name="{x:Bind ViewModel.PreferredNarration}"
+                            AutomationProperties.PositionInSet="2"
+                            AutomationProperties.SizeOfSet="2"
+                            Checked="WorkspaceCardChecked"
+                            GroupName="Mode"
+                            IsChecked="{x:Bind ViewModel.WorkspacePreferred, Mode=OneWay}"
+                            Style="{StaticResource ConsentModeCardStyle}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Style="{StaticResource ConsentHeadingStyle}" Text="{x:Bind ViewModel.PreferredText}" />
+                                <TextBlock Style="{StaticResource ConsentCaptionStyle}" Text="{x:Bind ViewModel.PreferredDescription}" />
+                                <StackPanel Margin="0,6,0,0" Spacing="2">
+                                    <TextBlock Style="{StaticResource ConsentCaptionStyle}" Text="{x:Bind ViewModel.FolderHeading}" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                        MaxLines="2"
+                                        Style="{StaticResource ConsentCaptionStyle}"
+                                        Text="{x:Bind ViewModel.FolderPath, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTipService.ToolTip="{x:Bind ViewModel.FolderPath, Mode=OneWay}" />
+                                    <HyperlinkButton
+                                        Command="{x:Bind ViewModel.ChangeFolderCommand}"
+                                        Content="{x:Bind ViewModel.ChangeFolderText}"
+                                        IsEnabled="{x:Bind ViewModel.CanPickFolder, Mode=OneWay}"
+                                        MinHeight="0"
+                                        MinWidth="0"
+                                        Padding="0,2,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </RadioButton>
+                    </Grid>
                 </StackPanel>
 
                 <controls:InfoBar

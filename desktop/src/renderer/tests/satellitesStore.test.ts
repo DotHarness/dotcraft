@@ -167,13 +167,13 @@ describe('satellitesStore', () => {
       url: 'http://ann-pc:47600/i/inv_x1y2',
       expiresAt: '2026-09-06T10:00:00.000Z'
     })
-    await useSatellitesStore.getState().createInvite({ purpose: 'perf run' })
-    expect(createInvite).toHaveBeenCalledWith({ purpose: 'perf run' })
+    await useSatellitesStore.getState().createInvite()
+    expect(createInvite).toHaveBeenCalledWith()
     expect(useSatellitesStore.getState().invite?.inviteId).toBe('i1')
 
     createInvite.mockRejectedValue(new Error('hub said no'))
     useSatellitesStore.getState().clearInvite()
-    await useSatellitesStore.getState().createInvite({})
+    await useSatellitesStore.getState().createInvite()
     expect(useSatellitesStore.getState().invite).toBeNull()
     expect(useSatellitesStore.getState().inviteError).toBe('hub said no')
   })

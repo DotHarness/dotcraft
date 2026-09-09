@@ -175,7 +175,7 @@ describe('satellites:list', () => {
 })
 
 describe('satellites:create-invite', () => {
-  it('forwards the purpose and returns only invitation fields, never a Hub secret', async () => {
+  it('mints with no arguments and returns only invitation fields, never a Hub secret', async () => {
     const app = harness()
     app.hub.createSatelliteInvite.mockResolvedValue({
       inviteId: 'inv_1',
@@ -185,31 +185,11 @@ describe('satellites:create-invite', () => {
       credentialReference: 'DotCraft/RemoteToolHost/peer/sat_1'
     })
 
-    const invite = await app.invoke<Record<string, unknown>>('satellites:create-invite', {
-      name: '  Ann PC  ',
-      purpose: 'Render check',
-      ttlHours: 12.7
-    })
+    const invite = await app.invoke<Record<string, unknown>>('satellites:create-invite')
 
-    expect(Object.keys(invite).sort()).toEqual(['expiresAt', 'inviteId', 'purpose', 'url'])
+    expect(Object.keys(invite).sort()).toEqual(['expiresAt', 'inviteId', 'url'])
     expect(JSON.stringify(invite)).not.toContain(HUB_TOKEN)
-    expect(app.hub.createSatelliteInvite).toHaveBeenCalledWith({
-      name: 'Ann PC',
-      purpose: 'Render check',
-      ttlHours: 12
-    })
-  })
-
-  it('omits the purpose entirely when none was written', async () => {
-    const app = harness()
-
-    const invite = await app.invoke<Record<string, unknown>>('satellites:create-invite', {
-      name: 'Ann PC',
-      purpose: '   '
-    })
-
-    expect(app.hub.createSatelliteInvite).toHaveBeenCalledWith({ name: 'Ann PC' })
-    expect(invite.purpose).toBeUndefined()
+    expect(app.hub.createSatelliteInvite).toHaveBeenCalledWith({})
   })
 
   it('remembers only the invitation id and expiry, replacing any same-id entry', async () => {

@@ -41,7 +41,7 @@ interface SatellitesState {
 interface SatellitesStore extends SatellitesState {
   load(): Promise<void>
   select(peerId: string | null): void
-  createInvite(input: { purpose?: string }): Promise<SatelliteInvite | null>
+  createInvite(): Promise<SatelliteInvite | null>
   clearInvite(): void
   revoke(peerId: string): Promise<boolean>
   loadActivity(peerId: string): Promise<void>
@@ -147,10 +147,10 @@ export const useSatellitesStore = create<SatellitesStore>((set, get) => ({
     set({ selectedPeerId: peerId })
   },
 
-  async createInvite(input) {
+  async createInvite() {
     set({ creatingInvite: true, inviteError: null })
     try {
-      const invite = await window.api.satellites.createInvite(input)
+      const invite = await window.api.satellites.createInvite()
       set({ invite, creatingInvite: false })
       return invite
     } catch (error) {

@@ -44,7 +44,6 @@ internal static class HubSatelliteApi
                 var label = string.IsNullOrWhiteSpace(body.Name) ? Environment.MachineName : body.Name.Trim();
                 var (inviteId, expiresAt) = satellites.Registry.CreateInvite(
                     label,
-                    string.IsNullOrWhiteSpace(body.Purpose) ? null : body.Purpose.Trim(),
                     TimeSpan.FromHours(ttlHours));
                 var host = string.IsNullOrWhiteSpace(body.Host) ? ResolveAdvertisedHost() : body.Host.Trim();
                 var url = $"http://{host}:{port}{SatelliteWire.InvitePathPrefix}{inviteId}";

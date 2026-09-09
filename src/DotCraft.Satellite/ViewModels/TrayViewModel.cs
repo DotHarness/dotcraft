@@ -132,9 +132,8 @@ internal sealed class TrayViewModel(
     {
         switch (item.Command)
         {
-            case TrayMenuCommand.Disconnect:
-                foreach (var peer in connection.Runtime.Peers.Where(peer => peer.ConnectedSince is not null))
-                    await connection.Runtime.DisconnectAsync(peer.PeerId);
+            case TrayMenuCommand.Disconnect when item.PeerId is { Length: > 0 } disconnected:
+                await connection.Runtime.DisconnectAsync(disconnected);
                 break;
             case TrayMenuCommand.PauseSharing:
                 await connection.SetPausedAsync(paused: true);
@@ -148,8 +147,8 @@ internal sealed class TrayViewModel(
             case TrayMenuCommand.ManageAccess when item.PeerId is { } managedPeer:
                 ShowAccess(managedPeer);
                 break;
-            case TrayMenuCommand.OpenFolder:
-                OpenFolder();
+            case TrayMenuCommand.OpenFolder when item.PeerId is { Length: > 0 } opened:
+                OpenFolder(opened);
                 break;
             case TrayMenuCommand.PasteInvite:
                 await PasteInviteAsync();
@@ -168,7 +167,7 @@ internal sealed class TrayViewModel(
     {
         var peer = connection.Runtime.Peers.FirstOrDefault(item => item.PeerId == peerId);
         if (peer is null) return;
-        var invite = new RemoteToolInvite("", peer.DisplayName, "", new Uri("http://localhost"), null);
+        var invite = new RemoteToolInvite("", peer.DisplayName, new Uri("http://localhost"), null);
         var model = new ConsentViewModel(invite, new WindowFolderPicker(() => 0), async (decision, ct) =>
         {
             await connection.Runtime.SetAuthorizationAsync(peerId, decision.AuthorizationMode);
@@ -179,12 +178,11 @@ internal sealed class TrayViewModel(
         _consent.Activate();
     }
 
-    private void OpenFolder()
+    private void OpenFolder(string peerId)
     {
         var folder = connection.Runtime.Peers
-            .Select(peer => peer.WorkspacePath)
-            .FirstOrDefault(path => !string.IsNullOrEmpty(path) && Directory.Exists(path));
-        if (folder is null)
+            .FirstOrDefault(peer => peer.PeerId == peerId)?.WorkspacePath;
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
             return;
         using var process = Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
     }

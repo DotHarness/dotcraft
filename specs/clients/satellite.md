@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.2.0 |
+| Version | 0.3.0 |
 | Status | Draft |
-| Date | 2026-09-06 |
+| Date | 2026-09-09 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Desktop Client](desktop-client.md) |
 
@@ -32,8 +32,10 @@ CLI-driven Remote Tool Host.
 - A per-user Windows application: one process, one tray icon, no administrator rights, no Windows
   service.
 - A consent window shown for every invitation before any credential is stored.
-- A tray icon with four states and a menu that shows who is connected, what is running, and offers
-  disconnect, pause, revoke, open folder, paste invite link, and quit.
+- A tray icon with four states and a menu that shows who is connected, what is running, and gives
+  every paired machine one submenu of the actions that name it — open its task folder, manage its
+  access, disconnect it, revoke it. Only what does not name a machine stays at the top level: pause
+  or resume sharing, paste an invitation link, and quit.
 - Operating-system notifications when a peer connects or disconnects.
 - Login autostart, single-instance behavior, and handling of the `dotcraft://satellite/join` link.
 - A per-user installer with an update channel.
@@ -73,13 +75,24 @@ short probe, the CLI pairs directly.
 
 ## Consent
 
-Satellite MUST show inviter, Hub and purpose before storing credentials. Consent offers
-`workspacePreferred` (default) and `fullAccess`. The default allows ordinary task-folder file
-operations and asks the local owner before external files, new commands, nonempty terminal input
-and language-server execution. This is approval-based, not an OS sandbox. Full access requires
-explicit acknowledgement and remains subject to Windows permissions and Host deny policy.
-A new per-pairing task folder is suggested and created only on acceptance. The owner may choose
-an existing folder instead. Whole drives and user profiles remain invalid.
+Satellite MUST show inviter and Hub before storing credentials. Consent offers `fullAccess`
+(default) and `workspacePreferred` as two side-by-side cards, the default first, each stating its
+consequences in copy that is visible whether or not that card is selected. `workspacePreferred`
+allows ordinary task-folder file operations and asks the local owner before external files, new
+commands, nonempty terminal input and language-server execution. This is approval-based, not an
+OS sandbox. Full access remains subject to Windows permissions and Host deny policy.
+
+Full access is the default because lending a whole machine is the ordinary case, and it carries
+no separate acknowledgement step. Its risk is stated by copy the owner has already read rather
+than by an extra click, so the common path is: open the window, choose Allow.
+
+Selecting the workspace card MUST open the folder picker on that transition alone, so choosing a
+folder never requires typing a path. Selecting an already-selected card MUST NOT reopen it; a
+distinct change action does. Cancelling the picker keeps the card selected and keeps the
+suggested folder. A new per-pairing task folder is suggested and created only on acceptance. The
+owner may choose an existing folder instead. Whole drives and user profiles remain invalid. An
+unusable folder MUST NOT block full access, which is not scoped to a folder. Reauthorizing an
+existing pairing MUST NOT open the picker.
 
 Owner requests show the inviter and exact operation, offer Allow once or Deny, queue serially,
 and expire after two minutes. Cancellation, disconnect, pause, revoke and authorization changes
@@ -89,11 +102,11 @@ Existing pairings with no mode require local reauthorization. The tray exposes m
 authorization management. Mode changes drain execution resources before changing authorization.
 
 Parsing an invitation link MUST be a pure operation. Filling the window costs exactly one `GET` of
-the invitation URL, which reads the inviter, purpose, and expiry and writes nothing on either
+the invitation URL, which reads the inviter and expiry and writes nothing on either
 machine; a failed or unanswered fetch MUST still show the window with whatever the link itself
 carries. Nothing is stored and no pairing exists until the owner chooses Allow. Decline leaves no
-trace beyond an audit entry. Purpose and inviter name are attacker-influenced text: they MUST be
-rendered as plain text and MUST be length-capped.
+trace beyond an audit entry. The inviter name is attacker-influenced text: it MUST be rendered
+as plain text and MUST be length-capped.
 
 The consent window uses a standard title bar and the DotCraft accent color regardless of the
 operating-system accent, so a security prompt looks the same on every machine.
@@ -121,7 +134,7 @@ disconnects. Notifications MUST NOT include command output, file contents, or an
 ## Invitation link
 
 The invitation URL served by the Hub is `http://<hub-host>:<port>/i/<inviteId>`. Opened in a
-browser it is the whole install path: the page names the inviter and the purpose, offers the
+browser it is the whole install path: the page names the inviter, offers the
 Satellite installer from the same Hub, and repeatedly attempts to open the equivalent deep link
 `dotcraft://satellite/join?invite=<url-encoded invitation URL>`, so the consent window appears as
 soon as Satellite exists on the machine. Satellite MUST accept both forms

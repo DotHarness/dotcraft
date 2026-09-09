@@ -96,21 +96,11 @@ export function registerSatellitesHandlers(deps: SatellitesIpcDeps): void {
     return { supported: true, satellites: [], error: messageOf(listing.reason) }
   })
 
-  handleSafe('satellites:create-invite', async (_event, input): Promise<SatelliteInvite> => {
-    const raw = asObject(input)
-    const ttlHours = typeof raw.ttlHours === 'number' && Number.isFinite(raw.ttlHours)
-      ? Math.trunc(raw.ttlHours)
-      : undefined
-    const purpose = optionalText(raw.purpose)
-    const minted = await deps.getHubClient().createSatelliteInvite({
-      ...(optionalText(raw.name) ? { name: optionalText(raw.name) as string } : {}),
-      ...(optionalText(raw.host) ? { host: optionalText(raw.host) as string } : {}),
-      ...(purpose ? { purpose } : {}),
-      ...(ttlHours != null ? { ttlHours } : {})
-    })
+  handleSafe('satellites:create-invite', async (): Promise<SatelliteInvite> => {
+    const minted = await deps.getHubClient().createSatelliteInvite({})
 
     // Only the invitation's own fields cross to the renderer; the Hub token never does.
-    const invite = normalizeSatelliteInvite(minted, purpose)
+    const invite = normalizeSatelliteInvite(minted)
     if (!invite) throw new Error('Hub returned an unusable invitation.')
     await rememberInvite(deps, invite)
     return invite

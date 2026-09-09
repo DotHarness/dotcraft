@@ -18,11 +18,32 @@
   opacity: 0.7;
 }
 
-.dc-input-with-action > button:hover:not(:disabled) {
+.dc-input-with-action button {
+  display: inline-flex;
+  width: 34px;
+  min-width: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dc-input-with-action button:disabled {
+  color: var(--text-dimmed);
+  cursor: default;
+  opacity: 0.65;
+}
+
+.dc-input-with-action button:hover:not(:disabled) {
   background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
-.dc-input-with-action > button:active:not(:disabled) {
+.dc-input-with-action button:active:not(:disabled) {
   background: var(--bg-active);
 }

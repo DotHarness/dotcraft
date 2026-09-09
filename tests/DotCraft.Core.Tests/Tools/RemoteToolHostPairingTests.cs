@@ -23,7 +23,6 @@ public sealed class RemoteToolHostPairingTests
 
         Assert.Equal("inv_abcdefgh", direct.InviteId);
         Assert.Equal("192.168.1.5", direct.InviterDisplayName);
-        Assert.Equal(string.Empty, direct.Purpose);
         Assert.Equal(new Uri("http://192.168.1.5:47600"), direct.HubEndpoint);
         Assert.Equal(direct, deepLink);
         Assert.Empty(Directory.GetFileSystemEntries(home.Path));
@@ -48,7 +47,7 @@ public sealed class RemoteToolHostPairingTests
             var context = await hub.GetContextAsync();
             var body = Encoding.UTF8.GetBytes(
                 """
-                {"inviteId":"inv_abcdefgh","inviterDisplayName":"Ann","purpose":"Fix the build",
+                {"inviteId":"inv_abcdefgh","inviterDisplayName":"Ann",
                 "expiresAt":"2030-01-01T00:00:00+00:00","hubEndpoint":"http://127.0.0.1"}
                 """);
             context.Response.ContentType = "application/json";
@@ -61,7 +60,6 @@ public sealed class RemoteToolHostPairingTests
         await served;
 
         Assert.Equal("Ann", resolved.InviterDisplayName);
-        Assert.Equal("Fix the build", resolved.Purpose);
         Assert.Equal(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero), resolved.ExpiresAt);
         Assert.Equal(parsed.InviteId, resolved.InviteId);
         Assert.Equal(parsed.HubEndpoint, resolved.HubEndpoint);

@@ -26,7 +26,7 @@ public sealed class TrayMenuModelTests
     }
 
     [Fact]
-    public void Build_WhenConnected_NamesThePeerAndEnablesEveryAction()
+    public void Build_GivesEachMachineOneSubmenuOfItsOwnActions()
     {
         var since = new DateTimeOffset(2026, 9, 5, 14, 32, 0, TimeSpan.Zero);
         var items = TrayMenuModel.Build(
@@ -35,31 +35,76 @@ public sealed class TrayMenuModelTests
             new RemoteToolActivity("sat_1", "Exec", "npm test", since),
             Strings);
 
-        Assert.Contains(items, item => item.Text.StartsWith("Ann · since ", StringComparison.Ordinal));
         Assert.Contains(items, item => item.Text == "Running: npm test");
-        Assert.True(Find(items, TrayMenuCommand.Disconnect).Enabled);
-        Assert.True(Find(items, TrayMenuCommand.PauseSharing).Enabled);
-        Assert.True(Find(items, TrayMenuCommand.OpenFolder).Enabled);
-        var revoke = Find(items, TrayMenuCommand.Revoke);
-        Assert.True(revoke.Enabled);
-        Assert.Equal("sat_1", Assert.Single(revoke.Children!).PeerId);
+        var machine = Find(items, TrayMenuCommand.Machine);
+        Assert.StartsWith("Ann · since ", machine.Text, StringComparison.Ordinal);
+
+        // Every action that names a machine lives under that machine, and carries its id.
+        var actions = machine.Children!
+            .Where(child => child.Command != TrayMenuCommand.Separator
+                && child.Command != TrayMenuCommand.Header)
+            .ToArray();
+        Assert.Equal(
+            (TrayMenuCommand[])
+            [
+                TrayMenuCommand.OpenFolder,
+                TrayMenuCommand.ManageAccess,
+                TrayMenuCommand.Disconnect,
+                TrayMenuCommand.Revoke
+            ],
+            actions.Select(child => child.Command));
+        Assert.All(actions, child => Assert.Equal("sat_1", child.PeerId));
+        Assert.All(actions, child => Assert.True(child.Enabled));
+        Assert.Equal(Strings["consent.preferred"], machine.Children![0].Text);
     }
 
     [Fact]
-    public void Build_WhenPairedButOffline_KeepsDisconnectUnavailable()
+    public void Build_WhenAPairingHasNoMode_SaysItNeedsReauthorization()
+    {
+        var items = TrayMenuModel.Build(
+            SatelliteTrayState.Standby, [Peer(authorizationMode: null)], null, Strings);
+
+        Assert.Equal(Strings["consent.review"], Find(items, TrayMenuCommand.Machine).Children![0].Text);
+    }
+
+    [Fact]
+    public void Build_KeepsOnlyMachineIndependentActionsAtTheTopLevel()
+    {
+        var items = TrayMenuModel.Build(
+            SatelliteTrayState.Standby,
+            [Peer(connectedSince: DateTimeOffset.UtcNow)],
+            null,
+            Strings);
+
+        Assert.Equal(
+            (TrayMenuCommand[])
+            [
+                TrayMenuCommand.Header,
+                TrayMenuCommand.Machine,
+                TrayMenuCommand.PauseSharing,
+                TrayMenuCommand.PasteInvite,
+                TrayMenuCommand.Quit
+            ],
+            items.Where(item => item.Command != TrayMenuCommand.Separator).Select(item => item.Command));
+    }
+
+    [Fact]
+    public void Build_WhenAMachineIsOffline_NamesItWithoutATimeAndBlocksDisconnect()
     {
         var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [Peer()], null, Strings);
 
-        Assert.False(Find(items, TrayMenuCommand.Disconnect).Enabled);
-        Assert.True(Find(items, TrayMenuCommand.PauseSharing).Enabled);
-        Assert.True(Find(items, TrayMenuCommand.Revoke).Enabled);
+        var machine = Find(items, TrayMenuCommand.Machine);
+        Assert.Equal("Ann", machine.Text);
+        Assert.False(Child(machine, TrayMenuCommand.Disconnect).Enabled);
+        Assert.True(Child(machine, TrayMenuCommand.Revoke).Enabled);
         Assert.DoesNotContain(items, item => item.Text == Strings["tray.noPeers"]);
     }
 
     [Fact]
     public void Build_WhenPaused_OffersResumeInsteadOfPause()
     {
-        var items = TrayMenuModel.Build(SatelliteTrayState.Paused, [Peer()], null, Strings);
+        var items = TrayMenuModel.Build(
+            SatelliteTrayState.Paused, [Peer(connectedSince: DateTimeOffset.UtcNow)], null, Strings);
 
         Assert.Equal(Strings["tray.resume"], Find(items, TrayMenuCommand.ResumeSharing).Text);
         Assert.DoesNotContain(items, item => item.Command == TrayMenuCommand.PauseSharing);
@@ -73,13 +118,47 @@ public sealed class TrayMenuModelTests
         Assert.DoesNotContain(items, item => item.Text.StartsWith("Running:", StringComparison.Ordinal));
     }
 
-    private static RemoteToolPeer Peer(DateTimeOffset? connectedSince = null) => new(
-        "sat_1",
-        "Ann",
+    [Fact]
+    public void Build_ListsEveryPairedMachine()
+    {
+        var items = TrayMenuModel.Build(
+            SatelliteTrayState.Standby,
+            [Peer(), Peer(peerId: "sat_2", displayName: "Bo")],
+            null,
+            Strings);
+
+        Assert.Equal(
+            ["sat_1", "sat_2"],
+            items.Where(item => item.Command == TrayMenuCommand.Machine)
+                .Select(item => Child(item, TrayMenuCommand.Revoke).PeerId));
+    }
+
+    private static TrayMenuItem Child(TrayMenuItem machine, TrayMenuCommand command) =>
+        machine.Children!.First(child => child.Command == command);
+
+    private static RemoteToolPeer Peer(
+        DateTimeOffset? connectedSince = null,
+        string peerId = "sat_1",
+        string displayName = "Ann",
+        string? authorizationMode = RemoteToolAuthorization.WorkspacePreferred) => new(
+        peerId,
+        displayName,
         "repo",
         Path.GetTempPath(),
         DateTimeOffset.UtcNow,
-        connectedSince);
+        connectedSince,
+        authorizationMode);
+
+    private static int Index(IReadOnlyList<TrayMenuItem> items, TrayMenuCommand command)
+    {
+        for (var position = 0; position < items.Count; position++)
+        {
+            if (items[position].Command == command)
+                return position;
+        }
+
+        return -1;
+    }
 
     private static TrayMenuItem Find(IReadOnlyList<TrayMenuItem> items, TrayMenuCommand command) =>
         items.First(item => item.Command == command);

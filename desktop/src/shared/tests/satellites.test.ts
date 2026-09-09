@@ -96,23 +96,19 @@ describe('satelliteState', () => {
 })
 
 describe('invitations', () => {
-  it('keeps only the id, url and expiry plus the caller intent', () => {
-    const invite = normalizeSatelliteInvite(
-      {
-        inviteId: 'inv_1',
-        url: 'http://192.168.1.20:47600/i/inv_1',
-        expiresAt: '2026-09-06T12:00:00.000Z',
-        token: 'secret',
-        folder: 'D:/example/work'
-      },
-      'Render check'
-    )
+  it('keeps only the id, url and expiry', () => {
+    const invite = normalizeSatelliteInvite({
+      inviteId: 'inv_1',
+      url: 'http://192.168.1.20:47600/i/inv_1',
+      expiresAt: '2026-09-06T12:00:00.000Z',
+      token: 'secret',
+      folder: 'D:/example/work'
+    })
 
     expect(invite).toEqual({
       inviteId: 'inv_1',
       url: 'http://192.168.1.20:47600/i/inv_1',
-      expiresAt: '2026-09-06T12:00:00.000Z',
-      purpose: 'Render check'
+      expiresAt: '2026-09-06T12:00:00.000Z'
     })
   })
 

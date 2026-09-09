@@ -48,7 +48,6 @@ export interface SatelliteInvite {
   inviteId: string
   url: string
   expiresAt: string
-  purpose?: string
 }
 
 export interface SatelliteEvent {
@@ -193,23 +192,14 @@ export function withEventPresence(satellite: Satellite, event: SatelliteEvent): 
   return satellite
 }
 
-export function normalizeSatelliteInvite(
-  value: unknown,
-  statedPurpose?: string
-): SatelliteInvite | null {
+export function normalizeSatelliteInvite(value: unknown): SatelliteInvite | null {
   if (value == null || typeof value !== 'object') return null
   const raw = value as Partial<HubSatelliteInvite>
   const inviteId = text(raw.inviteId)
   const url = text(raw.url)
   const expiresAt = timestamp(raw.expiresAt)
   if (!inviteId || !url || !expiresAt) return null
-  const purpose = text(statedPurpose)
-  return {
-    inviteId,
-    url,
-    expiresAt,
-    ...(purpose ? { purpose } : {})
-  }
+  return { inviteId, url, expiresAt }
 }
 
 export function isInviteExpired(

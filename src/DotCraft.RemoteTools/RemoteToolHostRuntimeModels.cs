@@ -43,7 +43,6 @@ public sealed record RemoteToolActivity(
 public sealed record RemoteToolInvite(
     string InviteId,
     string InviterDisplayName,
-    string Purpose,
     Uri HubEndpoint,
     DateTimeOffset? ExpiresAt);
 

@@ -51,8 +51,6 @@ public sealed class CreateSatelliteInviteRequest
     /// <summary>Address the invited machine should dial; defaults to a local LAN address.</summary>
     public string? Host { get; set; }
 
-    public string? Purpose { get; set; }
-
     /// <summary>Validity in hours; defaults to the configured invitation lifetime.</summary>
     public int? TtlHours { get; set; }
 }

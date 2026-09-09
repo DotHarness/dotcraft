@@ -338,7 +338,6 @@ test("Satellite methods list, invite, and revoke through the authorized Hub API"
     const invite = await client.createSatelliteInvite({
       name: "Studio PC",
       ttlHours: 24,
-      purpose: "art review",
     });
     assert.equal(invite.inviteId, "invite_001");
 
@@ -350,7 +349,7 @@ test("Satellite methods list, invite, and revoke through the authorized Hub API"
     const inviteCalls = satelliteCalls.filter((call) => call.path === "/v1/satellites/invites");
     assert.deepEqual(
       JSON.parse(inviteCalls[0]?.body ?? "{}"),
-      { name: "Studio PC", ttlHours: 24, purpose: "art review" },
+      { name: "Studio PC", ttlHours: 24 },
     );
     assert.deepEqual(JSON.parse(inviteCalls[1]?.body ?? "{}"), { name: "Studio PC" });
     const revoke = satelliteCalls.find((call) => call.method === "DELETE");

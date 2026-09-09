@@ -130,7 +130,6 @@ internal sealed record SatelliteFrame
     public string? BuildVersion { get; init; }
     public string? HubVersion { get; init; }
     public string? HubLabel { get; init; }
-    public string? Purpose { get; init; }
     public string? SessionId { get; init; }
     public string? Code { get; init; }
     public string? Message { get; init; }

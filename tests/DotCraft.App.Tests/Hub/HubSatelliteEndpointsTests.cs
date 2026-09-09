@@ -50,7 +50,7 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
     public async Task InvitePage_ServesJsonDetailsAndHtmlWithoutConsumingTheInvitation()
     {
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-        var invite = await hub.CreateInviteAsync("Ann", "Fix the build");
+        var invite = await hub.CreateInviteAsync("Ann");
 
         using var jsonRequest = new HttpRequestMessage(HttpMethod.Get, invite.Url);
         jsonRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -59,7 +59,6 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         using var details = JsonDocument.Parse(await jsonResponse.Content.ReadAsStringAsync());
         Assert.Equal(invite.InviteId, details.RootElement.GetProperty("inviteId").GetString());
         Assert.Equal("Ann", details.RootElement.GetProperty("inviterDisplayName").GetString());
-        Assert.Equal("Fix the build", details.RootElement.GetProperty("purpose").GetString());
         Assert.Equal(
             new Uri(invite.Url).GetLeftPart(UriPartial.Authority),
             details.RootElement.GetProperty("hubEndpoint").GetString());
@@ -70,7 +69,6 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         var html = await htmlResponse.Content.ReadAsStringAsync();
         Assert.Equal("text/html", htmlResponse.Content.Headers.ContentType?.MediaType);
         Assert.Contains("Ann", html, StringComparison.Ordinal);
-        Assert.Contains("Fix the build", html, StringComparison.Ordinal);
         Assert.Contains("/satellite/installer", html, StringComparison.Ordinal);
         Assert.Contains("<link rel=\"icon\"", html, StringComparison.Ordinal);
         Assert.Contains("/satellite/icon", html, StringComparison.Ordinal);
@@ -317,11 +315,11 @@ internal sealed class SatelliteHubFixture : IAsyncDisposable
         throw new TimeoutException("Hub did not publish its lock file.");
     }
 
-    public async Task<CreatedInvite> CreateInviteAsync(string name, string? purpose = null)
+    public async Task<CreatedInvite> CreateInviteAsync(string name)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{ApiBaseUrl}/v1/satellites/invites")
         {
-            Content = JsonContent.Create(new { name, host = "127.0.0.1", purpose })
+            Content = JsonContent.Create(new { name, host = "127.0.0.1" })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         using var response = await Http.SendAsync(request);

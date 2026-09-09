@@ -127,7 +127,6 @@ export interface HubCreateSatelliteInviteOptions {
   name?: string;
   host?: string;
   ttlHours?: number;
-  purpose?: string;
 }
 
 export interface HubRuntimeToolsRequest {
@@ -375,7 +374,6 @@ export class HubClient {
         name: options.name,
         host: options.host,
         ttlHours: options.ttlHours,
-        purpose: options.purpose,
       }),
     });
   }

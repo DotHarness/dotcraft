@@ -6,13 +6,12 @@ import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
 import { InputWithAction } from '../../../ui/InputWithAction'
 import { ModalHeader } from '../../../ui/ModalHeader'
+import { Skeleton } from '../../../ui/Skeleton'
 import { LayerBoundary } from '../../../../contexts/LayerContext'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useSatellitesStore } from '../../../../stores/satellitesStore'
 import { isInviteExpired, type SatelliteInvite } from '../../../../../shared/satellites'
 import * as s from '../servers/serversStyles'
-
-const PURPOSE_MAX_LENGTH = 280
 
 /** The minted link lives in the store, so closing and reopening shows it again. */
 export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX.Element {
@@ -22,26 +21,17 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
   const inviteError = useSatellitesStore((state) => state.inviteError)
   const createInvite = useSatellitesStore((state) => state.createInvite)
   const clearInvite = useSatellitesStore((state) => state.clearInvite)
-  const [purpose, setPurpose] = useState('')
   const [copied, setCopied] = useState(false)
   const titleId = useId()
-  const purposeId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
-  const purposeRef = useRef<HTMLInputElement>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
+  const minted = useRef(false)
 
   const expired = invite != null && isInviteExpired(invite)
-  const dismissable = !creating
-  const showForm = invite == null
+  const hasLink = invite != null && !expired
 
-  useEffect(() => {
-    setCopied(false)
-  }, [invite?.url])
-
-  useEffect(() => {
-    if (showForm) purposeRef.current?.focus()
-  }, [showForm])
-
-  // Whatever opened the dialog gets the focus back when it closes.
+  // Whatever opened the dialog gets the focus back when it closes, so this runs
+  // before anything here moves the focus.
   useEffect(() => {
     const opener = document.activeElement
     return () => {
@@ -50,9 +40,27 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
   }, [])
 
   useEffect(() => {
+    setCopied(false)
+  }, [invite?.url])
+
+  // There is nothing to fill in, so opening the dialog is the request. Every later
+  // link comes from Create another or a retry.
+  useEffect(() => {
+    if (minted.current) return
+    minted.current = true
+    if (invite == null) void createInvite()
+  }, [createInvite, invite])
+
+  // The link is the point of the dialog, so it arrives selected and ready to copy.
+  useEffect(() => {
+    if (invite == null) return
+    resultRef.current?.querySelector('input')?.select()
+  }, [invite])
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
-        if (dismissable) onClose()
+        onClose()
         return
       }
       if (event.key !== 'Tab' || !dialogRef.current) return
@@ -72,15 +80,15 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [dismissable, onClose])
+  }, [onClose])
 
   const create = useCallback(() => {
-    void createInvite(purpose.trim() ? { purpose: purpose.trim() } : {})
-  }, [createInvite, purpose])
+    void createInvite()
+  }, [createInvite])
 
   function another(): void {
     clearInvite()
-    setPurpose('')
+    void createInvite()
   }
 
   const dialog = (
@@ -90,7 +98,7 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
       aria-labelledby={titleId}
       className="dc-satellite-invite-scrim"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && dismissable) onClose()
+        if (event.target === event.currentTarget) onClose()
       }}
     >
       <div
@@ -103,70 +111,56 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
           title={t('settings.satellites.invite.title')}
           titleId={titleId}
           description={t('settings.satellites.invite.description')}
-          onClose={dismissable ? onClose : undefined}
+          onClose={onClose}
           closeLabel={t('common.close')}
         />
 
         {invite ? (
-          <InviteResult invite={invite} expired={expired} copied={copied} onCopy={() => setCopied(true)} />
-        ) : (
-          <>
-            <div className="dc-satellite-field">
-              <label className="dc-satellite-field__label" htmlFor={purposeId}>
-                {t('settings.satellites.invite.purpose')}
-              </label>
-              <Input
-                id={purposeId}
-                placeholder={t('settings.satellites.invite.purposePlaceholder')}
-                ref={purposeRef}
-                disabled={creating}
-                maxLength={PURPOSE_MAX_LENGTH}
-                value={purpose}
-                onChange={(event) => setPurpose(event.target.value)}
-              />
-              <p className="dc-satellite-field__hint">{t('settings.satellites.invite.purposeHint')}</p>
+          <div ref={resultRef}>
+            <InviteResult invite={invite} expired={expired} copied={copied} onCopy={() => setCopied(true)} />
+          </div>
+        ) : inviteError != null ? (
+          <div className="dc-satellite-invite-banner" style={s.banner}>
+            <span className="dc-satellite-invite-banner__glyph" aria-hidden>
+              <AlertTriangle size={20} />
+            </span>
+            <div style={{ flex: 1 }}>
+              <div className="dc-satellite-invite-banner__text">{t('settings.satellites.invite.error')}</div>
+              {inviteError !== '' && <div className="dc-satellite-invite-banner__reason">{inviteError}</div>}
             </div>
-
-            {inviteError != null && (
-              <div className="dc-satellite-invite-banner" style={s.banner}>
-                <span className="dc-satellite-invite-banner__glyph" aria-hidden>
-                  <AlertTriangle size={20} />
-                </span>
-                <div style={{ flex: 1 }}>
-                  <div className="dc-satellite-invite-banner__text">{t('settings.satellites.invite.error')}</div>
-                  {inviteError !== '' && <div className="dc-satellite-invite-banner__reason">{inviteError}</div>}
-                </div>
-              </div>
-            )}
-          </>
+          </div>
+        ) : (
+          <div
+            className="dc-satellite-invite-result"
+            role="status"
+            aria-busy="true"
+            aria-label={t('settings.satellites.invite.creating')}
+          >
+            <span className="dc-satellite-field__label">{t('settings.satellites.invite.linkLabel')}</span>
+            <Skeleton height={34} radius={8} />
+            <Skeleton width="72%" height={11} style={{ marginTop: '2px' }} />
+          </div>
         )}
 
         <div className="dc-satellite-invite-foot">
-          {invite == null ? (
-            <>
-              <Button variant="secondary" disabled={creating} onClick={onClose}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="primary" loading={creating} onClick={create}>
-                {t('settings.satellites.invite.create')}
-              </Button>
-            </>
-          ) : expired ? (
-            <>
-              <Button variant="secondary" onClick={onClose}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="primary" loading={creating} onClick={create}>
-                {t('settings.satellites.invite.newLink')}
-              </Button>
-            </>
-          ) : (
+          {hasLink ? (
             <>
               <Button variant="secondary" onClick={another}>
                 {t('settings.satellites.invite.another')}
               </Button>
               <Button variant="primary" onClick={onClose}>
                 {t('settings.satellites.invite.done')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={onClose}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="primary" loading={creating} onClick={create}>
+                {expired
+                  ? t('settings.satellites.invite.newLink')
+                  : t('settings.satellites.invite.create')}
               </Button>
             </>
           )}
@@ -218,18 +212,7 @@ function InviteResult({
         />
       )}
       <p className="dc-satellite-invite-note">
-        {copied && !expired && (
-          <span className="dc-satellite-invite-note__glyph" aria-hidden>
-            <Check size={14} />
-          </span>
-        )}
-        <span>
-          {expired
-            ? t('settings.satellites.invite.expired')
-            : copied
-              ? t('settings.satellites.invite.copiedNote')
-              : t('settings.satellites.invite.created')}
-        </span>
+        {expired ? t('settings.satellites.invite.expired') : t('settings.satellites.invite.created')}
       </p>
     </div>
   )
