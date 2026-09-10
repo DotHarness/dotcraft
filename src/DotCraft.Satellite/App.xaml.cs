@@ -1,4 +1,5 @@
 using DotCraft.RemoteTools;
+using DotCraft.Satellite.Island;
 using DotCraft.Satellite.Localization;
 using DotCraft.Satellite.Services;
 using DotCraft.Satellite.Tray;
@@ -11,14 +12,15 @@ namespace DotCraft.Satellite;
 public sealed partial class App : Application, IDisposable
 {
     private readonly StartupOptions _options;
-    private readonly SingleInstanceGate _gate;
+    private readonly SingleInstanceGate? _gate;
     private Window? _lifetimeWindow;
     private SatelliteRuntimeConnection? _connection;
     private TrayIconHost? _tray;
     private ToastPresenter? _toasts;
-    private OwnerApprovalPresenter? _approvals;
+    private IslandViewModel? _island;
+    private IslandWindow? _islandWindow;
 
-    internal App(StartupOptions options, SingleInstanceGate gate)
+    internal App(StartupOptions options, SingleInstanceGate? gate)
     {
         _options = options;
         _gate = gate;
@@ -28,7 +30,8 @@ public sealed partial class App : Application, IDisposable
     public void Dispose()
     {
         _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _approvals?.Dispose();
+        _islandWindow?.Dispose();
+        _island?.Dispose();
         _toasts?.Dispose();
         _tray?.Dispose();
         GC.KeepAlive(_lifetimeWindow);
@@ -42,25 +45,41 @@ public sealed partial class App : Application, IDisposable
         _lifetimeWindow ??= new Window();
 
         var strings = SatelliteStrings.Current;
-        _approvals = new OwnerApprovalPresenter(DispatcherQueue.GetForCurrentThread(), strings);
+        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        var approvals = new IslandApprovalQueue();
+        _island = new IslandViewModel(strings, dispatcher, approvals);
+        _islandWindow = new IslandWindow(_island);
+
+        if (_options.PreviewIsland is { Length: > 0 } scenario)
+        {
+            IslandPreview.Show(scenario, _island);
+            return;
+        }
+
         _connection = new SatelliteRuntimeConnection(RemoteToolHostRuntime.Create(new RemoteToolHostRuntimeOptions
         {
-            ApprovalPresenter = _approvals
+            ApprovalPresenter = new OwnerApprovalPresenter(dispatcher, approvals)
         }));
+        var commands = new SatelliteCommands(_connection);
         _tray = new TrayIconHost(Path.Combine(AppContext.BaseDirectory, "Assets"));
         _toasts = new ToastPresenter(_tray);
         _toasts.Register();
 
         var viewModel = new TrayViewModel(
             _connection,
+            commands,
             _tray,
             _toasts,
             strings,
-            DispatcherQueue.GetForCurrentThread());
+            dispatcher);
         viewModel.Start();
+        _island.Attach(_connection, commands);
 
-        _gate.MessageReceived += (_, message) => viewModel.HandleInstanceMessage(message);
-        _gate.StartListening();
+        if (_gate is { } gate)
+        {
+            gate.MessageReceived += (_, message) => viewModel.HandleInstanceMessage(message);
+            gate.StartListening();
+        }
 
         if (_options.Url is { Length: > 0 } url)
             _ = viewModel.ShowConsentAsync(url);

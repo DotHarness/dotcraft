@@ -102,9 +102,11 @@ export function RunOnPicker({
     }
     const remote = hosts.flatMap((host) =>
       host.workspaces.map((workspace) => {
-        const offline = !host.online
-        const busy = host.online && workspace.available === false
         const current = route?.hostId === host.hostId && route.workspaceId === workspace.workspaceId
+        // A lost lease reads like an offline machine: the thread is still pointed at it,
+        // and nothing there can run until it comes back.
+        const offline = !host.online || (current && route?.status === 'leaseLost')
+        const busy = host.online && workspace.available === false
         return {
           id: `${host.hostId}:${workspace.workspaceId}`,
           hostId: host.hostId,
@@ -227,7 +229,12 @@ export function RunOnPicker({
   const label = connecting
     ? t('composer.runOn.connecting')
     : selected.title
-  const tooltip = `${t('composer.runOn.label')} · ${label}`
+  // An unreachable machine keeps the chip and borrows the option row's own note, so nothing
+  // claims work can run there and nothing moves the thread back to This PC on the user's behalf.
+  const offlineNote = !connecting && selected.noteKey === 'composer.runOn.offline'
+    ? t(selected.noteKey)
+    : null
+  const tooltip = `${t('composer.runOn.label')} · ${label}${offlineNote ? ` · ${offlineNote}` : ''}`
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', minWidth: 0 }}>
@@ -250,6 +257,9 @@ export function RunOnPicker({
             <Monitor size={15} strokeWidth={1.8} aria-hidden />
           )}
           <span className={styles.label}>{label}</span>
+          {offlineNote && (
+            <span className={styles.pillNote} data-testid="run-on-offline-note">· {offlineNote}</span>
+          )}
           <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
         </WorkspaceFooterPill>
       </ActionTooltip>

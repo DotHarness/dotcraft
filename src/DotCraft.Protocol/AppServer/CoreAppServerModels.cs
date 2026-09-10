@@ -4068,6 +4068,10 @@ public sealed class RemoteToolHostRouteChangedNotification : ExtensibleJsonObjec
     [JsonPropertyName("reason")]
     public required string Reason { get; init; }
 
+    [JsonPropertyName("initiator")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Initiator { get; init; }
+
     [JsonPropertyName("route")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<RemoteToolRouteInfo?> Route { get; init; }

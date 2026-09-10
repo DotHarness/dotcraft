@@ -42,11 +42,13 @@ After the other person allows the connection, find the PC in **Settings → Conn
 
 File, Shell, and language tools run on the selected PC. If the PC is offline or the workspace is in use, wait until it is available before continuing. A failed remote operation does not automatically run on your own PC. Select **This PC** when you want to switch back.
 
+## Person sharing: see who is using your PC
+
+While someone is using your PC, a bar sits at the top of your screen, above your other windows. It names who is connected, and while a tool runs, the operation and the command it is running. Point at the bar to see every connected PC with its access mode, disconnect one, or open its task folder. **Pause sharing** below that list stops every PC at once. Drag the bar elsewhere if it covers what you are working on; it comes back where you left it. It appears only while your PC is in use and leaves when the last session ends.
+
 ## Person sharing: handle additional access
 
-In Folder only mode, Satellite opens an approval window for additional access. Check the inviter, operation, and path or full command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder.
-
-![Approval window showing Ann's request to run dotnet build Demo.sln, with Decline and Allow once buttons](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/approve-command.png)
+In Folder only mode, additional access is asked for on that same bar. Check the inviter, the operation, and the path or full command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder. You answer one request at a time, and a request nobody answers within two minutes is declined.
 
 If you decline, the agent receives that result. The person inviting your PC cannot approve this access on your behalf.
 

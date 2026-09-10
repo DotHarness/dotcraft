@@ -283,10 +283,21 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
     const payload = asRecord(params) as RemoteToolHostRouteChangedNotification | null
     const threadId = text(payload?.threadId)
     if (!threadId) return
+    const reason = text(payload?.reason)
     const route = routeOf(payload?.route)
     set((state) => ({
       routes: route ? { ...state.routes, [threadId]: route } : withoutRoute(state.routes, threadId)
     }))
+    // A lost lease keeps its remembered machine, so nothing falls back to This PC on its own.
+    if (reason === 'disconnected') {
+      void rememberRoute(threadId, null)
+    } else if (reason === 'connected' && route) {
+      void rememberRoute(threadId, {
+        hostId: route.hostId,
+        workspaceId: route.workspaceId,
+        at: new Date().toISOString()
+      })
+    }
   },
 
   resetForConnection() {

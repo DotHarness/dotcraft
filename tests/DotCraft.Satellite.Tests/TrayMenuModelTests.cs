@@ -14,7 +14,7 @@ public sealed class TrayMenuModelTests
     [Fact]
     public void Build_WithoutPairing_OffersOnlyPasteAndQuit()
     {
-        var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [], null, Strings);
+        var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [], Strings);
 
         Assert.Equal(Strings["tray.status.offline"], items[0].Text);
         Assert.Contains(items, item => item.Text == Strings["tray.noPeers"]);
@@ -32,10 +32,8 @@ public sealed class TrayMenuModelTests
         var items = TrayMenuModel.Build(
             SatelliteTrayState.Connected,
             [Peer(connectedSince: since)],
-            new RemoteToolActivity("sat_1", "Exec", "npm test", since),
             Strings);
 
-        Assert.Contains(items, item => item.Text == "Running: npm test");
         var machine = Find(items, TrayMenuCommand.Machine);
         Assert.StartsWith("Ann · since ", machine.Text, StringComparison.Ordinal);
 
@@ -62,7 +60,7 @@ public sealed class TrayMenuModelTests
     public void Build_WhenAPairingHasNoMode_SaysItNeedsReauthorization()
     {
         var items = TrayMenuModel.Build(
-            SatelliteTrayState.Standby, [Peer(authorizationMode: null)], null, Strings);
+            SatelliteTrayState.Standby, [Peer(authorizationMode: null)], Strings);
 
         Assert.Equal(Strings["consent.review"], Find(items, TrayMenuCommand.Machine).Children![0].Text);
     }
@@ -73,7 +71,6 @@ public sealed class TrayMenuModelTests
         var items = TrayMenuModel.Build(
             SatelliteTrayState.Standby,
             [Peer(connectedSince: DateTimeOffset.UtcNow)],
-            null,
             Strings);
 
         Assert.Equal(
@@ -91,7 +88,7 @@ public sealed class TrayMenuModelTests
     [Fact]
     public void Build_WhenAMachineIsOffline_NamesItWithoutATimeAndBlocksDisconnect()
     {
-        var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [Peer()], null, Strings);
+        var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [Peer()], Strings);
 
         var machine = Find(items, TrayMenuCommand.Machine);
         Assert.Equal("Ann", machine.Text);
@@ -104,18 +101,10 @@ public sealed class TrayMenuModelTests
     public void Build_WhenPaused_OffersResumeInsteadOfPause()
     {
         var items = TrayMenuModel.Build(
-            SatelliteTrayState.Paused, [Peer(connectedSince: DateTimeOffset.UtcNow)], null, Strings);
+            SatelliteTrayState.Paused, [Peer(connectedSince: DateTimeOffset.UtcNow)], Strings);
 
         Assert.Equal(Strings["tray.resume"], Find(items, TrayMenuCommand.ResumeSharing).Text);
         Assert.DoesNotContain(items, item => item.Command == TrayMenuCommand.PauseSharing);
-    }
-
-    [Fact]
-    public void Build_WhenIdle_HidesTheActivityLine()
-    {
-        var items = TrayMenuModel.Build(SatelliteTrayState.Standby, [Peer()], null, Strings);
-
-        Assert.DoesNotContain(items, item => item.Text.StartsWith("Running:", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -124,7 +113,6 @@ public sealed class TrayMenuModelTests
         var items = TrayMenuModel.Build(
             SatelliteTrayState.Standby,
             [Peer(), Peer(peerId: "sat_2", displayName: "Bo")],
-            null,
             Strings);
 
         Assert.Equal(

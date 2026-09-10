@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DotCraft Satellite island</title>
+<style>
+:root {
+  --text-primary: #eeeeec;
+  --text-secondary: #a4a4a3;
+  --text-dimmed: #70706f;
+  --bg-hover: rgb(238 238 236 / 0.08);
+  --bg-active: #343434;
+  --border: rgb(238 238 236 / 0.16);
+  --border-active: rgb(238 238 236 / 0.18);
+  --accent: #4566cc;
+  --accent-hover: #5976d0;
+  --on-accent: #ffffff;
+  --surface: rgb(36 36 36 / 0.9);
+  --shadow: 0 12px 30px rgb(0 0 0 / 0.24), 0 1px 2px rgb(0 0 0 / 0.16);
+  --glint:
+    inset 1px 1px 3px -1px rgb(255 255 255 / 0.26),
+    inset -1px -1px 3px -1px rgb(255 255 255 / 0.07),
+    inset 0 0 22px 2px rgb(255 255 255 / 0.04);
+  --rim-bright: rgb(255 255 255 / 0.38);
+  --rim-faint: rgb(255 255 255 / 0.1);
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, "Cascadia Mono", monospace;
+  --spring: linear(0, 0.0653 4.17%, 0.2121 8.33%, 0.3862 12.5%, 0.5547 16.7%, 0.7 20.8%, 0.8153 25%, 0.9006 29.2%, 0.9592 33.3%, 0.9962 37.5%, 1.017 41.7%, 1.026 45.8%, 1.028 50%, 1.026 54.2%, 1.022 58.3%, 1.017 62.5%, 1.01 68.8%, 1.005 75%, 1.001 83.3%, 0.9995 91.7%, 0.9992 100%);
+  --spring-duration: 480ms;
+  --content-in: 260ms;
+  --content-delay: 90ms;
+  --content-out: 120ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-expand: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+}
+
+html[data-theme="light"] {
+  --text-primary: #1a1c1f;
+  --text-secondary: #5d5e60;
+  --text-dimmed: #8a8b8c;
+  --bg-hover: rgb(26 28 31 / 0.06);
+  --bg-active: #e8e8e8;
+  --border: rgb(26 28 31 / 0.12);
+  --border-active: rgb(26 28 31 / 0.12);
+  --accent: #4f6cce;
+  --accent-hover: #4962b9;
+  --surface: rgb(255 255 255 / 0.92);
+  --shadow: 0 12px 30px rgb(0 0 0 / 0.14), 0 1px 2px rgb(0 0 0 / 0.08);
+  --glint:
+    inset 1px 1px 3px -1px rgb(255 255 255 / 0.85),
+    inset -1px -1px 3px -1px rgb(255 255 255 / 0.3),
+    inset 0 0 22px 2px rgb(255 255 255 / 0.2);
+}
+
+@property --light {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 315deg;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+button:focus-visible,
+.island:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.island {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 4px 0 8px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  box-shadow: var(--glint), var(--shadow);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  --light: 315deg;
+  transition:
+    left var(--spring-duration) var(--spring),
+    top var(--spring-duration) var(--spring),
+    width var(--spring-duration) var(--spring),
+    height var(--spring-duration) var(--spring),
+    border-radius var(--spring-duration) var(--spring),
+    padding var(--spring-duration) var(--spring),
+    --light 420ms var(--ease-standard);
+}
+
+.island:active {
+  cursor: grabbing;
+}
+
+.island[data-motion="enter"] {
+  transition:
+    top var(--spring-duration) var(--spring),
+    opacity 150ms ease-out;
+}
+
+.island[data-motion="exit"] {
+  pointer-events: none;
+  transition:
+    top var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
+}
+
+.island[data-motion="none"],
+html[data-reduce-motion="on"] .island {
+  transition: none;
+}
+
+.island[data-mode="expanded"] {
+  padding: 0 8px 8px;
+}
+
+.island[data-mode="approval"] {
+  padding: 8px 8px 8px 10px;
+}
+
+/* The rim light: two arcs on a one-pixel ring, the bright one facing the pointer. */
+.island::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from calc(var(--light) - 90deg) at 50% 50%,
+    rgb(255 255 255 / 0) 0%,
+    var(--rim-bright) 25%,
+    rgb(255 255 255 / 0) 50%,
+    rgb(255 255 255 / 0) 62%,
+    var(--rim-faint) 75%,
+    rgb(255 255 255 / 0) 88%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.island > * {
+  position: relative;
+  z-index: 1;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.summary {
+  display: flex;
+  flex: none;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+}
+
+.glyph {
+  display: flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.glyph[data-active="true"] {
+  color: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.line {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.label {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.since,
+.timer {
+  flex: none;
+  color: var(--text-dimmed);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.timer {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.panel-title {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0 4px;
+  padding: 0 6px;
+  color: var(--text-dimmed);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.peers {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 2px;
+  padding: 0;
+  max-height: 190px;
+  overflow: auto;
+  scrollbar-width: none;
+  list-style: none;
+}
+
+.peers li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: 10px;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.peers li:hover {
+  background: var(--bg-hover);
+}
+
+.peer {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.peer-name,
+.peer-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peer-name {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.peer-meta {
+  color: var(--text-dimmed);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.peer-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.peer-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.peer-actions button:hover:not(:disabled) {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.peer-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 0;
+  padding: 4px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.text-action:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.approval {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.approval-head {
+  display: flex;
+  min-width: 0;
+  min-height: 37px;
+  align-items: center;
+  gap: 10px;
+}
+
+.approval .label {
+  max-width: 100%;
+}
+
+.ring {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.ring-track {
+  stroke: var(--border-active);
+}
+
+.ring-value {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.ring em {
+  color: var(--text-secondary);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.approval .line {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+}
+
+.approval .command {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.approval .command b {
+  flex: none;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.approval .command > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decide {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.decide .badge {
+  margin-right: auto;
+}
+
+.decide button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.decide button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.decide button[data-accent="true"] {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.decide button[data-accent="true"]:hover {
+  background: var(--accent-hover);
+}
+
+@keyframes content-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+.in {
+  animation: content-in var(--content-in) var(--ease-expand) var(--content-delay) both;
+  transform-origin: left center;
+}
+
+[data-out="true"] {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(-4px) scale(0.98);
+  transition:
+    opacity var(--content-out) var(--ease-standard),
+    filter var(--content-out) var(--ease-standard),
+    transform var(--content-out) var(--ease-standard);
+}
+
+@keyframes pulse {
+  0%,
+  100% { opacity: 0.45; }
+  50% { opacity: 0.85; }
+}
+
+html[data-reduce-motion="on"] .in,
+html[data-reduce-motion="on"] .glyph,
+html[data-reduce-motion="on"] [data-out="true"],
+html[data-reduce-motion="on"] .ring-value {
+  animation: none;
+  transition: none;
+  filter: none;
+}
+</style>
+</head>
+<body>
+<div class="island" id="island" role="group" tabindex="0" data-mode="compact" data-motion="none">
+  <div class="summary" id="summary">
+    <span class="glyph" id="glyph" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a7.31 7.31 0 0 0 10 10Z"/><path d="m9 15 3-3"/><path d="M17 13a6 6 0 0 0-6-6"/><path d="M21 13A10 10 0 0 0 11 3"/></svg>
+    </span>
+    <span class="line" id="idle">
+      <span class="label" id="idleLabel"></span>
+      <span class="since" id="since"></span>
+    </span>
+    <span class="line" id="running" hidden>
+      <span class="label" id="operation"></span>
+      <span class="command" id="command"></span>
+      <span class="badge" id="concurrency" hidden></span>
+      <span class="timer" id="elapsed"></span>
+    </span>
+  </div>
+
+  <div class="panel" id="panel" hidden>
+    <p class="panel-title"><span id="panelTitle"></span><span id="panelCount"></span></p>
+    <ul class="peers" id="peers"></ul>
+    <p class="panel-foot">
+      <button type="button" class="text-action" data-action="pause">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>
+        <span id="pause"></span>
+      </button>
+    </p>
+  </div>
+
+  <div class="approval" id="approval" role="alertdialog" hidden>
+    <div class="approval-head">
+      <span class="ring" aria-hidden="true">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" class="ring-track"/><circle cx="10" cy="10" r="8" class="ring-value" id="ringValue"/></svg>
+        <em id="countdown"></em>
+      </span>
+      <span class="line">
+        <span class="label" id="approvalTitle"></span>
+        <span class="command"><b id="approvalOperation"></b><span id="approvalTarget"></span></span>
+      </span>
+    </div>
+    <div class="decide">
+      <span class="badge" id="queued" hidden></span>
+      <button type="button" id="deny" data-action="deny"></button>
+      <button type="button" data-action="allow" data-accent="true" id="allow"></button>
+    </div>
+  </div>
+
+  <span class="announce" role="status" aria-live="polite" id="announce"></span>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const root = document.documentElement;
+  const island = $('island');
+  const ring = $('ringValue');
+  const circumference = 2 * Math.PI * 8;
+  const post = (message) => window.chrome?.webview?.postMessage(message);
+  const iconUnplug = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 5 3-3"/><path d="m2 22 3-3"/><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z"/></svg>';
+  const iconFolder = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>';
+  let box = null;
+  let peersKey = '';
+  let summary = '';
+  let pointerId = null;
+
+  const sameBox = (a, b) =>
+    a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height && a.radius === b.radius;
+
+  function setBox(next) {
+    island.style.left = `${next.x}px`;
+    island.style.top = `${next.y}px`;
+    island.style.width = `${next.width}px`;
+    island.style.height = `${next.height}px`;
+    island.style.borderRadius = `${next.radius}px`;
+  }
+
+  function restart(element) {
+    element.classList.remove('in');
+    void element.offsetWidth;
+    element.classList.add('in');
+  }
+
+  function show(element, visible) {
+    const shown = !element.hidden && element.dataset.out !== 'true';
+    if (visible === shown) return;
+    if (visible) {
+      element.hidden = false;
+      delete element.dataset.out;
+      restart(element);
+      return;
+    }
+    if (root.dataset.reduceMotion === 'on') {
+      element.hidden = true;
+      return;
+    }
+    element.dataset.out = 'true';
+    setTimeout(() => {
+      if (element.dataset.out !== 'true') return;
+      element.hidden = true;
+      delete element.dataset.out;
+    }, 130);
+  }
+
+  function text(id, value) {
+    const element = $(id);
+    if (element.textContent !== value) element.textContent = value;
+  }
+
+  function renderPeers(peers) {
+    const key = JSON.stringify(peers);
+    if (key === peersKey) return;
+    peersKey = key;
+    const list = $('peers');
+    list.replaceChildren();
+    for (const peer of peers) {
+      const item = document.createElement('li');
+      item.className = 'in';
+      const body = document.createElement('span');
+      body.className = 'peer';
+      const name = document.createElement('span');
+      name.className = 'peer-name';
+      name.textContent = peer.name;
+      name.title = peer.name;
+      const meta = document.createElement('span');
+      meta.className = 'peer-meta';
+      meta.textContent = peer.meta;
+      body.append(name, meta);
+      const actions = document.createElement('span');
+      actions.className = 'peer-actions';
+      const disconnect = document.createElement('button');
+      disconnect.type = 'button';
+      disconnect.dataset.action = 'disconnect';
+      disconnect.dataset.peer = peer.id;
+      disconnect.title = peer.disconnect;
+      disconnect.setAttribute('aria-label', peer.disconnect);
+      disconnect.innerHTML = iconUnplug;
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.dataset.action = 'openFolder';
+      open.dataset.peer = peer.id;
+      open.title = peer.openFolder;
+      open.setAttribute('aria-label', peer.openFolder);
+      open.disabled = !peer.canOpenFolder;
+      open.innerHTML = iconFolder;
+      actions.append(disconnect, open);
+      item.append(body, actions);
+      list.append(item);
+    }
+  }
+
+  function apply(state) {
+    root.dataset.theme = state.theme;
+    root.dataset.reduceMotion = state.reduceMotion ? 'on' : 'off';
+
+    const moving = state.motion === 'enter' || state.motion === 'exit';
+    if (!box || moving || !sameBox(box, state.to)) {
+      if (state.from) {
+        island.dataset.motion = 'none';
+        setBox(state.from);
+        island.style.opacity = state.motion === 'enter' ? '0' : '1';
+        void island.offsetWidth;
+      }
+      island.dataset.motion = state.motion;
+      setBox(state.to);
+      island.style.opacity = state.motion === 'exit' ? '0' : '1';
+      box = state.to;
+    }
+
+    island.dataset.mode = state.mode;
+    island.setAttribute('aria-label', state.summary);
+    if (summary !== state.summary) {
+      summary = state.summary;
+      $('announce').textContent = summary;
+    }
+
+    const running = state.running;
+    const approval = state.approval;
+    $('glyph').dataset.active = String(Boolean(running));
+    show($('summary'), !approval);
+    show($('idle'), !approval && !running);
+    show($('running'), !approval && Boolean(running));
+    show($('panel'), state.mode === 'expanded');
+    show($('approval'), Boolean(approval));
+
+    text('idleLabel', state.label);
+    $('idleLabel').title = state.label;
+    text('since', state.since);
+    if (running) {
+      text('operation', running.operation);
+      text('command', running.command);
+      $('command').title = running.commandFull;
+      $('concurrency').hidden = running.concurrency <= 0;
+      text('concurrency', `+${running.concurrency}`);
+      text('elapsed', running.elapsed);
+    }
+    text('panelTitle', state.panel.title);
+    text('panelCount', state.panel.count);
+    text('pause', state.panel.pause);
+    renderPeers(state.panel.peers);
+    if (approval) {
+      $('approval').setAttribute('aria-label', approval.title);
+      text('approvalTitle', approval.title);
+      $('approvalTitle').title = approval.title;
+      text('approvalOperation', approval.operation);
+      text('approvalTarget', approval.target);
+      $('approvalTarget').title = approval.targetFull;
+      text('countdown', approval.countdown);
+      ring.style.strokeDasharray = circumference;
+      ring.style.strokeDashoffset = circumference * (1 - approval.fraction);
+      $('queued').hidden = approval.queued <= 0;
+      text('queued', `+${approval.queued}`);
+      text('deny', approval.deny);
+      text('allow', approval.allow);
+    }
+  }
+
+  island.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest('button')) return;
+    event.preventDefault();
+    pointerId = event.pointerId;
+    island.setPointerCapture(pointerId);
+    post({ type: 'press' });
+  });
+
+  const release = (event) => {
+    if (pointerId === null || event.pointerId !== pointerId) return;
+    pointerId = null;
+    post({ type: 'release' });
+  };
+  island.addEventListener('pointerup', release);
+  island.addEventListener('pointercancel', release);
+  island.addEventListener('lostpointercapture', release);
+
+  island.addEventListener('pointermove', (event) => {
+    const rect = island.getBoundingClientRect();
+    const dx = event.clientX - (rect.left + rect.width / 2);
+    const dy = event.clientY - (rect.top + rect.height / 2);
+    island.style.setProperty('--light', `${(Math.atan2(dy, dx) * 180) / Math.PI + 90}deg`);
+  });
+  island.addEventListener('pointerleave', () => island.style.setProperty('--light', '315deg'));
+
+  island.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-action]');
+    if (!button || button.disabled) return;
+    post({ type: 'action', name: button.dataset.action, peer: button.dataset.peer ?? null });
+  });
+
+  island.addEventListener('keydown', (event) => {
+    if (event.target !== island) return;
+    if (event.key !== 'Escape' && event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    post({ type: 'key', key: event.key });
+  });
+
+  window.island = {
+    apply,
+    focusDecision: () => $('deny').focus(),
+  };
+  window.chrome?.webview?.addEventListener('message', (event) => apply(event.data));
+  post({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

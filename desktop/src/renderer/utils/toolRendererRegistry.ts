@@ -18,6 +18,7 @@ export type ToolRendererFamily =
   | 'todo'
   | 'deferredSearch'
   | 'agentBuilder'
+  | 'remoteToolHost'
 
 export interface ToolRendererPlan {
   family: ToolRendererFamily
@@ -136,7 +137,8 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   commitSuggest: 'core.commit-suggest',
   todo: 'core.todo',
   deferredSearch: 'core.deferred-search',
-  agentBuilder: 'core.agent-builder'
+  agentBuilder: 'core.agent-builder',
+  remoteToolHost: 'core.remote-tool-host'
 } as const
 
 export const coreToolRendererRegistry = new ToolRendererRegistry([
@@ -176,7 +178,10 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'agentBuilder', {
     mode: 'standalone'
-  }, hasBuilderField)
+  }, hasBuilderField),
+  registration(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'remoteToolHost', {
+    mode: 'collapsible'
+  }, hasOperation('list', 'connect', 'disconnect'))
 ])
 
 export function resolveCoreToolRenderPlan(item: ConversationItem): ToolRendererPlan | null {

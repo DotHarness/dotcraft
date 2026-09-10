@@ -138,6 +138,29 @@ describe('ToolRendererRegistry', () => {
     })
   })
 
+  it.each(['list', 'connect', 'disconnect'])(
+    'resolves the remote tool host %s row as a collapsible tool row',
+    (operation) => {
+      expect(coreToolRendererRegistry.resolve(item(
+        CORE_TOOL_PRESENTATION_IDS.remoteToolHost,
+        'CoreNative',
+        { operation }
+      ))).toEqual({
+        family: 'remoteToolHost',
+        mode: 'collapsible',
+        options: { operation }
+      })
+    }
+  )
+
+  it('rejects a remote tool host row with an operation it does not own', () => {
+    expect(coreToolRendererRegistry.resolve(item(
+      CORE_TOOL_PRESENTATION_IDS.remoteToolHost,
+      'CoreNative',
+      { operation: 'reroute' }
+    ))).toBeNull()
+  })
+
   it.each([
     [CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', 'explore'],
     [CORE_TOOL_PRESENTATION_IDS.commitSuggest, 'commitSuggest', undefined]

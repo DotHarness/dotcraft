@@ -57,6 +57,7 @@ public static class SessionServiceFactory
             agentFactory.RuntimeContext.ChatClientRegistry,
             () => appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config);
         sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
+        sessionService.AttachRemoteRouteNotices();
         BindSessionServiceConsumers(sp, sessionService);
         return sessionService;
     }

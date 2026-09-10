@@ -30,6 +30,9 @@ import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../
 import { renderSkillToolLabel } from './SkillToolLabel'
 import { McpAppView, hasAvailableMcpApp } from './McpAppView'
 import { ToolDisclosure } from './ToolDisclosure'
+import { useRemoteToolHostRow } from './RemoteToolHostRow'
+import { RemoteToolHostListResult } from './RemoteToolHostListResult'
+import { parseRemoteToolHostCatalog } from '../../utils/remoteToolHostDisplay'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
@@ -224,6 +227,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? rendererPlan!.options.field as BuilderField
     : null
   const isTodoTool = rendererFamily === 'todo'
+  const isRemoteToolHostTool = rendererFamily === 'remoteToolHost'
   const isShellTool = rendererFamily === 'shell'
   const isStreamingFileTool = rendererFamily === 'fileWrite'
   const streamingDisplay = rendererPlan || isWorkflowTool
@@ -296,15 +300,24 @@ export const ToolCallCard = memo(function ToolCallCard({
     && !isSkillViewTool
     && !isTodoTool
     && hasRunningExpandableContent
+  const remoteToolHostRow = useRemoteToolHostRow({
+    item,
+    enabled: isRemoteToolHostTool,
+    threadId,
+    locale,
+    running: isRunning,
+    success
+  })
   const canExpandCompleted =
     !isWebFetchTool
     && !isSkillViewTool
     && !isTodoTool
+    && (remoteToolHostRow?.expandable ?? true)
     && (isSkillManageTool ? !!renderableSkillManageDiff : hasCompletedExpandableContent)
   const autoExpandEligible = (isShellTool || isStreamingFileTool)
     && (isRunning ? hasRunningExpandableContent : hasCompletedExpandableContent)
   const hasFinalArgs = args != null && Object.keys(args).length > 0
-  const subAgentRunningLabel = hasFinalArgs
+  const subAgentRunningLabel = hasFinalArgs && rendererFamily === 'subagent'
     ? formatSubAgentRunningLabel(rendererOperation, args, locale, subAgentLookup)
     : null
   const runningBaseLabel = builderField
@@ -437,7 +450,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} />
   }
 
-  const subAgentDisplay = !isRunning
+  const subAgentDisplay = !isRunning && rendererFamily === 'subagent'
     ? getSubAgentToolDisplay(rendererOperation, args, item.result, success, locale, subAgentLookup)
     : null
   if (subAgentDisplay) {
@@ -489,7 +502,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         onToggle={toggleExpand}
         expandable={canExpandWhileRunning}
         onHoverChange={setHovered}
-        title={runningTitle}
+        title={remoteToolHostRow?.title ?? runningTitle}
         trailing={runningElapsedLabel}
       >
           <div
@@ -621,7 +634,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       expandable={canExpandCompleted}
       onHoverChange={setHovered}
       tone={success ? undefined : 'error'}
-      title={completedTitle}
+      title={remoteToolHostRow?.title ?? completedTitle}
     >
       <div
         data-testid="tool-expanded-content"
@@ -755,6 +768,11 @@ function ExpandedContent({
         )}
       </div>
     )
+  }
+
+  if (rendererFamily === 'remoteToolHost' && rendererOptions?.operation === 'list') {
+    const catalog = parseRemoteToolHostCatalog(result)
+    if (catalog) return <RemoteToolHostListResult catalog={catalog} locale={locale} />
   }
 
   if (rendererFamily === 'requestUserInput') {

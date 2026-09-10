@@ -52,6 +52,7 @@ public sealed class AppServerHost(
     private readonly ILoggerFactory _loggerFactory = runtime.Services.GetRequiredService<ILoggerFactory>();
     private readonly ILogger<AppServerHost> _logger = runtime.Services.GetRequiredService<ILogger<AppServerHost>>();
     private IWorkspaceRuntimeAppServerFeature? _appServerFeature;
+    private RemoteToolHostRouteBroadcaster? _remoteToolHostRouteBroadcaster;
 
     private WireAcpExtensionProxy WireAcpExtensionProxy =>
         _services.GetRequiredService<WireAcpExtensionProxy>();
@@ -262,6 +263,12 @@ public sealed class AppServerHost(
             bindings.BindingStatusChanged += BroadcastAppBindingStatusChanged;
         if (_services.GetService<IPluginDotnetRuntimeCoordinator>() is { } plugins)
             plugins.SnapshotChanged += BroadcastPluginRuntimeSnapshotChanged;
+        if (runtime.RemoteToolHostClient is { } remoteToolHostClient)
+        {
+            _remoteToolHostRouteBroadcaster = new RemoteToolHostRouteBroadcaster(
+                remoteToolHostClient,
+                BroadcastRemoteToolHostRouteChanged);
+        }
     }
 
     private void UnsubscribeRuntimeEvents()
@@ -288,6 +295,8 @@ public sealed class AppServerHost(
             bindings.BindingStatusChanged -= BroadcastAppBindingStatusChanged;
         if (_services.GetService<IPluginDotnetRuntimeCoordinator>() is { } plugins)
             plugins.SnapshotChanged -= BroadcastPluginRuntimeSnapshotChanged;
+        _remoteToolHostRouteBroadcaster?.Dispose();
+        _remoteToolHostRouteBroadcaster = null;
     }
 
     private AppServerRequestHandler CreateRequestHandler(
@@ -312,7 +321,6 @@ public sealed class AppServerHost(
                 PluginManagementState = _services.GetRequiredService<AppServerPluginManagementState>(),
                 BroadcastPluginSnapshotUpdated = BroadcastPluginSnapshotUpdated,
                 RemoteToolHostClient = runtime.RemoteToolHostClient,
-                BroadcastRemoteToolHostRouteChanged = BroadcastRemoteToolHostRouteChanged,
                 ServerVersion = AppVersion.Informational,
                 SkillsLoader = runtime.SkillsLoader,
                 MemoryStore = runtime.MemoryStore,

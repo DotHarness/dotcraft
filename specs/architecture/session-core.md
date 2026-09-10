@@ -816,14 +816,20 @@ summary and compatibility projection; clients that consume both paths merge by
 
 ```
 {
-  "kind": string,              // Notice classifier. Known values: "compacted", "memoryConsolidated", "forked".
+  "kind": string,              // Notice classifier. Known values: "compacted", "memoryConsolidated", "forked", "remoteRoute".
   "trigger": string,           // For kind="compacted": "auto" | "reactive" | "manual"
   "mode": string,              // For kind="compacted": the compaction mode, "micro" or "partial"
   "tokensBefore": number,      // Approximate input tokens right before compaction ran
   "tokensAfter": number,       // Approximate input tokens after compaction ran
   "percentLeftAfter": number,  // Fraction of EffectiveContextWindow still available (0.0 - 1.0)
   "clearedToolResults": number,// Count of tool results cleared before summary (0 for partial-only compaction)
-  "sourceThreadId": string     // For kind="forked": source thread id
+  "sourceThreadId": string,    // For kind="forked": source thread id
+  "reason": string,            // For kind="remoteRoute": "connected" | "disconnected" | "leaseLost"
+  "initiator": string,         // For kind="remoteRoute": "client" | "agent" | "system" (system only with reason "leaseLost")
+  "hostId": string,            // For kind="remoteRoute": Remote Tool Host id
+  "hostName": string,          // For kind="remoteRoute": Host display name, when known
+  "workspaceId": string,       // For kind="remoteRoute": remote workspace id
+  "workspaceName": string      // For kind="remoteRoute": workspace display name, when known
 }
 ```
 
@@ -839,6 +845,12 @@ Persisted compaction notices therefore carry `mode = "partial"`.
 `forked` notices mark the boundary between copied source history and new
 fork-specific work. They carry `sourceThreadId`, are not model-visible, and
 must not mutate the source thread.
+`remoteRoute` notices mark where a thread's eligible tools started or stopped running on a
+[Remote Tool Host](remote-tool-host.md). Session Core appends one to the running Turn when a Turn is
+in flight and otherwise to the latest completed Turn; a thread with no Turn records nothing. Connects
+and disconnects are recorded only when a person or the model caused them: thread release and process
+teardown are not history. A lost lease is always recorded, with `initiator = "system"`. `hostId`
+and `workspaceId` name the route the change was about, including the route a disconnect removed.
 
 ### 4.3 Stable Identifiers and Normalization Rules
 

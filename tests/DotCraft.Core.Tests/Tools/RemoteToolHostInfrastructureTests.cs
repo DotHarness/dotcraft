@@ -90,6 +90,31 @@ public sealed class RemoteToolHostInfrastructureTests
     }
 
     [Fact]
+    public void WorkspaceLeaseManager_ReportsEveryChangeOfTheLiveSet()
+    {
+        var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var changes = 0;
+        using var leases = new WorkspaceLeaseManager(clock, onChanged: () => changes++);
+
+        var lease = leases.Acquire("agent-a", "workspace", "workspace-root", "host", 1);
+        Assert.Equal(1, changes);
+
+        // Sharing and renewing keep the same lease alive, so the host hears nothing.
+        leases.Acquire("agent-a", "workspace", "workspace-root", "host", 1);
+        leases.Heartbeat("agent-a", lease.LeaseId, "workspace");
+        Assert.False(leases.Release("agent-a", lease.LeaseId, "workspace"));
+        Assert.Equal(1, changes);
+
+        Assert.True(leases.Release("agent-a", lease.LeaseId, "workspace"));
+        Assert.Equal(2, changes);
+
+        leases.Acquire("agent-b", "workspace", "workspace-root", "host", 1);
+        clock.Advance(TimeSpan.FromSeconds(61));
+        Assert.False(leases.HasActiveLease);
+        Assert.Equal(4, changes);
+    }
+
+    [Fact]
     public void Storage_PeerCredential_IsNotWrittenToHostJson()
     {
         using var directory = new TemporaryDirectory();

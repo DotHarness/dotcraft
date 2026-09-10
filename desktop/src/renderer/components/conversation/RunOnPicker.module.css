@@ -5,6 +5,11 @@
   white-space: nowrap;
 }
 
+.pillNote {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}
+
 .option {
   display: flex;
   width: 100%;

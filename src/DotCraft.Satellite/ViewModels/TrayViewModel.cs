@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using DotCraft.RemoteTools;
 using DotCraft.Satellite.Consent;
 using DotCraft.Satellite.Localization;
@@ -11,6 +10,7 @@ namespace DotCraft.Satellite.ViewModels;
 
 internal sealed class TrayViewModel(
     SatelliteRuntimeConnection connection,
+    SatelliteCommands commands,
     ITrayIcon tray,
     ToastPresenter toasts,
     SatelliteStrings strings,
@@ -119,11 +119,7 @@ internal sealed class TrayViewModel(
     private void ShowMenu()
     {
         var state = SatelliteStateMachine.Evaluate(connection.Runtime.Status, connection.PauseRequested);
-        var items = TrayMenuModel.Build(
-            state,
-            connection.Runtime.Peers,
-            connection.Runtime.CurrentActivity,
-            strings);
+        var items = TrayMenuModel.Build(state, connection.Runtime.Peers, strings);
         if (tray.ShowMenu(items) is { } chosen)
             PostAsync(() => InvokeAsync(chosen));
     }
@@ -133,13 +129,13 @@ internal sealed class TrayViewModel(
         switch (item.Command)
         {
             case TrayMenuCommand.Disconnect when item.PeerId is { Length: > 0 } disconnected:
-                await connection.Runtime.DisconnectAsync(disconnected);
+                await commands.DisconnectAsync(disconnected);
                 break;
             case TrayMenuCommand.PauseSharing:
-                await connection.SetPausedAsync(paused: true);
+                await commands.PauseAsync();
                 break;
             case TrayMenuCommand.ResumeSharing:
-                await connection.SetPausedAsync(paused: false);
+                await commands.ResumeAsync();
                 break;
             case TrayMenuCommand.Revoke when item.PeerId is { Length: > 0 } peerId:
                 await connection.Runtime.RevokeAsync(peerId);
@@ -148,7 +144,7 @@ internal sealed class TrayViewModel(
                 ShowAccess(managedPeer);
                 break;
             case TrayMenuCommand.OpenFolder when item.PeerId is { Length: > 0 } opened:
-                OpenFolder(opened);
+                commands.OpenFolder(opened);
                 break;
             case TrayMenuCommand.PasteInvite:
                 await PasteInviteAsync();
@@ -176,15 +172,6 @@ internal sealed class TrayViewModel(
         _consent?.Close();
         _consent = new ConsentWindow(model);
         _consent.Activate();
-    }
-
-    private void OpenFolder(string peerId)
-    {
-        var folder = connection.Runtime.Peers
-            .FirstOrDefault(peer => peer.PeerId == peerId)?.WorkspacePath;
-        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-            return;
-        using var process = Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
     }
 
     private async Task PasteInviteAsync()

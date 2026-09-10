@@ -881,6 +881,7 @@
           "params": {
             "threadId": "thread_001",
             "reason": "leaseLost",
+            "initiator": "system",
             "route": {
               "threadId": "thread_001",
               "hostId": "peer_001",
@@ -892,7 +893,12 @@
         {
           "jsonrpc": "2.0",
           "method": "remoteToolHost/route/changed",
-          "params": { "threadId": "thread_001", "reason": "disconnected", "route": null }
+          "params": {
+            "threadId": "thread_001",
+            "reason": "disconnected",
+            "initiator": "agent",
+            "route": null
+          }
         }
       ]
     }

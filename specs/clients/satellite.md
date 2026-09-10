@@ -32,10 +32,14 @@ CLI-driven Remote Tool Host.
 - A per-user Windows application: one process, one tray icon, no administrator rights, no Windows
   service.
 - A consent window shown for every invitation before any credential is stored.
-- A tray icon with four states and a menu that shows who is connected, what is running, and gives
-  every paired machine one submenu of the actions that name it — open its task folder, manage its
-  access, disconnect it, revoke it. Only what does not name a machine stays at the top level: pause
+- A tray icon with four states and a menu that shows who is connected and gives every paired
+  machine one submenu of the actions that name it — open its task folder, manage its access,
+  disconnect it, revoke it. Only what does not name a machine stays at the top level: pause
   or resume sharing, paste an invitation link, and quit.
+- A floating island above the other windows for the whole time the machine is in use. It names who
+  is using it, shows the running operation and command, lists the connected machines with a
+  disconnect and an open-folder action each, offers one machine-wide pause, and carries the owner
+  approval request.
 - Operating-system notifications when a peer connects or disconnects.
 - Login autostart, single-instance behavior, and handling of the `dotcraft://satellite/join` link.
 - A per-user installer with an update channel.
@@ -123,13 +127,54 @@ Satellite has exactly four states with the precedence `offline > paused > connec
 | `standby` | paired, control connection up, no data session |
 
 The tray icon, its tooltip, and the menu status line MUST reflect the current state. The menu MUST
-show who is connected and since when, and the current command while one runs. Offline outranks
-paused so the owner is never told that resuming would help while the Hub is unreachable.
+show who is connected and since when. The island carries the current command, so work running on the
+machine is visible without opening anything. Offline outranks paused so the owner is never told that
+resuming would help while the Hub is unreachable.
+
+## Island
+
+The island is a floating capsule at the top of the primary display, above the other windows, with
+no taskbar or Alt-Tab presence. It MUST be visible for the whole of `connected` and for none of the
+other three states: `standby` has nobody to name, `paused` refuses sessions, and `offline` cannot
+know. It has no close or hide action and no grip: the whole capsule surface drags, and its position
+is remembered per display in `~/.craft/satellite.json`.
+
+Its states have the precedence `approval > running > expanded > compact`. Compact names the peer
+and when it connected, or counts the machines when there are several. Running names the operation
+in the same vocabulary the approval request uses, previews the command on one truncated line, and
+counts concurrent tools. Expanded, on hover or click, lists each connected machine with its access
+mode and, per row, disconnect and open-task-folder; the machine-wide pause sits once under the
+rows. Approval names the inviter, the operation and the target, counts the requests waiting behind
+it, and shows the time left.
+
+Text the island renders from a peer or an inviter is attacker-influenced: it MUST be rendered as
+plain text, length-capped, and truncated to one line, with the full value available on hover.
+
+Its surface is a translucent elevated fill (`#242424` at 90% in dark, white at 92% in light) with
+no border line: the edge is a rim light that follows the pointer, and a soft shadow separates it
+from the desktop. The capsule is a web page hosted in a WebView2 control inside a per-pixel
+transparent, always-on-top window. The page owns the look and the motion; the window owns
+geometry, input and the desktop: it places the capsule, hands the page its box on every state
+change, keeps the margin around the capsule transparent to the mouse so clicks there reach
+whatever is under it, and drags. Satellite requires the WebView2 Runtime, which ships with
+Windows 11 and with Microsoft Edge.
+
+Every size property — the entrance drop, width, height and corner radius — follows one spring
+(stiffness 400, damping 30, mass 1) from one start time, so the capsule reads as a shape that
+stretches rather than a box swapped for another box. The content inside cross-fades under that
+motion: what is leaving fades out over 120ms while the shape is already moving, and what replaces
+it lands over 260ms after a 90ms delay.
+
+Its geometry, colour, type and motion are specified by the design lab entry for
+`components/satellite-island`, and its localized copy reuses the consent and approval keys.
 
 ## Notifications
 
 Satellite MUST raise an operating-system notification when a peer connects and when it
 disconnects. Notifications MUST NOT include command output, file contents, or any credential.
+
+An owner request MUST be answered on the island, where the owner is already being told that the
+machine is in use, and it expires there. It MUST NOT be raised as a notification.
 
 ## Invitation link
 
@@ -191,9 +236,13 @@ outlives the application that used it.
 - A fresh Windows machine without administrator rights installs Satellite, opens an invitation
   link, and accepts it in one window; the tray shows `standby` afterwards.
 - The engineer's Desktop shows the machine and can run a command on it; the tray shows
-  `connected`, names the engineer, and shows the running command.
-- Disconnect, pause, and revoke from the tray take effect immediately and are visible on the
-  engineer's side.
+  `connected` and the island appears, names the engineer, and shows the running command.
+- The island stays above other windows for the whole session, survives being dragged to another
+  position, comes back where it was left, and slides away when the last session closes.
+- A tool that needs permission is answered on the island; a second request waits behind the first
+  and is counted; an unanswered request denies itself after two minutes.
+- Disconnect, pause, and revoke from the tray or the island take effect immediately and are visible
+  on the engineer's side, and each cancels every request still waiting.
 - Stopping the Hub on the engineer's machine moves the tray to `offline`; restarting it moves the
   tray back to `standby` without owner action.
 - Signing out and back in restarts Satellite in the background with no window.

@@ -41,6 +41,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerTestHarness : IDisposable
 {
     private readonly string _tempDir;
+    private readonly RemoteToolHostRouteBroadcaster? _remoteToolHostRouteBroadcaster;
 
     public InMemoryTransport Transport { get; }
     public TestableSessionService Service { get; }
@@ -161,9 +162,15 @@ public sealed class AppServerTestHarness : IDisposable
                 PluginManagementState = pluginManagementState ?? new AppServerPluginManagementState(),
                 BroadcastPluginSnapshotUpdated = broadcastPluginSnapshotUpdated,
                 RemoteToolHostClient = remoteToolHostClient,
-                BroadcastRemoteToolHostRouteChanged = broadcastRemoteToolHostRouteChanged,
                 Contributions = contributions,
             });
+
+        if (remoteToolHostClient is not null && broadcastRemoteToolHostRouteChanged is not null)
+        {
+            _remoteToolHostRouteBroadcaster = new RemoteToolHostRouteBroadcaster(
+                remoteToolHostClient,
+                broadcastRemoteToolHostRouteChanged);
+        }
 
         Identity = new SessionIdentity
         {
@@ -582,6 +589,7 @@ public sealed class AppServerTestHarness : IDisposable
 
     public void Dispose()
     {
+        _remoteToolHostRouteBroadcaster?.Dispose();
         Transport.DisposeAsync().AsTask().GetAwaiter().GetResult();
         try { Directory.Delete(_tempDir, recursive: true); } catch { /* best-effort */ }
     }

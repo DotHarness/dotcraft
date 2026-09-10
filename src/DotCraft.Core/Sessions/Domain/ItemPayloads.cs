@@ -10,8 +10,8 @@ public sealed record SystemNoticePayload
 {
     /// <summary>
     /// Notice classifier. Known values include <c>"compacted"</c>,
-    /// <c>"memoryConsolidated"</c>, and <c>"forked"</c>. Leaving this as a string
-    /// keeps future kinds additive without rev'ing the wire protocol.
+    /// <c>"memoryConsolidated"</c>, <c>"forked"</c>, and <c>"remoteRoute"</c>. Leaving this as a
+    /// string keeps future kinds additive without rev'ing the wire protocol.
     /// </summary>
     public string Kind { get; init; } = string.Empty;
 
@@ -52,6 +52,38 @@ public sealed record SystemNoticePayload
     /// Source thread id for fork boundary notices.
     /// </summary>
     public string? SourceThreadId { get; init; }
+
+    /// <summary>
+    /// Why the notice was raised. <c>"remoteRoute"</c> notices use <c>"connected"</c>,
+    /// <c>"disconnected"</c>, or <c>"leaseLost"</c>.
+    /// </summary>
+    public string? Reason { get; init; }
+
+    /// <summary>
+    /// Who caused the change. <c>"remoteRoute"</c> notices use <c>"client"</c>, <c>"agent"</c>, or
+    /// <c>"system"</c>.
+    /// </summary>
+    public string? Initiator { get; init; }
+
+    /// <summary>
+    /// Remote Tool Host id for <c>"remoteRoute"</c> notices.
+    /// </summary>
+    public string? HostId { get; init; }
+
+    /// <summary>
+    /// Remote Tool Host display name for <c>"remoteRoute"</c> notices, when one is known.
+    /// </summary>
+    public string? HostName { get; init; }
+
+    /// <summary>
+    /// Remote workspace id for <c>"remoteRoute"</c> notices.
+    /// </summary>
+    public string? WorkspaceId { get; init; }
+
+    /// <summary>
+    /// Remote workspace display name for <c>"remoteRoute"</c> notices, when one is known.
+    /// </summary>
+    public string? WorkspaceName { get; init; }
 }
 
 /// <summary>

@@ -11,12 +11,10 @@ namespace DotCraft.AppServer;
 /// </summary>
 internal sealed class RemoteToolHostRequestHandler(
     IRemoteToolHostClient? remoteToolHostClient,
-    ISessionService sessionService,
-    Action<Contract.RemoteToolHostRouteChangedNotification>? broadcastRouteChanged) : IAppServerDomainHandler
+    ISessionService sessionService) : IAppServerDomainHandler
 {
     private const string Connected = "connected";
     private const string LeaseLost = "leaseLost";
-    private const string Disconnected = "disconnected";
 
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -70,7 +68,6 @@ internal sealed class RemoteToolHostRequestHandler(
             Status = Connected,
             Environment = ToWire(connected.Environment)
         };
-        Broadcast(threadId, Connected, route);
         return AppServerTypedResult<Contract.RemoteToolHostConnectResult>.FromResult(
             new Contract.RemoteToolHostConnectResult
             {
@@ -99,9 +96,6 @@ internal sealed class RemoteToolHostRequestHandler(
             throw AppServerErrors.RemoteToolHost(exception.Code);
         }
 
-        if (result.Disconnected)
-            Broadcast(threadId, Disconnected, route: null);
-
         return AppServerTypedResult<Contract.RemoteToolHostDisconnectResult>.FromResult(
             new Contract.RemoteToolHostDisconnectResult
             {
@@ -110,14 +104,6 @@ internal sealed class RemoteToolHostRequestHandler(
                     previous ?? ToWire(threadId, result.PreviousRoute))
             });
     }
-
-    private void Broadcast(string threadId, string reason, Contract.RemoteToolRouteInfo? route) =>
-        broadcastRouteChanged?.Invoke(new Contract.RemoteToolHostRouteChangedNotification
-        {
-            ThreadId = threadId,
-            Reason = reason,
-            Route = Optional<Contract.RemoteToolRouteInfo?>.FromValue(route)
-        });
 
     private static Contract.RemoteToolRouteInfo? CurrentRoute(IRemoteToolHostClient client, string threadId) =>
         client.TryGetConnectionSnapshot(threadId, out var snapshot)

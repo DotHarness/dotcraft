@@ -30,6 +30,15 @@ function host(overrides?: { online?: boolean; available?: boolean; busyOwner?: s
   }
 }
 
+function connectedRoute(): { threadId: string; hostId: string; workspaceId: string; status: string } {
+  return {
+    threadId: THREAD_ID,
+    hostId: 'sat_studio',
+    workspaceId: 'ws_shaders',
+    status: 'connected'
+  }
+}
+
 function rememberedRoute(): Record<string, unknown> {
   return {
     satelliteRouteByThread: {
@@ -309,5 +318,67 @@ describe('threadRouteStore', () => {
       route: null
     })
     expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
+  })
+
+  it('remembers the machine a route/changed notification connected to', async () => {
+    settingsGet.mockResolvedValue({ satelliteRouteByThread: {} })
+
+    useThreadRouteStore.getState().handleRouteChanged({
+      threadId: THREAD_ID,
+      reason: 'connected',
+      initiator: 'agent',
+      route: {
+        threadId: THREAD_ID,
+        hostId: 'sat_studio',
+        workspaceId: 'ws_shaders',
+        status: 'connected'
+      }
+    })
+
+    await settle()
+    const written = settingsSet.mock.calls[0][0] as {
+      satelliteRouteByThread: Record<string, { hostId: string; workspaceId: string }>
+    }
+    expect(written.satelliteRouteByThread[MEMORY_KEY]).toMatchObject({
+      hostId: 'sat_studio',
+      workspaceId: 'ws_shaders'
+    })
+  })
+
+  it('forgets the machine when the agent disconnects the thread', async () => {
+    useThreadRouteStore.setState({ routes: { [THREAD_ID]: connectedRoute() } })
+
+    useThreadRouteStore.getState().handleRouteChanged({
+      threadId: THREAD_ID,
+      reason: 'disconnected',
+      initiator: 'agent',
+      route: null
+    })
+
+    expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
+    await settle()
+    const cleared = settingsSet.mock.calls[0][0] as {
+      satelliteRouteByThread: Record<string, unknown>
+    }
+    expect(cleared.satelliteRouteByThread).not.toHaveProperty(MEMORY_KEY)
+  })
+
+  it('keeps the route and the memory when the lease is lost', async () => {
+    useThreadRouteStore.setState({ routes: { [THREAD_ID]: connectedRoute() } })
+
+    useThreadRouteStore.getState().handleRouteChanged({
+      threadId: THREAD_ID,
+      reason: 'leaseLost',
+      initiator: 'system',
+      route: { ...connectedRoute(), status: 'leaseLost' }
+    })
+
+    expect(useThreadRouteStore.getState().routes[THREAD_ID]).toMatchObject({
+      hostId: 'sat_studio',
+      workspaceId: 'ws_shaders',
+      status: 'leaseLost'
+    })
+    await settle()
+    expect(settingsSet).not.toHaveBeenCalled()
   })
 })
