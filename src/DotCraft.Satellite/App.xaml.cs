@@ -1,4 +1,5 @@
 using DotCraft.RemoteTools;
+using DotCraft.Satellite.Consent;
 using DotCraft.Satellite.Island;
 using DotCraft.Satellite.Localization;
 using DotCraft.Satellite.Services;
@@ -19,6 +20,7 @@ public sealed partial class App : Application, IDisposable
     private ToastPresenter? _toasts;
     private IslandViewModel? _island;
     private IslandWindow? _islandWindow;
+    private Window? _consentPreview;
 
     internal App(StartupOptions options, SingleInstanceGate? gate)
     {
@@ -35,16 +37,24 @@ public sealed partial class App : Application, IDisposable
         _toasts?.Dispose();
         _tray?.Dispose();
         GC.KeepAlive(_lifetimeWindow);
+        GC.KeepAlive(_consentPreview);
         _lifetimeWindow = null;
+        _consentPreview = null;
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        var strings = SatelliteStrings.Current;
+        if (_options.PreviewConsent is { Length: > 0 } consentScenario)
+        {
+            _consentPreview = ConsentPreview.Show(consentScenario, strings);
+            return;
+        }
+
         // WinUI exits when its last Window closes. Keep an unactivated window alive so closing
         // consent returns this tray application to the background instead of terminating it.
         _lifetimeWindow ??= new Window();
 
-        var strings = SatelliteStrings.Current;
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         var approvals = new IslandApprovalQueue();
         _island = new IslandViewModel(strings, dispatcher, approvals);

@@ -28,7 +28,7 @@ public sealed class ConsentViewModelTests : IDisposable
         Assert.False(viewModel.CanPickFolder);
         Assert.True(Path.IsPathFullyQualified(viewModel.FolderPath));
         Assert.False(Directory.Exists(viewModel.FolderPath));
-        Assert.False(viewModel.HasWarning);
+        Assert.Empty(viewModel.Warning);
         Assert.True(viewModel.CanAllow);
     }
 
@@ -70,7 +70,7 @@ public sealed class ConsentViewModelTests : IDisposable
 
         Assert.True(viewModel.WorkspacePreferred);
         Assert.Equal(suggested, viewModel.FolderPath);
-        Assert.False(viewModel.HasWarning);
+        Assert.Empty(viewModel.Warning);
         Assert.True(viewModel.CanAllow);
 
         await viewModel.AllowCommand.ExecuteAsync(null);
@@ -155,12 +155,12 @@ public sealed class ConsentViewModelTests : IDisposable
         viewModel.FolderPath = Path.Combine(_folder, "missing");
 
         Assert.False(viewModel.CanAllow);
-        Assert.True(viewModel.HasWarning);
+        Assert.NotEmpty(viewModel.Warning);
 
         viewModel.SelectFullAccessCommand.Execute(null);
 
         Assert.True(viewModel.CanAllow);
-        Assert.False(viewModel.HasWarning);
+        Assert.Empty(viewModel.Warning);
 
         await viewModel.AllowCommand.ExecuteAsync(null);
 

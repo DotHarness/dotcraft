@@ -65,8 +65,6 @@ internal sealed partial class ConsentViewModel : ObservableObject
 
     public string DeclineText => _strings["consent.decline"];
 
-    public bool HasWarning => Warning.Length > 0;
-
     public bool IsExpired => _invite.ExpiresAt is { } expiry && expiry <= DateTimeOffset.UtcNow;
 
     public string ModeHeading => _strings["consent.modeHeading"];
@@ -74,8 +72,6 @@ internal sealed partial class ConsentViewModel : ObservableObject
     public string PreferredDescription => _strings["consent.preferredDescription"];
     public string FullText => _strings["consent.full"];
     public string FullDescription => _strings["consent.fullDescription"];
-    public string FullNarration => _strings.Format("consent.fullNarration", FullText, FullDescription);
-    public string PreferredNarration => _strings.Format("consent.preferredNarration", PreferredText, PreferredDescription);
     public bool WorkspacePreferred => !FullAccess;
     public bool CanChangeFolder { get; set; } = true;
     public bool CanPickFolder => CanChangeFolder && WorkspacePreferred;
@@ -167,8 +163,6 @@ internal sealed partial class ConsentViewModel : ObservableObject
             return _strings["consent.warningFolder"];
         return IsTooBroad(value) ? _strings["consent.warningRoot"] : string.Empty;
     }
-
-    partial void OnWarningChanged(string value) => OnPropertyChanged(nameof(HasWarning));
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(CanAllow));
 

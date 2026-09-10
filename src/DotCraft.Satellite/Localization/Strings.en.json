@@ -4,7 +4,7 @@
   "consent.title": "{0} wants to run tools on this PC",
   "consent.hub": "Invitation from {0}",
   "consent.folderHeading": "Task folder",
-  "consent.folderChange": "Change…",
+  "consent.folderChange": "Change folder",
   "consent.allow": "Allow connection",
   "consent.decline": "Decline",
   "consent.warningFolder": "Choose an existing folder on this PC before you allow access.",
@@ -40,9 +40,9 @@
   "uninstall.revokePrompt": "Also revoke access for the {0} people you shared this PC with?",
   "consent.modeHeading": "How may they use this PC?",
   "consent.preferred": "Folder only",
-  "consent.preferredDescription": "Use the task folder; other files and commands need your approval.",
+  "consent.preferredDescription": "Only the task folder; anything else asks you first.",
   "consent.full": "Full access",
-  "consent.fullDescription": "Allow file access and commands with your Windows permissions, without asking.",
+  "consent.fullDescription": "Any file and any command, without asking.",
   "consent.connected": "Connection allowed",
   "approval.inviter": "{0} is requesting access",
   "approval.once": "Allow once",
@@ -54,6 +54,5 @@
   "approval.operation.execute": "Run a command",
   "approval.operation.input": "Send terminal input",
   "approval.operation.languageServer": "Run language tools",
-  "consent.fullNarration": "{0}\n{1}",
-  "consent.preferredNarration": "{0}\n{1}"
+  "consent.webviewMissing": "This window needs the Microsoft Edge WebView2 Runtime, which ships with Windows 11 and Microsoft Edge. Install it, then open the invitation again."
 }

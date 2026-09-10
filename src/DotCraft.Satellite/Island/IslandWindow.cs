@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Satellite.ViewModels;
+using DotCraft.Satellite.Web;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
@@ -40,7 +41,6 @@ internal sealed class IslandWindow : Window, IDisposable
 
     private static readonly TimeSpan MorphDuration = TimeSpan.FromMilliseconds(480);
     private static readonly TimeSpan ExitDuration = TimeSpan.FromMilliseconds(200);
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly IslandViewModel _viewModel;
     private readonly Grid _root = new();
@@ -149,53 +149,24 @@ internal sealed class IslandWindow : Window, IDisposable
         _ => "compact"
     };
 
-    private static string Page()
-    {
-        using var stream = typeof(IslandWindow).Assembly.GetManifestResourceStream("DotCraft.Satellite.island.html")!;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
-    /// <summary>
-    /// The page gets WebView2's own child window rather than the XAML control: WinUI's control paints
-    /// the theme page colour behind a transparent page, and nothing above it can make that see-through.
-    /// </summary>
     private async Task LoadPageAsync()
     {
-        var folder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DotCraft", "Satellite", "WebView2");
-        var environment = await CoreWebView2Environment.CreateWithOptionsAsync(null, folder, new CoreWebView2EnvironmentOptions());
-        var controller = await environment.CreateCoreWebView2ControllerAsync(
-            CoreWebView2ControllerWindowReference.CreateFromWindowHandle((ulong)_handle));
-        controller.DefaultBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+        var controller = await SatellitePageHost.AttachAsync(
+            _handle, "DotCraft.Satellite.island.html", transparent: true, OnWebMessage);
         controller.Bounds = ClientBounds();
         controller.IsVisible = _shown;
-        var core = controller.CoreWebView2;
-        var settings = core.Settings;
-        settings.AreDefaultContextMenusEnabled = false;
-        settings.AreBrowserAcceleratorKeysEnabled = false;
-        settings.AreDevToolsEnabled = false;
-        settings.IsZoomControlEnabled = false;
-        settings.IsPinchZoomEnabled = false;
-        settings.IsStatusBarEnabled = false;
-        settings.IsGeneralAutofillEnabled = false;
-        settings.IsPasswordAutosaveEnabled = false;
-        core.WebMessageReceived += OnWebMessage;
         _controller = controller;
-        core.NavigateToString(Page());
     }
 
     private Windows.Foundation.Rect ClientBounds() =>
         new(0, 0, WindowWidthDips * Scale, WindowHeightDips * Scale);
 
-    private void OnWebMessage(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
+    private void OnWebMessage(JsonElement message)
     {
-        using var document = JsonDocument.Parse(args.WebMessageAsJson);
-        var message = document.RootElement;
         switch (message.GetProperty("type").GetString())
         {
             case "ready":
-                _core = sender;
+                _core = _controller?.CoreWebView2;
                 Push();
                 break;
             case "press":
@@ -367,7 +338,8 @@ internal sealed class IslandWindow : Window, IDisposable
         var window = WindowRect(_bounds);
         var scale = Scale;
         var to = _motion == "exit" ? _bounds with { Y = _bounds.Y - Rise(_bounds) } : _bounds;
-        core.PostWebMessageAsJson(JsonSerializer.Serialize(
+        SatellitePageHost.Post(
+            core,
             new
             {
                 theme = Theme,
@@ -418,8 +390,7 @@ internal sealed class IslandWindow : Window, IDisposable
                         allow = state.AllowLabel
                     }
                     : null
-            },
-            JsonOptions));
+            });
         _motion = "none";
         _from = null;
 

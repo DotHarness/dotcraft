@@ -4,7 +4,7 @@
   "consent.title": "{0} 想在这台电脑上运行工具",
   "consent.hub": "邀请来自 {0}",
   "consent.folderHeading": "任务文件夹",
-  "consent.folderChange": "更换…",
+  "consent.folderChange": "更换文件夹",
   "consent.allow": "允许连接",
   "consent.decline": "拒绝",
   "consent.warningFolder": "请先选择这台电脑上一个已存在的文件夹，再允许访问。",
@@ -40,9 +40,9 @@
   "uninstall.revokePrompt": "同时撤销这 {0} 位共享对象的访问权限吗？",
   "consent.modeHeading": "允许对方怎样使用这台电脑？",
   "consent.preferred": "仅授权文件夹",
-  "consent.preferredDescription": "可读写任务文件夹，访问其他文件或运行命令需你确认。",
+  "consent.preferredDescription": "只动任务文件夹，其他操作先问你。",
   "consent.full": "完全授权",
-  "consent.fullDescription": "可使用你的 Windows 权限访问文件和运行命令，无需逐次确认。",
+  "consent.fullDescription": "任何文件、任何命令，不再逐次询问。",
   "consent.connected": "已允许连接",
   "approval.inviter": "{0} 正在请求访问",
   "approval.once": "允许一次",
@@ -54,6 +54,5 @@
   "approval.operation.execute": "运行命令",
   "approval.operation.input": "向终端发送输入",
   "approval.operation.languageServer": "运行语言工具",
-  "consent.fullNarration": "{0}\n{1}",
-  "consent.preferredNarration": "{0}\n{1}"
+  "consent.webviewMissing": "显示这个窗口需要 Microsoft Edge WebView2 运行时（Windows 11 和 Microsoft Edge 自带）。请安装后重新打开邀请。"
 }

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.3.0 |
+| Version | 0.4.0 |
 | Status | Draft |
-| Date | 2026-09-09 |
+| Date | 2026-09-10 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Desktop Client](desktop-client.md) |
 
@@ -64,6 +64,11 @@ Satellite is a shipped DotCraft product artifact. Its solution is separate from 
 only because the cross-platform build runs on Linux; that exclusion is a build constraint, not a
 sample designation.
 
+Satellite requires the WebView2 Runtime, which ships with Windows 11 and with Microsoft Edge.
+Without it the consent window shows a message saying so and offers Decline only. Pages are hosted
+in WebView2's window-to-visual mode: plain windowed hosting inside a WinUI window receives no
+mouse input on Windows 11, and WinUI's own XAML control cannot render a transparent page.
+
 ## State sharing with the CLI
 
 Satellite and `dotcraft tool-host *` MUST resolve the same state root
@@ -115,6 +120,12 @@ as plain text and MUST be length-capped.
 The consent window uses a standard title bar and the DotCraft accent color regardless of the
 operating-system accent, so a security prompt looks the same on every machine.
 
+The window's content is a web page hosted in a WebView2 control. The page owns the look and
+receives every string it renders from the Satellite catalogs, inserting the inviter name as text;
+the window owns the title bar, the size, the folder picker and the accept path. Its layout,
+colour, type and the mascot artwork rendered from the shared avatar package are specified by the
+design lab entry for `flows/satellite-consent`.
+
 ## States
 
 Satellite has exactly four states with the precedence `offline > paused > connected > standby`:
@@ -156,8 +167,7 @@ from the desktop. The capsule is a web page hosted in a WebView2 control inside 
 transparent, always-on-top window. The page owns the look and the motion; the window owns
 geometry, input and the desktop: it places the capsule, hands the page its box on every state
 change, keeps the margin around the capsule transparent to the mouse so clicks there reach
-whatever is under it, and drags. Satellite requires the WebView2 Runtime, which ships with
-Windows 11 and with Microsoft Edge.
+whatever is under it, and drags.
 
 Every size property — the entrance drop, width, height and corner radius — follows one spring
 (stiffness 400, damping 30, mass 1) from one start time, so the capsule reads as a shape that

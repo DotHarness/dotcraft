@@ -28,11 +28,11 @@ Choose **Allow connection**. Files and commands then run with your Windows permi
 
 ### Folder only
 
-Choose **Folder only** and Satellite asks you to pick the folder to share. Cancel that picker to use the suggested task folder instead, which is created only when you allow the connection. **Change…** on the card picks a different folder.
+Choose **Folder only** and Satellite asks you to pick the folder to share. Cancel that picker to use the suggested task folder instead, which is created only when you allow the connection. The folder button on the card picks a different folder.
 
 The agent can read and change files in that folder. Other file access and local commands need your approval, which is not a strict filesystem sandbox.
 
-![Folder only selected, showing the folder it shares and a Change link](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-workspace.png)
+![Folder only selected, showing the folder it shares and the change-folder button](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-workspace.png)
 
 **Decline** leaves the PC unpaired and does not create the suggested task folder.
 
@@ -49,6 +49,8 @@ While someone is using your PC, a bar sits at the top of your screen, above your
 ## Person sharing: handle additional access
 
 In Folder only mode, additional access is asked for on that same bar. Check the inviter, the operation, and the path or full command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder. You answer one request at a time, and a request nobody answers within two minutes is declined.
+
+![The island asking whether Ann may run a command, with Decline and Allow once](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/approve-command.png)
 
 If you decline, the agent receives that result. The person inviting your PC cannot approve this access on your behalf.
 

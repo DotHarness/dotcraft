@@ -23,9 +23,9 @@ internal static class Program
             return 0;
         }
 
-        // The island preview is a review switch, so it runs beside an already running Satellite.
-        var gate = options.PreviewIsland is null ? SingleInstanceGate.TryAcquire() : null;
-        if (gate is null && options.PreviewIsland is null)
+        // The previews are review switches, so they run beside an already running Satellite.
+        var gate = options.Preview is null ? SingleInstanceGate.TryAcquire() : null;
+        if (gate is null && options.Preview is null)
         {
             SingleInstanceGate.TrySend(options.Url is { Length: > 0 } url
                 ? InstanceMessage.Join(url)
