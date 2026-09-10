@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ToolCallCard } from '../components/conversation/ToolCallCard'
 import { useConversationStore } from '../stores/conversationStore'
+import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useUIStore } from '../stores/uiStore'
@@ -1537,5 +1538,110 @@ describe('ToolCallCard CreatePlan rendering', () => {
     expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
     fireEvent.click(screen.getAllByRole('button')[0])
     expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
+  })
+})
+
+describe('ToolCallCard RemoteToolHost rendering', () => {
+  beforeEach(() => {
+    useConversationStore.getState().reset()
+    useThreadRouteStore.setState({
+      hosts: [{
+        hostId: 'sat_studio',
+        displayName: 'Studio PC',
+        online: true,
+        workspaces: [{ workspaceId: 'ws_shaders', displayName: 'shaders', available: true }]
+      }],
+      routes: {}
+    })
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest: vi.fn(async () => ({}))
+      }
+    })
+  })
+
+  function remoteToolHostItem(
+    operation: 'list' | 'connect' | 'disconnect',
+    extra: Partial<ConversationItem> = {}
+  ): ConversationItem {
+    return {
+      id: `rth-${operation}`,
+      type: 'toolCall',
+      status: 'completed',
+      toolName: `RemoteToolHost.${operation}`,
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: operation },
+      presentation: { presentationId: 'core.remote-tool-host', options: { operation } },
+      toolCallId: `rth-call-${operation}`,
+      success: true,
+      createdAt: new Date().toISOString(),
+      ...extra
+    }
+  }
+
+  it('states a completed connect in one sentence with no way to expand it', () => {
+    const item = remoteToolHostItem('connect', {
+      arguments: { hostId: 'sat_studio', workspaceId: 'ws_shaders' },
+      result: JSON.stringify({
+        route: { threadId: 'thread-1', hostId: 'sat_studio', workspaceId: 'ws_shaders', status: 'connected' },
+        environment: {
+          hostName: 'Studio PC',
+          operatingSystem: 'Windows 11 Pro',
+          userName: 'mei',
+          workspacePath: 'D:\\art\\shaders'
+        },
+        matchedTools: ['Shell', 'ReadFile'],
+        unavailableTools: []
+      })
+    })
+
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+
+    expect(screen.getByTestId('tool-row')).toHaveTextContent('Joined shaders on Studio PC · 2 tools')
+    expect(screen.getByTestId('tool-row')).toHaveAttribute('data-expandable', 'false')
+    expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
+  })
+
+  it('expands a listing into the machines and folders it found', () => {
+    const item = remoteToolHostItem('list', {
+      result: JSON.stringify({
+        hosts: [
+          {
+            hostId: 'sat_studio',
+            displayName: 'Studio PC',
+            online: true,
+            workspaces: [
+              { workspaceId: 'ws_shaders', displayName: 'shaders', available: true },
+              { workspaceId: 'ws_art', displayName: 'art', available: false, busyOwner: 'other' }
+            ]
+          },
+          {
+            hostId: 'sat_qa',
+            displayName: 'QA Laptop',
+            online: false,
+            workspaces: [{ workspaceId: 'ws_qa', displayName: 'qa', available: true }]
+          }
+        ],
+        connectedRoute: { hostId: 'sat_studio', workspaceId: 'ws_shaders' }
+      })
+    })
+
+    const { container } = renderWithLocale(
+      <ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />
+    )
+
+    expect(screen.getByTestId('tool-row')).toHaveTextContent('Listed remote machines · 1 online')
+    expectDisclosureInsideTitleGroup(container)
+
+    fireEvent.click(screen.getByTestId('tool-row'))
+
+    expect(screen.getByTestId('remote-tool-host-list')).toHaveTextContent('Studio PC')
+    expect(screen.getByTestId('remote-tool-host-list')).toHaveTextContent('QA Laptop')
+    expect(screen.getByTestId('remote-tool-host-workspace-sat_studio:ws_shaders'))
+      .toHaveAttribute('data-current', 'true')
+    expect(screen.getByTestId('remote-tool-host-workspace-sat_studio:ws_art'))
+      .toHaveTextContent('In use by another agent')
   })
 })

@@ -194,6 +194,7 @@ public sealed class RemoteToolHostCoreTests
             byte[] bytes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         private readonly Dictionary<string, RemoteToolConnectionSnapshot> _connections = new(StringComparer.Ordinal);
+        public event Action<RemoteToolRouteChange>? RouteChanged;
         public int RemoteCalls { get; private set; }
         public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) { }
 
@@ -207,10 +208,12 @@ public sealed class RemoteToolHostCoreTests
             string threadId,
             string hostId,
             string workspaceId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client)
         {
             SetRoute(threadId);
             TryGetRoute(threadId, out var route);
+            Raise(threadId, RemoteToolRouteChangeReason.Connected, initiator, route);
             return ValueTask.FromResult(new RemoteToolConnectResult(
                 route,
                 new RemoteToolEnvironment("host", "test", "user", "workspace"),
@@ -221,12 +224,36 @@ public sealed class RemoteToolHostCoreTests
 
         public ValueTask<RemoteToolDisconnectResult> DisconnectAsync(
             string threadId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client)
         {
             var disconnected = TryGetRoute(threadId, out var previous);
             _connections.Remove(threadId);
+            if (disconnected)
+                Raise(threadId, RemoteToolRouteChangeReason.Disconnected, initiator, previous);
             return ValueTask.FromResult(new RemoteToolDisconnectResult(disconnected, previous));
         }
+
+        public void RaiseLeaseLost(string threadId)
+        {
+            if (!TryGetRoute(threadId, out var route))
+                return;
+            SetConnectionStatus(threadId, RemoteToolConnectionStatus.LeaseLost);
+            Raise(threadId, RemoteToolRouteChangeReason.LeaseLost, RemoteToolRouteInitiator.System, route);
+        }
+
+        private void Raise(
+            string threadId,
+            RemoteToolRouteChangeReason reason,
+            RemoteToolRouteInitiator initiator,
+            RemoteToolRoute? route) =>
+            RouteChanged?.Invoke(new RemoteToolRouteChange(
+                threadId,
+                reason,
+                initiator,
+                route,
+                route is null ? null : "Studio PC",
+                route is null ? null : "game-client"));
 
         public bool TryGetRoute(string threadId, out RemoteToolRoute route)
         {

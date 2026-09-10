@@ -32,7 +32,8 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
             {
                 _leaseTerminals.ReleaseLease(released.LeaseId);
                 RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
-            });
+            },
+            onChanged: () => Changed?.Invoke());
         _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _leaseTerminals, activity, approvalPresenter, () => _paused);
     }
 
@@ -125,6 +126,7 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _handlers.DisposeAsync().ConfigureAwait(false);
+        Leases.Dispose();
         _serveLock?.Dispose();
         _serveLock = null;
     }

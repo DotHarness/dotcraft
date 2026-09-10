@@ -43,7 +43,7 @@ dotcraft tool-host serve
 dotcraft tool-host autostart install
 ```
 
-[DotCraft Satellite](../../features/agent-system/satellite) is the tray client that replaces `setup`, `join`, `serve`, and `autostart install` with an installer and an approval window, for a machine owner who does not want a terminal.
+[DotCraft Satellite](../../features/agent-system/satellite) is the tray client that replaces `setup`, `join`, `serve`, and `autostart install` with an installer and an on-screen approval, for a machine owner who does not want a terminal.
 
 ## Inspect and route
 

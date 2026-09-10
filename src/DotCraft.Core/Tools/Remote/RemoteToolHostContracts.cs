@@ -67,12 +67,63 @@ public sealed record RemoteToolConnectResult(
 /// <summary>Model-safe result returned after disconnecting one thread route.</summary>
 public sealed record RemoteToolDisconnectResult(bool Disconnected, RemoteToolRoute? PreviousRoute = null);
 
+/// <summary>Why one thread's Remote Tool Host route changed.</summary>
+public enum RemoteToolRouteChangeReason
+{
+    /// <summary>A route was published for the thread.</summary>
+    Connected,
+
+    /// <summary>The thread's route was removed and it returned to local execution.</summary>
+    Disconnected,
+
+    /// <summary>The route's workspace lease was lost; the route is retained and marked lost.</summary>
+    LeaseLost
+}
+
+/// <summary>Who caused one Remote Tool Host route change.</summary>
+public enum RemoteToolRouteInitiator
+{
+    /// <summary>An out-of-process client drove the change over the AppServer Protocol.</summary>
+    Client,
+
+    /// <summary>The model drove the change through a <c>RemoteToolHost.*</c> tool.</summary>
+    Agent,
+
+    /// <summary>The Agent Host itself drove the change, such as thread release or lease heartbeat loss.</summary>
+    System
+}
+
+/// <summary>One observed Remote Tool Host route transition for a single thread.</summary>
+/// <param name="ThreadId">Thread whose route changed.</param>
+/// <param name="Reason">Why the route changed.</param>
+/// <param name="Initiator">Who caused the change.</param>
+/// <param name="Route">
+/// The route this change is about: the published route for <see cref="RemoteToolRouteChangeReason.Connected"/>,
+/// the retained route for <see cref="RemoteToolRouteChangeReason.LeaseLost"/>, and the removed route for
+/// <see cref="RemoteToolRouteChangeReason.Disconnected"/>.
+/// </param>
+/// <param name="HostDisplayName">Display name of the registered Host, when one is known.</param>
+/// <param name="WorkspaceDisplayName">Display name of the remote workspace, when one is known.</param>
+public sealed record RemoteToolRouteChange(
+    string ThreadId,
+    RemoteToolRouteChangeReason Reason,
+    RemoteToolRouteInitiator Initiator,
+    RemoteToolRoute? Route,
+    string? HostDisplayName,
+    string? WorkspaceDisplayName);
+
 /// <summary>
 /// Agent-side Remote Tool Host client boundary. Implementations own credentials, MCP sessions,
 /// workspace leases, and runtime-only thread routes.
 /// </summary>
 public interface IRemoteToolHostClient
 {
+    /// <summary>
+    /// Raised once per observed thread route transition. This is the single source of truth every
+    /// route-aware surface subscribes to; subscriber exceptions never fail the originating operation.
+    /// </summary>
+    event Action<RemoteToolRouteChange>? RouteChanged;
+
     /// <summary>Replaces the current trusted set of RPC-eligible definitions.</summary>
     void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions);
 
@@ -86,12 +137,14 @@ public interface IRemoteToolHostClient
         string threadId,
         string hostId,
         string workspaceId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client);
 
     /// <summary>Clears one thread route and releases its route reference.</summary>
     ValueTask<RemoteToolDisconnectResult> DisconnectAsync(
         string threadId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client);
 
     /// <summary>Gets the current runtime-only route without performing network work.</summary>
     bool TryGetRoute(string threadId, out RemoteToolRoute route);

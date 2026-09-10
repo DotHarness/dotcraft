@@ -90,9 +90,6 @@ public sealed record AppServerConnectionServices
     public IBackgroundTerminalService? BackgroundTerminalService { get; init; }
 
     public IRemoteToolHostClient? RemoteToolHostClient { get; init; }
-
-    /// <summary>Fans a route change out to every connection that accepts the notification.</summary>
-    public Action<Contract.RemoteToolHostRouteChangedNotification>? BroadcastRemoteToolHostRouteChanged { get; init; }
     public IContextPageManager? ContextPageManager { get; init; }
     public DreamStore? DreamStore { get; init; }
     public DreamsService? DreamsService { get; init; }

@@ -2009,4 +2009,28 @@ describe('pending message auto-send', () => {
     })
     expect(useThreadRouteStore.getState().routes.thread_route).toBeUndefined()
   })
+
+  it('keeps a thread pointed at the machine whose lease was lost', () => {
+    useThreadRouteStore.setState({ routes: {} })
+
+    dispatch({
+      method: 'remoteToolHost/route/changed',
+      params: {
+        threadId: 'thread_route',
+        reason: 'leaseLost',
+        initiator: 'system',
+        route: {
+          threadId: 'thread_route',
+          hostId: 'sat_studio',
+          workspaceId: 'ws_shaders',
+          status: 'leaseLost'
+        }
+      }
+    })
+
+    expect(useThreadRouteStore.getState().routes.thread_route).toMatchObject({
+      hostId: 'sat_studio',
+      status: 'leaseLost'
+    })
+  })
 })

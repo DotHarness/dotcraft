@@ -57,6 +57,12 @@
     <EmbeddedResource Include="Localization\Strings.zh-Hans.json" WithCulture="false">
       <LogicalName>DotCraft.Satellite.Strings.zh-Hans.json</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Island\island.html">
+      <LogicalName>DotCraft.Satellite.island.html</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Consent\consent.html">
+      <LogicalName>DotCraft.Satellite.consent.html</LogicalName>
+    </EmbeddedResource>
     <Content Include="Assets\satellite.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

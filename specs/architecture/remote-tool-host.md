@@ -167,6 +167,35 @@ starts because leases are not durable across a Host restart.
 Switching routes acquires the new lease before publishing the new route and releasing the old one.
 Failure to acquire leaves the old route unchanged. Connecting to the current route is idempotent.
 
+### 5.1 Route changes
+
+The client raises one **route-change event** per observed thread transition. It is the single source
+of truth for route state: the AppServer notification, the persisted timeline notice, and any other
+route-aware surface subscribe to it rather than reporting their own writes, so all three surfaces
+agree no matter which entry caused the change.
+
+Each event carries the thread id, a reason, an initiator, the route the change is about, and the
+Host and workspace display names when the client knows them.
+
+| Reason | Raised when | Route carried |
+|--------|-------------|---------------|
+| `Connected` | A route is published for the thread. An idempotent reconnect to the current route publishes nothing and raises nothing. | The published route. |
+| `Disconnected` | The thread's route is removed. | The removed route. |
+| `LeaseLost` | The workspace lease heartbeat fails. Raised once per thread holding the lost lease. | The retained route. |
+
+| Initiator | Entry |
+|-----------|-------|
+| `Client` | A `remoteToolHost/*` request from an out-of-process client. |
+| `Agent` | A `RemoteToolHost.*` model tool. |
+| `System` | The Agent Host itself: thread release and process teardown. |
+
+Lease loss keeps the thread route and marks it lost. There is no automatic fallback to local
+execution, because silently relocating work the person routed elsewhere is worse than failing the
+next call. Only an explicit disconnect clears the route.
+
+Observers are notified outside the client's route and state locks, and one observer's failure never
+fails the connect, disconnect, or heartbeat that produced the event, nor the observers behind it.
+
 ## 6. Model control surface
 
 When the Remote Tool Host client capability is installed, the Agent Host always exposes three
@@ -212,6 +241,17 @@ tool-snapshot rebuild.
 The model control surface and the client control surface defined by the AppServer Protocol
 (`remoteToolHost/*`) are two entries to the same client. A client-driven route change is not a Turn
 and is not tool use; it is subject to the same lease, catalog, and safety rules as the model tools.
+
+All three tools carry the `core.remote-tool-host` presentation with `options.operation` set to
+`list`, `connect`, or `disconnect`, so a client renders a route change as a route change rather than
+as generic tool output.
+
+Session Core records a persistent `systemNotice` item with `kind = "remoteRoute"` for every connect
+and disconnect a person or the model caused, and for every lease loss, so a thread's history shows
+where its tools ran; disconnects the Agent Host performs on teardown are not recorded. The notice
+is appended to the running Turn when one is in flight and otherwise to the latest completed Turn; a
+thread with no Turn records nothing, because a divider with nothing to divide is noise. Its payload
+is defined in [Session Core](session-core.md) §4.2.
 
 At the start of each Turn, the Agent Host appends a Remote Tool Host section to the latest user
 message runtime context when the thread has a connected or lost route. The section contains only
@@ -463,6 +503,8 @@ Conformance tests cover:
 - contract hashing, missing/mismatched catalogs, per-call revalidation, and unavailable reasons
   that include both build versions;
 - local, same-Turn connect, remote, disconnect, and no-fallback execution;
+- one route-change event per transition from all three entries, its initiator, lease-loss route
+  retention, and the persisted `remoteRoute` notice landing on the running or latest completed Turn;
 - Native SubAgent inheritance and independent routes over a shared process lease;
 - same-client sharing, cross-client `WorkspaceBusy` with `self`/`other` owner markers, heartbeat
   expiry, and process failure;

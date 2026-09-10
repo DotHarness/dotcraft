@@ -1,0 +1,67 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hostName {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: var(--type-ui-emphasis-weight);
+}
+
+.hostGlyph {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.workspaces {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: none;
+}
+
+.workspace {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+.workspace[data-current='true'] {
+  color: var(--text-primary);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+  font-weight: 400;
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-dimmed);
+}

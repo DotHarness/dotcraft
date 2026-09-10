@@ -1,44 +1,30 @@
 using DotCraft.RemoteTools;
-using DotCraft.Satellite.Localization;
+using DotCraft.Satellite.ViewModels;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml;
-using DotCraft.Satellite.Consent;
 
 namespace DotCraft.Satellite.Services;
 
-internal sealed class OwnerApprovalPresenter(DispatcherQueue dispatcher, SatelliteStrings strings)
-    : IRemoteToolApprovalPresenter, IDisposable
+/// <summary>
+/// Puts an owner request on the island and waits for the answer there. A request the island cannot
+/// receive is denied rather than left to block the tool call.
+/// </summary>
+internal sealed class OwnerApprovalPresenter(DispatcherQueue dispatcher, IslandApprovalQueue queue)
+    : IRemoteToolApprovalPresenter
 {
-    private readonly SemaphoreSlim _queue = new(1, 1);
-
-    public void Dispose() => _queue.Dispose();
-
-    public async Task<bool> RequestAsync(RemoteToolApprovalRequest request, CancellationToken cancellationToken)
+    public async Task<bool> RequestAsync(
+        RemoteToolApprovalRequest request,
+        CancellationToken cancellationToken)
     {
-        await _queue.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var entry = new IslandApprovalEntry(request, DateTimeOffset.Now);
+        if (!dispatcher.TryEnqueue(() => queue.Add(entry)))
+            return false;
         try
         {
-            var result = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            Window? window = null;
-            using var registration = cancellationToken.Register(() =>
-            {
-                result.TrySetCanceled(cancellationToken);
-                dispatcher.TryEnqueue(() => window?.Close());
-            });
-            if (!dispatcher.TryEnqueue(() =>
-            {
-                if (cancellationToken.IsCancellationRequested)
-                    return;
-                window = new OwnerApprovalWindow(request, strings, accepted =>
-                {
-                    if (!cancellationToken.IsCancellationRequested)
-                        result.TrySetResult(accepted);
-                });
-                window.Activate();
-            }))
-                return false;
-            return await result.Task.ConfigureAwait(false);
+            return await entry.Decision.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
-        finally { _queue.Release(); }
+        finally
+        {
+            dispatcher.TryEnqueue(() => queue.Remove(entry));
+        }
     }
 }

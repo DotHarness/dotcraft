@@ -31,7 +31,6 @@ internal static class TrayMenuModel
     public static IReadOnlyList<TrayMenuItem> Build(
         SatelliteTrayState state,
         IReadOnlyList<RemoteToolPeer> peers,
-        RemoteToolActivity? activity,
         SatelliteStrings strings)
     {
         var items = new List<TrayMenuItem>
@@ -41,14 +40,6 @@ internal static class TrayMenuModel
 
         if (peers.Count == 0)
             items.Add(new TrayMenuItem(TrayMenuCommand.Header, strings["tray.noPeers"], Enabled: false));
-
-        if (activity is not null)
-        {
-            items.Add(new TrayMenuItem(
-                TrayMenuCommand.Header,
-                strings.Format("tray.activity", activity.CommandPreview ?? activity.ToolName),
-                Enabled: false));
-        }
 
         // One submenu per machine: the owner picks who first, then what to do about them.
         if (peers.Count > 0)

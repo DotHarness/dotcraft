@@ -5197,9 +5197,12 @@ Server-to-client notification. Honors notification opt-out.
 |-------|------|-------------|
 | `threadId` | string | Thread whose route changed. |
 | `reason` | string | `connected`, `disconnected`, or `leaseLost`. |
-| `route` | `RemoteToolRouteInfo \| null` | The new route, or `null` after a disconnect. |
+| `initiator` | string | Optional. `client` for a `remoteToolHost/*` request, `agent` for a `RemoteToolHost.*` model tool, `system` for a route the Agent Host itself changed (thread release, lease heartbeat loss). |
+| `route` | `RemoteToolRouteInfo \| null` | The route after the change, or `null` after a disconnect. |
 
-The server does not push lease loss detected between calls; clients learn a lost lease from `remoteToolHost/list` (`status: "leaseLost"`), from a `remoteToolHost/route/changed` emitted when the server itself observes the loss, or from the next turn's runtime context.
+The notification has one emitter: the Agent Host subscribes to the per-workspace client's route-change event and forwards every transition, whichever of the three surfaces caused it. Clients therefore see `connected` and `disconnected` for model-driven route changes exactly as they do for their own requests, and both surfaces are ordered by the same event.
+
+Lease loss is pushed. When the workspace lease heartbeat fails, the Agent Host emits `leaseLost` once per thread that holds the lost lease and keeps the thread's route, so the notification carries a `route` with `status: "leaseLost"` rather than `null`; there is no automatic fallback to local execution. A client that missed the notification still learns the same state from `remoteToolHost/list` (`status: "leaseLost"`) or from the next turn's runtime context. Only an explicit `remoteToolHost/disconnect` (or the model's `RemoteToolHost.Disconnect`) clears the route.
 
 Fixture cases: `remote-tool-host-list-empty`, `remote-tool-host-connect-success`, `remote-tool-host-connect-workspace-busy`, and `remote-tool-host-route-changed-notification`.
 

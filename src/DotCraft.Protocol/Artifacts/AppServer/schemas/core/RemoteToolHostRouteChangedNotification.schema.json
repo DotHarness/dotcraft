@@ -4,6 +4,9 @@
   "title": "RemoteToolHostRouteChangedNotification",
   "type": "object",
   "properties": {
+    "initiator": {
+      "type": "string"
+    },
     "reason": {
       "type": "string"
     },

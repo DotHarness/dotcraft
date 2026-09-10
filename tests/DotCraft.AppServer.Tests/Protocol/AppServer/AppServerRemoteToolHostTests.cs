@@ -159,7 +159,50 @@ public sealed class AppServerRemoteToolHostTests
         var notification = Assert.Single(broadcasts);
         Assert.Equal(thread.Id, notification.ThreadId);
         Assert.Equal("connected", notification.Reason);
+        Assert.Equal("client", notification.Initiator.Value);
         Assert.Equal(WorkspaceId, notification.Route.Value!.WorkspaceId);
+    }
+
+    /// <summary>A model-driven route change reaches clients through the same notification.</summary>
+    [Fact]
+    public async Task AgentDisconnect_BroadcastsDisconnectedWithAgentInitiator()
+    {
+        var client = new FakeRemoteToolHostClient();
+        var broadcasts = new List<Contract.RemoteToolHostRouteChangedNotification>();
+        using var harness = new AppServerTestHarness(
+            remoteToolHostClient: client,
+            broadcastRemoteToolHostRouteChanged: broadcasts.Add);
+        await harness.InitializeAsync();
+
+        await client.DisconnectAsync("thread_001", initiator: RemoteToolRouteInitiator.Agent);
+
+        var notification = Assert.Single(broadcasts);
+        Assert.Equal("thread_001", notification.ThreadId);
+        Assert.Equal("disconnected", notification.Reason);
+        Assert.Equal("agent", notification.Initiator.Value);
+        Assert.Null(notification.Route.Value);
+    }
+
+    /// <summary>Lease loss keeps the route so the client can show the machine as offline.</summary>
+    [Fact]
+    public async Task LeaseLoss_BroadcastsLeaseLostAndRetainsRoute()
+    {
+        var client = new FakeRemoteToolHostClient();
+        var broadcasts = new List<Contract.RemoteToolHostRouteChangedNotification>();
+        using var harness = new AppServerTestHarness(
+            remoteToolHostClient: client,
+            broadcastRemoteToolHostRouteChanged: broadcasts.Add);
+        await harness.InitializeAsync();
+
+        client.RaiseLeaseLost("thread_001");
+
+        var notification = Assert.Single(broadcasts);
+        Assert.Equal("leaseLost", notification.Reason);
+        Assert.Equal("system", notification.Initiator.Value);
+        var route = Assert.IsType<Contract.RemoteToolRouteInfo>(notification.Route.Value);
+        Assert.Equal(HostId, route.HostId);
+        Assert.Equal(WorkspaceId, route.WorkspaceId);
+        Assert.Equal("leaseLost", route.Status);
     }
 
     [Fact]
@@ -287,6 +330,7 @@ public sealed class AppServerRemoteToolHostTests
 
         var notification = Assert.Single(broadcasts);
         Assert.Equal("disconnected", notification.Reason);
+        Assert.Equal("client", notification.Initiator.Value);
         Assert.Null(notification.Route.Value);
     }
 
@@ -353,6 +397,8 @@ public sealed class AppServerRemoteToolHostTests
 
         public List<(string ThreadId, string HostId, string WorkspaceId)> ConnectedRoutes { get; } = [];
 
+        public event Action<RemoteToolRouteChange>? RouteChanged;
+
         public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions)
         {
         }
@@ -367,14 +413,17 @@ public sealed class AppServerRemoteToolHostTests
             string threadId,
             string hostId,
             string workspaceId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client)
         {
             if (ConnectFailure is not null)
                 throw ConnectFailure;
 
             ConnectedRoutes.Add((threadId, hostId, workspaceId));
+            var route = new RemoteToolRoute(hostId, workspaceId, "lease_fixture", "instance_fixture");
+            Raise(threadId, RemoteToolRouteChangeReason.Connected, initiator, route);
             return ValueTask.FromResult(new RemoteToolConnectResult(
-                new RemoteToolRoute(hostId, workspaceId, "lease_fixture", "instance_fixture"),
+                route,
                 NewEnvironment(),
                 ["Exec"],
                 ["LSP"],
@@ -383,10 +432,44 @@ public sealed class AppServerRemoteToolHostTests
 
         public ValueTask<RemoteToolDisconnectResult> DisconnectAsync(
             string threadId,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(new RemoteToolDisconnectResult(
-                Disconnects,
-                Disconnects ? new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture") : null));
+            CancellationToken cancellationToken = default,
+            RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client)
+        {
+            if (!Disconnects)
+                return ValueTask.FromResult(new RemoteToolDisconnectResult(false));
+            var previous = new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture");
+            Snapshots.Remove(threadId);
+            Raise(threadId, RemoteToolRouteChangeReason.Disconnected, initiator, previous);
+            return ValueTask.FromResult(new RemoteToolDisconnectResult(true, previous));
+        }
+
+        /// <summary>Mirrors the client's heartbeat path: the route is retained and marked lost.</summary>
+        public void RaiseLeaseLost(string threadId)
+        {
+            Snapshots[threadId] = new RemoteToolConnectionSnapshot(
+                RemoteToolConnectionStatus.LeaseLost,
+                HostId,
+                WorkspaceId,
+                NewEnvironment());
+            Raise(
+                threadId,
+                RemoteToolRouteChangeReason.LeaseLost,
+                RemoteToolRouteInitiator.System,
+                new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture"));
+        }
+
+        private void Raise(
+            string threadId,
+            RemoteToolRouteChangeReason reason,
+            RemoteToolRouteInitiator initiator,
+            RemoteToolRoute? route) =>
+            RouteChanged?.Invoke(new RemoteToolRouteChange(
+                threadId,
+                reason,
+                initiator,
+                route,
+                "Studio PC",
+                "game-client"));
 
         public bool TryGetRoute(string threadId, out RemoteToolRoute route)
         {

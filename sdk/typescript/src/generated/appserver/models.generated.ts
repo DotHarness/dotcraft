@@ -2660,6 +2660,7 @@ export interface RemoteToolHostListResult {
 }
 
 export interface RemoteToolHostRouteChangedNotification {
+  initiator?: string;
   reason: string;
   route?: RemoteToolRouteInfo | null;
   threadId: string;
@@ -3445,13 +3446,19 @@ export interface SystemJobTokenUsage {
 
 export interface SystemNoticePayload {
   clearedToolResults: number;
+  hostId?: string | null;
+  hostName?: string | null;
+  initiator?: string | null;
   kind: string;
   mode: string;
   percentLeftAfter: number;
+  reason?: string | null;
   sourceThreadId?: string | null;
   tokensAfter: number;
   tokensBefore: number;
   trigger: string;
+  workspaceId?: string | null;
+  workspaceName?: string | null;
   [key: string]: unknown;
 }
 

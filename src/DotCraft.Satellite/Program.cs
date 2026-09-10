@@ -23,8 +23,9 @@ internal static class Program
             return 0;
         }
 
-        var gate = SingleInstanceGate.TryAcquire();
-        if (gate is null)
+        // The previews are review switches, so they run beside an already running Satellite.
+        var gate = options.Preview is null ? SingleInstanceGate.TryAcquire() : null;
+        if (gate is null && options.Preview is null)
         {
             SingleInstanceGate.TrySend(options.Url is { Length: > 0 } url
                 ? InstanceMessage.Join(url)
@@ -46,7 +47,7 @@ internal static class Program
         finally
         {
             app?.Dispose();
-            gate.Dispose();
+            gate?.Dispose();
         }
 
         return 0;

@@ -41,6 +41,28 @@ function forkedNotice(): ConversationItem {
   }
 }
 
+function remoteRouteNotice(
+  reason: 'connected' | 'disconnected' | 'leaseLost',
+  initiator?: 'client' | 'agent' | 'system'
+): ConversationItem {
+  return {
+    id: `notice-${reason}`,
+    type: 'systemNotice',
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    systemNotice: {
+      kind: 'remoteRoute',
+      reason,
+      ...(initiator ? { initiator } : {}),
+      hostId: 'sat_studio',
+      hostName: 'Studio PC',
+      workspaceId: 'ws_shaders',
+      workspaceName: 'shaders'
+    }
+  }
+}
+
 function renderWithLocale(locale: AppLocale, item: ConversationItem = compactedNotice()): void {
   installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale }) } })
 
@@ -93,6 +115,42 @@ describe('SystemNoticeBlock', () => {
     ).toBeInTheDocument()
   })
 
+  it('names the machine a remote route connected to', () => {
+    renderWithLocale('en', remoteRouteNotice('connected', 'agent'))
+
+    expect(
+      screen.getByRole('separator', { name: 'Connected to Studio PC' })
+    ).toBeInTheDocument()
+  })
+
+  it('reads a user-initiated disconnect as a move back to This PC', () => {
+    renderWithLocale('en', remoteRouteNotice('disconnected', 'client'))
+
+    expect(
+      screen.getByRole('separator', { name: 'Execution switched to This PC' })
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    ['leaseLost', undefined],
+    ['disconnected', 'agent']
+  ] as const)('reads %s as a loss of the machine', (reason, initiator) => {
+    renderWithLocale('en', remoteRouteNotice(reason, initiator))
+
+    expect(
+      screen.getByRole('separator', { name: 'Disconnected from Studio PC' })
+    ).toBeInTheDocument()
+  })
+
+  it('renders nothing for an unknown remote route reason', () => {
+    renderWithLocale('en', {
+      ...remoteRouteNotice('connected'),
+      systemNotice: { kind: 'remoteRoute', reason: 'rerouted' }
+    })
+
+    expect(screen.queryByRole('separator')).toBeNull()
+  })
+
   it('renders manual compacted notices with Chinese copy', async () => {
     renderWithLocale('zh-Hans')
 
@@ -109,5 +167,13 @@ describe('SystemNoticeBlock', () => {
       expect(screen.getByText('从会话 Fork')).toBeInTheDocument()
     })
     expect(screen.getByRole('separator', { name: '从会话 Fork' })).toBeInTheDocument()
+  })
+
+  it('renders remote route notices with Chinese copy', async () => {
+    renderWithLocale('zh-Hans', remoteRouteNotice('connected'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('separator', { name: '已连接到 Studio PC' })).toBeInTheDocument()
+    })
   })
 })

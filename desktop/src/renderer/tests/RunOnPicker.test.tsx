@@ -316,4 +316,35 @@ describe('RunOnPicker', () => {
     expect(trigger).not.toHaveTextContent('shaders')
     expect(screen.getByTestId('run-on-routed-glyph')).toBeInTheDocument()
   })
+
+  it('keeps a lost lease on its machine and says the machine is unreachable', async () => {
+    renderPicker()
+
+    const trigger = await screen.findByTestId('run-on-trigger')
+
+    act(() => {
+      useThreadRouteStore.getState().handleRouteChanged({
+        threadId: THREAD_ID,
+        reason: 'leaseLost',
+        initiator: 'system',
+        route: {
+          threadId: THREAD_ID,
+          hostId: 'sat_studio',
+          workspaceId: 'ws_shaders',
+          status: 'leaseLost'
+        }
+      })
+    })
+
+    await waitFor(() => expect(trigger).toHaveTextContent('Studio PC'))
+    expect(screen.getByTestId('run-on-offline-note')).toHaveTextContent('Offline')
+    expect(trigger).toHaveAttribute('aria-label', 'Run on · Studio PC · Offline')
+
+    fireEvent.click(trigger)
+
+    const lost = await screen.findByTestId('run-on-option-sat_studio:ws_shaders')
+    expect(lost).toHaveAttribute('aria-selected', 'true')
+    expect(lost).not.toHaveAttribute('aria-disabled')
+    expect(lost).toHaveTextContent('Offline')
+  })
 })

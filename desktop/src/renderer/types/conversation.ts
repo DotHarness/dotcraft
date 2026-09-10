@@ -35,6 +35,13 @@ export interface SystemNoticeInfo {
   percentLeftAfter?: number
   clearedToolResults?: number
   sourceThreadId?: string
+  /** `remoteRoute`: why the thread's execution location moved, and where it moved. */
+  reason?: string
+  initiator?: string
+  hostId?: string
+  hostName?: string
+  workspaceId?: string
+  workspaceName?: string
 }
 
 export type ApprovalDecision =
@@ -714,8 +721,23 @@ function mapSystemNotice(
     clearedToolResults:
       typeof payload.clearedToolResults === 'number' ? payload.clearedToolResults : undefined,
     sourceThreadId:
-      typeof payload.sourceThreadId === 'string' ? payload.sourceThreadId : undefined
+      typeof payload.sourceThreadId === 'string' ? payload.sourceThreadId : undefined,
+    reason: noticeText(raw, payload, 'reason'),
+    initiator: noticeText(raw, payload, 'initiator'),
+    hostId: noticeText(raw, payload, 'hostId'),
+    hostName: noticeText(raw, payload, 'hostName'),
+    workspaceId: noticeText(raw, payload, 'workspaceId'),
+    workspaceName: noticeText(raw, payload, 'workspaceName')
   }
+}
+
+function noticeText(
+  raw: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  key: string
+): string | undefined {
+  const value = typeof payload[key] === 'string' ? payload[key] : raw[key]
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
 function normalizeTriggerKind(

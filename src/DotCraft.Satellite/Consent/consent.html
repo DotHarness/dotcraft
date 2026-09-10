@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DotCraft Satellite consent</title>
+<style>
+:root {
+  --bg-elevated: #242424;
+  --bg-tertiary: #2a2a2a;
+  --card-selected: #2c2f37;
+  --text-primary: #eeeeec;
+  --text-secondary: #a4a4a3;
+  --text-dimmed: #70706f;
+  --bg-hover: rgb(238 238 236 / 0.08);
+  --fill-quiet: rgb(238 238 236 / 0.06);
+  --fill-quiet-hover: rgb(238 238 236 / 0.11);
+  --border: rgb(238 238 236 / 0.1);
+  --border-active: rgb(238 238 236 / 0.18);
+  --accent: #4566cc;
+  --accent-hover: #5976d0;
+  --on-accent: #ffffff;
+  --warning-text: #eab308;
+  --warning-bg: rgb(234 179 8 / 0.18);
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --duration-fast: 120ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --robot: 104px;
+}
+
+html[data-theme="light"] {
+  --bg-elevated: #ffffff;
+  --bg-tertiary: #ededed;
+  --card-selected: #e0e3eb;
+  --text-primary: #1a1c1f;
+  --text-secondary: #5d5e60;
+  --text-dimmed: #8a8b8c;
+  --bg-hover: rgb(26 28 31 / 0.06);
+  --fill-quiet: rgb(26 28 31 / 0.06);
+  --fill-quiet-hover: rgb(26 28 31 / 0.11);
+  --border: rgb(26 28 31 / 0.08);
+  --border-active: rgb(26 28 31 / 0.12);
+  --accent: #4f6cce;
+  --accent-hover: #4962b9;
+  --warning-text: #8a6a10;
+  --warning-bg: rgb(201 162 39 / 0.14);
+}
+
+html[lang="zh-Hans"] {
+  --font-ui: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC",
+    "Noto Sans CJK SC", "Source Han Sans SC", "Segoe UI Variable Text",
+    "Segoe UI", sans-serif;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible,
+.card:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.consent {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.hub {
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.heading {
+  margin: 20px 0 10px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.card {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-active);
+}
+
+.card[data-active="true"] {
+  border: 1.5px solid var(--accent);
+  background: var(--card-selected);
+}
+
+.card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.card-body {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mascot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: var(--robot);
+  margin-bottom: 10px;
+  pointer-events: none;
+}
+
+.mascot .dca-robot {
+  width: var(--robot);
+  height: var(--robot);
+}
+
+.card-title {
+  flex: none;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.card-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  flex: none;
+  min-height: 17px;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* Both cards carry the slot so the two card bodies stop at the same height, and
+   only the selected folder card fills it. */
+.card-slot {
+  display: flex;
+  align-items: center;
+  flex: 0 1 40px;
+  min-height: 28px;
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  min-width: 0;
+}
+
+.folder-glyph {
+  flex: none;
+  color: var(--text-dimmed);
+}
+
+.path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.change {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.change:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.warning svg {
+  flex: none;
+}
+
+.warning span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.button {
+  position: relative;
+  box-sizing: border-box;
+  height: 32px;
+  min-width: 104px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--fill-quiet);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--fill-quiet-hover);
+}
+
+.button[data-accent="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.button[data-accent="true"]:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button[data-busy="true"] > span:first-child {
+  visibility: hidden;
+}
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgb(255 255 255 / 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+html[data-reduce-motion="on"] .card,
+html[data-reduce-motion="on"] .change,
+html[data-reduce-motion="on"] .button {
+  transition: none;
+}
+
+html[data-reduce-motion="on"] .card:hover {
+  transform: none;
+}
+
+html[data-reduce-motion="on"] .spinner::after {
+  animation: none;
+}
+</style>
+<style data-mascot-css>
+/* The robot's arm/antenna/face pieces carry stable dca-part-* classes (see
+   MascotRig.tsx). Each arm's white and blue pieces are separate elements moving in
+   lockstep, so transform-box: view-box resolves one shared origin for both. */
+.dca-part-eyes,
+.dca-part-glow,
+.dca-part-light,
+.dca-part-face {
+  transform-box: fill-box;
+}
+
+/* The incoming face waits out a ~70ms blank beat so two faces never blend into a
+   double exposure. */
+.dca-part-face {
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.dca-part-robot[data-expression='neutral'] .dca-part-face-neutral,
+.dca-part-robot[data-expression='happy'] .dca-part-face-happy,
+.dca-part-robot[data-expression='operator'] .dca-part-face-operator,
+.dca-part-robot[data-expression='sleep'] .dca-part-face-sleep {
+  opacity: 1;
+  transition: opacity 150ms ease 70ms;
+}
+
+.dca-part-eyes {
+  transform-origin: center;
+}
+
+.dca-part-glow {
+  opacity: 0;
+  transform-origin: center;
+}
+
+.dca-part-light {
+  transform-origin: center;
+}
+
+/* The default 140ms transition-delay sequences "prop first, arm after" on retract, so
+   a prop is never left floating. Every rule that ENTERS a posed arm state overrides
+   the delay back to 0 so raises stay immediate. */
+.dca-part-arm-l-w,
+.dca-part-arm-l {
+  transform-box: view-box;
+  transform-origin: 233px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
+}
+
+.dca-part-arm-r-w,
+.dca-part-arm-r-b {
+  transform-box: view-box;
+  transform-origin: 791px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
+}
+
+/* Every keyframe keeps the same function list (translate + rotate + scaleY) so the
+   interpolation stays smooth. translate dy=88 lands the hinge at ≈602 viewBox, the
+   height of the resting arm nub, so the hand lifts from where the arm already is. */
+@keyframes dca-action-wave-arm {
+  0% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+  16% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  32% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  48% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  64% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  80% {
+    transform: translate(-48px, 88px) rotate(-114deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+}
+
+@keyframes dca-action-wave-lean {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20%,
+  80% {
+    transform: rotate(3deg);
+  }
+}
+
+.dca-action-wave .dca-part-arm-r-w,
+.dca-action-wave .dca-part-arm-r-b {
+  animation: dca-action-wave-arm 1.6s ease-in-out both;
+}
+
+.dca-action-wave .dca-action-jelly {
+  animation: dca-action-wave-lean 1.6s ease-in-out both;
+}
+
+/* Props are always-mounted `dca-part-prop-*` groups inside MascotRobot at opacity 0,
+   revealed by these composer root classes. */
+
+/* Mini terminal: the 1200ms transition delay keeps quick turns from flashing it. The
+   arms only tuck inward by pure translate — a rotation would trigger the solid-colour
+   swap and break the gradient's continuity with the torso. */
+.dca-part-prop-laptop {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.dca-action-prop-laptop .dca-part-prop-laptop {
+  opacity: 1;
+  transition: opacity 240ms ease 1200ms;
+}
+
+.dca-action-prop-laptop .dca-part-arm-l-w,
+.dca-action-prop-laptop .dca-part-arm-l {
+  transform: translate(18px, 0);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
+}
+
+.dca-action-prop-laptop .dca-part-arm-r-w,
+.dca-action-prop-laptop .dca-part-arm-r-b {
+  transform: translate(-18px, 0);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
+}
+
+@keyframes dca-action-laptop-scroll {
+  0%,
+  58% {
+    transform: translateY(0);
+  }
+  66%,
+  100% {
+    transform: translateY(-36px);
+  }
+}
+
+.dca-action-prop-laptop .dca-part-laptop-lines {
+  animation: dca-action-laptop-scroll 2200ms ease-in-out 1640ms infinite;
+}
+
+@keyframes dca-action-laptop-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.dca-action-prop-laptop .dca-part-laptop-caret {
+  animation: dca-action-laptop-caret 800ms steps(1, end) infinite;
+}
+
+/* The sign fades in only after the arm settles (320ms spring plus a beat), and on
+   retract it hides first while the arm waits out its 140ms transition-delay, so the
+   prop is never left floating without a hand. */
+.dca-action-hold-sign .dca-part-arm-r-w,
+.dca-action-hold-sign .dca-part-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  transition-delay: 0ms;
+}
+
+.dca-action-hold-sign .dca-part-arm-r-b {
+  fill: var(--dca-part-raised-arm-right, #7a96fb);
+}
+
+.dca-part-prop-sign {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.dca-action-hold-sign .dca-part-prop-sign {
+  opacity: 1;
+  transition: opacity 180ms ease 340ms;
+}
+
+/* Click greeting while the sign is held: only the angle moves, and it starts and ends
+   exactly at the held pose so the hand-off to .dca-action-hold-sign is seamless.
+   The compound selector outranks the lone .dca-action-wave arm rule. */
+@keyframes dca-action-sign-wave-arm {
+  0% {
+    transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  }
+  18% {
+    transform: translate(-48px, 88px) rotate(-143deg) scaleY(0.8);
+  }
+  42% {
+    transform: translate(-48px, 88px) rotate(-113deg) scaleY(0.8);
+  }
+  66% {
+    transform: translate(-48px, 88px) rotate(-143deg) scaleY(0.8);
+  }
+  86% {
+    transform: translate(-48px, 88px) rotate(-120deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  }
+}
+
+/* Pure rotation about the hand's pivot: the shoulder hinge (791,514) shifted by the
+   held translate (-48,88), i.e. C = (743,602), by exactly the arm's angular deviation
+   from -128° at each step. Same centre and delta keeps the board gripped. */
+@keyframes dca-action-sign-wave-prop {
+  0% {
+    transform: rotate(0deg);
+  }
+  18% {
+    transform: rotate(-15deg);
+  }
+  42% {
+    transform: rotate(15deg);
+  }
+  66% {
+    transform: rotate(-15deg);
+  }
+  86% {
+    transform: rotate(8deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.dca-action-hold-sign.dca-action-wave .dca-part-arm-r-w,
+.dca-action-hold-sign.dca-action-wave .dca-part-arm-r-b {
+  animation: dca-action-sign-wave-arm 1.6s ease-in-out;
+}
+
+.dca-action-hold-sign.dca-action-wave .dca-part-prop-sign {
+  transform-box: view-box;
+  transform-origin: 743px 602px;
+  animation: dca-action-sign-wave-prop 1.6s ease-in-out;
+}
+
+/* The cheer reuses the wave's slide-then-rotate hinge grammar, so the outline wraps
+   the band and the colour stays seam-continuous. */
+.dca-action-celebrate .dca-part-arm-l-w,
+.dca-action-celebrate .dca-part-arm-l {
+  transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
+  transition-delay: 0ms;
+}
+
+.dca-action-celebrate .dca-part-arm-r-w,
+.dca-action-celebrate .dca-part-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
+  transition-delay: 0ms;
+}
+
+/* Raised arms swap the body gradient for a solid hinge colour, so a rotated arm has
+   no gradient to diverge from the torso's field. White halo capsules stay white. */
+.dca-action-wave .dca-part-arm-r-b,
+.dca-action-celebrate .dca-part-arm-r-b {
+  fill: var(--dca-part-raised-arm-right, #7a96fb);
+}
+
+.dca-action-celebrate .dca-part-arm-l-b {
+  fill: var(--dca-part-raised-arm-left, #3161f7);
+}
+
+.dca-robot {
+  display: inline-flex;
+  flex: none;
+  vertical-align: middle;
+  isolation: isolate;
+}
+
+.dca-canvas { overflow: visible; }
+.dca-body-motion { transform-origin: 512px 760px; }
+.dca-robot[data-motion='on'] .dca-body-motion {
+  transition: transform 260ms cubic-bezier(.22, .7, .3, 1);
+}
+
+/* The production rig owns arm geometry, paired paint layers and all arm motion. */
+.dca-robot[data-compact='true'] .dca-decoration-detail { display: none; }
+.dca-robot[data-exiting='true'] :is(.dca-part-prop-laptop, .dca-part-prop-sign) {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.dca-robot[data-pose='thinking'] .dca-body-motion { transform: rotate(-4deg); }
+.dca-robot[data-pose='working'] .dca-body-motion { transform: translateY(12px) rotate(2deg); }
+.dca-robot[data-pose='blocked'] .dca-body-motion { transform: translateY(22px) scaleY(.96); }
+.dca-robot[data-pose='greeting'] .dca-body-motion { transform: rotate(-3deg); }
+
+.dca-robot[data-motion='on'][data-pose='idle'] .dca-body-motion { animation: dca-breathe 5s ease-in-out infinite; }
+.dca-robot[data-motion='on'][data-pose='idle'] .dca-part-caret { animation: dca-cursor 7s step-end infinite; }
+.dca-robot[data-motion='on'][data-pose='working'] .dca-body-motion { animation: dca-work var(--dca-loop) ease-in-out infinite; }
+.dca-robot[data-motion='on'][data-pose='done'] .dca-body-motion { animation: dca-celebrate 800ms ease-in-out both; }
+.dca-robot[data-motion='on'][data-pose='acknowledge'] .dca-body-motion { animation: dca-nod 350ms ease-in-out both; }
+
+.dca-robot[data-paused='true'] * { animation-play-state: paused !important; }
+.dca-robot[data-exiting='true'] .dca-body-motion { animation: none !important; }
+.dca-robot[data-motion='off'] * { animation: none !important; transition: none !important; }
+
+@keyframes dca-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-9px) scaleY(1.008); }
+}
+@keyframes dca-cursor { 0%, 93%, 100% { opacity: 1; } 95%, 98% { opacity: .12; } }
+@keyframes dca-work {
+  0%, 100% { transform: translateY(12px) rotate(2deg); }
+  50% { transform: translateY(5px) rotate(0deg); }
+}
+@keyframes dca-celebrate {
+  0%, 100% { transform: translateY(0); }
+  20% { transform: translateY(10px) scaleY(.97); }
+  55% { transform: translateY(-30px) rotate(-3deg); }
+}
+@keyframes dca-nod {
+  0%, 100% { transform: translateY(0); }
+  38% { transform: translateY(17px) scaleY(.97); }
+  68% { transform: translateY(-8px); }
+}
+
+
+.dca-robot[data-pose='sleep'] .dca-body-motion { transform: translateY(18px) rotate(4deg); }
+.dca-robot[data-pose='sleep'] .dca-part-light { opacity: .45; }
+.dca-robot[data-motion='off'][data-pose='greeting'] :is(.dca-part-arm-r-w, .dca-part-arm-r-b) { transform: translate(-48px, 88px) rotate(-110deg) scaleY(.8); }
+@media (prefers-reduced-motion: reduce) {
+ .dca-robot[data-mode='system'] * { animation: none !important; transition: none !important; }
+}
+
+.dca-part-held {
+  opacity: 1;
+  transition: opacity 150ms ease 460ms;
+}
+.dca-robot:is([data-held-state='stowed'], [data-exiting='true']) .dca-part-held {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.dca-robot[data-gesture='blink'] .dca-part-caret { animation: none !important; }
+
+/* Lift an upright tool beside the face rather than sweeping it across the screen. */
+.dca-robot[data-held-state='holding'] .dca-action-celebrate :is(.dca-part-arm-l-w, .dca-part-arm-l) {
+  transform: translate(30px, -65px) rotate(20deg);
+}
+
+</style>
+</head>
+<body>
+<main class="consent">
+  <h1 class="title" id="title"></h1>
+  <p class="hub" id="hub"></p>
+
+  <p class="heading" id="modeHeading"></p>
+
+  <fieldset class="modes" role="radiogroup" aria-labelledby="modeHeading">
+    <label class="card" id="cardFull" data-active="false" for="inputFull">
+      <input type="radio" id="inputFull" name="mode" value="full" aria-labelledby="fullTitle" aria-describedby="fullDesc">
+      <span class="card-body">
+        <span class="mascot" aria-hidden="true">
+          <!-- mascot:full:begin --><span class="dca-robot" style="width:104px;height:104px;--dca-loop:2.6s" data-pose="working" data-mode="off" data-motion="off" data-paused="false" data-exiting="false" data-compact="false" data-primary="none" data-secondary="none" data-base-face="0"><svg class="dca-canvas" width="104" height="104" viewBox="0 0 1024 1024" fill="none" aria-hidden="true"><g class="dca-body-motion"><g class="dca-rig dca-action-prop-laptop"><svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" class="dca-part-robot" data-expression="happy" style="--dca-held-mark:url(#dca-part-blue-mark-_R_1_);--dca-held-accent:url(#dca-part-yellow-_R_1_);--dca-part-body-paint:url(#dca-part-blue-_R_1_);--dca-part-raised-arm-left:#3161f7;--dca-part-raised-arm-right:#7a96fb;--dca-part-shadow-color:#0b3d62;overflow:visible" aria-hidden="true"><defs><linearGradient class="dca-paint-body" id="dca-part-blue-_R_1_" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2458f7"></stop><stop offset=".46" stop-color="#5f82f7"></stop><stop offset="1" stop-color="#8fa5ff"></stop></linearGradient><linearGradient class="dca-paint-mark" id="dca-part-blue-mark-_R_1_" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2257f5"></stop><stop offset=".55" stop-color="#577df7"></stop><stop offset="1" stop-color="#8ca2ff"></stop></linearGradient><linearGradient id="dca-part-yellow-_R_1_" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffcf11"></stop><stop offset="1" stop-color="#f6b500"></stop></linearGradient><filter id="dca-part-soft-shadow-_R_1_" x="-12%" y="-12%" width="124%" height="124%"><feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0b3d62" flood-opacity=".18"></feDropShadow></filter><filter id="dca-part-inner-lift-_R_1_" x="-8%" y="-8%" width="116%" height="116%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#163a88" flood-opacity=".1"></feDropShadow></filter><clipPath id="dca-part-laptop-clip-_R_1_"><rect x="358" y="716" width="308" height="128" rx="8"></rect></clipPath></defs><g transform="translate(512 528) scale(1.3) translate(-512 -512)"><g filter="url(#dca-part-soft-shadow-_R_1_)"><rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"></rect><rect class="dca-part-arm-l-w" x="165" y="472" width="136" height="256" rx="58" fill="#fff"></rect><rect class="dca-part-arm-r-w" x="723" y="472" width="136" height="256" rx="58" fill="#fff"></rect><rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"></rect><circle class="dca-part-antenna-w" cx="512" cy="229" r="116" fill="#fff"></circle></g><g filter="url(#dca-part-inner-lift-_R_1_)"><rect x="243" y="408" width="538" height="426" rx="113" fill="url(#dca-part-blue-_R_1_)"></rect><rect class="dca-part-arm-r-b" x="746" y="514" width="90" height="171" rx="19" fill="url(#dca-part-blue-_R_1_)"></rect><rect x="479" y="337" width="66" height="119" rx="6" fill="url(#dca-part-blue-_R_1_)"></rect></g><rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"></rect><circle class="dca-part-glow" cx="512" cy="229" r="96" fill="#f6b500"></circle><circle class="dca-part-light" cx="512" cy="229" r="73" fill="url(#dca-part-yellow-_R_1_)"></circle><g class="dca-part-arm-l"><rect class="dca-part-arm-l-b" x="188" y="514" width="90" height="171" rx="19" fill="url(#dca-part-blue-_R_1_)" filter="url(#dca-part-inner-lift-_R_1_)"></rect></g><g data-accessory="none"></g><g class="dca-face-motion"><g class="dca-part-face dca-part-face-neutral"><g data-profile-face="0" stroke-linecap="round" stroke-linejoin="round"><g class="dca-part-eyes"><path d="M387 568 477 634 387 700" stroke="url(#dca-part-blue-mark-_R_1_)" stroke-width="38"></path></g><path class="dca-part-caret" d="M531 696h116" stroke="url(#dca-part-yellow-_R_1_)" stroke-width="27"></path></g></g><g class="dca-part-face dca-part-face-happy"><g class="dca-part-eyes"><path d="M379 585 452 622 379 659" stroke="url(#dca-part-blue-mark-_R_1_)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"></path><path d="M645 585 572 622 645 659" stroke="url(#dca-part-blue-mark-_R_1_)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"></path></g><path d="M470 702c20 18 64 18 84 0" stroke="url(#dca-part-yellow-_R_1_)" stroke-width="24" stroke-linecap="round" fill="none"></path></g><g class="dca-part-face dca-part-face-operator"><g class="dca-part-eyes"><rect x="381" y="581" width="45" height="87" rx="16" fill="url(#dca-part-blue-mark-_R_1_)"></rect><rect x="598" y="581" width="45" height="87" rx="16" fill="url(#dca-part-blue-mark-_R_1_)"></rect></g><path d="M487 700h50" stroke="url(#dca-part-yellow-_R_1_)" stroke-width="22" stroke-linecap="round"></path></g><g class="dca-part-face dca-part-face-sleep"><path d="M373 618c26 20 56 20 82 0" stroke="url(#dca-part-blue-mark-_R_1_)" stroke-width="26" stroke-linecap="round" fill="none"></path><path d="M569 618c26 20 56 20 82 0" stroke="url(#dca-part-blue-mark-_R_1_)" stroke-width="26" stroke-linecap="round" fill="none"></path><path d="M488 704h48" stroke="url(#dca-part-yellow-_R_1_)" stroke-width="20" stroke-linecap="round"></path></g></g><g class="dca-part-prop-laptop" transform="rotate(-2.5 512 800)"><g filter="url(#dca-part-soft-shadow-_R_1_)"><rect x="338" y="698" width="348" height="164" rx="16" fill="#1d2433" stroke="#fff" stroke-width="20"></rect><rect x="300" y="862" width="424" height="26" rx="13" fill="#fff"></rect></g><g clip-path="url(#dca-part-laptop-clip-_R_1_)"><g class="dca-part-laptop-lines" stroke-linecap="round" stroke-width="16" fill="none"><path d="M382 744h118" stroke="#8ca2ff"></path><path d="M382 780h170" stroke="#5fd3a6"></path><path d="M382 816h84" stroke="#8ca2ff" opacity="0.75"></path><path class="dca-part-laptop-caret" d="M478 816h30" stroke="#ffcf11"></path><path d="M382 852h140" stroke="#5fd3a6" opacity="0.8"></path><path d="M382 888h96" stroke="#8ca2ff"></path></g></g></g><g class="dca-part-prop-sign" filter="url(#dca-part-soft-shadow-_R_1_)"><rect x="866" y="356" width="24" height="150" rx="12" fill="#fff"></rect><rect x="758" y="190" width="240" height="170" rx="26" fill="#fff"></rect><path d="M843 247a37 37 0 0 1 70 12c0 24-36 36-36 36" stroke="#3161f7" stroke-width="26" fill="none" stroke-linecap="round"></path><circle cx="878" cy="343" r="15" fill="#3161f7"></circle></g></g></svg></g></g></svg></span><!-- mascot:full:end -->
+        </span>
+        <span class="card-title" id="fullTitle"></span>
+        <span class="card-desc" id="fullDesc"></span>
+      </span>
+      <span class="card-slot"></span>
+    </label>
+
+    <label class="card" id="cardFolder" data-active="false" for="inputFolder">
+      <input type="radio" id="inputFolder" name="mode" value="folder" aria-labelledby="folderTitle" aria-describedby="folderDesc">
+      <span class="card-body">
+        <span class="mascot" aria-hidden="true">
+          <!-- mascot:folder:begin --><span class="dca-robot" style="width:104px;height:104px;--dca-loop:2.6s" data-pose="waiting" data-mode="off" data-motion="off" data-paused="false" data-exiting="false" data-compact="false" data-primary="hard-hat" data-secondary="none" data-base-face="2"><svg class="dca-canvas" width="104" height="104" viewBox="0 0 1024 1024" fill="none" aria-hidden="true"><g class="dca-body-motion"><g class="dca-rig dca-action-hold-sign"><svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" class="dca-part-robot" data-expression="operator" style="--dca-held-mark:url(#dca-part-blue-mark-_R_3_);--dca-held-accent:url(#dca-part-yellow-_R_3_);--dca-part-body-paint:url(#dca-part-blue-_R_3_);--dca-part-raised-arm-left:#dd8406;--dca-part-raised-arm-right:#f4ba18;--dca-part-shadow-color:#78350f;overflow:visible" aria-hidden="true"><defs><linearGradient class="dca-paint-body" id="dca-part-blue-_R_3_" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#d97706"></stop><stop offset=".46" stop-color="#eab308"></stop><stop offset="1" stop-color="#fbbf24"></stop></linearGradient><linearGradient class="dca-paint-mark" id="dca-part-blue-mark-_R_3_" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#92400e"></stop><stop offset=".55" stop-color="#f59e0b"></stop><stop offset="1" stop-color="#f59e0b"></stop></linearGradient><linearGradient id="dca-part-yellow-_R_3_" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffcf11"></stop><stop offset="1" stop-color="#f6b500"></stop></linearGradient><filter id="dca-part-soft-shadow-_R_3_" x="-12%" y="-12%" width="124%" height="124%"><feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#78350f" flood-opacity=".18"></feDropShadow></filter><filter id="dca-part-inner-lift-_R_3_" x="-8%" y="-8%" width="116%" height="116%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#78350f" flood-opacity=".1"></feDropShadow></filter><clipPath id="dca-part-laptop-clip-_R_3_"><rect x="358" y="716" width="308" height="128" rx="8"></rect></clipPath></defs><g transform="translate(512 528) scale(1.3) translate(-512 -512)"><g filter="url(#dca-part-soft-shadow-_R_3_)"><rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"></rect><rect class="dca-part-arm-l-w" x="165" y="472" width="136" height="256" rx="58" fill="#fff"></rect><rect class="dca-part-arm-r-w" x="723" y="472" width="136" height="256" rx="58" fill="#fff"></rect></g><g filter="url(#dca-part-inner-lift-_R_3_)"><rect x="243" y="408" width="538" height="426" rx="113" fill="url(#dca-part-blue-_R_3_)"></rect><rect class="dca-part-arm-r-b" x="746" y="514" width="90" height="171" rx="19" fill="url(#dca-part-blue-_R_3_)"></rect></g><rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"></rect><g data-decoration-motion="fitted"><g transform="translate(0 0) translate(512 400) rotate(0) scale(1 1) translate(-512 -400)"><g data-decoration="hard-hat"><path d="M358 361c0-94 42-154 133-163v-11c0-15 42-15 42 0v11c91 9 133 69 133 163h22c23 0 23 39 0 39H336c-23 0-23-39 0-39Z" fill="#f5bd48" stroke="#fff" stroke-width="18" stroke-linejoin="round" paint-order="stroke fill"></path><path d="M533 198c91 9 133 69 133 163h-48c0-86-24-135-85-163Z" fill="#d68d32"></path><path d="M494 192h36v169h-36Z" fill="#ffdc79"></path><path d="M336 382h352" stroke="#d68d32" stroke-width="25" stroke-linecap="round"></path><g class="dca-decoration-detail"><path d="M390 326c2-41 21-70 43-87" stroke="#ffdc79" stroke-width="14" stroke-linecap="round"></path></g></g></g></g><g class="dca-part-arm-l"><rect class="dca-part-arm-l-b" x="188" y="514" width="90" height="171" rx="19" fill="url(#dca-part-blue-_R_3_)" filter="url(#dca-part-inner-lift-_R_3_)"></rect></g><g data-accessory="none"></g><g class="dca-face-motion"><g class="dca-part-face dca-part-face-neutral"><g class="dca-part-eyes" data-profile-face="2" stroke-linecap="round" stroke-linejoin="round"><path d="M389 612h58M577 612h58" stroke="url(#dca-part-blue-mark-_R_3_)" stroke-width="30"></path><path d="M493 700h42" stroke="url(#dca-part-blue-mark-_R_3_)" stroke-width="20"></path></g></g><g class="dca-part-face dca-part-face-happy"><g class="dca-part-eyes"><path d="M379 585 452 622 379 659" stroke="url(#dca-part-blue-mark-_R_3_)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"></path><path d="M645 585 572 622 645 659" stroke="url(#dca-part-blue-mark-_R_3_)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"></path></g><path d="M470 702c20 18 64 18 84 0" stroke="url(#dca-part-yellow-_R_3_)" stroke-width="24" stroke-linecap="round" fill="none"></path></g><g class="dca-part-face dca-part-face-operator"><g class="dca-part-eyes"><rect x="381" y="581" width="45" height="87" rx="16" fill="url(#dca-part-blue-mark-_R_3_)"></rect><rect x="598" y="581" width="45" height="87" rx="16" fill="url(#dca-part-blue-mark-_R_3_)"></rect></g><path d="M487 700h50" stroke="url(#dca-part-yellow-_R_3_)" stroke-width="22" stroke-linecap="round"></path></g><g class="dca-part-face dca-part-face-sleep"><path d="M373 618c26 20 56 20 82 0" stroke="url(#dca-part-blue-mark-_R_3_)" stroke-width="26" stroke-linecap="round" fill="none"></path><path d="M569 618c26 20 56 20 82 0" stroke="url(#dca-part-blue-mark-_R_3_)" stroke-width="26" stroke-linecap="round" fill="none"></path><path d="M488 704h48" stroke="url(#dca-part-yellow-_R_3_)" stroke-width="20" stroke-linecap="round"></path></g></g><g class="dca-part-prop-laptop" transform="rotate(-2.5 512 800)"><g filter="url(#dca-part-soft-shadow-_R_3_)"><rect x="338" y="698" width="348" height="164" rx="16" fill="#1d2433" stroke="#fff" stroke-width="20"></rect><rect x="300" y="862" width="424" height="26" rx="13" fill="#fff"></rect></g><g clip-path="url(#dca-part-laptop-clip-_R_3_)"><g class="dca-part-laptop-lines" stroke-linecap="round" stroke-width="16" fill="none"><path d="M382 744h118" stroke="#f59e0b"></path><path d="M382 780h170" stroke="#5fd3a6"></path><path d="M382 816h84" stroke="#f59e0b" opacity="0.75"></path><path class="dca-part-laptop-caret" d="M478 816h30" stroke="#ffcf11"></path><path d="M382 852h140" stroke="#5fd3a6" opacity="0.8"></path><path d="M382 888h96" stroke="#f59e0b"></path></g></g></g><g class="dca-part-prop-sign" filter="url(#dca-part-soft-shadow-_R_3_)"><rect x="866" y="356" width="24" height="150" rx="12" fill="#fff"></rect><rect x="758" y="190" width="240" height="170" rx="26" fill="#fff"></rect><path d="M843 247a37 37 0 0 1 70 12c0 24-36 36-36 36" stroke="#92400e" stroke-width="26" fill="none" stroke-linecap="round"></path><circle cx="878" cy="343" r="15" fill="#92400e"></circle></g></g></svg></g></g></svg></span><!-- mascot:folder:end -->
+        </span>
+        <span class="card-title" id="folderTitle"></span>
+        <span class="card-desc" id="folderDesc"></span>
+      </span>
+      <span class="card-slot">
+        <span class="folder-row" id="folderRow" role="group" hidden>
+          <svg class="folder-glyph" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <span class="path" id="path"></span>
+          <button type="button" class="change" id="change" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 11.5V5a2 2 0 0 1 2-2h3.9c.7 0 1.3.3 1.7.9l.8 1.2c.4.6 1 .9 1.7.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9.5"/><path d="M11.378 13.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></svg>
+          </button>
+        </span>
+      </span>
+    </label>
+  </fieldset>
+
+  <div class="foot">
+    <p class="warning" id="warning" role="status" aria-live="polite" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span id="warningText"></span>
+    </p>
+    <div class="actions">
+      <button type="button" class="button" id="decline"><span id="declineLabel"></span></button>
+      <button type="button" class="button" data-accent="true" id="allow" disabled>
+        <span id="allowLabel"></span>
+        <span class="spinner" id="spinner" aria-hidden="true" hidden></span>
+      </button>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const root = document.documentElement;
+  const post = (message) => window.chrome?.webview?.postMessage(message);
+  // One Tab stop lands on the checked card, as a native radio group does.
+  const stops = () => {
+    const radios = [$('inputFull'), $('inputFolder')];
+    const checked = radios.find((radio) => radio.checked);
+    return [...(checked ? [checked] : radios), $('change'), $('decline'), $('allow')]
+      .filter((element) => !element.disabled && !element.hidden);
+  };
+  let canAllow = false;
+  let busy = false;
+
+  function text(id, value) {
+    const element = $(id);
+    if (element.textContent !== value) element.textContent = value;
+  }
+
+  function mode(name, active) {
+    $(name === 'full' ? 'inputFull' : 'inputFolder').checked = active;
+    $(name === 'full' ? 'cardFull' : 'cardFolder').dataset.active = String(active);
+  }
+
+  function apply(state) {
+    root.dataset.theme = state.theme;
+    root.dataset.reduceMotion = state.reduceMotion ? 'on' : 'off';
+    root.lang = state.locale;
+
+    text('title', state.title);
+    $('title').title = state.title;
+    text('hub', state.hub);
+    $('hub').title = state.hub;
+    text('modeHeading', state.modeHeading);
+
+    const { full, folder } = state;
+    text('fullTitle', full.title);
+    text('fullDesc', full.description);
+    text('folderTitle', folder.title);
+    text('folderDesc', folder.description);
+    mode('full', full.selected);
+    mode('folder', folder.selected);
+
+    $('folderRow').hidden = !folder.selected;
+    $('folderRow').setAttribute('aria-label', folder.folderHeading);
+    text('path', folder.path);
+    $('path').title = folder.path;
+    $('change').hidden = !folder.selected || !folder.canPickFolder;
+    $('change').setAttribute('aria-label', folder.change);
+    $('change').title = folder.change;
+
+    $('warning').hidden = !state.warning;
+    text('warningText', state.warning);
+    $('warningText').title = state.warning;
+
+    text('declineLabel', state.decline);
+    text('allowLabel', state.allow);
+    canAllow = state.canAllow;
+    busy = state.busy;
+    $('decline').disabled = busy;
+    $('allow').disabled = !canAllow || busy;
+    $('allow').dataset.busy = String(busy);
+    $('allow').setAttribute('aria-busy', String(busy));
+    $('spinner').hidden = !busy;
+  }
+
+  for (const name of ['full', 'folder']) {
+    $(name === 'full' ? 'inputFull' : 'inputFolder').addEventListener('change', (event) => {
+      if (!event.target.checked) return;
+      mode('full', name === 'full');
+      mode('folder', name === 'folder');
+      post({ type: 'select', mode: name });
+    });
+  }
+
+  $('change').addEventListener('click', (event) => {
+    // The button lives inside the card's label, which would re-check the radio.
+    event.preventDefault();
+    post({ type: 'changeFolder' });
+  });
+  $('decline').addEventListener('click', () => post({ type: 'decline' }));
+  $('allow').addEventListener('click', () => post({ type: 'allow' }));
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      post({ type: 'decline' });
+      return;
+    }
+    if (event.key === 'Enter' && event.target.tagName !== 'BUTTON') {
+      if (!canAllow || busy) return;
+      event.preventDefault();
+      post({ type: 'allow' });
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const order = stops();
+    const edge = event.shiftKey ? order[0] : order[order.length - 1];
+    if (event.target !== edge) return;
+    event.preventDefault();
+    (event.shiftKey ? order[order.length - 1] : order[0]).focus();
+  });
+
+  window.consent = {
+    apply,
+    focusDecline: () => $('decline').focus(),
+  };
+  window.chrome?.webview?.addEventListener('message', (event) => apply(event.data));
+  post({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

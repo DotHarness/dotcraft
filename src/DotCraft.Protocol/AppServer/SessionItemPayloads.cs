@@ -694,4 +694,28 @@ public sealed class SystemNoticePayload : ExtensibleJsonObject
     [JsonPropertyName("sourceThreadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SourceThreadId { get; init; }
+
+    [JsonPropertyName("reason")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; init; }
+
+    [JsonPropertyName("initiator")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Initiator { get; init; }
+
+    [JsonPropertyName("hostId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HostId { get; init; }
+
+    [JsonPropertyName("hostName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HostName { get; init; }
+
+    [JsonPropertyName("workspaceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkspaceId { get; init; }
+
+    [JsonPropertyName("workspaceName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkspaceName { get; init; }
 }
