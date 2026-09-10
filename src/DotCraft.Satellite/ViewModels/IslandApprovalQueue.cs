@@ -27,6 +27,7 @@ internal sealed class IslandApprovalQueue
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(2);
 
     private readonly List<IslandApprovalEntry> _pending = [];
+    private bool _disabled;
 
     public event EventHandler? Changed;
 
@@ -36,6 +37,11 @@ internal sealed class IslandApprovalQueue
 
     public void Add(IslandApprovalEntry entry)
     {
+        if (_disabled)
+        {
+            entry.Settle(false);
+            return;
+        }
         _pending.Add(entry);
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -60,6 +66,13 @@ internal sealed class IslandApprovalQueue
 
     public void Expire(DateTimeOffset now) =>
         DenyWhere(entry => now - entry.ReceivedAt >= Window);
+
+    /// <summary>Denies every request, waiting or still to come, once the island can no longer show them.</summary>
+    public void Disable()
+    {
+        _disabled = true;
+        Invalidate();
+    }
 
     /// <summary>Denies the requests a disconnect, a pause or a revoke has made meaningless; a null peer denies every one.</summary>
     public void Invalidate(string? peerId = null) => DenyWhere(entry =>

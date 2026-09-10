@@ -76,6 +76,22 @@ public sealed class IslandApprovalQueueTests
     }
 
     [Fact]
+    public async Task Disable_DeniesWhatIsWaitingAndWhatArrivesAfterward()
+    {
+        var queue = new IslandApprovalQueue();
+        var waiting = Entry("waiting");
+        queue.Add(waiting);
+
+        queue.Disable();
+        var later = Entry("later");
+        queue.Add(later);
+
+        Assert.Empty(queue.Pending);
+        Assert.False(await waiting.Decision);
+        Assert.False(await later.Decision);
+    }
+
+    [Fact]
     public async Task Remove_TreatsARequestNobodyAnsweredAsADenial()
     {
         var queue = new IslandApprovalQueue();

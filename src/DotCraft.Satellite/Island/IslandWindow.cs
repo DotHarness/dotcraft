@@ -64,6 +64,7 @@ internal sealed class IslandWindow : Window, IDisposable
     private string _displayKey = string.Empty;
     private bool _placed;
     private bool _shown;
+    private bool _unavailable;
     private bool _dragging;
     private bool _moved;
     private bool _hovered;
@@ -151,11 +152,21 @@ internal sealed class IslandWindow : Window, IDisposable
 
     private async Task LoadPageAsync()
     {
-        var controller = await SatellitePageHost.AttachAsync(
-            _handle, "DotCraft.Satellite.island.html", transparent: true, OnWebMessage);
-        controller.Bounds = ClientBounds();
-        controller.IsVisible = _shown;
-        _controller = controller;
+        try
+        {
+            var controller = await SatellitePageHost.AttachAsync(
+                _handle, "DotCraft.Satellite.island.html", transparent: true, OnWebMessage);
+            controller.Bounds = ClientBounds();
+            controller.IsVisible = _shown;
+            _controller = controller;
+        }
+        catch (Exception)
+        {
+            // An empty capsule would still take the clicks over it, and no request could be answered there.
+            _unavailable = true;
+            _viewModel.Approvals.Disable();
+            Leave();
+        }
     }
 
     private Windows.Foundation.Rect ClientBounds() =>
@@ -234,7 +245,7 @@ internal sealed class IslandWindow : Window, IDisposable
     private void Apply()
     {
         var state = _viewModel.State;
-        if (!state.Visible)
+        if (_unavailable || !state.Visible)
         {
             Leave();
             return;
