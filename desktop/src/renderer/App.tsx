@@ -80,6 +80,8 @@ import { applyTheme, resolveTheme } from './utils/theme'
 import { buildComposerInputParts } from './utils/composeInputParts'
 import { getFallbackThreadName } from './utils/threadFallbackName'
 import { handleBrowserEvent } from './utils/browserEventHandler'
+import { conversationRenderPaused } from './utils/conversationRenderPause'
+import { onDesktopPetPresentationChange } from './components/desktopPet/petPresentation'
 import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
@@ -138,10 +140,6 @@ const CoreAgentBuilderView = coreMainViews.agents
 const CoreAutomationsView = coreMainViews.automations
 const CorePluginsView = coreMainViews.skills
 const CoreSettingsView = coreMainViews.settings
-
-function isDesktopWindowBackgrounded(state: WindowVisibilityState): boolean {
-  return state.minimized || !state.visible
-}
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
 
@@ -788,7 +786,7 @@ export function App(): JSX.Element {
   }, [])
 
   const isConversationRenderPaused = useCallback((): boolean => {
-    return document.hidden === true || isDesktopWindowBackgrounded(windowVisibilityStateRef.current)
+    return conversationRenderPaused(windowVisibilityStateRef.current)
   }, [])
 
   const markActiveConversationDeferred = useCallback((threadId: string): void => {
@@ -877,10 +875,14 @@ export function App(): JSX.Element {
     void window.api.window.getVisibilityState?.()
       .then(applyVisibilityState)
       .catch(() => undefined)
+    const unsubscribePet = onDesktopPetPresentationChange((presenting) => {
+      if (presenting) reconcileDeferredActiveConversation('desktop-pet-detached')
+    })
     document.addEventListener('visibilitychange', handleForegrounded)
     window.addEventListener('focus', handleForegrounded)
     return () => {
       unsubscribeVisibility?.()
+      unsubscribePet()
       document.removeEventListener('visibilitychange', handleForegrounded)
       window.removeEventListener('focus', handleForegrounded)
     }

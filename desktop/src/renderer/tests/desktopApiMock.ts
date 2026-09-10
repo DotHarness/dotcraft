@@ -30,10 +30,17 @@ const SATELLITES_DEFAULT: ApiOverrides<Api>['satellites'] = {
   onJoinLink: () => () => undefined
 }
 
+/** The app shell watches companion ownership from the start, so a silent bridge is the default. */
+const DESKTOP_PET_DEFAULT: ApiOverrides<Api>['desktopPet'] = {
+  command: () => Promise.resolve(),
+  onEvent: () => () => undefined
+}
+
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
   const api = strictApi({
     ...overrides,
-    satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites }
+    satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
+    desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet }
   }) as Api
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   return api

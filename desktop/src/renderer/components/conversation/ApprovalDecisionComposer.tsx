@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import type { ApprovalDetailRowSpec, ApprovalOptionSpec, PendingApproval } from '../../stores/conversationStore'
-import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
-import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
+import type { ApprovalType } from '../../types/conversation'
+import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalRequest'
+import { submitApprovalDecision } from '../../utils/submitApprovalDecision'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
@@ -41,26 +42,6 @@ function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT
   return rows
 }
 
-function approvalRequestKey(request: PendingApproval): string {
-  return `${request.source ?? 'tool'}:${request.requestId || request.itemId || request.bridgeId}`
-}
-
-function approvalRequestTarget(request: PendingApproval): {
-  bridgeId: string
-  threadId: string | null
-  turnId: string | null
-  requestId: string
-  itemId: string
-} {
-  return {
-    bridgeId: request.bridgeId,
-    threadId: request.threadId,
-    turnId: request.turnId,
-    requestId: request.requestId,
-    itemId: request.itemId
-  }
-}
-
 export function ApprovalDecisionComposer({
   request,
   onResponseAccepted,
@@ -69,7 +50,6 @@ export function ApprovalDecisionComposer({
 }: ApprovalDecisionComposerProps): JSX.Element {
   const t = useT()
   const requestKey = useMemo(() => approvalRequestKey(request), [request])
-  const requestTarget = useMemo(() => approvalRequestTarget(request), [request])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null)
   const [submittedRequestKey, setSubmittedRequestKey] = useState<string | null>(null)
@@ -125,46 +105,16 @@ export function ApprovalDecisionComposer({
     if (sendingRef.current === requestKey || submitted || request.locallySubmittedDecision != null) return
     sendingRef.current = requestKey
     setSubmittingRequestKey(requestKey)
-
-    const failed = (err: unknown): void => {
+    try {
+      await submitApprovalDecision(request, value)
+      setSubmittedRequestKey(requestKey)
+      if (!request.submit) onResponseAccepted?.()
+    } catch (err) {
       if (sendingRef.current === requestKey) sendingRef.current = null
       setSubmittingRequestKey((current) => current === requestKey ? null : current)
       addToast(t('approval.sendFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
     }
-
-    // Non-tool sources (e.g. browser-use) route through a custom handler; tool approvals respond
-    // to AppServer via the bridge.
-    if (request.submit) {
-      try {
-        await request.submit(value)
-        setSubmittedRequestKey(requestKey)
-      } catch (err) {
-        failed(err)
-      }
-      return
-    }
-
-    const decision = value as ApprovalDecision
-    useConversationStore.getState().onApprovalSubmitStarted(decision, requestTarget)
-    try {
-      await window.api.appServer.sendServerResponse(request.bridgeId, { decision })
-      useConversationStore.getState().onApprovalDecision(decision, requestTarget)
-      setSubmittedRequestKey(requestKey)
-      onResponseAccepted?.()
-    } catch (err) {
-      useConversationStore.getState().onApprovalSubmitFailed(requestTarget)
-      failed(err)
-    }
-  }, [
-    onResponseAccepted,
-    request.bridgeId,
-    request.locallySubmittedDecision,
-    request.submit,
-    requestKey,
-    requestTarget,
-    submitted,
-    t
-  ])
+  }, [onResponseAccepted, request, requestKey, submitted, t])
 
   const submitSelected = useCallback((): void => {
     void sendDecision(selectedOption.value)
@@ -235,6 +185,7 @@ export function ApprovalDecisionComposer({
           onDrop={(e) => e.preventDefault()}
           focused
           showMascot
+          petSurface="approval"
           mascotInteraction={DECISION_MASCOT}
           mascotReasoningEffort={mascotEffectState.reasoningEffort}
           mascotSpeed={mascotEffectState.speed}
@@ -338,13 +289,6 @@ function ApprovalDetailRow({
       <span data-testid={valueTestId} style={detailValueStyle(mono)}>{value}</span>
     </div>
   )
-}
-
-function approvalQuestionKey(type: ApprovalType): string {
-  if (type === 'file') return 'approval.question.file'
-  if (type === 'remoteResource') return 'approval.question.remoteResource'
-  if (type === 'skill') return 'approval.question.skill'
-  return 'approval.question.shell'
 }
 
 function approvalTypeLabelKey(type: ApprovalType): string {

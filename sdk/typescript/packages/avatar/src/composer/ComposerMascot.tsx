@@ -5,7 +5,8 @@ import { useComposerAvatarBehavior } from './useComposerAvatarBehavior.js'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff.js'
 import { useComposerProfile } from './useComposerProfile.js'
 import { useComposerMotion } from './useComposerMotion.js'
-import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_ACTIVE_IDLE_MIN_MS, MASCOT_ACTIVE_IDLE_JITTER_MS, MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS, MASCOT_ACTIVE_IDLE_TRAVEL_MS, MASCOT_ACTIVE_IDLE_HOLD_MS, MASCOT_SPARKLES, pickMascotActiveIdle, type MascotActiveIdleState, type MascotActiveIdleMotion } from './constants.js'
+import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_SPARKLES } from './constants.js'
+import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
 export function ComposerMascot({ name, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', contextMax = false, anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
   const reduced = !useComposerMotion(motion)
@@ -24,11 +25,8 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
   const [nodding, setNodding] = useState(false)
   const [landing, setLanding] = useState(false)
   const [pushLift, setPushLift] = useState(false)
-  const [activeIdle, setActiveIdle] = useState<MascotActiveIdleState | null>(null)
-  const [activityRevision, setActivityRevision] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const lastActivityRef = useRef(0)
-  const lastActiveIdleRef = useRef<MascotActiveIdleMotion | null>(null)
+  const clearGestureRef = useRef<() => void>(() => {})
 
   const baseExpression: MascotExpression =
     interaction?.expression ?? (dragOver ? 'operator' : focused ? 'happy' : 'neutral')
@@ -58,6 +56,24 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
             : laptopActive
               ? 'working'
               : 'idle'
+  const ambient =
+    !focused &&
+    !dragOver &&
+    !bubble &&
+    !holdSign &&
+    menuPos == null &&
+    baseExpression === 'neutral' &&
+    light === 'default'
+  const idle = useMascotActiveIdle({
+    enabled: ambient && !sleeping && !reduced,
+    onStart: () => clearGestureRef.current(),
+    onActivity: () => {
+      setSleeping((current) => {
+        if (current && !reduced) setStartled(true)
+        return false
+      })
+    }
+  })
   const avatarBehavior = useComposerAvatarBehavior({
     semanticPose: semanticAvatarPose,
     baseExpression,
@@ -65,10 +81,11 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
     dragOver,
     sleeping,
     waving,
-    activeIdle: activeIdle != null,
+    activeIdle: idle.activeIdle != null,
     bounceSignal,
     reducedMotion: reduced
   })
+  clearGestureRef.current = avatarBehavior.clearGesture
   const mascotPalette = mascotPaletteOf(deriveAppearance(avatar ?? ''))
   const activity: ComposerMascotContext["activity"] = light === 'error'
     ? 'error'
@@ -96,87 +113,6 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
     contextMax,
     reducedMotion: reduced
   }
-  const ambient =
-    !focused &&
-    !dragOver &&
-    !bubble &&
-    !holdSign &&
-    menuPos == null &&
-    baseExpression === 'neutral' &&
-    light === 'default'
-
-  const markActivity = useCallback(() => {
-    setActiveIdle(null)
-    setSleeping((current) => {
-      if (current && !reduced) setStartled(true)
-      return false
-    })
-    const now = Date.now()
-    if (now - lastActivityRef.current < MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS) return
-    lastActivityRef.current = now
-    setActivityRevision((value) => value + 1)
-  }, [reduced])
-
-  useEffect(() => {
-    const markPointerMoveActivity = (): void => {
-      if (Date.now() - lastActivityRef.current >= MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS) {
-        markActivity()
-      }
-    }
-    window.addEventListener('keydown', markActivity)
-    window.addEventListener('pointerdown', markActivity)
-    window.addEventListener('pointermove', markPointerMoveActivity, { passive: true })
-    window.addEventListener('wheel', markActivity, { passive: true })
-    window.addEventListener('focusin', markActivity)
-    return () => {
-      window.removeEventListener('keydown', markActivity)
-      window.removeEventListener('pointerdown', markActivity)
-      window.removeEventListener('pointermove', markPointerMoveActivity)
-      window.removeEventListener('wheel', markActivity)
-      window.removeEventListener('focusin', markActivity)
-    }
-  }, [markActivity])
-
-  useEffect(() => {
-    if (!ambient || sleeping || reduced) {
-      setActiveIdle(null)
-      return undefined
-    }
-
-    let timer = 0
-    const start = (): void => {
-      if (document.hidden) {
-        timer = window.setTimeout(start, 5000)
-        return
-      }
-      const motion = pickMascotActiveIdle(Math.random(), lastActiveIdleRef.current)
-      lastActiveIdleRef.current = motion
-      avatarBehavior.clearGesture()
-      setActiveIdle({ motion, phase: 'outbound' })
-    }
-    timer = window.setTimeout(
-      start,
-      MASCOT_ACTIVE_IDLE_MIN_MS + Math.random() * MASCOT_ACTIVE_IDLE_JITTER_MS
-    )
-    return () => window.clearTimeout(timer)
-  }, [ambient, activityRevision, sleeping, reduced, avatarBehavior.clearGesture])
-
-  useEffect(() => {
-    if (!activeIdle) return undefined
-    const delay = activeIdle.phase === 'away'
-      ? MASCOT_ACTIVE_IDLE_HOLD_MS[activeIdle.motion]
-      : MASCOT_ACTIVE_IDLE_TRAVEL_MS[activeIdle.motion] + 160
-    const timer = window.setTimeout(() => {
-      setActiveIdle((current) => {
-        if (!current) return null
-        if (current.phase === 'outbound') return { ...current, phase: 'away' }
-        if (current.phase === 'away') return { ...current, phase: 'inbound' }
-        return null
-      })
-    }, delay)
-    return () => window.clearTimeout(timer)
-  }, [activeIdle])
-
   useLayoutEffect(() => {
     if (!handoff) return undefined
     const el = rootRef.current
@@ -284,10 +220,10 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
       setSleeping(false)
       return
     }
-    if (sleeping || activeIdle) return
+    if (sleeping || idle.activeIdle) return
     const timer = window.setTimeout(() => setSleeping(true), MASCOT_SLEEP_AFTER_MS)
     return () => window.clearTimeout(timer)
-  }, [ambient, activityRevision, sleeping, activeIdle, reduced])
+  }, [ambient, idle.activityRevision, sleeping, idle.activeIdle, reduced])
 
   const wake = useCallback(() => {
     setSleeping(false)
@@ -311,21 +247,7 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
   }, [focused, reduced])
 
   const onAnimationEnd = (event: AnimationEvent<HTMLDivElement>): void => {
-    if (activeIdle) {
-      const expected = activeIdle.motion === 'hop'
-        ? 'composer-mascot-idle-hop-travel'
-        : activeIdle.motion === 'rocket'
-          ? 'composer-mascot-idle-rocket-flight-x'
-          : activeIdle.phase === 'outbound'
-            ? 'composer-mascot-idle-hover-launch-body'
-            : 'composer-mascot-idle-hover-land-body'
-      if (event.animationName === expected) {
-        setActiveIdle((current) => {
-          if (!current) return null
-          return current.phase === 'outbound' ? { ...current, phase: 'away' } : null
-        })
-      }
-    }
+    idle.onAnimationEnd(event)
     switch (event.animationName) {
       case 'composer-mascot-launch':
         setLaunching(false)
@@ -388,7 +310,7 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
 
   const rootClassName =
     [
-      activeIdle ? 'composer-mascot-active-idle' : null,
+      idle.className,
       sleeping ? 'composer-mascot-sleeping' : null,
     ]
       .filter(Boolean)
@@ -412,8 +334,7 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
       data-mascot-speed={speed}
       data-mascot-context={contextMax ? 'max' : 'default'}
       data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
-      data-mascot-active-idle={activeIdle?.motion}
-      data-mascot-idle-phase={activeIdle?.phase}
+      {...idle.attributes}
       data-mascot-anchor-offset={anchorOffset}
       onAnimationEnd={onAnimationEnd}
       style={{
@@ -447,25 +368,27 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
       )}
       <div
         key={profileTransitionRevision}
-        className="composer-mascot-motion"
+        className="composer-mascot-motion composer-mascot-stage"
         style={{
+          '--mascot-idle-stage-scale': MASCOT_SCALE,
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
 
           filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotPalette.shadow} 20%, transparent))`
-        }}
+        } as CSSProperties}
       >
         <div
+          className="composer-mascot-travel"
           style={{
             transformOrigin: 'bottom center',
             transition: 'transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
             transform: poseTransform
           }}
         >
-          <div className={shotClass}>
-            <div className={loopClass}>
+          <div className={shotClass ? `composer-mascot-lift ${shotClass}` : 'composer-mascot-lift'}>
+            <div className={`composer-mascot-body ${loopClass}`}>
               <div
-                className="composer-mascot-jelly"
+                className="composer-mascot-jelly composer-mascot-trail"
                 style={{ pointerEvents: 'auto', cursor: hasMenu ? 'context-menu' : undefined }}
                 onMouseEnter={sleeping ? wake : undefined}
                 onClick={() => {
