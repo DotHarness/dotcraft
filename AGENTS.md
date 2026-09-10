@@ -45,7 +45,7 @@ Prerequisite: .NET 10 SDK (preview).
 - Runtime, protocol boundary, and app: `src/DotCraft.Runtime/`, `src/DotCraft.AppServer/`,
   `src/DotCraft.Protocol/`, `src/DotCraft.App/`
 - Source generators: `src/DotCraft.Generators/`
-- Feature modules: `src/DotCraft.{Unity,Automations,...}/`
+- Feature modules: `src/DotCraft.{Automations,...}/`
 - TypeScript channel packages: `sdk/typescript/packages/channel-{qq,wecom,feishu,weixin,telegram}/`
 - Specs and tests: `specs/`, `tests/`
 - SDKs and clients: `sdk/`, `desktop/`

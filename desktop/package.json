@@ -1,6 +1,6 @@
 {
   "name": "dotcraft-desktop",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "DotCraft",
   "author": {
     "name": "DotCraft"
@@ -174,7 +174,7 @@
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [
-          "**/*",
+          "dotcraft-bundled/plugins/{browser,chrome,dotcraft,oratorio,token-hud,wallpaper}/**/*",
           "!**/__pycache__/**",
           "!**/*.pyc"
         ]

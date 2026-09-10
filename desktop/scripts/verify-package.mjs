@@ -90,7 +90,6 @@ function verifyResourcesDir(target) {
   if (!existsSync(bundledPluginsRoot)) {
     fail('Missing bundled plugins directory.')
   }
-  verifyUnityPlugin(bundledPluginsRoot, platform, arch)
 
   verifyChannelFeishuCompanion(resourcesDir, platform, arch)
   const requiredAsarEntries = [
@@ -112,35 +111,6 @@ function verifyResourcesDir(target) {
 
   if (process.exitCode !== 1) {
     console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
-  }
-}
-
-function verifyUnityPlugin(bundledPluginsRoot, platform, arch) {
-  const pluginRoot = path.join(bundledPluginsRoot, 'unity')
-  const expected = platform === 'win32' && arch === 'x64'
-  if (!expected) {
-    if (existsSync(pluginRoot)) {
-      fail(`Unity plugin must not be packaged for ${platform}-${arch ?? 'unknown'}.`)
-    }
-    return
-  }
-
-  if (!existsSync(pluginRoot)) {
-    fail('Missing bundled Unity plugin for win32-x64.')
-    return
-  }
-
-  const required = [
-    '.craft-plugin/plugin.json',
-    'lib/DotCraft.Unity.dll',
-    'lib/Microsoft.CodeAnalysis.dll',
-    'lib/Microsoft.CodeAnalysis.CSharp.dll',
-    'native/DotCraft.Unity.Native.dll'
-  ]
-  for (const relativePath of required) {
-    if (!existsSync(path.join(pluginRoot, relativePath))) {
-      fail(`Missing bundled Unity plugin file ${relativePath}.`)
-    }
   }
 }
 

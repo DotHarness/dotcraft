@@ -1,5 +1,4 @@
 import { spawnSync } from 'child_process'
-import { rmSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -32,7 +31,6 @@ function runNpm(args) {
 
 runNpm(['run', 'ensure:electron'])
 const target = resolveTarget(process.argv.slice(2))
-prepareUnityPlugin(target)
 run(process.execPath, [
   './scripts/install-target-optional-deps.mjs',
   target.platform,
@@ -48,34 +46,6 @@ run(process.execPath, [
   'never'
 ])
 runNpm(['run', 'verify:package'])
-
-function prepareUnityPlugin(target) {
-  const bundledPluginsRoot = path.resolve(
-    desktopDir,
-    'resources/plugins/dotcraft-bundled/plugins'
-  )
-  const unityPluginRoot = path.join(bundledPluginsRoot, 'unity')
-
-  if (target.platform !== 'win32' || target.arch !== 'x64') {
-    rmSync(unityPluginRoot, { recursive: true, force: true })
-    return
-  }
-
-  if (process.platform !== 'win32') {
-    console.error('[dist-package] The bundled Unity plugin can only be built on Windows.')
-    process.exit(1)
-  }
-
-  run('powershell.exe', [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    '../tools/DotCraft.Unity/scripts/build.ps1',
-    '-BundledPluginRoot',
-    bundledPluginsRoot
-  ])
-}
 
 function resolveTarget(args) {
   const platform = args.includes('--win')

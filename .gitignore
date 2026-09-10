@@ -42,9 +42,6 @@ tmp
 # left the tracked manifests useless on their own and free to drift.
 desktop/resources/modules/
 
-# Unity plugin staged for Windows x64 desktop packaging from tools/DotCraft.Unity.
-desktop/resources/plugins/dotcraft-bundled/plugins/unity/
-
 # Local Playwright CLI state
 desktop/.playwright-cli/
 /sdk/typescript/packages/channel-weixin/data

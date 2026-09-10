@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
+using System.ComponentModel;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Harness;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,6 +13,10 @@ using Microsoft.Extensions.Hosting;
 var testRoot = Path.Combine(Path.GetTempPath(), $"dotcraft-harness-consumer-{Guid.NewGuid():N}");
 try
 {
+    var declaration = DotCraft.GeneratedTools.Harness.Consumer.GeneratedToolDeclarations.IConsumerDeclarations_Echo_Declaration;
+    Ensure(declaration.Name == "echo", "The package did not generate the declared tool.");
+    Ensure(declaration.InputSchema.GetProperty("properties").GetProperty("value").GetProperty("type").GetString() == "string",
+        "The generated tool lost its parameter schema.");
     var workspacePath = Path.Combine(testRoot, "session");
     var builder = Host.CreateApplicationBuilder();
     builder.Services.AddDotCraftHarness(
@@ -77,6 +83,13 @@ static void Ensure(bool condition, string message)
 {
     if (!condition)
         throw new InvalidOperationException(message);
+}
+
+internal interface IConsumerDeclarations
+{
+    [ToolDeclaration(Name = "echo")]
+    [Description("Return the input value.")]
+    string Echo([Description("Value to return.")] string value);
 }
 
 sealed class FakeModelProvider : IModelProvider
