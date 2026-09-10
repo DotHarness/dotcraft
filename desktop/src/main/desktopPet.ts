@@ -1,8 +1,8 @@
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
-import { clampPet, petActivity, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../shared/desktopPet'
+import { clampPet, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../shared/desktopPet'
 import { PET_RETURN_DURATION, samplePetReturn, type PetReturnFrame } from '../shared/desktopPetMotion'
-import { SUPPORTED_LOCALE_VALUES } from '../shared/locales/types'
+import { validDecisionCommand, validLayout, validPoint, validRead, validRect, validSnapshot, validStop } from './desktopPetValidation'
 
 let active: DesktopPet | null = null
 
@@ -31,7 +31,8 @@ class DesktopPet {
   private settled = false
   private disposed = false
   private sourceDragging = false
-  private chatOpen = false
+  private reserve = 0
+  private warnedSnapshot = false
   private sourceTimer: ReturnType<typeof setInterval> | undefined
   private readonly ownerContents: Electron.WebContents
   detached = false
@@ -51,10 +52,21 @@ class DesktopPet {
           break
         case 'ready': if (fromPet) this.ready(); break
         case 'source-drag': if (fromOwner && this.sourceDragging) this.updateSourceDrag(command.stage === 'end'); break
-        case 'chat':
-          if (fromPet && typeof command.open === 'boolean' && !this.returning) {
-            this.chatOpen = command.open
+        case 'layout':
+          if (fromPet && !this.returning && validLayout(command)) {
+            this.reserve = command.height
             this.place(this.point)
+          }
+          break
+        case 'stop':
+          if (fromPet && this.detached && !this.returning && validStop(command, this.snapshot)) this.send(owner, { type: 'stop', turnId: command.turnId })
+          break
+        case 'read':
+          if (fromPet && this.detached && validRead(command)) this.send(owner, { type: 'read', turnId: command.turnId })
+          break
+        case 'decision':
+          if (fromPet && this.detached && !this.returning && validDecisionCommand(command, this.snapshot)) {
+            this.send(owner, { type: 'decision', id: command.id, value: command.value })
           }
           break
         case 'hidden': if (fromOwner && this.detached && !this.returning && !this.started) this.leave(); break
@@ -66,6 +78,9 @@ class DesktopPet {
           if (fromOwner && validSnapshot(command.snapshot)) {
             this.snapshot = command.snapshot
             this.send(this.overlay, { type: 'snapshot', snapshot: command.snapshot })
+          } else if (fromOwner && !this.warnedSnapshot) {
+            this.warnedSnapshot = true
+            console.warn('[desktop-pet] snapshot rejected by validation; the companion keeps its last state')
           }
           break
         case 'edit':
@@ -168,13 +183,17 @@ class DesktopPet {
     if (!this.overlay || this.overlay.isDestroyed()) return
     const area = screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) }).workArea
     this.point = clampPet(point, area, size, snap)
-    this.point.y = Math.min(this.point.y, area.y + area.height - size - (this.chatOpen && !this.returning ? 80 : 40))
+    this.point.y = Math.min(this.point.y, area.y + area.height - size - this.reserved(area))
     this.overlay.setBounds(area)
     this.send(this.overlay, { type: 'position', point: { x: this.point.x - area.x, y: this.point.y - area.y }, size,
       phase: this.returning ? 'returning' : this.settled ? 'pet' : 'leaving',
       held: this.sourceDragging,
-      ...(pose ? { pose: { scaleX: pose.scaleX, scaleY: pose.scaleY, rotation: pose.rotation } } : {}),
-      ...(this.returning && this.seat ? { landing: { x: this.seat.x - area.x + this.seat.width / 2, y: this.seat.y - area.y + this.seat.height } } : {}) })
+      ...(pose ? { pose: { scaleX: pose.scaleX, scaleY: pose.scaleY, rotation: pose.rotation } } : {}) })
+  }
+
+  /** Room kept below the pet for its activity pill, never pushing the pet past mid-screen. */
+  private reserved(area: PetRect): number {
+    return this.reserve > 0 && !this.returning ? Math.min(this.reserve + 12, Math.floor(area.height / 2)) : 40
   }
 
   private drag(stage: 'start' | 'move' | 'end'): void {
@@ -263,7 +282,8 @@ class DesktopPet {
     this.revealing = false
     this.started = false
     this.settled = false
-    this.chatOpen = false
+    this.reserve = 0
+    this.warnedSnapshot = false
     this.closeOverlay()
     if (!this.owner.isDestroyed()) {
       this.owner.setOpacity(1)
@@ -295,22 +315,4 @@ class DesktopPet {
     ipcMain.removeHandler('desktop-pet:command')
     if (active === this) active = null
   }
-}
-
-function validPoint(value: unknown): value is PetPoint {
-  const point = value as PetPoint | null
-  return !!point && Number.isFinite(point.x) && Number.isFinite(point.y)
-}
-function validRect(value: unknown): value is PetRect {
-  const rect = value as PetRect | null
-  return validPoint(rect) && Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width > 0 && rect.height > 0
-}
-function validSnapshot(value: unknown): value is PetSnapshot {
-  const snapshot = value as PetSnapshot | null
-  return !!snapshot && typeof snapshot.name === 'string' && snapshot.name.length <= 1000
-    && typeof snapshot.text === 'string' && snapshot.text.length <= 100000
-    && (snapshot.theme === 'dark' || snapshot.theme === 'light')
-    && SUPPORTED_LOCALE_VALUES.includes(snapshot.locale)
-    && typeof snapshot.reducedMotion === 'boolean' && typeof snapshot.canChat === 'boolean'
-    && (snapshot.activity === undefined || petActivity(snapshot.activity) === snapshot.activity)
 }

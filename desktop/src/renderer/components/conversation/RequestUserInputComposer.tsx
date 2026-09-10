@@ -301,6 +301,7 @@ export function RequestUserInputComposer({
           focused
           showMascot
           mascotInteraction={DECISION_MASCOT}
+          petSurface="decision"
           mascotReasoningEffort={mascotEffectState.reasoningEffort}
           mascotSpeed={mascotEffectState.speed}
           mascotContextMax={mascotEffectState.contextMax}

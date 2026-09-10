@@ -43,7 +43,7 @@ vi.mock('electron', async () => {
 import { BrowserWindow } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from '../desktopPet'
 
-const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, locale: 'en' as const, reducedMotion: false, canChat: true }
+const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, locale: 'en' as const, reducedMotion: false, canChat: true, followUpMode: 'queue' as const }
 let owner: any
 function send(sender: any, command: PetCommand): void { mocks.handler!({ sender: sender.webContents }, command) }
 function detach(pointerHeld = false): any {
@@ -51,13 +51,15 @@ function detach(pointerHeld = false): any {
   return mocks.windows[1]
 }
 function events(win: any): PetEvent[] { return win.webContents.send.mock.calls.map((call: any[]) => call[1]) }
+let warn: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   vi.useFakeTimers()
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   mocks.windows.length = 0
   owner = new BrowserWindow()
   attachDesktopPet(owner)
 })
-afterEach(() => { owner.emit('closed'); vi.useRealTimers() })
+afterEach(() => { owner.emit('closed'); vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('desktop pet native ownership', () => {
   it('uses a sandboxed window with the dedicated preload', () => {
@@ -153,6 +155,67 @@ describe('desktop pet native ownership', () => {
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, canChat: false } })
     send(pet, edit)
     expect(events(owner)).toEqual([])
+  })
+  it('accepts an optional busy flag on snapshots, rejects other shapes, and warns once', () => {
+    const pet = detach()
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, busy: 'yes' } as any })
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, followUpMode: 'now' } as any })
+    expect(events(pet)).toEqual([])
+    expect(warn).toHaveBeenCalledTimes(1)
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, busy: true } })
+    expect(events(pet)).toContainEqual({ type: 'snapshot', snapshot: { ...snapshot, busy: true } })
+  })
+  it('validates the status contract before relaying it to the companion', () => {
+    const pet = detach()
+    const status = { status: 'running', title: 'Fix', line: 'Running tests', lineTone: 'neutral', turnId: 'turn-1', canStop: true }
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, status: 'flying' } } as any })
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, line: 'x'.repeat(201) } } as any })
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, stopping: 'yes' } } as any })
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, decision: { id: 'd', question: '', operation: '', target: '', reason: '', options: [], declineValue: 'decline' } } } as any })
+    expect(events(pet)).toEqual([])
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status } as any })
+    expect(events(pet)).toContainEqual({ type: 'snapshot', snapshot: { ...snapshot, status } })
+  })
+  it('relays stop and read only for the turn the companion was shown, and keeps room for its pill', () => {
+    send(owner, { type: 'detach', seat: { x: 100, y: 100, width: 44, height: 44 }, point: { x: 300, y: 800 }, snapshot })
+    const pet = mocks.windows[1]
+    const status = { status: 'running', title: 'Fix', line: 'Running tests', lineTone: 'neutral', turnId: 'turn-1', canStop: true }
+    send(pet, { type: 'stop', turnId: 'turn-1' })
+    expect(events(owner).filter((event) => event.type === 'stop')).toEqual([])
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status } as any })
+    send(pet, { type: 'stop', turnId: 'turn-9' })
+    send(owner, { type: 'stop', turnId: 'turn-1' } as any)
+    expect(events(owner).filter((event) => event.type === 'stop')).toEqual([])
+    send(pet, { type: 'stop', turnId: 'turn-1' })
+    expect(events(owner)).toContainEqual({ type: 'stop', turnId: 'turn-1' })
+    send(pet, { type: 'read', turnId: 'turn-1' })
+    expect(events(owner)).toContainEqual({ type: 'read', turnId: 'turn-1' })
+    send(pet, { type: 'read', turnId: '' })
+    expect(events(owner).filter((event) => event.type === 'read')).toHaveLength(1)
+
+    send(pet, { type: 'ready' }); send(owner, { type: 'hidden' })
+    send(pet, { type: 'layout', height: 200 })
+    let position = events(pet).filter((event) => event.type === 'position').at(-1) as any
+    expect(position.point.y).toBe(1080 - 59 - 212)
+    send(pet, { type: 'layout', height: 1000 })
+    position = events(pet).filter((event) => event.type === 'position').at(-1) as any
+    expect(position.point.y).toBe(1080 - 59 - 540)
+    send(pet, { type: 'layout', height: 0 })
+    position = events(pet).filter((event) => event.type === 'position').at(-1) as any
+    expect(position.point.y).toBe(1080 - 59 - 540)
+  })
+  it('relays a decision only when it names the approval on display and one of its options', () => {
+    const pet = detach()
+    const decision = { id: 'tool:r1', question: 'Run?', operation: 'run', target: 'npm test', reason: '', declineValue: 'decline', options: [{ value: 'accept', label: 'Allow' }, { value: 'decline', label: 'Deny' }] }
+    const status = { status: 'waiting', title: 'Fix', line: 'run npm test', lineTone: 'warning', turnId: 'turn-1', canStop: false, decision }
+    send(pet, { type: 'decision', id: 'tool:r1', value: 'accept' })
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status } as any })
+    send(pet, { type: 'decision', id: 'tool:r2', value: 'accept' })
+    send(pet, { type: 'decision', id: 'tool:r1', value: 'acceptAlways' })
+    send(owner, { type: 'decision', id: 'tool:r1', value: 'accept' } as any)
+    expect(events(owner).filter((event) => event.type === 'decision')).toEqual([])
+    send(pet, { type: 'decision', id: 'tool:r1', value: 'accept' })
+    expect(events(owner)).toContainEqual({ type: 'decision', id: 'tool:r1', value: 'accept' })
   })
   it('recovers on renderer failure and cleans up its listeners', () => {
     const pet = detach()

@@ -21,6 +21,7 @@ import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import { useDocumentThemeMode } from '../../utils/theme'
 import { useDesktopPet } from '../desktopPet/useDesktopPet'
+import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
 
 export interface ComposerMascotBubble {
   tone?: MascotBubbleTone
@@ -78,6 +79,8 @@ interface ComposerShellProps {
   mascotContextMax?: boolean
   mascotName?: string
   mascotHandoff?: boolean
+  /** How the desktop pet treats this composer; defaults to chat when it can chat, else decision. */
+  petSurface?: PetSourceSurface
 }
 
 const COMPOSER_CARD_INLINE_PADDING = 10
@@ -115,17 +118,22 @@ export function ComposerShell({
   mascotSpeed = 'standard',
   mascotContextMax = false,
   mascotName,
-  mascotHandoff = false
+  mascotHandoff = false,
+  petSurface
 }: ComposerShellProps): JSX.Element {
   const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
   const petRoot = useRef<HTMLDivElement>(null)
-  useDesktopPet(petRoot, showMascot, !desktopPluginSurfaceContext.awaitingApproval && mascotInteraction?.hold !== 'sign')
+  const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
+  const canChat = !desktopPluginSurfaceContext.awaitingApproval && mascotInteraction?.hold !== 'sign'
+  useDesktopPet(petRoot, showMascot, petSurface ?? (canChat ? 'chat' : 'decision'), {
+    threadId: desktopPluginSurfaceContext.threadId,
+    mascotName: renderedMascotAvatar ?? ''
+  })
   const [hovered, setHovered] = useState(false)
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
   const { lift: overlayLift, api: overlayLiftApi, Provider: OverlayLiftProvider } =
     useComposerOverlayLiftHost()
-  const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
   const topAccessoryRef = useRef<HTMLDivElement | null>(null)
   const topAccessoryHeightRef = useRef(0)
 
