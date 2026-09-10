@@ -43,13 +43,14 @@ internal sealed class IslandWindow : Window, IDisposable
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly IslandViewModel _viewModel;
-    private readonly WebView2 _web = new();
+    private readonly Grid _root = new();
     private readonly DispatcherQueueTimer _pointer;
     private readonly DispatcherQueueTimer _exit;
     private readonly IslandNativeMethods.SubclassProc _erase;
     private readonly bool _animate;
     private readonly nint _handle;
     private readonly AppWindow _appWindow;
+    private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
     private IslandStateModel _content = new();
     private RectInt32 _bounds;
@@ -94,9 +95,8 @@ internal sealed class IslandWindow : Window, IDisposable
         IslandNativeMethods.MakeLayered(_handle);
         SystemBackdrop = new TransparentBackdrop();
 
-        _web.DefaultBackgroundColor = Colors.Transparent;
-        _web.ActualThemeChanged += (_, _) => Push();
-        Content = _web;
+        _root.ActualThemeChanged += (_, _) => Push();
+        Content = _root;
         Activated += OnActivated;
 
         _pointer = DispatcherQueue.CreateTimer();
@@ -122,7 +122,7 @@ internal sealed class IslandWindow : Window, IDisposable
     {
         _pointer.Stop();
         _exit.Stop();
-        _web.Close();
+        _controller?.Close();
     }
 
     private double Scale => Tray.TrayNativeMethods.GetDpiForWindow(_handle) is var dpi && dpi > 0
@@ -132,7 +132,7 @@ internal sealed class IslandWindow : Window, IDisposable
     private RectInt32 WorkArea =>
         DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary).WorkArea;
 
-    private string Theme => _web.ActualTheme == ElementTheme.Light ? "light" : "dark";
+    private string Theme => _root.ActualTheme == ElementTheme.Light ? "light" : "dark";
 
     private static int HeightDips(IslandStateModel state) => state.Mode switch
     {
@@ -156,14 +156,21 @@ internal sealed class IslandWindow : Window, IDisposable
         return reader.ReadToEnd();
     }
 
+    /// <summary>
+    /// The page gets WebView2's own child window rather than the XAML control: WinUI's control paints
+    /// the theme page colour behind a transparent page, and nothing above it can make that see-through.
+    /// </summary>
     private async Task LoadPageAsync()
     {
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DotCraft", "Satellite", "WebView2");
         var environment = await CoreWebView2Environment.CreateWithOptionsAsync(null, folder, new CoreWebView2EnvironmentOptions());
-        await _web.EnsureCoreWebView2Async(environment);
-        _web.DefaultBackgroundColor = Colors.Transparent;
-        var core = _web.CoreWebView2;
+        var controller = await environment.CreateCoreWebView2ControllerAsync(
+            CoreWebView2ControllerWindowReference.CreateFromWindowHandle((ulong)_handle));
+        controller.DefaultBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+        controller.Bounds = ClientBounds();
+        controller.IsVisible = _shown;
+        var core = controller.CoreWebView2;
         var settings = core.Settings;
         settings.AreDefaultContextMenusEnabled = false;
         settings.AreBrowserAcceleratorKeysEnabled = false;
@@ -174,8 +181,12 @@ internal sealed class IslandWindow : Window, IDisposable
         settings.IsGeneralAutofillEnabled = false;
         settings.IsPasswordAutosaveEnabled = false;
         core.WebMessageReceived += OnWebMessage;
+        _controller = controller;
         core.NavigateToString(Page());
     }
+
+    private Windows.Foundation.Rect ClientBounds() =>
+        new(0, 0, WindowWidthDips * Scale, WindowHeightDips * Scale);
 
     private void OnWebMessage(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
     {
@@ -278,6 +289,8 @@ internal sealed class IslandWindow : Window, IDisposable
             _morphUntil = DateTime.UtcNow + MorphDuration;
             _appWindow.MoveAndResize(WindowRect(_bounds));
         }
+        if (_controller is { } controller)
+            controller.Bounds = ClientBounds();
         Push();
     }
 
@@ -311,6 +324,8 @@ internal sealed class IslandWindow : Window, IDisposable
         _appWindow.MoveAndResize(WindowRect(_bounds));
         Push();
         _appWindow.Show(activateWindow: false);
+        if (_controller is { } controller)
+            controller.IsVisible = true;
         IslandNativeMethods.RaiseToTop(_handle);
         _pointer.Start();
     }
@@ -332,6 +347,8 @@ internal sealed class IslandWindow : Window, IDisposable
     {
         _pointer.Stop();
         _appWindow.Hide();
+        if (_controller is { } controller)
+            controller.IsVisible = false;
         if (_hovered)
         {
             _hovered = false;
@@ -508,7 +525,7 @@ internal sealed class IslandWindow : Window, IDisposable
     /// <summary>Moves focus to a decision the moment one is asked for, so Tab and Enter answer it.</summary>
     private void FocusDecision()
     {
-        _web.Focus(FocusState.Programmatic);
+        _controller?.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
         _ = _core?.ExecuteScriptAsync("island.focusDecision()");
     }
 

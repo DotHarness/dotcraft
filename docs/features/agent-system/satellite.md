@@ -58,6 +58,6 @@ If Desktop is also installed on this PC, open **Settings → Connections → Sha
 
 ![Share this PC showing two paired computers with their access modes and task folders](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/manage-access.png)
 
-Right-click the Satellite tray icon and choose a machine to open its actions: **Manage access** changes its access mode, **Open folder** opens its task folder, **Disconnect** ends its current session, and **Revoke** removes its access. **Pause sharing** stops every machine at once and can be resumed later.
+Right-click the Satellite tray icon and choose a machine to open its actions: **Manage access** changes its access mode, **Open folder** opens its task folder, **Disconnect** ends its current session, and **Revoke access** removes its access. **Pause sharing** stops every machine at once and can be resumed later.
 
 The person inviting can also remove the PC from **Settings → Connections → Satellites**. Sharing again requires a new invitation.

@@ -69,18 +69,6 @@ internal static class IslandNativeMethods
     [DllImport("dwmapi.dll")]
     private static extern int DwmEnableBlurBehindWindow(nint window, ref BlurBehind blurBehind);
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Margins
-    {
-        public int Left;
-        public int Right;
-        public int Top;
-        public int Bottom;
-    }
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmExtendFrameIntoClientArea(nint window, ref Margins margins);
-
     private const uint RDW_INVALIDATE = 0x0001;
     private const uint RDW_ERASE = 0x0004;
     private const uint RDW_FRAME = 0x0400;
@@ -154,8 +142,6 @@ internal static class IslandNativeMethods
         _ = DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, ref square, sizeof(uint));
         var none = DWMWA_COLOR_NONE;
         _ = DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, ref none, sizeof(uint));
-        var margins = new Margins();
-        _ = DwmExtendFrameIntoClientArea(window, ref margins);
         var region = CreateRectRgn(-2, -2, -1, -1);
         var blur = new BlurBehind { Flags = DWM_BB_ENABLE | DWM_BB_BLURREGION, Enable = 1, Region = region };
         _ = DwmEnableBlurBehindWindow(window, ref blur);
