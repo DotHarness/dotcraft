@@ -1,6 +1,8 @@
 # Page Templates
 
-Copy the skeleton that matches an ordinary documentation-site content page's audience × purpose (see SKILL.md), then fill it in. These are portable structures. The concrete syntax they use — admonitions (`> [!NOTE]`), multi-language code tabs (`::: code-group`), asset paths, and the "Related docs" footer — follows this repo's conventions in `references/project-profile.md`; swap that syntax if you adapt the skill elsewhere. Mirror every documentation-site page in each supported language with identical structure. Custom landing pages preserve their existing structure, and repository READMEs do not use these templates.
+Choose the skeleton for the page's audience and purpose using [SKILL.md](../SKILL.md). Follow [project-profile.md](project-profile.md) for admonitions, multi-language code tabs, asset paths, and localization. Mirror each documentation-site page in every supported language with the same structure. Custom landing pages preserve their existing structure, and repository READMEs do not use these templates.
+
+Use only sections that serve the page's job. A primary figure, when useful, belongs immediately after the intro and before the first `##` heading; a section-specific figure follows that section's heading. The skeletons omit footers: append the optional footer below only for genuine same-audience next steps. On user pages, link developer references inline only where needed.
 
 ## Table of contents
 
@@ -16,7 +18,7 @@ Copy the skeleton that matches an ordinary documentation-site content page's aud
 
 ## 1. Quickstart / Getting Started — end user × tutorial
 
-Goal: one happy path to a first visible result, fast. No branching, no internals, no "you could also." Defer choices and auth to the moment they're needed.
+Goal: one recommended path to a first visible result. Introduce required choices and authentication at the step that needs them; keep internal mechanics in developer references.
 
 ```markdown
 # Get started with <product or feature>
@@ -36,55 +38,36 @@ Imperative instruction. Show the exact command and what they should see.
 ### 2. <Next action>
 
 Keep steps short and ordered. One outcome per step. Lead with the recommended path; keep advanced/manual options as a clearly-labeled fallback below it.
-
-## Next steps
-
-- Link onward to the next thing to try, not everything at once.
-
-## Related docs
-
-- [<next logical page>](./...)
 ```
 
-Rules: lead with the outcome; minimize explanation (link to a concept page for "why"); every step ends in something the reader can see. Don't explain the architecture here — link to it.
+Rules: lead with the outcome; every step ends in something the reader can see. Link a developer reference inline only when the reader needs it to complete the task.
 
 ---
 
 ## 2. Feature overview — end user × explanation (+ light how-to)
 
-Goal: explain a capability and let the reader use it, without turning into a reference. Friendly, concept-first, one diagram if it helps. Hand wire-level detail off to a developer reference page.
+Goal: explain the purpose of a capability, when to use it, and how to get a result. Keep the page in the user's language; internal mechanics belong in developer references.
 
 ```markdown
 # <Feature name>
 
-Plain-language paragraph: what it does for the user and why it's worth using. Lead with value, not architecture.
-
-## Key concepts
-
-| Concept | Meaning |
-|---|---|
-| **<Term>** | One-line definition in plain language. |
-
-## How it works
-
-Short narrative or a small diagram. Keep it conceptual.
+Plain-language paragraph: what the feature helps the reader accomplish.
 
 ![<alt text>](/feature-topology.svg)
 
-> [!TIP]
-> A genuinely useful shortcut or default worth surfacing.
+## When to use it
 
-## Using it
+Describe concrete situations where the feature helps the reader.
 
-Task-first steps or a short example of the common path.
+## Use <feature>
 
-## Related docs
+1. Open <UI path or entry point>.
+2. <Perform the action needed for the result>.
 
-- [<deeper developer reference>](../...)
-- [<sibling feature>](./...)
+Describe the visible result. Include a short example when it makes the task clearer.
 ```
 
-Rules: if you find yourself writing a multi-column field table of internals, stop and link to the reference page instead.
+Rules: omit the figure when it does not help. Describe actions and outcomes, without explaining internal state transitions, storage, protocols, or fallback machinery. Keep a command, path, or identifier only when the reader must enter or inspect it to complete the task; link to the owning developer reference inline where needed.
 
 ---
 
@@ -115,10 +98,6 @@ Direct, ordered, no digression. Add a gotcha only when it commonly blocks succes
 ## Verify (only when success is not already visible)
 
 How the reader confirms it worked.
-
-## Related docs
-
-- [...](./...)
 ```
 
 Rules: a how-to solves a problem, not "operate feature X." Title it by the goal ("Connect a remote server"), not the tool. Do not append failure recovery, shutdown, or cleanup sections unless they change what the reader must do or prevent a persistent or safety consequence. When development and packaged environments use different paths, label them directly instead of framing one as an assumption and the other as an exception.
@@ -150,14 +129,9 @@ Define the moving parts as a table, then discuss how they relate.
 ## <Trade-off / behavior section>
 
 Discursive prose: why it's built this way, what it implies for callers. Link to the reference page for exact options.
-
-## Related docs
-
-- [<protocol/reference page>](../...)
-- [<configuration>](../...)
 ```
 
-Rules: explanation may discuss alternatives and reasoning — the one place "why" belongs. Don't bury step-by-step instructions here; link to the how-to.
+Rules: developer explanations may discuss implementation alternatives and design rationale. Keep step-by-step instructions in the owning how-to and link to it where useful.
 
 ---
 
@@ -198,16 +172,23 @@ Short gloss of purpose, then the exact contract.
 
 > [!CAUTION]
 > Security or data consequence stated plainly.
-
-## Related docs
-
-- [<conceptual overview of this area>](../...)
 ```
 
 Rules: keep language tabs parallel — same steps and order for every applicable language. Tag anything unstable. The reference describes; it does not persuade. State load-bearing rules explicitly, not only by example.
 
 ---
 
+## Optional related docs footer
+
+Append this only when the page has genuine same-audience next steps, usually two or three links with a short reason each. Localize the heading. Omit the entire section when nothing qualifies; a user page's footer never lists architecture, configuration, or other developer references.
+
+```markdown
+## Related docs
+
+- [<next task for this audience>](./...) — <why to continue here>.
+- [<related page for this audience>](./...) — <what it helps with>.
+```
+
 ## A note on troubleshooting
 
-Do not create a standalone catch-all troubleshooting or FAQ page. Put concise, source-backed recovery steps for actionable non-bug failures on the page that owns the setup or operation. Report genuine product defects through the issue tracker. See `references/style-and-mechanics.md` §10.
+Do not create a standalone catch-all troubleshooting or FAQ page. Put concise, source-backed recovery steps for actionable non-bug failures on the page that owns the setup or operation. Report genuine product defects through the issue tracker. See [style-and-mechanics.md](style-and-mechanics.md) §10.

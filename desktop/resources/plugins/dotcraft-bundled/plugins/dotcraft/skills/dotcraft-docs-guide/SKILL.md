@@ -5,7 +5,7 @@ description: Write, revise, and validate DotCraft user or developer documentatio
 
 # DotCraft documentation guide
 
-Write current, task-focused documentation and keep applicable localized mirrors aligned. When documentation accompanies product work, use `dotcraft-dev-guide` for the broader development workflow.
+Write current, task-focused documentation and keep applicable localized mirrors aligned. When documentation accompanies product work, use [dotcraft-dev-guide](../dotcraft-dev-guide/SKILL.md) for the broader development workflow.
 
 ## Workflow
 
@@ -40,7 +40,9 @@ Write current, task-focused documentation and keep applicable localized mirrors 
 - Give each artifact one job. Link across tutorial, explanation, and reference layers instead of mixing them.
 - Include only information the reader needs to complete that job. A behavior being true or verified is not enough reason to document it. Omit defensive failure branches, redundant confirmation steps, and shutdown or cleanup guidance unless they require a distinct action, prevent a common blocker, or have a persistent or safety consequence.
 - Lead user pages with the outcome. Keep developer pages neutral, exact, and organized around the contract.
-- User pages answer three questions only: what the feature is for, when to reach for it, and how to turn it on or use it. Write the reader's action and its outcome; what happens in between — intermediate states, the events that move between them, fallback paths — is implementation and belongs in the developing references together with defaults, config keys, internal state names, tool identifiers, and edge-case caveats. Link once inline where the need arises. Never inventory a settings page's controls as bullets; give the UI path once and let a screenshot or GIF show the rest.
+- User pages, including `features/`, `getting-started.md`, and their localized mirrors, explain what a feature is for, when to use it, and the reader's actions and results.
+- Keep internal classes, state transitions, protocol and storage details, fallback paths, and implementation-only defaults or identifiers in developer references. Include commands, paths, config keys, or other identifiers only when the reader must enter or inspect them to complete the task. Link to a developer reference once inline where the need arises.
+- Never inventory a settings page's controls as bullets; give the UI path once and let a screenshot or GIF show the rest.
 - Liveliness comes from concreteness and directness, not metaphor. Declarative sentences carry the page; at most an occasional light touch of humor. The target register: a capable colleague stating what the product does and when to reach for it — plain verbs, short sentences, zero marketing flourish.
 - Use imperative sentences for steps the reader performs. Use declarative sentences for context, outcomes, responsibility boundaries, and product or agent behavior; do not turn an explanation into commands directed at the reader.
 - State prerequisites only when the reader must satisfy them before the first step. When procedures differ by environment or distribution, label those paths directly instead of opening with a generic assumptions paragraph.
@@ -55,6 +57,7 @@ Write current, task-focused documentation and keep applicable localized mirrors 
 ## Completion check
 
 - Audience, page job, and source of truth are clear; removed content and media references have a task-relevant reason.
+- User pages focus on purpose, usage, and outcomes; implementation details stay in developer references, and any footer provides only same-audience next steps.
 - The documented behavior and package availability match the current repository and release state.
 - Parallel language examples and any localized mirrors have the same structure.
 - No duplicated procedure, dead link, stale identifier, historical narrative, standalone FAQ, or troubleshooting dump remains.
