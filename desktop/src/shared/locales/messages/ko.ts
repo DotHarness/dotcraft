@@ -3265,6 +3265,7 @@ export const MESSAGES_KO = {
   'skillDetail.workspaceSubtitle': '작업 공간 기술',
   'skillDetail.userSubtitle': '사용자 수준의 스킬',
   'skillDetail.loading': '로드 중…',
+  'skillDetail.loadFailed': '스킬 콘텐츠를 불러올 수 없습니다.',
   'skillDetail.enableWorkspace': '작업공간에 사용',
   'skillDetail.disableWorkspace': '작업공간에 대해 비활성화',
   'skillCard.noDescription': '설명 없음',

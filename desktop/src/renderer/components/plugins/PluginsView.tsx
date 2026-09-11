@@ -5,15 +5,17 @@ import {
   operationFailureMessage,
   usePluginStore,
   type MarketplaceEntry,
-  type PluginEntry
+  type PluginEntry,
+  type PluginSkillInfo
 } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
+import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { SkillsView, filterLocalSkills, stripYamlFrontmatter } from '../skills/SkillsView'
+import { SkillsView, filterLocalSkills } from '../skills/SkillsView'
 import { SkillDetailDialog } from '../skills/SkillDetailDialog'
 import { stageSkillTryInChat } from '../skills/skillDraft'
 import type { SplitButtonItem } from '../ui/SplitButton'
@@ -37,6 +39,15 @@ import {
 export { marketplaceTitle } from './pluginCatalogModel'
 
 type PluginMode = 'browse' | 'manage'
+
+interface PluginSkillPreview {
+  pluginId: string
+  skill: PluginSkillInfo
+  content: string
+  loading: boolean
+  failed: boolean
+}
+
 export function PluginsView(): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
@@ -89,6 +100,7 @@ export function PluginsView(): JSX.Element {
   const [enablingPluginId, setEnablingPluginId] = useState<string | null>(null)
   const [enablingLspId, setEnablingLspId] = useState<string | null>(null)
   const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false)
+  const [pluginSkillPreview, setPluginSkillPreview] = useState<PluginSkillPreview | null>(null)
 
   useEffect(() => {
     if (pluginManagement) void fetchPlugins()
@@ -188,9 +200,36 @@ export function PluginsView(): JSX.Element {
     stagePluginCreationInChat(t('plugins.create.prompt'), hasCreatorSkill)
   }
 
-  // Browse never loads the skill list, so it is fetched on demand the first time a
-  // plugin's contents list is used to open one.
-  async function handleOpenSkill(name: string): Promise<void> {
+  async function handleOpenSkill(plugin: PluginEntry, name: string): Promise<void> {
+    if (!plugin.installed) {
+      const skill = plugin.skills.find((candidate) => candidate.name === name)
+      if (!skill) return
+
+      clearSkillSelection()
+      setPluginSkillPreview({
+        pluginId: plugin.id,
+        skill,
+        content: '',
+        loading: true,
+        failed: false
+      })
+      try {
+        const result = await window.api.appServer.sendRequest('plugin/skill/read', {
+          id: plugin.id,
+          name
+        })
+        setPluginSkillPreview((current) => current?.pluginId === plugin.id && current.skill.name === name
+          ? { ...current, content: result.content, loading: false }
+          : current)
+      } catch {
+        setPluginSkillPreview((current) => current?.pluginId === plugin.id && current.skill.name === name
+          ? { ...current, loading: false, failed: true }
+          : current)
+      }
+      return
+    }
+
+    setPluginSkillPreview(null)
     if (useSkillsStore.getState().skills.length === 0) {
       try {
         await fetchSkills()
@@ -441,7 +480,7 @@ export function PluginsView(): JSX.Element {
             }
           }}
           onTryInChat={() => stagePluginTryInChat(selectedPlugin)}
-          onOpenSkill={(name) => void handleOpenSkill(name)}
+          onOpenSkill={(name) => void handleOpenSkill(selectedPlugin, name)}
         />
         {selectedSkill && (
           <SkillDetailDialog
@@ -453,6 +492,26 @@ export function PluginsView(): JSX.Element {
               clearSkillSelection()
               stageSkillTryInChat(selectedSkill)
             }}
+          />
+        )}
+        {pluginSkillPreview && (
+          <SkillDetailDialog
+            skill={{
+              name: pluginSkillPreview.skill.name,
+              displayName: pluginSkillPreview.skill.displayName,
+              description: pluginSkillPreview.skill.description,
+              shortDescription: pluginSkillPreview.skill.shortDescription,
+              source: 'plugin',
+              pluginId: pluginSkillPreview.pluginId,
+              available: false,
+              enabled: false,
+              path: ''
+            }}
+            markdownBody={stripYamlFrontmatter(pluginSkillPreview.content)}
+            loading={pluginSkillPreview.loading}
+            error={pluginSkillPreview.failed}
+            previewOnly
+            onClose={() => setPluginSkillPreview(null)}
           />
         )}
         {installDialog}

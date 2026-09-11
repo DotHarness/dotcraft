@@ -9509,6 +9509,44 @@
       },
       "additionalProperties": true
     },
+    "PluginSkillReadParams": {
+      "title": "PluginSkillReadParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "PluginSkillReadResult": {
+      "title": "PluginSkillReadResult",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "content",
+        "id",
+        "name"
+      ]
+    },
     "PluginSnapshotUpdatedNotification": {
       "title": "PluginSnapshotUpdatedNotification",
       "type": "object",

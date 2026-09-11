@@ -412,7 +412,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.modeSwitch` | boolean | Server supports `thread/mode/set`. |
 | `capabilities.configOverride` | boolean | Server supports `thread/config/update`. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
-| `capabilities.pluginManagement` | boolean | Server supports the complete plugin discovery and lifecycle surface: `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, and `plugin/setTrusted`, plus the `plugin/snapshot/updated` notification. |
+| `capabilities.pluginManagement` | boolean | Server supports the complete plugin discovery and lifecycle surface: `plugin/list`, `plugin/view`, `plugin/skill/read`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, and `plugin/setTrusted`, plus the `plugin/snapshot/updated` notification. |
 | `capabilities.pluginConfiguration` | boolean | Server supports schema-backed plugin configuration through `plugin/config/get` and `plugin/config/mutate`. |
 | `capabilities.pluginMarketplaces` | boolean | Server supports user-managed plugin marketplace sources (`marketplace/add`, `marketplace/remove`, `marketplace/refresh`) and returns marketplace grouping metadata on `plugin/list`. |
 | `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`, `hooks/trustPlugin`). |
@@ -4213,6 +4213,28 @@ An uninstalled catalog entry never has an accepted runtime snapshot, so its `dot
 omitted. `dotnet` and `dependencies` still come from the same read-only, non-executing manifest
 inspection used before install, so a client can disclose that installing the entry means running
 in-process code before the user commits to it. Listing or viewing a plugin never loads plugin code.
+
+#### `plugin/skill/read`
+
+Returns the source Markdown for one skill declared by a discovered plugin. This read-only preview is
+available for both installed plugins and uninstalled catalog entries and never makes the skill
+available to the runtime.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Plugin id. |
+| `name` | string | yes | Name of a skill declared by that plugin. |
+
+**Result**: `{ "id": string, "name": string, "content": string }`
+
+The server resolves the plugin through the current discovery snapshot, then reads the matching
+`SKILL.md` under the plugin's validated skills directory. The client cannot supply a file path.
+Unknown plugins and skills are invalid parameters. This method reads Markdown only; it does not
+install, enable, load, or execute any plugin contribution.
 
 ##### `PluginDotnetInfo`
 

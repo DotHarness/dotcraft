@@ -2851,6 +2851,7 @@ export const MESSAGES_ZH_HANS = {
   'skillDetail.workspaceSubtitle': '工作区技能',
   'skillDetail.userSubtitle': '用户级技能',
   'skillDetail.loading': '加载中…',
+  'skillDetail.loadFailed': '无法加载技能内容。',
   'skillDetail.enableWorkspace': '在此工作区启用',
   'skillDetail.disableWorkspace': '在此工作区禁用',
   'skillCard.noDescription': '暂无描述',

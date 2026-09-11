@@ -760,8 +760,9 @@ Required behavior:
   the existing source column.
 - A plugin detail lists what the plugin contributes. A skill row opens the shared
   skill preview, because a skill is the one contribution with a document behind
-  it; rows describing runtime wiring stay inert. The skill list is fetched on
-  demand the first time a row is opened, since browse does not otherwise load it.
+  it; rows describing runtime wiring stay inert. Installed skills use their
+  effective runtime view. Uninstalled catalog skills use a read-only source
+  preview and expose no runtime actions.
 - Removing a marketplace does not remove plugins already installed into a
   workspace. The client says so before confirming.
 - Marketplace controls are hidden when `capabilities.pluginMarketplaces` is

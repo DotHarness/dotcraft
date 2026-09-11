@@ -174,6 +174,8 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.PluginSetEnabledParams))]
 [JsonSerializable(typeof(AppServer.PluginSetTrustedParams))]
 [JsonSerializable(typeof(AppServer.PluginSkillInfo))]
+[JsonSerializable(typeof(AppServer.PluginSkillReadParams))]
+[JsonSerializable(typeof(AppServer.PluginSkillReadResult))]
 [JsonSerializable(typeof(AppServer.PluginSnapshotUpdatedNotification))]
 [JsonSerializable(typeof(AppServer.PluginViewParams))]
 [JsonSerializable(typeof(AppServer.PluginViewResult))]

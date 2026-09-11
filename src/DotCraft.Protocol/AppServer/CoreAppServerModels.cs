@@ -3495,6 +3495,29 @@ public sealed class PluginSkillInfo : ExtensibleJsonObject
 
 }
 
+/// <summary>Params for reading source Markdown from a plugin-declared skill.</summary>
+public sealed class PluginSkillReadParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+}
+
+/// <summary>Source Markdown for a plugin-declared skill.</summary>
+public sealed class PluginSkillReadResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("content")]
+    public required string Content { get; init; }
+}
+
 /// <summary>Executable wire contract for PluginViewParams.</summary>
 public sealed class PluginViewParams : ExtensibleJsonObject
 {

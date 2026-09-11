@@ -2417,6 +2417,19 @@ export interface PluginSkillInfo {
   [key: string]: unknown;
 }
 
+export interface PluginSkillReadParams {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+export interface PluginSkillReadResult {
+  content: string;
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
 export interface PluginSnapshotUpdatedNotification {
   pluginIds?: string[];
   snapshotRevision?: number;

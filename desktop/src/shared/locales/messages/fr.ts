@@ -3271,6 +3271,7 @@ export const MESSAGES_FR = {
   'skillDetail.workspaceSubtitle': 'Compétence en espace de travail',
   'skillDetail.userSubtitle': 'Compétence au niveau de l\'utilisateur',
   'skillDetail.loading': 'Chargement…',
+  'skillDetail.loadFailed': 'Impossible de charger le contenu de la compétence.',
   'skillDetail.enableWorkspace': 'Activer pour l\'espace de travail',
   'skillDetail.disableWorkspace': 'Désactiver pour l\'espace de travail',
   'skillCard.noDescription': 'Pas de description',
