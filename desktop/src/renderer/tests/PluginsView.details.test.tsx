@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   appServerSendRequest,
+  browserUsePlugin,
   dotnetPlugin,
   localPlugin,
   lspOnlyPlugin,
@@ -68,6 +69,49 @@ describe('PluginsView details', () => {
     await waitFor(() => {
       expect(within(dialog).getByText('Echoes text back.')).toBeInTheDocument()
     })
+  })
+
+  it('previews an uninstalled plugin skill from its catalog source', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: browserUsePlugin, snapshotRevision: 1 }
+      if (method === 'plugin/skill/read') {
+        return { id: 'browser', name: 'browser', content: '---\nname: browser\n---\n# Browser\n\nAutomates the browser.' }
+      }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Control the in-app browser with DotCraft'))
+    fireEvent.click(await screen.findByText('browser'))
+
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => {
+      expect(within(dialog).getByText('Automates the browser.')).toBeInTheDocument()
+    })
+    expect(within(dialog).queryByText('name: browser')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Try in chat' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
+    expect(appServerSendRequest).toHaveBeenCalledWith('plugin/skill/read', { id: 'browser', name: 'browser' })
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'skills/list')).toBe(false)
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'skills/view')).toBe(false)
+  })
+
+  it('shows a concise error when an uninstalled plugin skill cannot be read', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: browserUsePlugin, snapshotRevision: 1 }
+      if (method === 'plugin/skill/read') throw new Error('Skill not found: browser')
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Control the in-app browser with DotCraft'))
+    fireEvent.click(await screen.findByText('browser'))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Unable to load skill contents.')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Skill not found: browser')).not.toBeInTheDocument()
   })
 
   it('leaves runtime wiring rows inert on plugin details', async () => {

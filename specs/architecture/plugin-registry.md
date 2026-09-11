@@ -202,7 +202,7 @@ Users and organizations may disable the host-provided default marketplace with `
 
 ## 9. Plugin Install Lifecycle
 
-DotCraft clients may present marketplace entries as installable catalog items before installation. An uninstalled marketplace plugin does not contribute skills, tools, apps, MCP/LSP servers, or Desktop modules.
+DotCraft clients may present marketplace entries as installable catalog items before installation and may preview their declared Skill Markdown. An uninstalled marketplace plugin does not contribute skills, tools, apps, MCP/LSP servers, or Desktop modules; reading its Skill documentation does not change that lifecycle state.
 
 Installing a marketplace plugin must:
 

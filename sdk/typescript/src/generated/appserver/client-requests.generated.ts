@@ -98,6 +98,7 @@ export interface ClientRequestMethods {
   "plugin/remove": { params: Models.PluginRemoveParams; result: Models.PluginOperationResult };
   "plugin/setEnabled": { params: Models.PluginSetEnabledParams; result: Models.PluginOperationResult };
   "plugin/setTrusted": { params: Models.PluginSetTrustedParams; result: Models.PluginOperationResult };
+  "plugin/skill/read": { params: Models.PluginSkillReadParams; result: Models.PluginSkillReadResult };
   "plugin/view": { params: Models.PluginViewParams; result: Models.PluginViewResult };
   "profile/insights": { params: Models.ProfileInsightsParams; result: Models.ProfileInsightsResult };
   "provider/create": { params: Models.ProviderCreateParams; result: Models.ProviderMutationResult };

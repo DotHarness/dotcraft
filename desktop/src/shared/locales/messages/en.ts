@@ -2956,6 +2956,7 @@ export const MESSAGES_EN = {
   'skillDetail.workspaceSubtitle': 'Workspace skill',
   'skillDetail.userSubtitle': 'User-level skill',
   'skillDetail.loading': 'Loading…',
+  'skillDetail.loadFailed': 'Unable to load skill contents.',
   'skillDetail.enableWorkspace': 'Enable for workspace',
   'skillDetail.disableWorkspace': 'Disable for workspace',
   'skillCard.noDescription': 'No description',

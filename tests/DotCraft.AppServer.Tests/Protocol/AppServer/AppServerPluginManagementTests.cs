@@ -174,6 +174,52 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
+    public async Task PluginSkillRead_ReturnsUninstalledMarketplaceSkillWithoutInstallingPlugin()
+    {
+        var config = new AppConfig();
+        ConfigureRegistryAppRegistry(config);
+        using var harness = CreateHarness(config);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSkillRead,
+            new { id = "registry-app", name = "registry-app" }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal("registry-app", result.GetProperty("id").GetString());
+        Assert.Equal("registry-app", result.GetProperty("name").GetString());
+        Assert.Contains("# Registry App", result.GetProperty("content").GetString());
+
+        var list = await ReadPluginListResultAsync(harness);
+        var plugin = Assert.Single(
+            list.GetProperty("plugins").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == "registry-app");
+        Assert.False(plugin.GetProperty("installed").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("", "registry-app")]
+    [InlineData("registry-app", "")]
+    [InlineData("missing-plugin", "registry-app")]
+    [InlineData("registry-app", "missing-skill")]
+    public async Task PluginSkillRead_RejectsUnknownOrEmptyIdentity(string id, string name)
+    {
+        var config = new AppConfig();
+        ConfigureRegistryAppRegistry(config);
+        using var harness = CreateHarness(config);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSkillRead,
+            new { id, name }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
     public async Task PluginList_ReturnsSkillOnlyPluginWithEmptyFunctions()
     {
         WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));

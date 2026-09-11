@@ -145,6 +145,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<PluginSetTrustedParams, PluginOperationResult> PluginSetTrusted = new("plugin/setTrusted", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
+    public static readonly RpcRequest<PluginSkillReadParams, PluginSkillReadResult> PluginSkillRead = new("plugin/skill/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+
     public static readonly RpcNotification<PluginSnapshotUpdatedNotification> PluginSnapshotUpdated = new("plugin/snapshot/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", notificationOptOut: true);
 
     public static readonly RpcRequest<PluginViewParams, PluginViewResult> PluginView = new("plugin/view", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);

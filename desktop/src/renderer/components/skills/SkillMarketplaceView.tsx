@@ -13,6 +13,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { Skeleton } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 
 interface SkillMarketplaceViewProps {
   onInstalled: () => Promise<void>
@@ -335,12 +336,6 @@ function providerBadge(provider: SkillMarketProviderId): React.CSSProperties {
     borderColor: provider === 'skillhub' ? 'rgba(14, 165, 233, 0.45)' : 'rgba(34, 197, 94, 0.45)',
     color: provider === 'skillhub' ? '#38bdf8' : '#4ade80'
   }
-}
-
-function stripYamlFrontmatter(s: string): string {
-  if (!s.startsWith('---')) return s
-  const m = s.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/)
-  return m ? s.slice(m[0].length).trim() : s
 }
 
 const marketToolbar: React.CSSProperties = {

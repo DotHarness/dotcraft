@@ -11935,6 +11935,63 @@
       "variants": []
     },
     {
+      "id": "core.PluginSkillReadParams",
+      "name": "PluginSkillReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginSkillReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginSkillReadResult",
+      "name": "PluginSkillReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginSkillReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "content",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginSnapshotUpdatedNotification",
       "name": "PluginSnapshotUpdatedNotification",
       "module": "core",
@@ -26794,6 +26851,26 @@
       "direction": "clientToServer",
       "paramsType": "core.PluginSetTrustedParams",
       "resultType": "core.PluginOperationResult",
+      "module": "core",
+      "capability": "pluginManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "plugin/skill/read",
+      "descriptorMember": "PluginSkillRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.PluginSkillReadParams",
+      "resultType": "core.PluginSkillReadResult",
       "module": "core",
       "capability": "pluginManagement",
       "scope": "connection",

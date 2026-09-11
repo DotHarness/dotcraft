@@ -3270,6 +3270,7 @@ export const MESSAGES_ES = {
   'skillDetail.workspaceSubtitle': 'Habilidad en el espacio de trabajo',
   'skillDetail.userSubtitle': 'Habilidad a nivel de usuario',
   'skillDetail.loading': 'Cargando…',
+  'skillDetail.loadFailed': 'No se pudo cargar el contenido de la habilidad.',
   'skillDetail.enableWorkspace': 'Habilitar para el espacio de trabajo',
   'skillDetail.disableWorkspace': 'Deshabilitar para el espacio de trabajo',
   'skillCard.noDescription': 'Sin descripción',

@@ -22,6 +22,7 @@ import type { ThreadSummary } from '../../types/thread'
 import { CatalogBreadcrumb, CatalogFilterButton, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 import { IconButton } from '../ui/IconButton'
+import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 
 type ViewMode = 'browse' | 'manage'
 export type SourceFilter = 'all' | 'system' | 'personal' | 'market'
@@ -882,12 +883,6 @@ function providerLabel(provider: SkillMarketProviderFilter): string {
   if (provider === 'skillhub') return 'SkillHub'
   if (provider === 'clawhub') return 'ClawHub'
   return 'All'
-}
-
-export function stripYamlFrontmatter(s: string): string {
-  if (!s.startsWith('---')) return s
-  const m = s.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/)
-  return m ? s.slice(m[0].length).trim() : s
 }
 
 const page: React.CSSProperties = catalogStyles.page

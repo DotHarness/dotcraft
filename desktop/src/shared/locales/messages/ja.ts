@@ -3263,6 +3263,7 @@ export const MESSAGES_JA = {
   'skillDetail.workspaceSubtitle': 'ワークスペーススキル',
   'skillDetail.userSubtitle': 'ユーザーレベルのスキル',
   'skillDetail.loading': '読み込み中…',
+  'skillDetail.loadFailed': 'スキルの内容を読み込めません。',
   'skillDetail.enableWorkspace': 'ワークスペースに対して有効にする',
   'skillDetail.disableWorkspace': 'ワークスペースに対して無効にする',
   'skillCard.noDescription': '説明なし',

@@ -17,8 +17,10 @@ interface SkillDetailDialogProps {
   skill: SkillEntry
   markdownBody: string
   loading: boolean
+  error?: boolean
+  previewOnly?: boolean
   onClose: () => void
-  onTryInChat: () => void
+  onTryInChat?: () => void
   onRestoreOriginal?: () => void
   onUninstall?: () => void
 }
@@ -27,6 +29,8 @@ export function SkillDetailDialog({
   skill,
   markdownBody,
   loading,
+  error = false,
+  previewOnly = false,
   onClose,
   onTryInChat,
   onRestoreOriginal,
@@ -76,7 +80,7 @@ export function SkillDetailDialog({
           description={shortDescription}
           onClose={onClose}
           closeLabel={t('common.close')}
-          actions={
+          actions={!previewOnly ? (
             <IconButton
               icon={<Ellipsis size={16} aria-hidden />}
               label={t('skillDetail.moreActions')}
@@ -89,32 +93,39 @@ export function SkillDetailDialog({
                 setMenuPosition({ x: rect.right - 160, y: rect.bottom + 6 })
               }}
             />
-          }
+          ) : undefined}
           style={{ marginBottom: 0 }}
         />
 
         <div style={bodyFrame} data-testid="skill-detail-scroll-body">
           {loading ? (
             <div style={loadingText}>{t('common.loading')}</div>
+          ) : error ? (
+            <div style={loadingText}>{t('skillDetail.loadFailed')}</div>
           ) : (
             <MarkdownRenderer content={markdownBody || skill.description} />
           )}
         </div>
 
-        {/* Enabling a skill lives in the manage list, so the preview carries none of it. */}
-        <footer style={footerStyle(onUninstall != null)}>
-          {onUninstall && (
+        <footer style={footerStyle(!previewOnly && onUninstall != null)}>
+          {previewOnly ? (
+            <Button type="button" variant="primary" onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          ) : onUninstall ? (
             <Button type="button" variant="danger" onClick={onUninstall}>
               {t('skillDetail.uninstall')}
             </Button>
+          ) : null}
+          {!previewOnly && (
+            <Button type="button" variant="primary" onClick={onTryInChat}>
+              <MessageCircle size={15} strokeWidth={2} />
+              {t('skillDetail.tryInChat')}
+            </Button>
           )}
-          <Button type="button" variant="primary" onClick={onTryInChat}>
-            <MessageCircle size={15} strokeWidth={2} />
-            {t('skillDetail.tryInChat')}
-          </Button>
         </footer>
 
-        {menuPosition ? (
+        {!previewOnly && menuPosition ? (
           <ContextMenu
             position={menuPosition}
             onClose={() => setMenuPosition(null)}

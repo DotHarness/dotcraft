@@ -280,7 +280,7 @@ public sealed class ServerCapabilitySnapshot
     public bool SkillsManagement { get; set; }
 
     /// <summary>
-    /// Server supports plugin management methods (plugin/list, plugin/view, plugin/setEnabled).
+    /// Server supports plugin discovery, source preview, and lifecycle management methods.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginManagement { get; set; }

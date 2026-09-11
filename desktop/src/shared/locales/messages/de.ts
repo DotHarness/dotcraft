@@ -3273,6 +3273,7 @@ export const MESSAGES_DE = {
   'skillDetail.workspaceSubtitle': 'Fähigkeiten im Arbeitsbereich',
   'skillDetail.userSubtitle': 'Fähigkeiten auf Benutzerebene',
   'skillDetail.loading': 'Laden…',
+  'skillDetail.loadFailed': 'Der Skill-Inhalt konnte nicht geladen werden.',
   'skillDetail.enableWorkspace': 'Für Arbeitsbereich aktivieren',
   'skillDetail.disableWorkspace': 'Für den Arbeitsbereich deaktivieren',
   'skillCard.noDescription': 'Keine Beschreibung',

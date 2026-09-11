@@ -38,6 +38,7 @@ internal sealed partial class PluginRequestHandler(
     {
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginSkillRead, HandlePluginSkillReadAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginConfigGet, HandlePluginConfigGetAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
@@ -112,6 +113,47 @@ internal sealed partial class PluginRequestHandler(
             {
                 Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries),
                 SnapshotRevision = CurrentPluginSnapshotRevision
+            }));
+    }
+
+    private Task<AppServerTypedResult<Contract.PluginSkillReadResult>> HandlePluginSkillReadAsync(
+        AppServerTypedRequest<Contract.PluginSkillReadParams> request,
+        CancellationToken ct)
+    {
+        _ = ct;
+        if (string.IsNullOrEmpty(workspaceCraftPath))
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginSkillRead);
+
+        var id = request.Params.Id.Trim();
+        var name = request.Params.Name.Trim();
+        if (id.Length == 0)
+            throw AppServerErrors.InvalidParams("'id' is required.");
+        if (name.Length == 0)
+            throw AppServerErrors.InvalidParams("'name' is required.");
+
+        var plugin = RefreshPluginRuntime().Plugins.FirstOrDefault(
+            candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, id));
+        if (plugin == null)
+            throw AppServerErrors.InvalidParams($"Plugin '{id}' was not found.");
+
+        var skillsPath = plugin.Manifest.SkillsPath;
+        var skillDirectory = string.IsNullOrWhiteSpace(skillsPath) || !Directory.Exists(skillsPath)
+            ? null
+            : Directory.GetDirectories(skillsPath).FirstOrDefault(directory =>
+                string.Equals(Path.GetFileName(directory), name, StringComparison.OrdinalIgnoreCase));
+        if (skillDirectory == null)
+            throw AppServerErrors.InvalidParams($"Skill '{name}' was not found in plugin '{id}'.");
+
+        var skillFile = Path.Combine(skillDirectory, "SKILL.md");
+        if (!File.Exists(skillFile))
+            throw AppServerErrors.InvalidParams($"Skill '{name}' was not found in plugin '{id}'.");
+
+        return Task.FromResult(AppServerTypedResult<Contract.PluginSkillReadResult>.FromResult(
+            new Contract.PluginSkillReadResult
+            {
+                Id = plugin.Manifest.Id,
+                Name = Path.GetFileName(skillDirectory),
+                Content = File.ReadAllText(skillFile)
             }));
     }
 
