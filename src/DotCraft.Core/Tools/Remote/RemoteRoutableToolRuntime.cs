@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace DotCraft.Tools;
@@ -15,17 +16,55 @@ internal sealed class RemoteRoutableToolRuntime(
     private readonly IToolRuntime _localRuntime = localRuntime ?? throw new ArgumentNullException(nameof(localRuntime));
     private readonly IRemoteToolHostClient _remoteClient = remoteClient ?? throw new ArgumentNullException(nameof(remoteClient));
     private readonly string _contractHash = RemoteToolContractHasher.Compute(definition);
+    internal ToolDefinition NativeDefinition => _definition;
 
-    public ValueTask<ToolExecutionResult> InvokeAsync(
+    public ToolInvocationContext Prepare(ToolInvocationContext context, JsonObject arguments)
+    {
+        string? target = null;
+        if (arguments.TryGetPropertyValue(RpcToolSchemaPostProcessor.TargetParameterName, out var targetNode)
+            && (targetNode is not JsonValue value || !value.TryGetValue<string>(out target)
+                || target is not ("local" or "remote")))
+        {
+            throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "'target' must be 'local' or 'remote'.");
+        }
+
+        if (target == "local")
+            return context with { ExecutionLocation = new("local", context.WorkspacePath) };
+        if (_remoteClient.TryGetRoute(context.ThreadId, out var route))
+        {
+            _remoteClient.TryGetConnectionSnapshot(context.ThreadId, out var snapshot);
+            return context with { ExecutionLocation = new("remote", snapshot?.Environment.WorkspacePath, route) };
+        }
+        if (target == "remote")
+            throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "No remote workspace is connected.");
+        return context with { ExecutionLocation = new("local", context.WorkspacePath) };
+    }
+
+    public async ValueTask<ToolExecutionResult> InvokeAsync(
         ToolInvocationContext context,
         JsonObject arguments,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(arguments);
-        return _remoteClient.TryGetRoute(context.ThreadId, out var route)
-            ? _remoteClient.InvokeAsync(route, _definition, _contractHash, context, arguments, cancellationToken)
-            : _localRuntime.InvokeAsync(context, arguments, cancellationToken);
+        context = context.ExecutionLocation is null ? Prepare(context, arguments) : context;
+        var nativeArguments = (JsonObject)arguments.DeepClone();
+        nativeArguments.Remove(RpcToolSchemaPostProcessor.TargetParameterName);
+        if (context.ExecutionLocation!.Route is { } route)
+        {
+            if (!_remoteClient.TryGetRoute(context.ThreadId, out var current) || current != route)
+                return ToolExecutionResult.Failed(new ToolError(RemoteToolErrorCodes.LeaseLost,
+                    "The captured remote workspace is no longer connected."));
+            return await _remoteClient.InvokeAsync(route, _definition, _contractHash, context,
+                nativeArguments, cancellationToken).ConfigureAwait(false);
+        }
+        var result = await _localRuntime.InvokeAsync(context, nativeArguments, cancellationToken).ConfigureAwait(false);
+        var meta = result.Meta is { ValueKind: JsonValueKind.Object } existing
+            ? JsonNode.Parse(existing.GetRawText())!.AsObject() : new JsonObject();
+        meta["executionTarget"] = "local";
+        return new ToolExecutionResult(result.Success, result.Content, result.StructuredContent,
+            JsonSerializer.SerializeToElement(meta), result.RawSourceResult, result.Error,
+            result.ProviderResult, result.ContentItems, result.Directive);
     }
 }
 
@@ -43,7 +82,8 @@ internal static class RemoteToolRegistrationRouter
         remoteClient.UpdateRemoteToolDefinitions(
             registrations
                 .Where(registration => RemoteToolMetadata.IsRpcEligible(registration.Definition))
-                .Select(registration => registration.Definition)
+                .Select(registration => registration.Binding.Runtime is RemoteRoutableToolRuntime routed
+                    ? routed.NativeDefinition : registration.Definition)
                 .ToArray());
 
         return registrations.Select(registration =>
@@ -54,6 +94,11 @@ internal static class RemoteToolRegistrationRouter
                 return registration;
             }
 
+            var targetDescription = registration.Definition.Id is
+                { Kind: ToolSourceKind.CoreNative, SourceId: "core-native", SourceToolId.Value: "WriteStdin" }
+                ? "Use the target of the Exec call that created the terminal."
+                : null;
+            var projectedDefinition = RpcToolSchemaPostProcessor.Process(registration.Definition, targetDescription);
             var binding = registration.Binding;
             var routedBinding = new ToolRuntimeBinding(
                 binding.Id,
@@ -65,7 +110,7 @@ internal static class RemoteToolRegistrationRouter
                 binding.Availability,
                 binding.Timeout);
             return new ToolRegistration(
-                registration.Definition,
+                projectedDefinition,
                 routedBinding,
                 registration.ProjectionShape,
                 registration.Exposure,

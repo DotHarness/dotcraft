@@ -21108,6 +21108,59 @@
       "variants": []
     },
     {
+      "id": "core.ToolExecutionProgressNotification",
+      "name": "ToolExecutionProgressNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ToolExecutionProgressNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "callId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "progress",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "toolName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ToolInfo",
       "name": "ToolInfo",
       "module": "core",
@@ -25999,6 +26052,22 @@
       "resultType": "core.RpcEmpty",
       "module": "core",
       "capability": null,
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "item/toolExecution/progress",
+      "descriptorMember": "ToolExecutionProgress",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ToolExecutionProgressNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "toolExecutionLifecycle",
       "scope": "thread",
       "notificationOptOut": true,
       "errors": [],

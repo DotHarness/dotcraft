@@ -1,5 +1,10 @@
 # Tool Architecture
 
+Remote Tool Host routing adds a stable Agent-side `target` argument to RPC-eligible tools.
+The dispatcher resolves the execution location before policy, hooks and approval and carries it
+in the invocation context. Native bindings receive the original arguments and contract; see
+[Remote Tool Host §12](remote-tool-host.md#12-execution-locations-and-resource-preparation).
+
 | Field | Value |
 |---|---|
 | Version | 0.2.3 |

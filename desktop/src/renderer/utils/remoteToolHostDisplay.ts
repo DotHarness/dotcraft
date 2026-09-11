@@ -1,13 +1,13 @@
 /**
- * Headers for the RemoteToolHost.List / Connect / Disconnect rows. The timeline divider
+ * Headers for RemoteToolHost rows. The timeline divider
  * already announced the move, so a row says what the call did, not where the thread now runs.
  */
 
 import { translate, type AppLocale } from '../../shared/locales'
-import type { ConversationItem } from '../types/conversation'
+import type { ConversationItem, RemoteFileTransferProgress } from '../types/conversation'
 import { basename } from './path'
 
-export type RemoteToolHostOperation = 'list' | 'connect' | 'disconnect'
+export type RemoteToolHostOperation = 'list' | 'connect' | 'disconnect' | 'transfer'
 
 export type RemoteToolHostPhase = 'running' | 'completed' | 'failed'
 
@@ -38,8 +38,23 @@ export interface RemoteToolHostNames {
 
 export type RemoteToolHostToolItem = Pick<
   ConversationItem,
-  'presentation' | 'arguments' | 'result' | 'errorCode' | 'errorMessage'
+  'presentation' | 'arguments' | 'result' | 'resultPreview' | 'errorCode' | 'errorMessage' | 'transferProgress'
 >
+
+export interface RemoteFileTransferDisplay {
+  stage: 'preparing' | 'transferring' | 'completed' | 'failed'
+  direction: 'upload' | 'download'
+  localPath: string
+  remotePath: string
+  host: string
+  transferredBytes?: number
+  completedFiles: number
+  completedBytes: number
+  totalBytes?: number
+  totalFiles?: number
+  currentFile?: string
+  label: string
+}
 
 const KEY = 'toolCall.remoteToolHost'
 
@@ -47,7 +62,7 @@ export function readRemoteToolHostOperation(
   item: Pick<ConversationItem, 'presentation'>
 ): RemoteToolHostOperation | null {
   const operation = item.presentation?.options?.operation
-  return operation === 'list' || operation === 'connect' || operation === 'disconnect'
+  return operation === 'list' || operation === 'connect' || operation === 'disconnect' || operation === 'transfer'
     ? operation
     : null
 }
@@ -66,7 +81,103 @@ export function formatRemoteToolHostLabel(
   if (operation === 'list') return listLabel(item, phase, locale)
   if (operation === 'connect') return connectLabel(item, phase, locale, names)
   if (operation === 'disconnect') return disconnectLabel(item, phase, locale, names)
+  if (operation === 'transfer') return getRemoteFileTransferDisplay(item, phase, locale, names)?.label ?? null
   return null
+}
+
+export function getRemoteFileTransferDisplay(
+  item: RemoteToolHostToolItem,
+  phase: RemoteToolHostPhase,
+  locale: AppLocale,
+  names: RemoteToolHostNames
+): RemoteFileTransferDisplay | null {
+  const result = parseObject(item.result ?? item.resultPreview)
+  const progress = phase === 'running' ? normalizeRemoteFileTransferProgress(item.transferProgress) : null
+  const direction = transferDirection(progress?.direction ?? text(result?.direction) ?? text(item.arguments?.direction))
+  const localPath = progress?.localPath ?? text(result?.localPath) ?? text(item.arguments?.localPath)
+  const remotePath = progress?.remotePath ?? text(result?.remotePath) ?? text(item.arguments?.remotePath)
+  if (!direction || !localPath || !remotePath) return null
+
+  const failed = result?.success === false || phase === 'failed'
+  const stage = failed ? 'failed'
+    : phase === 'completed' ? 'completed'
+      : progress?.stage === 'transferring' ? 'transferring' : 'preparing'
+  const hostId = progress?.hostId ?? text(result?.hostId)
+  const host = progress?.hostDisplayName
+    ?? text(result?.hostDisplayName)
+    ?? (hostId ? names.host(hostId) : phase === 'running' ? names.host() : undefined)
+    ?? unknownHost(locale)
+  const sourcePath = direction === 'upload' ? localPath : remotePath
+  const completedFiles = progress?.completedFiles ?? nonNegativeNumber(result?.completedFiles) ?? 0
+  const completedBytes = progress?.completedBytes ?? nonNegativeNumber(result?.completedBytes) ?? 0
+  const totalBytes = progress?.totalBytes ?? nonNegativeNumber(result?.totalBytes)
+  const transferredBytes = progress?.transferredBytes
+    ?? nonNegativeNumber(result?.transferredBytes)
+    ?? (stage === 'completed' ? completedBytes : undefined)
+  const totalFiles = progress?.totalFiles ?? nonNegativeNumber(result?.totalFiles)
+  const currentFile = progress?.currentFile ?? text(result?.currentFile)
+  let label = translate(locale, `${KEY}.transfer.${direction}.${stage}`, {
+    item: basename(sourcePath),
+    host
+  })
+  if (stage === 'completed') {
+    const summary = translate(locale, `${KEY}.transfer.summary.${completedFiles === 1 ? 'one' : 'other'}`, {
+      count: completedFiles,
+      size: formatTransferSize(completedBytes, locale)
+    })
+    label = `${label} · ${summary}`
+  } else if (stage === 'failed') {
+    const reason = transferFailureReason(item, result, locale)
+    if (reason) label = `${label} · ${reason}`
+  }
+
+  return {
+    stage,
+    direction,
+    localPath,
+    remotePath,
+    host,
+    transferredBytes,
+    completedFiles,
+    completedBytes,
+    totalBytes,
+    totalFiles,
+    currentFile,
+    label
+  }
+}
+
+export function normalizeRemoteFileTransferProgress(value: unknown): RemoteFileTransferProgress | null {
+  const record = asRecord(value)
+  const stage = text(record?.stage)
+  const direction = transferDirection(text(record?.direction))
+  const localPath = text(record?.localPath)
+  const remotePath = text(record?.remotePath)
+  const hostId = text(record?.hostId)
+  const hostDisplayName = text(record?.hostDisplayName)
+  const transferredBytes = nonNegativeNumber(record?.transferredBytes)
+  const completedFiles = nonNegativeNumber(record?.completedFiles)
+  const completedBytes = nonNegativeNumber(record?.completedBytes)
+  if (record?.kind !== 'remoteFileTransfer'
+      || (stage !== 'preparing' && stage !== 'transferring')
+      || !direction || !localPath || !remotePath || !hostId || !hostDisplayName
+      || transferredBytes == null || completedFiles == null || completedBytes == null) return null
+  const totalBytes = nonNegativeNumber(record.totalBytes)
+  const totalFiles = nonNegativeNumber(record.totalFiles)
+  const currentFile = text(record.currentFile)
+  return {
+    kind: 'remoteFileTransfer', stage, direction, localPath, remotePath, hostId, hostDisplayName,
+    transferredBytes, completedFiles, completedBytes,
+    ...(totalBytes != null ? { totalBytes } : {}),
+    ...(totalFiles != null ? { totalFiles } : {}),
+    ...(currentFile ? { currentFile } : {})
+  }
+}
+
+export function formatTransferSize(bytes: number, locale: AppLocale): string {
+  const unit = bytes >= 1024 * 1024 ? 'MiB' : bytes >= 1024 ? 'KiB' : 'B'
+  const divisor = unit === 'MiB' ? 1024 * 1024 : unit === 'KiB' ? 1024 : 1
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / divisor)} ${unit}`
 }
 
 export function parseRemoteToolHostCatalog(result: string | undefined): RemoteToolHostCatalog | null {
@@ -159,6 +270,28 @@ function failureReason(item: RemoteToolHostToolItem, locale: AppLocale): string 
     if (localized !== key) return localized
   }
   return text(item.errorMessage)
+}
+
+function transferFailureReason(
+  item: RemoteToolHostToolItem,
+  result: Record<string, unknown> | null,
+  locale: AppLocale
+): string | undefined {
+  const code = text(result?.errorCode) ?? text(item.errorCode)
+  if (code) {
+    const key = `error.remoteToolHost.${camelCase(code)}`
+    const localized = translate(locale, key)
+    if (localized !== key) return localized
+  }
+  return text(result?.error) ?? text(item.errorMessage)
+}
+
+function transferDirection(value: string | undefined): 'upload' | 'download' | undefined {
+  return value === 'upload' || value === 'download' ? value : undefined
+}
+
+function nonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 function camelCase(code: string): string {

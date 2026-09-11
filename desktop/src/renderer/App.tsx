@@ -92,6 +92,7 @@ import { FindOverlay } from './find/FindOverlay'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import { readThreadHistoryHead } from './utils/threadHistory'
 import { interruptTurn } from './utils/interruptTurn'
+import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
 import {
   createThreadSubscriptionOperationQueue,
   runQueuedThreadUnsubscribe
@@ -2025,6 +2026,20 @@ export function App(): JSX.Element {
                 toolName: (p.toolName as string | undefined),
                 callId: (p.callId as string | undefined),
                 delta: (p.delta as string | undefined)
+              })
+            }
+            break
+          }
+
+          case 'item/toolExecution/progress': {
+            const tid = (p.threadId as string | undefined) ?? ''
+            const progress = normalizeRemoteFileTransferProgress(p.progress)
+            if (progress && shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
+              conv.onToolExecutionProgress({
+                turnId: p.turnId as string | undefined,
+                itemId: p.itemId as string | undefined,
+                callId: p.callId as string | undefined,
+                progress
               })
             }
             break

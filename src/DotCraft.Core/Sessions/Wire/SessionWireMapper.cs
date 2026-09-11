@@ -160,12 +160,13 @@ public static class SessionWireMapper
     /// Returns the JSON-RPC notification method name for a given <see cref="SessionEvent"/>.
     /// The AppServer must call this to determine the <c>"method"</c> field of each outbound notification.
     ///
-    /// Key mapping for item delta events (both use <see cref="SessionEventType.ItemDelta"/> internally):
+    /// Key mapping for item delta events (all use <see cref="SessionEventType.ItemDelta"/> internally):
     /// <list type="bullet">
     /// <item><see cref="AgentMessageDelta"/> (<c>deltaKind = "agentMessage"</c>) → <c>"item/agentMessage/delta"</c></item>
     /// <item><see cref="ReasoningContentDelta"/> (<c>deltaKind = "reasoningContent"</c>) → <c>"item/reasoning/delta"</c></item>
     /// <item><see cref="CommandExecutionOutputDelta"/> (<c>deltaKind = "commandExecution"</c>) → <c>"item/commandExecution/outputDelta"</c></item>
     /// <item><see cref="ToolCallArgumentsDelta"/> (<c>deltaKind = "toolCallArguments"</c>) → <c>"item/toolCall/argumentsDelta"</c></item>
+    /// <item><see cref="ToolExecutionProgressPayload"/> → <c>"item/toolExecution/progress"</c></item>
     /// </list>
     /// All other mappings are 1:1 with the <see cref="SessionEventType"/> name converted to camelCase slash-notation.
     /// </summary>
@@ -185,6 +186,7 @@ public static class SessionWireMapper
             SessionEventType.ItemDelta when evt.Payload is CommandExecutionOutputDelta => "item/commandExecution/outputDelta",
             SessionEventType.ItemDelta when evt.Payload is ReasoningContentDelta => "item/reasoning/delta",
             SessionEventType.ItemDelta when evt.Payload is ToolCallArgumentsDelta => "item/toolCall/argumentsDelta",
+            SessionEventType.ItemDelta when evt.Payload is ToolExecutionProgressPayload => "item/toolExecution/progress",
             SessionEventType.ItemDelta => "item/agentMessage/delta",
             SessionEventType.ItemCompleted => "item/completed",
             SessionEventType.ApprovalRequested => "item/approval/request",
@@ -246,7 +248,7 @@ public static class SessionWireMapper
                     threadId = queueUpdated.ThreadId,
                     queuedInputs = queueUpdated.QueuedInputs
                 },
-                // Flatten delta payloads to { delta } string per spec Section 6.3
+                // Flatten text delta payloads per spec Section 6.3.
                 AgentMessageDelta agentDelta => new { delta = agentDelta.TextDelta },
                 ReasoningContentDelta reasoningDelta => new { delta = reasoningDelta.TextDelta },
                 CommandExecutionOutputDelta commandDelta => new { delta = commandDelta.TextDelta },
@@ -256,6 +258,12 @@ public static class SessionWireMapper
                     toolName = toolCallDelta.ToolName,
                     callId = toolCallDelta.CallId,
                     delta = toolCallDelta.Delta
+                },
+                ToolExecutionProgressPayload toolProgress => new
+                {
+                    callId = toolProgress.CallId,
+                    toolName = toolProgress.ToolName,
+                    progress = toolProgress.Progress
                 },
                 // SubAgent progress: pass through the payload as-is (entries array serialized directly)
                 SubAgentProgressPayload => evt.Payload,
@@ -329,6 +337,7 @@ public static class SessionWireMapper
             ReasoningContentDelta => "reasoningContentDelta",
             CommandExecutionOutputDelta => "commandExecutionOutputDelta",
             ToolCallArgumentsDelta => "toolCallArgumentsDelta",
+            ToolExecutionProgressPayload => "toolExecutionProgress",
             CommandExecutionPayload => "commandExecution",
             ToolExecutionPayload => "toolExecution",
             ImageGenerationPayload => "imageGeneration",

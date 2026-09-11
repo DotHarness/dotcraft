@@ -85,6 +85,22 @@ export interface ToolPresentationDescriptor {
   options?: Record<string, unknown>
 }
 
+export interface RemoteFileTransferProgress {
+  kind: 'remoteFileTransfer'
+  stage: 'preparing' | 'transferring'
+  direction: 'upload' | 'download'
+  localPath: string
+  remotePath: string
+  hostId: string
+  hostDisplayName: string
+  transferredBytes: number
+  completedFiles: number
+  completedBytes: number
+  totalBytes?: number
+  totalFiles?: number
+  currentFile?: string
+}
+
 /**
  * Uses optional discriminated fields rather than a full union to keep rendering
  * code straightforward when mapping wire payloads.
@@ -155,6 +171,7 @@ export interface ConversationItem {
   result?: string
   /** Lightweight runtime preview from toolExecution items. */
   resultPreview?: string
+  transferProgress?: RemoteFileTransferProgress
   success?: boolean
   /** Duration in milliseconds from tool start to completion */
   duration?: number

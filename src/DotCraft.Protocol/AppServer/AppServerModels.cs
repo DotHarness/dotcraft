@@ -1554,6 +1554,28 @@ public sealed class ItemDeltaNotification : ExtensibleJsonObject
     public required string Delta { get; init; }
 }
 
+/// <summary>Live structured progress for a toolExecution item.</summary>
+public sealed class ToolExecutionProgressNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; init; }
+
+    [JsonPropertyName("itemId")]
+    public required string ItemId { get; init; }
+
+    [JsonPropertyName("callId")]
+    public required string CallId { get; init; }
+
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; init; }
+
+    [JsonPropertyName("progress")]
+    public required JsonElement Progress { get; init; }
+}
+
 /// <summary>Parameters for an approval callback.</summary>
 public sealed class ApprovalRequestParams : ExtensibleJsonObject
 {

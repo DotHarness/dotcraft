@@ -100,7 +100,8 @@ internal sealed record WorkspaceListResponse(
     string BuildVersion,
     string CatalogDigest,
     IReadOnlyList<RemoteToolContractSummary> Contracts,
-    IReadOnlyList<WorkspaceCatalogEntry> Workspaces);
+    IReadOnlyList<WorkspaceCatalogEntry> Workspaces,
+    IReadOnlyList<string>? Capabilities = null);
 internal sealed record RemoteToolContractSummary(
     string DefinitionId,
     string ToolName,

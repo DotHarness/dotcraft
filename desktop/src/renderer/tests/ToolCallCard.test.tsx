@@ -1564,7 +1564,7 @@ describe('ToolCallCard RemoteToolHost rendering', () => {
   })
 
   function remoteToolHostItem(
-    operation: 'list' | 'connect' | 'disconnect',
+    operation: 'list' | 'connect' | 'disconnect' | 'transfer',
     extra: Partial<ConversationItem> = {}
   ): ConversationItem {
     return {
@@ -1643,5 +1643,38 @@ describe('ToolCallCard RemoteToolHost rendering', () => {
       .toHaveAttribute('data-current', 'true')
     expect(screen.getByTestId('remote-tool-host-workspace-sat_studio:ws_art'))
       .toHaveTextContent('In use by another agent')
+  })
+
+  it('shows live transfer progress and copies either route path', async () => {
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const item = remoteToolHostItem('transfer', {
+      status: 'running',
+      arguments: { direction: 'upload', localPath: 'C:/tools/checker', remotePath: 'D:/tools/checker' },
+      transferProgress: {
+        kind: 'remoteFileTransfer',
+        stage: 'transferring',
+        direction: 'upload',
+        localPath: 'C:/tools/checker',
+        remotePath: 'D:/tools/checker',
+        hostId: 'sat_studio',
+        hostDisplayName: 'Studio PC',
+        transferredBytes: 512,
+        completedFiles: 0,
+        completedBytes: 0,
+        totalBytes: 1024,
+        totalFiles: 1,
+        currentFile: 'checker.exe'
+      }
+    })
+
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    fireEvent.click(screen.getByTestId('tool-row'))
+
+    expect(screen.getByRole('progressbar', { name: 'Transfer progress' })).toHaveValue(512)
+    expect(screen.getByText('checker.exe')).toBeInTheDocument()
+    const copyButtons = screen.getAllByRole('button', { name: 'Copy path' })
+    await act(async () => { fireEvent.click(copyButtons[0]) })
+    expect(writeText).toHaveBeenCalledWith('C:/tools/checker')
   })
 })

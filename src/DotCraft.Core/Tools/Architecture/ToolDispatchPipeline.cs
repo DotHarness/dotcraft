@@ -200,6 +200,8 @@ public sealed class DefaultToolResultNormalizer(
                     context.ThreadId,
                     spillPreviewLines,
                     context.CallId)!;
+            if (!string.IsNullOrWhiteSpace(workspacePath) && !string.IsNullOrWhiteSpace(dataPath))
+                normalizedContent = "[Agent-local result file; read locally.]\n" + normalizedContent;
             result = new ToolExecutionResult(
                 result.Success,
                 normalizedContent,

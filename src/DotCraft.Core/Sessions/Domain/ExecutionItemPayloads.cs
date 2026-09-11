@@ -87,6 +87,15 @@ public sealed record ToolExecutionPayload
     public string? ErrorMessage { get; init; }
 }
 
+public sealed record ToolExecutionProgressPayload
+{
+    public string CallId { get; init; } = string.Empty;
+
+    public string ToolName { get; init; } = string.Empty;
+
+    public required object Progress { get; init; }
+}
+
 /// <summary>
 /// Payload for hosted image generation lifecycle items.
 /// </summary>

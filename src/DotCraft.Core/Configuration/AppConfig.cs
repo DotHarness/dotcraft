@@ -643,6 +643,9 @@ public sealed class AppConfig
     [ConfigSection("Tools.File", DisplayName = "Tools > File", Order = 20)]
     public sealed class FileToolsConfig
     {
+        /// <summary>Maximum aggregate bytes in a remote file transfer (default: 10 GiB).</summary>
+        public long MaxTransferBytes { get; set; } = 10L * 1024 * 1024 * 1024;
+
         /// <summary>
         /// If true, operations outside workspace require user approval.
         /// If false, operations outside workspace are completely blocked.

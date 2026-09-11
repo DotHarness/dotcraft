@@ -55,17 +55,19 @@ public sealed class ModeToolPolicyTests
         Assert.Equal("plan saved", result.Result?.ToString());
     }
 
-    [Fact]
-    public async Task StreamingClient_DeniesPlanModeFileWriteWithRecoverableMessage()
+    [Theory]
+    [InlineData("WriteFile")]
+    [InlineData("Transfer")]
+    public async Task StreamingClient_DeniesPlanModeFileMutationWithRecoverableMessage(string toolName)
     {
         var modeManager = new AgentModeManager();
         modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient("WriteFile", new Dictionary<string, object?>
+        var inner = new ToolCallChatClient(toolName, new Dictionary<string, object?>
         {
             ["path"] = "a.txt",
             ["content"] = "hello"
         });
-        var tool = AIFunctionFactory.Create(() => "wrote", name: "WriteFile");
+        var tool = AIFunctionFactory.Create(() => "wrote", name: toolName);
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
             AdditionalTools = [tool],
@@ -78,7 +80,7 @@ public sealed class ModeToolPolicyTests
 
         var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
         Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Tool: WriteFile", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains($"Tool: {toolName}", result.Result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("NextAllowedActions:", result.Result?.ToString(), StringComparison.Ordinal);
     }
 

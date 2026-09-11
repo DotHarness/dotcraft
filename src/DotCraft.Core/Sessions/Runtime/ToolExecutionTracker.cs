@@ -8,16 +8,19 @@ internal sealed class ToolExecutionTracker
 
     private readonly SessionItem _item;
     private readonly DateTimeOffset _startedAt;
+    private readonly Action<SessionItem, object> _emitItemDelta;
     private readonly Action<SessionItem> _emitItemCompleted;
     private int _completed;
 
     private ToolExecutionTracker(
         SessionItem item,
         DateTimeOffset startedAt,
+        Action<SessionItem, object> emitItemDelta,
         Action<SessionItem> emitItemCompleted)
     {
         _item = item;
         _startedAt = startedAt;
+        _emitItemDelta = emitItemDelta;
         _emitItemCompleted = emitItemCompleted;
     }
 
@@ -34,7 +37,22 @@ internal sealed class ToolExecutionTracker
         return new ToolExecutionTracker(
             registration.Item,
             registration.Item.CreatedAt,
+            runtime.EmitItemDelta,
             runtime.EmitItemCompleted);
+    }
+
+    public void ReportProgress(object progress)
+    {
+        if (Volatile.Read(ref _completed) != 0)
+            return;
+
+        var payload = _item.AsToolExecution;
+        _emitItemDelta(_item, new ToolExecutionProgressPayload
+        {
+            CallId = payload?.CallId ?? string.Empty,
+            ToolName = payload?.ToolName ?? string.Empty,
+            Progress = progress
+        });
     }
 
     public void CompleteSuccess(object? result)
@@ -114,6 +132,8 @@ internal sealed class SessionStreamingToolInvocationObserver : IStreamingToolInv
 
     private sealed class Attempt(ToolExecutionTracker? tracker) : IStreamingToolInvocationAttempt
     {
+        public void ReportProgress(object progress) => tracker?.ReportProgress(progress);
+
         public void CompleteSuccess(object? result) => tracker?.CompleteSuccess(result);
 
         public void CompleteFailure(string errorMessage, object? result = null) =>

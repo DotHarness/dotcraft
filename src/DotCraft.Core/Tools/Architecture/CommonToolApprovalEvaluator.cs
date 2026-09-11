@@ -87,6 +87,9 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
             return ToolDispatchDecision.Allow;
         }
 
+        if (context.ExecutionLocation is { Target: "remote" } location)
+            return await RemoteInvocationApproval.RequestAsync(approval, location, kind, target, operation)
+                .ConfigureAwait(false);
         if (descriptor.ValueKind == JsonValueKind.Object
             && descriptor.TryGetProperty("outsideWorkspaceOnly", out var outsideOnly)
             && outsideOnly.ValueKind == JsonValueKind.True

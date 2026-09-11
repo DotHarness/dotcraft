@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.5.0 |
+| Version | 0.6.0 |
 | Status | Draft |
-| Date | 2026-09-09 |
+| Date | 2026-09-11 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 | Related Specs | [Hub Architecture](hub-architecture.md), [Satellite](../clients/satellite.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
@@ -34,7 +34,8 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 Remote Tool Host MUST preserve the Tool Architecture definition/binding split:
 
 - a remotely executed tool retains its existing `ToolDefinitionId`, canonical `ToolName`, schemas,
-  source provenance, exposure, and Session projection;
+  source provenance, exposure, and Session projection; the Agent-side projection adds the static
+  routing argument defined in §12 without changing the native execution contract;
 - remote execution replaces only the live runtime route behind the stable registration;
 - a remote route is not a `ToolSourceKind`, and the Agent MUST NOT import a second remote namespace;
 - ordinary CLR calls remain local; only calls dispatched through the DotCraft tool pipeline are
@@ -198,13 +199,14 @@ fails the connect, disconnect, or heartbeat that produced the event, nor the obs
 
 ## 6. Model control surface
 
-When the Remote Tool Host client capability is installed, the Agent Host always exposes three
+When the Remote Tool Host client capability is installed, the Agent Host always exposes four
 ordinary, profile-managed, directly loaded Core tools with these canonical names:
 
 ```text
 RemoteToolHost.List()
 RemoteToolHost.Connect(hostId, workspaceId)
 RemoteToolHost.Disconnect()
+RemoteToolHost.Transfer(direction, localPath, remotePath, overwrite = false)
 ```
 
 Provider-flat projections MAY translate the dot but the canonical identity remains namespaced.
@@ -216,22 +218,23 @@ Their static descriptions are:
 ```text
 Namespace: Manage this thread's remote workspace connection.
 List: List registered Remote Tool Hosts, their workspaces, and this thread's current connection.
-Connect: Connect this thread to a remote workspace.
+Connect: Connect this thread to a remote workspace. Skill/plugin files remain local; read with target="local" and Transfer as needed.
 Disconnect: Disconnect this thread from its remote workspace.
+Transfer: Upload or download files and directories between local and connected remote workspaces; directories merge into the destination.
 Connect.hostId: Remote Tool Host id.
 Connect.workspaceId: Remote workspace id.
 ```
 
 The namespace, tool descriptions, schemas, ordering, and exposure are static. Peer registrations,
 online catalogs, thread routes, and lease state MUST NOT change any declaration or deferred-search
-metadata. An empty peer catalog therefore still exposes all three tools: `List` returns an empty
-catalog, `Connect` returns `HostNotRegistered`, and `Disconnect` reports that no route was removed.
+metadata. An empty peer catalog still exposes all four tools: `List` returns an empty catalog,
+`Connect` returns `HostNotRegistered`, `Disconnect` reports no route, and `Transfer` requires a route.
 Profile policy MAY continue to filter the tools as it filters other Core tools.
 
 `List` returns the safe peer catalog from the Hub, online state, available workspaces with their
 lease state, and the current thread route. It does not open a data connection. `Connect` acquires
 the workspace over a Hub-brokered data connection, negotiates the remote tool catalog, and
-immediately publishes the route for later calls in the same Turn. Its result includes a non-secret
+publishes the route for later calls in the same Turn. Its result includes a non-secret
 execution summary: hostname, OS, user, canonical workspace path, Host instance id, matched tool
 names, and unavailable tool names with their reasons. `Disconnect` removes only the current thread
 route and returns it to local execution. `List` is the authoritative discovery surface and reads
@@ -242,9 +245,8 @@ The model control surface and the client control surface defined by the AppServe
 (`remoteToolHost/*`) are two entries to the same client. A client-driven route change is not a Turn
 and is not tool use; it is subject to the same lease, catalog, and safety rules as the model tools.
 
-All three tools carry the `core.remote-tool-host` presentation with `options.operation` set to
-`list`, `connect`, or `disconnect`, so a client renders a route change as a route change rather than
-as generic tool output.
+All four tools carry the `core.remote-tool-host` presentation with `options.operation` set to
+`list`, `connect`, `disconnect`, or `transfer`.
 
 Session Core records a persistent `systemNotice` item with `kind = "remoteRoute"` for every connect
 and disconnect a person or the model caused, and for every lease loss, so a thread's history shows
@@ -254,9 +256,11 @@ thread with no Turn records nothing, because a divider with nothing to divide is
 is defined in [Session Core](session-core.md) §4.2.
 
 At the start of each Turn, the Agent Host appends a Remote Tool Host section to the latest user
-message runtime context when the thread has a connected or lost route. The section contains only
+message runtime context when the thread has a connected or lost route. The section contains
 `Status`, `HostId`, `WorkspaceId`, `HostName`, `OperatingSystem`, `UserName`, and
-`RemoteWorkingDirectory`. Values are bounded and encoded as single-line scalars. The section MUST
+`RemoteWorkingDirectory` and remote supporting-file paths for automatic or preloaded Skills.
+Values are bounded
+and encoded as single-line scalars. The section MUST
 omit lease and Host instance identifiers, endpoints, tokens, certificates, and credential
 references. A disconnected thread has no Remote Tool Host runtime-context section. A successful
 `Connect` or `Disconnect` result is authoritative for the remainder of its current Turn; the next
@@ -524,8 +528,75 @@ Conformance tests cover:
 - a pure Host dependency graph with no model, Session, memory, or AppServer services; and
 - an in-process Hub + Host + Agent bridge execution flow and a two-process outbound end-to-end flow.
 
-When no Remote Tool Host is paired, the existing model tool schema and local execution behavior
-remain unchanged.
+When no Remote Tool Host is paired, default calls retain local execution. Routing arguments and
+control tools remain statically exposed regardless of pairing state.
+
+## 12. Execution locations and file transfer
+
+RPC-eligible Agent tools expose optional `target: "local" | "remote"`. Omission follows the
+thread route. Explicit local execution never changes that route. Explicit remote execution
+requires a live route; remote failure never causes local execution. This Agent-side projection
+strips `target` before native execution and hashes the original native contract.
+
+An internal RPC schema post-processor adds the routing parameter before snapshot construction,
+independently of tool source and provider schema sanitization. It copies the native definition,
+preserving business parameters, required fields, constraints, and metadata. It handles top-level
+object parameter schemas without expanding references or composition keywords. A native top-level
+`target` declaration is a registration error that prevents snapshot construction; nested fields
+with that name remain business data. The registration router owns RPC eligibility and tool-specific
+routing descriptions. Already routed registrations are reused, while catalog negotiation and
+runtime invocation retain the original native definition.
+
+The RPC runtime accepts only an omitted `target`, `"local"`, or `"remote"`. Other values fail with
+`InputInvalid` before execution, including strings outside the schema enum. Only the top-level
+routing argument is removed from the copied execution arguments.
+
+The dispatcher captures the execution location after input validation and before policy, hooks,
+and approval. Runtime execution validates the captured route and never resolves a different one.
+Approvals interpret paths on the selected machine. Results identify their execution location;
+local spill paths require local reads. WriteStdin uses the same target as the originating Exec.
+
+`RemoteToolHost.Transfer(direction, localPath, remotePath, overwrite = false)` copies a file or
+directory between the Agent and current remote workspace. Direction is `upload` or `download`.
+Paths name exact destinations and resolve relative to their respective workspaces. Directories
+merge without removing extra files; existing files require explicit overwrite. Transfer content
+never enters model history. Results report completed files and bytes, including partial failure.
+Explicit Transfer is unavailable in Plan mode because either direction writes destination files.
+
+The Agent reports Transfer presentation progress from the same copy loop. `preparing` begins after
+the route is captured and may not have totals. Once the manifest is known, `transferring` reports
+total and transferred bytes, total and completed files, and the current file. Transferred bytes
+advance only after a chunk succeeds; completed files and bytes advance only after that file is
+verified, flushed, and committed. Commit work remains part of `transferring`: the only terminal
+states are `completed` and `failed`. Failure retains the last known byte progress and confirmed
+destination bytes. Historical results without totals expose only their known statistics and never
+infer a percentage. A zero-byte file completes normally.
+
+The private `files/*` extension uses bounded chunks, 64-bit sizes and offsets, SHA-256 validation,
+and per-file atomic commits. The Host's transfer limit defaults to 10 GiB, independently of text
+read limits. Both source reads and destination writes enforce local policy and path guards.
+Directory-internal links, path traversal, and unsupported target names fail explicitly. Transfers
+are bound to peer, authorization revision, and lease. Cancellation and expiry discard incomplete
+files. Commit outcomes lost in transit are unknown and never automatically retried. No resumable
+transfer protocol or additional Hub connection is introduced. Progress is computed by the Agent
+from manifests, chunks, and commit acknowledgements already visible to it; it adds no `files-v1`
+method or wire traffic between the Agent and Remote Tool Host.
+
+Connect acquires a candidate lease, negotiates tools and the `files-v1` capability, then publishes
+the route. Failure preserves the previous route. Repeating Connect returns the current connection
+without emitting a duplicate route transition. Hosts lacking file transfer support require upgrading.
+
+Skills and plugin packages remain on the Agent machine. SkillView reads effective local instructions,
+and the Skill catalog identifies the effective local file, including variants. Supporting files are
+read with `target: "local"`; the Agent uses Transfer for files needed by remote execution, preserving
+relative dependencies and selecting the effective variant when applicable. The Connect description
+provides this guidance before same-Turn remote calls. Connecting, turn preparation, and SkillView
+do not copy resources or manage remote snapshots.
+
+Transferred files survive disconnect. The Agent chooses destinations and explicit overwrites;
+Transfer does not provide automatic version isolation or cleanup. Copying a plugin package does not
+activate it or install CLI dependencies. Local binary/env availability is not evidence of remote
+availability. Neither arbitrary shell commands nor Skill prose are rewritten.
 
 ## Generated image artifacts
 

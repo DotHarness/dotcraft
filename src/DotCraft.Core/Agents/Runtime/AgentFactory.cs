@@ -135,7 +135,10 @@ public sealed class AgentFactory : IAsyncDisposable
         _userCoordinationToolSource = new UserCoordinationToolSource();
         _remoteToolHostControlSource = remoteToolHostClient is null
             ? null
-            : new RemoteToolHostControlSource(remoteToolHostClient);
+            : new RemoteToolHostControlSource(remoteToolHostClient, new RemoteLocalWorkspace(
+                workspacePath, _runtimeContext.UserDataPath, approvalService, blacklist,
+                _runtimeContext.RequireApprovalOutsideWorkspace ?? config.Tools.File.RequireApprovalOutsideWorkspace,
+                _runtimeContext.WorkspaceRoots, config.Tools.File.MaxTransferBytes));
         _toolSources = (toolSources ?? [])
             .Append(_supplementalToolSource)
             .Append(_userCoordinationToolSource)

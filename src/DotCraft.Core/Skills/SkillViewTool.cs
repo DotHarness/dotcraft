@@ -13,12 +13,7 @@ public sealed class SkillViewTool(
     SkillVariantTarget target,
     TraceCollector? traceCollector = null)
 {
-    private const string SkillViewDescription =
-        """
-        Load the effective instructions for a skill by name. Use this instead of ReadFile
-        when a listed skill is relevant to the task. The result is only the SKILL.md body
-        the agent should follow.
-        """;
+    private const string SkillViewDescription = "Load the effective instructions for a listed skill.";
 
     /// <summary>
     /// Loads a skill's effective <c>SKILL.md</c> body.

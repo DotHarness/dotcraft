@@ -55,7 +55,11 @@ public sealed record ToolInvocationContext(
     long SnapshotRevision,
     DateTimeOffset StartedAt,
     ToolInvocationOrigin? Origin = null,
-    string? WorkspacePath = null);
+    string? WorkspacePath = null,
+    ToolExecutionLocation? ExecutionLocation = null);
+
+/// <summary>A captured execution destination, shared by approval and runtime execution.</summary>
+public sealed record ToolExecutionLocation(string Target, string? WorkspacePath, RemoteToolRoute? Route = null);
 
 /// <summary>A stable source-neutral tool execution error.</summary>
 public sealed class ToolError

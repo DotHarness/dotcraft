@@ -223,7 +223,7 @@ Client                              Server
 | `capabilities.requestUserInputSupport` | boolean | no | Whether the client can handle model-initiated Plan Mode question requests (`item/tool/requestUserInput`). Default `false`. |
 | `capabilities.streamingSupport` | boolean | no | Whether the client can consume `item/*/delta` notifications. Default `true`. |
 | `capabilities.commandExecutionStreaming` | boolean | no | Whether the client can consume `commandExecution` items and `item/commandExecution/outputDelta` fallback notifications. Default `false`. |
-| `capabilities.toolExecutionLifecycle` | boolean | no | Whether the client can consume `toolExecution` lifecycle items for per-call runtime completion. Default `false`. |
+| `capabilities.toolExecutionLifecycle` | boolean | no | Whether the client can consume `toolExecution` lifecycle items and `item/toolExecution/progress` notifications. Default `false`. |
 | `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
 | `capabilities.configChange` | boolean | no | Whether the client wants `workspace/configChanged` notifications. Default `true`. |
 | `capabilities.mcpApps` | boolean | no | Whether this connection hosts stable MCP Apps views and accepts the opaque `mcpApp/view/*` contract. Default `false`. |
@@ -2184,7 +2184,8 @@ When a connection advertises `capabilities.toolExecutionLifecycle = true`, the s
 `toolExecution` items follow a fixed sequence:
 
 1. `item/started` with `item.type = "toolExecution"` and payload `status = "inProgress"`.
-2. `item/completed` with final payload `status`, `success`, `durationMs`, and optional `resultPreview` / `errorMessage`.
+2. zero or more `item/toolExecution/progress` notifications for tools that expose structured progress.
+3. `item/completed` with final payload `status`, `success`, `durationMs`, and optional `resultPreview` / `errorMessage`.
 
 Payload shape:
 
@@ -2207,6 +2208,32 @@ Rules:
 - Plugin-backed tools use standard `toolCall`/`toolResult`; `toolExecution` remains an optional capability-gated UI lifecycle projection driven by the common dispatcher.
 - Runtime dynamic tools do not emit companion `toolExecution`; their lifecycle is represented by `dynamicToolCall`.
 - Clients that do not advertise the capability rely on `toolCall` / `toolResult` alone.
+
+`item/toolExecution/progress` is a live, non-persistent snapshot correlated by `itemId` and `callId`.
+Its `progress` object is discriminated by `kind`. The defined `remoteFileTransfer` shape is:
+
+```ts
+{
+  kind: "remoteFileTransfer"
+  stage: "preparing" | "transferring"
+  direction: "upload" | "download"
+  localPath: string
+  remotePath: string
+  hostId: string
+  hostDisplayName: string
+  totalBytes?: number
+  transferredBytes: number
+  totalFiles?: number
+  completedFiles: number
+  completedBytes: number
+  currentFile?: string
+}
+```
+
+Preparing may omit totals. Transfer progress distinguishes bytes accepted for the current file from
+files confirmed by an atomic commit. The notification never supplies terminal success; clients use
+the completed `toolExecution` and authoritative `toolResult`. Connections without
+`toolExecutionLifecycle` do not receive it. `streamingSupport` does not gate this snapshot.
 
 **Params**:
 
@@ -5149,7 +5176,7 @@ Returns the safe catalog of paired machines with their online state and folders,
 
 #### `remoteToolHost/connect`
 
-Connects one thread to a remote folder. On success the route is published immediately and a `remoteToolHost/route/changed` notification with `reason: "connected"` is broadcast.
+Connects one thread to a remote folder after negotiating tools and file transfer support. Success publishes the route and broadcasts `remoteToolHost/route/changed` with `reason: "connected"`. Connection setup failure preserves the previous route.
 
 **Params**:
 
@@ -5166,7 +5193,7 @@ Connects one thread to a remote folder. On success the route is published immedi
 | `route` | `RemoteToolRouteInfo` | The published route with its execution summary. |
 | `matchedTools` | string[] | Tool names now executed remotely. |
 | `unavailableTools` | string[] | Tool names that stay unavailable while routed, because the machine does not export them or their contract differs. |
-| `alreadyConnected` | boolean | `true` when the thread was already routed to this folder and nothing changed. |
+| `alreadyConnected` | boolean | `true` when the thread was already routed to this folder; no route transition is emitted. |
 
 Errors: `-32100` (Remote Tool Host unavailable) with `error.data.code` set to one of the Remote Tool Host codes `remote_host_not_registered`, `remote_host_offline`, `remote_authentication_failed`, `remote_protocol_mismatch`, `remote_satellite_offline`, `remote_satellite_session_failed`, `remote_workspace_not_found`, `remote_lease_lost`, or `remote_hub_unavailable`; `-32101` (Remote workspace busy) with `error.data.code = "remote_workspace_busy"` and `error.data.params.owner`; `-32012` when a turn is in progress on the thread; `-32010` for an unknown thread; `-32602` for malformed params. Every error carries `messageKey`, `params`, and an English `fallbackText` so clients localize without parsing text. `messageKey` is `error.remoteToolHost.` followed by the camel-case form of `error.data.code`, for example `error.remoteToolHost.remoteWorkspaceBusy`.
 

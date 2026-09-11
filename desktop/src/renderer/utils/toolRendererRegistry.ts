@@ -181,7 +181,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }, hasBuilderField),
   registration(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'remoteToolHost', {
     mode: 'collapsible'
-  }, hasOperation('list', 'connect', 'disconnect'))
+  }, hasOperation('list', 'connect', 'disconnect', 'transfer'))
 ])
 
 export function resolveCoreToolRenderPlan(item: ConversationItem): ToolRendererPlan | null {

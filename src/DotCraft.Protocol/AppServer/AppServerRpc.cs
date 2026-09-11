@@ -149,6 +149,10 @@ public static partial class AppServerRpc
     public static readonly RpcNotification<ItemDeltaNotification> ToolArgumentsDelta =
         new("item/toolCall/argumentsDelta", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
 
+    /// <summary>item/toolExecution/progress notification.</summary>
+    public static readonly RpcNotification<ToolExecutionProgressNotification> ToolExecutionProgress =
+        new("item/toolExecution/progress", RpcDirection.ServerToClient, "1", Spec, capability: "toolExecutionLifecycle", scope: "thread", notificationOptOut: true);
+
     /// <summary>item/approval/resolved notification.</summary>
     public static readonly RpcNotification<ItemNotification> ApprovalResolved =
         new("item/approval/resolved", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);

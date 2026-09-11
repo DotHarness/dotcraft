@@ -116,6 +116,7 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
             onReleased: released =>
             {
                 _terminals.ReleaseLease(released.LeaseId);
+                _handlers!.ReleaseFileTransfers(released.LeaseId);
                 RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
             });
         _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _terminals, approvalPresenter: ownerApprovals);

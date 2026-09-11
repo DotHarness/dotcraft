@@ -15,6 +15,8 @@ public sealed class ToolExecutionRuntimeContext
 
     public required Action<SessionItem> EmitItemStarted { get; init; }
 
+    public Action<SessionItem, object> EmitItemDelta { get; init; } = static (_, _) => { };
+
     public required Action<SessionItem> EmitItemCompleted { get; init; }
 
     public required bool SupportsToolExecutionLifecycle { get; init; }

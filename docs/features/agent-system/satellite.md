@@ -42,6 +42,10 @@ After the other person allows the connection, find the PC in **Settings → Conn
 
 File, Shell, and language tools run on the selected PC. If the PC is offline or the workspace is in use, wait until it is available before continuing. A failed remote operation does not automatically run on your own PC. Select **This PC** when you want to switch back.
 
+The agent can also access files on your own PC without changing this selection, and copy files or folders between the two PCs when needed. For example: “Upload my local checker CLI to the remote workspace and run it there.” Replacing existing files requires the overwrite option.
+
+Enabled Skills and installed plugin packages are prepared on the shared PC automatically, including their supporting scripts. Plugin data and environment settings stay on the Agent PC. Additional CLI dependencies still need to support the shared PC's operating system. See [local access and file transfer](../../developing/architecture/remote-tool-host#local-access-and-file-transfer) for tool parameters.
+
 ## Person sharing: see who is using your PC
 
 While someone is using your PC, a bar sits at the top of your screen, above your other windows. It names who is connected, and while a tool runs, the operation and the command it is running. Point at the bar to see every connected PC with its access mode, disconnect one, or open its task folder. **Pause sharing** below that list stops every PC at once. Drag the bar elsewhere if it covers what you are working on; it comes back where you left it. It appears only while your PC is in use and leaves when the last session ends.

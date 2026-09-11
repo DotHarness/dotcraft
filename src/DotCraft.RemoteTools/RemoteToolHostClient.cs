@@ -11,6 +11,7 @@ namespace DotCraft.RemoteTools;
 
 internal sealed partial class RemoteToolHostClient :
     IRemoteToolHostClient,
+    IRemoteFileTransferClient,
     IAsyncDisposable
 {
     private const int MaxUnavailableDetailChars = 200;
@@ -101,6 +102,10 @@ internal sealed partial class RemoteToolHostClient :
             connected = await ConnectRouteAsync(threadId, hostId, workspaceId, cancellationToken)
                 .ConfigureAwait(false);
         }
+        catch (Exception ex) when (ex is not RemoteToolHostException and not OperationCanceledException)
+        {
+            throw new RemoteToolHostException(ToolErrorCodes.ExecutionFailed, ex.Message, inner: ex);
+        }
         finally
         {
             _routeGate.Release();
@@ -109,100 +114,6 @@ internal sealed partial class RemoteToolHostClient :
         if (connected.Published is not null)
             RaiseRouteChanged(threadId, RemoteToolRouteChangeReason.Connected, initiator, connected.Published);
         return connected.Result;
-    }
-
-    /// <summary>Runs inside <c>_routeGate</c>; the caller raises the route-change event after releasing it.</summary>
-    private async Task<(RemoteToolConnectResult Result, RemoteToolRoute? Published)> ConnectRouteAsync(
-        string threadId,
-        string hostId,
-        string workspaceId,
-        CancellationToken cancellationToken)
-    {
-        if (TryGetRoute(threadId, out var existing)
-            && string.Equals(existing.HostId, hostId, StringComparison.Ordinal)
-            && string.Equals(existing.WorkspaceId, workspaceId, StringComparison.Ordinal))
-        {
-            lock (_stateGate)
-            {
-                if (!_leases.TryGetValue(new RouteKey(hostId, workspaceId), out var currentLease)
-                    || currentLease.Lost)
-                {
-                    throw new RemoteToolHostException(
-                        RemoteToolErrorCodes.LeaseLost,
-                        "The current Remote Tool Host lease was lost. Disconnect before reconnecting.");
-                }
-            }
-            var summary = await BuildMatchSummaryAsync(existing, cancellationToken).ConfigureAwait(false);
-            return (summary with { AlreadyConnected = true }, null);
-        }
-
-        var session = await GetSessionAsync(hostId, cancellationToken).ConfigureAwait(false);
-        var key = new RouteKey(hostId, workspaceId);
-        SharedLease lease;
-        lock (_stateGate)
-        {
-            _leases.TryGetValue(key, out lease!);
-        }
-
-        if (lease is null)
-        {
-            WorkspaceAcquireResponse acquired;
-            try
-            {
-                acquired = await SendAsync<WorkspaceAcquireRequest, WorkspaceAcquireResponse>(
-                    session.Client,
-                    RemoteToolHostProtocol.WorkspacesAcquire,
-                    new WorkspaceAcquireRequest(
-                        RemoteToolHostProtocol.ProfileVersion,
-                        _clientInstanceId,
-                        workspaceId),
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                throw MapConnectionError(ex, null, session.CloseDescription);
-            }
-            lease = new SharedLease(
-                new RemoteToolRoute(hostId, workspaceId, acquired.LeaseId, acquired.HostInstanceId),
-                acquired.WorkspacePath,
-                session,
-                _clientInstanceId,
-                OnLeaseLost);
-            var hostInfo = await SendAsync<WorkspaceListRequest, WorkspaceListResponse>(
-                session.Client,
-                RemoteToolHostProtocol.WorkspacesList,
-                new WorkspaceListRequest(RemoteToolHostProtocol.ProfileVersion, _clientInstanceId),
-                cancellationToken).ConfigureAwait(false);
-            ValidateHostIdentity(hostId, hostInfo);
-            CaptureDisplayNames(hostId, hostInfo);
-            lease.HostName = hostInfo.Hostname;
-            lease.OperatingSystem = hostInfo.Os;
-            lease.UserName = hostInfo.Username;
-            lease.BuildVersion = hostInfo.BuildVersion;
-            lock (_stateGate)
-            {
-                _leases.Add(key, lease);
-            }
-            lease.StartHeartbeat();
-        }
-        else if (lease.Lost)
-        {
-            throw new RemoteToolHostException(
-                RemoteToolErrorCodes.LeaseLost,
-                "The shared Remote Tool Host lease was lost. Existing routes must disconnect before reconnecting.");
-        }
-
-        RemoteToolRoute? previous;
-        lock (_stateGate)
-        {
-            _routes.Remove(threadId, out previous);
-            _routes[threadId] = lease.Route;
-            lease.ReferenceCount++;
-        }
-        if (previous is not null)
-            await ReleaseRouteReferenceAsync(previous, CancellationToken.None).ConfigureAwait(false);
-
-        return (await BuildMatchSummaryAsync(lease.Route, cancellationToken).ConfigureAwait(false), lease.Route);
     }
 
     public async ValueTask<RemoteToolDisconnectResult> DisconnectAsync(
@@ -287,7 +198,8 @@ internal sealed partial class RemoteToolHostClient :
         SharedLease lease;
         lock (_stateGate)
         {
-            if (!_leases.TryGetValue(new RouteKey(route.HostId, route.WorkspaceId), out lease!)
+            if (!_routes.TryGetValue(context.ThreadId, out var currentRoute) || currentRoute != route
+                || !_leases.TryGetValue(new RouteKey(route.HostId, route.WorkspaceId), out lease!)
                 || !string.Equals(lease.Route.LeaseId, route.LeaseId, StringComparison.Ordinal)
                 || lease.Lost)
             {
