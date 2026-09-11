@@ -7,8 +7,6 @@ namespace DotCraft.Satellite.Island;
 [SupportedOSPlatform("windows")]
 internal static class IslandNativeMethods
 {
-    public const uint WM_ERASEBKGND = 0x0014;
-
     private const int GWL_STYLE = -16;
     private const int GWL_EXSTYLE = -20;
     private const int WS_CAPTION = 0x00C00000;
@@ -17,16 +15,12 @@ internal static class IslandNativeMethods
     private const int WS_EX_LAYERED = 0x00080000;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const uint LWA_ALPHA = 0x2;
-    private const int BLACK_BRUSH = 4;
-
     private static readonly nint HWND_TOPMOST = -1;
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_FRAMECHANGED = 0x0020;
-
-    public delegate nint SubclassProc(nint window, uint message, nint wParam, nint lParam, nuint id, nuint data);
 
     [DllImport("user32.dll", SetLastError = true, EntryPoint = "GetWindowLongPtrW")]
     private static extern nint GetWindowLongPtr(nint window, int index);
@@ -38,13 +32,6 @@ internal static class IslandNativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(
         nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
-
-    [DllImport("comctl32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowSubclass(nint window, SubclassProc proc, nuint id, nuint data);
-
-    [DllImport("comctl32.dll")]
-    public static extern nint DefSubclassProc(nint window, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -83,25 +70,6 @@ internal static class IslandNativeMethods
 
     [DllImport("gdi32.dll")]
     private static extern nint CreateRectRgn(int left, int top, int right, int bottom);
-
-    [DllImport("gdi32.dll")]
-    private static extern nint GetStockObject(int index);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetClientRect(nint window, out Rect rect);
-
-    [DllImport("user32.dll")]
-    private static extern int FillRect(nint deviceContext, ref Rect rect, nint brush);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
 
     [DllImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -148,19 +116,6 @@ internal static class IslandNativeMethods
         DeleteObject(region);
         RedrawWindow(window, nint.Zero, nint.Zero, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
     }
-
-    /// <summary>
-    /// Erases the client area to premultiplied black, which is alpha zero; the window class's own
-    /// white brush would leave a haze wherever nothing is drawn on top.
-    /// </summary>
-    public static void EraseToTransparent(nint window, nint deviceContext)
-    {
-        if (GetClientRect(window, out var rect))
-            _ = FillRect(deviceContext, ref rect, GetStockObject(BLACK_BRUSH));
-    }
-
-    /// <summary>The caller keeps <paramref name="proc"/> alive for as long as the window exists.</summary>
-    public static void Subclass(nint window, SubclassProc proc) => SetWindowSubclass(window, proc, 1, 0);
 
     /// <summary>
     /// Only a layered window can be transparent to the mouse; a fully opaque layer changes nothing

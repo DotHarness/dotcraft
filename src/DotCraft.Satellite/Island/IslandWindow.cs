@@ -53,7 +53,6 @@ internal sealed class IslandWindow : Window, IDisposable
     private readonly Grid _root = new();
     private readonly DispatcherQueueTimer _pointer;
     private readonly DispatcherQueueTimer _exit;
-    private readonly IslandNativeMethods.SubclassProc _erase;
     private readonly bool _animate;
     private readonly nint _handle;
     private readonly AppWindow _appWindow;
@@ -77,8 +76,6 @@ internal sealed class IslandWindow : Window, IDisposable
     private bool _hovered;
     private bool _activatable;
     private bool _clickThrough;
-    private bool _disposed;
-
     public IslandWindow(IslandViewModel viewModel)
     {
         _viewModel = viewModel;
@@ -96,25 +93,22 @@ internal sealed class IslandWindow : Window, IDisposable
             presenter.IsMinimizable = false;
         }
         _appWindow.IsShownInSwitchers = false;
-        // The subclass must be in place before the frame changes, so the first erase is ours.
-        _erase = Erase;
-        IslandNativeMethods.Subclass(_handle, _erase);
         IslandNativeMethods.RemoveFrame(_handle);
         IslandNativeMethods.MakeTransparent(_handle);
         IslandNativeMethods.MakeLayered(_handle);
         SystemBackdrop = new TransparentBackdrop();
 
-        _root.ActualThemeChanged += (_, _) => RunSurfaceAction(Push);
+        _root.ActualThemeChanged += (_, _) => Push();
         Content = _root;
-        Activated += (_, args) => RunSurfaceAction(() => HandleActivated(args));
+        Activated += OnActivated;
 
         _pointer = DispatcherQueue.CreateTimer();
         _pointer.Interval = PointerNear;
-        _pointer.Tick += (_, _) => RunSurfaceAction(Tick);
+        _pointer.Tick += (_, _) => Tick();
         _exit = DispatcherQueue.CreateTimer();
         _exit.Interval = ExitDuration;
         _exit.IsRepeating = false;
-        _exit.Tick += (_, _) => RunSurfaceAction(Hide);
+        _exit.Tick += (_, _) => Hide();
 
         // Activating once builds the XAML content, which a window that is never focused otherwise
         // never does. The no-activate style keeps this off the foreground.
@@ -123,21 +117,15 @@ internal sealed class IslandWindow : Window, IDisposable
         _appWindow.Hide();
         _ = LoadPageAsync();
 
-        _viewModel.PropertyChanged += (_, _) => RunSurfaceAction(Apply);
-        RunSurfaceAction(Apply);
+        _viewModel.PropertyChanged += (_, _) => Apply();
+        Apply();
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
         _pointer.Stop();
         _exit.Stop();
-        try { _controller?.Close(); }
-        catch (Exception) { }
-        _controller = null;
-        _core = null;
+        _controller?.Close();
     }
 
     private double Scale => Tray.TrayNativeMethods.GetDpiForWindow(_handle) is var dpi && dpi > 0
@@ -171,16 +159,10 @@ internal sealed class IslandWindow : Window, IDisposable
 
     private async Task LoadPageAsync()
     {
-        CoreWebView2Controller? controller = null;
         try
         {
-            controller = await SatellitePageHost.AttachAsync(
+            var controller = await SatellitePageHost.AttachAsync(
                 _handle, "DotCraft.Satellite.island.html", transparent: true, OnWebMessage);
-            if (_disposed || _unavailable)
-            {
-                controller.Close();
-                return;
-            }
             controller.Bounds = ClientBounds();
             controller.IsVisible = _shown;
             _controller = controller;
@@ -188,8 +170,6 @@ internal sealed class IslandWindow : Window, IDisposable
         }
         catch (Exception)
         {
-            try { controller?.Close(); }
-            catch (Exception) { }
             DisableSurface();
         }
     }
@@ -198,11 +178,6 @@ internal sealed class IslandWindow : Window, IDisposable
         new(0, 0, WindowWidthDips * Scale, WindowHeightDips * Scale);
 
     private void OnWebMessage(JsonElement message)
-    {
-        RunSurfaceAction(() => HandleWebMessage(message));
-    }
-
-    private void HandleWebMessage(JsonElement message)
     {
         switch (message.GetProperty("type").GetString())
         {
@@ -449,14 +424,6 @@ internal sealed class IslandWindow : Window, IDisposable
         };
     }
 
-    private nint Erase(nint window, uint message, nint wParam, nint lParam, nuint id, nuint data)
-    {
-        if (message != IslandNativeMethods.WM_ERASEBKGND)
-            return IslandNativeMethods.DefSubclassProc(window, message, wParam, lParam);
-        IslandNativeMethods.EraseToTransparent(window, wParam);
-        return 1;
-    }
-
     /// <summary>The pointer drives hover, the mouse-transparent margin, and the drag, since the page cannot see past its own edge.</summary>
     private void Tick()
     {
@@ -558,7 +525,7 @@ internal sealed class IslandWindow : Window, IDisposable
     }
 
     /// <summary>A click elsewhere ends the island's turn with the keyboard and unpins the peer list.</summary>
-    private void HandleActivated(WindowActivatedEventArgs args)
+    private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
         if (args.WindowActivationState != WindowActivationState.Deactivated)
             return;
@@ -566,41 +533,15 @@ internal sealed class IslandWindow : Window, IDisposable
         _viewModel.Collapse();
     }
 
-    private void RunSurfaceAction(Action action)
-    {
-        if (_disposed || _unavailable)
-            return;
-        try
-        {
-            action();
-        }
-        catch (Exception)
-        {
-            DisableSurface();
-        }
-    }
-
     private void DisableSurface()
     {
-        if (_disposed || _unavailable)
+        if (_unavailable)
             return;
         _unavailable = true;
-        _shown = false;
-        _dragging = false;
-        _pointer.Stop();
-        _exit.Stop();
-
-        var controller = _controller;
         _controller = null;
         _core = null;
-        try { if (controller is not null) controller.IsVisible = false; }
-        catch (Exception) { }
-        try { controller?.Close(); }
-        catch (Exception) { }
-        try { _appWindow.Hide(); }
-        catch (Exception) { }
-
         _viewModel.Approvals.Disable();
+        Leave();
     }
 
     private void SetActivatable(bool activatable)
