@@ -18,6 +18,7 @@ export interface ServerNotificationMethods {
   "item/started": { params: Models.ItemNotification; result: Models.RpcEmpty };
   "item/tool/requestUserInput/resolved": { params: Models.ItemNotification; result: Models.RpcEmpty };
   "item/toolCall/argumentsDelta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
+  "item/toolExecution/progress": { params: Models.ToolExecutionProgressNotification; result: Models.RpcEmpty };
   "item/usage/delta": { params: Models.UsageDeltaNotification; result: Models.RpcEmpty };
   "mcpApp/view/status/updated": { params: Models.McpAppViewStatusUpdatedParams; result: Models.RpcEmpty };
   "mcpServer/oauthLogin/completed": { params: Models.McpServerOAuthLoginCompletedNotification; result: Models.RpcEmpty };

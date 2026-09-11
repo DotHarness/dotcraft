@@ -32,6 +32,7 @@ import { McpAppView, hasAvailableMcpApp } from './McpAppView'
 import { ToolDisclosure } from './ToolDisclosure'
 import { useRemoteToolHostRow } from './RemoteToolHostRow'
 import { RemoteToolHostListResult } from './RemoteToolHostListResult'
+import { RemoteFileTransferResult } from './RemoteFileTransferResult'
 import { parseRemoteToolHostCatalog } from '../../utils/remoteToolHostDisplay'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
@@ -250,7 +251,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
   const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
-  const success = (rendererPlan?.successOverride === true || item.success !== false)
+  const baseSuccess = (rendererPlan?.successOverride === true || item.success !== false)
     && (!isSkillManageTool || skillManageDisplay?.result?.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
@@ -280,16 +281,26 @@ export const ToolCallCard = memo(function ToolCallCard({
   const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
+  const remoteToolHostRow = useRemoteToolHostRow({
+    item,
+    enabled: isRemoteToolHostTool,
+    threadId,
+    locale,
+    running: isRunning,
+    success: baseSuccess
+  })
+  const remoteTransfer = remoteToolHostRow?.transfer
+  const success = baseSuccess && remoteToolHostRow?.failed !== true
   const hasRunningExpandableContent = isShellTool
     ? hasVisibleText(shellOutput)
     : isStreamingFileTool
       ? !!renderableStreamingFileDiff
-      : false
+      : !!remoteTransfer
   const hasCompletedExpandableContent = isShellTool
     ? hasVisibleText(shellOutput)
     : isStreamingFileTool
       ? !!renderableFileDiff || hasVisibleText(toolResult)
-      : hasVisibleText(toolResult)
+      : remoteTransfer ? true : hasVisibleText(toolResult)
   // Only a skill edit has something behind the row, and it is the diff.
   const renderableSkillManageDiff = hasRenderableDiff(skillManageDiff ?? undefined)
     ? skillManageDiff ?? undefined
@@ -300,21 +311,13 @@ export const ToolCallCard = memo(function ToolCallCard({
     && !isSkillViewTool
     && !isTodoTool
     && hasRunningExpandableContent
-  const remoteToolHostRow = useRemoteToolHostRow({
-    item,
-    enabled: isRemoteToolHostTool,
-    threadId,
-    locale,
-    running: isRunning,
-    success
-  })
   const canExpandCompleted =
     !isWebFetchTool
     && !isSkillViewTool
     && !isTodoTool
     && (remoteToolHostRow?.expandable ?? true)
     && (isSkillManageTool ? !!renderableSkillManageDiff : hasCompletedExpandableContent)
-  const autoExpandEligible = (isShellTool || isStreamingFileTool)
+  const autoExpandEligible = (isShellTool || isStreamingFileTool || !!remoteTransfer)
     && (isRunning ? hasRunningExpandableContent : hasCompletedExpandableContent)
   const hasFinalArgs = args != null && Object.keys(args).length > 0
   const subAgentRunningLabel = hasFinalArgs && rendererFamily === 'subagent'
@@ -509,7 +512,9 @@ export const ToolCallCard = memo(function ToolCallCard({
             className="dc-tool-panel-surface"
             data-padded={isStreamingFileTool && renderableStreamingFileDiff ? 'false' : 'true'}
           >
-            {isShellTool ? (
+            {remoteTransfer ? (
+              <RemoteFileTransferResult display={remoteTransfer} locale={locale} />
+            ) : isShellTool ? (
               <ExpandedContent
                 itemId={item.id}
                 rendererFamily={rendererFamily}
@@ -641,7 +646,9 @@ export const ToolCallCard = memo(function ToolCallCard({
         className="dc-tool-panel-surface"
         data-padded={hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile || !!renderableSkillManageDiff ? 'false' : 'true'}
       >
-        {renderableSkillManageDiff ? (
+        {remoteTransfer ? (
+          <RemoteFileTransferResult display={remoteTransfer} locale={locale} />
+        ) : renderableSkillManageDiff ? (
           <InlineDiffView
             diff={renderableSkillManageDiff}
             variant="embedded"

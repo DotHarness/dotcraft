@@ -223,6 +223,19 @@ public sealed class ToolDispatcher(
             }
         }
 
+        if (registration.Binding.Runtime is RemoteRoutableToolRuntime preparation)
+        {
+            try
+            {
+                invocationContext = preparation.Prepare(invocationContext, arguments);
+            }
+            catch (RemoteToolHostException ex)
+            {
+                return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder,
+                    ToolExecutionResult.Failed(new ToolError(ex.Code, ex.Message))).ConfigureAwait(false);
+            }
+        }
+
         try
         {
             decision = await ResolvePolicyEvaluator(request.ThreadId)

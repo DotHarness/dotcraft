@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
-internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client)
+internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client, RemoteLocalWorkspace? local = null)
     : AIFunctionToolSource, IThreadScopedToolSource, IThreadForkToolBindingSource
 {
     public override string SourceId => "remote-tool-host-control";
@@ -26,6 +26,7 @@ internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client)
             "List" => "list",
             "Connect" => "connect",
             "Disconnect" => "disconnect",
+            "Transfer" => "transfer",
             _ => null
         };
         return operation is null
@@ -45,7 +46,9 @@ internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client)
         [
             GeneratedToolFunctions.RemoteToolHostTools_List(tools),
             GeneratedToolFunctions.RemoteToolHostTools_Connect(tools),
-            GeneratedToolFunctions.RemoteToolHostTools_Disconnect(tools)
+            GeneratedToolFunctions.RemoteToolHostTools_Disconnect(tools),
+            GeneratedToolFunctions.RemoteToolHostTransferTools_Transfer(new RemoteToolHostTransferTools(client,
+                local is null ? null : local with { WorkspacePath = context.WorkspacePath, WorkspaceRoots = context.WorkspaceRoots }))
         ];
     }
 
@@ -72,7 +75,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     }
 
     [GeneratedTool(Name = "Connect")]
-    [Description("Connect this thread to a remote workspace.")]
+    [Description("Connect this thread to a remote workspace. Skill/plugin files remain local; read with target=\"local\" and Transfer as needed.")]
     public async Task<string> Connect(
         [Description("Remote Tool Host id.")] string hostId,
         [Description("Remote workspace id.")] string workspaceId,

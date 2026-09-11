@@ -67,6 +67,33 @@ dotcraft tool-host policy set Exec needs-approval
 
 一个工作区同一时间只服务一个 Agent Host。如果它已被占用，请在那一侧断开，或等待它被释放。这里没有排队，也不会抢占。远端失败会如实报告为远端失败，DotCraft 不会把同一次调用静默改到本地绑定重试。
 
+## 本地访问与文件传输
+
+RPC 工具接受 `target: "local"` 或 `target: "remote"`，省略时沿用当前对话的连接。例如，`ReadFile({ "path": "scripts/check.py", "target": "local" })` 可以直接读取 Agent 工作区，无须断开远端连接。`WriteStdin` 应使用创建终端的 `Exec` 所用的 target。
+
+`RemoteToolHost.Transfer` 在两台机器之间直接复制文件或目录：
+
+```json
+{
+  "direction": "upload",
+  "localPath": "tools/checker",
+  "remotePath": "tools/checker",
+  "overwrite": false
+}
+```
+
+使用 `download` 从远端复制到本地。路径是相对于各自工作区的路径或绝对路径，指向确切的目标位置。目录合并会保留多余文件；替换已有文件须设置 `overwrite: true`。中途失败时，结果会报告已完成的文件数和字节数，未完成的文件会被丢弃。Plan 模式不允许显式传输。
+
+传输复用现有连接，并遵循两端的文件访问策略。它拒绝文件系统链接，校验 SHA-256，并逐个文件原子提交。Host 的 `Tools.File.MaxTransferBytes` 默认为 10 GiB，与文本读取限制独立。提交响应丢失时会报告结果未知，不会自动重试。
+
+## Skill 与插件资源
+
+Skill 和插件包保留在 Agent 机器上。`SkillView` 读取本地指令，Skill 目录提供实际生效的本地路径，包括变体路径。连接远端时，可以通过 `ReadFile` 的 `target: "local"` 读取配套文件。
+
+Agent 按需使用 `Transfer` 复制远端需要的脚本、目录或 CLI 文件，保留相对依赖关系，并在适用时选用 Skill 的生效变体。传输的文件在断开后保留，目标位置和覆盖行为由 Agent 显式选择。复制插件包不会激活插件或安装依赖，可执行文件须支持远端操作系统。
+
+Connect 协商工具和文件传输能力后才发布路由，连接建立失败时保留之前的路由。不支持文件传输的卫星需要先升级再连接。
+
 ## 解除配对
 
 ```powershell

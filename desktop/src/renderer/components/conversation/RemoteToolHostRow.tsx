@@ -6,7 +6,9 @@ import type { RemoteToolHostInfo } from '@dotcraft/sdk/contracts'
 import type { ConversationItem } from '../../types/conversation'
 import {
   formatRemoteToolHostLabel,
+  getRemoteFileTransferDisplay,
   readRemoteToolHostOperation,
+  type RemoteFileTransferDisplay,
   type RemoteToolHostNames
 } from '../../utils/remoteToolHostDisplay'
 import styles from './RemoteToolHostRow.module.css'
@@ -22,9 +24,10 @@ interface RemoteToolHostRowInput {
 }
 
 export interface RemoteToolHostRow {
-  /** Only the catalog has anything behind the row; joining and leaving are the sentence. */
   expandable: boolean
+  failed: boolean
   title: ReactNode
+  transfer?: RemoteFileTransferDisplay
 }
 
 const NO_HOSTS: RemoteToolHostInfo[] = []
@@ -58,13 +61,20 @@ export function useRemoteToolHostRow({
       : undefined
   }), [hosts, routeHostId])
 
+  const phase = running ? 'running' : success ? 'completed' : 'failed'
+  const operation = enabled ? readRemoteToolHostOperation(item) : null
+  const transfer = operation === 'transfer'
+    ? getRemoteFileTransferDisplay(item, phase, locale, names)
+    : null
   const label = enabled
-    ? formatRemoteToolHostLabel(item, running ? 'running' : success ? 'completed' : 'failed', locale, names)
+    ? transfer?.label ?? formatRemoteToolHostLabel(item, phase, locale, names)
     : null
   if (label == null) return null
 
   return {
-    expandable: readRemoteToolHostOperation(item) === 'list',
+    expandable: ['list', 'transfer'].includes(operation ?? ''),
+    failed: transfer?.stage === 'failed',
+    ...(transfer ? { transfer } : {}),
     title: (
       <span className={styles.title} data-testid="remote-tool-host-row-title">
         <SatelliteDish size={13} strokeWidth={1.8} aria-hidden className={styles.glyph} />

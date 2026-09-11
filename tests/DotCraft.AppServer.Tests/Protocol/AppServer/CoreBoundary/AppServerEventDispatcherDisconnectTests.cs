@@ -16,6 +16,56 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class AppServerEventDispatcherDisconnectTests
 {
+    [Theory]
+    [InlineData(true, true, 1)]
+    [InlineData(true, false, 1)]
+    [InlineData(false, true, 0)]
+    public async Task RunAsync_ToolExecutionProgress_RequiresLifecycleCapability(
+        bool toolExecutionLifecycle,
+        bool streamingSupport,
+        int expectedNotifications)
+    {
+        using var harness = new AppServerTestHarness();
+        var transport = new CapturingTransport();
+        var evt = new SessionEvent
+        {
+            EventId = "e_transfer_progress",
+            EventType = SessionEventType.ItemDelta,
+            ThreadId = "thread_001",
+            TurnId = "turn_001",
+            ItemId = "item_transfer_001",
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = new ToolExecutionProgressPayload
+            {
+                CallId = "call_transfer_001",
+                ToolName = "RemoteToolHost.Transfer",
+                Progress = new RemoteFileTransferProgress(
+                    "transferring", "upload", "C:/tools", "D:/tools", "host_1", "B-Laptop",
+                    512, 0, 0, 1024, 1, "checker.exe")
+            }
+        };
+        var dispatcher = new AppServerEventDispatcher(
+            TrackEvents([evt], []),
+            CreateReadyConnection(
+                toolExecutionLifecycle: toolExecutionLifecycle,
+                streamingSupport: streamingSupport),
+            transport,
+            harness.Service);
+
+        await dispatcher.RunAsync();
+
+        Assert.Equal(expectedNotifications, transport.Sent.Count);
+        if (expectedNotifications == 1)
+        {
+            var json = JsonSerializer.Serialize(Assert.Single(transport.Sent));
+            Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolExecutionProgress, json);
+            Assert.Contains("item_transfer_001", json);
+            Assert.Contains("call_transfer_001", json);
+            Assert.Contains("remoteFileTransfer", json);
+            Assert.Contains("checker.exe", json);
+        }
+    }
+
     [Fact]
     public async Task RunAsync_ReplayRecent_DoesNotSendHistoricalThreadStatusChanges()
     {
@@ -511,7 +561,9 @@ public sealed class AppServerEventDispatcherDisconnectTests
         bool requestUserInputSupport = false,
         bool mcpApps = false,
         bool backgroundTerminals = false,
-        bool optOutTerminalDelta = false)
+        bool optOutTerminalDelta = false,
+        bool toolExecutionLifecycle = false,
+        bool streamingSupport = true)
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
@@ -519,10 +571,11 @@ public sealed class AppServerEventDispatcherDisconnectTests
             new ClientConnectionCapabilities
             {
                 ApprovalSupport = true,
-                StreamingSupport = true,
+                StreamingSupport = streamingSupport,
                 RequestUserInputSupport = requestUserInputSupport,
                 McpApps = mcpApps,
                 BackgroundTerminals = backgroundTerminals,
+                ToolExecutionLifecycle = toolExecutionLifecycle,
                 OptOutNotificationMethods = optOutTerminalDelta
                     ? [DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta]
                     : []

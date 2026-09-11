@@ -628,6 +628,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         {
             CurrentInvocationContext.Value = context;
             using var hookFeedbackScope = StreamingToolFeedbackRuntimeScope.Set(hookFeedback.Add);
+            using var toolProgressScope = StreamingToolInvocationRuntimeScope.SetAttempt(toolExecution);
             var policyDecision = ModeToolPolicy?.Invoke(context);
             if (policyDecision is { Kind: not ModeToolPolicyDecisionKind.Allow })
             {

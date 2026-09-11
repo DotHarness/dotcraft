@@ -24,8 +24,6 @@ HostName: {Encode(snapshot.Environment.HostName)}
 OperatingSystem: {Encode(snapshot.Environment.OperatingSystem)}
 UserName: {Encode(snapshot.Environment.UserName)}
 RemoteWorkingDirectory: {Encode(snapshot.Environment.WorkspacePath)}
-Additional access may wait up to two minutes for the remote machine owner.
-Owner denial cannot be overridden here. Do not retry a denied request without new owner instructions.
 """;
     }
 

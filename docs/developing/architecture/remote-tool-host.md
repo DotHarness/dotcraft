@@ -67,6 +67,33 @@ sample-project on <machine-id> with RemoteToolHost.Connect.
 
 A workspace serves one Agent Host at a time. If it is already held, disconnect it there or wait for it to be released — there is no queue and no takeover. A remote failure is reported as a remote failure; DotCraft never silently retries the call against the local binding.
 
+## Local access and file transfer
+
+RPC tools accept `target: "local"` or `target: "remote"`. Omit it to follow the conversation's connection. For example, `ReadFile({ "path": "scripts/check.py", "target": "local" })` reads the Agent's workspace without disconnecting. Use the same target for `WriteStdin` as for the `Exec` that started its terminal.
+
+`RemoteToolHost.Transfer` copies files or directories directly between machines:
+
+```json
+{
+  "direction": "upload",
+  "localPath": "tools/checker",
+  "remotePath": "tools/checker",
+  "overwrite": false
+}
+```
+
+Use `download` to copy from the remote machine. Paths name exact destinations, relative to each machine's workspace or absolute. Directories merge, preserving extra files; replacing existing files requires `overwrite: true`. The result reports completed files and bytes if a transfer stops partway through. Incomplete files are discarded. Plan mode does not allow explicit transfers.
+
+Transfers use the existing connection and enforce both machines' file policies. They reject filesystem links, check SHA-256, and commit each file atomically. The Host's `Tools.File.MaxTransferBytes` defaults to 10 GiB, independently of the text read limit. A lost commit response is reported as an unknown outcome and is not automatically retried.
+
+## Skill and plugin resources
+
+Skills and plugin packages stay on the Agent machine. `SkillView` reads local instructions, and the Skill catalog gives the effective local path, including variants. Use `ReadFile` with `target: "local"` for supporting files while connected.
+
+The Agent uses `Transfer` to copy scripts, directories, or CLI files needed remotely, preserving their relative dependencies and using the effective Skill variant where applicable. Transferred files remain after disconnect, with destinations and overwrites chosen explicitly. Copying a plugin package does not activate it or install dependencies. Executables must support the remote OS.
+
+Connect negotiates tools and file transfer support before publishing the route. If connection setup fails, the previous route remains. Upgrade Satellites that lack file transfer support before connecting.
+
 ## End a pairing
 
 ```powershell

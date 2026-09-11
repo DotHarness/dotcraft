@@ -138,7 +138,7 @@ describe('ToolRendererRegistry', () => {
     })
   })
 
-  it.each(['list', 'connect', 'disconnect'])(
+  it.each(['list', 'connect', 'disconnect', 'transfer'])(
     'resolves the remote tool host %s row as a collapsible tool row',
     (operation) => {
       expect(coreToolRendererRegistry.resolve(item(

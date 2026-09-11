@@ -93,6 +93,7 @@ public static class StreamingToolFeedbackRuntimeScope
 /// <summary>One Session Core observation lease for a function invocation.</summary>
 public interface IStreamingToolInvocationAttempt
 {
+    void ReportProgress(object progress);
     void CompleteSuccess(object? result);
     void CompleteFailure(string errorMessage, object? result = null);
     void CompleteCancelled(string? errorMessage = null);
@@ -110,6 +111,7 @@ public interface IStreamingToolInvocationObserver
 public static class StreamingToolInvocationRuntimeScope
 {
     private static readonly AsyncLocal<IStreamingToolInvocationObserver?> CurrentObserver = new();
+    private static readonly AsyncLocal<IStreamingToolInvocationAttempt?> CurrentAttempt = new();
 
     public static IStreamingToolInvocationObserver? Current => CurrentObserver.Value;
 
@@ -119,6 +121,19 @@ public static class StreamingToolInvocationRuntimeScope
         var previous = CurrentObserver.Value;
         CurrentObserver.Value = observer;
         return new RestoreScope(() => CurrentObserver.Value = previous);
+    }
+
+    internal static IDisposable SetAttempt(IStreamingToolInvocationAttempt? attempt)
+    {
+        var previous = CurrentAttempt.Value;
+        CurrentAttempt.Value = attempt;
+        return new RestoreScope(() => CurrentAttempt.Value = previous);
+    }
+
+    public static void ReportProgress(object progress)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        CurrentAttempt.Value?.ReportProgress(progress);
     }
 }
 

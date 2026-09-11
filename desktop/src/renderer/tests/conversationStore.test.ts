@@ -553,6 +553,78 @@ describe('turn lifecycle', () => {
     expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
+  it('merges remote transfer progress into its tool call', () => {
+    s().setTurns([{
+      id: 'turn-transfer',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-09-11T00:00:00Z',
+      items: [
+        {
+          id: 'tool-transfer',
+          type: 'toolCall',
+          status: 'running',
+          toolName: 'RemoteToolHost.Transfer',
+          toolCallId: 'call-transfer',
+          createdAt: '2026-09-11T00:00:00Z'
+        },
+        {
+          id: 'execution-transfer',
+          type: 'toolExecution',
+          status: 'running',
+          toolName: 'RemoteToolHost.Transfer',
+          toolCallId: 'call-transfer',
+          createdAt: '2026-09-11T00:00:00Z'
+        }
+      ]
+    }])
+    const progress = {
+      kind: 'remoteFileTransfer' as const,
+      stage: 'transferring' as const,
+      direction: 'upload' as const,
+      localPath: 'C:/tools/checker',
+      remotePath: 'D:/tools/checker',
+      hostId: 'host-1',
+      hostDisplayName: 'B-Laptop',
+      transferredBytes: 512,
+      completedFiles: 0,
+      completedBytes: 0,
+      totalBytes: 1024,
+      totalFiles: 1,
+      currentFile: 'checker.exe'
+    }
+
+    s().onToolExecutionProgress({
+      turnId: 'turn-transfer',
+      itemId: 'execution-transfer',
+      callId: 'call-transfer',
+      progress
+    })
+
+    expect(s().turns[0].items.find((entry) => entry.id === 'tool-transfer')?.transferProgress)
+      .toEqual(progress)
+
+    s().onItemCompleted({
+      turnId: 'turn-transfer',
+      item: {
+        id: 'execution-transfer',
+        type: 'toolExecution',
+        completedAt: '2026-09-11T00:00:01Z',
+        payload: {
+          callId: 'call-transfer',
+          toolName: 'RemoteToolHost.Transfer',
+          status: 'completed',
+          success: true,
+          durationMs: 1000,
+          resultPreview: '{"success":true,"completedFiles":1}'
+        }
+      }
+    })
+
+    expect(s().turns[0].items.find((entry) => entry.id === 'tool-transfer')?.transferProgress)
+      .toBeUndefined()
+  })
+
   it('applies terminal output that arrives before the matching Exec toolCall item', () => {
     vi.useFakeTimers()
     s().onTurnStarted(makeTurn())

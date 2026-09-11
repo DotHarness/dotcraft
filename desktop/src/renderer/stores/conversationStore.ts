@@ -8,7 +8,8 @@ import type {
   ApprovalState,
   ApprovalType,
   PendingComposerMessage,
-  QueuedTurnInput
+  QueuedTurnInput,
+  RemoteFileTransferProgress
 } from '../types/conversation'
 import {
   derivePluginFunctionResultText,
@@ -393,6 +394,12 @@ interface ConversationActions {
     delta?: string
     toolName?: string
     callId?: string
+  }): void
+  onToolExecutionProgress(params: {
+    turnId?: string
+    itemId?: string
+    callId?: string
+    progress: RemoteFileTransferProgress
   }): void
   onItemCompleted(params: Record<string, unknown>): void
   /**
@@ -807,6 +814,7 @@ function mergeToolExecutionIntoToolCall(
     duration: toolExecution.duration ?? item.duration,
     resultPreview,
     result: item.result ?? resultPreview,
+    transferProgress: undefined,
     errorMessage: toolExecution.errorMessage ?? item.errorMessage,
     executionStatus: toolExecution.executionStatus ?? item.executionStatus,
     completedAt: toolExecution.completedAt ?? item.completedAt
@@ -841,6 +849,7 @@ function mergeToolResultIntoToolCall(
     ...item,
     status: 'completed',
     result: toolResult.result ?? item.result ?? '',
+    transferProgress: undefined,
     contentItems: toolResult.contentItems ?? item.contentItems,
     success: toolResult.success ?? item.success ?? true,
     duration,
@@ -2266,6 +2275,28 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     if (isTerminalExecutionStatus(commandExecution.executionStatus)
         || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
     queueShellRuntimeUpdate(commandExecution.toolCallId, 'commandExecution', delta, false)
+  },
+
+  onToolExecutionProgress(params) {
+    const turnId = params.turnId ?? ''
+    const itemId = params.itemId ?? ''
+    const callId = params.callId ?? ''
+    if (!turnId || !itemId || !callId) return
+
+    set((state) => ({
+      turns: state.turns.map((turn) => turn.id !== turnId
+        ? turn
+        : {
+            ...turn,
+            items: turn.items.map((item) => {
+              const isExecution = item.id === itemId && item.type === 'toolExecution'
+              const isToolCall = item.type === 'toolCall' && item.toolCallId === callId
+              return isExecution || isToolCall
+                ? { ...item, transferProgress: params.progress }
+                : item
+            })
+          })
+    }))
   },
 
   onTerminalEvent(params) {

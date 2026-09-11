@@ -9,6 +9,12 @@ internal sealed partial class RemoteToolHostClient
 
     public event Action<RemoteToolRouteChange>? RouteChanged;
 
+    private string ResolveHostDisplayName(string hostId, string fallback)
+    {
+        lock (_stateGate)
+            return _hostDisplayNames.TryGetValue(hostId, out var displayName) ? displayName : fallback;
+    }
+
     private void CaptureDisplayNames(IReadOnlyList<RemoteToolHostDescriptor> descriptors)
     {
         lock (_stateGate)

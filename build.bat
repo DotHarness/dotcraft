@@ -264,6 +264,7 @@ if %ERRORLEVEL% neq 0 (
 )
 set SATELLITE_PUBLISH=src\DotCraft.Satellite\bin\publish\win-x64
 set SATELLITE_RELEASE=src\DotCraft.Satellite\bin\velopack
+if exist "%SATELLITE_PUBLISH%" rmdir /s /q "%SATELLITE_PUBLISH%"
 if exist "%SATELLITE_RELEASE%" rmdir /s /q "%SATELLITE_RELEASE%"
 call dotnet publish "src\DotCraft.Satellite\DotCraft.Satellite.csproj" -c Release -r win-x64 -o "%SATELLITE_PUBLISH%"
 if %ERRORLEVEL% neq 0 (

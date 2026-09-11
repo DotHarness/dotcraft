@@ -295,8 +295,22 @@ While a turn is actively running, the conversation view must always show visible
 | `item/toolCall/argumentsDelta` | Tool argument construction streams incrementally. For known built-in tools, the client renders a bespoke running label (e.g. "Writing <path>", "Searching \"<pattern>\"", "Drafting plan...") and, where useful, a progressive preview of the parsed argument fields. For unknown tools (including MCP and module tools), the client renders a generic "Generating parameters for <toolName>..." placeholder without surfacing the raw argument JSON. |
 | `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Running shell output/status is merged by `terminal.threadId + terminal.callId` into the matching `Exec` tool card in both the conversation view and the Terminal review surface. |
 | `item/commandExecution/outputDelta` | Compatibility fallback for clients or sessions that do not receive `terminal/*`; Desktop must not double-render the same shell output when both paths are present. |
+| `item/toolExecution/progress` | Structured progress is merged by `itemId` and `callId` into the matching tool row. Remote file transfer shows the captured route and live byte/file progress without exposing raw result JSON. |
 | `item/completed` | The final item output replaces or finalizes any in-progress representation. A trusted presentation descriptor may select a local renderer, and an eligible terminal `mcpToolCall` may advertise a live MCP Apps View; generic fallback remains available. |
 | `item/usage/delta` | Context usage indicators refresh when the client surfaces real-time usage. Deltas accumulate for the active turn and are reconciled by the final `turn/completed.tokenUsage` snapshot. |
+
+The Remote Tool Host Transfer renderer names the item, direction, captured machine, and state in the
+tool row. Its expanded body keeps source machine and path, an arrow, and destination machine and path
+on one line; long paths ellipsize, retain a full-path tooltip, and can be copied. Preparing uses an
+indeterminate neutral meter. Transferring shows byte progress, confirmed file counts, and the current
+file. Failure preserves the last progress and confirmed destination bytes, with the reason on the
+error-toned row. Completed appends final file and byte counts to the row and leaves only the route in
+the body. Raw JSON is not rendered.
+
+Transfer reuses the existing delayed auto-expand behavior for live tool output and the corresponding
+terminal auto-collapse. Manual disclosure interaction remains authoritative. Reduced-motion settings
+stop indeterminate animation. Historical results without totals show known statistics without a
+percentage, and must not borrow the current thread route to label an older transfer.
 
 ### 4.4 Approval Events
 

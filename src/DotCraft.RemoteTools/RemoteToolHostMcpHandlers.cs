@@ -39,6 +39,11 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     /// <summary>The Hub-assigned peer id is the host identity every Agent-side surface sees.</summary>
     public IReadOnlyList<McpServerRequestHandler> CreateExtensionHandlers(string peerId) =>
     [
+        Raw(RemoteFileTransferProtocol.Open, (request, ct) => OpenFileTransferAsync(request, peerId, ct)),
+        Raw(RemoteFileTransferProtocol.Read, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Read, ct)),
+        Raw(RemoteFileTransferProtocol.Write, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Write, ct)),
+        Raw(RemoteFileTransferProtocol.Commit, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Commit, ct)),
+        Raw(RemoteFileTransferProtocol.Close, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Close, ct)),
         Raw(RemoteImageWriteRequest.Method, (request, ct) => WriteImageAsync(request, peerId, ct)),
         Raw(
             RemoteToolHostProtocol.WorkspacesList,
@@ -261,7 +266,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             contracts,
             state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId).OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair => ToCatalogEntry(pair.Key, pair.Value, parameters.ClientInstanceId))
-                .ToArray());
+                .ToArray(), ["files-v1"]);
         return JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions);
     }
 

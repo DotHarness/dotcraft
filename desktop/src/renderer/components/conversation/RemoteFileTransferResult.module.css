@@ -1,0 +1,155 @@
+.transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  user-select: text;
+}
+
+.endpoint {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.arrow,
+.machine,
+.percent {
+  flex-shrink: 0;
+}
+
+.arrow,
+.retained,
+.current {
+  color: var(--text-dimmed);
+}
+
+.machine {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pathCell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.path {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy {
+  margin: -3px 0;
+  color: var(--text-dimmed);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.pathCell:hover .copy,
+.pathCell[data-copied] .copy,
+.copy:focus-visible {
+  opacity: 1;
+}
+
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.meter progress {
+  appearance: none;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+}
+
+.meter progress::-webkit-progress-bar {
+  background: var(--bg-tertiary);
+}
+
+.meter progress::-webkit-progress-value,
+.meter progress::-moz-progress-bar {
+  border-radius: 2px;
+  background: var(--text-secondary);
+}
+
+.meter progress:indeterminate {
+  background-image: linear-gradient(var(--text-secondary), var(--text-secondary));
+  background-repeat: no-repeat;
+  background-size: 35% 100%;
+  animation: transferPreparing 1.8s ease-in-out infinite alternate;
+}
+
+.meter progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+.meter progress:indeterminate::-moz-progress-bar {
+  background: transparent;
+}
+
+@keyframes transferPreparing {
+  to { background-position: 100% 0; }
+}
+
+.percent {
+  min-width: 3.5ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats > * + *::before {
+  margin: 0 6px;
+  color: var(--text-dimmed);
+  content: '·';
+}
+
+.current {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+  overflow-wrap: anywhere;
+}
+
+:global(html[data-reduce-motion='on']) .meter progress:indeterminate {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-reduce-motion='off'])) .meter progress:indeterminate {
+    animation: none;
+  }
+}

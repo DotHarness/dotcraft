@@ -2769,23 +2769,6 @@ public sealed partial class SessionService(
                     ];
                 }
 
-                var userMessage = new ChatMessage(
-                    ChatRole.User,
-                    modelInputContent.AppendRuntimeContext(
-                        turn.Initiator,
-                        runtimeModeManager,
-                        thread.WorkspacePath,
-                        hasActivePlan,
-                        threadGoalForContext,
-                        lifecycleHookContext,
-                        agentFactory.RuntimeContext.RuntimeContextContributors
-                            .Select(provider => provider.BuildRuntimeContext(thread))
-                            .Where(static section => !string.IsNullOrWhiteSpace(section))
-                            .Cast<string>()
-                            .ToArray(),
-                        agentFactory.RuntimeContext.Contributions?
-                            .Resolve<IChatContextProvider>(threadId)));
-
                 // Step 5e: Set up approval service override
                 var approvalPolicy = ResolveApprovalPolicy(turnContext.Configuration.ApprovalPolicy);
                 IApprovalService turnApprovalService;
@@ -2896,6 +2879,24 @@ public sealed partial class SessionService(
                         effectiveWorkspace.Cwd,
                         turnApprovalService,
                         this));
+
+                var userMessage = new ChatMessage(
+                    ChatRole.User,
+                    modelInputContent.AppendRuntimeContext(
+                        turn.Initiator,
+                        runtimeModeManager,
+                        thread.WorkspacePath,
+                        hasActivePlan,
+                        threadGoalForContext,
+                        lifecycleHookContext,
+                        agentFactory.RuntimeContext.RuntimeContextContributors
+                            .Select(provider => provider.BuildRuntimeContext(thread))
+                            .Where(static section => !string.IsNullOrWhiteSpace(section))
+                            .Cast<string>()
+                            .ToArray(),
+                        agentFactory.RuntimeContext.Contributions?
+                            .Resolve<IChatContextProvider>(threadId)));
+
                 using var commandExecutionScope = CommandExecutionRuntimeScope.Set(
                     new CommandExecutionRuntimeContext
                     {
@@ -2916,6 +2917,7 @@ public sealed partial class SessionService(
                         Turn = turn,
                         NextItemSequence = NextItemSeq,
                         EmitItemStarted = eventChannel.EmitItemStarted,
+                        EmitItemDelta = eventChannel.EmitItemDelta,
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
                         SupportsToolExecutionLifecycle = supportsToolExecutionLifecycle
                     });

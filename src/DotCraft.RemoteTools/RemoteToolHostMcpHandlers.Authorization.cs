@@ -52,7 +52,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         {
             var path = Argument(args, toolName == "LSP" ? "filePath" : "path");
             var operation = toolName == "EditFile" ? "edit" : toolName == "WriteFile" ? "write" : "read";
-            var config = DotCraft.Configuration.AppConfig.Load(_storage.GlobalConfigPath);
+            var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath, workspacePath);
             var guard = new FileAccessGuard(workspacePath, approvalService: new HostInvocationApprovalService(),
                 blacklist: new PathBlacklist(config.Security.BlacklistedPaths));
             var error = await guard.ValidatePathAsync(guard.ResolvePath(path), operation, path, ct).ConfigureAwait(false);

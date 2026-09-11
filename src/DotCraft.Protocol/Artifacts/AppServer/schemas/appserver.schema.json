@@ -17274,6 +17274,37 @@
         "toolName"
       ]
     },
+    "ToolExecutionProgressNotification": {
+      "title": "ToolExecutionProgressNotification",
+      "type": "object",
+      "properties": {
+        "callId": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "progress": {},
+        "threadId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "callId",
+        "itemId",
+        "progress",
+        "threadId",
+        "toolName",
+        "turnId"
+      ]
+    },
     "ToolInfo": {
       "title": "ToolInfo",
       "type": "object",

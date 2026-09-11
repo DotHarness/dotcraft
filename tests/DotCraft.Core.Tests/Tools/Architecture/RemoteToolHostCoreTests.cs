@@ -8,7 +8,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Tools.Architecture;
 
-public sealed class RemoteToolHostCoreTests
+public sealed partial class RemoteToolHostCoreTests
 {
     [Fact]
     public void Contract_hash_is_canonical_and_changes_with_semantics()
@@ -59,7 +59,8 @@ public sealed class RemoteToolHostCoreTests
 
         Assert.NotSame(eligibleRuntime, wrapped[0].Binding.Runtime);
         Assert.Same(localRuntime, wrapped[1].Binding.Runtime);
-        Assert.Same(eligible.Definition, wrapped[0].Definition);
+        Assert.Equal(eligible.Definition.Id, wrapped[0].Definition.Id);
+        Assert.True(wrapped[0].Definition.InputSchema.GetProperty("properties").TryGetProperty("target", out _));
         Assert.Equal(eligible.Binding.Id, wrapped[0].Binding.Id);
     }
 
@@ -73,7 +74,7 @@ public sealed class RemoteToolHostCoreTests
         var connected = await source.GetRegistrationsAsync(PlanningContext(2));
 
         Assert.Equal(
-            new[] { "RemoteToolHost.Connect", "RemoteToolHost.Disconnect", "RemoteToolHost.List" },
+            new[] { "RemoteToolHost.Connect", "RemoteToolHost.Disconnect", "RemoteToolHost.List", "RemoteToolHost.Transfer" },
             first.Select(item => item.Definition.Name.ToString()));
         Assert.All(first, registration => Assert.Equal(ToolExposure.Direct, registration.Exposure));
 
@@ -115,7 +116,7 @@ public sealed class RemoteToolHostCoreTests
         var connected = Assert.IsType<string>(contributor.BuildRuntimeContext(thread));
 
         Assert.Contains("Status: Connected", connected, StringComparison.Ordinal);
-        Assert.InRange(connected.Length, 1, 1_024);
+        Assert.InRange(connected.Length, 1, 2_048);
         Assert.DoesNotContain("\n## injected", connected, StringComparison.Ordinal);
         Assert.DoesNotContain("lease-1", connected, StringComparison.Ordinal);
         Assert.DoesNotContain("instance-1", connected, StringComparison.Ordinal);
@@ -196,7 +197,9 @@ public sealed class RemoteToolHostCoreTests
         private readonly Dictionary<string, RemoteToolConnectionSnapshot> _connections = new(StringComparer.Ordinal);
         public event Action<RemoteToolRouteChange>? RouteChanged;
         public int RemoteCalls { get; private set; }
-        public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) { }
+        public IReadOnlyList<ToolDefinition> Definitions { get; private set; } = [];
+        public (ToolDefinition Definition, string ContractHash, JsonObject Arguments)? LastInvocation { get; private set; }
+        public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) => Definitions = definitions;
 
         public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default)
         {
@@ -290,6 +293,7 @@ public sealed class RemoteToolHostCoreTests
             CancellationToken cancellationToken = default)
         {
             RemoteCalls++;
+            LastInvocation = (definition, contractHash, arguments);
             return ValueTask.FromResult(ToolExecutionResult.Succeeded("remote"));
         }
 

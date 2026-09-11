@@ -4233,6 +4233,16 @@ export interface ToolExecutionPayload {
   [key: string]: unknown;
 }
 
+export interface ToolExecutionProgressNotification {
+  callId: string;
+  itemId: string;
+  progress: JsonValue;
+  threadId: string;
+  toolName: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
 export interface ToolInfo {
   description?: string;
   icon?: string;

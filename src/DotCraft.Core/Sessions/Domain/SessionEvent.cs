@@ -69,6 +69,9 @@ public sealed class SessionEvent
     public ToolCallArgumentsDelta? ToolCallArgumentsDeltaPayload => Payload as ToolCallArgumentsDelta;
 
     [JsonIgnore]
+    public ToolExecutionProgressPayload? ToolExecutionProgressPayload => Payload as ToolExecutionProgressPayload;
+
+    [JsonIgnore]
     public ThreadStatusChangedPayload? StatusChangedPayload => Payload as ThreadStatusChangedPayload;
 
     [JsonIgnore]

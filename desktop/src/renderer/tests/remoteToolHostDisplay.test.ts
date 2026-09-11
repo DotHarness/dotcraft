@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
 import {
   formatRemoteToolHostLabel,
+  getRemoteFileTransferDisplay,
+  normalizeRemoteFileTransferProgress,
   parseRemoteToolHostCatalog,
   readRemoteToolHostOperation,
   type RemoteToolHostNames
@@ -72,7 +74,7 @@ const CONNECTED = JSON.stringify({
 })
 
 describe('readRemoteToolHostOperation', () => {
-  it.each(['list', 'connect', 'disconnect'])('accepts the %s operation', (operation) => {
+  it.each(['list', 'connect', 'disconnect', 'transfer'])('accepts the %s operation', (operation) => {
     expect(readRemoteToolHostOperation(item(operation))).toBe(operation)
   })
 
@@ -112,6 +114,86 @@ describe('parseRemoteToolHostCatalog', () => {
 })
 
 describe('formatRemoteToolHostLabel', () => {
+  it('reports a partial transfer failure even when the tool returned a result', () => {
+    expect(formatRemoteToolHostLabel(item('transfer', {
+      arguments: { direction: 'upload', localPath: 'C:/tools/checker', remotePath: 'D:/tools/checker' },
+      result: JSON.stringify({
+        success: false,
+        direction: 'upload',
+        localPath: 'C:/tools/checker',
+        remotePath: 'D:/tools/checker',
+        hostDisplayName: 'Studio PC',
+        completedFiles: 2,
+        completedBytes: 1024,
+        errorCode: 'remote_lease_lost'
+      })
+    }), 'completed', 'en', NAMES)).toBe(
+      'Could not upload checker to Studio PC · The connection to that folder was lost.'
+    )
+  })
+
+  it('uses live transfer progress and final result fields for the row label', () => {
+    const live = item('transfer', {
+      arguments: { direction: 'upload', localPath: 'C:/tools/checker', remotePath: 'D:/tools/checker' },
+      transferProgress: {
+        kind: 'remoteFileTransfer',
+        stage: 'transferring',
+        direction: 'upload',
+        localPath: 'C:/tools/checker',
+        remotePath: 'D:/tools/checker',
+        hostId: 'sat_studio',
+        hostDisplayName: 'Studio PC',
+        transferredBytes: 512,
+        completedFiles: 0,
+        completedBytes: 0,
+        totalBytes: 1024,
+        totalFiles: 1,
+        currentFile: 'checker.exe'
+      }
+    })
+    expect(formatRemoteToolHostLabel(live, 'running', 'en', NAMES))
+      .toBe('Uploading checker to Studio PC')
+
+    const completed = item('transfer', {
+      result: JSON.stringify({
+        success: true,
+        direction: 'download',
+        localPath: 'C:/tools/checker',
+        remotePath: 'D:/tools/checker',
+        hostDisplayName: 'Studio PC',
+        completedFiles: 1,
+        completedBytes: 1024,
+        totalFiles: 1,
+        totalBytes: 1024,
+        transferredBytes: 1024
+      })
+    })
+    expect(formatRemoteToolHostLabel(completed, 'completed', 'en', NO_NAMES))
+      .toBe('Downloaded checker from Studio PC · 1 file, 1 KiB')
+  })
+
+  it('accepts only remote file transfer progress snapshots', () => {
+    const progress = normalizeRemoteFileTransferProgress({
+      kind: 'remoteFileTransfer',
+      stage: 'preparing',
+      direction: 'download',
+      localPath: 'C:/tools/checker',
+      remotePath: 'D:/tools/checker',
+      hostId: 'sat_studio',
+      hostDisplayName: 'Studio PC',
+      transferredBytes: 0,
+      completedFiles: 0,
+      completedBytes: 0
+    })
+
+    expect(progress?.stage).toBe('preparing')
+    expect(getRemoteFileTransferDisplay(item('transfer', {
+      arguments: { direction: 'download', localPath: 'C:/tools/checker', remotePath: 'D:/tools/checker' },
+      transferProgress: progress ?? undefined
+    }), 'running', 'en', NAMES)?.host).toBe('Studio PC')
+    expect(normalizeRemoteFileTransferProgress({ ...progress, kind: 'other' })).toBeNull()
+  })
+
   it('says what a listing is doing and what it found', () => {
     expect(formatRemoteToolHostLabel(item('list'), 'running', 'en', NAMES))
       .toBe('Listing remote machines')
