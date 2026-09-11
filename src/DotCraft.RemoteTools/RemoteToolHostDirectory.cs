@@ -112,6 +112,10 @@ internal sealed class HubRemoteToolHostDirectory(IHubEndpointProvider endpoints)
                     RemoteToolErrorCodes.AuthenticationFailed,
                     "The local Hub rejected this process's Hub token.",
                     inner: ex),
+                HttpStatusCode.ServiceUnavailable => new RemoteToolHostException(
+                    RemoteToolErrorCodes.HostOffline,
+                    "The paired machine is not connected to the Hub.",
+                    inner: ex),
                 _ => new RemoteToolHostException(
                     RemoteToolErrorCodes.HubUnavailable,
                     $"The local Hub at {hub.BaseUrl} did not open a session bridge.",

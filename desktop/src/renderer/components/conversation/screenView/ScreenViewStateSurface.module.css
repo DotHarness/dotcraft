@@ -1,0 +1,97 @@
+.surface {
+  position: relative;
+  display: grid;
+  background: var(--bg-primary);
+  place-items: center;
+}
+
+.surface > * {
+  grid-area: 1 / 1;
+}
+
+.surface > canvas {
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+.surface[data-state='connecting'] > canvas {
+  opacity: 0;
+}
+
+.surface[data-state='waiting'] > canvas {
+  filter: saturate(0.6) brightness(0.7);
+}
+
+.surface[data-state='idle'] > canvas {
+  filter: brightness(0.4);
+}
+
+.glyph {
+  width: 22%;
+  height: auto;
+  min-width: 18px;
+  max-width: 72px;
+  color: var(--text-dimmed);
+}
+
+.surface[data-state='connecting'] .glyph {
+  animation: screen-view-breathe 1400ms var(--ease-standard) infinite;
+}
+
+.mark {
+  position: relative;
+  display: grid;
+  width: 22%;
+  min-width: 18px;
+  max-width: 72px;
+  place-items: center;
+}
+
+.mark .glyph {
+  width: 100%;
+  max-width: none;
+}
+
+.pause {
+  position: absolute;
+  right: -6%;
+  bottom: -6%;
+  width: 40%;
+  height: auto;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.dot {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  animation: screen-view-breathe 1400ms var(--ease-standard) infinite;
+}
+
+@keyframes screen-view-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
+}
+
+:global(html[data-reduce-motion='on']) .glyph,
+:global(html[data-reduce-motion='on']) .dot {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-reduce-motion='off'])) .glyph,
+  :global(html:not([data-reduce-motion='off'])) .dot {
+    animation: none;
+  }
+}

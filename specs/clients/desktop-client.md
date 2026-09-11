@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-09-09 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -107,6 +107,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [10.1 Viewer Panel](#101-viewer-panel)
   - [10.2 Browser Automation](#102-browser-automation)
   - [10.3 Desktop Pet](#103-desktop-pet)
+  - [10.4 Remote Screen View](#104-remote-screen-view)
 
 ---
 
@@ -1037,6 +1038,7 @@ Desktop owns a **Satellites** segment of the Connections settings page (§6.7) f
 
 - **Two planes, one key.** Enrollment (list, invite, revoke, presence) is read from Hub by the Desktop main process through the Hub Local API `/v1/satellites*` routes and Hub SSE events. Per-thread routing (connect, disconnect, route state) goes through the AppServer Protocol `remoteToolHost/*` methods. Both planes identify a machine by the same `hostId`, which is the Hub `peerId`. Desktop never routes fleet operations through an AppServer and never routes connect or disconnect through Hub.
 - The Hub bearer token never crosses into the renderer. The renderer sees only redacted satellite records and invitation URLs; the invitation URL is held in memory and is not persisted.
+- **A third plane for pixels.** A remote screen view (§10.4) is opened by the Desktop main process against the same Hub bridge with `kind=screen` and the Hub bearer; frames reach the renderer over a main-owned channel with a credit of one. The bearer never enters the renderer and the AppServer is not involved. A view exists only while its dock or theater is open on a visible window; hiding or minimizing the window stops capture on the satellite.
 - State vocabulary is three words: **offline** (the machine is not connected to Hub), **ready** (connected, no active lease), and **in use** (a thread holds a lease). Presence comes from Hub; lease state is overlaid from `remoteToolHost/list` and is simply absent when no AppServer is connected.
 - The Satellites segment shows a setup state when the Hub does not report the satellite capability. It uses the same list → detail drill-in grammar as the SSH segment, exposes at most one primary action (Invite a machine) in its section header, and has a first-run empty state whose one sentence states what the surface is. A row states its machine's state next to the machine, following the shared status indicator in [Desktop DESIGN.md](../architecture/DESIGN.md#status-indicators).
 - The detail page header carries the breadcrumb, a description line (user, system, joined date), and a status menu button giving the machine's state, with Refresh and a destructive Remove that confirms, because revoking removes durable authority. Below it are two sections: folders (a busy folder is marked as in use in this workspace or by another agent; the wire carries no holder identity beyond `self`/`other`) and recent activity from Hub events this Desktop already received. State is not repeated as a section of its own. A detail page takes the whole settings surface: the Connections header and segmented control are hidden while it is open, as they are for an SSH server page.
@@ -1191,3 +1193,12 @@ Desktop pet mode is a Desktop presentation of the composer mascot and its existi
 - While the companion is presenting the thread, the main window keeps its conversation state current even though it is hidden; work withheld while the window was backgrounded is applied as soon as the companion takes over, so approvals and completions reach the pill.
 - The pet may relay a pending tool approval: the pill renders the same decision options the Desktop composer offers and sends the chosen option back to the Desktop decision path, which remains the only resolver. The relay is refused unless the request the pet displayed is still the pending one, and an approval composer that replaces the source keeps the companion. User-input requests and plan confirmation still return to the full Desktop decision interface, and those surfaces never adopt the companion. Pet mode must not create an independent conversation state.
 - A plugin replacement of `composer.mascot` keeps its own character and opts out of the native drag transfer.
+
+### 10.4 Remote Screen View
+
+Desktop shows the live desktop of the machine a thread is routed to, as specified in [Remote Screen View](../features/remote-screen-view.md).
+
+- The launcher sits in the conversation header and opens a view when the thread has a route, the routed machine is connected, and it declared `screen-v1`; it stays visible for as long as a view is open. It opens a picture-in-picture dock that floats above the window's content and goes wherever the person drags it, clamped inside the window below the title bar, with its width and position remembered; a theater shows the same stream larger in a modal centred in the window, and returning to the dock does not reconnect.
+- One stream is open per window at a time. Switching threads closes it and remembers the view's mode per thread. A machine that goes offline does not close an open view: the view dims and redials until the machine returns, and closes only when the route is removed or the person closes it.
+- The view is read-only and latest-frame-only, and it never says its state in words. At rest the dock is the picture alone; name, expand, and close appear on hover or focus. A stalled, paused, or offline view keeps its last frame dimmed, with a pulsing dot while it is still trying and the satellite glyph when it has stopped; the state is spoken only by the surface's tooltip and accessible name, and the launcher's icon takes the accent colour only while the view is live.
+- Each surface asks the host for the width it can show — its CSS width times the device pixel ratio, in steps of 64 — at 8 frames per second, so a small dock costs the remote machine little and a hidden view nothing.

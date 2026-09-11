@@ -27,12 +27,15 @@ internal sealed class IslandWindow : Window, IDisposable
     private const int MaxWidthDips = 380;
     private const int CompactHeightDips = 34;
     private const int ApprovalHeightDips = 91;
-    private const int PanelBaseDips = 101;
+    private const int PanelBaseDips = 81;
     private const int PanelRowDips = 48;
+    /// <summary>One machine's row carries a single meta line, since the summary already names it.</summary>
+    private const int SingleRowDips = 40;
     private const int PanelRowsShown = 4;
     private const int WindowWidthDips = MaxWidthDips + (2 * MarginDips);
     private const int WindowHeightDips = TopRoomDips + PanelBaseDips + (PanelRowDips * PanelRowsShown) + MarginDips;
     private const int DragSlopPixels = 4;
+    private const int NearDips = 120;
     private const double CompactRadiusDips = 17;
     private const double PanelRadiusDips = 10;
 
@@ -41,6 +44,10 @@ internal sealed class IslandWindow : Window, IDisposable
 
     private static readonly TimeSpan MorphDuration = TimeSpan.FromMilliseconds(480);
     private static readonly TimeSpan ExitDuration = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>The capsule stays for the life of the process, so the poll idles while the pointer is away.</summary>
+    private static readonly TimeSpan PointerNear = TimeSpan.FromMilliseconds(16);
+    private static readonly TimeSpan PointerAway = TimeSpan.FromMilliseconds(96);
 
     private readonly IslandViewModel _viewModel;
     private readonly Grid _root = new();
@@ -70,6 +77,7 @@ internal sealed class IslandWindow : Window, IDisposable
     private bool _hovered;
     private bool _activatable;
     private bool _clickThrough;
+    private bool _disposed;
 
     public IslandWindow(IslandViewModel viewModel)
     {
@@ -96,17 +104,17 @@ internal sealed class IslandWindow : Window, IDisposable
         IslandNativeMethods.MakeLayered(_handle);
         SystemBackdrop = new TransparentBackdrop();
 
-        _root.ActualThemeChanged += (_, _) => Push();
+        _root.ActualThemeChanged += (_, _) => RunSurfaceAction(Push);
         Content = _root;
-        Activated += OnActivated;
+        Activated += (_, args) => RunSurfaceAction(() => HandleActivated(args));
 
         _pointer = DispatcherQueue.CreateTimer();
-        _pointer.Interval = TimeSpan.FromMilliseconds(16);
-        _pointer.Tick += (_, _) => Tick();
+        _pointer.Interval = PointerNear;
+        _pointer.Tick += (_, _) => RunSurfaceAction(Tick);
         _exit = DispatcherQueue.CreateTimer();
         _exit.Interval = ExitDuration;
         _exit.IsRepeating = false;
-        _exit.Tick += (_, _) => Hide();
+        _exit.Tick += (_, _) => RunSurfaceAction(Hide);
 
         // Activating once builds the XAML content, which a window that is never focused otherwise
         // never does. The no-activate style keeps this off the foreground.
@@ -115,15 +123,21 @@ internal sealed class IslandWindow : Window, IDisposable
         _appWindow.Hide();
         _ = LoadPageAsync();
 
-        _viewModel.PropertyChanged += (_, _) => Apply();
-        Apply();
+        _viewModel.PropertyChanged += (_, _) => RunSurfaceAction(Apply);
+        RunSurfaceAction(Apply);
     }
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         _pointer.Stop();
         _exit.Stop();
-        _controller?.Close();
+        try { _controller?.Close(); }
+        catch (Exception) { }
+        _controller = null;
+        _core = null;
     }
 
     private double Scale => Tray.TrayNativeMethods.GetDpiForWindow(_handle) is var dpi && dpi > 0
@@ -138,7 +152,9 @@ internal sealed class IslandWindow : Window, IDisposable
     private static int HeightDips(IslandStateModel state) => state.Mode switch
     {
         IslandMode.Approval => ApprovalHeightDips,
-        IslandMode.Expanded => PanelBaseDips + (PanelRowDips * Math.Min(state.Peers.Count, PanelRowsShown)),
+        IslandMode.Expanded => PanelBaseDips + (state.Peers.Count == 1
+            ? SingleRowDips
+            : (PanelRowDips * Math.Min(state.Peers.Count, PanelRowsShown)) - 2),
         _ => CompactHeightDips
     };
 
@@ -147,25 +163,34 @@ internal sealed class IslandWindow : Window, IDisposable
         IslandMode.Approval => "approval",
         IslandMode.Expanded => "expanded",
         IslandMode.Running => "running",
+        IslandMode.Standby => "standby",
+        IslandMode.Paused => "paused",
+        IslandMode.Offline => "offline",
         _ => "compact"
     };
 
     private async Task LoadPageAsync()
     {
+        CoreWebView2Controller? controller = null;
         try
         {
-            var controller = await SatellitePageHost.AttachAsync(
+            controller = await SatellitePageHost.AttachAsync(
                 _handle, "DotCraft.Satellite.island.html", transparent: true, OnWebMessage);
+            if (_disposed || _unavailable)
+            {
+                controller.Close();
+                return;
+            }
             controller.Bounds = ClientBounds();
             controller.IsVisible = _shown;
             _controller = controller;
+            controller.CoreWebView2.ProcessFailed += (_, _) => DisableSurface();
         }
         catch (Exception)
         {
-            // An empty capsule would still take the clicks over it, and no request could be answered there.
-            _unavailable = true;
-            _viewModel.Approvals.Disable();
-            Leave();
+            try { controller?.Close(); }
+            catch (Exception) { }
+            DisableSurface();
         }
     }
 
@@ -173,6 +198,11 @@ internal sealed class IslandWindow : Window, IDisposable
         new(0, 0, WindowWidthDips * Scale, WindowHeightDips * Scale);
 
     private void OnWebMessage(JsonElement message)
+    {
+        RunSurfaceAction(() => HandleWebMessage(message));
+    }
+
+    private void HandleWebMessage(JsonElement message)
     {
         switch (message.GetProperty("type").GetString())
         {
@@ -213,6 +243,9 @@ internal sealed class IslandWindow : Window, IDisposable
                         break;
                     case "pause":
                         _viewModel.Pause();
+                        break;
+                    case "resume":
+                        _viewModel.Resume();
                         break;
                     case "disconnect" when peer is not null:
                         _viewModel.Disconnect(peer);
@@ -362,6 +395,9 @@ internal sealed class IslandWindow : Window, IDisposable
                 summary = state.Summary,
                 label = state.CompactLabel,
                 since = state.SinceLabel,
+                resume = state.ResumeLabel,
+                watching = state.Watching,
+                watchingLabel = state.WatchingLabel,
                 running = state.ShowRunning
                     ? new
                     {
@@ -374,8 +410,6 @@ internal sealed class IslandWindow : Window, IDisposable
                     : null,
                 panel = new
                 {
-                    title = state.PanelTitle,
-                    count = state.PanelCount,
                     pause = state.PauseLabel,
                     peers = state.Peers.Select(peer => new
                     {
@@ -430,6 +464,9 @@ internal sealed class IslandWindow : Window, IDisposable
         if (_dragging)
             Drag(cursor);
         var inside = _dragging || InsideCapsule(cursor);
+        var cadence = inside || Near(cursor) ? PointerNear : PointerAway;
+        if (_pointer.Interval != cadence)
+            _pointer.Interval = cadence;
         SetClickThrough(!inside);
         if (inside == _hovered)
             return;
@@ -446,6 +483,15 @@ internal sealed class IslandWindow : Window, IDisposable
             return;
         _clickThrough = clickThrough;
         IslandNativeMethods.SetClickThrough(_handle, clickThrough);
+    }
+
+    private bool Near(PointInt32 point)
+    {
+        var pad = (int)Math.Round(NearDips * Scale);
+        return point.X >= _bounds.X - pad
+            && point.X <= _bounds.X + _bounds.Width + pad
+            && point.Y >= _bounds.Y - pad
+            && point.Y <= _bounds.Y + _bounds.Height + pad;
     }
 
     private bool InsideCapsule(PointInt32 point) =>
@@ -512,12 +558,49 @@ internal sealed class IslandWindow : Window, IDisposable
     }
 
     /// <summary>A click elsewhere ends the island's turn with the keyboard and unpins the peer list.</summary>
-    private void OnActivated(object sender, WindowActivatedEventArgs args)
+    private void HandleActivated(WindowActivatedEventArgs args)
     {
         if (args.WindowActivationState != WindowActivationState.Deactivated)
             return;
         SetActivatable(false);
         _viewModel.Collapse();
+    }
+
+    private void RunSurfaceAction(Action action)
+    {
+        if (_disposed || _unavailable)
+            return;
+        try
+        {
+            action();
+        }
+        catch (Exception)
+        {
+            DisableSurface();
+        }
+    }
+
+    private void DisableSurface()
+    {
+        if (_disposed || _unavailable)
+            return;
+        _unavailable = true;
+        _shown = false;
+        _dragging = false;
+        _pointer.Stop();
+        _exit.Stop();
+
+        var controller = _controller;
+        _controller = null;
+        _core = null;
+        try { if (controller is not null) controller.IsVisible = false; }
+        catch (Exception) { }
+        try { controller?.Close(); }
+        catch (Exception) { }
+        try { _appWindow.Hide(); }
+        catch (Exception) { }
+
+        _viewModel.Approvals.Disable();
     }
 
     private void SetActivatable(bool activatable)

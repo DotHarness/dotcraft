@@ -2,12 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.1 |
+| **Version** | 0.6.2 |
 | **Status** | Living |
-| **Date** | 2026-09-09 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [Remote Tool Host](remote-tool-host.md), [Satellite](../clients/satellite.md) |
+| **Date** | 2026-09-11 |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [Remote Tool Host](remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](../clients/satellite.md) |
 
-Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each execution session to a local AppServer as an opaque byte stream.
+Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each session — a tool session to a local AppServer, or a screen view to a local client — as an opaque byte stream.
 
 This specification is the canonical Hub design. Earlier interim specs have been consolidated here and removed.
 
@@ -144,10 +144,10 @@ Required endpoints:
 | `POST /v1/services/restart` | Restart a registered local service. |
 | `GET /v1/events` | Stream Hub lifecycle events as SSE. |
 | `POST /v1/notifications/request` | Accept a local notification request and emit a Hub event. |
-| `GET /v1/satellites` | List paired Remote Tool Hosts with their online state and last reported workspaces. |
+| `GET /v1/satellites` | List paired Remote Tool Hosts with their online state, declared capabilities, and last reported workspaces. |
 | `POST /v1/satellites/invites` | Mint a one-time pairing invitation and start the satellite listener when it is not running. |
 | `DELETE /v1/satellites/{peerId}` | Revoke a pairing and close its live connections. |
-| `GET /v1/satellites/{peerId}/bridge?session=...` | WebSocket. Open one relayed Remote Tool Host session for a local AppServer. |
+| `GET /v1/satellites/{peerId}/bridge?session=...&kind=...` | WebSocket. Open one relayed session of the given kind with a paired Remote Tool Host: `tools` (the default) for a local AppServer, `screen` for a local client. A paired host without a live control connection is answered `503 satelliteOffline` before any capability check. |
 
 The Hub Local API remains loopback-only; the satellite routes above are for local AppServers and local clients, not for the remote machine.
 
@@ -165,7 +165,7 @@ Errors use this shape:
 
 Default Chat helpers do not add another Hub endpoint. They resolve and initialize `~/.craft/workspaces/chats`, then call `POST /v1/appservers/ensure` with that concrete `workspacePath`.
 
-Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, and `hubInternalError`.
+Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, `sessionKindUnsupported`, `satelliteScreenUnsupported`, and `hubInternalError`.
 
 ### 6.1 Satellite listener
 
@@ -188,7 +188,7 @@ The satellite listener is a second, opt-in HTTP application that Hub binds to a 
 
 `GET /satellite/installer` serves the Satellite installer that ships beside the running DotCraft executable. When that file is absent, Hub answers `404` with a short message pointing at the published releases rather than fabricating a download. Both routes answer `no-store`.
 
-Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge` WebSocket frame for frame, preserving message type and fragment boundaries. It never parses, rewrites, inspects, logs, or persists the relayed payload and never holds a Remote Tool Host lease. The port is fixed rather than allocated because invitation URLs and stored peer endpoints must survive a Hub restart; when the port is unavailable, minting an invitation fails with `portUnavailable` and Hub does not fall back to another port.
+Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge` WebSocket frame for frame, preserving message type and fragment boundaries, whatever the session kind and with no size limit of its own. It never parses, rewrites, inspects, logs, or persists the relayed payload and never holds a Remote Tool Host lease. The port is fixed rather than allocated because invitation URLs and stored peer endpoints must survive a Hub restart; when the port is unavailable, minting an invitation fails with `portUnavailable` and Hub does not fall back to another port.
 
 The control channel, its frames, heartbeats, reconnect behavior, and the pairing ceremony are specified by [Remote Tool Host](remote-tool-host.md) §8 and §9.
 
@@ -294,7 +294,7 @@ Service entries are in-memory and scoped to the current Hub lifetime. Concurrent
 
 ### Satellite peers
 
-Hub accepts one outbound control connection per paired Remote Tool Host, tracks its online state from heartbeats, brokers data sessions on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` lifecycle events on SSE. The first `satellite.joined` event carries `{ peerId, inviteId }`, where `inviteId` names the one-time invitation consumed by that pairing; later presence events carry only `peerId`. Hub does not start, stop, supervise, or update the remote process; the remote machine owns its lifecycle. Hub shutdown closes all satellite connections; peers reconnect on their own when Hub returns.
+Hub accepts one outbound control connection per paired Remote Tool Host, tracks its online state from heartbeats, brokers data sessions of either kind on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` lifecycle events on SSE. The first `satellite.joined` event carries `{ peerId, inviteId }`, where `inviteId` names the one-time invitation consumed by that pairing; later presence events carry only `peerId`. Hub does not start, stop, supervise, or update the remote process; the remote machine owns its lifecycle. Hub shutdown closes all satellite connections; peers reconnect on their own when Hub returns.
 
 ---
 
@@ -389,7 +389,7 @@ Security constraints:
 - Managed AppServer endpoints bind to loopback.
 - Hub API uses bearer token authorization for protected endpoints.
 - Managed AppServer WebSocket endpoints use per-process tokens when available.
-- The satellite listener may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential of which Hub stores only the hash. Profile v1 uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire.
+- The satellite listener may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential of which Hub stores only the hash. Profile v1 uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Screen frames relayed for a peer inherit this profile.
 - Remote or multi-user Hub scenarios beyond satellite pairing require a separate security design.
 
 ---

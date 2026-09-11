@@ -38,6 +38,21 @@ import type {
   SharePcStatus
 } from '../shared/satellites'
 import {
+  SCREEN_VIEW_ACK_CHANNEL,
+  SCREEN_VIEW_CLOSE_CHANNEL,
+  SCREEN_VIEW_FRAME_CHANNEL,
+  SCREEN_VIEW_OPEN_CHANNEL,
+  SCREEN_VIEW_STATE_CHANNEL,
+  SCREEN_VIEW_TUNE_CHANNEL,
+  type ScreenViewAckRequest,
+  type ScreenViewCloseRequest,
+  type ScreenViewDockPosition,
+  type ScreenViewFramePayload,
+  type ScreenViewOpenRequest,
+  type ScreenViewStatePayload,
+  type ScreenViewTuneRequest
+} from '../shared/screenView'
+import {
   TITLE_BAR_OVERLAY_HEIGHT,
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
 } from '../shared/titleBarOverlay'
@@ -1409,6 +1424,8 @@ const api = {
       /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
       satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
       createdSatelliteInviteIds?: CreatedSatelliteInvite[]
+      screenViewDockWidth?: number
+      screenViewDockPosition?: ScreenViewDockPosition
     }> {
       return ipcRenderer.invoke('settings:get')
     },
@@ -1467,6 +1484,8 @@ const api = {
       /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
       satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
       createdSatelliteInviteIds?: CreatedSatelliteInvite[]
+      screenViewDockWidth?: number
+      screenViewDockPosition?: ScreenViewDockPosition
     }): Promise<void> {
       return ipcRenderer.invoke('settings:set', partial)
     },
@@ -1615,6 +1634,33 @@ const api = {
       const wrapped = (_event: Electron.IpcRendererEvent, payload: SatelliteJoinLink): void => callback(payload)
       ipcRenderer.on('satellites:join-link', wrapped)
       return () => ipcRenderer.removeListener('satellites:join-link', wrapped)
+    }
+  },
+
+  screenView: {
+    open(request: ScreenViewOpenRequest): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke(SCREEN_VIEW_OPEN_CHANNEL, request)
+    },
+    close(request: ScreenViewCloseRequest): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke(SCREEN_VIEW_CLOSE_CHANNEL, request)
+    },
+    tune(request: ScreenViewTuneRequest): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke(SCREEN_VIEW_TUNE_CHANNEL, request)
+    },
+    ack(request: ScreenViewAckRequest): void {
+      ipcRenderer.send(SCREEN_VIEW_ACK_CHANNEL, request)
+    },
+    onFrame(callback: (payload: ScreenViewFramePayload) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: ScreenViewFramePayload): void =>
+        callback(payload)
+      ipcRenderer.on(SCREEN_VIEW_FRAME_CHANNEL, wrapped)
+      return () => ipcRenderer.removeListener(SCREEN_VIEW_FRAME_CHANNEL, wrapped)
+    },
+    onState(callback: (payload: ScreenViewStatePayload) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: ScreenViewStatePayload): void =>
+        callback(payload)
+      ipcRenderer.on(SCREEN_VIEW_STATE_CHANNEL, wrapped)
+      return () => ipcRenderer.removeListener(SCREEN_VIEW_STATE_CHANNEL, wrapped)
     }
   }
 }

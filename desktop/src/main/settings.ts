@@ -159,6 +159,8 @@ export interface AppSettings {
   satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
   /** Invitations this Desktop minted, so an arriving machine can be announced. */
   createdSatelliteInviteIds?: CreatedSatelliteInvite[]
+  screenViewDockWidth?: number
+  screenViewDockPosition?: { x: number; y: number }
 }
 
 const MAX_RECENT = 20

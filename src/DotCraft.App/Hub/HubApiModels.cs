@@ -33,7 +33,8 @@ public sealed record HubSatelliteResponse(
     string BuildVersion,
     IReadOnlyList<HubSatelliteWorkspaceResponse> Workspaces,
     DateTimeOffset PairedAt,
-    DateTimeOffset? LastSeenAt);
+    DateTimeOffset? LastSeenAt,
+    IReadOnlyList<string> Capabilities);
 
 /// <summary>One workspace last reported by a paired Remote Tool Host.</summary>
 public sealed record HubSatelliteWorkspaceResponse(

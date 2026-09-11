@@ -7,6 +7,9 @@ namespace DotCraft.Satellite.ViewModels;
 internal enum IslandMode
 {
     Hidden,
+    Offline,
+    Paused,
+    Standby,
     Compact,
     Running,
     Expanded,
@@ -46,6 +49,8 @@ internal sealed record IslandStateModel
     public double Width => Mode switch
     {
         IslandMode.Approval => 380,
+        IslandMode.Paused => 230,
+        IslandMode.Offline or IslandMode.Standby => 160,
         IslandMode.Compact => 240,
         _ => 340
     };
@@ -53,6 +58,8 @@ internal sealed record IslandStateModel
     public bool IsPanelShape => Mode is IslandMode.Expanded or IslandMode.Approval;
 
     public bool IsApproval => Mode == IslandMode.Approval;
+
+    public bool IsQuiet => Mode is IslandMode.Offline or IslandMode.Paused or IslandMode.Standby;
 
     public bool ShowRunning { get; init; }
 
@@ -70,11 +77,9 @@ internal sealed record IslandStateModel
 
     public int Concurrency { get; init; }
 
-    public string PanelTitle { get; init; } = string.Empty;
-
-    public string PanelCount { get; init; } = string.Empty;
-
     public string PauseLabel { get; init; } = string.Empty;
+
+    public string ResumeLabel { get; init; } = string.Empty;
 
     public IReadOnlyList<IslandPeerRow> Peers { get; init; } = [];
 
@@ -99,12 +104,19 @@ internal sealed record IslandStateModel
 
     public string Summary { get; init; } = string.Empty;
 
+    public bool Watching { get; init; }
+
+    public string WatchingLabel { get; init; } = string.Empty;
+
     /// <summary>The expanded panel is an addition to the header, not a replacement for it.</summary>
     public static IslandStateModel Derive(IslandInputs inputs, SatelliteStrings strings)
     {
+        if (inputs.Peers.Count == 0)
+            return new IslandStateModel();
+
         var peers = inputs.Peers.Where(peer => peer.ConnectedSince is not null).ToArray();
         if (inputs.State != SatelliteTrayState.Connected || peers.Length == 0)
-            return new IslandStateModel();
+            return Quiet(inputs.State, strings);
 
         var activity = inputs.Activities.Count > 0 ? inputs.Activities[^1] : null;
         var approval = inputs.Approvals.Count > 0 ? inputs.Approvals[0] : null;
@@ -121,12 +133,12 @@ internal sealed record IslandStateModel
             ShowRunning = activity is not null,
             CompactLabel = peers.Length > 1 ? machines : Cap(peers[0].DisplayName),
             SinceLabel = since,
-            PanelTitle = strings["tray.status.connected"],
-            PanelCount = peers.Length > 1 ? machines : since,
             PauseLabel = strings["tray.pause"],
             Peers = [.. peers.Select(peer => Row(peer, strings))],
             DenyLabel = strings["consent.decline"],
-            AllowLabel = strings["approval.once"]
+            AllowLabel = strings["approval.once"],
+            Watching = peers.Any(peer => peer.ScreenViewers > 0),
+            WatchingLabel = strings["island.watching"]
         };
 
         if (activity is not null)
@@ -159,7 +171,29 @@ internal sealed record IslandStateModel
             };
         }
 
-        return model with { Summary = strings["tray.status.connected"] + " · " + Headline(model) };
+        var summary = strings["tray.status.connected"] + " · " + Headline(model);
+        if (model.Watching)
+            summary += " · " + model.WatchingLabel;
+        return model with { Summary = summary };
+    }
+
+    private static IslandStateModel Quiet(SatelliteTrayState state, SatelliteStrings strings)
+    {
+        // The tray still reads connected between the last session closing and the runtime saying so.
+        var quiet = state == SatelliteTrayState.Connected ? SatelliteTrayState.Standby : state;
+        var label = strings[SatelliteStateMachine.StatusKey(quiet)];
+        return new IslandStateModel
+        {
+            Mode = quiet switch
+            {
+                SatelliteTrayState.Offline => IslandMode.Offline,
+                SatelliteTrayState.Paused => IslandMode.Paused,
+                _ => IslandMode.Standby
+            },
+            CompactLabel = label,
+            Summary = label,
+            ResumeLabel = quiet == SatelliteTrayState.Paused ? strings["tray.resume"] : string.Empty
+        };
     }
 
     private static string Headline(IslandStateModel model) => model.Mode switch
@@ -172,15 +206,18 @@ internal sealed record IslandStateModel
     private static IslandPeerRow Row(RemoteToolPeer peer, SatelliteStrings strings)
     {
         var name = Cap(peer.DisplayName);
+        var meta = strings[peer.AuthorizationMode switch
+        {
+            RemoteToolAuthorization.FullAccess => "consent.full",
+            RemoteToolAuthorization.WorkspacePreferred => "consent.folderHeading",
+            _ => "consent.review"
+        }] + " · " + Since(peer, strings);
+        if (peer.ScreenViewers > 0)
+            meta += " · " + strings["island.watching"];
         return new IslandPeerRow(
             peer.PeerId,
             name,
-            strings[peer.AuthorizationMode switch
-            {
-                RemoteToolAuthorization.FullAccess => "consent.full",
-                RemoteToolAuthorization.WorkspacePreferred => "consent.folderHeading",
-                _ => "consent.review"
-            }] + " · " + Since(peer, strings),
+            meta,
             !string.IsNullOrEmpty(peer.WorkspacePath),
             strings["island.disconnect"] + " · " + name,
             strings["island.openFolder"] + " · " + name);

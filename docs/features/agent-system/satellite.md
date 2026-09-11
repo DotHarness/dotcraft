@@ -46,9 +46,15 @@ The agent can also access files on your own PC without changing this selection, 
 
 Enabled Skills and installed plugin packages are prepared on the shared PC automatically, including their supporting scripts. Plugin data and environment settings stay on the Agent PC. Additional CLI dependencies still need to support the shared PC's operating system. See [local access and file transfer](../../developing/architecture/remote-tool-host#local-access-and-file-transfer) for tool parameters.
 
+## Person inviting: watch the remote screen
+
+While the conversation runs on the remote PC, choose **Watch … screen** in the conversation header to open a live view of that PC's desktop. Drag it wherever it suits you and resize it from its corner; point at it for **Expand** and **Stop watching**. The view is read-only and nothing is recorded. If the other person pauses sharing or their PC drops off, the view comes back on its own when sharing resumes.
+
 ## Person sharing: see who is using your PC
 
-While someone is using your PC, a bar sits at the top of your screen, above your other windows. It names who is connected, and while a tool runs, the operation and the command it is running. Point at the bar to see every connected PC with its access mode, disconnect one, or open its task folder. **Pause sharing** below that list stops every PC at once. Drag the bar elsewhere if it covers what you are working on; it comes back where you left it. It appears only while your PC is in use and leaves when the last session ends.
+As long as your PC is paired, a bar sits at the top of your screen, above your other windows. While someone is using your PC it names who is connected, and while a tool runs, the operation and the command it is running. Point at the bar to see every connected PC with its access mode, disconnect one, or open its task folder. **Pause sharing** below that list stops every PC at once, and **Resume sharing** on the bar lets them back in. Drag the bar elsewhere if it covers what you are working on; it comes back where you left it.
+
+While the other person is watching your screen, the bar shows an eye, and Windows notifies you when watching starts and stops. **Pause sharing** ends it.
 
 ## Person sharing: handle additional access
 

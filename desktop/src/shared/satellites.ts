@@ -41,6 +41,8 @@ export interface Satellite {
   inviteId?: string
   workspaces: SatelliteWorkspace[]
   activeLease?: SatelliteLease
+  /** Session kinds the machine declared in `hello`, such as `screen-v1`. Empty when it declared none. */
+  capabilities: string[]
 }
 
 /** The Hub token is never part of this record. */
@@ -138,9 +140,14 @@ function activeLeaseOf(workspaces: SatelliteWorkspace[]): SatelliteLease | undef
   }
 }
 
+function normalizeCapabilities(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map(text).filter((kind): kind is string => kind !== undefined)
+}
+
 function normalizeSatellite(value: unknown): Satellite | null {
   if (value == null || typeof value !== 'object') return null
-  const raw = value as Partial<HubSatellite> & { peerId?: unknown }
+  const raw = value as Partial<HubSatellite> & { peerId?: unknown; capabilities?: unknown }
   const peerId = text(raw.peerId)
   if (!peerId) return null
 
@@ -160,6 +167,7 @@ function normalizeSatellite(value: unknown): Satellite | null {
     ...(timestamp(raw.pairedAt) ? { enrolledAt: timestamp(raw.pairedAt) as string } : {}),
     ...(timestamp(raw.lastSeenAt) ? { lastSeenAt: timestamp(raw.lastSeenAt) as string } : {}),
     workspaces,
+    capabilities: normalizeCapabilities(raw.capabilities),
     ...(lease ? { activeLease: lease } : {})
   }
 }

@@ -31,7 +31,7 @@ public sealed class ContractKernelTests
         Assert.All(
             exportedTypes,
             static type => Assert.True(
-                type.Namespace is "DotCraft.Protocol" or "DotCraft.Protocol.AppServer",
+                type.Namespace is "DotCraft.Protocol" or "DotCraft.Protocol.AppServer" or "DotCraft.Protocol.ScreenView",
                 $"Unexpected public contract namespace: {type.Namespace}"));
         Assert.DoesNotContain(
             exportedTypes,

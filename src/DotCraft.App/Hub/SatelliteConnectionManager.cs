@@ -30,6 +30,9 @@ internal sealed class SatelliteConnectionManager(
     public bool IsOnline(string peerId) =>
         _connections.TryGetValue(peerId, out var connection) && connection.IsLive;
 
+    public IReadOnlyList<string> Capabilities(string peerId) =>
+        _connections.TryGetValue(peerId, out var connection) && connection.IsLive ? connection.Capabilities : [];
+
     public async Task<int> EnsureListenerAsync(CancellationToken cancellationToken)
     {
         if (_listener is not null)
@@ -112,7 +115,7 @@ internal sealed class SatelliteConnectionManager(
             registry.UpdateFromHeartbeat(peer.PeerId, hello.Workspaces ?? [], DateTimeOffset.UtcNow);
         }
 
-        var connection = new PeerConnection(peer.PeerId, socket);
+        var connection = new PeerConnection(peer.PeerId, socket, hello.Capabilities ?? []);
         var previous = _connections.TryGetValue(peer.PeerId, out var existing) ? existing : null;
         _connections[peer.PeerId] = connection;
         if (previous is not null)
@@ -154,10 +157,10 @@ internal sealed class SatelliteConnectionManager(
             ? session.Finished.Task
             : null;
 
-    /// <summary>Opens one relayed session for a local AppServer and returns the failure code, if any.</summary>
     public async Task<string?> BridgeAsync(
         string peerId,
         string sessionId,
+        string kind,
         WebSocket agentSocket,
         CancellationToken cancellationToken)
     {
@@ -171,7 +174,7 @@ internal sealed class SatelliteConnectionManager(
         try
         {
             await connection.SendAsync(
-                new SatelliteFrame { Kind = SatelliteWire.OpenSession, SessionId = sessionId },
+                new SatelliteFrame { Kind = SatelliteWire.OpenSession, SessionId = sessionId, SessionKind = kind },
                 cancellationToken).ConfigureAwait(false);
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -180,6 +183,10 @@ internal sealed class SatelliteConnectionManager(
             try
             {
                 peerSocket = await session.PeerSocket.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (SessionRefusedException refused)
+            {
+                return refused.Code;
             }
             catch (Exception)
             {
@@ -260,7 +267,10 @@ internal sealed class SatelliteConnectionManager(
                 case SatelliteWire.SessionFailed when frame.SessionId is { Length: > 0 } sessionId:
                     connection.Touch();
                     if (_sessions.TryGetValue(sessionId, out var session))
-                        session.PeerSocket.TrySetCanceled();
+                    {
+                        session.PeerSocket.TrySetException(new SessionRefusedException(
+                            SatelliteWire.IsSessionFailureCode(frame.Code) ? frame.Code! : SatelliteWire.SessionFailedClose));
+                    }
                     break;
                 default:
                     connection.Touch();
@@ -274,17 +284,18 @@ internal sealed class SatelliteConnectionManager(
         foreach (var pair in _sessions)
         {
             if (string.Equals(pair.Value.PeerId, peerId, StringComparison.Ordinal))
-                pair.Value.PeerSocket.TrySetException(new InvalidOperationException(reason));
+                pair.Value.PeerSocket.TrySetException(new SessionRefusedException(reason));
         }
     }
 
-    private sealed class PeerConnection(string peerId, WebSocket socket)
+    private sealed class PeerConnection(string peerId, WebSocket socket, IReadOnlyList<string> capabilities)
     {
         private readonly SemaphoreSlim _sendGate = new(1, 1);
         private DateTimeOffset _lastSeenAt = DateTimeOffset.UtcNow;
 
         public string PeerId => peerId;
         public WebSocket Socket => socket;
+        public IReadOnlyList<string> Capabilities => capabilities;
 
         public bool IsLive =>
             socket.State == WebSocketState.Open
@@ -320,6 +331,11 @@ internal sealed class SatelliteConnectionManager(
                 // Closing is best effort; the control loop exits on the next receive either way.
             }
         }
+    }
+
+    private sealed class SessionRefusedException(string code) : Exception(code)
+    {
+        public string Code { get; } = code;
     }
 
     private sealed class PendingSession(string peerId)

@@ -21,6 +21,12 @@ export interface DesktopHubPolicyOptions {
   requireDevBuild?: boolean
 }
 
+/** Keeps the bearer in the main process rather than exposing it to the renderer. */
+export interface SatelliteBridgeTarget {
+  url: string
+  headers: Record<string, string>
+}
+
 export class DesktopHubError extends Error {
   constructor(
     readonly code: string,
@@ -82,6 +88,18 @@ export class DesktopHubClient {
 
   subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal): Promise<void> {
     return this.run(() => this.inner.subscribeEvents(onEvent, signal))
+  }
+
+  async resolveScreenBridge(peerId: string, sessionId: string): Promise<SatelliteBridgeTarget> {
+    return this.run(async () => {
+      const hub = await this.inner.tryGetLiveHub()
+      if (!hub) throw new DesktopHubError('hubUnavailable', 'DotCraft Hub is not running.')
+      const url = new URL(`/v1/satellites/${encodeURIComponent(peerId)}/bridge`, hub.apiBaseUrl)
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+      url.searchParams.set('session', sessionId)
+      url.searchParams.set('kind', 'screen')
+      return { url: url.toString(), headers: { Authorization: `Bearer ${hub.token}` } }
+    })
   }
 
   shutdownHub(): Promise<void> {

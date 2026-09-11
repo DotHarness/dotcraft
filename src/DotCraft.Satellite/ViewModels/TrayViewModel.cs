@@ -37,6 +37,12 @@ internal sealed class TrayViewModel(
                 strings["toast.disconnected.body"]);
             Refresh();
         });
+        runtime.ScreenViewStarted += (_, peer) => Post(() => toasts.Show(
+            strings.Format("toast.watching.title", peer.DisplayName),
+            strings["toast.watching.body"]));
+        runtime.ScreenViewStopped += (_, peer) => Post(() => toasts.Show(
+            strings.Format("toast.watchingStopped.title", peer.DisplayName),
+            strings["toast.watchingStopped.body"]));
         tray.MenuRequested += (_, _) => Post(ShowMenu);
 
         connection.Start();

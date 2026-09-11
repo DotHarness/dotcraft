@@ -46,6 +46,10 @@ interface CommandSearchPopoverProps {
   onDismiss: () => void
 }
 
+const EMPTY_SYSTEM_ACTIONS: SlashSystemActionInfo[] = []
+const EMPTY_DESKTOP_COMMANDS: readonly ActiveDesktopPluginCommand[] = []
+const EMPTY_SKILLS: SlashSkillInfo[] = []
+
 export function CommandSearchPopover({
   query,
   visible,
@@ -62,9 +66,9 @@ export function CommandSearchPopover({
 }: CommandSearchPopoverProps): JSX.Element | null {
   const t = useT()
   const locale = useLocale()
-  const skillList = skills ?? []
-  const desktopCommandList = desktopCommands ?? []
-  const systemActionList = systemActions ?? []
+  const skillList = skills ?? EMPTY_SKILLS
+  const desktopCommandList = desktopCommands ?? EMPTY_DESKTOP_COMMANDS
+  const systemActionList = systemActions ?? EMPTY_SYSTEM_ACTIONS
   const [highlight, setHighlight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const keyboardNavRef = useRef(false)
@@ -112,8 +116,12 @@ export function CommandSearchPopover({
   )
 
   useEffect(() => {
-    setHighlight(0)
-  }, [entries, query])
+    if (visible) setHighlight(0)
+  }, [query, visible])
+
+  useEffect(() => {
+    setHighlight((current) => Math.min(current, Math.max(0, entries.length - 1)))
+  }, [entries.length])
 
   // Only Arrow keys may move the list. Hover also sets `highlight`, and `entries`
   // changes identity on unrelated re-renders, so scrolling on every change would

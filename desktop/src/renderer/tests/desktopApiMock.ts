@@ -36,11 +36,21 @@ const DESKTOP_PET_DEFAULT: ApiOverrides<Api>['desktopPet'] = {
   onEvent: () => () => undefined
 }
 
+const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
+  open: () => Promise.resolve({ ok: true }),
+  close: () => Promise.resolve({ ok: true }),
+  tune: () => Promise.resolve({ ok: true }),
+  ack: () => undefined,
+  onFrame: () => () => undefined,
+  onState: () => () => undefined
+}
+
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
   const api = strictApi({
     ...overrides,
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
-    desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet }
+    desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },
+    screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView }
   }) as Api
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   return api

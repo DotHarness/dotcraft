@@ -6,7 +6,7 @@
 | Status | Draft |
 | Date | 2026-09-11 |
 | Parent | [Tool Architecture](tools-architecture.md) |
-| Related Specs | [Hub Architecture](hub-architecture.md), [Satellite](../clients/satellite.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| Related Specs | [Hub Architecture](hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](../clients/satellite.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 ## 1. Purpose
 
@@ -45,13 +45,16 @@ Remote Tool Host MUST preserve the Tool Architecture definition/binding split:
 Remote Tool Host does not listen for inbound connections, so the remote machine needs no inbound
 firewall rule, port forward, reverse proxy, or TLS identity. It dials out to exactly one Hub per
 pairing. The Hub is a byte relay for those connections: it MUST NOT parse, rewrite, inspect, log,
-or persist MCP traffic, and it MUST NOT hold a workspace lease.
+or persist MCP traffic, and it MUST NOT hold a workspace lease. The same relay carries every session
+kind (§8) without learning which it carries.
 
 Remote Tool Host does not provide general .NET remoting, IL weaving, arbitrary method interception,
 gRPC, NAT traversal, a cloud relay, LAN discovery, OAuth, enterprise SSO, multi-user roles, or a
 LocalSystem/root service. Each pairing is one principal; there are no roles or permissions beyond
 Host-local tool policy. It does not proxy MCP, Runtime Dynamic, Legacy App Binding, Session,
-Agent-control, planning, goal, or user-interaction tools.
+Agent-control, planning, goal, or user-interaction tools. It provides no remote input, remote
+control, or recording; the read-only screen view defined in
+[Remote Screen View](../features/remote-screen-view.md) is its only non-tool session kind.
 
 ## 3. RPC eligibility
 
@@ -156,7 +159,9 @@ lease as `self` when the requesting Agent Host owns it and `other` otherwise, to
 lease expiry; the owner identity itself is never disclosed.
 
 One Agent Host uses one stateful MCP session per Remote Tool Host. That session is carried by
-exactly one Hub-brokered data connection (§8). Losing the data connection ends the MCP session but
+exactly one Hub-brokered data connection (§8). A screen view is a data connection of another kind
+(§8): it takes no lease, holds no lease-owned resource, and counts toward the Host's `connected`
+status. Losing the data connection ends the MCP session but
 does not release the lease; the lease expires through its normal heartbeat TTL and is then
 reclaimed by the Host. The client sends a heartbeat at least every 15 seconds and the Host expires a
 lease after 60 seconds without a heartbeat. Expiry or release cancels and drains lease-owned
@@ -247,6 +252,8 @@ and is not tool use; it is subject to the same lease, catalog, and safety rules 
 
 All four tools carry the `core.remote-tool-host` presentation with `options.operation` set to
 `list`, `connect`, `disconnect`, or `transfer`.
+
+Screen view is not part of the model control surface: no tool opens, lists, or reads it.
 
 Session Core records a persistent `systemNotice` item with `kind = "remoteRoute"` for every connect
 and disconnect a person or the model caused, and for every lease loss, so a thread's history shows
@@ -343,6 +350,9 @@ uses the same one. The Hub's own satellite listener speaks plain HTTP on a trust
 `https` invitation only arises when a TLS reverse proxy fronts that listener, and the Host never
 downgrades such an invitation to plain WebSocket.
 
+Every data connection has a kind. `tools` carries the MCP session below; `screen` carries a
+[Remote Screen View](../features/remote-screen-view.md). The Hub relays both identically.
+
 The MCP session uses standard initialization, `tools/list`, `tools/call`, cancellation, progress,
 content/result, and elicitation contracts. The DotCraft profile adds these JSON-RPC methods over the
 established MCP session:
@@ -364,12 +374,14 @@ fields follow MCP extension behavior; missing required profile fields fail close
 
 For every pairing the Host keeps one outbound control WebSocket to the Hub. On connect it presents
 either a one-time invite id (first connection, §9) or its peer credential, then sends `hello` with
-its display name, machine name, operating system, user, build version, and current workspace
-descriptors. Afterwards it sends `heartbeat` every 15 seconds carrying the current workspace
+its display name, machine name, operating system, user, build version, current workspace
+descriptors, and the session kinds it can serve as `capabilities` (`screen-v1` when the build can
+capture the desktop). Afterwards it sends `heartbeat` every 15 seconds carrying the current workspace
 descriptors including lease state; the Hub marks a peer offline after 45 seconds without a
-heartbeat. The Hub sends `openSession` with a session id when an Agent Host wants a data
-connection, and `revoked` when the pairing is removed. The Host answers `openSession` by opening a
-data connection or by sending `sessionFailed` with a stable code.
+heartbeat. The Hub sends `openSession` with a session id and a session kind when a local client
+wants a data connection, never a kind the Host did not declare, and `revoked` when the pairing is
+removed. The Host answers `openSession` by opening a data connection or by sending `sessionFailed`
+with a stable code.
 
 A lost control connection is retried with bounded exponential backoff starting at one second and
 capped at 120 seconds, with jitter, and the backoff resets after a successful `hello`. Reconnecting
@@ -377,10 +389,11 @@ never requires user action on either machine.
 
 ### 8.2 Data sessions
 
-An Agent Host asks its Hub for a session to a peer. The Hub sends `openSession` over the control
+A local client asks its Hub for a session to a peer. The Hub sends `openSession` over the control
 channel and waits up to 15 seconds for the Host to open a data connection carrying that session id
 and the peer credential. The Hub then relays the two WebSockets frame for frame, preserving message
-type and fragment boundaries, until either side closes. One data connection is one MCP session.
+type and fragment boundaries, until either side closes. One data connection of kind `tools` is one
+MCP session; a `screen` connection follows Remote Screen View §6.
 Multiple Agent Host processes on the same Hub machine use separate data connections and therefore
 separate sessions; lease exclusivity between them is unchanged.
 
@@ -407,6 +420,10 @@ Errors include a stable code, safe English fallback, retryability, and structure
 `HubUnavailable` means the Agent Host could not reach its own Hub; `SatelliteOffline` means the Hub
 has no live control connection for the peer; `SatelliteSessionFailed` means the peer declined or
 failed to open the requested data connection.
+
+A Host that declines `openSession` answers `sessionFailed` with a stable code, and the Hub hands
+that code to the local client as the bridge's close description; the codes a screen view may carry
+are listed in Remote Screen View §6.2.
 
 ## 9. Pairing, authentication, and local state
 
@@ -443,7 +460,8 @@ control connection; the Hub then observes the peer as offline until the Agent si
 
 Host state lives under `~/.craft/remote-tool-host/`: `host.json` (identity, display name,
 workspaces, tool policies, peer records, catalog revision), `serve.lock`, `artifacts/`,
-`workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Hub state for satellite peers lives under
+`workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is stored. Hub
+state for satellite peers lives under
 `~/.craft/hub/satellites.json` and is specified by [Hub Architecture](hub-architecture.md).
 
 The v1 deployment profile assumes direct intranet reachability of the Hub's satellite listener from
@@ -524,6 +542,8 @@ Conformance tests cover:
 - invite issue, single-use consumption, expiry, join, and revoke from both sides;
 - control-channel reconnect with backoff, and offline/online transitions observed by the Hub;
 - byte-identical relay through the Hub bridge for fragmented messages;
+- `hello` capability declaration, `openSession` kinds, the Hub's refusal of an undeclared kind, and a
+  screen view counting toward `connected` without a lease and ending on pause with `sharingPaused`;
 - configuration loading, the serve lock, and the CLI/Satellite autostart exclusion;
 - a pure Host dependency graph with no model, Session, memory, or AppServer services; and
 - an in-process Hub + Host + Agent bridge execution flow and a two-process outbound end-to-end flow.

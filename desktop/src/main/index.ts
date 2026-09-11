@@ -19,6 +19,7 @@ import { browserUseManager } from './browserUseManager'
 import { nodeReplManager } from './nodeReplManager'
 import { getGitHubIdentity } from './githubProfile'
 import { registerVoiceIpc, shutdownVoiceService } from './voice/voiceIpc'
+import { closeAllScreenViews } from './screenView/screenViewManager'
 import { notifyOratorioContextChanged, registerOratorioIpc } from './oratorio/oratorioIpc'
 import { configureVoiceMediaPermissions } from './voice/VoiceMicrophonePermissions'
 
@@ -1133,6 +1134,7 @@ async function teardownRuntime(
     : false
   if (options?.cleanupIpcHandlers) {
     getRemoteServersManager().closeAllTunnels()
+    closeAllScreenViews()
   }
   const hadWireClient = wireClient !== null
   if (moduleManager) {

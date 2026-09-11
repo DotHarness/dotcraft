@@ -25,7 +25,7 @@ internal static class HubSatelliteApi
                 return denied;
             return Results.Json(
                 satellites.Registry.ListPeers()
-                    .Select(peer => ToResponse(peer, satellites.IsOnline(peer.PeerId)))
+                    .Select(peer => ToResponse(peer, satellites.IsOnline(peer.PeerId), satellites.Capabilities(peer.PeerId)))
                     .ToArray(),
                 HubJson.Options);
         });
@@ -84,9 +84,26 @@ internal static class HubSatelliteApi
                 await WriteErrorAsync(context, "sessionConflict", "A unique session id is required.", 400);
                 return;
             }
+            var kind = context.Request.Query["kind"].FirstOrDefault() ?? SatelliteWire.SessionKindTools;
+            if (kind is not (SatelliteWire.SessionKindTools or SatelliteWire.SessionKindScreen))
+            {
+                await WriteErrorAsync(context, "sessionKindUnsupported", $"Unknown session kind '{kind}'.", 400);
+                return;
+            }
             if (satellites.Registry.FindPeer(peerId) is null)
             {
                 await WriteErrorAsync(context, "satelliteNotFound", $"No paired machine with id '{peerId}'.", 404);
+                return;
+            }
+            if (!satellites.IsOnline(peerId))
+            {
+                await WriteErrorAsync(context, SatelliteWire.OfflineClose, "That machine is not connected.", 503);
+                return;
+            }
+            if (kind == SatelliteWire.SessionKindScreen
+                && !satellites.Capabilities(peerId).Contains(SatelliteWire.ScreenCapability, StringComparer.Ordinal))
+            {
+                await WriteErrorAsync(context, "satelliteScreenUnsupported", "That machine does not share its screen.", 409);
                 return;
             }
             if (satellites.IsSessionActive(sessionId))
@@ -101,7 +118,7 @@ internal static class HubSatelliteApi
             }
 
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            var failure = await satellites.BridgeAsync(peerId, sessionId, socket, context.RequestAborted);
+            var failure = await satellites.BridgeAsync(peerId, sessionId, kind, socket, context.RequestAborted);
             if (failure is not null && socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
             {
                 await socket.CloseOutputAsync(
@@ -120,7 +137,10 @@ internal static class HubSatelliteApi
             HubJson.Options);
     }
 
-    private static HubSatelliteResponse ToResponse(SatellitePeerRecord peer, bool online) => new(
+    private static HubSatelliteResponse ToResponse(
+        SatellitePeerRecord peer,
+        bool online,
+        IReadOnlyList<string> capabilities) => new(
         peer.PeerId,
         peer.DisplayName,
         online,
@@ -135,7 +155,8 @@ internal static class HubSatelliteApi
             workspace.BusyOwner,
             workspace.LeaseExpiresAt))],
         peer.PairedAt,
-        peer.LastSeenAt);
+        peer.LastSeenAt,
+        capabilities);
 
     // The host name is preferred because the first physical address is often a virtual adapter
     // that the invited machine cannot reach.

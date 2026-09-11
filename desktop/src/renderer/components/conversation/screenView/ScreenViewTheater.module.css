@@ -1,0 +1,120 @@
+.theater {
+  /* 36px title bar + 12px: the frameless window's drag bar stays clickable. */
+  position: fixed;
+  inset: 48px 12px 12px 12px;
+  display: grid;
+  overflow: hidden;
+  width: fit-content;
+  height: fit-content;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--shell-window-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-level-3);
+  color: var(--text-primary);
+  animation: screen-view-theater-in var(--duration-base) var(--ease-expand);
+  -webkit-app-region: no-drag;
+}
+
+.theater::backdrop {
+  background: var(--overlay-scrim);
+  animation: screen-view-scrim-in var(--duration-base) var(--ease-standard);
+}
+
+/* The largest box with the stream's shape that fits the band, so a frame of any
+   size changes what is drawn and never the dialog. */
+.stage {
+  width: min(
+    calc(100vw - 26px),
+    1600px,
+    calc((100vh - 62px) * var(--screen-aspect, 16 / 9))
+  );
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: var(--screen-aspect, 16 / 9);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@keyframes screen-view-theater-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes screen-view-scrim-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+:global(html[data-reduce-motion='on']) .theater,
+:global(html[data-reduce-motion='on']) .theater::backdrop {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-reduce-motion='off'])) .theater,
+  :global(html:not([data-reduce-motion='off'])) .theater::backdrop {
+    animation: none;
+  }
+}
+
+.chrome {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 14px 14px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-standard) 400ms;
+}
+
+.theater:hover .chrome,
+.theater:focus-within .chrome {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.name {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chrome :global(.dc-icon-button) {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.chrome :global(.dc-icon-button):hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}

@@ -50,6 +50,15 @@ internal static class IslandPreview
                     ],
                     pinned: false);
                 break;
+            case "standby":
+                island.Freeze([ann], [], [], pinned: false, state: SatelliteTrayState.Standby);
+                break;
+            case "paused":
+                island.Freeze([ann], [], [], pinned: false, state: SatelliteTrayState.Paused);
+                break;
+            case "offline":
+                island.Freeze([ann], [], [], pinned: false, state: SatelliteTrayState.Offline);
+                break;
             case "long-name":
                 island.Freeze(
                     [bay], [sweep], [Request(bay, "execute", longCommand, now, 7)], pinned: true);
