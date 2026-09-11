@@ -10,13 +10,25 @@ namespace DotCraft.Tools;
 internal sealed class RemoteRoutableToolRuntime(
     ToolDefinition definition,
     IToolRuntime localRuntime,
-    IRemoteToolHostClient remoteClient) : IToolRuntime
+    IRemoteToolHostClient remoteClient,
+    ToolBindingAvailability localAvailability = ToolBindingAvailability.Available) : IToolRuntime
 {
     private readonly ToolDefinition _definition = definition ?? throw new ArgumentNullException(nameof(definition));
     private readonly IToolRuntime _localRuntime = localRuntime ?? throw new ArgumentNullException(nameof(localRuntime));
     private readonly IRemoteToolHostClient _remoteClient = remoteClient ?? throw new ArgumentNullException(nameof(remoteClient));
     private readonly string _contractHash = RemoteToolContractHasher.Compute(definition);
     internal ToolDefinition NativeDefinition => _definition;
+    internal IRemoteToolSourceBinding? Source => localRuntime as IRemoteToolSourceBinding;
+
+    internal ValueTask<ToolBindingLeaseResult> CheckBindingAsync(ToolInvocationContext context,
+        IToolBindingLease lease, CancellationToken cancellationToken)
+    {
+        if (context.ExecutionLocation?.Route is not null && Source is null)
+            return ValueTask.FromResult(ToolBindingLeaseResult.Available);
+        if (context.ExecutionLocation?.Route is null && localAvailability != ToolBindingAvailability.Available)
+            return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("The local executor is unavailable."));
+        return lease.CheckAsync(context, cancellationToken);
+    }
 
     public ToolInvocationContext Prepare(ToolInvocationContext context, JsonObject arguments)
     {
@@ -58,6 +70,8 @@ internal sealed class RemoteRoutableToolRuntime(
             return await _remoteClient.InvokeAsync(route, _definition, _contractHash, context,
                 nativeArguments, cancellationToken).ConfigureAwait(false);
         }
+        if (localAvailability != ToolBindingAvailability.Available)
+            return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.Unavailable, "The local executor is unavailable."));
         var result = await _localRuntime.InvokeAsync(context, nativeArguments, cancellationToken).ConfigureAwait(false);
         var meta = result.Meta is { ValueKind: JsonValueKind.Object } existing
             ? JsonNode.Parse(existing.GetRawText())!.AsObject() : new JsonObject();
@@ -79,23 +93,16 @@ internal static class RemoteToolRegistrationRouter
         if (remoteClient is null)
             return registrations;
 
-        remoteClient.UpdateRemoteToolDefinitions(
-            registrations
-                .Where(registration => RemoteToolMetadata.IsRpcEligible(registration.Definition))
-                .Select(registration => registration.Binding.Runtime is RemoteRoutableToolRuntime routed
-                    ? routed.NativeDefinition : registration.Definition)
-                .ToArray());
-
         return registrations.Select(registration =>
         {
-            if (!RemoteToolMetadata.IsRpcEligible(registration.Definition)
+            if (!RemoteToolMetadata.IsRpcEligible(registration)
                 || registration.Binding.Runtime is RemoteRoutableToolRuntime)
             {
                 return registration;
             }
 
             var targetDescription = registration.Definition.Id is
-                { Kind: ToolSourceKind.CoreNative, SourceId: "core-native", SourceToolId.Value: "WriteStdin" }
+            { Kind: ToolSourceKind.CoreNative, SourceId: "core-native", SourceToolId.Value: "WriteStdin" }
                 ? "Use the target of the Exec call that created the terminal."
                 : null;
             var projectedDefinition = RpcToolSchemaPostProcessor.Process(registration.Definition, targetDescription);
@@ -103,11 +110,11 @@ internal static class RemoteToolRegistrationRouter
             var routedBinding = new ToolRuntimeBinding(
                 binding.Id,
                 binding.DefinitionId,
-                new RemoteRoutableToolRuntime(registration.Definition, binding.Runtime, remoteClient),
+                new RemoteRoutableToolRuntime(registration.Definition, binding.Runtime, remoteClient, binding.Availability),
                 binding.Lease,
                 binding.AuthorityReference,
                 binding.Revision,
-                binding.Availability,
+                ToolBindingAvailability.Available,
                 binding.Timeout);
             return new ToolRegistration(
                 projectedDefinition,

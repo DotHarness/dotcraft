@@ -150,6 +150,19 @@ public sealed class ToolDispatcher(
                 $"Tool '{toolName}' is hidden from model invocation."))).ConfigureAwait(false);
         }
 
+        if (registration.Binding.Runtime is RemoteRoutableToolRuntime preparation)
+        {
+            try
+            {
+                invocationContext = preparation.Prepare(invocationContext, arguments);
+            }
+            catch (RemoteToolHostException ex)
+            {
+                return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder,
+                    ToolExecutionResult.Failed(new ToolError(ex.Code, ex.Message))).ConfigureAwait(false);
+            }
+        }
+
         if (registration.Binding.Availability != ToolBindingAvailability.Available)
         {
             return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
@@ -160,9 +173,9 @@ public sealed class ToolDispatcher(
         ToolBindingLeaseResult lease;
         try
         {
-            lease = await registration.Binding.Lease
-                .CheckAsync(invocationContext, cancellationToken)
-                .ConfigureAwait(false);
+            lease = registration.Binding.Runtime is RemoteRoutableToolRuntime routed
+                ? await routed.CheckBindingAsync(invocationContext, registration.Binding.Lease, cancellationToken).ConfigureAwait(false)
+                : await registration.Binding.Lease.CheckAsync(invocationContext, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -220,19 +233,6 @@ public sealed class ToolDispatcher(
                 return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
                     ToolErrorCodes.InputInvalid,
                     $"Tool '{toolName}' arguments are invalid: {validationError}"))).ConfigureAwait(false);
-            }
-        }
-
-        if (registration.Binding.Runtime is RemoteRoutableToolRuntime preparation)
-        {
-            try
-            {
-                invocationContext = preparation.Prepare(invocationContext, arguments);
-            }
-            catch (RemoteToolHostException ex)
-            {
-                return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder,
-                    ToolExecutionResult.Failed(new ToolError(ex.Code, ex.Message))).ConfigureAwait(false);
             }
         }
 

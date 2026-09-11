@@ -451,6 +451,13 @@ active. Source changes take effect only after `Build`.
 
 ## 8. Tool containment
 
+Remote execution reuses this lifecycle through Runtime's provider-free execution host. The Agent
+exports accepted bundle bytes, active dependency closure, and generation settings, never running
+objects or machine trust. The Host admits those exact bytes under its own lease-scoped authorization
+and provides only tool execution services and contribution contracts. Source and remote generation
+bindings remain distinct even when their tool schemas match. Synchronization and owner approval are
+defined by [Remote Tool Host](remote-tool-host.md#13-prepared-net-plugin-execution).
+
 Plugin tools use `IToolSource`, but raw plugin registrations never enter a frozen
 `EffectiveToolSnapshot`. A host aggregate source:
 

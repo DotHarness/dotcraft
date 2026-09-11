@@ -53,6 +53,7 @@ public sealed class ToolFunctionGeneratorTests
             internal interface IFixtureDeclaration
             {
                 [ToolDeclaration(Name = "schema_test")]
+                [ToolRpc]
                 [Description("Schema-only declaration.")]
                 void Run(
                     [ToolParameter(Name = "mode_name")]
@@ -109,7 +110,7 @@ public sealed class ToolFunctionGeneratorTests
         Assert.Equal("schema_test", declaration.Name);
         Assert.Equal("Schema-only declaration.", declaration.Description);
         Assert.Null(declaration.OutputSchema);
-        Assert.False(declaration.RpcEligible);
+        Assert.True(declaration.RpcEligible);
         var schema = JsonNode.Parse(declaration.InputSchema.GetRawText())!.AsObject();
         Assert.False(schema["additionalProperties"]!.GetValue<bool>());
         Assert.Equal(["mode_name"], schema["required"]!.AsArray().Select(static value => value!.GetValue<string>()));

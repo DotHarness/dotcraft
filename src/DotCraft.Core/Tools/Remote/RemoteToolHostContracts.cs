@@ -124,8 +124,12 @@ public interface IRemoteToolHostClient
     /// </summary>
     event Action<RemoteToolRouteChange>? RouteChanged;
 
-    /// <summary>Replaces the current trusted set of RPC-eligible definitions.</summary>
-    void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions);
+    /// <summary>Publishes one thread's final tool snapshot without performing network work.</summary>
+    void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode);
+
+    /// <summary>Prepares the captured snapshot before the next Turn samples on an existing route.</summary>
+    ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Lists registered Hosts and refreshes their safe workspace catalogs.</summary>
     ValueTask<RemoteToolHostCatalog> ListAsync(

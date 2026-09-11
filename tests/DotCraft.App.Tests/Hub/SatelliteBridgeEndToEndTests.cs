@@ -21,7 +21,7 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
         var approvals = new CountingApprovalService();
         await using var client = new RemoteToolHostClient(scenario.Directory, approvals);
         var registrations = await scenario.AgentRegistrationsAsync();
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
         var connected = await client.ConnectAsync("thread", scenario.PeerId, scenario.WorkspaceId);
         Assert.Contains("ReadFile", connected.MatchedTools);

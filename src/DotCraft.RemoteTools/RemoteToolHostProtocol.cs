@@ -112,7 +112,7 @@ internal sealed record WorkspaceCatalogEntry(
     bool Busy,
     string? BusyOwner = null,
     DateTimeOffset? LeaseExpiresAt = null);
-internal sealed record RemoteCatalogScope(string LeaseId, string WorkspaceId);
+internal sealed record RemoteCatalogScope(string LeaseId, string WorkspaceId, string? ThreadId = null);
 internal sealed record WorkspaceAcquireRequest(
     string ProfileVersion,
     string ClientInstanceId,
@@ -142,7 +142,9 @@ internal sealed record RemoteInvocationMeta(
     string? ThreadId,
     string? TurnId,
     int MaxResultChars,
-    int SpillPreviewLines);
+    int SpillPreviewLines,
+    string? PreparedBinding = null,
+    long? SnapshotRevision = null);
 
 internal sealed record RemoteToolArtifactMeta(string Path, long CharacterCount);
 

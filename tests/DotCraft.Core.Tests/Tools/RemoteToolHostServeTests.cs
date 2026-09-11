@@ -36,7 +36,7 @@ public sealed class RemoteToolHostServeTests
             shared.Path,
             home.Path,
             enableLsp: true);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread-shared", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
         var withLsp = await client.ConnectAsync("thread-shared", server.PeerId, "shared");
         await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
@@ -59,7 +59,7 @@ public sealed class RemoteToolHostServeTests
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient(new ApproveService());
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
 
@@ -89,7 +89,7 @@ public sealed class RemoteToolHostServeTests
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient(new ApproveService());
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile");
 
@@ -157,7 +157,7 @@ public sealed class RemoteToolHostServeTests
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient(new ApproveService());
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
         var writeStdin = registrations.Single(item => item.Definition.Name.Name == "WriteStdin");
 
@@ -184,7 +184,7 @@ public sealed class RemoteToolHostServeTests
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient(new ApproveService());
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
         var exec = registrations.Single(item => item.Definition.Name.Name == "Exec");
         var writeStdin = registrations.Single(item => item.Definition.Name.Name == "WriteStdin");
@@ -232,7 +232,7 @@ public sealed class RemoteToolHostServeTests
             withLsp.Path,
             home.Path,
             enableLsp: true);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
         var connected = await client.ConnectAsync("thread", server.PeerId, "a-plain");
 

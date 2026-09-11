@@ -14,6 +14,9 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private async ValueTask<JsonNode?> OpenFileTransferAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<FileTransferOpen>(request);
+        using var call = _leases.EnterCall(input.LeaseId, input.WorkspaceId);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
+        ct = linked.Token;
         var root = _leases.Validate(input.LeaseId, input.WorkspaceId);
         var peer = RequirePeer(RequireState(), peerId, input.WorkspaceId);
         var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath, root);
@@ -54,13 +57,14 @@ internal sealed partial class RemoteToolHostMcpHandlers
         var input = Deserialize<FileTransferPart>(request);
         if (!_transfers.TryGetValue(input.TransferId, out var transfer) || transfer.PeerId != peerId)
             throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "File transfer is unavailable.");
+        using var call = _leases.EnterCall(transfer.Open.LeaseId, transfer.Open.WorkspaceId);
         if (operation == RemoteFileTransferProtocol.Close)
         {
             if (_transfers.TryRemove(input.TransferId, out _)) await transfer.Session.DisposeAsync().ConfigureAwait(false);
             return new JsonObject();
         }
         var session = transfer.Session;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, session.Stopping.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, session.Stopping.Token, call.Token);
         var token = linked.Token;
         await session.Gate.WaitAsync(token).ConfigureAwait(false);
         try
@@ -106,16 +110,11 @@ internal sealed partial class RemoteToolHostMcpHandlers
         var state = RequireState();
         var peer = RequirePeer(state, transfer.PeerId, transfer.Open.WorkspaceId);
         var tool = transfer.Session.Write ? "WriteFile" : "ReadFile";
-        if (peer.AuthorizationRevision != transfer.Revision || state.ToolPolicies.GetValueOrDefault(tool) == "deny")
+        if (peer.AuthorizationRevision != transfer.Revision
+            || (!transfer.PluginBundle && state.ToolPolicies.GetValueOrDefault(tool) == "deny"))
             throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Transfer authorization changed.");
     }
 
-    internal void ReleaseFileTransfers(string leaseId)
-    {
-        foreach (var (id, transfer) in _transfers)
-            if (transfer.Open.LeaseId == leaseId && _transfers.TryRemove(id, out _))
-                _ = transfer.Session.DisposeAsync().AsTask();
-    }
-
-    private sealed record HostTransfer(FileTransferOpen Open, string PeerId, long Revision, FileTransferSession Session);
+    private sealed record HostTransfer(FileTransferOpen Open, string PeerId, long Revision, FileTransferSession Session,
+        bool PluginBundle = false);
 }

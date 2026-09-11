@@ -30,7 +30,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-public class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
+public partial class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
 {
     private readonly ThreadStore _store;
     private readonly Dictionary<string, SessionThread> _cache = new();

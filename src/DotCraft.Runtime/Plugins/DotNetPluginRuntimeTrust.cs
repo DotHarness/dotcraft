@@ -120,7 +120,8 @@ internal sealed partial class DotNetPluginRuntimeManager
     /// <summary>Re-reads the machine authority immediately before an activation is published.</summary>
     private PluginRuntimeBlocker? TrustCommitBlocker(string pluginId, string fingerprint)
     {
-        if (HasAuthoringExecutionQualification(pluginId, fingerprint))
+        if ((_executionOnly && _executionQualifications.TryGetValue(pluginId, out var qualified) && qualified == fingerprint)
+            || HasAuthoringExecutionQualification(pluginId, fingerprint))
             return null;
 
         var status = _trust.ResolveStatus(pluginId, fingerprint);

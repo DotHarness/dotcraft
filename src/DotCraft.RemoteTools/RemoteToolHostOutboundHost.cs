@@ -35,7 +35,6 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
             onReleased: released =>
             {
                 _leaseTerminals.ReleaseLease(released.LeaseId);
-                _handlers!.ReleaseFileTransfers(released.LeaseId);
                 RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
             },
             onChanged: () => Changed?.Invoke());

@@ -1,6 +1,6 @@
 # Remote Tool Host
 
-Remote Tool Host executes an Agent's file, Shell, and LSP tools on another machine on the same network. This page targets integrators and operators who set a pairing up outside DotCraft Desktop.
+Remote Tool Host executes an Agent's file, Shell, LSP, and RPC-enabled .NET plugin tools on another machine. This page targets integrators and operators who set a pairing up outside DotCraft Desktop.
 
 ![The Agent Runtime keeps the model loop and tool identities while Remote Tool Host executes eligible Core file, Shell, and LSP tools beside the target workspace](/remote-tool-host-topology.svg)
 
@@ -88,9 +88,13 @@ Transfers use the existing connection and enforce both machines' file policies. 
 
 ## Skill and plugin resources
 
-Skills and plugin packages stay on the Agent machine. `SkillView` reads local instructions, and the Skill catalog gives the effective local path, including variants. Use `ReadFile` with `target: "local"` for supporting files while connected.
+RPC-enabled .NET plugin tools use the Agent's accepted plugin bundles and effective settings. Connect prepares the complete bundles and their .NET dependencies on the remote workspace automatically, including deferred tools. No separate plugin installation is needed there. Changes are prepared before the next Turn uses its tool snapshot. MCP and runtime dynamic tools remain local.
 
-The Agent uses `Transfer` to copy scripts, directories, or CLI files needed remotely, preserving their relative dependencies and using the effective Skill variant where applicable. Transferred files remain after disconnect, with destinations and overwrites chosen explicitly. Copying a plugin package does not activate it or install dependencies. Executables must support the remote OS.
+Under workspace-preferred authorization, the remote owner approves the exact plugin fingerprints before any plugin code loads. Full access permits automatic activation. Disconnect releases the thread's plugin state, and the last workspace lease drains the plugin runtime. Verified bundle files remain available for reuse.
+
+Skills stay on the Agent machine. `SkillView` reads local instructions, and the Skill catalog gives the effective local path, including variants. Use `ReadFile` with `target: "local"` for supporting files while connected.
+
+The Agent uses `Transfer` to copy scripts, directories, or CLI files needed remotely, preserving their relative dependencies and using the effective Skill variant where applicable. Transferred files remain after disconnect, with destinations and overwrites chosen explicitly. Executables must support the remote OS.
 
 Connect negotiates tools and file transfer support before publishing the route. If connection setup fails, the previous route remains. Upgrade Satellites that lack file transfer support before connecting.
 

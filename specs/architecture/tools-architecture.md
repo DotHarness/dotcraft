@@ -75,7 +75,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 
 **Runtime Dynamic Tool** is the canonical term for client-owned callbacks. App Binding tools use binding-scoped MCP sessions.
 
-Remote execution of an existing Core Native registration is governed by the
+Remote execution of an existing Core Native or accepted .NET plugin registration is governed by the
 [Remote Tool Host specification](remote-tool-host.md). It replaces the runtime route behind a
 stable definition and MUST NOT be represented as a Runtime Dynamic Tool, MCP source, or additional
 `ToolSourceKind`.
@@ -274,6 +274,12 @@ The following changes invalidate the next snapshot:
 - mode or profile changes that truly alter the runtime surface.
 
 Immediate safety checks are not frozen. Revocation, disconnect, expired authority, binding removal, and execution-policy invalidation MUST block dispatch immediately, including an invocation named in an older snapshot.
+
+Remote plugin preparation uses the final thread snapshot, including deferred registrations, before
+Turn sampling or same-Turn connection publication. It never runs as a side effect of tool search or
+snapshot inspection. A call retains both source-generation authority and its prepared remote
+generation binding. Target selection precedes executor availability checks and does not bypass
+source revocation. See [Remote Tool Host](remote-tool-host.md#13-prepared-net-plugin-execution).
 
 Adapter-declared channel tools are connection-bound. Their `RuntimeBindingId`, descriptor set, lease, and executor must refer to the same initialized adapter connection. A lease check followed by invocation must not retarget the call to a newer connection. When the connection changes, the current Turn keeps its immutable snapshot but loses dispatch authority; the next Turn rebuilds against the new connection.
 

@@ -49,6 +49,11 @@ internal sealed class RemoteToolHostRequestHandler(
         var hostId = Require(request.Params.HostId, "'hostId' is required.");
         var workspaceId = Require(request.Params.WorkspaceId, "'workspaceId' is required.");
         await RequireIdleThreadAsync(threadId, ct);
+        var thread = await sessionService.GetThreadAsync(threadId, ct);
+        var snapshots = sessionService as IThreadToolSnapshotService
+            ?? throw new InvalidOperationException("Remote execution requires a thread tool snapshot service.");
+        var snapshot = await snapshots.GetEffectiveToolSnapshotAsync(threadId, ct);
+        client.UpdateRemoteToolSnapshot(threadId, snapshot, thread!.Configuration?.Mode ?? "agent");
 
         RemoteToolConnectResult connected;
         try

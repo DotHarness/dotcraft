@@ -282,7 +282,7 @@ public sealed class RemoteToolHostInfrastructureTests
         var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
             "agent-thread", null, workspace.Path, hostDirectory.Path, "agent", null, [], 1,
             workspaceRoots: [workspace.Path]));
-        client.UpdateRemoteToolDefinitions(registrations.Select(item => item.Definition).ToArray());
+        client.UpdateRemoteToolSnapshot("agent-thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
         var connected = await client.ConnectAsync("agent-thread", server.PeerId, "repo");
         Assert.Contains("ReadFile", connected.MatchedTools);

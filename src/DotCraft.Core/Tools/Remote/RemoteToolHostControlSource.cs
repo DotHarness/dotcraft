@@ -75,7 +75,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     }
 
     [GeneratedTool(Name = "Connect")]
-    [Description("Connect this thread to a remote workspace. Skill/plugin files remain local; read with target=\"local\" and Transfer as needed.")]
+    [Description("Connect this thread to a remote workspace. RPC plugin tools are prepared automatically. Skill files remain local; read with target=\"local\" and Transfer as needed.")]
     public async Task<string> Connect(
         [Description("Remote Tool Host id.")] string hostId,
         [Description("Remote workspace id.")] string workspaceId,

@@ -1734,22 +1734,6 @@ public sealed partial class SessionService(
             callerCt);
     }
 
-    private async Task<TurnExecutionResources> CaptureTurnExecutionResourcesAsync(
-        ThreadRuntime runtime,
-        CancellationToken ct)
-    {
-        if (!_hasExplicitDefaultAgent || _forcePerThreadAgents)
-            await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct).ConfigureAwait(false);
-        using (await AcquireThreadAgentLockAsync(runtime.Thread.Id, ct).ConfigureAwait(false))
-        {
-            if (!_runtimeRegistry.IsCurrent(runtime.Thread.Id, runtime))
-                throw new InvalidOperationException($"Thread '{runtime.Thread.Id}' runtime was replaced during Turn admission.");
-            return new TurnExecutionResources(
-                runtime.Agent ?? DefaultAgent,
-                runtime.LatestToolSnapshot);
-        }
-    }
-
     private SessionEventChannel AdmitTurn(
         ThreadRuntime admittedRuntime,
         TurnExecutionContext turnContext,
@@ -2612,6 +2596,8 @@ public sealed partial class SessionService(
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
                 var agent = executionResources.Agent;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
+                await PrepareRemoteTurnAsync(threadId, executionResources.ToolSnapshot, turnContext.Configuration.Mode, executionCt)
+                    .ConfigureAwait(false);
 
                 // Bind tracing and token tracking before model history reconstruction.
                 if (traceCollector != null && thread.Source.SubAgent is { } subAgentSource)

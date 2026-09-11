@@ -155,6 +155,7 @@ public sealed class AppServerRemoteToolHostTests
         Assert.Equal(["Exec"], result.GetProperty("matchedTools").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(["LSP"], result.GetProperty("unavailableTools").EnumerateArray().Select(item => item.GetString()));
         Assert.False(result.GetProperty("alreadyConnected").GetBoolean());
+        Assert.Equal(thread.Id, Assert.Single(client.PreparedThreads));
 
         var notification = Assert.Single(broadcasts);
         Assert.Equal(thread.Id, notification.ThreadId);
@@ -399,9 +400,15 @@ public sealed class AppServerRemoteToolHostTests
 
         public event Action<RemoteToolRouteChange>? RouteChanged;
 
-        public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions)
+        public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode)
         {
+            PreparedThreads.Add(threadId);
         }
+
+        public List<string> PreparedThreads { get; } = [];
+
+        public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 
         public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default)
         {

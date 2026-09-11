@@ -20,6 +20,7 @@ internal sealed partial class RemoteToolHostClient :
     private readonly IApprovalService _approvalService;
     private readonly int _defaultMaxResultChars;
     private readonly int _spillPreviewLines;
+    private readonly long _maxTransferBytes;
     private readonly string _clientInstanceId = "agent_" + Guid.NewGuid().ToString("N");
     private readonly SemaphoreSlim _routeGate = new(1, 1);
     private readonly object _stateGate = new();
@@ -27,8 +28,6 @@ internal sealed partial class RemoteToolHostClient :
     private readonly Dictionary<RouteKey, SharedLease> _leases = new();
     private readonly ConcurrentDictionary<string, HostSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IApprovalService> _pendingApprovals = new(StringComparer.Ordinal);
-    private IReadOnlyDictionary<string, ToolDefinition> _definitions =
-        new Dictionary<string, ToolDefinition>(StringComparer.Ordinal);
     private bool _disposed;
 
     public RemoteToolHostClient(
@@ -38,19 +37,11 @@ internal sealed partial class RemoteToolHostClient :
     {
         _directory = directory;
         _approvalService = approvalService;
-        var limits = (config ?? new AppConfig()).Tools.ResultLimits;
+        var tools = (config ?? new AppConfig()).Tools;
+        var limits = tools.ResultLimits;
         _defaultMaxResultChars = limits.MaxToolResultChars;
         _spillPreviewLines = limits.SpillPreviewLines;
-    }
-
-    public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions)
-    {
-        lock (_stateGate)
-        {
-            _definitions = definitions.ToDictionary(
-                definition => definition.Id.ToString(),
-                StringComparer.Ordinal);
-        }
+        _maxTransferBytes = tools.File.MaxTransferBytes;
     }
 
     /// <summary>Reads the Hub catalog without opening a data connection to a paired machine.</summary>
@@ -130,7 +121,10 @@ internal sealed partial class RemoteToolHostClient :
                 _routes.Remove(threadId, out previous);
             }
             if (previous is not null)
-                await ReleaseRouteReferenceAsync(previous, cancellationToken).ConfigureAwait(false);
+            {
+                try { await ReleasePluginThreadAsync(threadId, previous, cancellationToken).ConfigureAwait(false); }
+                finally { await ReleaseRouteReferenceAsync(previous, cancellationToken).ConfigureAwait(false); }
+            }
         }
         finally
         {
@@ -208,6 +202,30 @@ internal sealed partial class RemoteToolHostClient :
         }
 
         var invocationId = "rti_" + Guid.NewGuid().ToString("N");
+        string? preparedBinding = null;
+        long? snapshotRevision = null;
+        if (definition.Id.Kind == ToolSourceKind.PluginNative)
+        {
+            ToolRegistration registration;
+            lock (_stateGate)
+            {
+                if (_preparationFailures.TryGetValue((context.ThreadId, route.LeaseId), out var failure)
+                    && failure.Revision == context.SnapshotRevision)
+                    return Failure(failure.Code, failure.Message);
+                if (!_preparedSnapshots.TryGetValue((context.ThreadId, route.LeaseId), out var prepared)
+                    || prepared.Snapshot.Revision != context.SnapshotRevision
+                    || !prepared.Snapshot.Registrations.Any(item => item.Binding.Id == context.RuntimeBindingId)
+                    || !prepared.Bindings.TryGetValue(definition.Id.ToString(), out var binding)
+                    || binding.ContractHash != contractHash)
+                    return Failure(RemoteToolErrorCodes.RemoteToolUnavailable, "This plugin snapshot has not been prepared on the remote Host.");
+                preparedBinding = binding.BindingId;
+                snapshotRevision = prepared.Snapshot.Revision;
+                registration = prepared.Snapshot.Registrations.Single(item => item.Binding.Id == context.RuntimeBindingId);
+            }
+            var authority = await registration.Binding.Lease.CheckAsync(context, cancellationToken).ConfigureAwait(false);
+            if (!authority.IsAvailable)
+                return Failure(RemoteToolErrorCodes.RemoteToolUnavailable, authority.Error?.Message ?? "The plugin source is no longer active.");
+        }
         var meta = new RemoteInvocationMeta(
             route.LeaseId,
             route.WorkspaceId,
@@ -217,7 +235,7 @@ internal sealed partial class RemoteToolHostClient :
             context.ThreadId,
             context.TurnId,
             ResolveRemoteResultLimit(definition),
-            Math.Clamp(_spillPreviewLines, 1, 500));
+            Math.Clamp(_spillPreviewLines, 1, 500), preparedBinding, snapshotRevision);
         var request = new CallToolRequestParams
         {
             Name = definition.Name.ToString(),
@@ -317,16 +335,19 @@ internal sealed partial class RemoteToolHostClient :
     }
 
     private async Task<RemoteToolConnectResult> BuildMatchSummaryAsync(
+        string threadId,
         RemoteToolRoute route,
         CancellationToken cancellationToken)
     {
         var key = new RouteKey(route.HostId, route.WorkspaceId);
         SharedLease lease;
-        IReadOnlyDictionary<string, ToolDefinition> definitions;
+        IReadOnlyList<ToolDefinition> definitions;
         lock (_stateGate)
         {
             lease = _leases[key];
-            definitions = _definitions;
+            definitions = _snapshots.TryGetValue(threadId, out var snapshot)
+                ? snapshot.Registrations.Select(RemoteToolMetadata.NativeDefinition).ToArray()
+                : [];
         }
         var catalog = await lease.Session.Client.ListToolsAsync(
             new ListToolsRequestParams
@@ -334,7 +355,7 @@ internal sealed partial class RemoteToolHostClient :
                 Meta = new JsonObject
                 {
                     ["dotcraft"] = JsonSerializer.SerializeToNode(
-                        new RemoteCatalogScope(route.LeaseId, route.WorkspaceId),
+                        new RemoteCatalogScope(route.LeaseId, route.WorkspaceId, threadId),
                         RemoteToolHostProtocol.JsonOptions)
                 }
             },
@@ -347,7 +368,7 @@ internal sealed partial class RemoteToolHostClient :
         var matched = new List<string>();
         var unavailable = new List<string>();
         var reasons = new List<RemoteToolUnavailableReason>();
-        foreach (var definition in definitions.Values.OrderBy(item => item.Name.ToString(), StringComparer.Ordinal))
+        foreach (var definition in definitions.OrderBy(item => item.Name.ToString(), StringComparer.Ordinal))
         {
             var name = definition.Name.ToString();
             var expected = RemoteToolContractHasher.Compute(definition);

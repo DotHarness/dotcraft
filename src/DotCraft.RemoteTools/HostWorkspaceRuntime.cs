@@ -12,25 +12,42 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
     private const string CatalogProbeWorkspaceId = "catalog";
     private readonly BackgroundTerminalService _terminals;
     private readonly LspServerManager? _lsp;
+    private readonly Lazy<PluginExecutionWorkspace> _plugins;
+    private readonly object _lifetimeGate = new();
+    private Task? _disposal;
 
     private HostWorkspaceRuntime(
         string workspacePath,
-        long catalogRevision,
         IReadOnlyList<ToolRegistration> registrations,
         BackgroundTerminalService terminals,
-        LspServerManager? lsp)
+        LspServerManager? lsp,
+        Func<PluginExecutionWorkspace> plugins)
     {
         WorkspacePath = workspacePath;
-        CatalogRevision = catalogRevision;
         Registrations = registrations;
         _terminals = terminals;
         _lsp = lsp;
+        _plugins = new(plugins);
     }
 
     public string WorkspacePath { get; }
-    public long CatalogRevision { get; }
     public IReadOnlyList<ToolRegistration> Registrations { get; }
     public IBackgroundTerminalService Terminals => _terminals;
+    internal PluginExecutionWorkspace Plugins
+    {
+        get
+        {
+            lock (_lifetimeGate)
+            {
+                ObjectDisposedException.ThrowIf(_disposal is not null, this);
+                return _plugins.Value;
+            }
+        }
+    }
+    internal IReadOnlyList<ToolRegistration> PluginRegistrations(string? threadId) =>
+        _plugins.IsValueCreated ? _plugins.Value.List(threadId) : [];
+    internal Task ReleasePluginThreadAsync(string threadId, CancellationToken ct) =>
+        _plugins.IsValueCreated ? _plugins.Value.ReleaseThreadAsync(threadId, ct) : Task.CompletedTask;
 
     public Task InitializeLspAsync(CancellationToken ct) => _lsp?.InitializeAsync(ct) ?? Task.CompletedTask;
 
@@ -66,10 +83,11 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             .ConfigureAwait(false);
         return new HostWorkspaceRuntime(
             workspacePath,
-            catalogRevision,
             [.. registrations.Where(item => RemoteToolMetadata.IsRpcEligible(item.Definition))],
             terminals,
-            lsp);
+            lsp,
+            () => new PluginExecutionWorkspace(
+                DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, workspaceData), config, terminals));
     }
 
     /// <summary>
@@ -112,8 +130,14 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
+        lock (_lifetimeGate) return new(_disposal ??= DisposeCoreAsync());
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        if (_plugins.IsValueCreated) await _plugins.Value.DisposeAsync().ConfigureAwait(false);
         foreach (var terminal in await _terminals.ListAsync().ConfigureAwait(false))
         {
             if (string.Equals(terminal.Status, BackgroundTerminalStatus.Running, StringComparison.Ordinal))

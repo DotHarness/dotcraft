@@ -233,7 +233,9 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
 
         public event Action<RemoteToolRouteChange>? RouteChanged;
 
-        public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) { }
+        public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode) { }
+        public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 
         public ValueTask<RemoteToolHostCatalog> ListAsync(
             string threadId,

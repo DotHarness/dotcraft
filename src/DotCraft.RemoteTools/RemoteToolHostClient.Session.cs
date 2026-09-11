@@ -83,6 +83,7 @@ internal sealed partial class RemoteToolHostClient
         public string OperatingSystem { get; set; } = "unknown";
         public string UserName { get; set; } = "unknown";
         public string BuildVersion { get; set; } = "unknown";
+        public bool SupportsPlugins { get; set; }
 
         public void StartHeartbeat() => _heartbeatTask = RunHeartbeatAsync();
 

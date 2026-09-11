@@ -10,7 +10,8 @@ namespace DotCraft.Runtime;
 internal sealed record PluginGenerationHost(
     IServiceProvider Services,
     IContributionRegistry Contributions,
-    PluginCallGateRegistry CallGates);
+    PluginCallGateRegistry CallGates,
+    bool ToolsOnly = false);
 
 /// <summary>What a torn-down generation leaves behind for the reclaim poller.</summary>
 /// <param name="LoadContext">Weak by construction: a poller able to keep the context alive could never observe its collection.</param>
@@ -155,7 +156,8 @@ internal sealed class PluginGeneration
                 host.Contributions,
                 ContributionOrigin.Plugin(snapshot.Manifest.Id, generationId),
                 calls,
-                entry);
+                entry,
+                host.ToolsOnly);
             exports = new PluginServiceExportRegistry(
                 snapshot.Manifest.Id,
                 new HashSet<Assembly>(exportedApis.Values, ReferenceEqualityComparer.Instance));

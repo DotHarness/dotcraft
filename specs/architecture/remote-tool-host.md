@@ -59,13 +59,14 @@ control, or recording; the read-only screen view defined in
 ## 3. RPC eligibility
 
 `ToolRpcAttribute` is a parameterless method marker used alongside `ToolAttribute` or
-`GeneratedToolAttribute`. It means that a Core Native tool MAY be exported by a Remote Tool Host
+`GeneratedToolAttribute` or `ToolDeclarationAttribute`. It means that a Core Native tool or an
+accepted .NET plugin tool MAY be exported by a Remote Tool Host
 and that an Agent Host MAY route the tool's runtime binding remotely. It grants no authority,
 changes no approval policy, and has no effect on direct method calls.
 
 The generated tool declaration and generated catalog descriptor MUST carry an `RpcEligible`
 boolean derived from the attribute. Reflection-based discovery MUST produce the same value. A
-method carrying `ToolRpcAttribute` without either supported tool attribute is invalid and SHOULD
+method carrying `ToolRpcAttribute` without a supported tool attribute is invalid and SHOULD
 produce a generator diagnostic.
 
 The initial Core RPC-eligible set is:
@@ -93,7 +94,9 @@ The hash excludes runtime-binding identity, presentation metadata, workspace pat
 instance provenance, and connection state. Object properties are ordinally sorted recursively and
 numbers use their canonical JSON representation before SHA-256 is calculated.
 
-The Host exports only RPC-eligible Core Native registrations. Every exported MCP tool carries the
+The Host exports RPC-eligible Core Native registrations and prepared .NET plugin registrations.
+A `PluginNative` label alone does not qualify a source: the Agent runtime must own its accepted
+bundle and live generation. Every exported MCP tool carries the
 following metadata:
 
 ```json
@@ -223,7 +226,7 @@ Their static descriptions are:
 ```text
 Namespace: Manage this thread's remote workspace connection.
 List: List registered Remote Tool Hosts, their workspaces, and this thread's current connection.
-Connect: Connect this thread to a remote workspace. Skill/plugin files remain local; read with target="local" and Transfer as needed.
+Connect: Connect this thread to a remote workspace. RPC plugin tools are prepared automatically. Skill files remain local; read with target="local" and Transfer as needed.
 Disconnect: Disconnect this thread from its remote workspace.
 Transfer: Upload or download files and directories between local and connected remote workspaces; directories merge into the destination.
 Connect.hostId: Remote Tool Host id.
@@ -606,17 +609,57 @@ Connect acquires a candidate lease, negotiates tools and the `files-v1` capabili
 the route. Failure preserves the previous route. Repeating Connect returns the current connection
 without emitting a duplicate route transition. Hosts lacking file transfer support require upgrading.
 
-Skills and plugin packages remain on the Agent machine. SkillView reads effective local instructions,
+Skills remain on the Agent machine. SkillView reads effective local instructions,
 and the Skill catalog identifies the effective local file, including variants. Supporting files are
 read with `target: "local"`; the Agent uses Transfer for files needed by remote execution, preserving
 relative dependencies and selecting the effective variant when applicable. The Connect description
-provides this guidance before same-Turn remote calls. Connecting, turn preparation, and SkillView
-do not copy resources or manage remote snapshots.
+provides this guidance before same-Turn remote calls. SkillView does not prepare executable plugins.
 
 Transferred files survive disconnect. The Agent chooses destinations and explicit overwrites;
 Transfer does not provide automatic version isolation or cleanup. Copying a plugin package does not
 activate it or install CLI dependencies. Local binary/env availability is not evidence of remote
 availability. Neither arbitrary shell commands nor Skill prose are rewritten.
+
+## 13. Prepared .NET plugin execution
+
+The Agent's accepted plugin bundles and effective tool snapshot are authoritative. Before publishing
+a connection, and before sampling a new Turn on an existing connection, the Agent prepares every
+RPC-eligible .NET source in that thread's effective snapshot, including deferred tools. Tool search
+and ordinary snapshot reads do not deploy code. MCP and Runtime Dynamic sources remain local.
+
+Preparation transfers complete immutable bundles, their actual dependency closure, and plugin-only
+effective settings through the existing leased chunked file-transfer machinery. Source files remain
+pinned until preparation finishes. The Host chooses its installation paths and substitutes its own
+workspace and data roots. It reuses identical verified files across connections; it does not require
+preinstallation, copy machine trust or Agent configuration, or create a model-facing install tool.
+
+The `plugins-v1` capability and internal prepare messages travel over the existing Hub data session.
+A Host without that capability cannot execute plugin RPC. Product versions do not select a fallback.
+Full-access authorization permits automatic preparation. Workspace-preferred authorization requires
+the Host owner's approval of the exact bundle fingerprints before any plugin code loads. Approval is
+lease-scoped and is not persisted as local plugin trust.
+
+Runtime owns a provider-free plugin execution host using the ordinary bundle preflight, dependency
+planner, generation gates, proxies, and teardown. RemoteTools consumes that host; Runtime does not
+depend on RemoteTools. The execution host supports tool sources, dependency exports, plugin lifetime,
+and its explicitly provided host services, not Agent, Session, or provider contributions.
+
+Catalogs are thread- and snapshot-scoped. A leased workspace has one active generation per plugin.
+Threads may share that generation, but one thread cannot replace a newer source with an older
+snapshot or remove another thread's sources. Each invocation binds its prepared remote generation
+as well as the original contract hash. Identical schemas never authorize retargeting an old call to
+new code. Revocation blocks dispatch immediately; the current Turn retains its schema and the next
+Turn adopts and prepares new sources through the existing snapshot invalidation lifecycle.
+
+Routing captures the selected target before checking executor availability, while source authority
+is checked for either target. The Host validates schema, generation lease, canonical identity,
+contract, and local policy before execution. Originating thread and mode context remain explicit;
+the Agent alone owns Session recording and hooks. Failed preparation never publishes a candidate
+route or silently uses stale code, local execution, or automatic replay.
+
+Release, expiry, pause, revocation, and shutdown revoke and drain plugin calls and resources before
+another owner acquires the workspace. Thread release invokes thread-scoped cleanup; final lease
+release disposes the complete execution runtime. Verified package files may remain on disk.
 
 ## Generated image artifacts
 

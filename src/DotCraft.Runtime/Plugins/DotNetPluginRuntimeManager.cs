@@ -35,6 +35,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
     private bool _started;
     private volatile bool _stopping;
     private bool _disposed;
+    private readonly bool _executionOnly;
 
     /// <summary>Creates a runtime manager for one configured workspace.</summary>
     internal DotNetPluginRuntimeManager(
@@ -46,7 +47,8 @@ internal sealed partial class DotNetPluginRuntimeManager :
         DotNetPluginRuntimeOptions? options = null,
         ILogger<DotNetPluginRuntimeManager>? logger = null,
         IPluginDotnetTrustStore? trustStore = null,
-        PluginConfigStore? pluginConfigStore = null)
+        PluginConfigStore? pluginConfigStore = null,
+        bool executionOnly = false)
     {
         _discovery = discovery;
         _config = config;
@@ -55,6 +57,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
         _services = services;
         _contributions = contributions;
         _options = options ?? new DotNetPluginRuntimeOptions();
+        _executionOnly = executionOnly;
         _logger = logger;
         _trust = new PluginDotnetTrust(config, trustStore);
         _bundleStore = new PluginBundleSnapshotStore(Path.Combine(
@@ -64,7 +67,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
             $"{Environment.ProcessId}-{Guid.NewGuid():N}"));
         _reclaim = new PluginReclaimPoller(_options, ReclaimAsync, _bundleStore.DeleteGeneration, logger);
         CallGates = new PluginCallGateRegistry();
-        ToolSource = new DotNetPluginToolSource(contributions, CallGates);
+        ToolSource = new DotNetPluginToolSource(contributions, CallGates, ExportAsync);
         _trust.Changed += OnTrustChanged;
     }
 
@@ -189,6 +192,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
         {
             await StopAsync(CancellationToken.None).ConfigureAwait(false);
             await WaitForTrustChangeWorkerAsync().ConfigureAwait(false);
+            await WaitForExportsAsync().ConfigureAwait(false);
 
             // Retained assemblies are mapped from the shadow copies, so the store only goes once nothing is outstanding.
             if (!_reclaim.HasOutstanding

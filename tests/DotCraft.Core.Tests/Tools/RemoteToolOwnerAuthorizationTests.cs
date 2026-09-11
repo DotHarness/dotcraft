@@ -22,7 +22,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         var inviter = new ApproveService();
         await using var client = server.CreateClient(inviter);
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. tools.Select(tool => tool.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
         var target = Path.Combine(outside.Path, "result.txt");
         var result = await Invoke(client, connected.Route, tools, "WriteFile",
@@ -43,7 +43,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient(new ApproveService());
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. tools.Select(tool => tool.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
         var file = await Invoke(client, connected.Route, tools, "WriteFile",
             new JsonObject { ["path"] = "result.txt", ["content"] = "value" });
@@ -78,7 +78,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         var server = new RemoteToolHostTestServer(storage, ownerApprovals: owner);
         await using var client = server.CreateClient(new ApproveService());
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. tools.Select(tool => tool.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
         using var cancellation = new CancellationTokenSource();
         var target = Path.Combine(outside.Path, "never.txt");
@@ -103,7 +103,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         await using var server = new RemoteToolHostTestServer(storage, ownerApprovals: owner);
         await using var client = server.CreateClient(new ApproveService());
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. tools.Select(tool => tool.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
         var result = await Invoke(client, route, tools, "WriteFile", new JsonObject { ["path"] = "no.txt", ["content"] = "no" });
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, result.Error?.Code);

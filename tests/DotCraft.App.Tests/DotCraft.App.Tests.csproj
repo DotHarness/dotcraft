@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\DotCraft.Core.Tests\Tools\RemotePluginFixture.cs" Link="Hub\Support\RemotePluginFixture.cs" />
+    <Compile Include="..\DotCraft.Runtime.Tests\Plugins\DotNetPluginTestBundle.cs" Link="Hub\Support\DotNetPluginTestBundle.cs" />
+    <Compile Include="..\DotCraft.Runtime.Tests\Plugins\PluginRuntimeHarness.cs" Link="Hub\Support\PluginRuntimeHarness.cs" />
+    <Compile Include="..\DotCraft.Runtime.Tests\Plugins\PluginLogFile.cs" Link="Hub\Support\PluginLogFile.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -88,8 +88,8 @@ internal static class ToolGeneratorValidator
 
     private static readonly DiagnosticDescriptor InvalidRpcMarker = new(
         "DCGEN011",
-        "Remote tool marker requires a generated tool",
-        "Method '{0}' uses ToolRpcAttribute without ToolAttribute or GeneratedToolAttribute",
+        "Remote tool marker requires a tool declaration",
+        "Method '{0}' uses ToolRpcAttribute without ToolAttribute, GeneratedToolAttribute, or ToolDeclarationAttribute",
         "DotCraft.Generators",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -97,7 +97,8 @@ internal static class ToolGeneratorValidator
     public static void ValidateRpcMarker(SourceProductionContext context, IMethodSymbol method)
     {
         if (ToolSchemaEmitter.FindAttribute(method, "DotCraft.Tools.ToolAttribute") != null
-            || ToolSchemaEmitter.FindAttribute(method, "DotCraft.Tools.GeneratedToolAttribute") != null)
+            || ToolSchemaEmitter.FindAttribute(method, "DotCraft.Tools.GeneratedToolAttribute") != null
+            || ToolSchemaEmitter.FindAttribute(method, "DotCraft.Tools.ToolDeclarationAttribute") != null)
         {
             return;
         }

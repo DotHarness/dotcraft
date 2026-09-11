@@ -39,7 +39,8 @@ Embedded application
   Protocol, but does not require Runtime as its host.
 - `DotCraft.App` is the official composition root. It selects entry points, providers, optional
   features, logging, process policy, and exit behavior.
-- `DotCraft.RemoteTools` owns the Remote Tool Host feature and depends on Core, the MCP ASP.NET
+- `DotCraft.RemoteTools` owns the Remote Tool Host feature and depends on Core, Runtime's provider-free
+  plugin execution facade, the MCP ASP.NET
   transport, and the `DotCraft.Protocol.ScreenView` contracts in Protocol for the screen view frame
   format. A Remote Tool Host is an application-selected provider-free host. Its feature implementation owns
   remote-tool transport, registry, leases, and Host policy; `DotCraft.App` owns CLI and process
