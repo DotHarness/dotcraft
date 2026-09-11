@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DotCraft.Screen;
 using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
@@ -16,6 +17,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     private readonly string _displayName;
     private IRemoteToolApprovalPresenter? _approvalPresenter;
     private readonly TimeSpan? _heartbeatInterval;
+    private readonly Func<IScreenCaptureSource> _screenCapture;
     private readonly object _gate = new();
     private RemoteToolHostOutboundHost? _host;
     private CancellationTokenSource? _running;
@@ -26,11 +28,13 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     internal RemoteToolHostRuntime(
         RemoteToolHostStorage storage,
         string displayName,
-        TimeSpan? heartbeatInterval = null)
+        TimeSpan? heartbeatInterval = null,
+        Func<IScreenCaptureSource>? screenCapture = null)
     {
         _storage = storage;
         _displayName = displayName;
         _heartbeatInterval = heartbeatInterval;
+        _screenCapture = screenCapture ?? ScreenCaptureSource.Create;
         _activity.Changed += activity =>
         {
             ActivityChanged?.Invoke(this, activity);
@@ -80,6 +84,10 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     /// <summary>Raised when a pairing's control connection ends.</summary>
     public event EventHandler<RemoteToolPeer>? PeerDisconnected;
 
+    public event EventHandler<RemoteToolPeer>? ScreenViewStarted;
+
+    public event EventHandler<RemoteToolPeer>? ScreenViewStopped;
+
     public event EventHandler<RemoteToolActivity?>? ActivityChanged;
 
     /// <summary>
@@ -92,7 +100,12 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         {
             if (_runTask is not null)
                 return _runTask;
-            var host = new RemoteToolHostOutboundHost(_storage, _activity, _heartbeatInterval, _approvalPresenter);
+            var host = new RemoteToolHostOutboundHost(
+                _storage,
+                _activity,
+                _heartbeatInterval,
+                _approvalPresenter,
+                _screenCapture);
             host.Prepare();
             host.Changed += Refresh;
             _host = host;
@@ -286,7 +299,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             },
             welcome.Credential);
         Refresh();
-        return ToPeer(stored, connectedSince: null);
+        return ToPeer(stored, connector: null);
     }
 
     /// <summary>Closes one pairing's control connection without removing the pairing.</summary>
@@ -323,7 +336,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             _host.Paused = paused;
             if (paused)
                 foreach (var connector in _host.Connectors)
-                    await connector.DrainAsync().ConfigureAwait(false);
+                    await connector.DrainAsync(SatelliteWire.ScreenClosedPaused).ConfigureAwait(false);
         }
         Refresh();
     }
@@ -343,7 +356,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             ? RemoteToolHostStatus.Offline
             : host.Paused
                 ? RemoteToolHostStatus.Paused
-                : host.Leases.HasActiveLease
+                : host.Leases.HasActiveLease || peers.Any(peer => peer.ScreenViewers > 0)
                     ? RemoteToolHostStatus.Connected
                     : RemoteToolHostStatus.Standby;
 
@@ -357,26 +370,27 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             _peers = peers;
         }
 
-        foreach (var peer in peers.Where(peer => peer.ConnectedSince is not null))
-        {
-            if (!previousPeers.Any(item =>
-                    string.Equals(item.PeerId, peer.PeerId, StringComparison.Ordinal)
-                    && item.ConnectedSince is not null))
-            {
-                PeerConnected?.Invoke(this, peer);
-            }
-        }
-        foreach (var peer in previousPeers.Where(peer => peer.ConnectedSince is not null))
-        {
-            if (!peers.Any(item =>
-                    string.Equals(item.PeerId, peer.PeerId, StringComparison.Ordinal)
-                    && item.ConnectedSince is not null))
-            {
-                PeerDisconnected?.Invoke(this, peer);
-            }
-        }
+        Transitions(peer => peer.ConnectedSince is not null, PeerConnected, PeerDisconnected);
+        Transitions(peer => peer.ScreenViewers > 0, ScreenViewStarted, ScreenViewStopped);
         if (previousStatus != status)
             StatusChanged?.Invoke(this, status);
+
+        void Transitions(
+            Func<RemoteToolPeer, bool> active,
+            EventHandler<RemoteToolPeer>? began,
+            EventHandler<RemoteToolPeer>? ended)
+        {
+            foreach (var peer in peers.Where(active))
+            {
+                if (!previousPeers.Any(item => item.PeerId == peer.PeerId && active(item)))
+                    began?.Invoke(this, peer);
+            }
+            foreach (var peer in previousPeers.Where(active))
+            {
+                if (!peers.Any(item => item.PeerId == peer.PeerId && active(item)))
+                    ended?.Invoke(this, peer);
+            }
+        }
     }
 
     private IReadOnlyList<RemoteToolPeer> ReadPeers(
@@ -389,16 +403,14 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         [
             .. state.Peers.Select(peer => ToPeer(
                 peer,
-                connected is not null && connected.TryGetValue(peer.PeerId, out var connector)
-                    ? connector.ConnectedSince
-                    : null,
+                connected is not null && connected.TryGetValue(peer.PeerId, out var connector) ? connector : null,
                 state))
         ];
     }
 
     private RemoteToolPeer ToPeer(
         RemoteToolHubPeer peer,
-        DateTimeOffset? connectedSince,
+        RemoteToolHostPeerConnector? connector,
         RemoteToolHostState? state = null)
     {
         var workspaces = (state ?? _storage.LoadHostState())?.Workspaces;
@@ -412,8 +424,9 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             workspaceId,
             workspacePath,
             peer.PairedAt,
-            connectedSince,
-            peer.AuthorizationMode);
+            connector?.ConnectedSince,
+            peer.AuthorizationMode,
+            connector?.ScreenViewers ?? 0);
     }
 
     private string EnsureHostState(string workspacePath)

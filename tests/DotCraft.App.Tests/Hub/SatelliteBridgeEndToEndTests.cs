@@ -15,7 +15,9 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
     [Fact]
     public async Task Bridge_EndToEnd_JoinServeConnectInvokeDisconnect()
     {
-        await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
+        await using var scenario = await SatelliteScenario.StartAsync(
+            _userProfile,
+            heartbeatInterval: TimeSpan.FromMilliseconds(200));
         var approvals = new CountingApprovalService();
         await using var client = new RemoteToolHostClient(scenario.Directory, approvals);
         var registrations = await scenario.AgentRegistrationsAsync();
@@ -69,6 +71,17 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
         Assert.True(reread.Success, reread.Error?.Message);
         Assert.Contains("line-000000", reread.Content, StringComparison.Ordinal);
 
+        Assert.True((await client.DisconnectAsync("thread")).Disconnected);
+        await WaitUntilAsync(() => Task.FromResult(scenario.Runtime.Status == RemoteToolHostStatus.Standby));
+        await WaitUntilAsync(async () =>
+        {
+            var peer = Assert.Single(await scenario.Hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites"));
+            return peer.Online && peer.Workspaces.All(workspace => !workspace.Busy);
+        });
+
+        var reconnected = await client.ConnectAsync("thread", scenario.PeerId, scenario.WorkspaceId);
+        Assert.Equal(scenario.PeerId, reconnected.Route.HostId);
+        Assert.Equal(RemoteToolHostStatus.Connected, scenario.Runtime.Status);
         Assert.True((await client.DisconnectAsync("thread")).Disconnected);
 
         var revoked = await scenario.Hub.DeleteAsync($"/v1/satellites/{scenario.PeerId}");

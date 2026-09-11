@@ -14,11 +14,14 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
 {
     private static readonly TimeSpan HoverGrace = TimeSpan.FromMilliseconds(150);
 
+    private static readonly TimeSpan SettleGrace = TimeSpan.FromSeconds(3);
+
     private readonly SatelliteStrings _strings;
     private readonly DispatcherQueue _dispatcher;
     private SatelliteCommands? _commands;
     private readonly DispatcherQueueTimer _ticker;
     private readonly DispatcherQueueTimer _hoverExit;
+    private readonly DispatcherQueueTimer _settle;
     private SatelliteRuntimeConnection? _connection;
     private IReadOnlyList<RemoteToolPeer> _peers = [];
     private IReadOnlyList<RemoteToolActivity> _activities = [];
@@ -26,6 +29,7 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     private bool _pinned;
     private bool _pointerOver;
     private bool _frozen;
+    private bool _settled;
 
     public IslandViewModel(
         SatelliteStrings strings,
@@ -48,6 +52,14 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
             _pointerOver = false;
             Update();
         };
+        _settle = dispatcher.CreateTimer();
+        _settle.Interval = SettleGrace;
+        _settle.IsRepeating = false;
+        _settle.Tick += (_, _) =>
+        {
+            _settled = true;
+            Update();
+        };
     }
 
     [ObservableProperty]
@@ -59,12 +71,15 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     {
         _ticker.Stop();
         _hoverExit.Stop();
+        _settle.Stop();
         if (_connection is not { } connection)
             return;
         connection.Runtime.StatusChanged -= OnStatusChanged;
         connection.Runtime.ActivityChanged -= OnActivityChanged;
         connection.Runtime.PeerConnected -= OnPeerConnected;
         connection.Runtime.PeerDisconnected -= OnPeerDisconnected;
+        connection.Runtime.ScreenViewStarted -= OnScreenViewChanged;
+        connection.Runtime.ScreenViewStopped -= OnScreenViewChanged;
     }
 
     public void Attach(SatelliteRuntimeConnection connection, SatelliteCommands commands)
@@ -75,6 +90,9 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         connection.Runtime.ActivityChanged += OnActivityChanged;
         connection.Runtime.PeerConnected += OnPeerConnected;
         connection.Runtime.PeerDisconnected += OnPeerDisconnected;
+        connection.Runtime.ScreenViewStarted += OnScreenViewChanged;
+        connection.Runtime.ScreenViewStopped += OnScreenViewChanged;
+        _settle.Start();
         Refresh();
     }
 
@@ -83,10 +101,12 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         IReadOnlyList<RemoteToolPeer> peers,
         IReadOnlyList<RemoteToolActivity> activities,
         IReadOnlyList<IslandApprovalEntry> approvals,
-        bool pinned)
+        bool pinned,
+        SatelliteTrayState state = SatelliteTrayState.Connected)
     {
         _frozen = true;
-        _state = SatelliteTrayState.Connected;
+        _settled = true;
+        _state = state;
         _peers = peers;
         _activities = activities;
         _pinned = pinned;
@@ -103,6 +123,8 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         // A pause, a revoke or a lost connection makes every waiting request meaningless.
         if (next != SatelliteTrayState.Connected)
             Approvals.Invalidate();
+        if (next != SatelliteTrayState.Offline)
+            _settled = true;
         _state = next;
         _peers = connection.Runtime.Peers;
         _activities = connection.Runtime.CurrentActivity is { } activity ? [activity] : [];
@@ -123,6 +145,8 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
 
     public void Toggle()
     {
+        if (State.IsQuiet)
+            return;
         _pinned = !_pinned;
         Update();
     }
@@ -152,6 +176,8 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         Run(commands => commands.PauseAsync());
     }
 
+    public void Resume() => Run(commands => commands.ResumeAsync());
+
     private void Run(Func<SatelliteCommands, Task> action)
     {
         if (_commands is not { } commands)
@@ -173,16 +199,19 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
 
     private void Update()
     {
-        State = IslandStateModel.Derive(
-            new IslandInputs(
-                _state,
-                _peers,
-                _activities,
-                Approvals.Pending,
-                _pinned,
-                _pointerOver,
-                DateTimeOffset.Now),
-            _strings);
+        // Until the first dial is answered the capsule waits rather than claim the machine is offline.
+        State = _settled
+            ? IslandStateModel.Derive(
+                new IslandInputs(
+                    _state,
+                    _peers,
+                    _activities,
+                    Approvals.Pending,
+                    _pinned,
+                    _pointerOver,
+                    DateTimeOffset.Now),
+                _strings)
+            : new IslandStateModel();
 
         // Only the running elapsed time and the countdown move on their own.
         var counting = !_frozen && State.Visible && (State.ShowRunning || State.Mode == IslandMode.Approval);
@@ -197,6 +226,8 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     private void OnActivityChanged(object? sender, RemoteToolActivity? activity) => Post(Refresh);
 
     private void OnPeerConnected(object? sender, RemoteToolPeer peer) => Post(Refresh);
+
+    private void OnScreenViewChanged(object? sender, RemoteToolPeer peer) => Post(Refresh);
 
     private void OnPeerDisconnected(object? sender, RemoteToolPeer peer) => Post(() =>
     {

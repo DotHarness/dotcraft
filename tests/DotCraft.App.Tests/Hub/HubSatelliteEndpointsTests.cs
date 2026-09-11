@@ -242,14 +242,11 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         using var socket = new ClientWebSocket();
         socket.Options.CollectHttpResponseDetails = true;
         socket.Options.SetRequestHeader("Authorization", "Bearer " + hub.Token);
-        await socket.ConnectAsync(
+        await Assert.ThrowsAsync<WebSocketException>(async () => await socket.ConnectAsync(
             new Uri($"ws://{new Uri(hub.ApiBaseUrl).Authority}/v1/satellites/{peer.PeerId}/bridge?session=s1"),
-            CancellationToken.None);
-        var buffer = new byte[128];
-        var result = await socket.ReceiveAsync(buffer, CancellationToken.None);
+            CancellationToken.None));
 
-        Assert.Equal(WebSocketMessageType.Close, result.MessageType);
-        Assert.Equal("satelliteOffline", socket.CloseStatusDescription);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, socket.HttpStatusCode);
 
         using var missing = new ClientWebSocket();
         missing.Options.CollectHttpResponseDetails = true;

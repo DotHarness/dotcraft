@@ -14,7 +14,6 @@ public sealed partial class App : Application, IDisposable
 {
     private readonly StartupOptions _options;
     private readonly SingleInstanceGate? _gate;
-    private Window? _lifetimeWindow;
     private SatelliteRuntimeConnection? _connection;
     private TrayIconHost? _tray;
     private ToastPresenter? _toasts;
@@ -26,8 +25,14 @@ public sealed partial class App : Application, IDisposable
     {
         _options = options;
         _gate = gate;
+        DispatcherShutdownMode = ShutdownModeFor(options);
         InitializeComponent();
     }
+
+    internal static DispatcherShutdownMode ShutdownModeFor(StartupOptions options) =>
+        options.Preview is null
+            ? DispatcherShutdownMode.OnExplicitShutdown
+            : DispatcherShutdownMode.OnLastWindowClose;
 
     public void Dispose()
     {
@@ -36,9 +41,7 @@ public sealed partial class App : Application, IDisposable
         _island?.Dispose();
         _toasts?.Dispose();
         _tray?.Dispose();
-        GC.KeepAlive(_lifetimeWindow);
         GC.KeepAlive(_consentPreview);
-        _lifetimeWindow = null;
         _consentPreview = null;
     }
 
@@ -50,10 +53,6 @@ public sealed partial class App : Application, IDisposable
             _consentPreview = ConsentPreview.Show(consentScenario, strings);
             return;
         }
-
-        // WinUI exits when its last Window closes. Keep an unactivated window alive so closing
-        // consent returns this tray application to the background instead of terminating it.
-        _lifetimeWindow ??= new Window();
 
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         var approvals = new IslandApprovalQueue();

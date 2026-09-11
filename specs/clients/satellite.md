@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.4.0 |
+| Version | 0.6.0 |
 | Status | Draft |
-| Date | 2026-09-10 |
+| Date | 2026-09-11 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
-| Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Desktop Client](desktop-client.md) |
+| Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md), [Desktop Client](desktop-client.md) |
 
 ## Overview
 
@@ -36,11 +36,14 @@ CLI-driven Remote Tool Host.
   machine one submenu of the actions that name it — open its task folder, manage its access,
   disconnect it, revoke it. Only what does not name a machine stays at the top level: pause
   or resume sharing, paste an invitation link, and quit.
-- A floating island above the other windows for the whole time the machine is in use. It names who
-  is using it, shows the running operation and command, lists the connected machines with a
-  disconnect and an open-folder action each, offers one machine-wide pause, and carries the owner
-  approval request.
-- Operating-system notifications when a peer connects or disconnects.
+- A floating island above the other windows for as long as the machine is paired. While the machine
+  is in use it names who is using it, shows the running operation and command, lists the connected
+  machines with a disconnect and an open-folder action each, offers one machine-wide pause, carries
+  the owner approval request, and marks the machine as watched while its screen is being viewed.
+  Otherwise it says in one line that the machine is ready, paused with resume at hand, or not
+  connected.
+- Operating-system notifications when a peer connects or disconnects, and when it starts or stops
+  viewing the screen.
 - Login autostart, single-instance behavior, and handling of the `dotcraft://satellite/join` link.
 - A per-user installer with an update channel.
 - Localization in Simplified Chinese and English, extensible to the other Desktop locales.
@@ -52,13 +55,17 @@ CLI-driven Remote Tool Host.
   Windows credential store.
 - Multi-user roles or approval routing to third parties.
 - Replacing DotCraft Desktop or hosting a conversation surface.
+- Remote input, remote control, or recording of the screen.
 - Any Universe integration.
 
 ## Application boundary
 
 Satellite MUST host the Remote Tool Host runtime in-process through the public hosting entry point
 of `DotCraft.RemoteTools`. It MUST NOT spawn `dotcraft.exe` to serve. Exactly one Satellite process
-and one tray icon run per signed-in user.
+and one tray icon run per signed-in user. In normal tray mode the process ends only through the
+explicit quit action, uninstall, or external process termination. Closing, hiding, or losing an
+auxiliary window such as the island or consent surface MUST NOT stop the Remote Tool Host runtime
+or its Hub control connection; a failed island degrades to the tray surface.
 
 Satellite is a shipped DotCraft product artifact. Its solution is separate from `dotcraft.sln`
 only because the cross-platform build runs on Linux; that exclusion is a build constraint, not a
@@ -110,6 +117,12 @@ approval. Shell approval explicitly covers possible effects outside the task fol
 Existing pairings with no mode require local reauthorization. The tray exposes mode, folder and
 authorization management. Mode changes drain execution resources before changing authorization.
 
+Viewing the machine's screen ([Remote Screen View](../features/remote-screen-view.md)) needs no
+separate consent: pairing lends the machine, and a view is available to every pairing whose
+authorization is valid while sharing is not paused. Pause refuses new views and ends live ones;
+disconnect, revoke and authorization changes end them. The owner is always shown that it is
+happening, on the island and by notification.
+
 Parsing an invitation link MUST be a pure operation. Filling the window costs exactly one `GET` of
 the invitation URL, which reads the inviter and expiry and writes nothing on either
 machine; a failed or unanswered fetch MUST still show the window with whatever the link itself
@@ -134,7 +147,7 @@ Satellite has exactly four states with the precedence `offline > paused > connec
 |---|---|
 | `offline` | no pairing exists, or the control connection to the Hub is down, including while retrying |
 | `paused` | the owner paused sharing; the control connection stays up and data sessions are refused |
-| `connected` | at least one data session is open |
+| `connected` | at least one data session is open, of either kind; a screen view alone is enough |
 | `standby` | paired, control connection up, no data session |
 
 The tray icon, its tooltip, and the menu status line MUST reflect the current state. The menu MUST
@@ -145,18 +158,32 @@ resuming would help while the Hub is unreachable.
 ## Island
 
 The island is a floating capsule at the top of the primary display, above the other windows, with
-no taskbar or Alt-Tab presence. It MUST be visible for the whole of `connected` and for none of the
-other three states: `standby` has nobody to name, `paused` refuses sessions, and `offline` cannot
-know. It has no close or hide action and no grip: the whole capsule surface drags, and its position
-is remembered per display in `~/.craft/satellite.json`.
+no taskbar or Alt-Tab presence. It MUST be visible whenever at least one pairing exists, in every
+one of the four states, so a machine that is lent out always says so and a capsule never comes and
+goes on its own. It is hidden only while no pairing exists and while its page failed to load. It
+has no close or hide action and no grip: the whole capsule surface drags, and its position is
+remembered per display in `~/.craft/satellite.json`.
 
-Its states have the precedence `approval > running > expanded > compact`. Compact names the peer
+Outside `connected` the capsule is quiet: one line, the dish glyph, no rows, no pulse, no hover
+expansion, no pinning, and no approval. `standby` says the machine is ready; `paused` says sharing
+is paused and offers the one resume action, in the tray's words; `offline` says the machine is not
+connected, with the glyph dimmed. The quiet line uses the tray status strings. At sign-in the
+capsule waits a short grace for the first dial before it says `offline`, so a machine that connects
+within seconds never flashes the not-connected line.
+
+Within `connected` its states have the precedence `approval > running > expanded > compact`. Compact names the peer
 and when it connected, or counts the machines when there are several. Running names the operation
 in the same vocabulary the approval request uses, previews the command on one truncated line, and
-counts concurrent tools. Expanded, on hover or click, lists each connected machine with its access
-mode and, per row, disconnect and open-task-folder; the machine-wide pause sits once under the
-rows. Approval names the inviter, the operation and the target, counts the requests waiting behind
-it, and shows the time left.
+counts concurrent tools. Expanded, on hover or click, keeps the compact line and adds only what it
+does not say: one detail row per connected machine with its access mode and connection time, with
+disconnect and open-task-folder on the row, and the machine-wide pause once under the rows. A
+single machine's row omits the name the line above already carries; several machines are named
+per row. Nothing is repeated between the line and the rows. Approval names the inviter, the
+operation and the target, counts the requests waiting behind it, and shows the time left.
+
+While a machine's screen is being viewed, the capsule's glyph becomes an eye in the same tone as
+the dish it replaces, and that machine's detail row ends with "Screen shared". The marker changes
+no mode, uses no colour, and has no action of its own: pause is the owner's answer.
 
 Text the island renders from a peer or an inviter is attacker-influenced: it MUST be rendered as
 plain text, length-capped, and truncated to one line, with the full value available on hover.
@@ -180,8 +207,9 @@ Its geometry, colour, type and motion are specified by the design lab entry for
 
 ## Notifications
 
-Satellite MUST raise an operating-system notification when a peer connects and when it
-disconnects. Notifications MUST NOT include command output, file contents, or any credential.
+Satellite MUST raise an operating-system notification when a peer connects, when it disconnects,
+when it starts viewing the screen, and when it stops. Notifications MUST NOT include command output,
+file contents, or any credential.
 
 An owner request MUST be answered on the island, where the owner is already being told that the
 machine is in use, and it expires there. It MUST NOT be raised as a notification.
@@ -244,17 +272,24 @@ outlives the application that used it.
 ## Acceptance checklist
 
 - A fresh Windows machine without administrator rights installs Satellite, opens an invitation
-  link, and accepts it in one window; the tray shows `standby` afterwards.
+  link, and accepts it in one window; the tray shows `standby` afterwards and the island says the
+  machine is ready.
 - The engineer's Desktop shows the machine and can run a command on it; the tray shows
-  `connected` and the island appears, names the engineer, and shows the running command.
+  `connected` and the island names the engineer and shows the running command.
 - The island stays above other windows for the whole session, survives being dragged to another
-  position, comes back where it was left, and slides away when the last session closes.
+  position, comes back where it was left, and returns to its ready line when the last session
+  closes.
+- Pausing sharing from the tray puts the paused line and a resume action on the island; resuming
+  from the island returns the tray to `standby`.
+- The engineer's Desktop opens the screen view: the island shows the watching marker and a
+  notification names the engineer; pausing sharing ends the view on the engineer's side and a
+  second notification says viewing stopped.
 - A tool that needs permission is answered on the island; a second request waits behind the first
   and is counted; an unanswered request denies itself after two minutes.
 - Disconnect, pause, and revoke from the tray or the island take effect immediately and are visible
   on the engineer's side, and each cancels every request still waiting.
-- Stopping the Hub on the engineer's machine moves the tray to `offline`; restarting it moves the
-  tray back to `standby` without owner action.
+- Stopping the Hub on the engineer's machine moves the tray to `offline` and the island to its
+  not-connected line; restarting it moves both back to `standby` without owner action.
 - Signing out and back in restarts Satellite in the background with no window.
 - `dotcraft tool-host status` on the machine reports the pairing Satellite created.
 - On a machine with Desktop installed, `dotcraft://workspace/open` still opens Desktop and a

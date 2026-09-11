@@ -143,7 +143,9 @@ export class SatellitesHubBridge {
 
   private async publishWithMachine(event: SatelliteEvent): Promise<void> {
     let satellite = this.snapshot.get(event.peerId)
-    if (!satellite && event.kind !== 'revoked') {
+    // Refresh arrivals because offline snapshots do not contain current capabilities or workspaces.
+    const arrival = event.kind === 'joined' || event.kind === 'online'
+    if (arrival || (!satellite && event.kind !== 'revoked')) {
       try {
         this.remember(normalizeSatellites(await this.deps.getHubClient().listSatellites()))
         satellite = this.snapshot.get(event.peerId)

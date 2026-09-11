@@ -163,7 +163,7 @@ describe('SatellitesHubBridge event filtering', () => {
     expect(hub.listCalls).toBe(0)
   })
 
-  it('takes presence from the event kind rather than the cached record', async () => {
+  it('refreshes the record when a machine arrives, so the capabilities it declares are known', async () => {
     bridge.acquire()
     bridge.remember([
       {
@@ -171,19 +171,22 @@ describe('SatellitesHubBridge event filtering', () => {
         hostId: 'sat_1',
         displayName: 'Ann PC',
         connected: false,
-        workspaces: []
+        workspaces: [],
+        capabilities: []
       }
     ])
+    hub.satellites = [{ peerId: 'sat_1', displayName: 'Ann PC', online: true, capabilities: ['screen-v1'] }]
 
     hub.emit(satelliteFrame('satellite.online', 'sat_1'))
     await vi.advanceTimersByTimeAsync(0)
 
+    expect(hub.listCalls).toBe(1)
     expect(received[0].satellite?.connected).toBe(true)
-    expect(hub.listCalls).toBe(0)
+    expect(received[0].satellite?.capabilities).toEqual(['screen-v1'])
 
-    // The snapshot moved with it, so a later event does not fall back to stale presence.
     hub.emit(satelliteFrame('satellite.offline', 'sat_1'))
     await vi.advanceTimersByTimeAsync(0)
+    expect(hub.listCalls).toBe(1)
     expect(received[1].satellite?.connected).toBe(false)
     expect(bridge.recentActivity('sat_1')[0].satellite?.connected).toBe(false)
   })

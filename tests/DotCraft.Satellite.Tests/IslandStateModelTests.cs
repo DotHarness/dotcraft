@@ -14,28 +14,71 @@ public sealed class IslandStateModelTests
     private static readonly DateTimeOffset Now = new(2026, 9, 10, 11, 35, 0, TimeSpan.Zero);
 
     [Fact]
-    public void Derive_ShowsTheIslandOnlyWhileTheMachineIsInUse()
+    public void Derive_WhileNobodyIsUsingTheMachine_SaysSoInOneQuietLine()
     {
-        SatelliteTrayState[] quiet =
-            [SatelliteTrayState.Offline, SatelliteTrayState.Standby, SatelliteTrayState.Paused];
+        (SatelliteTrayState State, IslandMode Mode, string Key, double Width)[] quiet =
+        [
+            (SatelliteTrayState.Offline, IslandMode.Offline, "tray.status.offline", 160),
+            (SatelliteTrayState.Paused, IslandMode.Paused, "tray.status.paused", 230),
+            (SatelliteTrayState.Standby, IslandMode.Standby, "tray.status.standby", 160)
+        ];
 
-        foreach (var state in quiet)
+        foreach (var (state, mode, key, width) in quiet)
         {
-            var model = Derive(state, [Peer()]);
+            var model = Derive(state, [Peer(connected: false)]);
 
-            Assert.False(model.Visible);
-            Assert.Equal(IslandMode.Hidden, model.Mode);
+            Assert.True(model.Visible);
+            Assert.Equal(mode, model.Mode);
+            Assert.Equal(Strings[key], model.CompactLabel);
+            Assert.Equal(Strings[key], model.Summary);
+            Assert.Equal(width, model.Width);
+            Assert.Empty(model.Peers);
+            Assert.False(model.ShowRunning);
+            Assert.False(model.Watching);
         }
-
-        Assert.True(Derive(SatelliteTrayState.Connected, [Peer()]).Visible);
     }
 
     [Fact]
-    public void Derive_WhenTheLastSessionCloses_TakesTheIslandAway()
+    public void Derive_WithNoPairing_TakesTheIslandAway()
+    {
+        var model = Derive(SatelliteTrayState.Standby, []);
+
+        Assert.False(model.Visible);
+        Assert.Equal(IslandMode.Hidden, model.Mode);
+    }
+
+    [Fact]
+    public void Derive_WhenTheLastSessionCloses_FallsBackToTheReadyLine()
     {
         var model = Derive(SatelliteTrayState.Connected, [Peer(connected: false)]);
 
-        Assert.False(model.Visible);
+        Assert.Equal(IslandMode.Standby, model.Mode);
+        Assert.Equal(Strings["tray.status.standby"], model.Summary);
+    }
+
+    [Fact]
+    public void Derive_WhileSharingIsPaused_OffersTheResumeAction()
+    {
+        var model = Derive(SatelliteTrayState.Paused, [Peer()]);
+
+        Assert.Equal(Strings["tray.resume"], model.ResumeLabel);
+        Assert.Empty(Derive(SatelliteTrayState.Standby, [Peer()]).ResumeLabel);
+        Assert.Empty(Derive(SatelliteTrayState.Connected, [Peer()]).ResumeLabel);
+    }
+
+    [Fact]
+    public void Derive_WhileQuiet_AnswersToNeitherPinningNorHoverNorRequests()
+    {
+        var model = Derive(
+            SatelliteTrayState.Standby,
+            [Peer()],
+            [Activity("Exec", "npm run build")],
+            pinned: true,
+            pointerOver: true,
+            approvals: [Request("execute", "npm run test -- --runInBand")]);
+
+        Assert.Equal(IslandMode.Standby, model.Mode);
+        Assert.False(model.IsApproval);
     }
 
     [Fact]
@@ -62,7 +105,6 @@ public sealed class IslandStateModelTests
 
         Assert.Equal("2 machines", model.CompactLabel);
         Assert.Empty(model.SinceLabel);
-        Assert.Equal("2 machines", model.PanelCount);
     }
 
     [Fact]
@@ -113,7 +155,6 @@ public sealed class IslandStateModelTests
 
         Assert.Equal(IslandMode.Expanded, model.Mode);
         Assert.True(model.ShowRunning);
-        Assert.Equal(Strings["tray.status.connected"], model.PanelTitle);
         Assert.Equal(2, model.Peers.Count);
         Assert.StartsWith(Strings["consent.folderHeading"], model.Peers[0].Meta, StringComparison.Ordinal);
         Assert.StartsWith(Strings["consent.full"], model.Peers[1].Meta, StringComparison.Ordinal);
@@ -178,14 +219,31 @@ public sealed class IslandStateModelTests
         Assert.DoesNotContain(new string('A', IslandStateModel.NameCap + 1), model.ApprovalTitle, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Derive_MarksTheMachineBeingWatched_WithoutChangingTheMode()
+    {
+        var model = Derive(
+            SatelliteTrayState.Connected,
+            [Peer() with { ScreenViewers = 1 }, Peer(peerId: "pair_priya", name: "Priya's desktop")]);
+
+        Assert.True(model.Watching);
+        Assert.Equal(IslandMode.Compact, model.Mode);
+        Assert.Equal(Strings["island.watching"], model.WatchingLabel);
+        Assert.EndsWith(" · " + model.WatchingLabel, model.Peers[0].Meta, StringComparison.Ordinal);
+        Assert.DoesNotContain(model.WatchingLabel, model.Peers[1].Meta, StringComparison.Ordinal);
+        Assert.EndsWith(model.WatchingLabel, model.Summary, StringComparison.Ordinal);
+        Assert.False(Derive(SatelliteTrayState.Connected, [Peer()]).Watching);
+    }
+
     private static IslandStateModel Derive(
         SatelliteTrayState state,
         IReadOnlyList<RemoteToolPeer> peers,
         IReadOnlyList<RemoteToolActivity>? activities = null,
         bool pinned = false,
-        IReadOnlyList<IslandApprovalEntry>? approvals = null) =>
+        IReadOnlyList<IslandApprovalEntry>? approvals = null,
+        bool pointerOver = false) =>
         IslandStateModel.Derive(
-            new IslandInputs(state, peers, activities ?? [], approvals ?? [], pinned, PointerOver: false, Now),
+            new IslandInputs(state, peers, activities ?? [], approvals ?? [], pinned, pointerOver, Now),
             Strings);
 
     private static RemoteToolPeer Peer(

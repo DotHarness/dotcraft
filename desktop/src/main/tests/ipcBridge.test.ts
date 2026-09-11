@@ -60,7 +60,9 @@ vi.mock('electron', () => {
   },
   ipcMain: {
     handle: vi.fn(),
-    removeHandler: vi.fn()
+    removeHandler: vi.fn(),
+    on: vi.fn(),
+    removeAllListeners: vi.fn()
   },
   BrowserWindow: {
     getAllWindows: vi.fn(() => []),

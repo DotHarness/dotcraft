@@ -27,7 +27,8 @@ public sealed record RemoteToolPeer(
     string WorkspacePath,
     DateTimeOffset JoinedAt,
     DateTimeOffset? ConnectedSince,
-    string? AuthorizationMode = null);
+    string? AuthorizationMode = null,
+    int ScreenViewers = 0);
 
 /// <summary>The tool call currently running for a paired machine.</summary>
 public sealed record RemoteToolActivity(

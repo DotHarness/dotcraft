@@ -154,6 +154,20 @@ public sealed class ContractAnalyzerTests
             static diagnostic => diagnostic.Id == "DPC001");
     }
 
+    [Fact]
+    public async Task Analyzer_IgnoresContractsOutsideTheAppServerNamespace()
+    {
+        const string source = """
+            namespace DotCraft.Protocol.ScreenView.Testing
+            {
+                public readonly record struct FrameHeader(uint Sequence, ushort Width, long CapturedAt);
+            }
+            """;
+
+        var diagnostics = await AnalyzeAsync(source);
+        Assert.DoesNotContain(diagnostics, static diagnostic => diagnostic.Id.StartsWith("DPC", StringComparison.Ordinal));
+    }
+
     private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string source)
     {
         var compilation = CreateCompilation(source);

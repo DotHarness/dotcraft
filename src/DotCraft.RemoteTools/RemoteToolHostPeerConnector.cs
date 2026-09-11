@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
+using DotCraft.Screen;
 
 namespace DotCraft.RemoteTools;
 
@@ -13,13 +15,16 @@ internal sealed class RemoteToolHostPeerConnector(
     RemoteToolHostMcpHandlers handlers,
     WorkspaceLeaseManager leases,
     Func<bool> isPaused,
-    TimeSpan? heartbeatInterval = null)
+    TimeSpan? heartbeatInterval = null,
+    Func<IScreenCaptureSource>? screenCapture = null)
 {
     private readonly TimeSpan _heartbeatInterval = heartbeatInterval ?? SatelliteWire.HeartbeatInterval;
     private readonly SemaphoreSlim _drainGate = new(1, 1);
     private readonly SemaphoreSlim _sendGate = new(1, 1);
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _dataTasks = new();
+    private readonly ConcurrentDictionary<string, Task> _dataTasks = new();
     private CancellationTokenSource _dataCancellation = new();
+    private volatile string _screenCloseReason = SatelliteWire.ScreenClosedHost;
+    private int _screenViewers;
     private int _backoffAttempt;
     private volatile bool _stopped;
     private CancellationTokenSource? _session;
@@ -30,6 +35,9 @@ internal sealed class RemoteToolHostPeerConnector(
     public DateTimeOffset? ConnectedSince { get; private set; }
     public bool WasRevoked { get; private set; }
 
+    /// <summary>Open screen views; each is a data session that takes no lease.</summary>
+    public int ScreenViewers => Volatile.Read(ref _screenViewers);
+
     public event Action<RemoteToolHostPeerConnector>? StateChanged;
 
     public void Stop()
@@ -39,18 +47,21 @@ internal sealed class RemoteToolHostPeerConnector(
         catch (ObjectDisposedException) { }
     }
 
-    public async Task DrainAsync()
+    /// <summary>Ends every data session of either kind; screen views close with <paramref name="screenCloseReason"/>.</summary>
+    public async Task DrainAsync(string screenCloseReason = SatelliteWire.ScreenClosedHost)
     {
         await _drainGate.WaitAsync().ConfigureAwait(false);
         try
         {
-        await _dataCancellation.CancelAsync().ConfigureAwait(false);
-        try { await Task.WhenAll(_dataTasks.Values).ConfigureAwait(false); }
-        catch (Exception) { }
-        _dataTasks.Clear();
-        await handlers.DrainWorkspaceAsync(peer.WorkspaceId).ConfigureAwait(false);
-        _dataCancellation.Dispose();
-        _dataCancellation = new CancellationTokenSource();
+            _screenCloseReason = screenCloseReason;
+            await _dataCancellation.CancelAsync().ConfigureAwait(false);
+            try { await Task.WhenAll(_dataTasks.Values).ConfigureAwait(false); }
+            catch (Exception) { }
+            _dataTasks.Clear();
+            await handlers.DrainWorkspaceAsync(peer.WorkspaceId).ConfigureAwait(false);
+            _dataCancellation.Dispose();
+            _dataCancellation = new CancellationTokenSource();
+            _screenCloseReason = SatelliteWire.ScreenClosedHost;
         }
         finally { _drainGate.Release(); }
     }
@@ -148,10 +159,24 @@ internal sealed class RemoteToolHostPeerConnector(
                 case SatelliteWire.Revoked:
                     throw new PairingRevokedException();
                 case SatelliteWire.OpenSession when frame.SessionId is { Length: > 0 } sessionId:
-                    _dataTasks[sessionId] = OpenDataSessionAsync(socket, credential, sessionId, session.Token);
+                    Track(
+                        sessionId,
+                        string.Equals(frame.SessionKind, SatelliteWire.SessionKindScreen, StringComparison.Ordinal)
+                            ? OpenScreenSessionAsync(socket, credential, sessionId, session.Token)
+                            : OpenDataSessionAsync(socket, credential, sessionId, session.Token));
                     break;
             }
         }
+    }
+
+    private void Track(string sessionId, Task session)
+    {
+        foreach (var pair in _dataTasks)
+        {
+            if (pair.Value.IsCompleted)
+                _dataTasks.TryRemove(pair);
+        }
+        _dataTasks[sessionId] = session;
     }
 
     private async Task OpenDataSessionAsync(
@@ -177,23 +202,82 @@ internal sealed class RemoteToolHostPeerConnector(
         }
         catch (Exception ex)
         {
-            try
-            {
-                await SendAsync(
-                    control,
-                    new SatelliteFrame
-                    {
-                        Kind = SatelliteWire.SessionFailed,
-                        SessionId = sessionId,
-                        Code = SatelliteWire.SessionFailedClose,
-                        Message = ex.Message
-                    },
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // The control connection is already gone; the Hub times the session out.
-            }
+            await FailSessionAsync(control, sessionId, SatelliteWire.SessionFailedClose, ex.Message, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task OpenScreenSessionAsync(
+        ClientWebSocket control,
+        string credential,
+        string sessionId,
+        CancellationToken cancellationToken)
+    {
+        if (screenCapture is not { } capture)
+        {
+            await FailSessionAsync(control, sessionId, SatelliteWire.SessionFailedClose, null, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+        var refusal = isPaused() ? SatelliteWire.ScreenClosedPaused
+            : !RemoteToolAuthorization.IsValid(peer.AuthorizationMode) ? SatelliteWire.ScreenClosedAuthorizationRequired
+            : null;
+        if (refusal is not null)
+        {
+            await FailSessionAsync(control, sessionId, refusal, null, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        Interlocked.Increment(ref _screenViewers);
+        StateChanged?.Invoke(this);
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _dataCancellation.Token);
+            await ScreenViewSession.RunAsync(
+                peer.DataUri(sessionId),
+                credential,
+                capture,
+                () => _screenCloseReason,
+                linked.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            await FailSessionAsync(control, sessionId, SatelliteWire.SessionFailedClose, ex.Message, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _screenViewers);
+            StateChanged?.Invoke(this);
+        }
+    }
+
+    private async Task FailSessionAsync(
+        ClientWebSocket control,
+        string sessionId,
+        string code,
+        string? message,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendAsync(
+                control,
+                new SatelliteFrame
+                {
+                    Kind = SatelliteWire.SessionFailed,
+                    SessionId = sessionId,
+                    Code = code,
+                    Message = message
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // The control connection is already gone; the Hub times the session out.
         }
     }
 
@@ -226,7 +310,8 @@ internal sealed class RemoteToolHostPeerConnector(
             OperatingSystem = RuntimeInformation.OSDescription,
             UserName = Environment.UserName,
             BuildVersion = RemoteToolHostProtocol.BuildVersion,
-            Workspaces = DescribeWorkspaces()
+            Workspaces = DescribeWorkspaces(),
+            Capabilities = screenCapture is null ? null : [SatelliteWire.ScreenCapability]
         };
     }
 

@@ -135,6 +135,19 @@ html[data-reduce-motion="on"] .island {
   padding: 0 8px 8px;
 }
 
+.island[data-mode="standby"] .label,
+.island[data-mode="paused"] .label,
+.island[data-mode="offline"] .label {
+  max-width: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.island[data-mode="offline"] .glyph {
+  color: var(--text-dimmed);
+}
+
 .island[data-mode="approval"] {
   padding: 8px 8px 8px 10px;
 }
@@ -254,20 +267,10 @@ html[data-reduce-motion="on"] .island {
   white-space: nowrap;
 }
 
-.panel-title {
-  display: flex;
-  justify-content: space-between;
-  margin: 2px 0 4px;
-  padding: 0 6px;
-  color: var(--text-dimmed);
-  font-size: 11px;
-  line-height: 16px;
-}
-
 .peers {
   display: grid;
   gap: 2px;
-  margin: 0 0 2px;
+  margin: 2px 0 0;
   padding: 0;
   max-height: 190px;
   overflow: auto;
@@ -279,7 +282,7 @@ html[data-reduce-motion="on"] .island {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 46px;
+  min-height: 40px;
   box-sizing: border-box;
   padding: 6px;
   border-radius: 10px;
@@ -369,6 +372,11 @@ html[data-reduce-motion="on"] .island {
 .text-action:hover {
   background: var(--bg-active);
   color: var(--text-primary);
+}
+
+.summary .text-action {
+  flex: none;
+  margin-right: -4px;
 }
 
 .approval {
@@ -544,7 +552,8 @@ html[data-reduce-motion="on"] .ring-value {
 <div class="island" id="island" role="group" tabindex="0" data-mode="compact" data-motion="none">
   <div class="summary" id="summary">
     <span class="glyph" id="glyph" aria-hidden="true">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a7.31 7.31 0 0 0 10 10Z"/><path d="m9 15 3-3"/><path d="M17 13a6 6 0 0 0-6-6"/><path d="M21 13A10 10 0 0 0 11 3"/></svg>
+      <svg id="glyphDish" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a7.31 7.31 0 0 0 10 10Z"/><path d="m9 15 3-3"/><path d="M17 13a6 6 0 0 0-6-6"/><path d="M21 13A10 10 0 0 0 11 3"/></svg>
+      <svg id="glyphEye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
     </span>
     <span class="line" id="idle">
       <span class="label" id="idleLabel"></span>
@@ -556,10 +565,10 @@ html[data-reduce-motion="on"] .ring-value {
       <span class="badge" id="concurrency" hidden></span>
       <span class="timer" id="elapsed"></span>
     </span>
+    <button type="button" class="text-action" id="resume" data-action="resume" hidden></button>
   </div>
 
   <div class="panel" id="panel" hidden>
-    <p class="panel-title"><span id="panelTitle"></span><span id="panelCount"></span></p>
     <ul class="peers" id="peers"></ul>
     <p class="panel-foot">
       <button type="button" class="text-action" data-action="pause">
@@ -599,8 +608,7 @@ html[data-reduce-motion="on"] .ring-value {
   const circumference = 2 * Math.PI * 8;
   const post = (message) => window.chrome?.webview?.postMessage(message);
   const iconUnplug = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 5 3-3"/><path d="m2 22 3-3"/><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z"/></svg>';
-  const iconFolder = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>';
-  let box = null;
+  const iconFolder = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>';  let box = null;
   let peersKey = '';
   let summary = '';
   let pointerId = null;
@@ -659,14 +667,18 @@ html[data-reduce-motion="on"] .ring-value {
       item.className = 'in';
       const body = document.createElement('span');
       body.className = 'peer';
-      const name = document.createElement('span');
-      name.className = 'peer-name';
-      name.textContent = peer.name;
-      name.title = peer.name;
+      if (peers.length > 1) {
+        const name = document.createElement('span');
+        name.className = 'peer-name';
+        name.textContent = peer.name;
+        name.title = peer.name;
+        body.append(name);
+      }
       const meta = document.createElement('span');
       meta.className = 'peer-meta';
       meta.textContent = peer.meta;
-      body.append(name, meta);
+      meta.title = peer.meta;
+      body.append(meta);
       const actions = document.createElement('span');
       actions.className = 'peer-actions';
       const disconnect = document.createElement('button');
@@ -718,6 +730,9 @@ html[data-reduce-motion="on"] .ring-value {
     const running = state.running;
     const approval = state.approval;
     $('glyph').dataset.active = String(Boolean(running));
+    $('glyphDish').hidden = state.watching;
+    $('glyphEye').hidden = !state.watching;
+    $('glyph').title = state.watching ? state.watchingLabel : '';
     show($('summary'), !approval);
     show($('idle'), !approval && !running);
     show($('running'), !approval && Boolean(running));
@@ -727,6 +742,8 @@ html[data-reduce-motion="on"] .ring-value {
     text('idleLabel', state.label);
     $('idleLabel').title = state.label;
     text('since', state.since);
+    text('resume', state.resume);
+    $('resume').hidden = !state.resume;
     if (running) {
       text('operation', running.operation);
       text('command', running.command);
@@ -735,8 +752,6 @@ html[data-reduce-motion="on"] .ring-value {
       text('concurrency', `+${running.concurrency}`);
       text('elapsed', running.elapsed);
     }
-    text('panelTitle', state.panel.title);
-    text('panelCount', state.panel.count);
     text('pause', state.panel.pause);
     renderPeers(state.panel.peers);
     if (approval) {

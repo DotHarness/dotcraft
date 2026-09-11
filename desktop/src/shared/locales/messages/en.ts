@@ -3581,7 +3581,26 @@ export const MESSAGES_EN = {
   'workflow.retry': 'Retry',
   'workflow.triggeredBy.badge': 'Sent from workflow',
   'workflow.triggeredBy.detail': 'Workflow · {{label}}',
-  'workflow.triggeredBy.generic': 'Dynamic Workflow'
+  'workflow.triggeredBy.generic': 'Dynamic Workflow',
+  'screenView.launcher': 'Watch {{name}}\'s screen',
+  'screenView.move': 'Move the screen view',
+  'screenView.theater': 'Expand',
+  'screenView.exitTheater': 'Back to dock',
+  'screenView.close': 'Stop watching',
+  'screenView.resize': 'Resize the screen view',
+  'screenView.state.connecting': 'Connecting…',
+  'screenView.state.live': 'Live',
+  'screenView.state.stalled': 'No new frames',
+  'screenView.state.reconnecting': 'Reconnecting…',
+  'screenView.state.paused': 'Sharing paused',
+  'screenView.state.needsAuthorization': 'Needs the machine owner',
+  'screenView.state.offline': 'Machine offline',
+  'screenView.state.unavailable': 'Screen unavailable',
+  'screenView.state.noCaptureBackend': 'This machine cannot capture its screen',
+  'screenView.state.noInteractiveSession': 'The machine is locked',
+  'screenView.state.noDisplayServer': 'The machine has no display',
+  'screenView.state.captureFailed': 'Capture failed',
+  'screenView.state.hubRejected': 'Hub refused the view'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

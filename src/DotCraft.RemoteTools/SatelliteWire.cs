@@ -22,6 +22,15 @@ internal static class SatelliteWire
     public const string OfflineClose = "satelliteOffline";
     public const string SessionFailedClose = "satelliteSessionFailed";
 
+    public const string SessionKindTools = "tools";
+    public const string SessionKindScreen = "screen";
+    public const string ScreenCapability = "screen-v1";
+
+    /// <summary>Why a host refused or ended a screen view; the Hub hands the code to the viewer as the close description.</summary>
+    public const string ScreenClosedPaused = "sharingPaused";
+    public const string ScreenClosedAuthorizationRequired = "authorizationRequired";
+    public const string ScreenClosedHost = "hostClosed";
+
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan OfflineAfter = TimeSpan.FromSeconds(45);
     public static readonly TimeSpan OpenSessionTimeout = TimeSpan.FromSeconds(15);
@@ -87,6 +96,9 @@ internal static class SatelliteWire
         }
     }
 
+    public static bool IsSessionFailureCode(string? code) =>
+        code is SessionFailedClose or ScreenClosedPaused or ScreenClosedAuthorizationRequired;
+
     public static string? ReadBearer(string? authorizationHeader)
     {
         const string prefix = "Bearer ";
@@ -131,7 +143,9 @@ internal sealed record SatelliteFrame
     public string? HubVersion { get; init; }
     public string? HubLabel { get; init; }
     public string? SessionId { get; init; }
+    public string? SessionKind { get; init; }
     public string? Code { get; init; }
     public string? Message { get; init; }
     public IReadOnlyList<SatelliteWorkspaceInfo>? Workspaces { get; init; }
+    public IReadOnlyList<string>? Capabilities { get; init; }
 }

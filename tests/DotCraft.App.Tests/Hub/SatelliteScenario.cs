@@ -50,7 +50,8 @@ internal sealed class SatelliteScenario : IAsyncDisposable
         string userProfile,
         int satellitePort = 0,
         TimeSpan? heartbeatInterval = null,
-        MemoryCredentialStore? credentials = null)
+        MemoryCredentialStore? credentials = null,
+        Func<DotCraft.Screen.IScreenCaptureSource>? screenCapture = null)
     {
         var workspacePath = Path.Combine(userProfile, "workspace");
         System.IO.Directory.CreateDirectory(workspacePath);
@@ -63,7 +64,7 @@ internal sealed class SatelliteScenario : IAsyncDisposable
         var storage = new RemoteToolHostStorage(
             Path.Combine(userProfile, "host-craft"),
             credentials ?? new MemoryCredentialStore());
-        var runtime = new RemoteToolHostRuntime(storage, "host-machine", heartbeatInterval);
+        var runtime = new RemoteToolHostRuntime(storage, "host-machine", heartbeatInterval, screenCapture);
         var invite = await hub.CreateInviteAsync("Ann");
         var peer = await runtime.AcceptInviteAsync(
             new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath, RemoteToolAuthorization.FullAccess));

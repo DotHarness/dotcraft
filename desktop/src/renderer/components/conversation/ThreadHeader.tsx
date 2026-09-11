@@ -15,6 +15,7 @@ import { OpenWorkspaceButton } from './OpenWorkspaceButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
+import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
@@ -284,6 +285,7 @@ export function ThreadHeader({
     <>
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
@@ -408,6 +410,8 @@ export function ThreadHeader({
         {!remoteWorkspace && <OpenWorkspaceButton workspacePath={workspacePath} />}
 
         <ThreadAppBindingsButton threadId={threadId} />
+
+        <ScreenViewHeaderSlot threadId={threadId} />
 
         <IconButton
           size={28}

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\DotCraft.Protocol\DotCraft.Protocol.csproj" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 

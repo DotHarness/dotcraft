@@ -1,22 +1,38 @@
 # AGENTS.md
 
 Quick reference for coding agents in this repository.
-For full development norms (code style, module rules, tool naming, bilingual docs), read the `dotcraft-dev-guide` skill.
+For code, protocol, or spec changes, use the repository's [dotcraft-dev-guide](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-dev-guide/SKILL.md), including its spec-first workflow.
 
 ## Project
 
 DotCraft is a .NET 10 / C# Agent Harness.
 It uses a modular architecture where multiple entry points (CLI, editors, bots, APIs, GitHub workflows) connect to one workspace and share sessions, memory, skills, and tools under `.craft/`.
 
+## Working Agreement
+
+- Complete the requested work and necessary verification within the authorized scope. Reuse prior decisions and authorization; ask only when missing information materially changes the outcome or an action exceeds that scope.
+- Explicit user instructions take precedence over skill guidance. If a skill causes a pause or departure from the request, link to the exact file, quote the relevant instruction, and explain how it applies.
+- For documentation and README work, use [/dotcraft-docs-guide](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-docs-guide/SKILL.md). User-facing pages explain purpose, usage, and outcomes; implementation details belong in developer references.
+- Finish with a concise account of the result, validation performed, and any remaining blockers.
+
+## Commits and Pull Requests
+
+- Run `/please-cleanup` before committing by default, without waiting for a reminder. This check does not itself authorize committing, pushing, or publishing.
+- Commit messages contain a single subject line, with no body or trailers.
+- Follow [CONTRIBUTING.md](CONTRIBUTING.md) when creating or updating a pull request; it owns the title and body format.
+
 ## Build & Test
 
-Prerequisite: .NET 10 SDK (preview).
+Prerequisite: .NET 10 SDK. Desktop and TypeScript work also requires Node.js; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - Build: `dotnet build dotcraft.sln`
 - Package (Windows): `build.bat`
 - Run: `dotnet run --project src/DotCraft.App/DotCraft.App.csproj`
-- Test: `dotnet test`
-- Single test: `dotnet test --filter "FullyQualifiedName~TestClassName.TestMethodName"`
+- Project tests: `dotnet test <test-project.csproj>`
+- Single test: `dotnet test <test-project.csproj> --filter "FullyQualifiedName~TestClassName.TestMethodName"`
+- Full .NET suite, when the affected scope warrants it: `dotnet test dotcraft.sln`
+
+Use the [development guide's validation entry points](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-dev-guide/SKILL.md#validation) for Desktop, SDK, and documentation changes. Complete the relevant checks; broaden or repeat them only for new changes, failures, or unresolved concerns.
 
 ## Architecture (Top-Level)
 
@@ -53,7 +69,7 @@ Prerequisite: .NET 10 SDK (preview).
 
 ## Localization
 
-- **UI strings** (Desktop, incl. plugin/extension `localizedLabel` and message catalogs): localize for all supported app locales — `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de` (see `desktop/src/shared/locales/types.ts`).
+- **UI strings** (Desktop, incl. plugin/extension `localizedLabel` and message catalogs): update every supported app locale discovered from `desktop/src/shared/locales/types.ts` and the current catalogs.
 - **Docs** (`docs/`): English root + Chinese under `docs/zh/` only.
 - **C# runtime/protocol messages**: stable key/code + English fallback; Desktop owns UI localization (no server-side translation catalogs).
 
@@ -69,9 +85,8 @@ Prerequisite: .NET 10 SDK (preview).
 
 ### Comments
 
-- Comment sparingly: a handful of places per change, one or two sentences each.
-- Comment only what the code cannot say — a non-obvious constant, a non-local
-  constraint, a deliberate omission. Do not restate code or label blocks.
+- Omit comments unless they convey necessary information the code cannot express. Keep each comment to at most one or two sentences, including XML documentation.
+- Explain non-obvious constants, constraints, or deliberate omissions; do not restate code or label blocks.
 - Design rationale belongs in `specs/`, not at each call site.
 - No tombstones: delete removed code and its pointers, not a note of what moved.
 - A stale comment is worse than none; update or delete it with the code.
@@ -87,8 +102,6 @@ Prerequisite: .NET 10 SDK (preview).
 
 ## Go Deeper
 
-- Development norms: `dotcraft-dev-guide` skill
-- Large feature workflow: `feature-workflow` skill
 - Runtime boundaries: `specs/architecture/runtime-module-boundaries.md`
 - Session and protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
 - Developer architecture overview: `docs/developing/architecture/overview.md`

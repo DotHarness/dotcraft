@@ -30,6 +30,10 @@ import {
   SATELLITES_CHANNELS
 } from './satellites/satellitesIpc'
 import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
+import {
+  registerScreenViewHandlers,
+  unregisterScreenViewHandlers
+} from './screenView/screenViewIpc'
 import type { DesktopHubClient } from './desktopHub'
 import { toAppServerErrorEnvelope } from '../shared/appServerError'
 import { checkWorkspaceLock } from './workspaceLock'
@@ -2174,6 +2178,7 @@ export function registerIpcHandlers(
       getSettings: () => hubCallbacks.getSettings(),
       updateSettings: (partial) => hubCallbacks.updateSettings(partial)
     })
+    registerScreenViewHandlers({ handleSafe, getHubClient })
   }
 
   handleSafe('modules:list', async () => {
@@ -2549,6 +2554,7 @@ export function unregisterIpcHandlers(): void {
   for (const channel of SATELLITES_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
+  unregisterScreenViewHandlers()
   ipcMain.removeHandler('appserver:send-request')
   ipcMain.removeHandler('appserver:send-request-raw')
   ipcMain.removeHandler('visualization:copy-image')

@@ -27,12 +27,15 @@ internal sealed class IslandWindow : Window, IDisposable
     private const int MaxWidthDips = 380;
     private const int CompactHeightDips = 34;
     private const int ApprovalHeightDips = 91;
-    private const int PanelBaseDips = 101;
+    private const int PanelBaseDips = 81;
     private const int PanelRowDips = 48;
+    /// <summary>One machine's row carries a single meta line, since the summary already names it.</summary>
+    private const int SingleRowDips = 40;
     private const int PanelRowsShown = 4;
     private const int WindowWidthDips = MaxWidthDips + (2 * MarginDips);
     private const int WindowHeightDips = TopRoomDips + PanelBaseDips + (PanelRowDips * PanelRowsShown) + MarginDips;
     private const int DragSlopPixels = 4;
+    private const int NearDips = 120;
     private const double CompactRadiusDips = 17;
     private const double PanelRadiusDips = 10;
 
@@ -42,11 +45,14 @@ internal sealed class IslandWindow : Window, IDisposable
     private static readonly TimeSpan MorphDuration = TimeSpan.FromMilliseconds(480);
     private static readonly TimeSpan ExitDuration = TimeSpan.FromMilliseconds(200);
 
+    /// <summary>The capsule stays for the life of the process, so the poll idles while the pointer is away.</summary>
+    private static readonly TimeSpan PointerNear = TimeSpan.FromMilliseconds(16);
+    private static readonly TimeSpan PointerAway = TimeSpan.FromMilliseconds(96);
+
     private readonly IslandViewModel _viewModel;
     private readonly Grid _root = new();
     private readonly DispatcherQueueTimer _pointer;
     private readonly DispatcherQueueTimer _exit;
-    private readonly IslandNativeMethods.SubclassProc _erase;
     private readonly bool _animate;
     private readonly nint _handle;
     private readonly AppWindow _appWindow;
@@ -70,7 +76,6 @@ internal sealed class IslandWindow : Window, IDisposable
     private bool _hovered;
     private bool _activatable;
     private bool _clickThrough;
-
     public IslandWindow(IslandViewModel viewModel)
     {
         _viewModel = viewModel;
@@ -88,9 +93,6 @@ internal sealed class IslandWindow : Window, IDisposable
             presenter.IsMinimizable = false;
         }
         _appWindow.IsShownInSwitchers = false;
-        // The subclass must be in place before the frame changes, so the first erase is ours.
-        _erase = Erase;
-        IslandNativeMethods.Subclass(_handle, _erase);
         IslandNativeMethods.RemoveFrame(_handle);
         IslandNativeMethods.MakeTransparent(_handle);
         IslandNativeMethods.MakeLayered(_handle);
@@ -101,7 +103,7 @@ internal sealed class IslandWindow : Window, IDisposable
         Activated += OnActivated;
 
         _pointer = DispatcherQueue.CreateTimer();
-        _pointer.Interval = TimeSpan.FromMilliseconds(16);
+        _pointer.Interval = PointerNear;
         _pointer.Tick += (_, _) => Tick();
         _exit = DispatcherQueue.CreateTimer();
         _exit.Interval = ExitDuration;
@@ -138,7 +140,9 @@ internal sealed class IslandWindow : Window, IDisposable
     private static int HeightDips(IslandStateModel state) => state.Mode switch
     {
         IslandMode.Approval => ApprovalHeightDips,
-        IslandMode.Expanded => PanelBaseDips + (PanelRowDips * Math.Min(state.Peers.Count, PanelRowsShown)),
+        IslandMode.Expanded => PanelBaseDips + (state.Peers.Count == 1
+            ? SingleRowDips
+            : (PanelRowDips * Math.Min(state.Peers.Count, PanelRowsShown)) - 2),
         _ => CompactHeightDips
     };
 
@@ -147,6 +151,9 @@ internal sealed class IslandWindow : Window, IDisposable
         IslandMode.Approval => "approval",
         IslandMode.Expanded => "expanded",
         IslandMode.Running => "running",
+        IslandMode.Standby => "standby",
+        IslandMode.Paused => "paused",
+        IslandMode.Offline => "offline",
         _ => "compact"
     };
 
@@ -159,13 +166,11 @@ internal sealed class IslandWindow : Window, IDisposable
             controller.Bounds = ClientBounds();
             controller.IsVisible = _shown;
             _controller = controller;
+            controller.CoreWebView2.ProcessFailed += (_, _) => DisableSurface();
         }
         catch (Exception)
         {
-            // An empty capsule would still take the clicks over it, and no request could be answered there.
-            _unavailable = true;
-            _viewModel.Approvals.Disable();
-            Leave();
+            DisableSurface();
         }
     }
 
@@ -213,6 +218,9 @@ internal sealed class IslandWindow : Window, IDisposable
                         break;
                     case "pause":
                         _viewModel.Pause();
+                        break;
+                    case "resume":
+                        _viewModel.Resume();
                         break;
                     case "disconnect" when peer is not null:
                         _viewModel.Disconnect(peer);
@@ -362,6 +370,9 @@ internal sealed class IslandWindow : Window, IDisposable
                 summary = state.Summary,
                 label = state.CompactLabel,
                 since = state.SinceLabel,
+                resume = state.ResumeLabel,
+                watching = state.Watching,
+                watchingLabel = state.WatchingLabel,
                 running = state.ShowRunning
                     ? new
                     {
@@ -374,8 +385,6 @@ internal sealed class IslandWindow : Window, IDisposable
                     : null,
                 panel = new
                 {
-                    title = state.PanelTitle,
-                    count = state.PanelCount,
                     pause = state.PauseLabel,
                     peers = state.Peers.Select(peer => new
                     {
@@ -415,14 +424,6 @@ internal sealed class IslandWindow : Window, IDisposable
         };
     }
 
-    private nint Erase(nint window, uint message, nint wParam, nint lParam, nuint id, nuint data)
-    {
-        if (message != IslandNativeMethods.WM_ERASEBKGND)
-            return IslandNativeMethods.DefSubclassProc(window, message, wParam, lParam);
-        IslandNativeMethods.EraseToTransparent(window, wParam);
-        return 1;
-    }
-
     /// <summary>The pointer drives hover, the mouse-transparent margin, and the drag, since the page cannot see past its own edge.</summary>
     private void Tick()
     {
@@ -430,6 +431,9 @@ internal sealed class IslandWindow : Window, IDisposable
         if (_dragging)
             Drag(cursor);
         var inside = _dragging || InsideCapsule(cursor);
+        var cadence = inside || Near(cursor) ? PointerNear : PointerAway;
+        if (_pointer.Interval != cadence)
+            _pointer.Interval = cadence;
         SetClickThrough(!inside);
         if (inside == _hovered)
             return;
@@ -446,6 +450,15 @@ internal sealed class IslandWindow : Window, IDisposable
             return;
         _clickThrough = clickThrough;
         IslandNativeMethods.SetClickThrough(_handle, clickThrough);
+    }
+
+    private bool Near(PointInt32 point)
+    {
+        var pad = (int)Math.Round(NearDips * Scale);
+        return point.X >= _bounds.X - pad
+            && point.X <= _bounds.X + _bounds.Width + pad
+            && point.Y >= _bounds.Y - pad
+            && point.Y <= _bounds.Y + _bounds.Height + pad;
     }
 
     private bool InsideCapsule(PointInt32 point) =>
@@ -518,6 +531,17 @@ internal sealed class IslandWindow : Window, IDisposable
             return;
         SetActivatable(false);
         _viewModel.Collapse();
+    }
+
+    private void DisableSurface()
+    {
+        if (_unavailable)
+            return;
+        _unavailable = true;
+        _controller = null;
+        _core = null;
+        _viewModel.Approvals.Disable();
+        Leave();
     }
 
     private void SetActivatable(bool activatable)

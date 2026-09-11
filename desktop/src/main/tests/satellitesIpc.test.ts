@@ -136,7 +136,14 @@ describe('satellites:list', () => {
 
     expect(result.supported).toBe(true)
     expect(result.satellites).toEqual([
-      { peerId: 'sat_1', hostId: 'sat_1', displayName: 'Ann PC', connected: true, workspaces: [] }
+      {
+        peerId: 'sat_1',
+        hostId: 'sat_1',
+        displayName: 'Ann PC',
+        connected: true,
+        workspaces: [],
+        capabilities: []
+      }
     ])
     expect(app.bridge.remember).toHaveBeenCalledWith(result.satellites)
   })

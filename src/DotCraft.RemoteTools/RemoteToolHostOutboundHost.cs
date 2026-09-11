@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Screen;
 using DotCraft.Security;
 using DotCraft.Tools;
 
@@ -14,6 +15,7 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
     private readonly TimeSpan? _heartbeatInterval;
     private readonly LeaseTerminalRegistry _leaseTerminals = new();
     private readonly RemoteToolHostMcpHandlers _handlers;
+    private readonly Func<IScreenCaptureSource>? _screenCapture;
     private readonly List<RemoteToolHostPeerConnector> _connectors = [];
     private IReadOnlyList<RemoteToolHubPeer> _pairings = [];
     private IDisposable? _serveLock;
@@ -23,10 +25,12 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
         RemoteToolHostStorage storage,
         RemoteToolHostActivityMonitor? activity = null,
         TimeSpan? heartbeatInterval = null,
-        IRemoteToolApprovalPresenter? approvalPresenter = null)
+        IRemoteToolApprovalPresenter? approvalPresenter = null,
+        Func<IScreenCaptureSource>? screenCapture = null)
     {
         _storage = storage;
         _heartbeatInterval = heartbeatInterval;
+        _screenCapture = screenCapture is not null && HasCaptureBackend(screenCapture) ? screenCapture : null;
         Leases = new WorkspaceLeaseManager(
             onReleased: released =>
             {
@@ -105,7 +109,8 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
                     _handlers,
                     Leases,
                     () => _paused,
-                    _heartbeatInterval);
+                    _heartbeatInterval,
+                    _screenCapture);
                 connector.StateChanged += _ => Changed?.Invoke();
                 _connectors.Add(connector);
             }
@@ -130,6 +135,13 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
         Leases.Dispose();
         _serveLock?.Dispose();
         _serveLock = null;
+    }
+
+    /// <summary>Only the platform decides the capability; a locked or headless desktop is reported per view.</summary>
+    private static bool HasCaptureBackend(Func<IScreenCaptureSource> factory)
+    {
+        using var source = factory();
+        return source.Probe().UnavailableReason != ScreenCaptureReasons.NoCaptureBackend;
     }
 
     private void EnsureArtifactRootIsReachable(RemoteToolHostState state)

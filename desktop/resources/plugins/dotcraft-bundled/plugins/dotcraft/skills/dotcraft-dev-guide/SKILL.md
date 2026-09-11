@@ -16,12 +16,25 @@ For repo orientation, read the applicable `AGENTS.md` files.
 When modifying protocol designs or process flows defined in `specs/`, update the spec first, then implement.
 If a proposed change conflicts with an existing spec, resolve the spec-level conflict before touching code.
 
-### Steps
+### Completion Criteria
 
-1. **Plan**: Search the codebase for similar features before adding new abstractions.
-2. **Implement**: Follow the project-specific norms below. Add XML docs for public C# APIs. Update affected user-facing docs and localized content when behavior changes.
-3. **Test**: Follow the testing rules below.
-4. **Verify**: Confirm changes conform to the relevant spec and docs/examples are in place.
+- Reuse suitable codebase patterns before introducing new abstractions.
+- Keep implementation, affected specifications, documentation, examples, and localized content aligned with the resulting behavior.
+- Add XML documentation to public C# APIs only when it explains a necessary, non-obvious contract. Like other comments, keep each to at most one or two sentences.
+- Complete the relevant validation below and report the results and any blockers concisely.
+
+### Compatibility and Generated Contracts
+
+When changing an external surface, check affected AppServer clients, CLI arguments, configuration, persisted sessions and resume behavior, and public SDK APIs. Account for supported consumers and stored data even when no caller appears in this repository.
+
+For AppServer wire-contract changes, update the owning spec and C# contracts or RPC catalog, then run these commands from the repository root:
+
+```bash
+dotnet run --project tools/DotCraft.ProtocolGen -- generate
+dotnet run --project tools/DotCraft.ProtocolGen -- check
+```
+
+Review source and generated artifacts together and include both in the same change. Follow `specs/sdk/protocol-contract-generation.md` for profiles and compatibility diffs; generated schemas and SDK bindings are not independent sources to edit.
 
 ### Tool Schemas And Prompt Cache
 
@@ -40,6 +53,19 @@ Tests must verify observable behavior, not repository layout or source/spec text
 - **Frontend**: Test behavior such as accessibility, state, navigation, IPC, serialization, and data mapping. Do not assert styling details unless geometry or visual state is the functional contract; verify pure polish manually.
 - **Core C#**: Test through public APIs and observable results. Skip trivial formatters, getters, record equality, text passthrough, prompt wording, and framework behavior.
 
+### Validation
+
+Select checks for the affected surface and its consumers. Complete required checks; broaden or repeat them only when new changes, failures, or unresolved concerns justify it.
+
+| Surface | Entry points |
+|---|---|
+| .NET | From the repo root, build the affected project with `dotnet build <project.csproj>` and run `dotnet test <test-project.csproj>`, optionally with `--filter "FullyQualifiedName~TestClassName.TestMethodName"`. Use `dotnet test dotcraft.sln` when shared changes warrant the full suite. |
+| Desktop | In `desktop/`, run `npm run typecheck` and relevant tests with `npm test -- <test-file>`. Run `npm run check:styles` for renderer style changes. |
+| TypeScript SDK and packages | Use the owning package's `package.json` scripts for type checking and relevant tests. From `sdk/typescript/`, package scripts can be selected with `npm run <script> --workspace <package-name>`. |
+| Documentation site | When a rendered site page changes, run `npm run build` in `docs/`. Apply the documentation guide's artifact-specific checks for other Markdown and README changes. |
+
+For pure copy or visual changes, verify the affected content or presentation without adding tests that duplicate the implementation. Report any check that could not run and the reason.
+
 ### Language Preference
 
 Before changing localized UI, inspect the repository's current locale configuration and catalogs. Treat those as the source of truth and update every currently supported locale; do not rely on a locale list embedded in this skill.
@@ -51,7 +77,7 @@ Before changing localized UI, inspect the repository's current locale configurat
 
 ## Documentation
 
-Use `dotcraft-docs-guide` for all documentation and repository README work.
+Use [dotcraft-docs-guide](../dotcraft-docs-guide/SKILL.md) for all documentation and repository README work.
 
 ## References
 

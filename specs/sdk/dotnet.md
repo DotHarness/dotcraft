@@ -44,6 +44,7 @@ Public namespaces are:
 |-----------|----------------|
 | `DotCraft.Protocol` | `Optional<T>`, extensibility, payload catalog, common descriptor primitives. |
 | `DotCraft.Protocol.AppServer` | AppServer DTOs and `AppServerRpc` descriptors. |
+| `DotCraft.Protocol.ScreenView` | Remote screen view frame format, ceilings, and control records; outside the contract generator. |
 | `DotCraft.Sdk.Wire` | JSON-RPC transports, lifecycle, typed generated bindings, raw escape hatches. |
 | `DotCraft.Sdk` | High-level client, Thread handle, Run, callbacks, options, and stable SDK exceptions. |
 | `DotCraft.Sdk.DynamicTools` | Attribute-based Runtime Dynamic Tool authoring and invocation. |
