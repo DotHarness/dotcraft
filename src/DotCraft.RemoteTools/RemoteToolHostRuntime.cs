@@ -436,6 +436,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             HostId = "rth_" + Guid.NewGuid().ToString("N"),
             DisplayName = _displayName
         };
+        foreach (var workspace in state.Workspaces)
+            if (PathsEqual(workspace.Value, workspacePath)) return workspace.Key;
         var workspaceId = UniqueWorkspaceId(state, workspacePath);
         var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
         {

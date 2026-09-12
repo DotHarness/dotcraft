@@ -155,6 +155,8 @@ Each installed Host has one durable, opaque `hostId` and zero or more Host-local
 
 `workspaceId` is unique within one Host. Only a local Host administrator may create, remove, or
 retarget a workspace. The Agent cannot submit a new root or reinterpret a workspace identifier.
+Accepting another invitation for the same canonical directory reuses its workspace identity.
+Pairings and their owner-granted authorization remain independent of that shared identity.
 
 A Host also has zero or more **pairings**. A pairing binds the Host to one broker and is recorded on
 the Host as a peer record containing the broker endpoint, a broker-assigned opaque `peerId`, a

@@ -39,6 +39,27 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Runtime_PairingsForTheSameDirectory_KeepOneWorkspaceAndSeparateAuthorization()
+    {
+        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
+        var workspace = Directory.CreateDirectory(Path.Combine(_userProfile, "workspace")).FullName;
+        var credentials = new MemoryCredentialStore();
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
+        var first = await hub.CreateInviteAsync("First");
+        var second = await hub.CreateInviteAsync("Second");
+        var a = await runtime.AcceptInviteAsync(new(RemoteToolHostRuntime.ParseInvite(first.Url), workspace,
+            RemoteToolAuthorization.WorkspacePreferred));
+        var b = await runtime.AcceptInviteAsync(new(RemoteToolHostRuntime.ParseInvite(second.Url), workspace,
+            RemoteToolAuthorization.FullAccess));
+        Assert.Equal(a.WorkspaceId, b.WorkspaceId);
+        Assert.NotEqual(a.PeerId, b.PeerId);
+        Assert.NotEqual(a.AuthorizationMode, b.AuthorizationMode);
+        Assert.Single(storage.LoadHostState()!.Workspaces);
+        Assert.Equal(2, credentials.Values.Count);
+    }
+
+    [Fact]
     public async Task PeerConnector_ReconnectsAfterHubRestart()
     {
         var satellitePort = SatelliteHubFixture.GetAvailablePort();
