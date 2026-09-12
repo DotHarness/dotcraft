@@ -24,7 +24,7 @@ public sealed class RemoteImageArtifactTests
         var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         await client.ConnectAsync("thread", server.PeerId, "repo");
         var turn = new SessionTurn { Id = "turn", ThreadId = "thread" };
         var events = new SessionEventChannel("thread", "turn");
@@ -54,7 +54,7 @@ public sealed class RemoteImageArtifactTests
         var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
         var path = await client.WriteImageAsync(route, "thread", "ig_test", Png);
         Assert.Equal(Path.Combine(workspace.Path, ".craft", "generated_images", "thread", "ig_test.png"), path);
@@ -95,7 +95,7 @@ public sealed class RemoteImageArtifactTests
         if (mode == "size")
             RemoteToolHostTestHost.WriteConfig(Path.Combine(workspace.Path, ".craft", "config.json"), new { Tools = new { File = new { MaxFileSize = 8 } } });
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
         var error = await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
             await client.WriteImageAsync(route, "thread", mode == "path" ? "../escape" : "ig_denied", Png));

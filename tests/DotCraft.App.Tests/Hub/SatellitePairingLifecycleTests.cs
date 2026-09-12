@@ -63,7 +63,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await using var scenario = await SatelliteScenario.StartAsync(
             _userProfile,
             heartbeatInterval: TimeSpan.FromMilliseconds(200));
-        await using var client = new RemoteToolHostClient(scenario.Directory, new CountingApprovalService());
+        await using var client = new RemoteToolHostClient(scenario.Directory);
 
         await client.ConnectAsync("thread", scenario.PeerId, scenario.WorkspaceId);
 

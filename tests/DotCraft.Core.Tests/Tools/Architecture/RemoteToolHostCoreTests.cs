@@ -269,7 +269,8 @@ public sealed partial class RemoteToolHostCoreTests
                     connection.HostId,
                     connection.WorkspaceId,
                     "lease-1",
-                    "instance-1");
+                    "instance-1",
+                    "session-1");
                 return true;
             }
             route = null!;

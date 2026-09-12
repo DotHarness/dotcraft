@@ -427,7 +427,7 @@ public sealed class AppServerRemoteToolHostTests
                 throw ConnectFailure;
 
             ConnectedRoutes.Add((threadId, hostId, workspaceId));
-            var route = new RemoteToolRoute(hostId, workspaceId, "lease_fixture", "instance_fixture");
+            var route = new RemoteToolRoute(hostId, workspaceId, "lease_fixture", "instance_fixture", "session_fixture");
             Raise(threadId, RemoteToolRouteChangeReason.Connected, initiator, route);
             return ValueTask.FromResult(new RemoteToolConnectResult(
                 route,
@@ -444,7 +444,7 @@ public sealed class AppServerRemoteToolHostTests
         {
             if (!Disconnects)
                 return ValueTask.FromResult(new RemoteToolDisconnectResult(false));
-            var previous = new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture");
+            var previous = new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture", "session_fixture");
             Snapshots.Remove(threadId);
             Raise(threadId, RemoteToolRouteChangeReason.Disconnected, initiator, previous);
             return ValueTask.FromResult(new RemoteToolDisconnectResult(true, previous));
@@ -462,7 +462,7 @@ public sealed class AppServerRemoteToolHostTests
                 threadId,
                 RemoteToolRouteChangeReason.LeaseLost,
                 RemoteToolRouteInitiator.System,
-                new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture"));
+                new RemoteToolRoute(HostId, WorkspaceId, "lease_fixture", "instance_fixture", "session_fixture"));
         }
 
         private void Raise(

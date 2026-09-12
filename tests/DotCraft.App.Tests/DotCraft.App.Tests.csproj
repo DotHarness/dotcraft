@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\DotCraft.RemoteExecution.Consumer\Program.cs" Link="RemoteExecutionConsumer.cs.txt" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\DotCraft.Core.Tests\Tools\RemotePluginFixture.cs" Link="Hub\Support\RemotePluginFixture.cs" />
     <Compile Include="..\DotCraft.Runtime.Tests\Plugins\DotNetPluginTestBundle.cs" Link="Hub\Support\DotNetPluginTestBundle.cs" />
     <Compile Include="..\DotCraft.Runtime.Tests\Plugins\PluginRuntimeHarness.cs" Link="Hub\Support\PluginRuntimeHarness.cs" />
@@ -29,5 +30,11 @@
     <ProjectReference Include="..\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj" />
     <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />
   </ItemGroup>
+
+  <Target Name="SetRemoteExecutionPackageFixture" BeforeTargets="GetAssemblyAttributes">
+    <ItemGroup>
+      <AssemblyMetadata Include="RemoteExecutionPackageProject" Value="$([MSBuild]::MakeRelative('$(TargetDir)', '$(MSBuildThisFileDirectory)..\..\src\DotCraft.Harness\DotCraft.Harness.csproj'))" />
+    </ItemGroup>
+  </Target>
 
 </Project>

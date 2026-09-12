@@ -96,19 +96,17 @@ public sealed class RemoteToolHostPairingTests
             plainPeer.DataUri("s1"));
     }
 
-    [Fact]
-    public void Storage_PeerRecordWithoutScheme_ReadsBackAsPlainHttp()
+    [Theory]
+    [InlineData("hubScheme")]
+    [InlineData("workspaceId")]
+    [InlineData("authorizationMode")]
+    public void Storage_PeerRequiresConnectionAndAuthorization(string field)
     {
-        var state = JsonSerializer.Deserialize<RemoteToolHostState>(
-            """
-            {"hostId":"rth_test","displayName":"test-host","peers":[
-              {"peerId":"sat_1","hubHost":"192.168.1.5","hubPort":47600,
-               "credentialReference":"remote-tool-host/peer/sat_1"}]}
-            """,
-            RemoteToolHostProtocol.JsonOptions);
+        var peer = JsonSerializer.SerializeToNode(PairedWith(new Uri("https://hub.example.com")),
+            RemoteToolHostProtocol.JsonOptions)!.AsObject();
+        peer.Remove(field);
 
-        var peer = Assert.Single(state!.Peers);
-        Assert.Equal(new Uri("ws://192.168.1.5:47600/satellite/control?peer=sat_1"), peer.ControlUri);
+        Assert.Throws<JsonException>(() => peer.Deserialize<RemoteToolHubPeer>(RemoteToolHostProtocol.JsonOptions));
     }
 
     [Fact]
@@ -130,9 +128,9 @@ public sealed class RemoteToolHostPairingTests
     {
         var transport = new IOException("The remote party closed the WebSocket.");
 
-        var offline = RemoteToolHostClient.MapConnectionError(transport, null, "satelliteOffline");
-        var failed = RemoteToolHostClient.MapConnectionError(transport, null, "satelliteSessionFailed");
-        var unknown = RemoteToolHostClient.MapConnectionError(transport, null, null);
+        var offline = RemoteExecutionSession.MapConnectionError(transport, null, "satelliteOffline");
+        var failed = RemoteExecutionSession.MapConnectionError(transport, null, "satelliteSessionFailed");
+        var unknown = RemoteExecutionSession.MapConnectionError(transport, null, null);
 
         Assert.Equal(RemoteToolErrorCodes.HostOffline, offline.Code);
         Assert.Equal(RemoteToolErrorCodes.SatelliteSessionFailed, failed.Code);
@@ -145,7 +143,7 @@ public sealed class RemoteToolHostPairingTests
         using var home = new TemporaryDirectory();
         using var scope = new HubEnvironmentScope(null, null);
         using var directory = new HubRemoteToolHostDirectory(new HubEndpointProvider(home.Path));
-        await using var client = new RemoteToolHostClient(directory, new ApproveService());
+        await using var client = new RemoteToolHostClient(directory);
 
         var error = await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
             await client.ListAsync("thread"));
@@ -165,7 +163,7 @@ public sealed class RemoteToolHostPairingTests
 
         using var scope = new HubEnvironmentScope($"http://127.0.0.1:{port}", "hub-token");
         using var directory = new HubRemoteToolHostDirectory(new HubEndpointProvider());
-        await using var client = new RemoteToolHostClient(directory, new ApproveService());
+        await using var client = new RemoteToolHostClient(directory);
 
         var catalog = await client.ListAsync("thread");
 
@@ -188,6 +186,8 @@ public sealed class RemoteToolHostPairingTests
         HubHost = hub.Host,
         HubPort = hub.Port,
         HubScheme = hub.Scheme,
+        WorkspaceId = "repo",
+        AuthorizationMode = RemoteToolAuthorization.FullAccess,
         CredentialReference = RemoteToolHostStorage.PeerCredentialReference("sat_1"),
         PairedAt = DateTimeOffset.UtcNow
     };

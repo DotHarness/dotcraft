@@ -19,24 +19,6 @@ internal interface IRemoteToolHostDirectory
     ValueTask<RemoteToolHostConnection> ConnectAsync(string hostId, CancellationToken cancellationToken);
 }
 
-internal sealed class RemoteToolHostConnection(
-    IClientTransport transport,
-    string endpoint,
-    ClientWebSocket? socket = null,
-    Stream? stream = null) : IAsyncDisposable
-{
-    public IClientTransport Transport => transport;
-    public string Endpoint => endpoint;
-    public string? CloseDescription => socket?.CloseStatusDescription;
-
-    public async ValueTask DisposeAsync()
-    {
-        if (stream is not null)
-            await stream.DisposeAsync().ConfigureAwait(false);
-        socket?.Dispose();
-    }
-}
-
 internal sealed class HubRemoteToolHostDirectory(IHubEndpointProvider endpoints) : IRemoteToolHostDirectory, IDisposable
 {
     private readonly HttpClient _http = new();

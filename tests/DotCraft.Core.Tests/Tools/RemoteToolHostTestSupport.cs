@@ -89,8 +89,7 @@ internal static class RemoteToolHostTestHost
 internal sealed class RemoteToolHostTestServer : IAsyncDisposable
 {
     private readonly RemoteToolHostStorage _storage;
-    private readonly LeaseTerminalRegistry _terminals = new();
-    private readonly RemoteToolHostMcpHandlers _handlers;
+    private readonly RemoteToolHostExecutionHost _handlers;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly List<Task> _sessions = [];
     private readonly List<Stream> _streams = [];
@@ -108,17 +107,12 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
         if (state is not null && state.Peers.Count == 0 && state.Workspaces.Count > 0)
             storage.SaveHostState(state with { Peers = [new RemoteToolHubPeer
             {
-                PeerId = ReportedPeerId, HubHost = "localhost", HubPort = 1, CredentialReference = "test",
+                PeerId = ReportedPeerId, HubHost = "localhost", HubPort = 1, HubScheme = Uri.UriSchemeHttp, CredentialReference = "test",
                 WorkspaceId = state.Workspaces.Keys.First(), AuthorizationMode = RemoteToolAuthorization.FullAccess,
                 AuthorizationRevision = 1
             }] });
-        Leases = new WorkspaceLeaseManager(
-            onReleased: released =>
-            {
-                _terminals.ReleaseLease(released.LeaseId);
-                RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
-            });
-        _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _terminals, approvalPresenter: ownerApprovals);
+        Leases = new WorkspaceLeaseManager();
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, approvals: ownerApprovals);
         Directory = new TestDirectory(this);
     }
 
@@ -127,7 +121,7 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
     public WorkspaceLeaseManager Leases { get; }
     public IRemoteToolHostDirectory Directory { get; }
 
-    public RemoteToolHostClient CreateClient(IApprovalService approvals) => new(Directory, approvals);
+    public RemoteToolHostClient CreateClient() => new(Directory);
 
     /// <summary>Opens an MCP session that bypasses the client so raw protocol framing can be tested.</summary>
     public async Task<McpClient> ConnectRawAsync(CancellationToken cancellationToken = default)
@@ -178,17 +172,8 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
     {
         try
         {
-            await using var transport = new StreamServerTransport(
-                stream,
-                stream,
-                RemoteToolHostServerOptions.ServerName,
-                loggerFactory: null);
-            await using var server = McpServer.Create(
-                transport,
-                RemoteToolHostServerOptions.Create(_handlers, ReportedPeerId),
-                loggerFactory: null,
-                serviceProvider: null);
-            await server.RunAsync(_shutdown.Token);
+            await using var handlers = _handlers.CreateSession(ReportedPeerId);
+            await RemoteToolHostMcpSession.RunAsync(stream, handlers, _shutdown.Token);
         }
         catch (Exception)
         {
@@ -240,7 +225,7 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
             var stream = await server.OpenAsync(cancellationToken).ConfigureAwait(false);
             return new RemoteToolHostConnection(
                 new StreamClientTransport(stream, stream, loggerFactory: null),
-                "test://hub");
+                "test://hub", stream: stream);
         }
     }
 }

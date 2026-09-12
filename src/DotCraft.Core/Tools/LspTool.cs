@@ -43,13 +43,15 @@ public sealed class LspTool(
         [Description("LSP operation")] LspOperation operation,
         [Description("The absolute or relative file path")] string filePath,
         [Description("1-based line number")] int line,
-        [Description("1-based character position")] int character)
+        [Description("1-based character position")] int character,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (line <= 0 || character <= 0)
             return "Error: line and character must be positive 1-based values.";
 
         var fullPath = _fileAccessGuard.ResolvePath(filePath);
-        var pathValidation = await _fileAccessGuard.ValidatePathAsync(fullPath, "read", filePath);
+        var pathValidation = await _fileAccessGuard.ValidatePathAsync(fullPath, "read", filePath, cancellationToken);
         if (pathValidation != null)
             return pathValidation;
 
@@ -62,8 +64,8 @@ public sealed class LspTool(
 
         if (!manager.IsFileOpen(fullPath))
         {
-            var content = await File.ReadAllTextAsync(fullPath);
-            await manager.OpenFileAsync(fullPath, content);
+            var content = await File.ReadAllTextAsync(fullPath, cancellationToken);
+            await manager.OpenFileAsync(fullPath, content, cancellationToken);
         }
 
         var (method, requestParams) = BuildRequest(operation, fullPath, line, character);
@@ -71,7 +73,7 @@ public sealed class LspTool(
             fullPath,
             method,
             requestParams,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30), cancellationToken);
 
         if (result == null)
             return $"No LSP server available for file type: {Path.GetExtension(fullPath)}";
@@ -91,7 +93,7 @@ public sealed class LspTool(
                 fullPath,
                 callMethod,
                 new { item = firstItem },
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30), cancellationToken);
         }
 
         return FormatResult(operation, result, _workspaceRoot);

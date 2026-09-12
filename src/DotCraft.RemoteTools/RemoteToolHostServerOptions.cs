@@ -8,7 +8,7 @@ internal static class RemoteToolHostServerOptions
 {
     public const string ServerName = "dotcraft.remote-tool-host";
 
-    public static McpServerOptions Create(RemoteToolHostMcpHandlers handlers, string peerId) => new()
+    public static McpServerOptions Create(RemoteToolHostMcpHandlers handlers) => new()
     {
         ServerInfo = new Implementation
         {
@@ -19,10 +19,11 @@ internal static class RemoteToolHostServerOptions
             "Pure DotCraft Remote Tool Host. It exposes paired workspace execution tools only.",
         Handlers = new McpServerHandlers
         {
-            ListToolsHandler = (request, ct) => handlers.ListToolsAsync(request, ct, peerId),
+            ListToolsHandler = (request, ct) => handlers.ExecuteAsync(
+                token => handlers.ListToolsAsync(request, token, handlers.PeerId), ct),
             CallToolHandler = (request, cancellationToken) =>
-                handlers.CallToolAsync(request, peerId, cancellationToken)
+                handlers.ExecuteAsync(token => handlers.CallToolAsync(request, handlers.PeerId, token), cancellationToken)
         },
-        RequestHandlers = [.. handlers.CreateExtensionHandlers(peerId)]
+        RequestHandlers = [.. handlers.CreateExtensionHandlers(handlers.PeerId)]
     };
 }

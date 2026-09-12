@@ -15,6 +15,7 @@ internal sealed class PluginExecutionWorkspace : IAsyncDisposable
     private readonly DotCraftPaths _paths;
     private readonly SemaphoreSlim _preparing = new(1, 1);
     private readonly object _gate = new();
+    private Task? _disposal;
     private readonly Dictionary<string, RemotePluginBundle> _sources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ThreadCatalog> _catalogs = new(StringComparer.Ordinal);
 
@@ -107,17 +108,22 @@ internal sealed class PluginExecutionWorkspace : IAsyncDisposable
 
     internal async Task ReleaseThreadAsync(string threadId, CancellationToken ct)
     {
-        await _preparing.WaitAsync(ct).ConfigureAwait(false);
-        try
+        lock (_gate)
         {
-            lock (_gate) _catalogs.Remove(threadId);
-            await _host.ReleaseThreadAsync(threadId, ct).ConfigureAwait(false);
+            if (_disposal is not null) return;
+            _catalogs.Remove(threadId);
         }
-        finally { _preparing.Release(); }
+        await _host.ReleaseThreadAsync(threadId, ct).ConfigureAwait(false);
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
+        lock (_gate) return new(_disposal ??= DisposeCoreAsync());
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        await Task.Yield();
         await _preparing.WaitAsync().ConfigureAwait(false);
         try
         {

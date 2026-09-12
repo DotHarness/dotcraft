@@ -3,6 +3,8 @@ using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using DotCraft.Harness;
 using DotCraft.Runtime;
+using DotCraft.RemoteTools;
+using DotCraft.Tools;
 using DotCraft.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -75,6 +77,21 @@ public sealed class DotCraftHarnessRegistrationTests
             builder.Services.AddOpenAIModelProvider(NewTemporaryPath()));
 
         Assert.Contains("already configured", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RemoteExecutionIsExplicit_AndDoesNotRegisterProductRouting()
+    {
+        var workspace = NewTemporaryPath();
+        var services = new ServiceCollection();
+        services.AddDotCraftHarness(CreateConfig(), options => options.WorkspacePath = workspace);
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(RemoteExecutionClient));
+        services.AddDotCraftRemoteExecution();
+        services.AddDotCraftRemoteExecution();
+        await using var provider = services.BuildServiceProvider();
+        Assert.Single(provider.GetServices<RemoteExecutionClient>());
+        Assert.Null(provider.GetService<IRemoteToolHostClientFactory>());
+        Assert.False(Directory.Exists(workspace));
     }
 
     private static string NewTemporaryPath() =>

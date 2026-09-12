@@ -6,15 +6,13 @@ using DotCraft.Tools;
 namespace DotCraft.RemoteTools;
 
 /// <summary>
-/// Runs the provider-free execution host in outbound mode: one control connection per pairing over
-/// one process-wide lease manager, terminal registry, and tool handler set.
+/// Runs one control connection per pairing and independent execution sessions over shared workspace leases.
 /// </summary>
 internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
 {
     private readonly RemoteToolHostStorage _storage;
     private readonly TimeSpan? _heartbeatInterval;
-    private readonly LeaseTerminalRegistry _leaseTerminals = new();
-    private readonly RemoteToolHostMcpHandlers _handlers;
+    private readonly RemoteToolHostExecutionHost _handlers;
     private readonly Func<IScreenCaptureSource>? _screenCapture;
     private readonly List<RemoteToolHostPeerConnector> _connectors = [];
     private IReadOnlyList<RemoteToolHubPeer> _pairings = [];
@@ -31,14 +29,8 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
         _storage = storage;
         _heartbeatInterval = heartbeatInterval;
         _screenCapture = screenCapture is not null && HasCaptureBackend(screenCapture) ? screenCapture : null;
-        Leases = new WorkspaceLeaseManager(
-            onReleased: released =>
-            {
-                _leaseTerminals.ReleaseLease(released.LeaseId);
-                RemoteToolArtifactStore.CleanupLeaseArtifacts(storage.ArtifactsRootPath, released.LeaseId);
-            },
-            onChanged: () => Changed?.Invoke());
-        _handlers = new RemoteToolHostMcpHandlers(storage, Leases, _leaseTerminals, activity, approvalPresenter, () => _paused);
+        Leases = new WorkspaceLeaseManager(onChanged: () => Changed?.Invoke());
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, activity, approvalPresenter, () => _paused);
     }
 
     public event Action? Changed;

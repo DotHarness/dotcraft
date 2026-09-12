@@ -8,7 +8,8 @@ public sealed record RemoteToolRoute(
     string HostId,
     string WorkspaceId,
     string LeaseId,
-    string HostInstanceId);
+    string HostInstanceId,
+    string ExecutionSessionId);
 
 /// <summary>Safe environment information returned after acquiring a remote workspace.</summary>
 public sealed record RemoteToolEnvironment(
@@ -173,11 +174,10 @@ public interface IRemoteToolHostClient
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Creates the process-shared Remote Tool Host client after runtime approval is available.</summary>
+/// <summary>Provides the process-shared Remote Tool Host client.</summary>
 public interface IRemoteToolHostClientFactory
 {
-    /// <summary>Returns the shared client bound to the effective Agent-side approval service.</summary>
-    IRemoteToolHostClient Create(DotCraft.Security.IApprovalService approvalService);
+    IRemoteToolHostClient Create();
 }
 
 /// <summary>Stable Remote Tool Host failure codes used in common tool results.</summary>

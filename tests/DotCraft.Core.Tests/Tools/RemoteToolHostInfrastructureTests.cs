@@ -57,17 +57,17 @@ public sealed class RemoteToolHostInfrastructureTests
         var valid = JsonSerializer.SerializeToNode(
             new RemoteToolArtifactMeta(Path.Combine(Path.GetTempPath(), "artifact.txt"), 10),
             RemoteToolHostProtocol.JsonOptions);
-        Assert.NotNull(RemoteToolHostClient.ParseRemoteArtifact(valid));
+        Assert.NotNull(RemoteExecutionSession.ParseRemoteArtifact(valid));
 
         var control = JsonSerializer.SerializeToNode(
             new RemoteToolArtifactMeta("artifacts/lease\u0007/result.txt", 10),
             RemoteToolHostProtocol.JsonOptions);
-        Assert.Throws<JsonException>(() => RemoteToolHostClient.ParseRemoteArtifact(control));
+        Assert.Throws<JsonException>(() => RemoteExecutionSession.ParseRemoteArtifact(control));
 
         var overlong = JsonSerializer.SerializeToNode(
             new RemoteToolArtifactMeta(new string('a', 1025), 10),
             RemoteToolHostProtocol.JsonOptions);
-        Assert.Throws<JsonException>(() => RemoteToolHostClient.ParseRemoteArtifact(overlong));
+        Assert.Throws<JsonException>(() => RemoteExecutionSession.ParseRemoteArtifact(overlong));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class RemoteToolHostInfrastructureTests
         using var directory = new TemporaryDirectory();
         var storage = new RemoteToolHostStorage(directory.Path, new MemoryCredentialStore());
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
 
         var catalog = await client.ListAsync("thread");
         Assert.Empty(catalog.Hosts);
@@ -271,8 +271,7 @@ public sealed class RemoteToolHostInfrastructureTests
             hostId: "rth_e2e");
 
         await using var server = new RemoteToolHostTestServer(storage);
-        var approvals = new ApproveService();
-        await using var client = server.CreateClient(approvals);
+        await using var client = server.CreateClient();
 
         var config = new AppConfig();
         await using var terminals = new BackgroundTerminalService(
@@ -327,7 +326,6 @@ public sealed class RemoteToolHostInfrastructureTests
             writeContext,
             new JsonObject { ["path"] = "approved.txt", ["content"] = "approved" });
         Assert.True(writeResult.Success, writeResult.Error?.Message);
-        Assert.Equal(0, approvals.RequestCount);
         Assert.Equal("approved", await File.ReadAllTextAsync(Path.Combine(workspace.Path, "approved.txt")));
 
         storage.SaveHostState(storage.LoadHostState()! with
@@ -345,7 +343,6 @@ public sealed class RemoteToolHostInfrastructureTests
             new JsonObject { ["path"] = "denied.txt", ["content"] = "denied" });
         Assert.False(denied.Success);
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, denied.Error?.Code);
-        Assert.Equal(0, approvals.RequestCount);
         Assert.False(File.Exists(Path.Combine(workspace.Path, "denied.txt")));
 
         Assert.True((await client.DisconnectAsync("agent-thread")).Disconnected);
@@ -362,9 +359,11 @@ public sealed class RemoteToolHostInfrastructureTests
         PeerId = peerId,
         HubHost = "127.0.0.1",
         HubPort = 47600,
+        HubScheme = Uri.UriSchemeHttp,
         CredentialReference = RemoteToolHostStorage.PeerCredentialReference(peerId),
         HubLabel = "test-hub",
         WorkspaceId = "repo",
+        AuthorizationMode = RemoteToolAuthorization.FullAccess,
         PairedAt = DateTimeOffset.UtcNow
     };
 

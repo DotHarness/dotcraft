@@ -17,7 +17,7 @@ public sealed class RemoteFileTransferTests
         var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = remote.Path });
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var workspace = new RemoteLocalWorkspace(local.Path, home.Path, new ApproveService());
         var source = Path.Combine(home.Path, "skills", "checker");
         Directory.CreateDirectory(Path.Combine(source, "empty"));
@@ -77,7 +77,7 @@ public sealed class RemoteFileTransferTests
         var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = remote.Path });
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         await client.ConnectAsync("thread", server.PeerId, "repo");
         await File.WriteAllTextAsync(Path.Combine(local.Path, "secret.txt"), "secret");
         var workspace = new RemoteLocalWorkspace(local.Path, null, new ApproveService(),

@@ -10,7 +10,7 @@ namespace DotCraft.RemoteTools;
 internal sealed class HostWorkspaceRuntime : IAsyncDisposable
 {
     private const string CatalogProbeWorkspaceId = "catalog";
-    private readonly BackgroundTerminalService _terminals;
+    private readonly ExecutionSessionTerminalService _terminals;
     private readonly LspServerManager? _lsp;
     private readonly Lazy<PluginExecutionWorkspace> _plugins;
     private readonly object _lifetimeGate = new();
@@ -19,7 +19,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
     private HostWorkspaceRuntime(
         string workspacePath,
         IReadOnlyList<ToolRegistration> registrations,
-        BackgroundTerminalService terminals,
+        ExecutionSessionTerminalService terminals,
         LspServerManager? lsp,
         Func<PluginExecutionWorkspace> plugins)
     {
@@ -32,7 +32,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
 
     public string WorkspacePath { get; }
     public IReadOnlyList<ToolRegistration> Registrations { get; }
-    public IBackgroundTerminalService Terminals => _terminals;
+    public ExecutionSessionTerminalService Terminals => _terminals;
     internal PluginExecutionWorkspace Plugins
     {
         get
@@ -62,32 +62,48 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         long catalogRevision,
         string globalConfigPath,
         string hostDataPath,
+        string executionSessionId,
+        Func<PluginExecutionWorkspace> plugins,
         CancellationToken cancellationToken)
     {
         var config = AppConfig.Load(globalConfigPath);
-        var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId);
+        var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId, "sessions", executionSessionId);
         Directory.CreateDirectory(workspaceData);
-        var terminals = new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background);
+        var terminals = new ExecutionSessionTerminalService(new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background));
         LspServerManager? lsp = null;
-        if (config.Tools.Lsp.Enabled)
+        try
         {
-            lsp = new LspServerManager(
-                config,
-                DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath));
-
+            if (config.Tools.Lsp.Enabled)
+            {
+                lsp = new LspServerManager(
+                    config,
+                    DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath));
+            }
+            var registrations = await CreateSource(config, terminals, lsp, Path.Combine(hostDataPath, "artifacts", executionSessionId))
+                .GetRegistrationsAsync(
+                    CreatePlanningContext(workspaceId, workspacePath, workspaceData, catalogRevision),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return new HostWorkspaceRuntime(
+                workspacePath,
+                [.. registrations.Where(item => RemoteToolMetadata.IsRpcEligible(item.Definition))],
+                terminals,
+                lsp,
+                plugins);
         }
-        var registrations = await CreateSource(config, terminals, lsp, hostDataPath)
-            .GetRegistrationsAsync(
-                CreatePlanningContext(workspaceId, workspacePath, workspaceData, catalogRevision),
-                cancellationToken)
-            .ConfigureAwait(false);
-        return new HostWorkspaceRuntime(
-            workspacePath,
-            [.. registrations.Where(item => RemoteToolMetadata.IsRpcEligible(item.Definition))],
-            terminals,
-            lsp,
-            () => new PluginExecutionWorkspace(
-                DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, workspaceData), config, terminals));
+        catch
+        {
+            try
+            {
+                if (lsp is not null)
+                    await lsp.DisposeAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                await terminals.DisposeAsync().ConfigureAwait(false);
+            }
+            throw;
+        }
     }
 
     /// <summary>
@@ -137,12 +153,6 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
-        if (_plugins.IsValueCreated) await _plugins.Value.DisposeAsync().ConfigureAwait(false);
-        foreach (var terminal in await _terminals.ListAsync().ConfigureAwait(false))
-        {
-            if (string.Equals(terminal.Status, BackgroundTerminalStatus.Running, StringComparison.Ordinal))
-                await _terminals.StopAsync(terminal.SessionId).ConfigureAwait(false);
-        }
         await _terminals.DisposeAsync().ConfigureAwait(false);
         if (_lsp is not null)
             await _lsp.DisposeAsync().ConfigureAwait(false);
@@ -157,7 +167,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             terminals,
             pathBlacklist: new PathBlacklist(config.Security.BlacklistedPaths),
             lspServerManager: lsp,
-            userDataPath: null,
+            userDataPath: hostDataPath,
             approvalService: new HostInvocationApprovalService(),
             notifyLspOnFileChanges: false,
             managedFileSearch: true);

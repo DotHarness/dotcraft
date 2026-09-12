@@ -1,5 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Security;
 using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
@@ -11,10 +10,10 @@ internal sealed class RemoteToolHostClientFactory(IRemoteToolHostDirectory direc
     private readonly object _gate = new();
     private RemoteToolHostClient? _client;
 
-    public IRemoteToolHostClient Create(IApprovalService approvalService)
+    public IRemoteToolHostClient Create()
     {
         lock (_gate)
-            return _client ??= new RemoteToolHostClient(directory, approvalService, config);
+            return _client ??= new RemoteToolHostClient(directory, config);
     }
 
     public async ValueTask DisposeAsync()

@@ -55,7 +55,7 @@ public sealed class RemotePluginPreparationTests
             Peers = [state.Peers.Single() with
         { AuthorizationMode = RemoteToolAuthorization.WorkspacePreferred }]
         });
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         await client.ConnectAsync("thread", server.PeerId, "repo");
         var registrations = await manager.ToolSource.GetRegistrationsAsync(PluginRuntimeHarness.PlanningContext(2, "thread"));
         var snapshot = new EffectiveToolSnapshotBuilder().Build(RemoteToolRegistrationRouter.Wrap(registrations, client), 2);
@@ -83,27 +83,37 @@ public sealed class RemotePluginPreparationTests
         using var workspace = new TemporaryDirectory();
         var storage = Setup(home.Path, workspace.Path);
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
-        var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
+        await using var client = server.CreateClient();
         await using var raw = await server.ConnectRawAsync();
+        var acquired = await raw.SendRequestAsync<WorkspaceAcquireRequest, ExtensionResponse<WorkspaceAcquireResponse>>(
+            RemoteToolHostProtocol.WorkspacesAcquire, new(RemoteToolHostProtocol.ProfileVersion, "agent-test", "repo"),
+            RemoteToolHostProtocol.JsonOptions, default, default);
+        Assert.True(acquired.Success, acquired.Error?.Message);
         var bundles = new List<PluginBundleTransfer>();
         foreach (var file in export.Bundles)
             bundles.Add(new(file.Bundle, await TransferFileTree.DescribeAsync(file.RootPath,
                 new FileAccessGuard(file.RootPath), 10_000_000, default)));
         var definition = registration.Definition;
         var prepare = await raw.SendRequestAsync<PluginPrepareRequest, ExtensionResponse<PluginPrepareResponse>>(
-            RemotePluginProtocol.Prepare, new(connected.Route.LeaseId, "repo", "thread", 1, "agent", bundles,
+            RemotePluginProtocol.Prepare, new(acquired.Result!.LeaseId, "repo", "thread", 1, "agent", bundles,
                 [new(definition.Id.ToString(), definition.Name.ToString(), RemoteToolContractHasher.Compute(definition))]),
             RemoteToolHostProtocol.JsonOptions, default, default);
         Assert.True(prepare.Success, prepare.Error?.Message);
         var pending = prepare.Result!;
+        var upload = pending.Uploads.Single(item => item.PluginId == "probe");
+        var manifest = bundles.Single(item => item.Bundle.PluginId == "probe").Manifest;
+        var entryIndex = Enumerable.Range(0, manifest.Entries.Count).First(index => !manifest.Entries[index].IsDirectory);
+        var written = await raw.SendRequestAsync<FileTransferPart, ExtensionResponse<JsonObject>>(
+            RemoteFileTransferProtocol.Write, new(upload.TransferId!, entryIndex, 0, Convert.ToBase64String([1])),
+            RemoteToolHostProtocol.JsonOptions, default, default);
+        Assert.True(written.Success, written.Error?.Message);
+        var staging = Assert.Single(Directory.GetDirectories(storage.RootPath, pending.PreparationId, SearchOption.AllDirectories));
         var activate = await raw.SendRequestAsync<PluginActivateRequest, ExtensionResponse<PluginActivateResponse>>(
             RemotePluginProtocol.Activate, new(pending.PreparationId), RemoteToolHostProtocol.JsonOptions, default, default);
 
         Assert.False(activate.Success);
         Assert.Contains("incomplete", activate.Error?.Message);
         Assert.False(File.Exists(Path.Combine(workspace.Path, "plugin-lifecycle.log")));
-        var staging = Path.Combine(storage.RootPath, "workspaces", "repo", "plugin-staging", pending.PreparationId);
         Assert.False(Directory.Exists(staging));
     }
 
@@ -118,7 +128,7 @@ public sealed class RemotePluginPreparationTests
         using var workspace = new TemporaryDirectory();
         File.WriteAllText(Path.Combine(workspace.Path, "block-plugin-activation"), "");
         await using var server = new RemoteToolHostTestServer(Setup(home.Path, workspace.Path));
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await manager.ToolSource.GetRegistrationsAsync(PluginRuntimeHarness.PlanningContext(1, "thread"));
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         using var cancellation = new CancellationTokenSource();

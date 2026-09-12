@@ -12,7 +12,7 @@ namespace DotCraft.RemoteTools;
 internal sealed class RemoteToolHostPeerConnector(
     RemoteToolHostStorage storage,
     RemoteToolHubPeer peer,
-    RemoteToolHostMcpHandlers handlers,
+    RemoteToolHostExecutionHost handlers,
     WorkspaceLeaseManager leases,
     Func<bool> isPaused,
     TimeSpan? heartbeatInterval = null,

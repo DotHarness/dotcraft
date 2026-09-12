@@ -11,7 +11,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
     [InlineData(RemoteToolAuthorization.WorkspacePreferred, false, false)]
     [InlineData(RemoteToolAuthorization.WorkspacePreferred, true, true)]
     [InlineData(RemoteToolAuthorization.FullAccess, false, true)]
-    public async Task OutsideWrite_RequiresOwnerDecision_NotInviterApproval(string mode, bool accept, bool writes)
+    public async Task OutsideWrite_RequiresOwnerDecision(string mode, bool accept, bool writes)
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
@@ -19,8 +19,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         var owner = new Owner(accept);
         var storage = Setup(home.Path, workspace.Path, mode);
         await using var server = new RemoteToolHostTestServer(storage, ownerApprovals: owner);
-        var inviter = new ApproveService();
-        await using var client = server.CreateClient(inviter);
+        await using var client = server.CreateClient();
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
@@ -30,7 +29,6 @@ public sealed class RemoteToolOwnerAuthorizationTests
         Assert.Equal(writes, File.Exists(target));
         Assert.Equal(writes, result.Success);
         Assert.Equal(mode == RemoteToolAuthorization.FullAccess ? 0 : 1, owner.Requests.Count);
-        Assert.Equal(0, inviter.RequestCount);
         if (!writes) Assert.Equal(RemoteToolErrorCodes.ApprovalDeclined, result.Error?.Code);
     }
 
@@ -41,7 +39,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         using var workspace = new TemporaryDirectory();
         var storage = Setup(home.Path, workspace.Path, RemoteToolAuthorization.WorkspacePreferred);
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
@@ -55,13 +53,13 @@ public sealed class RemoteToolOwnerAuthorizationTests
     }
 
     [Fact]
-    public async Task LegacyPeerCannotAcquireWorkspace()
+    public async Task UnrecognizedAuthorizationCannotAcquireWorkspace()
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = Setup(home.Path, workspace.Path, null);
+        var storage = Setup(home.Path, workspace.Path, "invalid");
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
             await client.ConnectAsync("thread", server.PeerId, "repo"));
         Assert.False(server.Leases.HasActiveLease);
@@ -76,7 +74,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         var owner = new PendingOwner();
         var storage = Setup(home.Path, workspace.Path, RemoteToolAuthorization.WorkspacePreferred);
         var server = new RemoteToolHostTestServer(storage, ownerApprovals: owner);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
@@ -101,7 +99,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         storage.SaveHostState(storage.LoadHostState()! with { ToolPolicies = new() { ["WriteFile"] = "deny" } });
         var owner = new Owner(true);
         await using var server = new RemoteToolHostTestServer(storage, ownerApprovals: owner);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var tools = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(tools, 1), "agent");
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
@@ -111,13 +109,13 @@ public sealed class RemoteToolOwnerAuthorizationTests
         Assert.Empty(owner.Requests);
     }
 
-    private static RemoteToolHostStorage Setup(string home, string workspace, string? mode)
+    private static RemoteToolHostStorage Setup(string home, string workspace, string mode)
     {
         var storage = new RemoteToolHostStorage(home, new MemoryCredentialStore());
         var state = RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace });
         storage.SaveHostState(state with { Peers = [new RemoteToolHubPeer
         {
-            PeerId = "sat_test", HubHost = "localhost", HubPort = 1, CredentialReference = "test",
+            PeerId = "sat_test", HubHost = "localhost", HubPort = 1, HubScheme = Uri.UriSchemeHttp, CredentialReference = "test",
             HubLabel = "Ann", WorkspaceId = "repo", AuthorizationMode = mode, AuthorizationRevision = 7
         }] });
         return storage;
