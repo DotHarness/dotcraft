@@ -11,7 +11,8 @@ internal sealed partial class RemoteToolHostClient
         if (TryGetRoute(threadId, out var existing) && existing.HostId == hostId && existing.WorkspaceId == workspaceId)
         {
             RequireLease(existing);
-            var summary = await BuildMatchSummaryAsync(existing, cancellationToken).ConfigureAwait(false);
+            await PreparePluginsAsync(threadId, RequireLease(existing), cancellationToken).ConfigureAwait(false);
+            var summary = await BuildMatchSummaryAsync(threadId, existing, cancellationToken).ConfigureAwait(false);
             return (summary with { AlreadyConnected = true }, null);
         }
         var session = await GetSessionAsync(hostId, cancellationToken).ConfigureAwait(false);
@@ -50,9 +51,11 @@ internal sealed partial class RemoteToolHostClient
                 lease.OperatingSystem = info.Os;
                 lease.UserName = info.Username;
                 lease.BuildVersion = info.BuildVersion;
+                lease.SupportsPlugins = info.Capabilities.Contains(RemotePluginProtocol.Capability);
             }
             RequireLease(lease.Route);
-            var summary = await BuildMatchSummaryAsync(lease.Route, cancellationToken).ConfigureAwait(false);
+            await PreparePluginsAsync(threadId, lease, cancellationToken).ConfigureAwait(false);
+            var summary = await BuildMatchSummaryAsync(threadId, lease.Route, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             RemoteToolRoute? previous;
             lock (_stateGate)
@@ -63,11 +66,16 @@ internal sealed partial class RemoteToolHostClient
                 lease.ReferenceCount++;
             }
             if (previous is not null)
+            {
+                await ReleasePluginThreadAsync(threadId, previous, CancellationToken.None).ConfigureAwait(false);
                 await ReleaseRouteReferenceAsync(previous, CancellationToken.None).ConfigureAwait(false);
+            }
             return (summary, lease.Route);
         }
         catch
         {
+            if (lease is not null && (!TryGetRoute(threadId, out var current) || current != lease.Route))
+                await ReleasePluginThreadAsync(threadId, lease.Route, CancellationToken.None).ConfigureAwait(false);
             if (created && lease is not null && lease.ReferenceCount == 0)
             {
                 lock (_stateGate) _leases.Remove(key);

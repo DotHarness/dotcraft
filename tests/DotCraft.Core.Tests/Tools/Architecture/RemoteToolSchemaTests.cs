@@ -76,6 +76,7 @@ public sealed partial class RemoteToolHostCoreTests
         client.SetRoute("thread-1");
         var connected = RemoteToolRegistrationRouter.Wrap(wrapped, client);
         var snapshot = builder.Build(connected, 2);
+        client.UpdateRemoteToolSnapshot("thread-1", snapshot, "agent");
         Assert.Same(wrapped[0], connected[0]);
         Assert.Same(definition, Assert.Single(client.Definitions));
         Assert.Equal(fingerprint, PromptRequestFingerprints.ComputeToolFingerprint(AgentFactory.ProjectSnapshotTools(snapshot)));

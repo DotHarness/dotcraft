@@ -199,7 +199,10 @@ public sealed partial class RemoteToolHostCoreTests
         public int RemoteCalls { get; private set; }
         public IReadOnlyList<ToolDefinition> Definitions { get; private set; } = [];
         public (ToolDefinition Definition, string ContractHash, JsonObject Arguments)? LastInvocation { get; private set; }
-        public void UpdateRemoteToolDefinitions(IReadOnlyList<ToolDefinition> definitions) => Definitions = definitions;
+        public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode) =>
+                    Definitions = snapshot.Registrations.Values.Where(RemoteToolMetadata.IsRpcEligible).Select(RemoteToolMetadata.NativeDefinition).ToArray();
+        public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 
         public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default)
         {

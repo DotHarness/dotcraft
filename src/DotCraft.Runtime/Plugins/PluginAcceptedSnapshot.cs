@@ -27,6 +27,11 @@ internal sealed class PluginRuntimeNode(
 
     public string? GenerationId { get; set; }
 
+    public long GenerationRevision { get; set; }
+    public string? ExecutionSourceGeneration { get; set; }
+
+    public System.Text.Json.JsonElement? Settings { get; set; }
+
     public IReadOnlyList<PluginRuntimeBlocker> Blockers { get; set; } = [];
 
     public PluginGeneration? Generation { get; set; }

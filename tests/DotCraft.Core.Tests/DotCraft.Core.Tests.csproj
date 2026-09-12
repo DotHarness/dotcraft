@@ -35,4 +35,10 @@
                       LogicalName="DotCraft.Tests.DesktopPluginRevision.json" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\DotCraft.Runtime.Tests\Plugins\DotNetPluginTestBundle.cs" Link="TestSupport\DotNetPluginTestBundle.cs" />
+    <Compile Include="..\DotCraft.Runtime.Tests\Plugins\PluginRuntimeHarness.cs" Link="TestSupport\PluginRuntimeHarness.cs" />
+    <Compile Include="..\DotCraft.Runtime.Tests\Plugins\PluginLogFile.cs" Link="TestSupport\PluginLogFile.cs" />
+  </ItemGroup>
+
 </Project>

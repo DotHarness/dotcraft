@@ -7,7 +7,7 @@ namespace DotCraft.Runtime;
 /// <summary>The generation half of the runtime manager: one activation transaction and one teardown.</summary>
 internal sealed partial class DotNetPluginRuntimeManager
 {
-    private async Task ActivateNodeAsync(PluginRuntimeNode node, CancellationToken _)
+    private async Task ActivateNodeAsync(PluginRuntimeNode node, CancellationToken cancellationToken)
     {
         if (node.Generation != null || node.PendingActivation != null || node.PendingTeardown != null)
             return;
@@ -32,7 +32,8 @@ internal sealed partial class DotNetPluginRuntimeManager
         node.PendingRemnant = null;
         node.State = PluginDotnetRuntimeState.Activating;
         node.Blockers = [];
-        var generationId = $"g{Interlocked.Increment(ref _generationSequence):x}-{Guid.NewGuid():N}";
+        node.GenerationRevision = Interlocked.Increment(ref _generationSequence);
+        var generationId = $"g{node.GenerationRevision:x}-{Guid.NewGuid():N}";
         node.GenerationId = generationId;
         PublishSnapshot();
 
@@ -61,16 +62,18 @@ internal sealed partial class DotNetPluginRuntimeManager
             return;
         }
 
-        using var activationCts = new CancellationTokenSource();
+        using var activationCts = _executionOnly
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken) : new CancellationTokenSource();
         var commitGate = new PluginActivationCommitGate();
         var dataRoot = PluginDataPaths.Resolve(_paths, node.Snapshot.Manifest.Id);
         Directory.CreateDirectory(dataRoot);
         JsonElement settings;
         try
         {
-            settings = node.Snapshot.Manifest.Settings == null
+            settings = (_executionOnly ? node.Settings : null) ?? (node.Snapshot.Manifest.Settings == null
                 ? JsonSerializer.Deserialize<JsonElement>("{}"u8)
-                : _pluginConfigStore.Get(node.Snapshot.Manifest).Value;
+                : _pluginConfigStore.Get(node.Snapshot.Manifest).Value);
+            node.Settings = settings.Clone();
         }
         catch (PluginConfigException exception)
         {
@@ -97,7 +100,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             dataRoot,
             node.WorkspaceRoot,
             settings,
-            new PluginGenerationHost(_services, _contributions, CallGates),
+            new PluginGenerationHost(_services, _contributions, CallGates, _executionOnly),
             GetDirectProviderGenerations(node),
             commitGate,
             TrustCommitBlocker,
@@ -106,8 +109,19 @@ internal sealed partial class DotNetPluginRuntimeManager
         PluginActivationAttempt attempt;
         try
         {
-            attempt = await activation.WaitAsync(_options.ActivationTimeout)
+            attempt = await activation.WaitAsync(_options.ActivationTimeout,
+                    _executionOnly ? cancellationToken : CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_executionOnly && cancellationToken.IsCancellationRequested)
+        {
+            commitGate.TryCancel();
+            await activationCts.CancelAsync().ConfigureAwait(false);
+            var teardown = AbandonedActivationAsync(activation, node.Snapshot.Manifest.Id, generationId, shadowRoot);
+            node.PendingTeardown = teardown;
+            node.PendingTeardownCompletedState = PluginDotnetRuntimeState.Stopped;
+            await AwaitPendingTeardownAsync(node, teardown).ConfigureAwait(false);
+            throw;
         }
         catch (TimeoutException)
         {

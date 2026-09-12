@@ -25,7 +25,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var gate = PublishGate("acme.tools", "gen-1");
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         registrar.Add<IToolSource>(new StubToolSource("review", "review", "Reviews a diff."));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
 
         var registrations = await source.GetRegistrationsAsync(PlanningContext());
 
@@ -55,7 +55,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         var plugin = new StubToolSource("review", "review", "Reviews a diff.");
         registrar.Add<IToolSource>(plugin);
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var contributed = Assert.Single(await plugin.GetRegistrationsAsync(PlanningContext()));
 
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
@@ -78,7 +78,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
     public async Task Source_IgnoresContributionsThatDoNotComeFromAPlugin()
     {
         _registry.Add<IToolSource>(new StubToolSource("builtin", "builtin", "Not a plugin Tool."));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
 
         Assert.Empty(await source.GetRegistrationsAsync(PlanningContext()));
     }
@@ -90,7 +90,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         registrar.Add<IToolSource>(new StubToolSource("review", "review", "First."));
         registrar.Add<IToolSource>(new StubToolSource("review", "review_again", "Second."));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
 
         var registrations = await source.GetRegistrationsAsync(PlanningContext());
 
@@ -110,7 +110,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         registrar.Add<IToolSource>(new StubToolSource("bad", "bad", "Bad.") { ThrowsWhilePlanning = true });
         registrar.Add<IToolSource>(new StubToolSource("good", "good", "Good."));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
 
         var registrations = await source.GetRegistrationsAsync(PlanningContext());
 
@@ -133,7 +133,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
             registration,
             enumerationStarted,
             releaseEnumeration));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
 
         var planning = Task.Run(async () => await source.GetRegistrationsAsync(PlanningContext()));
         Assert.True(enumerationStarted.Wait(TimeSpan.FromSeconds(10)));
@@ -152,7 +152,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         PublishGate("acme.tools", "gen-1");
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         var handle = registrar.Add<IToolSource>(new StubToolSource("review", "review", "Reviews a diff."));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
         var context = InvocationContext(registration);
 
@@ -173,7 +173,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var gate = PublishGate("acme.tools", "gen-1");
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         registrar.Add<IToolSource>(new StubToolSource("review", "review", "Reviews a diff."));
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
         var context = InvocationContext(registration);
 
@@ -191,7 +191,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         var plugin = new StubToolSource("review", "review", "Reviews a diff.");
         registrar.Add<IToolSource>(plugin);
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
 
         plugin.LeaseAvailable = false;
@@ -214,7 +214,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
                 JsonDocument.Parse("{\"findings\":2}").RootElement)
         };
         registrar.Add<IToolSource>(plugin);
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
         var arguments = new JsonObject { ["path"] = "a.cs" };
 
@@ -240,7 +240,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
             Result = null
         });
         registrar.Add<IToolSource>(new StubToolSource("thrower", "thrower", "Throws.") { Throws = true });
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var registrations = await source.GetRegistrationsAsync(PlanningContext());
 
         var invalid = registrations.Single(r => r.Definition.Id.SourceToolId.Value == "empty");
@@ -270,7 +270,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
                     }),
                 "could not review")
         });
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
 
         var result = await registration.Binding.Runtime.InvokeAsync(
@@ -289,7 +289,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         var plugin = new StubToolSource("review", "review", "Reviews a diff.");
         registrar.Add<IToolSource>(plugin);
-        var source = new DotNetPluginToolSource(_registry, _callGates);
+        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
 
         await source.ReleaseThreadAsync("thread-1");
         var forked = source.TryForkThreadBinding("thread-1", "thread-2");
@@ -352,7 +352,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
             """);
         var attempt = await _harness.ActivateAsync("drain");
         var generation = Assert.IsType<PluginGeneration>(attempt.Generation);
-        var source = new DotNetPluginToolSource(_harness.Registry, _harness.CallGates);
+        var source = new DotNetPluginToolSource(_harness.Registry, _harness.CallGates, UnexpectedExport);
         var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
         var call = Task.Run(async () => await registration.Binding.Runtime.InvokeAsync(
             InvocationContext(registration),
@@ -374,6 +374,10 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
         Assert.Equal("drained", (await call).Content);
         Assert.Empty(remnant.CleanupErrors);
     }
+
+    private static ValueTask<RemoteToolSourceExport> UnexpectedExport(
+        string pluginId, string generationId, CancellationToken cancellationToken) =>
+        throw new Xunit.Sdk.XunitException("This fixture must not export plugin bundles.");
 
     private PluginCallGate PublishGate(string pluginId, string generationId)
     {

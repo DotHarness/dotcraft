@@ -11,6 +11,9 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private async ValueTask<JsonNode?> WriteImageAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<RemoteImageWriteRequest>(request);
+        using var call = _leases.EnterCall(input.LeaseId, input.WorkspaceId);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
+        ct = linked.Token;
         var root = _leases.Validate(input.LeaseId, input.WorkspaceId);
         var state = RequireState();
         var peer = RequirePeer(state, peerId, input.WorkspaceId);

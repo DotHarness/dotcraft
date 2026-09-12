@@ -9,7 +9,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
     public async Task DrainWorkspaceAsync(string workspaceId)
     {
         _leases.ReleaseWorkspace(workspaceId);
-        await DisposeRuntimeAsync(workspaceId).ConfigureAwait(false);
+        await _leases.WaitForDrainAsync(workspaceId).ConfigureAwait(false);
     }
 
     private RemoteToolHubPeer RequirePeer(RemoteToolHostState state, string peerId, string? workspaceId = null)

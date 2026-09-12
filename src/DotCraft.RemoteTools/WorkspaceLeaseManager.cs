@@ -22,6 +22,7 @@ internal sealed class WorkspaceLeaseManager(
     private ITimer? _expiry;
     private bool _changed;
     private bool _disposed;
+    internal Func<WorkspaceLeaseReleased, Task, Task>? DrainResourcesAsync { get; set; }
 
     public WorkspaceAcquireResponse Acquire(
         string ownerId,
@@ -33,7 +34,7 @@ internal sealed class WorkspaceLeaseManager(
         ReapExpiredCore();
         if (_byWorkspace.TryGetValue(workspaceId, out var existing))
         {
-            if (!string.Equals(existing.OwnerId, ownerId, StringComparison.Ordinal))
+            if (existing.Releasing || !string.Equals(existing.OwnerId, ownerId, StringComparison.Ordinal))
                 throw new RemoteToolHostException(
                     Tools.RemoteToolErrorCodes.WorkspaceBusy,
                     $"Workspace '{workspaceId}' is leased by another Agent Host.");
@@ -78,6 +79,22 @@ internal sealed class WorkspaceLeaseManager(
     });
 
     public string Validate(string leaseId, string workspaceId) => Locked(() => Find(leaseId, workspaceId).WorkspacePath);
+
+    public LeaseCall EnterCall(string leaseId, string workspaceId) => Locked(() =>
+    {
+        var lease = Find(leaseId, workspaceId);
+        lease.Calls++;
+        return new LeaseCall(lease.Stopping.Token, () => Locked(() =>
+        {
+            if (--lease.Calls == 0 && lease.Releasing) lease.Drained.TrySetResult();
+        }));
+    });
+
+    public Task WaitForDrainAsync(string workspaceId) => Locked(() =>
+        _byWorkspace.TryGetValue(workspaceId, out var lease) ? lease.Cleanup ?? Task.CompletedTask : Task.CompletedTask);
+
+    public Task WaitForAllDrainsAsync() => Locked(() => Task.WhenAll(_byWorkspace.Values
+        .Select(lease => lease.Cleanup ?? Task.CompletedTask)));
 
     public void CommitArtifact(string leaseId, string workspaceId, Action commit) => Locked(() =>
     {
@@ -214,13 +231,36 @@ internal sealed class WorkspaceLeaseManager(
 
     private void RemoveCore(Lease lease)
     {
-        _byId.Remove(lease.LeaseId);
-        _byWorkspace.Remove(lease.WorkspaceId);
+        if (!_byId.Remove(lease.LeaseId)) return;
+        lease.Releasing = true;
+        if (lease.Calls == 0) lease.Drained.TrySetResult();
         _changed = true;
-        _onReleased?.Invoke(new WorkspaceLeaseReleased(
-            lease.LeaseId,
-            lease.WorkspaceId,
-            lease.WorkspacePath));
+        if (DrainResourcesAsync is null && lease.Calls == 0)
+        {
+            _byWorkspace.Remove(lease.WorkspaceId);
+            _onReleased?.Invoke(new(lease.LeaseId, lease.WorkspaceId, lease.WorkspacePath));
+            lease.Stopping.Dispose();
+        }
+        else lease.Cleanup = FinishReleaseAsync(lease);
+    }
+
+    private async Task FinishReleaseAsync(Lease lease)
+    {
+        await Task.Yield();
+        var cancellation = lease.Stopping.CancelAsync();
+        var released = new WorkspaceLeaseReleased(lease.LeaseId, lease.WorkspaceId, lease.WorkspacePath);
+        var resources = DrainResourcesAsync?.Invoke(released, lease.Drained.Task) ?? Task.CompletedTask;
+        await Task.WhenAll(cancellation, lease.Drained.Task, resources).ConfigureAwait(false);
+        _onReleased?.Invoke(released);
+        lease.Stopping.Dispose();
+        Locked(() => { _byWorkspace.Remove(lease.WorkspaceId); _changed = true; });
+    }
+
+    internal sealed class LeaseCall(CancellationToken token, Action release) : IDisposable
+    {
+        private Action? _release = release;
+        public CancellationToken Token => token;
+        public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
     }
 
     private sealed class Lease
@@ -231,6 +271,11 @@ internal sealed class WorkspaceLeaseManager(
         public required string WorkspacePath { get; init; }
         public required DateTimeOffset ExpiresAt { get; set; }
         public int ReferenceCount { get; set; }
+        public bool Releasing { get; set; }
+        public int Calls { get; set; }
+        public CancellationTokenSource Stopping { get; } = new();
+        public TaskCompletionSource Drained { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task? Cleanup { get; set; }
 
         public WorkspaceAcquireResponse ToResponse(string hostInstanceId, long catalogRevision) =>
             new(LeaseId, WorkspaceId, WorkspacePath, ExpiresAt, hostInstanceId, catalogRevision);

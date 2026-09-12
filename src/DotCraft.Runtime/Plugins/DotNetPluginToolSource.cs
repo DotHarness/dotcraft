@@ -16,15 +16,18 @@ internal sealed class DotNetPluginToolSource : IToolSource, IThreadScopedToolSou
 
     private readonly IContributionView _contributions;
     private readonly PluginCallGateRegistry _callGates;
+    private readonly Func<string, string, CancellationToken, ValueTask<RemoteToolSourceExport>> _export;
     private volatile IReadOnlyList<PluginDiagnostic> _diagnostics = [];
     private volatile IReadOnlyDictionary<string, IReadOnlyList<PluginRuntimeToolInfo>> _described =
         new Dictionary<string, IReadOnlyList<PluginRuntimeToolInfo>>(StringComparer.Ordinal);
 
     /// <summary>Creates the aggregate plugin Tool source.</summary>
-    internal DotNetPluginToolSource(IContributionView contributions, PluginCallGateRegistry callGates)
+    internal DotNetPluginToolSource(IContributionView contributions, PluginCallGateRegistry callGates,
+        Func<string, string, CancellationToken, ValueTask<RemoteToolSourceExport>> export)
     {
         _contributions = contributions ?? throw new ArgumentNullException(nameof(contributions));
         _callGates = callGates ?? throw new ArgumentNullException(nameof(callGates));
+        _export = export;
     }
 
     /// <inheritdoc />
@@ -85,7 +88,8 @@ internal sealed class DotNetPluginToolSource : IToolSource, IThreadScopedToolSou
                     generationId,
                     context,
                     registration,
-                    revision);
+                    revision,
+                    _export);
                 registrations.Add(wrapped);
                 Describe(described, pluginId, generationId, wrapped.Definition);
             }

@@ -11,6 +11,7 @@ internal sealed class FileTransferSession(string root, TransferFileManifest mani
     internal CancellationTokenSource Stopping { get; } = new();
     internal string Root => root;
     internal bool Write => write;
+    internal bool IsComplete => _completed.Count == manifest.Entries.Count;
 
     internal async Task PrepareAsync(long maxBytes, Func<string, string, CancellationToken, Task> authorize, CancellationToken ct)
     {

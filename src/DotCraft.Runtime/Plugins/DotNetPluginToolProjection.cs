@@ -18,7 +18,8 @@ internal static class DotNetPluginToolProjection
         string generationId,
         ToolPlanningContext planning,
         ToolRegistration contributed,
-        long revision)
+        long revision,
+        Func<string, string, CancellationToken, ValueTask<RemoteToolSourceExport>> export)
     {
         var toolId = contributed.Definition.Id.SourceToolId.Value;
         var definitionId = new ToolDefinitionId(
@@ -31,7 +32,8 @@ internal static class DotNetPluginToolProjection
             pluginId,
             generationId,
             toolId,
-            planning);
+            planning,
+            export);
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId($"{DotNetPluginToolSource.Id}:{pluginId}:{generationId}:{toolId}:{revision}"),
             definitionId,
@@ -123,8 +125,14 @@ internal sealed class DotNetPluginToolProxy(
     string pluginId,
     string generationId,
     string toolId,
-    ToolPlanningContext planning) : IToolRuntime, IToolBindingLease
+    ToolPlanningContext planning,
+    Func<string, string, CancellationToken, ValueTask<RemoteToolSourceExport>> export)
+    : IToolRuntime, IToolBindingLease, IRemoteToolSourceBinding
 {
+    public string SourceId => pluginId;
+    public ValueTask<RemoteToolSourceExport> ExportAsync(CancellationToken cancellationToken = default) =>
+        export(pluginId, generationId, cancellationToken);
+
     public ValueTask<ToolBindingLeaseResult> CheckAsync(
         ToolInvocationContext context,
         CancellationToken cancellationToken = default)

@@ -22,16 +22,16 @@ public sealed class RemoteToolHostCatalogTests
         await using var client = server.CreateClient(new ApproveService());
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile").Definition;
-        client.UpdateRemoteToolDefinitions(
-        [
-            new ToolDefinition(
+        var drifted = new ToolDefinition(
                 read.Id,
                 read.Name,
                 read.Description + " (drifted)",
                 read.InputSchema,
                 read.OutputSchema,
-                read.Annotations)
-        ]);
+                read.Annotations);
+        var binding = registrations.Single(item => item.Definition.Id == read.Id).Binding;
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(
+            [new ToolRegistration(drifted, binding, ToolProjectionShape.StandardPair)], 1), "agent");
 
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
 
@@ -58,15 +58,16 @@ public sealed class RemoteToolHostCatalogTests
         await using var client = server.CreateClient(new ApproveService());
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile").Definition;
-        client.UpdateRemoteToolDefinitions(
-        [
-            read,
-            new ToolDefinition(
+        var missing = new ToolDefinition(
                 new ToolDefinitionId(ToolSourceKind.CoreNative, "core-native", new SourceToolId("HostOnlyTool")),
                 new ToolName(null, "HostOnlyTool"),
                 "A tool the Host does not export.",
-                read.InputSchema)
-        ]);
+                read.InputSchema, annotations: read.Annotations);
+        var missingBinding = new ToolRuntimeBinding(new("missing"), missing.Id,
+            registrations[0].Binding.Runtime, ToolBindingLeases.AlwaysAvailable, "test", 1);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(
+            [registrations.Single(item => item.Definition.Id == read.Id),
+                new ToolRegistration(missing, missingBinding, ToolProjectionShape.StandardPair)], 1), "agent");
 
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
 
@@ -172,7 +173,7 @@ public sealed class RemoteToolHostCatalogTests
         var approvals = new ApproveService();
         await using var client = server.CreateClient(approvals);
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
-        client.UpdateRemoteToolDefinitions([.. registrations.Select(item => item.Definition)]);
+        client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile");
 

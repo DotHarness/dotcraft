@@ -1,6 +1,6 @@
 # Remote Tool Host
 
-Remote Tool Host 在同一内网的另一台机器上执行 Agent 的文件、Shell 和 LSP 工具。本页面向不使用 DotCraft Desktop、直接配置配对的集成方和运维人员。
+Remote Tool Host 在另一台机器上执行 Agent 的文件、Shell、LSP 工具及支持 RPC 的 .NET 插件工具。本页面向不使用 DotCraft Desktop、直接配置配对的集成方和运维人员。
 
 ![Agent Runtime 保留模型循环和工具身份，Remote Tool Host 在目标工作区旁执行符合条件的 Core 文件、Shell 和 LSP 工具](/remote-tool-host-topology.svg)
 
@@ -88,9 +88,13 @@ RPC 工具接受 `target: "local"` 或 `target: "remote"`，省略时沿用当�
 
 ## Skill 与插件资源
 
-Skill 和插件包保留在 Agent 机器上。`SkillView` 读取本地指令，Skill 目录提供实际生效的本地路径，包括变体路径。连接远端时，可以通过 `ReadFile` 的 `target: "local"` 读取配套文件。
+支持 RPC 的 .NET 插件工具使用 Agent 已接纳的插件包和生效配置。Connect 自动在远端工作区准备完整插件包及其 .NET 依赖，包括延迟工具，无需在远端另行安装插件。插件发生变化时，会在下一 Turn 使用工具快照之前完成准备。MCP 和运行时动态工具仍在本地执行。
 
-Agent 按需使用 `Transfer` 复制远端需要的脚本、目录或 CLI 文件，保留相对依赖关系，并在适用时选用 Skill 的生效变体。传输的文件在断开后保留，目标位置和覆盖行为由 Agent 显式选择。复制插件包不会激活插件或安装依赖，可执行文件须支持远端操作系统。
+在工作区优先授权下，远端所有者需要批准确切的插件指纹，随后才会加载插件代码。完全访问授权允许自动激活。断开连接会释放当前线程的插件状态，工作区最后一个租约结束时会等待插件运行时停止。已校验的插件文件会保留供后续复用。
+
+Skill 保留在 Agent 机器上。`SkillView` 读取本地指令，Skill 目录提供实际生效的本地路径，包括变体路径。连接远端时，可以通过 `ReadFile` 的 `target: "local"` 读取配套文件。
+
+Agent 按需使用 `Transfer` 复制远端需要的脚本、目录或 CLI 文件，保留相对依赖关系，并在适用时选用 Skill 的生效变体。传输的文件在断开后保留，目标位置和覆盖行为由 Agent 显式选择。可执行文件须支持远端操作系统。
 
 Connect 协商工具和文件传输能力后才发布路由，连接建立失败时保留之前的路由。不支持文件传输的卫星需要先升级再连接。
 

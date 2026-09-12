@@ -13,14 +13,17 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
     private object? _generationOwnedEntry;
     private int _preparing;
     private RegistrarState _state;
+    private readonly bool _toolsOnly;
 
     public PluginContributionRegistrar(
         IContributionRegistry registry,
         ContributionOrigin origin,
         PluginCallGate callGate,
-        object generationOwnedEntry)
+        object generationOwnedEntry,
+        bool toolsOnly = false)
     {
         _registry = registry;
+        _toolsOnly = toolsOnly;
         _inner = registry.CreateRegistrar(origin);
         _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate);
         _generationOwnedEntry = generationOwnedEntry ?? throw new ArgumentNullException(nameof(generationOwnedEntry));
@@ -34,6 +37,8 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         where TContract : class, IContributionContract
     {
         ArgumentNullException.ThrowIfNull(contribution);
+        if (_toolsOnly && typeof(TContract) != typeof(DotCraft.Tools.IToolSource))
+            throw new InvalidOperationException($"The execution host does not support contribution '{typeof(TContract).FullName}'.");
         Registration<TContract> registration;
         lock (_gate)
         {

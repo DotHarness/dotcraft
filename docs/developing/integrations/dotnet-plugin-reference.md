@@ -97,6 +97,8 @@ internal sealed class SummaryTool(ReviewJournal journal) : IToolSource, IToolRun
 
 Report expected failures with `ToolExecutionResult.Failed` and a `ToolError`, whose code stays stable. A thrown exception's text is discarded and reaches the model only as an unspecified tool failure. The boundary is JSON-only in both directions: the host copies the arguments in, and copies the text, the structured content, and the error out.
 
+For remote execution, mark a generated tool or `[ToolDeclaration]` with `[ToolRpc]`. Hand-written definitions use `RemoteToolMetadata.RpcEligibleAnnotation` set to JSON `true`. The plugin must activate with the execution host's tool services and dependency exports, without requiring Agent, Session, or provider services. [Remote Tool Host](../architecture/remote-tool-host#skill-and-plugin-resources) owns bundle preparation and remote authorization.
+
 ### Tier A — add a slash command
 
 A plugin contributes a slash command through `ICodeCommand`: a name, optional aliases, a description, and an `Expand` that turns one invocation into the text the turn runs on.
