@@ -22,7 +22,8 @@ DotCraft turns your projects into **extensible environments for AI agents**.
 
 ![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-- **Complete agent capabilities, ready to use:** Plan, Agent Builder, Agent Profiles, Subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in, so you do not have to assemble agent infrastructure from scratch.
+- **Complete agent capabilities, ready to use:** Plan, subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in, so you do not have to assemble agent infrastructure from scratch.
+- **Agent customization and remote collaboration:** Agent Builder and Agent Profiles let you create reusable, specialized agents. Remote tool calls let them work across computers.
 - **Your work travels with the project:** Conversations, memory, agents, skills, and plugins live with the workspace. Move between Desktop, the CLI, editors, and bots, and pick up where you left off.
 - **Bring a complete agent runtime into your product:** Embed the same runtime behind DotCraft Desktop in .NET tools, services, and automations, or connect existing products through AppServer, SDKs, and App Binding.
 - **Let the agent extend its own runtime:** Ask the agent to create and build a .NET plugin in the workspace. It uses the same extension model as built-in features to add tools, prompts, commands, and lifecycle logic, and can be replaced while the host keeps running.

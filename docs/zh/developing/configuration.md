@@ -303,7 +303,7 @@ Deep-thinking adapter 文件：
 | `Tools.Sandbox.SyncWorkspace` | 是否同步 workspace 到容器 | `true` |
 | `Tools.Sandbox.SyncExclude` | 同步时排除的工作区相对路径，按路径前缀匹配。默认值用于避免敏感的 `.craft/` 运行数据进入容器，建议在默认值上追加而不是整体替换 | `[".craft/config.json", ".craft/sessions", ".craft/memory", ".craft/dashboard", ".craft/security", ".craft/logs"]` |
 
-生成的图片默认保存在 Agent 数据目录的 `generated_images/<threadId>/<callId>.png`。连接 Remote Tool Host 后，文件改为保存在远端工作区的 `.craft/generated_images/<threadId>/<callId>.png`。如果保存失败，对话仍会显示已生成的图片，并提示文件保存失败。
+生成的图片默认保存在 Agent 数据目录的 `generated_images/<threadId>/<callId>.png`。连接远程电脑后，文件改为保存在远端工作区的 `.craft/generated_images/<threadId>/<callId>.png`。如果保存失败，对话仍会显示已生成的图片，并提示文件保存失败。
 
 使用支持的 OpenAI Responses 提供商时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
 

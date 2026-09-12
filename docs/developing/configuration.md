@@ -304,7 +304,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.Sandbox.SyncWorkspace` | Sync workspace into container | `true` |
 | `Tools.Sandbox.SyncExclude` | Workspace-relative paths excluded from that sync, matched as path prefixes. The defaults keep sensitive `.craft/` runtime data out of the container, so extend the list instead of replacing it | `[".craft/config.json", ".craft/sessions", ".craft/memory", ".craft/dashboard", ".craft/security", ".craft/logs"]` |
 
-Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. With Remote Tool Host connected, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the conversation still displays the generated image and reports the storage failure.
+Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. When connected to a remote computer, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the conversation still displays the generated image and reports the storage failure.
 
 With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output and shows the image inline in clients that render rich content.
 

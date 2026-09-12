@@ -106,7 +106,7 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('branch', 'Overview'), link: '/developing/architecture/overview' },
           { text: withIcon('layers', 'Unified Session Core'), link: '/developing/architecture/session-core' },
           { text: withIcon('database', 'Session Persistence'), link: '/developing/architecture/session-persistence' },
-          { text: withIcon('server', 'Remote Tool Host'), link: '/developing/architecture/remote-tool-host' }
+          { text: withIcon('server', 'Remote tool calls'), link: '/developing/architecture/remote-tool-host' }
         ]
       },
       { text: withIcon('sliders', 'Configuration'), link: '/developing/configuration' },
@@ -259,7 +259,7 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('branch', '架构总览'), link: '/zh/developing/architecture/overview' },
           { text: withIcon('layers', '统一会话核心'), link: '/zh/developing/architecture/session-core' },
           { text: withIcon('database', '会话持久化'), link: '/zh/developing/architecture/session-persistence' },
-          { text: withIcon('server', 'Remote Tool Host'), link: '/zh/developing/architecture/remote-tool-host' }
+          { text: withIcon('server', '远程工具调用'), link: '/zh/developing/architecture/remote-tool-host' }
         ]
       },
       { text: withIcon('sliders', '配置'), link: '/zh/developing/configuration' },

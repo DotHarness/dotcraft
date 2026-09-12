@@ -40,7 +40,7 @@ By default Desktop starts or takes over the AppServer for the current workspace 
 
 To reach a DotCraft running on a server, enter the remote AppServer address under **Settings → Connections → Workspace**. Desktop probes the connection before saving it, so a bad address is never stored and never traps you on the next start. For the full server-side setup, see [Server Deployment](../self-hosted/server-deployment).
 
-A colleague can lend you their PC instead of a server. Pair it under **Settings → Connections → Satellites**, then pick it in the composer’s **Run on** control and this conversation’s file, Shell, and LSP tools run over there, and the conversation header can show that PC’s screen live — see [DotCraft Satellite](../agent-system/satellite).
+Remote tool calls let your agent work on another PC while the conversation stays here. Pair the PC under **Settings → Connections → Satellites**, then select it in **Run on** below the composer. See [DotCraft Satellite](../agent-system/satellite) for setup and screen viewing.
 
 ## Stay on the latest version
 

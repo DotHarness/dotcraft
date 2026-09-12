@@ -1,15 +1,15 @@
-# Remote Tool Host
+# 远程工具调用
 
-Remote Tool Host 在另一台机器上执行 Agent 的文件、Shell、LSP 工具及支持 RPC 的 .NET 插件工具。本页面向不使用 DotCraft Desktop、直接配置配对的集成方和运维人员。
+远程工具调用让 Agent 使用另一台机器上的文件、Shell、LSP 工具及支持远程调用的 .NET 插件工具。远程工具执行端（Remote Tool Host）是那台机器上负责执行的组件。本页介绍不使用 DotCraft Desktop 时的命令行配置和集成方式。
 
-![Agent Runtime 保留模型循环和工具身份，Remote Tool Host 在目标工作区旁执行符合条件的 Core 文件、Shell 和 LSP 工具](/remote-tool-host-topology.svg)
+![Agent 机器通过 Hub 将工具调用交给共享电脑上的执行端](/remote-tool-host-topology.svg)
 
 
 ## 职责划分
 
 Agent 机器持有模型循环、审批、hook 和 Session 历史。工作区机器持有真实工作区、本地工具策略和执行审计。远端执行的工具保留原有的工具身份、schema 和 Session 投影，远端化只替换稳定注册背后的运行时路由，所以模型不会看到同一个工具的第二份远端副本。
 
-Agent 机器上的 Hub 是双方的会合点。Remote Tool Host 向它拨号，从不监听入站连接，因此工作区机器不需要入站防火墙规则、端口转发或 TLS 身份。Hub 只在两侧之间转发字节，不解析内容。
+Agent 机器上的 Hub 是双方的会合点。执行端主动连接 Hub，从不监听入站连接，因此工作区机器不需要入站防火墙规则、端口转发或 TLS 身份。Hub 只在两侧之间转发字节，不解析内容。
 
 两台机器都以登录用户身份运行，不是系统服务，所以两边都需要保持登录。
 
@@ -56,7 +56,7 @@ dotcraft tool-host policy set Exec needs-approval
 
 策略取值为 `allow`、`deny` 或 `needs-approval`，按规范工具名逐个设置。
 
-策略在 Tool Host 上强制执行。Agent 不能放宽 `deny` 规则，也不能在远端机器上创建永久批准。
+策略在执行端强制执行。Agent 不能放宽 `deny` 规则，也不能在远端机器上创建永久批准。
 
 不用 Desktop 时，Agent 通过 `RemoteToolHost.List`、`RemoteToolHost.Connect` 和 `RemoteToolHost.Disconnect` 这几个模型工具路由对话：
 
@@ -69,7 +69,7 @@ dotcraft tool-host policy set Exec needs-approval
 
 ## 本地访问与文件传输
 
-RPC 工具接受 `target: "local"` 或 `target: "remote"`，省略时沿用当前对话的连接。例如，`ReadFile({ "path": "scripts/check.py", "target": "local" })` 可以直接读取 Agent 工作区，无须断开远端连接。`WriteStdin` 应使用创建终端的 `Exec` 所用的 target。
+支持远程调用的工具接受 `target: "local"` 或 `target: "remote"`，省略时沿用当前对话的连接。例如，`ReadFile({ "path": "scripts/check.py", "target": "local" })` 可以直接读取 Agent 工作区，无须断开远端连接。`WriteStdin` 应使用创建终端的 `Exec` 所用的 target。
 
 `RemoteToolHost.Transfer` 在两台机器之间直接复制文件或目录：
 
@@ -82,13 +82,13 @@ RPC 工具接受 `target: "local"` 或 `target: "remote"`，省略时沿用当�
 }
 ```
 
-使用 `download` 从远端复制到本地。路径是相对于各自工作区的路径或绝对路径，指向确切的目标位置。目录合并会保留多余文件；替换已有文件须设置 `overwrite: true`。中途失败时，结果会报告已完成的文件数和字节数，未完成的文件会被丢弃。Plan 模式不允许显式传输。
+使用 `download` 从远端复制到本地。路径是相对于各自工作区的路径或绝对路径，指向确切的目标位置。目录合并会保留多余文件，替换已有文件须设置 `overwrite: true`。中途失败时，结果会报告已完成的文件数和字节数，未完成的文件会被丢弃。Plan 模式不允许显式传输。
 
-传输复用现有连接，并遵循两端的文件访问策略。它拒绝文件系统链接，校验 SHA-256，并逐个文件原子提交。Host 的 `Tools.File.MaxTransferBytes` 默认为 10 GiB，与文本读取限制独立。提交响应丢失时会报告结果未知，不会自动重试。
+传输复用现有连接，并遵循两端的文件访问策略。它拒绝文件系统链接，校验 SHA-256，并逐个文件原子提交。执行端的 `Tools.File.MaxTransferBytes` 默认为 10 GiB，与文本读取限制独立。提交响应丢失时会报告结果未知，不会自动重试。
 
 ## Skill 与插件资源
 
-支持 RPC 的 .NET 插件工具使用 Agent 已接纳的插件包和生效配置。Connect 自动在远端工作区准备完整插件包及其 .NET 依赖，包括延迟工具，无需在远端另行安装插件。插件发生变化时，会在下一 Turn 使用工具快照之前完成准备。MCP 和运行时动态工具仍在本地执行。
+支持远程调用的 .NET 插件工具使用 Agent 已接纳的插件包和生效配置。Connect 自动在远端工作区准备完整插件包及其 .NET 依赖，包括延迟工具，无需在远端另行安装插件。插件发生变化时，会在下一 Turn 使用工具快照之前完成准备。MCP 和运行时动态工具仍在本地执行。
 
 在工作区优先授权下，远端所有者需要批准确切的插件指纹，随后才会加载插件代码。完全访问授权允许自动激活。断开连接会释放当前线程的插件状态，工作区最后一个租约结束时会等待插件运行时停止。已校验的插件文件会保留供后续复用。
 

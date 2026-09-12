@@ -1,8 +1,8 @@
 # DotCraft Satellite
 
-Satellite lets your agent use files and run tools on another Windows PC, such as a colleague's workstation with a repository and build environment already installed. The person inviting the PC continues the conversation in Desktop. The person sharing it chooses the access mode in Satellite and handles additional access requests.
+Satellite enables remote tool calls so your agent can work on another Windows PC. You continue the conversation in Desktop, while the person sharing the PC controls access, sees running tools, and can pause sharing.
 
-![The inviting PC runs Desktop and the Hub; the shared PC runs Satellite, shares one folder, and dials out to reach it](/satellite-overview.svg)
+![The inviting PC runs Desktop and the Hub, and Satellite on the shared PC connects to it](/satellite-overview.svg)
 
 ## Person inviting: create an invitation
 
@@ -40,11 +40,11 @@ The agent can read and change files in that folder. Other file access and local 
 
 After the other person allows the connection, find the PC in **Settings → Connections → Satellites**. Open **Run on** below the conversation composer, select the remote PC and its workspace, and submit your task.
 
-File, Shell, and language tools run on the selected PC. If the PC is offline or the workspace is in use, wait until it is available before continuing. A failed remote operation does not automatically run on your own PC. Select **This PC** when you want to switch back.
+File, Shell, language tools, and .NET plugin tools that support remote calls run on the selected PC. A failed remote call does not automatically run on your own PC. Select **This PC** to switch back.
 
 The agent can also access files on your own PC without changing this selection, and copy files or folders between the two PCs when needed. For example: “Upload my local checker CLI to the remote workspace and run it there.” Replacing existing files requires the overwrite option.
 
-Enabled Skills and installed plugin packages are prepared on the shared PC automatically, including their supporting scripts. Plugin data and environment settings stay on the Agent PC. Additional CLI dependencies still need to support the shared PC's operating system. See [local access and file transfer](../../developing/architecture/remote-tool-host#local-access-and-file-transfer) for tool parameters.
+For .NET tools that support remote calls, DotCraft automatically prepares the plugin bundles, dependencies, and settings on the shared PC. Skill instructions stay on your PC, with supporting files transferred as needed. Any CLI must support the shared PC's operating system. See [local access and file transfer](../../developing/architecture/remote-tool-host#local-access-and-file-transfer) for tool parameters.
 
 ## Person inviting: watch the remote screen
 

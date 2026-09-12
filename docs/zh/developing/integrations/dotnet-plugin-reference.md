@@ -97,7 +97,7 @@ internal sealed class SummaryTool(ReviewJournal journal) : IToolSource, IToolRun
 
 预期内的失败请用 `ToolExecutionResult.Failed` 配一个 `ToolError` 返回，这样它的稳定错误码得以保留。抛出异常的正文会被丢弃，模型只会看到未指明的工具失败。边界两个方向都只走 JSON：宿主把参数复制进去，把文本、结构化内容和错误复制出来。
 
-需要远端执行时，在生成式工具或 `[ToolDeclaration]` 上标注 `[ToolRpc]`。手写定义则将 `RemoteToolMetadata.RpcEligibleAnnotation` 设置为 JSON `true`。插件需要仅使用执行宿主提供的工具服务和依赖导出完成激活，不依赖 Agent、Session 或 provider 服务。插件包准备与远端授权由 [Remote Tool Host](../architecture/remote-tool-host#skill-与插件资源) 负责。
+需要远端执行时，在生成式工具或 `[ToolDeclaration]` 上标注 `[ToolRpc]`。手写定义则将 `RemoteToolMetadata.RpcEligibleAnnotation` 设置为 JSON `true`。插件需要仅使用执行端提供的工具服务和依赖导出完成激活，不依赖 Agent、Session 或 provider 服务。插件包准备与远端授权见[远程工具调用](../architecture/remote-tool-host#skill-与插件资源)。
 
 ### Tier A —— 增加一个斜杠命令
 
