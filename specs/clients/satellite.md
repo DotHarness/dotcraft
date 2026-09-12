@@ -56,7 +56,6 @@ CLI-driven Remote Tool Host.
 - Multi-user roles or approval routing to third parties.
 - Replacing DotCraft Desktop or hosting a conversation surface.
 - Remote input, remote control, or recording of the screen.
-- Any Universe integration.
 
 ## Application boundary
 
@@ -66,6 +65,14 @@ and one tray icon run per signed-in user. In normal tray mode the process ends o
 explicit quit action, uninstall, or external process termination. Closing, hiding, or losing an
 auxiliary window such as the island or consent surface MUST NOT stop the Remote Tool Host runtime
 or its Hub control connection; a failed island degrades to the tray surface.
+
+Satellite may connect through DotCraft Hub or an embedding service using the
+[Remote Tool Host contract](../architecture/remote-tool-host.md#21-embedded-execution-surface).
+Satellite owns device consent and visibility; application conversations and permissions belong to
+the embedding product.
+
+Tool sessions follow the [execution-session lifecycle](../architecture/remote-tool-host.md#52-execution-session-ownership).
+Owner pause, disconnect, authorization changes, and revoke retain their device-level effect.
 
 Satellite is a shipped DotCraft product artifact. Its solution is separate from `dotcraft.sln`
 only because the cross-platform build runs on Linux; that exclusion is a build constraint, not a

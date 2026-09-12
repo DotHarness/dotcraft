@@ -16,10 +16,11 @@ Agent Host remains the owner of the model loop, Session Core, Tool Call and Tool
 common hooks, and user interaction. Remote Tool Host owns the remote machine's workspace runtime,
 local policy, native tool execution, and execution audit.
 
-Remote Tool Host never listens for inbound connections. It dials out to the Hub on the Agent
-machine, and that Hub relays each execution session to the Agent Host as an opaque byte stream.
-The Hub is therefore the rendezvous point; it is not a runtime, not a proxy that understands tool
-traffic, and not a lease owner.
+Remote Tool Host never listens for inbound connections. It dials out to an authenticated intranet
+broker, which relays each execution session to the Agent Host as an opaque byte stream. The broker
+is a rendezvous point, not a runtime, a proxy that understands tool traffic, or a lease owner.
+The DotCraft application uses the Hub on the Agent machine; an embedding application owns its
+broker and application authentication without changing remote execution ownership.
 
 Remote Tool Host is the execution and resource owner. Remote Tool Host Client is the component in
 an Agent Host that connects to it. Hub records a paired Remote Tool Host as a **satellite peer**.
@@ -43,8 +44,8 @@ Remote Tool Host MUST preserve the Tool Architecture definition/binding split:
 - a remote failure MUST NOT silently fall back to the local binding.
 
 Remote Tool Host does not listen for inbound connections, so the remote machine needs no inbound
-firewall rule, port forward, reverse proxy, or TLS identity. It dials out to exactly one Hub per
-pairing. The Hub is a byte relay for those connections: it MUST NOT parse, rewrite, inspect, log,
+firewall rule, port forward, reverse proxy, or TLS identity. It dials out to exactly one broker per
+pairing. The broker is a byte relay for those connections: it MUST NOT parse, rewrite, inspect, log,
 or persist MCP traffic, and it MUST NOT hold a workspace lease. The same relay carries every session
 kind (§8) without learning which it carries.
 
@@ -55,6 +56,21 @@ Host-local tool policy. It does not proxy MCP, Runtime Dynamic, Legacy App Bindi
 Agent-control, planning, goal, or user-interaction tools. It provides no remote input, remote
 control, or recording; the read-only screen view defined in
 [Remote Screen View](../features/remote-screen-view.md) is its only non-tool session kind.
+
+### 2.1 Embedded execution surface
+
+Core's `IRemoteToolHostClient` remains the Agent integration boundary. The common execution layer
+owns tool negotiation, snapshot preparation, invocation, file transfer, and resource lifecycle.
+Product adapters own discovery, authentication, application authorization, Thread-to-session binding,
+and state projection. Execution-session identities are opaque to the common layer; business
+identities and permissions remain with the embedding application.
+
+One process-owned client coordinates shared workspace leases across independent execution sessions.
+Each session owns its transport and execution resources as defined in §5.2. Application and Host
+authorization apply even when a connection or tool catalog is reused.
+
+The common execution layer is explicitly enabled and does not start local-Hub discovery. DotCraft's
+Hub integration and the connection-management tools in §6 belong to its product adapter.
 
 ## 3. RPC eligibility
 
@@ -112,11 +128,12 @@ following metadata:
 }
 ```
 
-`tools/list` is lease-scoped. The Host MUST resolve the exported catalog from the caller's active
-lease and MUST NOT fall back to an arbitrary registered workspace; a `tools/list` without lease
-metadata fails with `ProtocolMismatch`. The workspace list result additionally carries the Host
-build version, a catalog digest over the sorted `definitionId:contractHash` pairs, and a per-tool
-contract summary, so the Agent can explain a mismatch before any call is made.
+`tools/list` is scoped to the admitted execution session and its active lease. The Host MUST NOT
+fall back to an arbitrary registered workspace or another session's prepared catalog; a request
+without an admitted session or lease metadata fails with `ProtocolMismatch`. The workspace list
+result additionally carries the Host build version, a catalog digest over the sorted
+`definitionId:contractHash` pairs, and a per-tool contract summary, so the Agent can explain a
+mismatch before any call is made.
 
 The Agent compares the remote descriptor with its existing local registration. Host-only tools are
 ignored. A missing or mismatched remote descriptor makes that local tool unavailable while the
@@ -139,20 +156,19 @@ Each installed Host has one durable, opaque `hostId` and zero or more Host-local
 `workspaceId` is unique within one Host. Only a local Host administrator may create, remove, or
 retarget a workspace. The Agent cannot submit a new root or reinterpret a workspace identifier.
 
-A Host also has zero or more **pairings**. A pairing binds the Host to one Hub and is recorded on
-the Host as a peer record containing the Hub endpoint, an opaque `peerId` assigned by that Hub, a
+A Host also has zero or more **pairings**. A pairing binds the Host to one broker and is recorded on
+the Host as a peer record containing the broker endpoint, a broker-assigned opaque `peerId`, a
 credential reference, and the `workspaceId` the pairing was created for. That workspace reference
 is enforced per authenticated peer at discovery, acquisition, catalog and invocation boundaries.
 Peers store `authorizationMode` and `authorizationRevision`; absent modes require local reauthorization.
-The Hub records the same pairing as a satellite peer under the same `peerId` together with the
+The broker records the same pairing as a satellite peer under the same `peerId` together with the
 Host display name, machine information, build version, last reported workspaces, and last-seen
-time. Agent Hosts on the Hub's machine address the Remote Tool Host by that `peerId`; it is the
-`hostId` value they see in every catalog, route, and client surface. The Host-local `hostId` never
-leaves the Host machine.
+time. Agent Hosts address the Remote Tool Host by that `peerId`; it is the `hostId` value they see
+in every catalog, route, and client surface. The Host-local `hostId` never leaves the Host machine.
 
-Each thread has at most one runtime-only `RemoteToolRoute` containing `hostId`, `workspaceId`, and a
-live lease reference. The route is omitted from persisted Session configuration and cold resume
-starts disconnected.
+Each thread has at most one runtime-only `RemoteToolRoute` containing `hostId`, `workspaceId`, and
+live execution-session and lease references. The route is omitted from persisted Session
+configuration and cold resume starts disconnected.
 
 A workspace lease is exclusive between Agent Host processes. Threads within one Agent Host process
 MAY share the same lease, including Native SubAgents that inherit the parent's route at child
@@ -161,17 +177,16 @@ creation. Parent and child routes are independent after creation. A second Agent
 lease as `self` when the requesting Agent Host owns it and `other` otherwise, together with the
 lease expiry; the owner identity itself is never disclosed.
 
-One Agent Host uses one stateful MCP session per Remote Tool Host. That session is carried by
-exactly one Hub-brokered data connection (§8). A screen view is a data connection of another kind
-(§8): it takes no lease, holds no lease-owned resource, and counts toward the Host's `connected`
-status. Losing the data connection ends the MCP session but
-does not release the lease; the lease expires through its normal heartbeat TTL and is then
-reclaimed by the Host. The client sends a heartbeat at least every 15 seconds and the Host expires a
-lease after 60 seconds without a heartbeat. Expiry or release cancels and drains lease-owned
-foreground calls and terminates lease-owned background terminals and LSP processes before another
-Agent Host can acquire the workspace. Lease-owned result artifacts are deleted when the final
-reference is released or the lease expires. Stale artifact directories are removed when the Host
-starts because leases are not durable across a Host restart.
+An Agent Host may open several independent execution sessions to one Remote Tool Host. Each has
+one stateful MCP session carried by one brokered data connection (§8). They share the Agent Host's
+owner identity and may attach references to the same workspace lease. A screen view is a data
+connection of another kind (§8): it takes no lease or execution-session resource and counts toward
+the Host's `connected` status.
+
+The client sends a heartbeat at least every 15 seconds and the Host expires a lease after 60 seconds
+without a heartbeat. Final release or expiry drains the workspace runtime before another Agent Host
+can acquire it. Session cleanup follows §5.2. Neither leases nor execution sessions survive a Host
+restart; startup clears stale private artifacts.
 
 Switching routes acquires the new lease before publishing the new route and releasing the old one.
 Failure to acquire leaves the old route unchanged. Connecting to the current route is idempotent.
@@ -198,16 +213,37 @@ Host and workspace display names when the client knows them.
 | `Agent` | A `RemoteToolHost.*` model tool. |
 | `System` | The Agent Host itself: thread release and process teardown. |
 
-Lease loss keeps the thread route and marks it lost. There is no automatic fallback to local
-execution, because silently relocating work the person routed elsewhere is worse than failing the
-next call. Only an explicit disconnect clears the route.
+Lease or execution-session loss keeps the thread route and marks it unavailable. A session failure
+MUST NOT be reported as loss of a sibling's healthy lease. There is no automatic fallback to local
+execution; only an explicit disconnect clears the route.
 
 Observers are notified outside the client's route and state locks, and one observer's failure never
 fails the connect, disconnect, or heartbeat that produced the event, nor the observers behind it.
 
+### 5.2 Execution-session ownership
+
+The Host binds each execution session to its authenticated connection, not to model-supplied tool
+arguments. The session holds a reference to its process owner's workspace lease.
+
+Calls, pending owner decisions, transfer staging, private result artifacts, prepared Thread state,
+and background terminal and language-server resources belong to an execution session. Resource
+operations MUST validate session ownership as well as the lease. Sharing a lease does not grant
+access to another session's private resources. Shared plugin generations remain governed by §13.
+
+A root Thread and its native descendants may share an execution session independently of when they
+connect. Unrelated roots cannot inherit that binding. Releasing a child cleans only its Thread-owned
+state; closing the session drains all of its descendants.
+
+Closing or losing a session's connection stops its dispatch, invalidates pending decisions, and
+drains its calls, background resources, and temporary artifacts. Other sessions continue executing
+and renewing the lease; the final reference releases it. Cancelling one invocation does not close
+the session, and cleanup does not roll back completed file writes or transfers.
+
+Lease renewal, cancellation, and session closure remain independent of another session's operations.
+
 ## 6. Model control surface
 
-When the Remote Tool Host client capability is installed, the Agent Host always exposes four
+When DotCraft's Remote Tool Host product integration is enabled, its Agent Host exposes four
 ordinary, profile-managed, directly loaded Core tools with these canonical names:
 
 ```text
@@ -303,22 +339,22 @@ route-aware runtime binding. On a remote route it then sends an MCP `tools/call`
 }
 ```
 
-The Host validates the MCP session, lease, workspace, RPC eligibility, definition, contract hash,
-and arguments. It then applies Host-local policy against the real remote environment and invokes
-the native runtime. The workspace runtime is composed with the Host's effective configuration
-(§10) and the configured path blacklist; a Host MUST NOT execute with a weaker file boundary than a
-local Agent applies to the same directory.
+The Host validates the admitted execution session, lease attachment, workspace, RPC eligibility,
+definition, contract hash, and arguments. It then applies Host-local policy against the real remote
+environment and invokes the native runtime. The workspace runtime is composed with the Host's
+effective configuration (§10) and the configured path blacklist; a Host MUST NOT execute with a
+weaker file boundary than a local Agent applies to the same directory.
 
-Before encoding a text result, the Host materializes oversized text under the Host's private state
-at `~/.craft/remote-tool-host/artifacts/<leaseId>/tool-results/<thread>/<tool>_<invocation>.txt`.
+Before encoding a text result, the Host materializes oversized text as a session-owned artifact
+under the Host's private state root.
 The artifact root MUST be a trusted read path of every leased workspace runtime so remote
 `ReadFile` can reach it, lies outside every leased workspace so tool writes into it follow the
 ordinary out-of-workspace rules, and MUST resolve inside the Host state directory after symlink
 and reparse-point resolution. A Host whose artifact root is
-blacklisted MUST fail at startup rather than at call time. The requested limit is clamped to the
-profile hard ceiling of 100,000 characters; zero cannot disable this transport ceiling. The Host
-returns only a bounded preview and the artifact path. A materialization failure fails the call and
-MUST NOT fall back to transmitting the complete result.
+blacklisted MUST fail at startup rather than at call time. Artifact access follows §5.2.
+The requested limit is clamped to the profile hard ceiling of 100,000 characters; zero cannot
+disable this transport ceiling. The Host returns only a bounded preview and the artifact path.
+A materialization failure fails the call and MUST NOT fall back to transmitting the complete result.
 
 The result `_meta.dotcraft.remoteArtifact` object contains `path` and `characterCount` when a text
 result was materialized. The Agent Host preserves this safe provenance and does not spill that
@@ -330,19 +366,21 @@ Host deny policy is authoritative. Owner authorization reuses `IApprovalService`
 Satellite presenter, never remote MCP elicitation as a substitute. Workspace-preferred permits
 ordinary workspace files; external files, every new command, nonempty terminal input and language
 server execution require owner approval. Full access skips owner prompts but not explicit Host
-policy. Requests bind peer, authorization revision, invocation and arguments. They expire after two
-minutes; disconnect, cancellation, pause and revoke invalidate them. No presenter means deny.
-Agent-side approval remains independent. Tool definitions and model-facing schemas stay unchanged.
+policy. Requests bind peer, authorization revision, execution session, invocation and arguments.
+They expire after two minutes; disconnect, cancellation, pause and revoke invalidate them. No
+presenter means deny. Agent-side approval remains independent. Tool definitions and model-facing
+schemas stay unchanged.
 
 Workspace configuration cannot relax Host authority or replace process executables. Language servers
 start only inside an approved invocation; file-only calls cannot start them. Shell approval permits
-execution with the signed-in user's authority, not filesystem isolation. Terminals remain lease-bound.
+execution with the signed-in user's authority, not filesystem isolation. Terminals remain bound to
+their execution session within the lease.
 File path checks cover ancestor junctions and symlinks, including nonexistent destination files.
 
 ## 8. Transport profile and failure semantics
 
-The data plane is a stateful MCP session over a newline-delimited JSON byte stream. Profile v1
-carries that stream on a WebSocket pair brokered by the Hub on the Agent machine: the Agent Host
+The data plane is a stateful MCP session over a newline-delimited JSON byte stream. The DotCraft
+deployment carries that stream on a WebSocket pair brokered by the Hub on the Agent machine: the Agent Host
 opens a loopback WebSocket to its Hub, the Remote Tool Host opens an outbound WebSocket to the same
 Hub, and the Hub relays frames between them without interpretation. The Host is the MCP server and
 the Agent Host is the MCP client even though the Host initiated the connection. Profile v1 uses
@@ -352,6 +390,11 @@ scheme with the Hub host and port in the peer record so every later control and 
 uses the same one. The Hub's own satellite listener speaks plain HTTP on a trusted intranet; an
 `https` invitation only arises when a TLS reverse proxy fronts that listener, and the Host never
 downgrades such an invitation to plain WebSocket.
+
+An embedding application's intranet broker uses the same control and data-session contract with
+its own Agent-side authentication and session admission. It does not expose the DotCraft local Hub
+API or require the Agent Host and broker to share a machine. The Hub-specific discovery and local
+state rules below describe the DotCraft application deployment.
 
 Every data connection has a kind. `tools` carries the MCP session below; `screen` carries a
 [Remote Screen View](../features/remote-screen-view.md). The Hub relays both identically.
@@ -372,6 +415,10 @@ The list result includes `hostId`, `hostInstanceId`, `catalogRevision`, `buildVe
 Acquire accepts `workspaceId` and returns `leaseId`, expiry, and environment summary. Release
 accepts one `leaseId`. Heartbeat is a notification carrying the session's active lease ids. Unknown
 fields follow MCP extension behavior; missing required profile fields fail closed.
+
+The client and Host MUST negotiate support for execution-session isolation before dispatch.
+Successful pairing alone does not establish this capability. Lease acquisition and release follow
+the session lifecycle in §5.2.
 
 ### 8.1 Control channel
 
@@ -397,8 +444,10 @@ channel and waits up to 15 seconds for the Host to open a data connection carryi
 and the peer credential. The Hub then relays the two WebSockets frame for frame, preserving message
 type and fragment boundaries, until either side closes. One data connection of kind `tools` is one
 MCP session; a `screen` connection follows Remote Screen View §6.
-Multiple Agent Host processes on the same Hub machine use separate data connections and therefore
-separate sessions; lease exclusivity between them is unchanged.
+Independent execution sessions within one Agent Host use separate data connections while retaining
+that process's shared lease ownership. Multiple Agent Host processes use distinct owner identities;
+lease exclusivity between them is unchanged. A replaced data connection gets a new session identity;
+old results and resource handles cannot be rebound to it.
 
 Calls are never automatically retried after transmission. If the client cannot establish whether a
 call executed, it returns `RemoteOutcomeUnknown` with the invocation id. Client cancellation is
@@ -449,7 +498,7 @@ durable pairing: a `peerId` and a 256-bit random peer credential. The Host store
 in the operating-system credential store and writes only the Hub endpoint, `peerId`, and a
 credential reference to its configuration. The Hub stores only the credential hash. Every later
 control or data connection presents the peer credential as a bearer credential. There is exactly
-one shared secret per pairing, which keeps the security level of the previous inbound profile.
+one shared secret per pairing.
 
 Bearer credentials appear only in the WebSocket handshake `Authorization` header and MUST NOT enter
 URLs, command arguments, model context, Session persistence, trace output, or logs. Agent Hosts on
@@ -533,15 +582,17 @@ Conformance tests cover:
 - Native SubAgent inheritance and independent routes over a shared process lease;
 - same-client sharing, cross-client `WorkspaceBusy` with `self`/`other` owner markers, heartbeat
   expiry, and process failure;
-- lease-scoped `tools/list` and fail-closed behavior without lease metadata;
+- execution-session capability negotiation, resource ownership, and independent cleanup over a
+  shared lease, including continued renewal after the first session closes;
+- execution-session-scoped `tools/list` and fail-closed behavior without admission or lease metadata;
 - canonical path, symlink/reparse-point, and blacklist policy;
 - allow, deny, elicitation acceptance, decline, and cancellation delivered across the Hub bridge;
-- `WriteStdin` bound to terminals created by an approved `Exec` in the same lease, regardless of
+- `WriteStdin` bound to terminals created by an approved `Exec` in the same execution session, regardless of
   Host policy;
-- background terminal and LSP cleanup at lease release;
+- independent background terminal and LSP cleanup at session closure and final workspace cleanup at lease release;
 - MCP text, image, audio, structured content, progress, cancellation, and errors;
 - remote text materialization under the Host state root, remote `ReadFile` access to it without
-  approval, and lease-scoped artifact cleanup;
+  approval, and execution-session-scoped artifact access and cleanup;
 - invite issue, single-use consumption, expiry, join, and revoke from both sides;
 - control-channel reconnect with backoff, and offline/online transitions observed by the Hub;
 - byte-identical relay through the Hub bridge for fragmented messages;
@@ -599,7 +650,7 @@ The private `files/*` extension uses bounded chunks, 64-bit sizes and offsets, S
 and per-file atomic commits. The Host's transfer limit defaults to 10 GiB, independently of text
 read limits. Both source reads and destination writes enforce local policy and path guards.
 Directory-internal links, path traversal, and unsupported target names fail explicitly. Transfers
-are bound to peer, authorization revision, and lease. Cancellation and expiry discard incomplete
+are bound to peer, authorization revision, execution session, and lease. Cancellation and expiry discard incomplete
 files. Commit outcomes lost in transit are unknown and never automatically retried. No resumable
 transfer protocol or additional Hub connection is introduced. Progress is computed by the Agent
 from manifests, chunks, and commit acknowledgements already visible to it; it adds no `files-v1`
@@ -637,14 +688,14 @@ The `plugins-v1` capability and internal prepare messages travel over the existi
 A Host without that capability cannot execute plugin RPC. Product versions do not select a fallback.
 Full-access authorization permits automatic preparation. Workspace-preferred authorization requires
 the Host owner's approval of the exact bundle fingerprints before any plugin code loads. Approval is
-lease-scoped and is not persisted as local plugin trust.
+execution-session-scoped and is not persisted as local plugin trust.
 
 Runtime owns a provider-free plugin execution host using the ordinary bundle preflight, dependency
 planner, generation gates, proxies, and teardown. RemoteTools consumes that host; Runtime does not
 depend on RemoteTools. The execution host supports tool sources, dependency exports, plugin lifetime,
 and its explicitly provided host services, not Agent, Session, or provider contributions.
 
-Catalogs are thread- and snapshot-scoped. A leased workspace has one active generation per plugin.
+Catalogs are execution-session-, thread-, and snapshot-scoped. A leased workspace has one active generation per plugin.
 Threads may share that generation, but one thread cannot replace a newer source with an older
 snapshot or remove another thread's sources. Each invocation binds its prepared remote generation
 as well as the original contract hash. Identical schemas never authorize retargeting an old call to
@@ -658,8 +709,10 @@ the Agent alone owns Session recording and hooks. Failed preparation never publi
 route or silently uses stale code, local execution, or automatic replay.
 
 Release, expiry, pause, revocation, and shutdown revoke and drain plugin calls and resources before
-another owner acquires the workspace. Thread release invokes thread-scoped cleanup; final lease
-release disposes the complete execution runtime. Verified package files may remain on disk.
+another owner acquires the workspace. Thread release invokes thread-scoped cleanup; execution-session
+closure cleans all of its prepared Threads without invalidating sibling sessions' references to the
+shared generation. Final lease release disposes the complete execution runtime. Verified package
+files may remain on disk.
 
 ## Generated image artifacts
 
@@ -667,7 +720,7 @@ Hosted generation remains Agent-owned. The image's route is captured at generati
 The Agent persists image content in Session history and, when routed remotely, writes the
 artifact through `dotcraft/remoteToolHost/images/write` to the captured workspace's
 `.craft/generated_images/<threadId>/<callId>.png`. The Host computes this path, validates the
-lease and peer, applies WriteFile authorization and configured file size limits, and writes
+execution session, lease and peer, applies WriteFile authorization and configured file size limits, and writes
 atomically without replacing an existing destination. These files survive lease release.
 A lost or changed route must not redirect output or fall back to local file storage. The
 write is not automatically retried after transmission. Generation success and storage failure
