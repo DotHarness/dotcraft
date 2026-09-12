@@ -71,24 +71,39 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         Directory.CreateDirectory(workspaceData);
         var terminals = new ExecutionSessionTerminalService(new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background));
         LspServerManager? lsp = null;
-        if (config.Tools.Lsp.Enabled)
+        try
         {
-            lsp = new LspServerManager(
-                config,
-                DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath));
-
+            if (config.Tools.Lsp.Enabled)
+            {
+                lsp = new LspServerManager(
+                    config,
+                    DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath));
+            }
+            var registrations = await CreateSource(config, terminals, lsp, Path.Combine(hostDataPath, "artifacts", executionSessionId))
+                .GetRegistrationsAsync(
+                    CreatePlanningContext(workspaceId, workspacePath, workspaceData, catalogRevision),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return new HostWorkspaceRuntime(
+                workspacePath,
+                [.. registrations.Where(item => RemoteToolMetadata.IsRpcEligible(item.Definition))],
+                terminals,
+                lsp,
+                plugins);
         }
-        var registrations = await CreateSource(config, terminals, lsp, Path.Combine(hostDataPath, "artifacts", executionSessionId))
-            .GetRegistrationsAsync(
-                CreatePlanningContext(workspaceId, workspacePath, workspaceData, catalogRevision),
-                cancellationToken)
-            .ConfigureAwait(false);
-        return new HostWorkspaceRuntime(
-            workspacePath,
-            [.. registrations.Where(item => RemoteToolMetadata.IsRpcEligible(item.Definition))],
-            terminals,
-            lsp,
-            plugins);
+        catch
+        {
+            try
+            {
+                if (lsp is not null)
+                    await lsp.DisposeAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                await terminals.DisposeAsync().ConfigureAwait(false);
+            }
+            throw;
+        }
     }
 
     /// <summary>
