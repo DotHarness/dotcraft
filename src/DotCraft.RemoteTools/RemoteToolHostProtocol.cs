@@ -3,22 +3,26 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace DotCraft.RemoteTools;
 
 internal static class RemoteToolHostProtocol
 {
     public const string ProfileVersion = "1";
+    public const string ExecutionSessionsCapability = "execution-sessions-v1";
     public const string McpProtocolVersion = "2025-06-18";
     public const int MaxTransportResultChars = 100_000;
     public const string WorkspacesList = "dotcraft/remoteToolHost/workspaces/list";
     public const string WorkspacesAcquire = "dotcraft/remoteToolHost/workspaces/acquire";
     public const string WorkspacesRelease = "dotcraft/remoteToolHost/workspaces/release";
+    public const string ExecutionThreadRelease = "dotcraft/remoteToolHost/executionThreads/release";
     public const string WorkspacesHeartbeat = "dotcraft/remoteToolHost/workspaces/heartbeat";
 
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
@@ -57,10 +61,10 @@ internal sealed record RemoteToolHubPeer
     public required string HubHost { get; init; }
     public required int HubPort { get; init; }
     public required string CredentialReference { get; init; }
-    public string HubScheme { get; init; } = Uri.UriSchemeHttp;
+    public required string HubScheme { get; init; }
     public string HubLabel { get; init; } = string.Empty;
-    public string WorkspaceId { get; init; } = string.Empty;
-    public string? AuthorizationMode { get; init; }
+    public required string WorkspaceId { get; init; }
+    public required string AuthorizationMode { get; init; }
     public long AuthorizationRevision { get; init; }
     public DateTimeOffset PairedAt { get; init; }
 
@@ -101,7 +105,7 @@ internal sealed record WorkspaceListResponse(
     string CatalogDigest,
     IReadOnlyList<RemoteToolContractSummary> Contracts,
     IReadOnlyList<WorkspaceCatalogEntry> Workspaces,
-    IReadOnlyList<string>? Capabilities = null);
+    IReadOnlyList<string> Capabilities);
 internal sealed record RemoteToolContractSummary(
     string DefinitionId,
     string ToolName,
@@ -112,7 +116,7 @@ internal sealed record WorkspaceCatalogEntry(
     bool Busy,
     string? BusyOwner = null,
     DateTimeOffset? LeaseExpiresAt = null);
-internal sealed record RemoteCatalogScope(string LeaseId, string WorkspaceId, string? ThreadId = null);
+internal sealed record RemoteCatalogScope(string LeaseId, string WorkspaceId, string ThreadId);
 internal sealed record WorkspaceAcquireRequest(
     string ProfileVersion,
     string ClientInstanceId,
@@ -139,7 +143,7 @@ internal sealed record RemoteInvocationMeta(
     string InvocationId,
     string DefinitionId,
     string ContractHash,
-    string? ThreadId,
+    string ThreadId,
     string? TurnId,
     int MaxResultChars,
     int SpillPreviewLines,

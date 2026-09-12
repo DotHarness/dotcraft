@@ -9,12 +9,6 @@ internal sealed partial class RemoteToolHostClient
 
     public event Action<RemoteToolRouteChange>? RouteChanged;
 
-    private string ResolveHostDisplayName(string hostId, string fallback)
-    {
-        lock (_stateGate)
-            return _hostDisplayNames.TryGetValue(hostId, out var displayName) ? displayName : fallback;
-    }
-
     private void CaptureDisplayNames(IReadOnlyList<RemoteToolHostDescriptor> descriptors)
     {
         lock (_stateGate)
@@ -28,17 +22,7 @@ internal sealed partial class RemoteToolHostClient
         }
     }
 
-    private void CaptureDisplayNames(string hostId, WorkspaceListResponse response)
-    {
-        lock (_stateGate)
-        {
-            _hostDisplayNames[hostId] = response.DisplayName;
-            foreach (var workspace in response.Workspaces)
-                _workspaceDisplayNames[new RouteKey(hostId, workspace.WorkspaceId)] = workspace.Path;
-        }
-    }
-
-    /// <summary>Publishes one route transition. Always called outside <c>_stateGate</c> and <c>_routeGate</c>.</summary>
+    /// <summary>Publishes one route transition. Runs outside route and state locks.</summary>
     private void RaiseRouteChanged(
         string threadId,
         RemoteToolRouteChangeReason reason,
@@ -57,9 +41,9 @@ internal sealed partial class RemoteToolHostClient
             lock (_stateGate)
             {
                 if (!_hostDisplayNames.TryGetValue(route.HostId, out hostDisplayName)
-                    && _leases.TryGetValue(key, out var lease))
+                    && _routes.Values.FirstOrDefault(binding => binding.Route == route) is { } binding)
                 {
-                    hostDisplayName = lease.HostName;
+                    hostDisplayName = binding.Session.HostDisplayName;
                 }
                 _workspaceDisplayNames.TryGetValue(key, out workspaceDisplayName);
             }

@@ -9,15 +9,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DotCraft.Generators;
 
-/// <summary>
-/// Source generator that discovers DotCraft modules marked with [DotCraftModule] attribute
-/// and config section types marked with [ConfigSection] attribute, and generates:
-///   1. Per-module partial class overrides for Name and Priority (in every assembly).
-///   2. A static ModuleRegistrations class with explicit new() calls (only in the app
-///      assembly, gated by the DotCraftGenerateModuleRegistrations MSBuild property).
-///   3. A static ConfigSchemaRegistrations class that returns generated config schema
-///      metadata (only in the app assembly, same gate as #2).
-/// </summary>
 [Generator]
 public sealed class ModuleDiscoveryGenerator : IIncrementalGenerator
 {
@@ -29,8 +20,6 @@ public sealed class ModuleDiscoveryGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // --- Phase A: local module/factory discovery (runs in every assembly) ---
-
         var localModules = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ModuleAttributeFqn,
@@ -47,26 +36,23 @@ public sealed class ModuleDiscoveryGenerator : IIncrementalGenerator
             .Where(static f => f is not null)
             .Collect();
 
-        // Always generate partial class overrides for Name / Priority
         context.RegisterSourceOutput(localModules, static (ctx, modules) =>
         {
             GenerateModuleProperties(ctx, modules);
         });
-
-        // --- Phase B: explicit registration class (app assembly only) ---
 
         var shouldGenerateRegistrations = context.AnalyzerConfigOptionsProvider
             .Select(static (options, _) =>
             {
                 options.GlobalOptions.TryGetValue(
                     "build_property.DotCraftGenerateModuleRegistrations", out var value);
-                return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                options.GlobalOptions.TryGetValue(
+                    "build_property.DotCraftGenerateConfigSchemaRegistrations", out var schemaValue);
+                var modules = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                return (Modules: modules, Schema: string.Equals(schemaValue, "true", StringComparison.OrdinalIgnoreCase));
             });
 
-        // Track [ConfigSection] types incrementally so that adding a new config section
-        // class in any DotCraft assembly (e.g. DotCraft.Core) correctly invalidates the
-        // Phase B output. Without this, config section discovery relies solely on
-        // CompilationProvider, which may not re-trigger in IDE / hot-reload scenarios.
+        // Track declarations explicitly so IDE edits invalidate config-schema output.
         var localConfigSections = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ConfigSectionAttributeFqn,
@@ -83,12 +69,12 @@ public sealed class ModuleDiscoveryGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(registrationInput, static (ctx, data) =>
         {
             var shouldGenerate = data.Right;
-            if (!shouldGenerate)
+            if (!shouldGenerate.Modules && !shouldGenerate.Schema)
                 return;
 
             var (((localMods, localFacts), _), compilation) = data.Left;
-            GenerateRegistrationClass(ctx, localMods, localFacts, compilation);
-            GenerateConfigSchemaRegistrations(ctx, compilation);
+            if (shouldGenerate.Modules) GenerateRegistrationClass(ctx, localMods, localFacts, compilation);
+            if (shouldGenerate.Schema) GenerateConfigSchemaRegistrations(ctx, compilation);
         });
     }
 

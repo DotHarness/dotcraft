@@ -109,7 +109,9 @@ Compile-time module discovery remains supported. Modules contribute services and
 capabilities through dependency injection; they do not select process hosts or mix protocol,
 channel, tool, and UI-projection responsibilities in one contract. Tool providers contribute
 through the Core tool-source contract. Protocol registration belongs to AppServer. Channel creation
-and web hosting belong to the application or the feature that owns the channel.
+and web hosting belong to the application or the feature that owns the channel. Configuration-schema
+generation and application module registration each require an explicit opt-in; an embedded Harness
+can expose the schema without composing product modules or host factories.
 
 Features do not depend on one another for optional collaboration. The composition root connects
 them through the narrowest applicable domain contract. Module names are identifiers, not control

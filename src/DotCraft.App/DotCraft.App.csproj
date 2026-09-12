@@ -21,8 +21,8 @@
     <!-- Emit compiler generated files for debugging -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 
-    <!-- Tells DotCraft.Generators to emit the ModuleRegistrations class in this assembly -->
     <DotCraftGenerateModuleRegistrations>true</DotCraftGenerateModuleRegistrations>
+    <DotCraftGenerateConfigSchemaRegistrations>true</DotCraftGenerateConfigSchemaRegistrations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -73,6 +73,7 @@
 
   <ItemGroup>
     <CompilerVisibleProperty Include="DotCraftGenerateModuleRegistrations" />
+    <CompilerVisibleProperty Include="DotCraftGenerateConfigSchemaRegistrations" />
   </ItemGroup>
 
   <ItemGroup>

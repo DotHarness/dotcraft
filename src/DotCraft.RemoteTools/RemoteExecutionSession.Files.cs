@@ -4,7 +4,7 @@ using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed partial class RemoteToolHostClient
+public sealed partial class RemoteExecutionSession
 {
     public async ValueTask<RemoteFileTransferResult> TransferAsync(string threadId, RemoteFileTransferRequest request,
         RemoteLocalWorkspace local, CancellationToken cancellationToken = default,
@@ -13,23 +13,31 @@ internal sealed partial class RemoteToolHostClient
         if (request.Direction is not ("upload" or "download"))
             return new(false, request.Direction, request.LocalPath, request.RemotePath, 0, 0,
                 ToolErrorCodes.InputInvalid, "Direction must be upload or download.");
-        if (!TryGetRoute(threadId, out var route))
-            return new(false, request.Direction, request.LocalPath, request.RemotePath, 0, 0,
-                RemoteToolErrorCodes.LeaseLost, "No remote workspace is connected.");
-        return await TransferOnLeaseAsync(RequireLease(route), request, local, threadId, reportProgress, cancellationToken).ConfigureAwait(false);
+        using var operation = _operations.Enter(cancellationToken);
+        return await TransferOnLeaseAsync(RequireLease(Route), request, local, threadId, reportProgress, operation.Token).ConfigureAwait(false);
     }
 
-    private SharedLease RequireLease(RemoteToolRoute route)
+    private static IApprovalService ResolveEffectiveApprovalService(IApprovalService service)
     {
-        lock (_stateGate)
+        var current = service;
+        for (var depth = 0; depth < 16 && current is IApprovalServiceDecorator decorator; depth++)
         {
-            if (!_leases.TryGetValue(new(route.HostId, route.WorkspaceId), out var lease) || lease.Lost || lease.Route != route)
-                throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "The remote workspace lease was lost.");
-            return lease;
+            var inner = decorator.GetInnerApprovalService(context: null);
+            if (inner is null || ReferenceEquals(inner, current))
+                break;
+            current = inner;
         }
+        return current;
     }
 
-    private async Task<RemoteFileTransferResult> TransferOnLeaseAsync(SharedLease lease, RemoteFileTransferRequest request,
+    private SessionLease RequireLease(RemoteToolRoute route)
+    {
+        if (!IsAvailable || route != Route)
+            throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "The remote execution session was lost.");
+        return _lease;
+    }
+
+    private async Task<RemoteFileTransferResult> TransferOnLeaseAsync(SessionLease lease, RemoteFileTransferRequest request,
         RemoteLocalWorkspace local, string threadId, Action<RemoteFileTransferProgress>? reportProgress,
         CancellationToken ct)
     {
@@ -44,7 +52,7 @@ internal sealed partial class RemoteToolHostClient
         long? totalBytes = null;
         int? totalFiles = null;
         string? currentFile = null;
-        var hostDisplayName = ResolveHostDisplayName(lease.Route.HostId, lease.HostName);
+        var hostDisplayName = HostDisplayName;
         var lastProgressAt = 0L;
         FileTransferOpened? opened = null;
         FileTransferSession? receiver = null;
@@ -52,8 +60,7 @@ internal sealed partial class RemoteToolHostClient
         void ValidateRoute()
         {
             RequireLease(lease.Route);
-            if (!TryGetRoute(threadId, out var current) || current != lease.Route)
-                throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "The captured transfer destination changed.");
+            ct.ThrowIfCancellationRequested();
         }
         async Task SendPart(string method, FileTransferPart part)
         {

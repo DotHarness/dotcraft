@@ -25,7 +25,7 @@ public sealed class SatellitePluginEndToEndTests
         await File.WriteAllTextAsync(Path.Combine(harness.PluginRoot("probe"), "resource.txt"), "changed-after-acceptance");
 
         await using var scenario = await SatelliteScenario.StartAsync(Path.Combine(harness.Root, "satellite"));
-        await using var client = new RemoteToolHostClient(scenario.Directory, new CountingApprovalService());
+        await using var client = new RemoteToolHostClient(scenario.Directory);
         var planning = new ToolPlanningContext("plugin-thread", null, harness.Workspace,
             Path.Combine(harness.Workspace, ".craft"), "agent", null, [], 1);
         var registrations = await manager.ToolSource.GetRegistrationsAsync(planning);
@@ -44,7 +44,8 @@ public sealed class SatellitePluginEndToEndTests
         Assert.Equal(scenario.WorkspacePath, data.GetProperty("workspace").GetString());
         Assert.Equal("bundle-resource", data.GetProperty("resource").GetString());
         Assert.Equal("agent-setting", data.GetProperty("settings").GetProperty("label").GetString());
-        Assert.Equal("plugin-thread", data.GetProperty("thread").GetString());
+        var remoteThread = data.GetProperty("thread").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(remoteThread));
         Assert.Equal("agent", data.GetProperty("mode").GetString());
         Assert.True(data.GetProperty("running").GetBoolean());
 
@@ -54,7 +55,7 @@ public sealed class SatellitePluginEndToEndTests
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, denied.Error?.Code);
 
         Assert.True((await client.DisconnectAsync("plugin-thread")).Disconnected);
-        await PluginRuntimeHarness.WaitForLineAsync(log, "release:plugin-thread");
+        await PluginRuntimeHarness.WaitForLineAsync(log, "release:" + remoteThread);
         await PluginRuntimeHarness.WaitForLineAsync(log, "dispose:first");
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
         {

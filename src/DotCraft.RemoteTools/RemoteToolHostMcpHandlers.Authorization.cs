@@ -6,12 +6,6 @@ namespace DotCraft.RemoteTools;
 
 internal sealed partial class RemoteToolHostMcpHandlers
 {
-    public async Task DrainWorkspaceAsync(string workspaceId)
-    {
-        _leases.ReleaseWorkspace(workspaceId);
-        await _leases.WaitForDrainAsync(workspaceId).ConfigureAwait(false);
-    }
-
     private RemoteToolHubPeer RequirePeer(RemoteToolHostState state, string peerId, string? workspaceId = null)
     {
         if (_isPaused?.Invoke() == true)
@@ -54,10 +48,22 @@ internal sealed partial class RemoteToolHostMcpHandlers
             var operation = toolName == "EditFile" ? "edit" : toolName == "WriteFile" ? "write" : "read";
             var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath, workspacePath);
             var guard = new FileAccessGuard(workspacePath, approvalService: new HostInvocationApprovalService(),
-                blacklist: new PathBlacklist(config.Security.BlacklistedPaths));
-            var error = await guard.ValidatePathAsync(guard.ResolvePath(path), operation, path, ct).ConfigureAwait(false);
+                blacklist: new PathBlacklist(config.Security.BlacklistedPaths), trustedReadPaths: [ArtifactRoot]);
+            var resolved = guard.ResolvePath(path);
+            ValidatePrivatePath(resolved, operation);
+            var error = await guard.ValidatePathAsync(resolved, operation, path, ct).ConfigureAwait(false);
             if (error is not null)
                 throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, error);
         }
+    }
+
+    private void ValidatePrivatePath(string path, string operation)
+    {
+        var hostState = new FileAccessGuard(_storage.RootPath, requireApprovalOutsideWorkspace: false);
+        if (hostState.RequiresOutsideWorkspaceApproval(path, "read")) return;
+        var owned = new FileAccessGuard(ArtifactRoot, requireApprovalOutsideWorkspace: false);
+        if (operation is "read" or "list" && !owned.RequiresOutsideWorkspaceApproval(path, "read")) return;
+        throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied,
+            "Host-private execution resources are available only to their owning session.");
     }
 }

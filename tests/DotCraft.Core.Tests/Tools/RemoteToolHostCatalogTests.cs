@@ -19,7 +19,7 @@ public sealed class RemoteToolHostCatalogTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile").Definition;
         var drifted = new ToolDefinition(
@@ -55,7 +55,7 @@ public sealed class RemoteToolHostCatalogTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         var read = registrations.Single(item => item.Definition.Name.Name == "ReadFile").Definition;
         var missing = new ToolDefinition(
@@ -92,7 +92,7 @@ public sealed class RemoteToolHostCatalogTests
             storage,
             peerId: "sat_paired",
             reportedPeerId: "sat_moved_elsewhere");
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
 
         var error = await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
             await client.ConnectAsync("thread", "sat_paired", "repo"));
@@ -113,7 +113,7 @@ public sealed class RemoteToolHostCatalogTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         await client.ConnectAsync("thread", server.PeerId, "repo");
 
         var catalog = await client.ListAsync("thread");
@@ -136,9 +136,9 @@ public sealed class RemoteToolHostCatalogTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var owner = server.CreateClient(new ApproveService());
+        await using var owner = server.CreateClient();
         await owner.ConnectAsync("thread", server.PeerId, "repo");
-        await using var observer = server.CreateClient(new ApproveService());
+        await using var observer = server.CreateClient();
 
         var catalog = await observer.ListAsync("observer-thread");
 
@@ -170,8 +170,7 @@ public sealed class RemoteToolHostCatalogTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        var approvals = new ApproveService();
-        await using var client = server.CreateClient(approvals);
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var route = (await client.ConnectAsync("thread", server.PeerId, "repo")).Route;
@@ -186,7 +185,6 @@ public sealed class RemoteToolHostCatalogTests
         Assert.DoesNotContain(workspace.Path, artifactPath, StringComparison.Ordinal);
         Assert.True(reread.Success, reread.Error?.Message);
         Assert.Contains("line-000000-value", reread.Content, StringComparison.Ordinal);
-        Assert.Equal(0, approvals.RequestCount);
     }
 
     private static ValueTask<ToolExecutionResult> InvokeReadAsync(

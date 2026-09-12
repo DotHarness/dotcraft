@@ -11,10 +11,10 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private async ValueTask<JsonNode?> WriteImageAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<RemoteImageWriteRequest>(request);
-        using var call = _leases.EnterCall(input.LeaseId, input.WorkspaceId);
+        using var call = EnterCall(input.LeaseId, input.WorkspaceId);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
         ct = linked.Token;
-        var root = _leases.Validate(input.LeaseId, input.WorkspaceId);
+        var root = ValidateLease(input.LeaseId, input.WorkspaceId);
         var state = RequireState();
         var peer = RequirePeer(state, peerId, input.WorkspaceId);
         if (!state.Workspaces.TryGetValue(input.WorkspaceId, out var registered) || !PathsEqual(root, registered))
@@ -40,7 +40,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
             throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, error);
         if (RequirePeer(RequireState(), peerId, input.WorkspaceId).AuthorizationRevision != peer.AuthorizationRevision)
             throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
-        _leases.Validate(input.LeaseId, input.WorkspaceId);
+        ValidateLease(input.LeaseId, input.WorkspaceId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = Path.Combine(Path.GetDirectoryName(path)!, "." + Guid.NewGuid().ToString("N") + ".tmp");
         try
@@ -48,7 +48,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
             await using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
                 await file.WriteAsync(bytes, ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
-            _leases.CommitArtifact(input.LeaseId, input.WorkspaceId, () => File.Move(temporary, path, overwrite: false));
+            CommitArtifact(input.LeaseId, input.WorkspaceId, () => File.Move(temporary, path, overwrite: false));
         }
         finally
         {

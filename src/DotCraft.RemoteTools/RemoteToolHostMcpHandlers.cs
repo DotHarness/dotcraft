@@ -14,27 +14,22 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     private readonly IRemoteToolApprovalPresenter? _approvalPresenter;
     private readonly Func<bool>? _isPaused;
     private readonly WorkspaceLeaseManager _leases;
-    private readonly LeaseTerminalRegistry _leaseTerminals;
+    private readonly LeaseTerminalRegistry _leaseTerminals = new();
     private readonly RemoteToolHostActivityMonitor? _activity;
-    private readonly string _hostInstanceId = "host_" + Guid.NewGuid().ToString("N");
+    private readonly RemoteToolHostExecutionHost _host;
     private readonly object _gate = new();
-    private readonly Dictionary<string, HostWorkspaceRuntime> _runtimes = new(StringComparer.Ordinal);
+    private HostWorkspaceRuntime? _runtime;
     private Task<IReadOnlyList<RemoteToolContractSummary>>? _contracts;
 
-    public RemoteToolHostMcpHandlers(
-        RemoteToolHostStorage storage,
-        WorkspaceLeaseManager leases,
-        LeaseTerminalRegistry leaseTerminals,
-        RemoteToolHostActivityMonitor? activity = null,
-        IRemoteToolApprovalPresenter? approvalPresenter = null, Func<bool>? isPaused = null)
+    internal RemoteToolHostMcpHandlers(RemoteToolHostExecutionHost host, string peerId)
     {
-        _storage = storage;
-        _leases = leases;
-        _leaseTerminals = leaseTerminals;
-        _activity = activity;
-        _approvalPresenter = approvalPresenter;
-        _isPaused = isPaused;
-        _leases.DrainResourcesAsync = DrainLeaseResourcesAsync;
+        _host = host;
+        PeerId = peerId;
+        _storage = host.Storage;
+        _leases = host.Leases;
+        _activity = host.Activity;
+        _approvalPresenter = host.Approvals;
+        _isPaused = host.IsPaused;
     }
 
     /// <summary>The Hub-assigned peer id is the host identity every Agent-side surface sees.</summary>
@@ -43,6 +38,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         Raw(RemotePluginProtocol.Prepare, (request, ct) => PreparePluginsAsync(request, peerId, ct)),
         Raw(RemotePluginProtocol.Activate, (request, ct) => ActivatePluginsAsync(request, peerId, ct)),
         Raw(RemotePluginProtocol.Abort, (request, ct) => AbortPluginsAsync(request, peerId, ct)),
+        Raw(RemoteToolHostProtocol.ExecutionThreadRelease, (request, ct) => ReleaseExecutionThreadAsync(request, peerId, ct)),
         Raw(RemotePluginProtocol.ReleaseThread, (request, ct) => ReleasePluginThreadAsync(request, peerId, ct)),
         Raw(RemoteFileTransferProtocol.Open, (request, ct) => OpenFileTransferAsync(request, peerId, ct)),
         Raw(RemoteFileTransferProtocol.Read, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Read, ct)),
@@ -81,17 +77,18 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 RemoteToolErrorCodes.ProtocolMismatch,
                 "tools/list requires an active workspace lease.");
 
-        using var call = _leases.EnterCall(scope.LeaseId, scope.WorkspaceId);
+        using var call = EnterCall(scope.LeaseId, scope.WorkspaceId);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, call.Token);
         cancellationToken = linked.Token;
-        var workspacePath = _leases.Validate(scope.LeaseId, scope.WorkspaceId);
+        var workspacePath = ValidateLease(scope.LeaseId, scope.WorkspaceId);
         var state = RequireState();
         RequirePeer(state, peerId, scope.WorkspaceId);
+        var threadId = ScopedThread(scope.ThreadId);
         var runtime = await GetRuntimeAsync(scope.LeaseId, scope.WorkspaceId, workspacePath, state, cancellationToken)
             .ConfigureAwait(false);
         return new ListToolsResult
         {
-            Tools = runtime.Registrations.Concat(runtime.PluginRegistrations(scope.ThreadId))
+            Tools = runtime.Registrations.Concat(runtime.PluginRegistrations(threadId))
                 .Select(registration => ToMcpTool(registration, state)).ToList()
         };
     }
@@ -106,10 +103,13 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         try
         {
             invocation = ParseInvocationMeta(request.Params.Meta);
-            using var leaseCall = _leases.EnterCall(invocation.LeaseId, invocation.WorkspaceId);
+            invocation = invocation with { ThreadId = ScopedThread(invocation.ThreadId) };
+            using var threadCall = EnterThread(invocation.ThreadId, cancellationToken);
+            cancellationToken = threadCall.Token;
+            using var leaseCall = EnterCall(invocation.LeaseId, invocation.WorkspaceId);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, leaseCall.Token);
             cancellationToken = linked.Token;
-            var workspacePath = _leases.Validate(invocation.LeaseId, invocation.WorkspaceId);
+            var workspacePath = ValidateLease(invocation.LeaseId, invocation.WorkspaceId);
             var state = RequireState();
             var peer = RequirePeer(state, peerId, invocation.WorkspaceId);
             if (!state.Workspaces.TryGetValue(invocation.WorkspaceId, out var registeredPath)
@@ -127,6 +127,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 workspacePath,
                 state,
                 cancellationToken).ConfigureAwait(false);
+            using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, invocation.ThreadId);
             var registration = invocation.PreparedBinding is not null
                 ? runtime.Plugins.Resolve(invocation)
                 : runtime.Registrations.FirstOrDefault(item =>
@@ -159,7 +160,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             foreach (var (name, value) in request.Params.Arguments ?? new Dictionary<string, JsonElement>())
                 arguments[name] = JsonNode.Parse(value.GetRawText());
             var context = new ToolInvocationContext(
-                invocation.ThreadId ?? $"remote:{invocation.LeaseId}",
+                invocation.ThreadId,
                 invocation.TurnId,
                 invocation.InvocationId,
                 ToolInvocationAudience.Host,
@@ -188,7 +189,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                     current.Where(sessionId => !terminalsBeforeExec.Contains(sessionId)));
             }
             var materialized = RemoteToolArtifactStore.Materialize(
-                _storage.ArtifactsRootPath,
+                ArtifactRoot,
                 invocation,
                 toolName,
                 result);
@@ -242,20 +243,6 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds,
             cancelled));
 
-    public async ValueTask DisposeAsync()
-    {
-        _leases.ReleaseAll();
-        await _leases.WaitForAllDrainsAsync().ConfigureAwait(false);
-        HostWorkspaceRuntime[] runtimes;
-        lock (_gate)
-        {
-            runtimes = _runtimes.Values.ToArray();
-            _runtimes.Clear();
-        }
-        foreach (var runtime in runtimes)
-            await runtime.DisposeAsync().ConfigureAwait(false);
-    }
-
     private async ValueTask<JsonNode?> HandleWorkspaceListAsync(
         JsonRpcRequest request,
         string peerId,
@@ -270,7 +257,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             state.ProfileVersion,
             peerId,
             state.DisplayName,
-            _hostInstanceId,
+            _host.InstanceId,
             Environment.MachineName,
             System.Runtime.InteropServices.RuntimeInformation.OSDescription,
             Environment.UserName,
@@ -280,7 +267,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             contracts,
             state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId).OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair => ToCatalogEntry(pair.Key, pair.Value, parameters.ClientInstanceId))
-                .ToArray(), ["files-v1", RemotePluginProtocol.Capability]);
+                .ToArray(), ["files-v1", RemotePluginProtocol.Capability, RemoteToolHostProtocol.ExecutionSessionsCapability]);
         return JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions);
     }
 
@@ -295,12 +282,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             throw new RemoteToolHostException(
                 RemoteToolErrorCodes.WorkspaceNotFound,
                 $"Workspace '{parameters.WorkspaceId}' is not registered.");
-        var response = _leases.Acquire(
-            parameters.ClientInstanceId,
-            parameters.WorkspaceId,
-            Path.GetFullPath(path),
-            _hostInstanceId,
-            state.CatalogRevision);
+        var response = Acquire(parameters, Path.GetFullPath(path), state.CatalogRevision);
         return ValueTask.FromResult(JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions));
     }
 
@@ -310,12 +292,9 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     {
         var parameters = Deserialize<WorkspaceLeaseRequest>(request);
         ValidateProfile(parameters.ProfileVersion);
-        var finalRelease = _leases.Release(
-            parameters.ClientInstanceId,
-            parameters.LeaseId,
-            parameters.WorkspaceId);
-        if (finalRelease)
-            await _leases.WaitForDrainAsync(parameters.WorkspaceId).ConfigureAwait(false);
+        ValidateLease(parameters.LeaseId, parameters.WorkspaceId);
+        if (parameters.ClientInstanceId != _ownerId) throw Lost();
+        await DisposeAsync().ConfigureAwait(false);
         return new JsonObject();
     }
 
@@ -325,6 +304,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     {
         var parameters = Deserialize<WorkspaceLeaseRequest>(request);
         ValidateProfile(parameters.ProfileVersion);
+        ValidateLease(parameters.LeaseId, parameters.WorkspaceId);
+        if (parameters.ClientInstanceId != _ownerId) throw Lost();
         var expiresAt = _leases.Heartbeat(
             parameters.ClientInstanceId,
             parameters.LeaseId,
@@ -341,13 +322,11 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         RemoteToolHostState state,
         CancellationToken cancellationToken)
     {
-        _leases.Validate(leaseId, workspaceId);
+        ValidateLease(leaseId, workspaceId);
         lock (_gate)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_runtimes.TryGetValue(workspaceId, out var cached)
-                && PathsEqual(cached.WorkspacePath, workspacePath))
-                return cached;
+            if (_runtime is not null) return _runtime;
         }
 
         var runtime = await HostWorkspaceRuntime.CreateAsync(
@@ -356,26 +335,23 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             state.CatalogRevision,
             _storage.GlobalConfigPath,
             _storage.RootPath,
+            SessionId,
+            () => _host.Plugins(workspaceId, workspacePath),
             cancellationToken).ConfigureAwait(false);
         HostWorkspaceRuntime? retired = null;
         try
         {
-            _leases.CommitArtifact(leaseId, workspaceId, () =>
+            CommitArtifact(leaseId, workspaceId, () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                lock (_gate)
+                if (_runtime is not null)
                 {
-                    if (_runtimes.TryGetValue(workspaceId, out var current)
-                        && PathsEqual(current.WorkspacePath, workspacePath))
-                    {
-                        retired = runtime;
-                        runtime = current;
-                    }
-                    else
-                    {
-                        _runtimes.TryGetValue(workspaceId, out retired);
-                        _runtimes[workspaceId] = runtime;
-                    }
+                    retired = runtime;
+                    runtime = _runtime;
+                }
+                else
+                {
+                    _runtime = runtime;
                 }
             });
         }
@@ -403,7 +379,6 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             status?.ExpiresAt);
     }
 
-    /// <summary>The exported catalog is shared by every session, so one caller cannot cancel it.</summary>
     private Task<IReadOnlyList<RemoteToolContractSummary>> GetContractsAsync()
     {
         lock (_gate)
@@ -464,17 +439,6 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     {
         var terminals = await runtime.Terminals.ListAsync(ct: cancellationToken).ConfigureAwait(false);
         return terminals.Select(terminal => terminal.SessionId).ToHashSet(StringComparer.Ordinal);
-    }
-
-    private async Task DisposeRuntimeAsync(string workspaceId)
-    {
-        HostWorkspaceRuntime? runtime;
-        lock (_gate)
-        {
-            _runtimes.Remove(workspaceId, out runtime);
-        }
-        if (runtime is not null)
-            await runtime.DisposeAsync().ConfigureAwait(false);
     }
 
     private static Tool ToMcpTool(ToolRegistration registration, RemoteToolHostState state)
@@ -609,7 +573,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 "Remote tool invocation metadata is required.");
     }
 
-    private static McpServerRequestHandler Raw(
+    private McpServerRequestHandler Raw(
         string method,
         Func<JsonRpcRequest, CancellationToken, ValueTask<JsonNode?>> handler) => new()
         {
@@ -618,7 +582,9 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             {
                 try
                 {
-                    var result = await handler(request, cancellationToken).ConfigureAwait(false);
+                    var result = method == RemoteToolHostProtocol.WorkspacesRelease
+                        ? await handler(request, cancellationToken).ConfigureAwait(false)
+                        : await ExecuteAsync(ct => handler(request, ct), cancellationToken).ConfigureAwait(false);
                     return new JsonObject
                     {
                         ["success"] = true,
@@ -654,6 +620,4 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-
-    private sealed record RemoteExecutionApproval(bool Approved);
 }

@@ -249,7 +249,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
             CancellationToken cancellationToken = default,
             RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client)
         {
-            var route = new RemoteToolRoute(hostId, workspaceId, "lease_fixture", "instance_fixture");
+            var route = new RemoteToolRoute(hostId, workspaceId, "lease_fixture", "instance_fixture", "session_fixture");
             _routes[threadId] = route;
             Raise(threadId, RemoteToolRouteChangeReason.Connected, initiator, route);
             return ValueTask.FromResult(new RemoteToolConnectResult(

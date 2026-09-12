@@ -5,7 +5,7 @@ using ModelContextProtocol.Protocol;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed partial class RemoteToolHostClient
+public sealed partial class RemoteExecutionSession
 {
     private static async ValueTask<TResult> SendAsync<TParams, TResult>(
         McpClient client,
@@ -37,7 +37,7 @@ internal sealed partial class RemoteToolHostClient
         {
             SatelliteWire.OfflineClose => new RemoteToolHostException(
                 RemoteToolErrorCodes.HostOffline,
-                "The paired machine is not connected to the Hub.",
+                "The remote device is not connected.",
                 invocationId,
                 exception),
             SatelliteWire.SessionFailedClose => new RemoteToolHostException(
@@ -53,19 +53,19 @@ internal sealed partial class RemoteToolHostClient
         };
     }
 
-    private sealed class SharedLease
+    private sealed class SessionLease
     {
         private readonly string _clientInstanceId;
-        private readonly Action<RemoteToolRoute> _lost;
+        private readonly Action _lost;
         private readonly CancellationTokenSource _heartbeatCts = new();
         private Task? _heartbeatTask;
 
-        public SharedLease(
+        public SessionLease(
             RemoteToolRoute route,
             string workspacePath,
             HostSession session,
             string clientInstanceId,
-            Action<RemoteToolRoute> lost)
+            Action lost)
         {
             Route = route;
             WorkspacePath = workspacePath;
@@ -77,7 +77,6 @@ internal sealed partial class RemoteToolHostClient
         public RemoteToolRoute Route { get; }
         public string WorkspacePath { get; }
         public HostSession Session { get; }
-        public int ReferenceCount { get; set; }
         public bool Lost { get; set; }
         public string HostName { get; set; } = "unknown";
         public string OperatingSystem { get; set; } = "unknown";
@@ -86,6 +85,7 @@ internal sealed partial class RemoteToolHostClient
         public bool SupportsPlugins { get; set; }
 
         public void StartHeartbeat() => _heartbeatTask = RunHeartbeatAsync();
+        public void StopHeartbeat() => _heartbeatCts.Cancel();
 
         public async Task DisposeAndReleaseAsync(CancellationToken cancellationToken)
         {
@@ -109,7 +109,6 @@ internal sealed partial class RemoteToolHostClient
             }
             catch
             {
-                // TTL reclaims an unconfirmed release; disconnect still removes local routing immediately.
             }
             _heartbeatCts.Dispose();
         }
@@ -135,10 +134,10 @@ internal sealed partial class RemoteToolHostClient
                             _heartbeatCts.Token).ConfigureAwait(false);
                         lastSuccess = DateTimeOffset.UtcNow;
                     }
-                    catch (RemoteToolHostException ex) when (
-                        !string.Equals(ex.Code, RemoteToolErrorCodes.LeaseLost, StringComparison.Ordinal)
-                        && DateTimeOffset.UtcNow - lastSuccess < TimeSpan.FromSeconds(60))
+                    catch (RemoteToolHostException ex) when (ex.Code == RemoteToolErrorCodes.LeaseLost)
                     {
+                        _lost();
+                        return;
                     }
                     catch when (DateTimeOffset.UtcNow - lastSuccess < TimeSpan.FromSeconds(60))
                     {
@@ -150,7 +149,7 @@ internal sealed partial class RemoteToolHostClient
             }
             catch
             {
-                _lost(Route);
+                _lost();
             }
         }
     }
@@ -159,26 +158,16 @@ internal sealed partial class RemoteToolHostClient
     {
         private readonly RemoteToolHostConnection _connection;
 
-        private HostSession(McpClient client, string hostId, RemoteToolHostConnection connection)
+        private HostSession(McpClient client, RemoteToolHostConnection connection)
         {
             Client = client;
-            HostId = hostId;
             _connection = connection;
         }
 
         public McpClient Client { get; }
-        private string HostId { get; }
-
-        public string? CloseDescription => _connection.CloseDescription;
-
-        public bool Matches(string hostId, string? hubEndpoint) =>
-            string.Equals(HostId, hostId, StringComparison.Ordinal)
-            && string.Equals(_connection.Endpoint, hubEndpoint, StringComparison.Ordinal);
 
         public static async Task<HostSession> CreateAsync(
-            string hostId,
             RemoteToolHostConnection connection,
-            Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler,
             CancellationToken cancellationToken)
         {
             try
@@ -187,11 +176,15 @@ internal sealed partial class RemoteToolHostClient
                     connection.Transport,
                     new McpClientOptions
                     {
-                        ProtocolVersion = RemoteToolHostProtocol.McpProtocolVersion,
-                        Handlers = new McpClientHandlers { ElicitationHandler = elicitationHandler }
+                        ProtocolVersion = RemoteToolHostProtocol.McpProtocolVersion
                     },
                     cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new HostSession(client, hostId, connection);
+                return new HostSession(client, connection);
+            }
+            catch (OperationCanceledException)
+            {
+                await connection.DisposeAsync().ConfigureAwait(false);
+                throw;
             }
             catch (Exception ex)
             {

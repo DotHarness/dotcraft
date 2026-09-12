@@ -14,10 +14,10 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private async ValueTask<JsonNode?> OpenFileTransferAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<FileTransferOpen>(request);
-        using var call = _leases.EnterCall(input.LeaseId, input.WorkspaceId);
+        using var call = EnterCall(input.LeaseId, input.WorkspaceId);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
         ct = linked.Token;
-        var root = _leases.Validate(input.LeaseId, input.WorkspaceId);
+        var root = ValidateLease(input.LeaseId, input.WorkspaceId);
         var peer = RequirePeer(RequireState(), peerId, input.WorkspaceId);
         var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath, root);
         var invocationId = "transfer_" + Guid.NewGuid().ToString("N");
@@ -42,7 +42,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
             await session.PrepareAsync(limit, Authorize, ct).ConfigureAwait(false);
             if (RequirePeer(RequireState(), peerId, input.WorkspaceId).AuthorizationRevision != peer.AuthorizationRevision)
                 throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
-            _leases.CommitArtifact(input.LeaseId, input.WorkspaceId, () =>
+            CommitArtifact(input.LeaseId, input.WorkspaceId, () =>
             {
                 if (_transfers.Count >= 32) throw new IOException("Too many active file transfers.");
                 _transfers[invocationId] = new(input, peerId, peer.AuthorizationRevision, session);
@@ -57,7 +57,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         var input = Deserialize<FileTransferPart>(request);
         if (!_transfers.TryGetValue(input.TransferId, out var transfer) || transfer.PeerId != peerId)
             throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "File transfer is unavailable.");
-        using var call = _leases.EnterCall(transfer.Open.LeaseId, transfer.Open.WorkspaceId);
+        using var call = EnterCall(transfer.Open.LeaseId, transfer.Open.WorkspaceId);
         if (operation == RemoteFileTransferProtocol.Close)
         {
             if (_transfers.TryRemove(input.TransferId, out _)) await transfer.Session.DisposeAsync().ConfigureAwait(false);
@@ -72,8 +72,9 @@ internal sealed partial class RemoteToolHostMcpHandlers
             ValidateTransfer(transfer);
             var entry = session.Entry(input.Entry, operation != RemoteFileTransferProtocol.Read);
             var path = TransferFileTree.ResolveEntry(session.Root, entry.Path);
+            if (!transfer.PluginBundle) ValidatePrivatePath(path, session.Write ? "write" : "read");
             var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath,
-                _leases.Validate(transfer.Open.LeaseId, transfer.Open.WorkspaceId));
+                ValidateLease(transfer.Open.LeaseId, transfer.Open.WorkspaceId));
             if (new PathBlacklist(config.Security.BlacklistedPaths).IsBlacklisted(path))
                 throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Transfer path is blacklisted.");
             TransferFileTree.RejectLinks(path);
@@ -94,7 +95,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
                 await session.CommitAsync(input.Entry, commit =>
                 {
                     ValidateTransfer(transfer);
-                    _leases.CommitArtifact(transfer.Open.LeaseId, transfer.Open.WorkspaceId, commit);
+                    CommitArtifact(transfer.Open.LeaseId, transfer.Open.WorkspaceId, commit);
                 }, token).ConfigureAwait(false);
                 _storage.AppendAudit(new(DateTimeOffset.UtcNow, null, null, transfer.Open.WorkspaceId,
                     "RemoteToolHost.Transfer", input.TransferId, "ok", 0, false));
@@ -106,7 +107,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
 
     private void ValidateTransfer(HostTransfer transfer)
     {
-        _leases.Validate(transfer.Open.LeaseId, transfer.Open.WorkspaceId);
+        ValidateLease(transfer.Open.LeaseId, transfer.Open.WorkspaceId);
         var state = RequireState();
         var peer = RequirePeer(state, transfer.PeerId, transfer.Open.WorkspaceId);
         var tool = transfer.Session.Write ? "WriteFile" : "ReadFile";

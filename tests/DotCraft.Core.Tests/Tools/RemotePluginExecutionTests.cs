@@ -27,7 +27,7 @@ public sealed class RemotePluginExecutionTests
         using var workspace = new TemporaryDirectory();
         var storage = Setup(home.Path, workspace.Path);
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var snapshot = await SnapshotAsync(manager, client, "thread", 1);
         Assert.False(File.Exists(Path.Combine(workspace.Path, "plugin-lifecycle.log")));
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
@@ -64,12 +64,14 @@ public sealed class RemotePluginExecutionTests
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         await using var server = new RemoteToolHostTestServer(Setup(home.Path, workspace.Path));
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var first = await SnapshotAsync(manager, client, "first", 1, "agent");
         var second = await SnapshotAsync(manager, client, "second", 1, "plan");
         await client.ConnectAsync("first", server.PeerId, "repo");
         await client.ConnectAsync("second", server.PeerId, "repo");
-        Assert.True((await InvokeAsync(first, "first", "start")).Success);
+        var started = await InvokeAsync(first, "first", "start");
+        Assert.True(started.Success);
+        var firstThread = JsonDocument.Parse(started.Content!).RootElement.GetProperty("thread").GetString();
         var other = await InvokeAsync(second, "second", "read");
         Assert.Contains("\"mode\":\"plan\"", other.Content);
         Assert.Contains("\"running\":false", other.Content);
@@ -78,7 +80,7 @@ public sealed class RemotePluginExecutionTests
         var cancelled = await InvokeAsync(second, "second", "cancel");
         Assert.Contains("\"running\":false", cancelled.Content);
         var log = PluginLogFile.ReadLines(Path.Combine(workspace.Path, "plugin-lifecycle.log"));
-        Assert.Contains("release:first", log);
+        Assert.Contains("release:" + firstThread, log);
         Assert.DoesNotContain("dispose:first", log);
     }
 
@@ -92,7 +94,7 @@ public sealed class RemotePluginExecutionTests
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         await using var server = new RemoteToolHostTestServer(Setup(home.Path, workspace.Path));
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var first = await SnapshotAsync(manager, client, "thread", 1);
         await client.ConnectAsync("thread", server.PeerId, "repo");
         await manager.QuiesceForMutationAsync("probe");
@@ -128,7 +130,7 @@ public sealed class RemotePluginExecutionTests
         {
             Peers = [storage.LoadHostState()!.Peers.Single() with { AuthorizationMode = RemoteToolAuthorization.WorkspacePreferred }]
         });
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         await SnapshotAsync(manager, client, "thread", 1);
         if (approved) await client.ConnectAsync("thread", server.PeerId, "repo");
         else
@@ -153,17 +155,19 @@ public sealed class RemotePluginExecutionTests
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         await using var server = new RemoteToolHostTestServer(Setup(home.Path, workspace.Path));
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var snapshot = await SnapshotAsync(manager, client, "thread", 1);
         await client.ConnectAsync("thread", server.PeerId, "repo");
+        var ready = await InvokeAsync(snapshot, "thread", "read");
+        var remoteThread = JsonDocument.Parse(ready.Content!).RootElement.GetProperty("thread").GetString();
         var running = InvokeAsync(snapshot, "thread", operation).AsTask();
         var log = Path.Combine(workspace.Path, "plugin-lifecycle.log");
-        await PluginRuntimeHarness.WaitForLineAsync(log, "entered:thread");
+        await PluginRuntimeHarness.WaitForLineAsync(log, "entered:" + remoteThread);
         server.Leases.ReleaseWorkspace("repo");
         await server.Leases.WaitForDrainAsync("repo").WaitAsync(TimeSpan.FromSeconds(10));
         var result = await running.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(result.Success);
-        Assert.Contains("cancelled:thread", PluginLogFile.ReadLines(log));
+        Assert.Contains("cancelled:" + remoteThread, PluginLogFile.ReadLines(log));
         Assert.Contains("dispose:first", PluginLogFile.ReadLines(log));
     }
 

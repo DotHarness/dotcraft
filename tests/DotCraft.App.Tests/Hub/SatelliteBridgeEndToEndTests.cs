@@ -18,8 +18,7 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
         await using var scenario = await SatelliteScenario.StartAsync(
             _userProfile,
             heartbeatInterval: TimeSpan.FromMilliseconds(200));
-        var approvals = new CountingApprovalService();
-        await using var client = new RemoteToolHostClient(scenario.Directory, approvals);
+        await using var client = new RemoteToolHostClient(scenario.Directory);
         var registrations = await scenario.AgentRegistrationsAsync();
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
@@ -42,7 +41,6 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
             ["content"] = "approved"
         });
         Assert.True(writeResult.Success, writeResult.Error?.Message);
-        Assert.Equal(0, approvals.RequestCount);
         Assert.Equal(
             "approved",
             await File.ReadAllTextAsync(Path.Combine(scenario.WorkspacePath, "approved.txt")));
@@ -55,7 +53,6 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
         });
         Assert.False(denied.Success);
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, denied.Error?.Code);
-        Assert.Equal(0, approvals.RequestCount);
 
         var spilled = await InvokeAsync(client, connected.Route, read, "spill", new JsonObject
         {
@@ -94,7 +91,7 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
     public async Task Bridge_AgentSeesSatelliteOffline_WhenHostProcessStops()
     {
         await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
-        await using var client = new RemoteToolHostClient(scenario.Directory, new CountingApprovalService());
+        await using var client = new RemoteToolHostClient(scenario.Directory);
 
         await scenario.Runtime.StopAsync();
         await WaitUntilAsync(async () =>
@@ -110,19 +107,25 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
     }
 
     [Fact]
-    public async Task Bridge_LeaseSurvivesDataConnectionDrop_UntilTtl()
+    public async Task Bridge_LastSessionDropReleasesLease_AndKeepsCapturedRouteUnavailable()
     {
         await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
         var recording = new RecordingDirectory(scenario.Directory);
-        await using var owner = new RemoteToolHostClient(recording, new CountingApprovalService());
+        await using var owner = new RemoteToolHostClient(recording);
         await owner.ConnectAsync("thread", scenario.PeerId, scenario.WorkspaceId);
+        await WaitUntilAsync(async () => (await scenario.Hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites"))
+            .Single().Workspaces.Single().Busy);
 
         await recording.DropLastConnectionAsync();
 
-        await using var second = new RemoteToolHostClient(scenario.Directory, new CountingApprovalService());
-        var busy = await Assert.ThrowsAsync<RemoteToolHostException>(async () =>
-            await second.ConnectAsync("other-thread", scenario.PeerId, scenario.WorkspaceId));
-        Assert.Equal(RemoteToolErrorCodes.WorkspaceBusy, busy.Code);
+        await using var second = new RemoteToolHostClient(scenario.Directory);
+        await WaitUntilAsync(async () => (await scenario.Hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites"))
+            .All(peer => peer.Workspaces.All(workspace => !workspace.Busy)));
+        await second.ConnectAsync("other-thread", scenario.PeerId, scenario.WorkspaceId);
+        await WaitUntilAsync(() => Task.FromResult(owner.TryGetConnectionSnapshot("thread", out var state)
+            && state.Status == RemoteToolConnectionStatus.LeaseLost));
+        Assert.True(owner.TryGetConnectionSnapshot("thread", out var retained));
+        Assert.Equal(RemoteToolConnectionStatus.LeaseLost, retained.Status);
     }
 
     public void Dispose()
@@ -184,30 +187,5 @@ public sealed class SatelliteBridgeEndToEndTests : IDisposable
             if (_last is not null)
                 await _last.DisposeAsync();
         }
-    }
-}
-
-internal sealed class CountingApprovalService : DotCraft.Security.IApprovalService
-{
-    public int RequestCount { get; private set; }
-
-    public Task<bool> RequestFileApprovalAsync(
-        string operation,
-        string path,
-        DotCraft.Security.ApprovalContext? context = null) => Task.FromResult(true);
-
-    public Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
-        DotCraft.Security.ApprovalContext? context = null) => Task.FromResult(true);
-
-    public Task<bool> RequestResourceApprovalAsync(
-        string kind,
-        string operation,
-        string target,
-        DotCraft.Security.ApprovalContext? context = null)
-    {
-        RequestCount++;
-        return Task.FromResult(true);
     }
 }

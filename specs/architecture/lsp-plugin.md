@@ -293,6 +293,8 @@ Security rules:
 - Plugin LSP commands are not executed during plugin discovery.
 - Plugin LSP commands are not executed during AppServer readiness.
 - LSP servers start lazily when the LSP manager needs a server for a file, matching existing LSP behavior.
+- LSP tool cancellation reaches file access, server startup, and protocol requests. The owning runtime
+  stops its language-server processes on disposal.
 - Plugin-origin LSP declarations are read-only from workspace config APIs.
 - Manifest-relative `lspServers` paths and plugin-relative LSP commands must not escape the plugin root.
 - Plugin diagnostics must expose enough path and plugin identity context for a user to inspect the source before enabling it.

@@ -7,7 +7,7 @@
     <RootNamespace>DotCraft</RootNamespace>
     <IsPackable>true</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <DotCraftGenerateModuleRegistrations>true</DotCraftGenerateModuleRegistrations>
+    <DotCraftGenerateConfigSchemaRegistrations>true</DotCraftGenerateConfigSchemaRegistrations>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
 
@@ -47,6 +47,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Runtime\DotCraft.Runtime.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
@@ -60,17 +61,20 @@
   </ItemGroup>
 
   <ItemGroup>
-    <CompilerVisibleProperty Include="DotCraftGenerateModuleRegistrations" />
+    <CompilerVisibleProperty Include="DotCraftGenerateConfigSchemaRegistrations" />
   </ItemGroup>
 
   <Target Name="IncludeBundledDotCraftAssemblies">
     <ItemGroup>
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.dll" TargetPath="DotCraft.Runtime.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.dll" TargetPath="DotCraft.Core.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.dll" TargetPath="DotCraft.RemoteTools.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.dll" TargetPath="DotCraft.Protocol.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.dll" TargetPath="DotCraft.Agents.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.dll" TargetPath="DotCraft.Agents.OpenAI.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.dll" TargetPath="DotCraft.Agents.Anthropic.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.xml" TargetPath="DotCraft.Runtime.xml" Condition="Exists('$(OutputPath)DotCraft.Runtime.xml')" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.xml" TargetPath="DotCraft.RemoteTools.xml" Condition="Exists('$(OutputPath)DotCraft.RemoteTools.xml')" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.xml" TargetPath="DotCraft.Core.xml" Condition="Exists('$(OutputPath)DotCraft.Core.xml')" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.xml" TargetPath="DotCraft.Agents.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.xml')" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.xml" TargetPath="DotCraft.Agents.OpenAI.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.OpenAI.xml')" />

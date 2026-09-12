@@ -16,18 +16,21 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private async ValueTask<JsonNode?> PreparePluginsAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginPrepareRequest>(request);
-        using var call = _leases.EnterCall(input.LeaseId, input.WorkspaceId);
+        using var call = EnterCall(input.LeaseId, input.WorkspaceId);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
         ct = linked.Token;
-        var workspace = _leases.Validate(input.LeaseId, input.WorkspaceId);
+        var workspace = ValidateLease(input.LeaseId, input.WorkspaceId);
         var peer = RequirePeer(RequireState(), peerId, input.WorkspaceId);
         if (string.IsNullOrWhiteSpace(input.ThreadId) || string.IsNullOrWhiteSpace(input.Mode)
             || input.Bundles.Count is 0 or > 128 || input.Tools.Count is 0 or > 10000
             || input.Bundles.Select(item => item.Bundle.PluginId).Distinct(StringComparer.Ordinal).Count() != input.Bundles.Count)
             throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "Invalid plugin preparation manifest.");
+        input = input with { ThreadId = ScopedThread(input.ThreadId) };
+        using var threadCall = EnterThread(input.ThreadId, ct);
+        ct = threadCall.Token;
         var id = "prepare_" + Guid.NewGuid().ToString("N");
         var root = Path.Combine(_storage.RootPath, "workspaces", input.WorkspaceId, "plugins");
-        var stagedRoot = Path.Combine(_storage.RootPath, "workspaces", input.WorkspaceId, "plugin-staging", id);
+        var stagedRoot = Path.Combine(_storage.RootPath, "workspaces", input.WorkspaceId, "sessions", SessionId, "plugin-staging", id);
         var files = new List<RemotePluginBundleFiles>();
         var uploads = new List<PluginUpload>();
         var preparation = new PluginPreparation(input, peerId, peer.AuthorizationRevision, files, uploads, stagedRoot, root);
@@ -58,7 +61,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
                     total += item.Manifest.Entries.Sum(entry => entry.Length);
                     var transferId = "plugin_" + Guid.NewGuid().ToString("N");
                     var open = new FileTransferOpen(input.LeaseId, input.WorkspaceId, staged, true, false, item.Manifest);
-                    _leases.CommitArtifact(input.LeaseId, input.WorkspaceId, () =>
+                    CommitArtifact(input.LeaseId, input.WorkspaceId, () =>
                     {
                         _transfers[transferId] = new(open, peerId, peer.AuthorizationRevision, session, PluginBundle: true);
                     });
@@ -67,7 +70,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
                 }
                 catch { await session.DisposeAsync().ConfigureAwait(false); throw; }
             }
-            _leases.CommitArtifact(input.LeaseId, input.WorkspaceId, () =>
+            CommitArtifact(input.LeaseId, input.WorkspaceId, () =>
             {
                 if (_pluginPreparations.Count >= 32) throw new IOException("Too many plugin preparations are pending.");
                 _pluginPreparations[id] = preparation;
@@ -86,14 +89,16 @@ internal sealed partial class RemoteToolHostMcpHandlers
         var input = Deserialize<PluginActivateRequest>(request);
         if (!_pluginPreparations.TryGetValue(input.PreparationId, out var pending) || pending.PeerId != peerId)
             throw new RemoteToolHostException(RemoteToolErrorCodes.RemoteToolUnavailable, "The plugin preparation is unavailable.");
-        using var call = _leases.EnterCall(pending.Input.LeaseId, pending.Input.WorkspaceId);
+        using var threadCall = EnterThread(pending.Input.ThreadId, ct);
+        ct = threadCall.Token;
+        using var call = EnterCall(pending.Input.LeaseId, pending.Input.WorkspaceId);
         if (!pending.TryStart())
             throw new RemoteToolHostException(RemoteToolErrorCodes.RemoteToolUnavailable, "The plugin preparation is unavailable.");
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token, pending.Stopping.Token);
             ct = linked.Token;
-            var workspace = _leases.Validate(pending.Input.LeaseId, pending.Input.WorkspaceId);
+            var workspace = ValidateLease(pending.Input.LeaseId, pending.Input.WorkspaceId);
             var peer = RequirePeer(RequireState(), peerId, pending.Input.WorkspaceId);
             if (peer.AuthorizationRevision != pending.AuthorizationRevision)
                 throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
@@ -118,14 +123,15 @@ internal sealed partial class RemoteToolHostMcpHandlers
                 throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
             ct.ThrowIfCancellationRequested();
             var runtime = await GetRuntimeAsync(pending.Input.LeaseId, pending.Input.WorkspaceId, workspace, RequireState(), ct).ConfigureAwait(false);
+            using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, pending.Input.ThreadId);
             var result = await runtime.Plugins.PrepareAsync(pending.Input, pending.Files, ct,
-                () => _leases.CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
+                () => CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
                 {
                     if (RequirePeer(RequireState(), peerId, pending.Input.WorkspaceId).AuthorizationRevision != peer.AuthorizationRevision)
                         throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
                     StorePreparedBundles(pending);
                 })).ConfigureAwait(false);
-            _leases.CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
+            CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
             {
                 lock (_gate)
                 {
@@ -191,7 +197,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         var input = Deserialize<PluginActivateRequest>(request);
         if (_pluginPreparations.TryGetValue(input.PreparationId, out var pending) && pending.PeerId == peerId)
         {
-            using var call = _leases.EnterCall(pending.Input.LeaseId, pending.Input.WorkspaceId);
+            using var call = EnterCall(pending.Input.LeaseId, pending.Input.WorkspaceId);
             if (pending.TryAbortPending())
             {
                 if (_pluginPreparations.TryRemove(input.PreparationId, out _))
@@ -209,27 +215,15 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private async ValueTask<JsonNode?> ReleasePluginThreadAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginThreadRelease>(request);
-        using var call = _leases.EnterCall(input.LeaseId, input.WorkspaceId);
+        using var call = EnterCall(input.LeaseId, input.WorkspaceId);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
-        var workspace = _leases.Validate(input.LeaseId, input.WorkspaceId);
+        var workspace = ValidateLease(input.LeaseId, input.WorkspaceId);
         RequirePeer(RequireState(), peerId, input.WorkspaceId);
         var runtime = await GetRuntimeAsync(input.LeaseId, input.WorkspaceId, workspace, RequireState(), linked.Token).ConfigureAwait(false);
-        await runtime.ReleasePluginThreadAsync(input.ThreadId, linked.Token).ConfigureAwait(false);
+        var threadId = ScopedThread(input.ThreadId);
+        using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, threadId);
+        await runtime.ReleasePluginThreadAsync(threadId, linked.Token).ConfigureAwait(false);
         return new JsonObject();
-    }
-
-    private async Task DrainLeaseResourcesAsync(WorkspaceLeaseReleased released, Task callsDrained)
-    {
-        var runtimeDrain = DisposeRuntimeAsync(released.WorkspaceId);
-        await callsDrained.ConfigureAwait(false);
-        foreach (var (id, pending) in _pluginPreparations)
-            if (pending.Input.LeaseId == released.LeaseId && _pluginPreparations.TryRemove(id, out _))
-                await CleanupPreparationAsync(pending).ConfigureAwait(false);
-        foreach (var (id, transfer) in _transfers)
-            if (transfer.Open.LeaseId == released.LeaseId && _transfers.TryRemove(id, out _))
-                await transfer.Session.DisposeAsync().ConfigureAwait(false);
-        await runtimeDrain.ConfigureAwait(false);
-        lock (_gate) _pluginApprovals.Remove(released.LeaseId);
     }
 
     private sealed record PluginPreparation(PluginPrepareRequest Input, string PeerId, long AuthorizationRevision,

@@ -204,7 +204,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var scopedApproval = new SessionScopedApprovalService(fallbackApproval);
             var remoteToolHostClient = Services
                 .GetService<IRemoteToolHostClientFactory>()?
-                .Create(scopedApproval);
+                .Create();
             var planStore = new PlanStore(Paths.Data.RootPath, Services.GetRequiredService<WorkspaceStateDatabase>());
             var acpExtensionProxy = Services.GetService<IAcpExtensionProxy>();
             var nodeReplProxy = Services.GetService<INodeReplProxy>();

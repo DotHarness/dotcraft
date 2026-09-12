@@ -41,7 +41,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
 
         private ToolDispatchDecision ValidateAuthority()
         {
-            owner._leases.Validate(invocation.LeaseId, invocation.WorkspaceId);
+            owner.ValidateLease(invocation.LeaseId, invocation.WorkspaceId);
             var current = owner.RequirePeer(owner.RequireState(), peer.PeerId, invocation.WorkspaceId);
             return current.AuthorizationRevision == peer.AuthorizationRevision
                 ? ToolDispatchDecision.Allow

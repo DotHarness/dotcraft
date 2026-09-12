@@ -2,19 +2,14 @@ using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed partial class RemoteToolHostClient
+public sealed partial class RemoteExecutionSession
 {
     public async ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
         byte[] bytes, CancellationToken cancellationToken = default)
     {
-        SharedLease lease;
-        lock (_stateGate)
-        {
-            if (!_routes.TryGetValue(threadId, out var current) || current != route
-                || !_leases.TryGetValue(new RouteKey(route.HostId, route.WorkspaceId), out lease!)
-                || lease.Lost || lease.Route != route)
-                throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "The captured image destination is no longer connected.");
-        }
+        using var operation = _operations.Enter(cancellationToken);
+        cancellationToken = operation.Token;
+        var lease = RequireLease(route);
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
@@ -32,10 +27,3 @@ internal sealed partial class RemoteToolHostClient
         }
     }
 }
-
-internal sealed record RemoteImageWriteRequest(string LeaseId, string WorkspaceId, string ThreadId, string CallId, string ImageBase64)
-{
-    public const string Method = "dotcraft/remoteToolHost/images/write";
-}
-
-internal sealed record RemoteImageWriteResponse(string SavedPath);

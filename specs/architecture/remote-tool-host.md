@@ -160,14 +160,15 @@ A Host also has zero or more **pairings**. A pairing binds the Host to one broke
 the Host as a peer record containing the broker endpoint, a broker-assigned opaque `peerId`, a
 credential reference, and the `workspaceId` the pairing was created for. That workspace reference
 is enforced per authenticated peer at discovery, acquisition, catalog and invocation boundaries.
-Peers store `authorizationMode` and `authorizationRevision`; absent modes require local reauthorization.
+Peer records require the endpoint scheme, workspace, and owner-granted authorization mode.
+They store `authorizationRevision` so changing authorization invalidates outstanding approvals.
 The broker records the same pairing as a satellite peer under the same `peerId` together with the
 Host display name, machine information, build version, last reported workspaces, and last-seen
 time. Agent Hosts address the Remote Tool Host by that `peerId`; it is the `hostId` value they see
 in every catalog, route, and client surface. The Host-local `hostId` never leaves the Host machine.
 
-Each thread has at most one runtime-only `RemoteToolRoute` containing `hostId`, `workspaceId`, and
-live execution-session and lease references. The route is omitted from persisted Session
+Each thread has at most one runtime-only `RemoteToolRoute` containing `hostId`, `workspaceId`, a
+required `executionSessionId`, and live lease references. The route is omitted from persisted Session
 configuration and cold resume starts disconnected.
 
 A workspace lease is exclusive between Agent Host processes. Threads within one Agent Host process
@@ -347,10 +348,10 @@ weaker file boundary than a local Agent applies to the same directory.
 
 Before encoding a text result, the Host materializes oversized text as a session-owned artifact
 under the Host's private state root.
-The artifact root MUST be a trusted read path of every leased workspace runtime so remote
-`ReadFile` can reach it, lies outside every leased workspace so tool writes into it follow the
-ordinary out-of-workspace rules, and MUST resolve inside the Host state directory after symlink
-and reparse-point resolution. A Host whose artifact root is
+The session's artifact root MUST be a trusted read path of its owning execution runtime so remote
+`ReadFile` can reach it. It lies outside the leased workspace, is unavailable to other sessions,
+and MUST resolve inside the Host state directory after symlink and reparse-point resolution.
+Tool writes into Host-private execution state are denied. A Host whose artifact root is
 blacklisted MUST fail at startup rather than at call time. Artifact access follows §5.2.
 The requested limit is clamped to the profile hard ceiling of 100,000 characters; zero cannot
 disable this transport ceiling. The Host returns only a bounded preview and the artifact path.
@@ -368,8 +369,8 @@ ordinary workspace files; external files, every new command, nonempty terminal i
 server execution require owner approval. Full access skips owner prompts but not explicit Host
 policy. Requests bind peer, authorization revision, execution session, invocation and arguments.
 They expire after two minutes; disconnect, cancellation, pause and revoke invalidate them. No
-presenter means deny. Agent-side approval remains independent. Tool definitions and model-facing
-schemas stay unchanged.
+presenter means deny. Agent-side approval runs in the Agent's tool pipeline before remote dispatch.
+Tool definitions and model-facing schemas stay unchanged.
 
 Workspace configuration cannot relax Host authority or replace process executables. Language servers
 start only inside an approved invocation; file-only calls cannot start them. Shell approval permits
@@ -400,7 +401,8 @@ Every data connection has a kind. `tools` carries the MCP session below; `screen
 [Remote Screen View](../features/remote-screen-view.md). The Hub relays both identically.
 
 The MCP session uses standard initialization, `tools/list`, `tools/call`, cancellation, progress,
-content/result, and elicitation contracts. The DotCraft profile adds these JSON-RPC methods over the
+and content/result contracts. Catalog and execution requests require an explicit Thread identity
+within their execution session. The DotCraft profile adds these JSON-RPC methods over the
 established MCP session:
 
 ```text
@@ -408,15 +410,18 @@ dotcraft/remoteToolHost/workspaces/list
 dotcraft/remoteToolHost/workspaces/acquire
 dotcraft/remoteToolHost/workspaces/release
 dotcraft/remoteToolHost/workspaces/heartbeat
+dotcraft/remoteToolHost/executionThreads/release
 ```
 
 The list result includes `hostId`, `hostInstanceId`, `catalogRevision`, `buildVersion`,
 `catalogDigest`, per-tool contract summaries, and safe workspace descriptors with lease state.
 Acquire accepts `workspaceId` and returns `leaseId`, expiry, and environment summary. Release
-accepts one `leaseId`. Heartbeat is a notification carrying the session's active lease ids. Unknown
-fields follow MCP extension behavior; missing required profile fields fail closed.
+accepts the connection's `leaseId`. Heartbeat renews that lease using its process owner identity.
+Execution Thread release cancels and drains the named Thread before releasing its resources; clearing
+a plugin snapshot alone does not release native background work. Unknown fields follow MCP extension
+behavior; missing required profile fields fail closed.
 
-The client and Host MUST negotiate support for execution-session isolation before dispatch.
+The client requires the Host's explicit `execution-sessions-v1` capability before acquiring a lease.
 Successful pairing alone does not establish this capability. Lease acquisition and release follow
 the session lifecycle in §5.2.
 
@@ -586,7 +591,7 @@ Conformance tests cover:
   shared lease, including continued renewal after the first session closes;
 - execution-session-scoped `tools/list` and fail-closed behavior without admission or lease metadata;
 - canonical path, symlink/reparse-point, and blacklist policy;
-- allow, deny, elicitation acceptance, decline, and cancellation delivered across the Hub bridge;
+- device-local approval, denial, and cancellation of calls carried across the Hub bridge;
 - `WriteStdin` bound to terminals created by an approved `Exec` in the same execution session, regardless of
   Host policy;
 - independent background terminal and LSP cleanup at session closure and final workspace cleanup at lease release;

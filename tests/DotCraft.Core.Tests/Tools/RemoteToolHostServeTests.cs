@@ -31,7 +31,7 @@ public sealed class RemoteToolHostServeTests
             });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(
             shared.Path,
             home.Path,
@@ -57,7 +57,7 @@ public sealed class RemoteToolHostServeTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
 
@@ -87,7 +87,7 @@ public sealed class RemoteToolHostServeTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
@@ -155,7 +155,7 @@ public sealed class RemoteToolHostServeTests
         }
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
@@ -182,7 +182,7 @@ public sealed class RemoteToolHostServeTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(workspace.Path, home.Path);
         client.UpdateRemoteToolSnapshot("thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
         var connected = await client.ConnectAsync("thread", server.PeerId, "repo");
@@ -227,7 +227,7 @@ public sealed class RemoteToolHostServeTests
             });
 
         await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient(new ApproveService());
+        await using var client = server.CreateClient();
         var registrations = await RemoteToolHostTestHost.AgentRegistrationsAsync(
             withLsp.Path,
             home.Path,

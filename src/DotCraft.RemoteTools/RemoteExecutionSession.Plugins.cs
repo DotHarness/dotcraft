@@ -4,11 +4,11 @@ using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
 
-internal sealed partial class RemoteToolHostClient
+public sealed partial class RemoteExecutionSession
 {
     private readonly Dictionary<string, ThreadRemoteSnapshot> _snapshots = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string ThreadId, string LeaseId), PreparedSnapshot> _preparedSnapshots = new();
-    private readonly Dictionary<(string ThreadId, string LeaseId), PreparationFailure> _preparationFailures = new();
+    private readonly Dictionary<string, PreparedSnapshot> _preparedSnapshots = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PreparationFailure> _preparationFailures = new(StringComparer.Ordinal);
 
     public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode)
     {
@@ -23,32 +23,32 @@ internal sealed partial class RemoteToolHostClient
         }
     }
 
-    public async ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+    public async ValueTask PrepareAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
         CancellationToken cancellationToken = default)
     {
+        using var operation = _operations.Enter(cancellationToken);
+        cancellationToken = operation.Token;
         await _routeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             UpdateRemoteToolSnapshot(threadId, snapshot, mode);
-            if (!TryGetRoute(threadId, out var route)) return;
-            await PreparePluginsAsync(threadId, RequireLease(route), cancellationToken, snapshot.Revision).ConfigureAwait(false);
+            await PreparePluginsAsync(threadId, RequireLease(Route), cancellationToken, snapshot.Revision).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             lock (_stateGate)
-                if (_routes.TryGetValue(threadId, out var current))
-                {
-                    var key = (threadId, current.LeaseId);
-                    _preparedSnapshots.Remove(key);
-                    _preparationFailures[key] = new(snapshot.Revision,
-                        ex is RemoteToolHostException remote ? remote.Code : RemoteToolErrorCodes.RemoteToolUnavailable,
-                        ex.Message);
-                }
+            {
+                _preparedSnapshots.Remove(threadId);
+                _preparationFailures[threadId] = new(snapshot.Revision,
+                    ex is RemoteToolHostException remote ? remote.Code : RemoteToolErrorCodes.RemoteToolUnavailable,
+                    ex.Message);
+            }
+            throw;
         }
         finally { _routeGate.Release(); }
     }
 
-    private async Task PreparePluginsAsync(string threadId, SharedLease lease, CancellationToken ct, long? expectedRevision = null)
+    private async Task PreparePluginsAsync(string threadId, SessionLease lease, CancellationToken ct, long? expectedRevision = null)
     {
         ThreadRemoteSnapshot? snapshot;
         lock (_stateGate)
@@ -56,10 +56,10 @@ internal sealed partial class RemoteToolHostClient
             _snapshots.TryGetValue(threadId, out snapshot);
             if (expectedRevision is not null && snapshot?.Revision != expectedRevision)
                 throw new RemoteToolHostException(RemoteToolErrorCodes.RemoteToolUnavailable, "The captured tool snapshot is no longer current.");
-            if (snapshot is null || (_preparedSnapshots.TryGetValue((threadId, lease.Route.LeaseId), out var prepared)
+            if (snapshot is null || (_preparedSnapshots.TryGetValue(threadId, out var prepared)
                 && ReferenceEquals(prepared.Snapshot, snapshot))) return;
-            _preparedSnapshots.Remove((threadId, lease.Route.LeaseId));
-            _preparationFailures.Remove((threadId, lease.Route.LeaseId));
+            _preparedSnapshots.Remove(threadId);
+            _preparationFailures.Remove(threadId);
         }
         var sources = snapshot.Registrations.Select(RemoteToolMetadata.SourceBinding)
             .OfType<IRemoteToolSourceBinding>().DistinctBy(source => source.SourceId).ToArray();
@@ -110,7 +110,7 @@ internal sealed partial class RemoteToolHostClient
                     throw new RemoteToolHostException(RemoteToolErrorCodes.ToolContractMismatch, "Prepared plugin contracts do not match the captured snapshot.");
             RequireLease(lease.Route);
             lock (_stateGate)
-                _preparedSnapshots[(threadId, lease.Route.LeaseId)] = new(snapshot, bindings);
+                _preparedSnapshots[threadId] = new(snapshot, bindings);
         }
         finally
         {
@@ -128,7 +128,7 @@ internal sealed partial class RemoteToolHostClient
         }
     }
 
-    private async Task UploadPluginAsync(SharedLease lease, string transferId, string root,
+    private async Task UploadPluginAsync(SessionLease lease, string transferId, string root,
         TransferFileManifest manifest, CancellationToken ct)
     {
         for (var index = 0; index < manifest.Entries.Count; index++)
@@ -150,26 +150,6 @@ internal sealed partial class RemoteToolHostClient
             }
             await SendAsync<FileTransferPart, JsonObject>(lease.Session.Client, RemoteFileTransferProtocol.Commit,
                 new(transferId, index), ct).ConfigureAwait(false);
-        }
-    }
-
-    private async Task ReleasePluginThreadAsync(string threadId, RemoteToolRoute route, CancellationToken ct)
-    {
-        try
-        {
-            var lease = RequireLease(route);
-            if (lease.SupportsPlugins)
-                await SendAsync<PluginThreadRelease, JsonObject>(lease.Session.Client, RemotePluginProtocol.ReleaseThread,
-                    new(route.LeaseId, route.WorkspaceId, threadId), ct).ConfigureAwait(false);
-        }
-        catch { }
-        finally
-        {
-            lock (_stateGate)
-            {
-                _preparedSnapshots.Remove((threadId, route.LeaseId));
-                _preparationFailures.Remove((threadId, route.LeaseId));
-            }
         }
     }
 

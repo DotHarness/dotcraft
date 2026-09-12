@@ -1,5 +1,4 @@
 using System.Net.WebSockets;
-using ModelContextProtocol.Server;
 
 namespace DotCraft.RemoteTools;
 
@@ -10,28 +9,19 @@ internal static class RemoteToolHostDataSession
         Uri dataUri,
         string credential,
         string peerId,
-        RemoteToolHostMcpHandlers handlers,
+        RemoteToolHostExecutionHost host,
         CancellationToken cancellationToken)
     {
         using var socket = new ClientWebSocket();
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
         socket.Options.SetRequestHeader("Authorization", "Bearer " + credential);
         await socket.ConnectAsync(dataUri, cancellationToken).ConfigureAwait(false);
+        await using var handlers = host.CreateSession(peerId);
 
         await using var stream = WebSocketStream.Create(
             socket,
             WebSocketMessageType.Text,
             ownsWebSocket: false);
-        await using var transport = new StreamServerTransport(
-            stream,
-            stream,
-            RemoteToolHostServerOptions.ServerName,
-            loggerFactory: null);
-        await using var server = McpServer.Create(
-            transport,
-            RemoteToolHostServerOptions.Create(handlers, peerId),
-            loggerFactory: null,
-            serviceProvider: null);
-        await server.RunAsync(cancellationToken).ConfigureAwait(false);
+        await RemoteToolHostMcpSession.RunAsync(stream, handlers, cancellationToken).ConfigureAwait(false);
     }
 }
