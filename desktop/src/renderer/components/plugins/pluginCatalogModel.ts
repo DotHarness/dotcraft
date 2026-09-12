@@ -1,5 +1,6 @@
 import type { useT } from '../../contexts/LocaleContext'
 import type { MarketplaceEntry, PluginEntry } from '../../stores/pluginStore'
+import type { SkillEntry } from '../../stores/skillsStore'
 import { pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 
 /**
@@ -8,6 +9,12 @@ import { pluginSubtitle, pluginTitle } from './PluginCatalogItem'
  */
 export type PublisherFilter = 'dotcraft' | 'all' | 'marketplaces'
 export type CategoryFilter = string
+
+export function findPluginSkill(skills: SkillEntry[], pluginId: string, name: string): SkillEntry | undefined {
+  return skills.find((skill) => skill.source === 'plugin'
+    && skill.pluginId?.toLowerCase() === pluginId.toLowerCase()
+    && skill.name.toLowerCase() === name.toLowerCase())
+}
 
 export interface PluginSection {
   key: string

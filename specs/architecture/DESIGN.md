@@ -1079,7 +1079,12 @@ page into regions.
 
 A detail page presents its subject; standing state controls stay in the manage
 surface that owns them, for the same reason a dialog does not carry them (see
-Dialog Headers). Plugin detail uses one task-oriented primary CTA slot rather
+Dialog Headers). Plugin detail also manages its included Skills in a separate,
+counted section. Each row uses a Skill identity mark, a document-preview button,
+and an independent trailing switch backed by the same state as Skills management.
+Uninstalled Skills remain read-only previews; installed Skills under a disabled
+plugin show an off, disabled switch. Skill preview dialogs carry no switches.
+Plugin detail uses one task-oriented primary CTA slot rather
 than a standing management switch: Install and Enable show in-control progress,
 then the same slot becomes Try in chat when the plugin is ready.
 

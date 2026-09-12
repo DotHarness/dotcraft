@@ -265,6 +265,29 @@ public sealed partial class AppServerPluginManagementTests
             skill.GetProperty("iconSmallDataUrl").GetString());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PluginSkills_ExposeDeclaredSharedIcons(bool detail)
+    {
+        WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+        await harness.ExecuteRequestAsync(detail
+            ? harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginView, new { id = "demo-plugin" })
+            : harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        var plugin = detail ? result.GetProperty("plugin") : Assert.Single(
+            result.GetProperty("plugins").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == "demo-plugin");
+        var skill = Assert.Single(plugin.GetProperty("skills").EnumerateArray());
+        Assert.Equal("data:image/svg+xml;base64,PHN2ZyAvPg==", skill.GetProperty("iconSmallDataUrl").GetString());
+        Assert.Equal(skill.GetProperty("iconSmallDataUrl").GetString(), skill.GetProperty("iconLargeDataUrl").GetString());
+    }
+
     [Fact]
     public async Task PluginList_ReturnsWorkspaceMcpPlugin()
     {

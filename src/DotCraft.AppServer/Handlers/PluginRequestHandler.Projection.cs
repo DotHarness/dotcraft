@@ -273,8 +273,7 @@ internal sealed partial class PluginRequestHandler
                 var skillFile = Path.Combine(dir, "SKILL.md");
                 var skill = allSkills.FirstOrDefault(candidate =>
                     string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
-                var interfaceInfo = SkillsLoader.GetPluginSkillInterfaceFromFile(skillFile, manifest.RootPath)
-                                    ?? skillsLoader?.GetSkillInterface(name);
+                var interfaceInfo = SkillsLoader.GetPluginSkillInterfaceFromFile(skillFile, manifest.RootPath);
                 return new Contract.PluginSkillInfo
                 {
                     Name = name,
@@ -283,6 +282,8 @@ internal sealed partial class PluginRequestHandler
                                   ?? name,
                     DisplayName = OmitIfNull(interfaceInfo?.DisplayName),
                     ShortDescription = OmitIfNull(interfaceInfo?.ShortDescription),
+                    IconSmallDataUrl = OmitIfNull(interfaceInfo?.IconSmallDataUrl),
+                    IconLargeDataUrl = OmitIfNull(interfaceInfo?.IconLargeDataUrl),
                     Enabled = plugin.Installed
                               && plugin.Enabled
                               && (skill?.Enabled

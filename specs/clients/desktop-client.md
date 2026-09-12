@@ -758,11 +758,19 @@ Required behavior:
   tooltip rather than in the layout; the group's management action is revealed on
   hover or keyboard focus. Manage rows show the originating marketplace alongside
   the existing source column.
-- A plugin detail lists what the plugin contributes. A skill row opens the shared
-  skill preview, because a skill is the one contribution with a document behind
-  it; rows describing runtime wiring stay inert. Installed skills use their
-  effective runtime view. Uninstalled catalog skills use a read-only source
-  preview and expose no runtime actions.
+- Plugin detail places a counted Skills section after its description and Apps,
+  followed by Included content for other contributions and then Info. Empty
+  contribution sections are hidden. Skill rows show their declared interface
+  icons and open the shared document preview; other contribution rows stay inert.
+- Installed Skill switches use the same workspace state and `skills/setEnabled`
+  operation as Skills management. Only the pending switch is locked, and failures
+  retain the previous state with an error toast. Switching does not open a preview.
+  A disabled parent plugin shows off, disabled Skill switches without changing
+  saved Skill preferences. Missing skills-management capability hides the switches.
+- Effective Skills are matched by plugin attribution and name. A Skill shadowed
+  by another source cannot be toggled from this plugin. It and uninstalled catalog
+  Skills open read-only package-source previews; an effective installed Skill
+  opens its runtime view. Skill preview dialogs do not contain switches.
 - Removing a marketplace does not remove plugins already installed into a
   workspace. The client says so before confirming.
 - Marketplace controls are hidden when `capabilities.pluginMarketplaces` is

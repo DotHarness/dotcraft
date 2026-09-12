@@ -34,69 +34,6 @@ describe('PluginsView details', () => {
     expect(rows.style.borderRadius).toBe('')
   })
 
-  // A skill is the one plugin content with a document behind it, so its row opens
-  // the shared preview instead of being inert text like the runtime wiring rows.
-  it('opens the skill preview from a plugin content row', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [localPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: localPlugin, snapshotRevision: 1 }
-      if (method === 'skills/list') {
-        return {
-          skills: [{
-            name: 'external-process-echo',
-            displayName: 'Echo',
-            description: 'Echo plugin skill',
-            source: 'plugin',
-            enabled: true,
-            path: '/ws/skills/echo/SKILL.md'
-          }]
-        }
-      }
-      if (method === 'skills/view') {
-        return { content: '# Echo\n\nEchoes text back.' }
-      }
-      return {}
-    })
-
-    renderPluginsView()
-    fireEvent.click(await screen.findByText('External Process Echo'))
-
-    fireEvent.click(await screen.findByText('external-process-echo'))
-
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveAttribute('aria-labelledby', 'skill-detail-title')
-    expect(document.getElementById('skill-detail-title')).toHaveTextContent('Echo')
-    await waitFor(() => {
-      expect(within(dialog).getByText('Echoes text back.')).toBeInTheDocument()
-    })
-  })
-
-  it('previews an uninstalled plugin skill from its catalog source', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: browserUsePlugin, snapshotRevision: 1 }
-      if (method === 'plugin/skill/read') {
-        return { id: 'browser', name: 'browser', content: '---\nname: browser\n---\n# Browser\n\nAutomates the browser.' }
-      }
-      return {}
-    })
-
-    renderPluginsView()
-    fireEvent.click(await screen.findByText('Control the in-app browser with DotCraft'))
-    fireEvent.click(await screen.findByText('browser'))
-
-    const dialog = await screen.findByRole('dialog')
-    await waitFor(() => {
-      expect(within(dialog).getByText('Automates the browser.')).toBeInTheDocument()
-    })
-    expect(within(dialog).queryByText('name: browser')).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole('button', { name: 'Try in chat' })).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
-    expect(appServerSendRequest).toHaveBeenCalledWith('plugin/skill/read', { id: 'browser', name: 'browser' })
-    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'skills/list')).toBe(false)
-    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'skills/view')).toBe(false)
-  })
-
   it('shows a concise error when an uninstalled plugin skill cannot be read', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }

@@ -31,6 +31,7 @@ import {
   buildCategoryOptions,
   buildSections,
   filterPlugins,
+  findPluginSkill,
   marketplaceTitle,
   type CategoryFilter,
   type PublisherFilter
@@ -201,7 +202,12 @@ export function PluginsView(): JSX.Element {
   }
 
   async function handleOpenSkill(plugin: PluginEntry, name: string): Promise<void> {
-    if (!plugin.installed) {
+    const canReadRuntime = plugin.installed && plugin.enabled && capabilities?.skillsManagement === true
+    if (canReadRuntime && (skillsLoading || useSkillsStore.getState().skills.length === 0)) await fetchSkills()
+    const effectiveSkill = canReadRuntime
+      ? findPluginSkill(useSkillsStore.getState().skills, plugin.id, name)
+      : undefined
+    if (!effectiveSkill) {
       const skill = plugin.skills.find((candidate) => candidate.name === name)
       if (!skill) return
 
@@ -230,15 +236,7 @@ export function PluginsView(): JSX.Element {
     }
 
     setPluginSkillPreview(null)
-    if (useSkillsStore.getState().skills.length === 0) {
-      try {
-        await fetchSkills()
-      } catch {
-        addToast(t('skills.updateFailed'), 'error')
-        return
-      }
-    }
-    await selectSkill(name)
+    await selectSkill(effectiveSkill.name)
   }
 
   async function handleRefreshMarketplace(marketplace: MarketplaceEntry): Promise<void> {
@@ -501,6 +499,8 @@ export function PluginsView(): JSX.Element {
               displayName: pluginSkillPreview.skill.displayName,
               description: pluginSkillPreview.skill.description,
               shortDescription: pluginSkillPreview.skill.shortDescription,
+              iconSmallDataUrl: pluginSkillPreview.skill.iconSmallDataUrl,
+              iconLargeDataUrl: pluginSkillPreview.skill.iconLargeDataUrl,
               source: 'plugin',
               pluginId: pluginSkillPreview.pluginId,
               available: false,

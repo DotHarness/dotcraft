@@ -4155,6 +4155,15 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
 }
 ```
 
+Plugin `skills` entries include `name`, `description`, `displayName`,
+`shortDescription`, and `enabled`. Optional `iconSmallDataUrl` and
+`iconLargeDataUrl` contain resolved images from that plugin Skill's
+`agents/openai.yaml`, including permitted plugin-shared assets. These fields are
+available in both `plugin/list` and `plugin/view`, including catalog previews.
+They do not borrow interface metadata from another same-named Skill source.
+Runtime enablement is managed through `skills/setEnabled` after matching the
+effective `skills/list` entry by plugin attribution and name.
+
 `MarketplaceInfo` fields:
 
 | Field | Type | Description |

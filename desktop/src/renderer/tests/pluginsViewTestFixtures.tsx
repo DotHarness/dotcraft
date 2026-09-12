@@ -297,7 +297,8 @@ export function setupPluginsViewTest(): void {
   useConnectionStore.getState().setStatus({
     status: 'connected',
     capabilities: {
-      pluginManagement: true
+      pluginManagement: true,
+      skillsManagement: true
     }
   })
   usePluginStore.setState({
@@ -313,6 +314,7 @@ export function setupPluginsViewTest(): void {
   })
   useSkillsStore.setState({
     skills: [],
+    pendingSkillNames: [],
     loading: false,
     error: null,
     selectedSkillName: null,
