@@ -3485,6 +3485,14 @@ public sealed class PluginSkillInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
 
+    [JsonPropertyName("iconSmallDataUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> IconSmallDataUrl { get; init; }
+
+    [JsonPropertyName("iconLargeDataUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> IconLargeDataUrl { get; init; }
+
     [JsonPropertyName("name")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Name { get; init; }

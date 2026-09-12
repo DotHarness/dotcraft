@@ -524,6 +524,7 @@ function SkillManageItem({
 }): JSX.Element {
   const t = useT()
   const [active, setActive] = useState(false)
+  const pending = useSkillsStore((state) => state.pendingSkillNames.includes(skill.name))
 
   return (
     <div
@@ -550,6 +551,8 @@ function SkillManageItem({
       <span style={manageActionSlot}>
         <PillSwitch
           checked={skill.enabled}
+          disabled={pending}
+          aria-busy={pending}
           onChange={(enabled) => onToggleEnabled(skill, enabled)}
           size="sm"
           aria-label={skill.enabled ? t('skillCard.toggleDisable') : t('skillCard.toggleEnable')}

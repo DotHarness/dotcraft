@@ -429,6 +429,7 @@ interface:
 interface:
   display_name: "Demo Skill"
   icon_small: "../../assets/shared.svg"
+  icon_large: "../../assets/shared.svg"
 """);
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),

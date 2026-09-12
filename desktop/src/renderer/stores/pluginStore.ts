@@ -99,6 +99,8 @@ export interface PluginSkillInfo {
   description: string
   displayName?: string | null
   shortDescription?: string | null
+  iconSmallDataUrl?: string | null
+  iconLargeDataUrl?: string | null
   enabled: boolean
 }
 

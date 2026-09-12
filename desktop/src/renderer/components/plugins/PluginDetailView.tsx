@@ -6,7 +6,6 @@ import type { PluginEntry } from '../../stores/pluginStore'
 import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import {
   CatalogBreadcrumb,
-  CatalogHoverButton,
   CatalogTopBar,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
@@ -18,6 +17,7 @@ import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginContentIcon } from './PluginContentIcon'
+import { PluginSkillsSection } from './PluginSkillsSection'
 import { displayCategory } from './pluginCatalogModel'
 import styles from './PluginDetailView.module.css'
 
@@ -58,7 +58,7 @@ export function PluginDetailView({
   const shouldOfferLspEnable = plugin.installed
     && plugin.enabled
     && (plugin.lspServers ?? []).some((server) => server.enabled && !server.active && !server.shadowedBy)
-  const contents = getPluginContentSummaries(plugin, t)
+  const contents = getPluginContentSummaries(plugin, t).filter((item) => item.type !== 'skill')
   return (
     <div style={page}>
       <CatalogTopBar
@@ -127,46 +127,28 @@ export function PluginDetailView({
           </div>
           <p style={longDescription}>{info?.longDescription || plugin.description}</p>
           <AppBindingPanel plugin={plugin} />
-          <section style={detailSection}>
-            <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
-            {contents.length > 0 ? (
+          <PluginSkillsSection plugin={plugin} onOpenSkill={onOpenSkill} />
+          {contents.length > 0 && (
+            <section style={detailSection}>
+              <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
               <div style={contentList}>
-                {contents.map((item) => {
-                  const body = (
-                    <>
-                      <span style={contentIcon}>
-                        <PluginContentIcon type={item.type} size={16} />
+                {contents.map((item) => (
+                  <div key={item.key} style={contentItem}>
+                    <span style={contentIcon}>
+                      <PluginContentIcon type={item.type} size={16} />
+                    </span>
+                    <span style={pluginText}>
+                      <span style={contentTitleLine}>
+                        <strong style={rowTitle}>{item.title}</strong>
+                        <span style={contentKind}>{item.kind}</span>
                       </span>
-                      <span style={pluginText}>
-                        <span style={contentTitleLine}>
-                          <strong style={rowTitle}>{item.title}</strong>
-                          <span style={contentKind}>{item.kind}</span>
-                        </span>
-                        <span style={rowDesc}>{item.description}</span>
-                      </span>
-                    </>
-                  )
-                  // Only a skill has a document to preview; the other kinds are
-                  // descriptions of runtime wiring with nothing to open.
-                  if (item.skillName == null) {
-                    return <div key={item.key} style={contentItem}>{body}</div>
-                  }
-                  return (
-                    <CatalogHoverButton
-                      key={item.key}
-                      type="button"
-                      baseStyle={contentItemButton}
-                      onClick={() => onOpenSkill(item.skillName!)}
-                    >
-                      {body}
-                    </CatalogHoverButton>
-                  )
-                })}
+                      <span style={rowDesc}>{item.description}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <p style={emptyText}>{t('plugins.detail.noContents')}</p>
-            )}
-          </section>
+            </section>
+          )}
           {shouldOfferLspEnable && (
             <div style={lspEnablePanel} role="status">
               <span style={rowDesc}>{t('plugins.lsp.enablePrompt')}</span>
@@ -338,21 +320,6 @@ const detailSectionTitle: CSSProperties = {
 }
 const contentList: CSSProperties = { display: 'flex', flexDirection: 'column' }
 const contentItem: CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }
-// An openable row keeps the same rhythm as a static one, so the list does not
-// change shape; the hover fill is what marks it as reachable.
-const contentItemButton: CSSProperties = {
-  ...contentItem,
-  width: 'calc(100% + 16px)',
-  marginInline: -8,
-  padding: '8px',
-  border: 'none',
-  borderRadius: 8,
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  textAlign: 'left',
-  cursor: 'pointer'
-}
 const contentIcon: CSSProperties = { width: 38, height: 38, borderRadius: 19, border: '1px solid var(--border-default)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }
 const contentTitleLine: CSSProperties = { display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }
 const contentKind: CSSProperties = { fontWeight: 400, color: 'var(--text-secondary)' }

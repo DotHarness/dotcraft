@@ -2412,6 +2412,8 @@ export interface PluginSkillInfo {
   description?: string;
   displayName?: string | null;
   enabled?: boolean;
+  iconLargeDataUrl?: string | null;
+  iconSmallDataUrl?: string | null;
   name?: string;
   shortDescription?: string | null;
   [key: string]: unknown;

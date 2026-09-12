@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -291,6 +291,7 @@ describe('PluginsView management', () => {
     fireEvent.click(await screen.findByText('External Process Echo'))
 
     expect(await screen.findByText('Info')).toBeInTheDocument()
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    const header = screen.getByRole('heading', { name: 'External Process Echo', level: 1 }).closest('header')!
+    expect(within(header).queryByRole('switch')).not.toBeInTheDocument()
   })
 })

@@ -11918,6 +11918,20 @@
           "const": null
         },
         {
+          "name": "iconLargeDataUrl",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "iconSmallDataUrl",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "name",
           "type": "string",
           "required": false,

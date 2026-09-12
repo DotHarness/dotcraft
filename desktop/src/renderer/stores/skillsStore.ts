@@ -21,6 +21,7 @@ export interface SkillEntry {
 
 interface SkillsState {
   skills: SkillEntry[]
+  pendingSkillNames: string[]
   loading: boolean
   error: string | null
   selectedSkillName: string | null
@@ -36,6 +37,7 @@ interface SkillsState {
 
 export const useSkillsStore = create<SkillsState>((set, get) => ({
   skills: [],
+  pendingSkillNames: [],
   loading: false,
   error: null,
   selectedSkillName: null,
@@ -75,6 +77,8 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   },
 
   async toggleSkillEnabled(name: string, enabled: boolean) {
+    if (get().pendingSkillNames.includes(name)) return
+    set((state) => ({ pendingSkillNames: [...state.pendingSkillNames, name] }))
     try {
       const result = (await window.api.appServer.sendRequest('skills/setEnabled', {
         name,
@@ -91,6 +95,8 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
     } catch (e: unknown) {
       console.error('skills/setEnabled failed:', e)
       throw e
+    } finally {
+      set((state) => ({ pendingSkillNames: state.pendingSkillNames.filter((pending) => pending !== name) }))
     }
   },
 
