@@ -69,7 +69,8 @@ or its Hub control connection; a failed island degrades to the tray surface.
 Satellite may connect through DotCraft Hub or an embedding service using the
 [Remote Tool Host contract](../architecture/remote-tool-host.md#21-embedded-execution-surface).
 Satellite owns device consent and visibility; application conversations and permissions belong to
-the embedding product.
+the embedding product. An embedding product may host its own Remote Tool Host under its own state
+root; those pairings belong to the product.
 
 Tool sessions follow the [execution-session lifecycle](../architecture/remote-tool-host.md#52-execution-session-ownership).
 Owner pause, disconnect, authorization changes, and revoke retain their device-level effect.

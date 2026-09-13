@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using DotCraft.Screen;
@@ -110,9 +111,18 @@ internal sealed class RemoteToolHostPeerConnector(
     {
         var credential = storage.GetPeerCredential(peer);
         using var socket = new ClientWebSocket();
+        socket.Options.CollectHttpResponseDetails = true;
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
         socket.Options.SetRequestHeader("Authorization", "Bearer " + credential);
-        await socket.ConnectAsync(peer.ControlUri, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await socket.ConnectAsync(peer.ControlUri, cancellationToken).ConfigureAwait(false);
+        }
+        catch (WebSocketException)
+            when (socket.HttpStatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            throw new PairingRevokedException();
+        }
         await SendAsync(socket, BuildHello(), cancellationToken).ConfigureAwait(false);
 
         var welcome = await SatelliteWire.ReceiveAsync(socket, cancellationToken).ConfigureAwait(false);

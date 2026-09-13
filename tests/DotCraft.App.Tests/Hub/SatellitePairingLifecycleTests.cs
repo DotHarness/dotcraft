@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using DotCraft.Hub;
 using DotCraft.RemoteTools;
 using Xunit;
@@ -117,9 +120,112 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         Assert.Equal(RemoteToolHostStatus.Offline, scenario.Runtime.Status);
     }
 
+    [Fact]
+    public async Task PeerConnector_WhenTheHubRefusesTheReconnect_DeletesLocalPairingAndCredential()
+    {
+        var credentials = new MemoryCredentialStore();
+        await using var scenario = await SatelliteScenario.StartAsync(_userProfile, credentials: credentials);
+        await scenario.Runtime.StopAsync();
+
+        var response = await scenario.Hub.DeleteAsync($"/v1/satellites/{scenario.PeerId}");
+        response.EnsureSuccessStatusCode();
+        await scenario.Runtime.RunAsync().WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
+        Assert.Empty(credentials.Values);
+        Assert.Equal(RemoteToolHostStatus.Offline, scenario.Runtime.Status);
+    }
+
+    [Fact]
+    public async Task PeerConnector_WhenTheHubFailsTheReconnect_KeepsThePairingAndRetries()
+    {
+        using var hub = new RefusingControlEndpoint();
+        var workspacePath = Directory.CreateDirectory(Path.Combine(_userProfile, "workspace")).FullName;
+        var credentials = new MemoryCredentialStore();
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        storage.SaveHostState(new RemoteToolHostState
+        {
+            HostId = "rth_lifecycle",
+            DisplayName = "host-machine",
+            Workspaces = new(StringComparer.Ordinal) { ["workspace"] = workspacePath }
+        });
+        storage.AddPeer(
+            new RemoteToolHubPeer
+            {
+                PeerId = "peer-retry",
+                HubHost = "127.0.0.1",
+                HubPort = hub.Port,
+                HubScheme = Uri.UriSchemeHttp,
+                CredentialReference = RemoteToolHostStorage.PeerCredentialReference("peer-retry"),
+                WorkspaceId = "workspace",
+                AuthorizationMode = RemoteToolAuthorization.FullAccess,
+                AuthorizationRevision = 1,
+                PairedAt = DateTimeOffset.UtcNow
+            },
+            "credential");
+        await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
+
+        var running = runtime.RunAsync();
+        await SatelliteBridgeEndToEndTests.WaitUntilAsync(() => Task.FromResult(hub.Attempts >= 2));
+
+        Assert.False(running.IsCompleted);
+        Assert.Single(storage.LoadHostState()!.Peers);
+        Assert.Single(credentials.Values);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_userProfile, recursive: true); }
         catch (Exception) { }
+    }
+}
+
+/// <summary>A Hub control endpoint that answers every handshake with HTTP 500.</summary>
+internal sealed class RefusingControlEndpoint : IDisposable
+{
+    private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+    private readonly CancellationTokenSource _stopping = new();
+    private readonly Task _serving;
+    private int _attempts;
+
+    public RefusingControlEndpoint()
+    {
+        _listener.Start();
+        _serving = ServeAsync(_stopping.Token);
+    }
+
+    public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+
+    public int Attempts => Volatile.Read(ref _attempts);
+
+    public void Dispose()
+    {
+        _stopping.Cancel();
+        _listener.Dispose();
+        _serving.Wait(TimeSpan.FromSeconds(5));
+        _stopping.Dispose();
+    }
+
+    private async Task ServeAsync(CancellationToken cancellationToken)
+    {
+        var refusal = Encoding.ASCII.GetBytes(
+            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        var request = new byte[2048];
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var client = await _listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+                Interlocked.Increment(ref _attempts);
+                var stream = client.GetStream();
+                // The request is read first so the refusal is not lost to a reset connection.
+                await stream.ReadAsync(request, cancellationToken).ConfigureAwait(false);
+                await stream.WriteAsync(refusal, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
     }
 }

@@ -442,7 +442,9 @@ with a stable code.
 
 A lost control connection is retried with bounded exponential backoff starting at one second and
 capped at 120 seconds, with jitter, and the backoff resets after a successful `hello`. Reconnecting
-never requires user action on either machine.
+never requires user action on either machine. A handshake the Hub refuses with `401` or `403` means
+the pairing is gone: the Host treats it as `revoked` instead of retrying, so a pairing removed while
+the Host was offline is cleaned up on the first reconnect.
 
 ### 8.2 Data sessions
 
@@ -559,14 +561,14 @@ resolves from local state whether it acts as the Host or as the Agent side. `inv
 on the Agent machine against its Hub.
 
 `serve` takes no flags; stored pairings decide behavior. It holds `serve.lock` so a second `serve`
-on the same machine exits without starting, loads `~/.craft/config.json` for Host-level settings,
+on the same state root exits without starting, loads `~/.craft/config.json` for Host-level settings,
 merges each leased workspace's `.craft/config.json` over it for that workspace's runtime, and
 composes a provider-free workspace execution runtime with one control channel per pairing. It does
 not compose a model provider, Session Core, AppServer, memory, or Agent orchestration. A Host with
 no pairing refuses to start and points at `join`.
 
 User-level login autostart is the v1 lifecycle; Windows user autostart is the initial conformance
-target. A machine runs at most one Remote Tool Host process: when the Satellite client owns
+target. A state root serves at most one Remote Tool Host process: when the Satellite client owns
 autostart, `autostart install` MUST refuse, and installing Satellite autostart MUST remove the CLI
 autostart entry. The same public runtime hosting entry point serves both the CLI verbs and the
 Satellite client so their lifecycle semantics cannot diverge.
