@@ -22,6 +22,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>dotcraft;agent;harness;runtime;ai</PackageTags>
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeBundledDotCraftAssemblies</TargetsForTfmSpecificBuildOutput>
+    <BundledToolGeneratorPath>$(MSBuildProjectDirectory)/../DotCraft.Generators/bin/$(Configuration)/netstandard2.0/DotCraft.Generators.dll</BundledToolGeneratorPath>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -31,6 +32,7 @@
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.46.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.9.0" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.9.0" NoWarn="NU1608" />
@@ -56,8 +58,10 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
-    <None Include="../DotCraft.Generators/bin/$(Configuration)/netstandard2.0/DotCraft.Generators.dll"
+    <None Include="$(BundledToolGeneratorPath)"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Update="buildTransitive/DotCraft.Harness.targets"
+          Pack="true" PackagePath="buildTransitive/DotCraft.Harness.targets" />
   </ItemGroup>
 
   <ItemGroup>
@@ -67,6 +71,7 @@
   <Target Name="IncludeBundledDotCraftAssemblies">
     <ItemGroup>
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.dll" TargetPath="DotCraft.Runtime.dll" />
+      <BuildOutputInPackage Include="$(BundledToolGeneratorPath)" TargetPath="DotCraft.Generators.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.dll" TargetPath="DotCraft.Core.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.dll" TargetPath="DotCraft.RemoteTools.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.dll" TargetPath="DotCraft.Protocol.dll" />

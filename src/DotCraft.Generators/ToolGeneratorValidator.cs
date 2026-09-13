@@ -94,6 +94,14 @@ internal static class ToolGeneratorValidator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor InvalidInvocationContext = new(
+        "DCGEN012",
+        "Invalid generated tool invocation context",
+        "Generated tool '{0}' parameter '{1}' must be the only invocation context, passed by value without nullability, a default value, or model-schema attributes",
+        "DotCraft.Generators",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static void ValidateRpcMarker(SourceProductionContext context, IMethodSymbol method)
     {
         if (ToolSchemaEmitter.FindAttribute(method, "DotCraft.Tools.ToolAttribute") != null
@@ -165,7 +173,7 @@ internal static class ToolGeneratorValidator
             context.ReportDiagnostic(Diagnostic.Create(MissingDescription, tool.Location, tool.FunctionName, "method"));
 
         foreach (var duplicate in tool.Parameters
-                     .Where(static parameter => !parameter.IsCancellationToken)
+                     .Where(static parameter => parameter.IsModelParameter)
                      .GroupBy(static parameter => parameter.SchemaName, StringComparer.Ordinal)
                      .Where(static group => string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1))
         {
@@ -176,7 +184,25 @@ internal static class ToolGeneratorValidator
                 duplicate.Key));
         }
 
-        foreach (var parameter in tool.Parameters.Where(static parameter => !parameter.IsCancellationToken))
+        var contexts = tool.Parameters.Where(static parameter => parameter.IsInvocationContext).ToArray();
+        foreach (var parameter in contexts)
+        {
+            if (contexts.Length > 1
+                || parameter.Symbol.RefKind != RefKind.None
+                || parameter.Symbol.IsOptional
+                || parameter.HasDefaultValue
+                || parameter.TypeSymbol.NullableAnnotation == NullableAnnotation.Annotated
+                || parameter.Symbol.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
+                    "DotCraft.Tools.ToolParameterAttribute"
+                    or "System.ComponentModel.DataAnnotations.RequiredAttribute"
+                    or RangeAttributeFqn or MinLengthAttributeFqn or MaxLengthAttributeFqn or RegularExpressionAttributeFqn))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    InvalidInvocationContext, parameter.Location, tool.FunctionName, parameter.Name));
+            }
+        }
+
+        foreach (var parameter in tool.Parameters.Where(static parameter => parameter.IsModelParameter))
         {
             if (string.IsNullOrWhiteSpace(parameter.Description))
                 context.ReportDiagnostic(Diagnostic.Create(MissingDescription, parameter.Location, tool.FunctionName, $"parameter '{parameter.Name}'"));

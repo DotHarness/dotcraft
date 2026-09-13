@@ -136,7 +136,8 @@ internal static class DotNetPluginTestBundle
         IReadOnlyDictionary<string, string>? dependencies = null,
         IReadOnlyList<string>? exportedApiAssemblies = null,
         IReadOnlyList<string>? runtimeReferences = null,
-        string? settings = null)
+        string? settings = null,
+        Func<CSharpCompilation, Compilation>? transformCompilation = null)
     {
         var dotnetRoot = Path.Combine(pluginRoot, "dotnet");
         Directory.CreateDirectory(dotnetRoot);
@@ -147,7 +148,8 @@ internal static class DotNetPluginTestBundle
             source,
             [typeof(IDotCraftPlugin).Assembly.Location, .. runtimeAssemblyPaths],
             targetFramework: true,
-            additionalSource: ToolHarnessSource);
+            additionalSource: ToolHarnessSource,
+            transformCompilation: transformCompilation);
         WriteDependencyManifest(dotnetRoot, runtimeAssemblyPaths);
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         var dependencyJson = dependencies is { Count: > 0 }
@@ -183,7 +185,8 @@ internal static class DotNetPluginTestBundle
         string source,
         string[]? references = null,
         bool targetFramework = false,
-        string? additionalSource = null)
+        string? additionalSource = null,
+        Func<CSharpCompilation, Compilation>? transformCompilation = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         var explicitReferences = references ?? [];
@@ -216,8 +219,9 @@ internal static class DotNetPluginTestBundle
             syntaxTrees,
             metadataReferences,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var outputCompilation = transformCompilation?.Invoke(compilation) ?? compilation;
         using var stream = File.Create(outputPath);
-        var result = compilation.Emit(stream);
+        var result = outputCompilation.Emit(stream);
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
     }
 

@@ -33,6 +33,9 @@ public sealed class DotNetPluginReferenceSetTests(
         Assert.Contains("DotCraft.Agents", names);
         Assert.Contains("System.Runtime", names);
         Assert.DoesNotContain("DotCraft.Runtime", names);
+        Assert.DoesNotContain("DotCraft.Generators", names);
+        Assert.DoesNotContain("Microsoft.CodeAnalysis", names);
+        Assert.DoesNotContain("Microsoft.CodeAnalysis.CSharp", names);
         Assert.Equal(names.OrderBy(static name => name, StringComparer.Ordinal), names);
 
         var shippedSharedPackage = PluginHostAssemblies.SharedPackageAssemblies

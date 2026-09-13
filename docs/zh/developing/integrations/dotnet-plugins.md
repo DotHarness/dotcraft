@@ -27,6 +27,10 @@
 
 构建成功后，精确的插件 id 与指纹只在当前宿主进程中获得执行资格，`dotnet-plugin-trust.json` 不受影响。DotCraft 重启后需要重新构建。对同一项目中已激活的相同指纹重复构建不会产生变更。
 
+`DotNetPlugin.Build` 在编译前运行宿主固定的工具生成器，因此源码项目也支持 `[Tool]`、`[GeneratedTool]` 与 `[ToolDeclaration]`。生成文件只存在于内存中。源码项目不能提供 analyzer 或 generator。生成错误带有 `phase: generate`，不会替换此前已发布的 bundle 或活动 generation。
+
+自定义 Harness 宿主需要支持源码开发时，在宿主项目中设置 `<PreserveCompilationContext>true</PreserveCompilationContext>`。Harness 会把必需的 Core 与 Agents XML 文档复制到构建和发布输出。发布单文件宿主时，还需设置 `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>`，让编译器能够读取提取后的程序集、文档与引用包。
+
 执行构建的 Turn 继续使用它已冻结的工具快照。新的插件工具从下一个 Turn 开始可用，构建本身不会调用它们。源码改动只在 Agent 调用 `DotNetPlugin.Build` 时生效。
 
 ## 准备预构建 bundle
@@ -82,6 +86,8 @@ acme.review-core/
 <ProjectReference Include="path/to/src/DotCraft.Core/DotCraft.Core.csproj" Private="false" />
 ```
 
+在 DotCraft checkout 之外建立独立项目时，引用已发布的 `DotCraft.Harness` 包即可获得这些 API 与工具 analyzer。使用 checkout 项目引用构建时，还需引用 `DotCraft.Generators.csproj`，并设置 `OutputItemType="Analyzer"`、`ReferenceOutputAssembly="false"`。单独引用 Core 不会运行生成器。请面向同一宿主版本构建，bundle 中只保留插件及其私有依赖闭包。
+
 加载上下文按**简单名称**把每个 DotCraft 程序集及其包闭包解析到宿主中已加载的副本，忽略 bundle 自带的版本。类型标识的单一性正来自于此：中间件贡献改写的 `ChatMessage`，与内核派发时使用的是同一个类型——哪怕 bundle 自带了 `Microsoft.Extensions.AI.Abstractions.dll`。随包分发这些程序集只会让 bundle 变大。其余内容都从 bundle 的 `.deps.json` 与相邻探测解析，并限制在 bundle 目录内。
 
 ### 绑定到宿主版本
@@ -98,6 +104,7 @@ acme.review-core/
 
 ```csharp
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using DotCraft.Contributions;
@@ -124,17 +131,25 @@ internal sealed class PluginTool : AIFunctionToolSource
 
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        yield return AIFunctionFactory.Create(
-            () => "Acme Review is active.",
-            name: "acme_review",
-            description: "Reports whether Acme Review is active.");
+        yield return DotCraft.GeneratedTools.Acme.ReviewCore.Plugin
+            .GeneratedToolFunctions.PluginTool_Status(this);
     }
+
+    [GeneratedTool(Name = "acme_review")]
+    [Description("Reports whether Acme Review is active.")]
+    public string Status() => "Acme Review is active.";
 
     protected override ToolPolicyHints GetPolicyHints(
         AIFunction function,
         ToolPlanningContext context) => new(ReadOnly: true);
+
+    protected override ToolPresentationDescriptor? GetPresentation(
+        AIFunction function,
+        ToolPlanningContext context) => null;
 }
 ```
+
+上面的生成命名空间假设入口程序集为 manifest 中的 `Acme.ReviewCore.Plugin.dll`。源码编译器同样使用 manifest 入口程序集的文件名作为程序集名。插件显式返回空的 Core 呈现描述符。如需 Desktop 呈现，请贡献插件自有的呈现组件。
 
 激活上下文承载了插件模型的两个方向：
 
@@ -156,6 +171,33 @@ internal sealed class PluginTool : AIFunctionToolSource
 拆卸会先撤销贡献句柄、触发 `Stopping`，再排空已进入的调用与后台工作，之后才释放原始贡献目标。共享资源用 `context.Lifetime.Own` 或 `OwnAsync` 注册。它们比贡献目标存活更久，贡献只借用而不拥有。
 
 后台工作走 `context.Lifetime.Run`。它在激活提交后启动，拆卸开始时通过 `Lifetime.Stopping` 取消。裸线程、静态事件订阅、无人跟踪的 Task 和全局缓存都可能钉住可回收的加载上下文：路由仍会立即停止，但内存要等到残留引用释放后才能回收，很多时候只能等进程重启。
+
+## 编写强类型工具 {#write-typed-tools}
+
+插件工具与内置工具使用同一套生成方法包装器。工作区配置与服务放在构造函数里，JSON 参数与默认值交给生成器处理。`AIFunctionToolSource` 提供注册，宿主负责赋予插件的 `PluginNative` 身份与 generation 生命周期。普通强类型工具不需要实现 `IToolRuntime`，也不需要手工解析 `JsonObject`。
+
+只有需要真实 Thread、Turn 或调用身份的工具才请求上下文：
+
+```csharp
+[GeneratedTool(Name = "calling_thread")]
+[Description("Report the calling thread's identity.")]
+public ToolExecutionResult CallingThread(
+    ToolInvocationContext context,
+    [Description("Include the call identifier.")] bool includeDetails = false,
+    CancellationToken cancellationToken = default)
+{
+    cancellationToken.ThrowIfCancellationRequested();
+    return ToolExecutionResult.Succeeded(includeDetails
+        ? $"Invocation belongs to thread {context.ThreadId}, call {context.CallId}."
+        : context.ThreadId);
+}
+```
+
+像入口点示例一样，通过 `CreateFunctions` 暴露该方法的生成工厂。上下文与取消令牌由运行时注入，不是模型参数。最多声明一个非空上下文，不得添加默认值、`ref`/`in`/`out` 或 schema 属性。缺少宿主上下文时直接调用生成函数，会在业务方法执行前失败。运行时不会从规划状态补造身份。
+
+`ToolExecutionResult` 是可选的：普通结果使用字符串或 DTO 即可。声明为 `ToolExecutionResult`、`Task<ToolExecutionResult>` 或 `ValueTask<ToolExecutionResult>` 时保留成功/失败语义，不会把业务失败包装成成功的 JSON 响应，也不会推断 DTO 输出 schema。工具捕获取消后显式返回的结果仍会保留，因此可以表达“执行可能已经开始，不宜重放”。
+
+这不会扩大插件边界。结果复制出插件时，宿主只保留成功的文本与结构化 JSON，或失败的文本与错误。不会转发插件自有对象、富 `AIContent`、私有结果元数据或执行指令。调用身份支持业务层的归属检查，不是针对完全受信任插件代码的沙箱。动态 schema 与协议桥接仍可使用底层 `IToolSource`/`IToolRuntime`。
 
 ## 访问宿主服务
 

@@ -27,6 +27,10 @@ The project has no `.csproj` and does not restore NuGet packages. The agent edit
 
 A successful build qualifies the exact plugin id and fingerprint only in the current host process; it does not change `dotnet-plugin-trust.json`. Build the project again after restarting DotCraft. Rebuilding the active fingerprint from the same project is a no-op.
 
+`DotNetPlugin.Build` runs the host's fixed tool generator before compilation, so source projects support `[Tool]`, `[GeneratedTool]`, and `[ToolDeclaration]` too. Generated files stay in memory; source projects cannot supply analyzers or generators. Generation errors are reported with `phase: generate` and leave the previous published bundle and active generation unchanged.
+
+For a custom Harness host that supports source authoring, set `<PreserveCompilationContext>true</PreserveCompilationContext>` in the host project. Harness copies the required Core and Agents XML documentation into build and publish output. When publishing a single-file host, also set `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>` so the compiler can read the extracted assemblies, documentation, and reference pack.
+
 The Turn that performs the build keeps its frozen tool snapshot. New plugin tools become available on the next Turn, and the build does not invoke them. Source edits are applied only when the agent calls `DotNetPlugin.Build`.
 
 ## Prepare a prebuilt bundle
@@ -82,6 +86,8 @@ The plugin API is `DotCraft.Core` itself, plus what it references transitively â
 <ProjectReference Include="path/to/src/DotCraft.Core/DotCraft.Core.csproj" Private="false" />
 ```
 
+For a standalone project outside the DotCraft checkout, reference the released `DotCraft.Harness` package to obtain these APIs and the tool analyzer. When building against checkout project references, add `DotCraft.Generators.csproj` with `OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"`. A reference to Core alone does not run the generator. Target the same host version, and keep only the plugin and its private dependency closure in the bundle.
+
 The load context resolves every DotCraft assembly and its package closure **by simple name** against the copies already loaded in the host, ignoring the version a bundle ships. That is what keeps type identity single: a `ChatMessage` a middleware contribution rewrites is the same type the kernel dispatches on, even if the bundle carries its own `Microsoft.Extensions.AI.Abstractions.dll`. Shipping those assemblies only enlarges the bundle. Everything else resolves from the bundle's `.deps.json` and adjacent probing, confined to the bundle directory.
 
 ### Bind to a host version
@@ -98,6 +104,7 @@ Implement `IDotCraftPlugin` on one public type with a public parameterless const
 
 ```csharp
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using DotCraft.Contributions;
@@ -124,17 +131,25 @@ internal sealed class PluginTool : AIFunctionToolSource
 
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        yield return AIFunctionFactory.Create(
-            () => "Acme Review is active.",
-            name: "acme_review",
-            description: "Reports whether Acme Review is active.");
+        yield return DotCraft.GeneratedTools.Acme.ReviewCore.Plugin
+            .GeneratedToolFunctions.PluginTool_Status(this);
     }
+
+    [GeneratedTool(Name = "acme_review")]
+    [Description("Reports whether Acme Review is active.")]
+    public string Status() => "Acme Review is active.";
 
     protected override ToolPolicyHints GetPolicyHints(
         AIFunction function,
         ToolPlanningContext context) => new(ReadOnly: true);
+
+    protected override ToolPresentationDescriptor? GetPresentation(
+        AIFunction function,
+        ToolPlanningContext context) => null;
 }
 ```
+
+The generated namespace above assumes the entry assembly is `Acme.ReviewCore.Plugin.dll`, matching the manifest. The source compiler also uses the manifest's entry assembly filename as its assembly name. The plugin explicitly returns no Core presentation descriptor; use a plugin-owned Desktop presentation contribution when needed.
 
 The activation context carries both directions of the plugin model:
 
@@ -156,6 +171,33 @@ Make every `Contributions.Add` call from inside `ActivateAsync`. The host seals 
 Teardown revokes contribution handles, signals `Stopping`, drains admitted calls and tracked work, and only then disposes raw contribution targets. Register shared resources with `context.Lifetime.Own` or `OwnAsync`. They outlive contribution targets, so contributions can borrow them without owning them.
 
 Background work goes through `context.Lifetime.Run`. It starts after activation commits and is cancelled through `Lifetime.Stopping` when teardown begins. Raw threads, static event subscriptions, untracked tasks, and global caches can pin the collectible load context: routing still stops immediately, but memory is not reclaimed until the stray reference is released, often only at process restart.
+
+## Write typed tools
+
+Plugin tools use the same generated method wrappers as built-in tools. Keep workspace configuration and services in constructors; let the generator handle JSON parameters and defaults. `AIFunctionToolSource` supplies registrations, and the host assigns the plugin's `PluginNative` identity and generation lifetime. You do not need to implement `IToolRuntime` or parse `JsonObject` by hand for ordinary typed tools.
+
+Only tools that need live Thread, Turn, or call identity should request the context:
+
+```csharp
+[GeneratedTool(Name = "calling_thread")]
+[Description("Report the calling thread's identity.")]
+public ToolExecutionResult CallingThread(
+    ToolInvocationContext context,
+    [Description("Include the call identifier.")] bool includeDetails = false,
+    CancellationToken cancellationToken = default)
+{
+    cancellationToken.ThrowIfCancellationRequested();
+    return ToolExecutionResult.Succeeded(includeDetails
+        ? $"Invocation belongs to thread {context.ThreadId}, call {context.CallId}."
+        : context.ThreadId);
+}
+```
+
+Expose this method's generated factory through `CreateFunctions` as in the entry-point example. Context and cancellation are runtime-injected, not model parameters. Declare at most one non-nullable context, without a default, `ref`/`in`/`out`, or schema attributes. Directly invoking a generated function without host context fails before the method runs; the runtime does not synthesize identity from planning state.
+
+`ToolExecutionResult` is optional: use a string or DTO for ordinary results. A declared `ToolExecutionResult`, `Task<ToolExecutionResult>`, or `ValueTask<ToolExecutionResult>` preserves success/failure semantics; a business failure is not wrapped in a successful JSON response. It has no inferred DTO output schema. Explicit results returned after catching cancellation remain intact, so a tool can report that execution may have started and replay is unsafe.
+
+This does not widen the plugin boundary. On copy-out, the host keeps successful text and structured JSON, or failure text and error. It does not forward plugin-owned objects, rich `AIContent`, private result metadata, or execution directives. Invocation identity supports application-level ownership checks; it is not a sandbox for fully trusted plugin code. Keep the low-level `IToolSource`/`IToolRuntime` path for dynamic schemas and protocol bridges.
 
 ## Access host services
 

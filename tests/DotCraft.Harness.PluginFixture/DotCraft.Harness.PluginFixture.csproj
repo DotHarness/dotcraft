@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <GenerateDependencyFile>true</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseHarnessPackage)' == 'true'">
+    <PackageReference Include="DotCraft.Harness" Version="[$(HarnessPackageVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseHarnessPackage)' != 'true'">
+    <ProjectReference Include="../../src/DotCraft.Core/DotCraft.Core.csproj" />
+    <ProjectReference Include="../../src/DotCraft.Generators/DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project>
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)../lib/net10.0/DotCraft.Core.xml;$(MSBuildThisFileDirectory)../lib/net10.0/DotCraft.Agents.xml"
+             Link="%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             ExcludeFromSingleFile="false"
+             Visible="false" />
+  </ItemGroup>
+</Project>

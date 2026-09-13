@@ -295,35 +295,7 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
         run: |
-          $ErrorActionPreference = "Stop"
-          $probe = Join-Path ([System.IO.Path]::GetTempPath()) "dotcraft-harness-package-probe-$([guid]::NewGuid().ToString('N'))"
-          New-Item -ItemType Directory -Path $probe | Out-Null
-          try {
-            dotnet new console --name DotCraft.Harness.Consumer --framework net10.0 --no-restore --output $probe
-            Copy-Item ./tests/DotCraft.Harness.Consumer/Program.cs (Join-Path $probe "Program.cs")
-            Push-Location $probe
-            try {
-              dotnet add package DotCraft.Harness --version $env:PACKAGE_VERSION --no-restore
-              dotnet add package Microsoft.Extensions.Hosting --version 10.0.10 --no-restore
-              $packageSource = (Resolve-Path "$env:GITHUB_WORKSPACE/artifacts/nuget").Path
-              $nugetConfig = @'
-          <?xml version="1.0" encoding="utf-8"?>
-          <configuration><packageSources><clear />
-            <add key="package-under-test" value="PACKAGE_SOURCE" />
-            <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-          </packageSources></configuration>
-          '@
-              $nugetConfig.Replace("PACKAGE_SOURCE", [System.Security.SecurityElement]::Escape($packageSource)) | Set-Content -Encoding utf8 NuGet.config
-              dotnet restore --configfile NuGet.config
-              dotnet run --no-restore
-            }
-            finally {
-              Pop-Location
-            }
-          }
-          finally {
-            Remove-Item -LiteralPath $probe -Recurse -Force
-          }
+          ./scripts/test-harness-package.ps1 -PackagePath "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4

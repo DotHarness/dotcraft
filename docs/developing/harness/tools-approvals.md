@@ -4,9 +4,11 @@ Harness composes application-owned tools into the Agentic Loop. Tool implementat
 
 ## Define a tool source
 
-Derive from `AIFunctionToolSource` to expose .NET methods as model-callable functions.
+Write ordinary typed methods with `[GeneratedTool]`, then expose their generated wrappers through `AIFunctionToolSource`. The Harness NuGet package includes the generator; no separate analyzer reference is needed. This example assumes the application assembly is named `MyApp`.
 
 ```csharp
+using System.ComponentModel;
+using DotCraft.GeneratedTools.MyApp;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -17,15 +19,22 @@ public sealed class ClockToolSource : AIFunctionToolSource
     protected override IEnumerable<AIFunction> CreateFunctions(
         ToolPlanningContext context)
     {
-        yield return AIFunctionFactory.Create(
-            () => DateTimeOffset.UtcNow,
-            name: "GetUtcTime",
-            description: "Return the current UTC time.");
+        yield return GeneratedToolFunctions.ClockToolSource_GetUtcTime(this);
     }
+
+    [GeneratedTool]
+    [Description("Return the current UTC time.")]
+    public DateTimeOffset GetUtcTime() => DateTimeOffset.UtcNow;
 }
 ```
 
 `CreateFunctions` receives immutable planning context for the current Thread and Turn. Use it to decide whether to emit a function that belongs only to a particular workspace, mode, or provider capability.
+
+The generator owns schema generation and typed argument binding. Describe each model parameter with `[Description]`; C# defaults become optional arguments. `[Tool]` uses the same generator and adds built-in catalog/presentation metadata. Plugins normally use `[GeneratedTool]`, which is not catalog-visible by default.
+
+### Access live invocation identity only when needed
+
+Most tools need only typed parameters, constructor-injected services, and an optional `CancellationToken`. Request `ToolInvocationContext` only when the method needs the live calling identity, and return `ToolExecutionResult` only when it needs explicit success or failure semantics. See [Write typed tools](../integrations/dotnet-plugins#write-typed-tools) for both contracts.
 
 ## Register the source
 

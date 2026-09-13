@@ -295,6 +295,12 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
         foreach (var parameter in tool.Parameters.Where(static p => !p.IsCancellationToken))
         {
+            if (parameter.IsInvocationContext)
+            {
+                sb.AppendLine($"            var {parameter.Name} = GetInvocationContext(arguments);");
+                continue;
+            }
+
             var binder = parameter.IsRequired ? "GetRequired" : "GetOptional";
             var defaultArgument = !parameter.IsRequired
                 ? $", {FormatDefaultValue(parameter)}, JsonSerializerOptions"
@@ -591,6 +597,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public object? DefaultValue { get; }
         public string Description { get; }
         public bool IsCancellationToken { get; }
+        public bool IsInvocationContext => TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            == "global::DotCraft.Tools.ToolInvocationContext";
+        public bool IsModelParameter => !IsCancellationToken && !IsInvocationContext;
         public Location? Location { get; }
 
         public static ParameterInfo From(IParameterSymbol symbol, string toolParameterAttributeFqn)

@@ -1,7 +1,7 @@
-using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -67,7 +67,7 @@ public sealed class GeneratedToolDeclaration
         Name = name;
         Description = description;
         InputSchema = GeneratedToolSchema.Parse(inputSchemaJson);
-        OutputSchema = GeneratedToolSchema.CreateReturnSchema(outputType, AIJsonUtilities.DefaultOptions);
+        OutputSchema = GeneratedToolSchema.CreateReturnSchema(outputType, OutputSerializerOptions);
         RpcEligible = rpcEligible;
     }
 
@@ -85,6 +85,27 @@ public sealed class GeneratedToolDeclaration
 
     /// <summary>Gets whether the native declaration may be exported by a Remote Tool Host.</summary>
     public bool RpcEligible { get; }
+
+    internal JsonSerializerOptions InputSerializerOptions { get; } = CreateSerializerOptions(strictEnums: true);
+
+    internal JsonSerializerOptions OutputSerializerOptions { get; } = CreateSerializerOptions(strictEnums: false);
+
+    private static JsonSerializerOptions CreateSerializerOptions(bool strictEnums)
+    {
+        var options = new JsonSerializerOptions(AIJsonUtilities.DefaultOptions);
+        options.TypeInfoResolver = new DeclarationResolver(
+            options.TypeInfoResolver ?? new DefaultJsonTypeInfoResolver());
+        if (strictEnums)
+            options.Converters.Insert(0, new StrictToolInputEnumConverterFactory());
+        options.MakeReadOnly();
+        return options;
+    }
+
+    // Distinct resolver identities prevent System.Text.Json from sharing plugin type caches across declarations.
+    private sealed class DeclarationResolver(IJsonTypeInfoResolver inner) : IJsonTypeInfoResolver
+    {
+        public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options) => inner.GetTypeInfo(type, options);
+    }
 }
 
 internal interface IGeneratedToolMetadata
@@ -105,7 +126,6 @@ internal interface IGeneratedToolMetadata
 /// </summary>
 public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 {
-    private static readonly JsonSerializerOptions ToolInputSerializerOptions = CreateToolInputSerializerOptions();
     private readonly GeneratedToolDeclaration _declaration;
     private readonly GeneratedToolDescriptor _metadata;
 
@@ -136,10 +156,17 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 
     public override JsonElement? ReturnJsonSchema => _declaration.OutputSchema;
 
-    public override JsonSerializerOptions JsonSerializerOptions => ToolInputSerializerOptions;
+    public override JsonSerializerOptions JsonSerializerOptions => _declaration.InputSerializerOptions;
 
     /// <summary>Gets the serializer options used only for generated tool results.</summary>
-    protected JsonSerializerOptions OutputJsonSerializerOptions => AIJsonUtilities.DefaultOptions;
+    protected JsonSerializerOptions OutputJsonSerializerOptions => _declaration.OutputSerializerOptions;
+
+    /// <summary>Reads live host context supplied by the runtime, never model arguments or planning state.</summary>
+    protected static ToolInvocationContext GetInvocationContext(AIFunctionArguments arguments) =>
+        arguments.Context?.TryGetValue(typeof(ToolInvocationContext), out var value) == true
+        && value is ToolInvocationContext context
+            ? context
+            : throw new InvalidOperationException("This tool requires a live ToolInvocationContext supplied by its runtime.");
 
     public bool StreamArgumentsEnabled => _metadata.StreamArgumentsEnabled;
 
@@ -151,12 +178,6 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 
     public bool RpcEligible => _metadata.RpcEligible;
 
-    private static JsonSerializerOptions CreateToolInputSerializerOptions()
-    {
-        var options = new JsonSerializerOptions(AIJsonUtilities.DefaultOptions);
-        options.Converters.Insert(0, new StrictToolInputEnumConverterFactory());
-        return options;
-    }
 }
 
 internal sealed class StrictToolInputEnumConverterFactory : JsonConverterFactory
@@ -212,8 +233,6 @@ internal static class GeneratedToolMetadataResolver
 
 internal static class GeneratedToolSchema
 {
-    private static readonly ConcurrentDictionary<Type, JsonElement?> ReturnSchemas = new();
-
     public static JsonElement Parse(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -223,15 +242,10 @@ internal static class GeneratedToolSchema
     public static JsonElement? CreateReturnSchema(Type? returnType, JsonSerializerOptions serializerOptions)
     {
         var unwrapped = UnwrapReturnType(returnType);
-        if (unwrapped == null)
+        if (unwrapped == null || unwrapped == typeof(ToolExecutionResult))
             return null;
 
-        return ReturnSchemas.GetOrAdd(
-            unwrapped,
-            static (type, options) => AIJsonUtilities.CreateJsonSchema(
-                type,
-                serializerOptions: options),
-            serializerOptions);
+        return AIJsonUtilities.CreateJsonSchema(unwrapped, serializerOptions: serializerOptions);
     }
 
     private static Type? UnwrapReturnType(Type? returnType)
@@ -280,6 +294,12 @@ public static class GeneratedToolArgumentBinder
 
     public static object? MarshalResult(object? result, Type declaredType, JsonSerializerOptions serializerOptions)
     {
+        if (declaredType == typeof(ToolExecutionResult))
+        {
+            return result as ToolExecutionResult ?? ToolExecutionResult.Failed(
+                new ToolError(ToolErrorCodes.ResultInvalid, "The tool returned no execution result."));
+        }
+
         if (result == null)
             return null;
 

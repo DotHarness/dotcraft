@@ -1,6 +1,9 @@
 using DotCraft.Agents;
+using DotCraft.Generators;
 using DotCraft.Plugins;
 using DotCraft.Runtime;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace DotCraft.Tests.Runtime.Plugins.Authoring;
 
@@ -22,9 +25,16 @@ public sealed class AuthoringReferencePackFixture : IDisposable
         CopyFrameworkReferences();
         CopySharedPackageReferences();
 
-        File.Copy(
-            typeof(DotNetPluginReferenceSet).Assembly.Location,
-            Path.Combine(Root, "DotCraft.Runtime.dll"));
+        foreach (var implementation in new[]
+                 {
+                     typeof(DotNetPluginReferenceSet).Assembly,
+                     typeof(ToolFunctionGenerator).Assembly,
+                     typeof(Compilation).Assembly,
+                     typeof(CSharpCompilation).Assembly
+                 })
+        {
+            File.Copy(implementation.Location, Path.Combine(Root, Path.GetFileName(implementation.Location)));
+        }
     }
 
     public string Root { get; }
