@@ -122,8 +122,15 @@ public sealed class GeneratedPluginToolTests : IDisposable
 
         var loadContext = Assert.IsType<WeakReference>(retained.Remnant.LoadContext);
         var collectionWait = Stopwatch.StartNew();
+        var cacheEvictionTriggered = false;
         while (loadContext.IsAlive && collectionWait.Elapsed < TimeSpan.FromSeconds(10))
         {
+            if (!cacheEvictionTriggered && collectionWait.Elapsed >= TimeSpan.FromSeconds(1.2))
+            {
+                // System.Text.Json evicts stale reflection emit accessors only while creating another accessor.
+                _ = JsonSerializer.Deserialize<MemberAccessorCacheProbe>("{\"value\":\"probe\"}");
+                cacheEvictionTriggered = true;
+            }
             OfferCollection();
             await Task.Delay(20);
         }
@@ -219,4 +226,9 @@ public sealed class GeneratedPluginToolTests : IDisposable
 
     private sealed record RetainedHostState(PluginGenerationRemnant Remnant, EffectiveToolSnapshot Snapshot,
         ToolExecutionResult TypedResult, ToolExecutionResult DtoResult);
+
+    private sealed class MemberAccessorCacheProbe
+    {
+        public string Value { get; set; } = string.Empty;
+    }
 }

@@ -175,6 +175,7 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
             CallId = "call_timeout",
             Command = EchoThenSleepCommand("before-timeout"),
             WorkingDirectory = _tempDir,
+            Shell = OperatingSystem.IsWindows() ? "cmd" : null,
             TimeoutSeconds = 1,
             MaxOutputChars = 10_000
         });
@@ -446,7 +447,7 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
 
     private static string EchoThenSleepCommand(string text) =>
         OperatingSystem.IsWindows()
-            ? $"Write-Output {QuotePowerShell(text)}; Start-Sleep -Seconds 5"
+            ? $"echo {text} & ping -n 30 127.0.0.1 >nul"
             : $"echo {QuoteBash(text)}; sleep 5";
 
     private static string ChildProcessCommand(string pidPath) =>

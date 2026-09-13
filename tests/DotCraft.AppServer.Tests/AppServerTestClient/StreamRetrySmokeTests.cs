@@ -193,7 +193,7 @@ public sealed class StreamRetrySmokeTests
             new Uri(upstream.Endpoint, "/v1"));
 
         using (var firstHttp = new HttpClient())
-        using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)))
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
         {
             try
             {

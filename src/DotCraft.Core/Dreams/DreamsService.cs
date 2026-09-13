@@ -325,6 +325,8 @@ public sealed class DreamsService(
                 .ConfigureAwait(false);
         }
 
+        var initialState = stateStore.Load(state.Id)
+            ?? throw new InvalidOperationException("The initial Dream run state could not be loaded.");
         var runToken = _lifetimeCts?.Token ?? CancellationToken.None;
         linkedTokenSource.Dispose();
         linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(runToken);
@@ -332,7 +334,7 @@ public sealed class DreamsService(
         _ = Task.Run(
             () => CompleteRunAsync(state, previous, force, nextRunAt, trigger, request, linkedTokenSource.Token),
             CancellationToken.None);
-        return state;
+        return initialState;
     }
 
     private async Task<DreamsRunState> CompleteRunAsync(

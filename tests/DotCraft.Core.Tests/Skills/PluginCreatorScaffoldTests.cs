@@ -2,8 +2,10 @@ using System.Diagnostics;
 using System.Text.Json;
 using DotCraft.Plugins;
 using DotCraft.Skills;
+using DotCraft.Tools;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.Extensions.AI;
 using Xunit;
 
 namespace DotCraft.Tests.Skills;
@@ -317,9 +319,9 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             ?? [];
         var references = platformAssemblies
-            .Concat(AppDomain.CurrentDomain.GetAssemblies()
-                .Where(assembly => !assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
-                .Select(assembly => assembly.Location))
+            .Append(typeof(IDotCraftPlugin).Assembly.Location)
+            .Append(typeof(AIFunctionToolSource).Assembly.Location)
+            .Append(typeof(AIFunction).Assembly.Location)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path => MetadataReference.CreateFromFile(path));
         var compilation = CSharpCompilation.Create(
