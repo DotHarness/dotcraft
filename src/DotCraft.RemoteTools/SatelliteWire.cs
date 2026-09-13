@@ -18,6 +18,7 @@ internal static class SatelliteWire
     public const string OpenSession = "openSession";
     public const string SessionFailed = "sessionFailed";
     public const string Revoked = "revoked";
+    public const string Unpaired = "unpaired";
 
     public const string OfflineClose = "satelliteOffline";
     public const string SessionFailedClose = "satelliteSessionFailed";

@@ -121,6 +121,20 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task PeerConnector_WhenTheHostRevokesWhileConnected_RevokesThePairingOnTheHub()
+    {
+        var credentials = new MemoryCredentialStore();
+        await using var scenario = await SatelliteScenario.StartAsync(_userProfile, credentials: credentials);
+
+        await scenario.Runtime.RevokeAsync(scenario.PeerId);
+
+        await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
+            (await scenario.Hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites")).Length == 0);
+        Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
+        Assert.Empty(credentials.Values);
+    }
+
+    [Fact]
     public async Task PeerConnector_WhenTheHubRefusesTheReconnect_DeletesLocalPairingAndCredential()
     {
         var credentials = new MemoryCredentialStore();

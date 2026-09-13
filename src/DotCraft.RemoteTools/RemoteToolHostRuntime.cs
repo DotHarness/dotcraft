@@ -318,11 +318,20 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     }
 
     /// <summary>Removes one pairing and its stored credential on this machine.</summary>
-    public Task RevokeAsync(string peerId)
+    public async Task RevokeAsync(string peerId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(peerId);
+        var connector = (_host?.Connectors ?? [])
+            .FirstOrDefault(item => string.Equals(item.PeerId, peerId, StringComparison.Ordinal));
+        if (connector is not null)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            // A Hub that does not hear this keeps the pairing until the Agent side revokes it too.
+            try { await connector.SendUnpairedAsync(timeout.Token).ConfigureAwait(false); }
+            catch (Exception) { }
+        }
         _storage.RemovePeer(peerId);
-        return DisconnectAsync(peerId);
+        await DisconnectAsync(peerId).ConfigureAwait(false);
     }
 
     /// <summary>

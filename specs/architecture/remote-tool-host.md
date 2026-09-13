@@ -438,7 +438,7 @@ descriptors including lease state; the Hub marks a peer offline after 45 seconds
 heartbeat. The Hub sends `openSession` with a session id and a session kind when a local client
 wants a data connection, never a kind the Host did not declare, and `revoked` when the pairing is
 removed. The Host answers `openSession` by opening a data connection or by sending `sessionFailed`
-with a stable code.
+with a stable code, and sends `unpaired`, the mirror of `revoked`, when it removes the pairing itself.
 
 A lost control connection is retried with bounded exponential backoff starting at one second and
 capped at 120 seconds, with jitter, and the backoff resets after a successful `hello`. Reconnecting
@@ -516,8 +516,9 @@ Tool Host credential.
 
 `revoke` on either side ends a pairing. On the Agent side it deletes the Hub's peer record and
 closes live connections; the Host receives `revoked`, deletes its peer record and credential, and
-stops reconnecting. On the Host side it deletes the local peer record and credential and closes the
-control connection; the Hub then observes the peer as offline until the Agent side also revokes it.
+stops reconnecting. On the Host side it sends `unpaired` when the control connection is live, so the
+Hub removes its own peer record, then deletes the local peer record and credential and closes that
+connection; a Host that was already offline leaves the Hub's record until the Agent side revokes it.
 
 Host state lives under `~/.craft/remote-tool-host/`: `host.json` (identity, display name,
 workspaces, tool policies, peer records, catalog revision), `serve.lock`, `artifacts/`,

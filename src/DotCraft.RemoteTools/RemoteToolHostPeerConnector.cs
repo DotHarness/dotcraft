@@ -28,6 +28,7 @@ internal sealed class RemoteToolHostPeerConnector(
     private int _screenViewers;
     private int _backoffAttempt;
     private volatile bool _stopped;
+    private volatile ClientWebSocket? _control;
     private CancellationTokenSource? _session;
 
     public string PeerId => peer.PeerId;
@@ -47,6 +48,12 @@ internal sealed class RemoteToolHostPeerConnector(
         try { _session?.Cancel(); }
         catch (ObjectDisposedException) { }
     }
+
+    /// <summary>Tells the Hub this machine dropped the pairing, so it revokes rather than waits for a reconnect.</summary>
+    public Task SendUnpairedAsync(CancellationToken cancellationToken) =>
+        _control is { State: WebSocketState.Open } socket
+            ? SendAsync(socket, new SatelliteFrame { Kind = SatelliteWire.Unpaired, PeerId = peer.PeerId }, cancellationToken)
+            : Task.CompletedTask;
 
     /// <summary>Ends every data session of either kind; screen views close with <paramref name="screenCloseReason"/>.</summary>
     public async Task DrainAsync(string screenCloseReason = SatelliteWire.ScreenClosedHost)
@@ -131,6 +138,7 @@ internal sealed class RemoteToolHostPeerConnector(
 
         _backoffAttempt = 0;
         IsConnected = true;
+        _control = socket;
         ConnectedSince = DateTimeOffset.UtcNow;
         StateChanged?.Invoke(this);
 
@@ -148,6 +156,7 @@ internal sealed class RemoteToolHostPeerConnector(
             catch (Exception) { }
             await DrainAsync().ConfigureAwait(false);
             _session = null;
+            _control = null;
             IsConnected = false;
             ConnectedSince = null;
             StateChanged?.Invoke(this);

@@ -264,6 +264,10 @@ internal sealed class SatelliteConnectionManager(
                         frame.Workspaces ?? [],
                         DateTimeOffset.UtcNow);
                     break;
+                case SatelliteWire.Unpaired:
+                    registry.Revoke(connection.PeerId);
+                    events.Publish("satellite.revoked", data: new { peerId = connection.PeerId });
+                    return;
                 case SatelliteWire.SessionFailed when frame.SessionId is { Length: > 0 } sessionId:
                     connection.Touch();
                     if (_sessions.TryGetValue(sessionId, out var session))
