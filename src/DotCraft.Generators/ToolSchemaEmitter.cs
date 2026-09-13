@@ -28,7 +28,7 @@ internal static class ToolSchemaEmitter
     {
         var properties = new List<string>();
         var required = new List<string>();
-        foreach (var parameter in tool.Parameters.Where(static parameter => !parameter.IsCancellationToken))
+        foreach (var parameter in tool.Parameters.Where(static parameter => parameter.IsModelParameter))
         {
             properties.Add($"{Quote(parameter.SchemaName)}:{BuildTypeSchema(
                 parameter.TypeSymbol,

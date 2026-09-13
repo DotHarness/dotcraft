@@ -4,9 +4,11 @@ Harness 把应用自有的工具组合进 Agentic Loop。工具实现留在应�
 
 ## 定义工具来源
 
-继承 `AIFunctionToolSource`，将 .NET 方法公开为模型可调用的函数。
+用 `[GeneratedTool]` 标记普通强类型方法，再通过 `AIFunctionToolSource` 暴露生成的包装器。Harness NuGet 包已包含生成器，无需另加 analyzer 引用。下面假设应用程序集名为 `MyApp`。
 
 ```csharp
+using System.ComponentModel;
+using DotCraft.GeneratedTools.MyApp;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -17,15 +19,22 @@ public sealed class ClockToolSource : AIFunctionToolSource
     protected override IEnumerable<AIFunction> CreateFunctions(
         ToolPlanningContext context)
     {
-        yield return AIFunctionFactory.Create(
-            () => DateTimeOffset.UtcNow,
-            name: "GetUtcTime",
-            description: "Return the current UTC time.");
+        yield return GeneratedToolFunctions.ClockToolSource_GetUtcTime(this);
     }
+
+    [GeneratedTool]
+    [Description("Return the current UTC time.")]
+    public DateTimeOffset GetUtcTime() => DateTimeOffset.UtcNow;
 }
 ```
 
 `CreateFunctions` 收到当前 Thread 与 Turn 的不可变规划上下文。工具只在特定 workspace、模式或 Provider 能力下可用时，用它决定这次是否产出这个函数。
+
+生成器负责 schema 生成与强类型参数绑定。为每个模型参数添加 `[Description]`。C# 默认值对应可选参数。`[Tool]` 使用同一个生成器，并增加内置目录和呈现元数据。插件通常使用默认不进入内置目录的 `[GeneratedTool]`。
+
+### 按需获取真实调用身份
+
+多数工具只需要强类型参数、构造函数注入的服务，以及可选的 `CancellationToken`。只有方法需要真实调用身份时才请求 `ToolInvocationContext`，需要显式表达成功或失败时才返回 `ToolExecutionResult`。两项契约见[编写强类型工具](../integrations/dotnet-plugins#write-typed-tools)。
 
 ## 注册工具来源
 

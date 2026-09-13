@@ -260,6 +260,38 @@ Generated tool parameter objects are closed by default, including statically kno
 
 Schemas discovered or supplied at runtime are exempt from this rule. Exempt sources include MCP servers, plugins, channel adapters, App Bindings, runtime dynamic tools, and provider translation layers that preserve or transform a schema owned by another boundary.
 
+### 7.2 Strongly typed tool implementations
+
+Native and .NET plugin authors SHOULD implement ordinary tools as methods marked with `[Tool]`
+or `[GeneratedTool]`, with typed business parameters and constructor-supplied services. An
+`AIFunctionToolSource` selects generated functions and supplies namespace, exposure and policy
+configuration; its shared adapter owns registration and JSON argument conversion. Custom
+`IToolRuntime` implementations and `[ToolDeclaration]` remain available for specialized adapters.
+
+A method MAY request one required, non-nullable, by-value `ToolInvocationContext` parameter when it
+needs live invocation identity. The generator MUST exclude this parameter and `CancellationToken`
+from model schema and JSON binding. Model arguments MUST NOT override injected context.
+
+`AIFunctionToolRuntime` MUST carry its received context in a fresh `AIFunctionArguments.Context`
+for each invocation. Generated functions read that separate context through the host-owned base
+class, never from model arguments, mutable shared state or a planning identity. Invoking a function
+that requires context without supplying it fails before its business method runs. Independent and
+concurrent calls MUST receive their own thread, Turn, call, workspace and execution-location values.
+Task isolation remains the business service's responsibility using that live identity.
+
+Methods declared to return `ToolExecutionResult`, `Task<ToolExecutionResult>` or
+`ValueTask<ToolExecutionResult>` retain the result object through generated marshalling. The
+runtime envelope has no generated output schema, and a null envelope is `tool_result_invalid`.
+Ordinary return values retain their existing serialization behavior. An explicit business result,
+including an uncertain external outcome, MUST NOT be overwritten by the adapter.
+
+Result forwarding does not bypass source containment or audience normalization. In particular,
+.NET plugin results still cross the host's copy-out boundary in
+[.NET Plugins](dotnet-plugins.md#8-tool-containment); host-private fields do not gain plugin authority.
+
+Generated declarations own reusable input/output serializer options with independent resolvers so
+schema and serialization metadata do not pin a retired plugin load context.
+
 ## 8. Snapshot and invalidation semantics
 
 Each Turn MUST execute against one immutable `EffectiveToolSnapshot`. Registration, schema, exposure, and presentation changes take effect on the next Turn. This preserves prompt-cache and invocation consistency.

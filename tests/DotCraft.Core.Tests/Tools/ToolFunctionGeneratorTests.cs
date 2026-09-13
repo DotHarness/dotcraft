@@ -1,12 +1,9 @@
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Generators;
 using DotCraft.Tools;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -92,7 +89,7 @@ public sealed class ToolFunctionGeneratorTests
             """;
 
         var assemblyName = $"GeneratorFixture_{Guid.NewGuid():N}";
-        var result = RunGenerator(source, assemblyName, out var outputCompilation);
+        var result = ToolGeneratorTestCompilation.Run(source, assemblyName, out var outputCompilation);
         Assert.Empty(result.Diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         Assert.Empty(outputCompilation.GetDiagnostics().Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
 
@@ -234,7 +231,7 @@ public sealed class ToolFunctionGeneratorTests
             }
             """;
 
-        var result = RunGenerator(source, $"InvalidFixture_{Guid.NewGuid():N}", out _);
+        var result = ToolGeneratorTestCompilation.Run(source, $"InvalidFixture_{Guid.NewGuid():N}", out _);
         var ids = result.Diagnostics.Select(static diagnostic => diagnostic.Id).ToHashSet(StringComparer.Ordinal);
 
         Assert.Contains("DCGEN005", ids);
@@ -253,31 +250,4 @@ public sealed class ToolFunctionGeneratorTests
         Assert.Contains(constraintMessages, static message => message.Contains("invalid pattern", StringComparison.Ordinal));
     }
 
-    private static GeneratorRunResult RunGenerator(
-        string source,
-        string assemblyName,
-        out Compilation outputCompilation)
-    {
-        var syntaxTree = CSharpSyntaxTree.ParseText(
-            source,
-            new CSharpParseOptions(LanguageVersion.Preview, DocumentationMode.Diagnose));
-        var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Append(typeof(ToolAttribute).Assembly.Location)
-            .Append(typeof(AIFunction).Assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(static path => MetadataReference.CreateFromFile(path));
-        var compilation = CSharpCompilation.Create(
-            assemblyName,
-            [syntaxTree],
-            references,
-            new CSharpCompilationOptions(
-                OutputKind.DynamicallyLinkedLibrary,
-                nullableContextOptions: NullableContextOptions.Enable));
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            [new ToolFunctionGenerator().AsSourceGenerator()],
-            parseOptions: (CSharpParseOptions)syntaxTree.Options);
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out outputCompilation, out _);
-        return Assert.Single(driver.GetRunResult().Results);
-    }
 }

@@ -173,11 +173,21 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
                 referenceSet.References,
                 CompilationOptions);
 
-            using var assemblyStream = new MemoryStream();
-            var emit = compilation.Emit(assemblyStream);
-            var compileDiagnostics = emit.Diagnostics
+            var generationDiagnostics = DotNetPluginToolGenerator.Run(compilation, ParseOptions, out var generatedCompilation)
                 .Where(static diagnostic => diagnostic.Severity != DiagnosticSeverity.Hidden)
-                .Select(diagnostic => ToPluginDiagnostic(diagnostic, pluginId, referenceSet.References))
+                .Select(diagnostic => ToPluginDiagnostic(diagnostic, pluginId, referenceSet.References, "generate"))
+                .ToArray();
+            if (generationDiagnostics.Any(static diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error))
+            {
+                TryDeleteStaging(stagingRoot);
+                return DotNetPluginBuildPreparation.Failed(generationDiagnostics);
+            }
+
+            using var assemblyStream = new MemoryStream();
+            var emit = generatedCompilation.Emit(assemblyStream);
+            var compileDiagnostics = generationDiagnostics.Concat(emit.Diagnostics
+                .Where(static diagnostic => diagnostic.Severity != DiagnosticSeverity.Hidden)
+                .Select(diagnostic => ToPluginDiagnostic(diagnostic, pluginId, referenceSet.References, "compile")))
                 .ToArray();
             if (!emit.Success)
             {
@@ -290,14 +300,15 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
     private static PluginDiagnostic ToPluginDiagnostic(
         Diagnostic diagnostic,
         string pluginId,
-        IReadOnlyList<MetadataReference> references)
+        IReadOnlyList<MetadataReference> references,
+        string phase)
     {
         var path = diagnostic.Location.IsInSource
             ? diagnostic.Location.SourceTree?.FilePath.Replace('\\', '/')
             : null;
         var parameters = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         {
-            ["phase"] = JsonSerializer.SerializeToElement("compile")
+            ["phase"] = JsonSerializer.SerializeToElement(phase)
         };
         if (diagnostic.Location.IsInSource)
         {

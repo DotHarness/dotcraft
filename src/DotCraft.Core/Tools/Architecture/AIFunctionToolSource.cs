@@ -210,8 +210,14 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
             foreach (var (key, value) in arguments)
                 values[key] = value?.Deserialize<object>(_function.JsonSerializerOptions);
 
-            var result = await _function.InvokeAsync(new AIFunctionArguments(values), cancellationToken)
+            var functionArguments = new AIFunctionArguments(values)
+            {
+                Context = new Dictionary<object, object?> { [typeof(ToolInvocationContext)] = context }
+            };
+            var result = await _function.InvokeAsync(functionArguments, cancellationToken)
                 .ConfigureAwait(false);
+            if (result is ToolExecutionResult executionResult)
+                return executionResult;
             if (result is IEnumerable<AIContent> richContent)
             {
                 var contentItems = richContent.ToArray();

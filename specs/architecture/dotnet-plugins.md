@@ -428,6 +428,22 @@ output are admitted by the same parser, metadata preflight, fingerprinting, gene
 contribution rules as an installed bundle. The project contains no `.csproj`, and authoring never
 restores NuGet packages or resolves arbitrary machine assemblies.
 
+Before emitting the assembly, the authoring compiler MUST run the host-matched
+`ToolFunctionGenerator` using the compilation's language options. It runs only that fixed tool
+generator, not module discovery or plugin-supplied analyzers. Generated sources belong to the
+in-memory compilation and MUST NOT be written into `src/`. The plugin compilation reference
+allowlist remains unchanged; Runtime, Generators and Roslyn are host implementation dependencies,
+not additional plugin API references.
+
+Generator diagnostics preserve stable codes, invariant English messages and relative source
+locations with `phase=generate`. Generation errors fail preparation before emit and MUST preserve
+published bytes and the active generation.
+
+The Host carries its matching generator and compiler runtime. `DotCraft.Harness` exposes that
+generator as its build analyzer and runtime authoring dependency. Authoring uses the Host's preserved
+compilation reference pack, including in extracted single-file deployments, without SDK lookup,
+restore or network access at execution time.
+
 The stable `DotNetPlugin` tool namespace follows the Host's configured tool-loading strategy and
 exposes two operations:
 
@@ -450,6 +466,13 @@ active. Source changes take effect only after `Build`.
 ---
 
 ## 8. Tool containment
+
+Plugin tool methods use the same strongly typed authoring contract as built-ins; see
+[Tool Architecture §7.2](tools-architecture.md#72-strongly-typed-tool-implementations).
+Invocation context and full execution results are optional capabilities, not requirements for
+ordinary business methods. An `AIFunctionToolSource` can contribute generated functions through
+`IToolSource`; the Host still assigns plugin identity and lifecycle. Full result forwarding inside
+a generated function does not expand the fields admitted by the plugin result projection.
 
 Remote execution reuses this lifecycle through Runtime's provider-free execution host. The Agent
 exports accepted bundle bytes, active dependency closure, and generation settings, never running
