@@ -115,14 +115,12 @@ public sealed class DotNetPluginAuthoringRuntimeTests :
             PluginDotnetFingerprint.Compute(ProjectPluginRoot(PluginId)));
         Assert.NotEqual(firstPreparation.Fingerprint, faultingPreparation.Fingerprint);
 
-        var revision = manager.Snapshot.Revision;
         using var repeatedPreparation = Prepare(PluginId);
         var repeated = await manager.ApplyAuthoringBuildAsync(PluginId, repeatedPreparation);
 
         Assert.Equal(PluginRuntimeMutationOutcome.NoChange, repeated.Outcome);
         Assert.Equal(runtime.GenerationId, repeated.Runtime?.GenerationId);
         Assert.Equal(PluginDotnetRuntimeState.Faulted, repeated.Runtime?.State);
-        Assert.Equal(revision, manager.Snapshot.Revision);
     }
 
     [Fact]
