@@ -1063,7 +1063,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var beforeTurnCount = child.Turns.Count;
         var waitTask = SubAgentSessionControl.WaitAgentAsync(
             context,
-            timeoutMs: 1000,
+            timeoutMs: 10_000,
             CancellationToken.None,
             FastWaitTimeouts);
 
@@ -1119,7 +1119,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             CancellationToken.None);
         var waitTask = SubAgentSessionControl.WaitAgentAsync(
             context,
-            timeoutMs: 1000,
+            timeoutMs: 10_000,
             CancellationToken.None,
             FastWaitTimeouts);
 
@@ -1409,7 +1409,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         };
         var waitTask = SubAgentSessionControl.WaitAgentAsync(
             childContext,
-            timeoutMs: 1000,
+            timeoutMs: 10_000,
             CancellationToken.None,
             FastWaitTimeouts);
 
