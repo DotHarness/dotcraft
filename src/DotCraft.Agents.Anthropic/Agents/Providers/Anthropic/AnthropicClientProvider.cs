@@ -172,7 +172,8 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
         ArgumentNullException.ThrowIfNull(runtime);
         return GetAnthropicClient(runtime).Beta.AsIChatClient(
             NormalizeRequiredModel(runtime.Model),
-            defaultMaxOutputTokens: NormalizeMaxOutputTokens(runtime.MaxOutputTokens));
+            defaultMaxOutputTokens: NormalizeMaxOutputTokens(runtime.MaxOutputTokens),
+            thinkingMode: AnthropicThinkingMode.Extended);
     }
 
     private AnthropicClient GetAnthropicClient(AnthropicClientKey key) =>

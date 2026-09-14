@@ -112,6 +112,29 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
     }
 
     [Fact]
+    public async Task GetResponseAsync_UnlistedBetaModelSerializesExtendedThinking()
+    {
+        var handler = new CaptureHandler();
+        var config = CreateConfig(
+            enabled: true,
+            effort: ReasoningEffort.High,
+            output: ReasoningOutput.Full);
+        var client = CreateBetaClient(handler, config, model: "claude-sonnet-4-5");
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
+        {
+            Reasoning = config.Reasoning.ToOptions()
+        });
+
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var root = document.RootElement;
+        var thinking = root.GetProperty("thinking");
+        Assert.Equal("enabled", thinking.GetProperty("type").GetString());
+        Assert.True(thinking.TryGetProperty("budget_tokens", out _));
+        Assert.False(root.TryGetProperty("output_config", out _));
+    }
+
+    [Fact]
     public async Task GetResponseAsync_ReasoningOutputNoneSerializesOmittedDisplay()
     {
         var handler = new CaptureHandler();
@@ -225,7 +248,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         };
 
         return new AnthropicThinkingChatClient(
-            anthropicClient.Beta.AsIChatClient(model),
+            anthropicClient.Beta.AsIChatClient(model, thinkingMode: AnthropicThinkingMode.Extended),
             ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(config, "http://localhost", model),
             model,
             defaultMaxOutputTokens: 64_000,
