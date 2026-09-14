@@ -1177,6 +1177,7 @@ Surfaces beyond the conversation follow the same rules as the rest of this docum
 
 - The auxiliary right-side **viewer panel** coexists with the changes / plan / terminal tabs and lets users open native file viewers and embedded browser tabs without leaving the workspace.
 - Chat-local file references, including absolute local paths and `file://` links, may open in the viewer panel even when the file is outside the active workspace. External local files must be served only after a user-triggered exact-file authorization; authorizing one external file must not authorize its parent directory or sibling files.
+- The viewer's Open action launches the displayed local file in the selected application, including files outside the active workspace. Launch failures show an error notification.
 
 ### 10.2 Browser Automation
 
