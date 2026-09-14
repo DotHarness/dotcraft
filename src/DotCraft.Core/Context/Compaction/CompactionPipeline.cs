@@ -566,7 +566,7 @@ public sealed class CompactionPipeline
         }
 
         var partialResult = partial.Result;
-        var summaryMessage = new ChatMessage(ChatRole.Assistant, partialResult.FormattedSummary);
+        var summaryMessage = CompactionSummaryMessage.Create(partialResult.FormattedSummary);
         var newHistory = new List<ChatMessage>(1 + partialResult.PreservedTail.Count) { summaryMessage };
         newHistory.AddRange(ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(
             partialResult.PreservedTail));
@@ -650,7 +650,7 @@ public sealed class CompactionPipeline
         var result = full.Result;
         var newHistory = new List<ChatMessage>(1 + result.PreservedTail.Count)
         {
-            new(ChatRole.Assistant, result.FormattedSummary)
+            CompactionSummaryMessage.Create(result.FormattedSummary)
         };
         newHistory.AddRange(ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(
             result.PreservedTail));

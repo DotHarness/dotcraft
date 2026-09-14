@@ -8,7 +8,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 
 const sendRequest = vi.fn()
 const existing = { id: 'existing', displayName: 'Existing subscription', protocol: 'openai-responses', hasApiKey: false,
-  authMethod: 'chatgptOAuth', chatGptAccountId: 'existing-account', endPoint: '', isImplicit: false }
+  authMethod: 'chatgptOAuth', chatGptAccountId: 'existing-account', endPoint: '' }
 
 describe('Settings OAuth editor', () => {
   beforeEach(() => {

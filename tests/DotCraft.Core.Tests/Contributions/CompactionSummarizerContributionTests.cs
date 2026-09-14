@@ -174,7 +174,7 @@ public sealed class CompactionSummarizerContributionTests
         var result = await ManualCompactAsync(pipeline);
 
         Assert.Equal(2, result.Messages.Count);
-        Assert.Equal(ChatRole.Assistant, result.Messages[0].Role);
+        Assert.Equal(ChatRole.User, result.Messages[0].Role);
         Assert.Contains("contributed summary", result.Messages[0].Text);
         Assert.Equal("kept verbatim", result.Messages[1].Text);
     }

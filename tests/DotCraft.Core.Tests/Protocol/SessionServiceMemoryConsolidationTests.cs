@@ -16,7 +16,7 @@ using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionServiceMemoryConsolidationTests : IDisposable
+public sealed partial class SessionServiceMemoryConsolidationTests : IDisposable
 {
     private readonly string _tempDir;
 
@@ -721,9 +721,10 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
     private static async Task<List<SessionEvent>> CollectThreadEventsAsync(
         ISessionService svc,
         string threadId,
-        Func<List<SessionEvent>, bool> done)
+        Func<List<SessionEvent>, bool> done,
+        TimeSpan? timeout = null)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(5));
         var collected = new List<SessionEvent>();
         await foreach (var evt in svc.SubscribeThreadAsync(threadId, replayRecent: true, cts.Token))
         {

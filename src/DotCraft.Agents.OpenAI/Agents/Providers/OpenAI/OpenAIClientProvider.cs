@@ -188,7 +188,8 @@ public sealed partial class OpenAIClientProvider :
             runtime.Model,
             runtime.UseResponsesLite,
             GetChatGptResponsesCompactTransport(runtime),
-            rawRepresentationClient);
+            rawRepresentationClient,
+            runtime.UseResponsesLite ? ResolveInstallationId() : null);
 
     IProviderConversationHistory IProviderHistorySessionFactory.CreateSession(
         ProviderConversationIdentity conversationIdentity,

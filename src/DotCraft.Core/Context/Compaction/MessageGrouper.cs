@@ -138,8 +138,17 @@ public static class MessageGrouper
             return message;
 
         var clone = message.Clone();
-        foreach (var call in clone.Contents.OfType<FunctionCallContent>())
-            call.Arguments ??= new Dictionary<string, object?>();
+        clone.Contents = message.Contents.Select(content =>
+            content is FunctionCallContent { Arguments: null } call
+                ? new FunctionCallContent(call.CallId, call.Name, new Dictionary<string, object?>())
+                {
+                    Annotations = call.Annotations,
+                    AdditionalProperties = call.AdditionalProperties,
+                    RawRepresentation = call.RawRepresentation,
+                    Exception = call.Exception,
+                    InformationalOnly = call.InformationalOnly
+                }
+                : content).ToList();
         return clone;
     }
 

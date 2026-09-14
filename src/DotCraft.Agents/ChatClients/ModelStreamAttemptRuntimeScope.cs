@@ -54,6 +54,13 @@ internal static class ModelStreamAttemptRuntimeScope
 
     public static ModelStreamAttemptRuntimeContext? Current => CurrentContext.Value;
 
+    internal static IDisposable Suppress()
+    {
+        var previous = CurrentContext.Value;
+        CurrentContext.Value = null;
+        return new Scope(previous);
+    }
+
     public static IDisposable Begin(int attemptNumber)
     {
         var previous = CurrentContext.Value;

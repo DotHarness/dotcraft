@@ -296,7 +296,6 @@ public sealed class ResponsesLiteWireTests : IDisposable
         EndPoint: endpoint,
         NetworkTimeoutSeconds: 5,
         MaxOutputTokens: null,
-        IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
         ChatGptAccountId: "stale-config-account",
@@ -311,7 +310,6 @@ public sealed class ResponsesLiteWireTests : IDisposable
         EndPoint: endpoint,
         NetworkTimeoutSeconds: 5,
         MaxOutputTokens: null,
-        IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses));
 
     private static async Task ConsumeAsync(IAsyncEnumerable<ChatResponseUpdate> updates)

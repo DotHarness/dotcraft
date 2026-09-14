@@ -148,7 +148,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     }
 
     [Fact]
-    public async Task LiteClient_DoesNotAddToolControlsWithoutTools()
+    public async Task LiteClient_DisablesParallelCallsEvenWithoutTools()
     {
         var transport = new EmptyTransport();
         using var client = new OpenAIResponsesLiteChatClient(
@@ -170,7 +170,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
 
         using var document = JsonDocument.Parse(Assert.Single(transport.WireBodies));
         Assert.False(document.RootElement.TryGetProperty("tool_choice", out _));
-        Assert.False(document.RootElement.TryGetProperty("parallel_tool_calls", out _));
+        Assert.False(document.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
     }
 
     [Fact]

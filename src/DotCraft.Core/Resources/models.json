@@ -157,6 +157,9 @@
     "deepseek-chat": {
       "contextWindow": 1000000
     },
+    "deepseek-flash": {
+      "contextWindow": 1000000
+    },
     "deepseek-r1": {
       "contextWindow": 128000
     },

@@ -153,7 +153,6 @@ public sealed class DeepThinkingChatClientTests
         endpoint,
         30,
         null,
-        false,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIChatCompletions));
 
     private static ProviderPipelineOptions PipelineOptions(bool reasoningEnabled) => new(

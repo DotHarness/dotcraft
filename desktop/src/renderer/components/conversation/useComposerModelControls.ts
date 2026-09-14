@@ -360,7 +360,7 @@ export function useComposerModelControls({
     setModelApplying(true)
     try {
       const workspaceCfg = await readEffectiveWorkspaceConfig()
-      await loadModels(true, nextProviderId)
+      await loadModels(false, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
       const remembered = readWorkspacePreference(workspaceCfg, nextProviderId)
       const nextModel = remembered?.model || catalogState.modelOptions[0]
@@ -400,7 +400,7 @@ export function useComposerModelControls({
       setContextMode(resolveContextFromConfiguration(existingConfig))
       addToast(`Provider switched to ${nextProviderId}`, 'success')
     } catch (err) {
-      await loadModels(true, providerId)
+      await loadModels(false, providerId)
       addToast(`Failed to switch provider: ${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
       setModelApplying(false)

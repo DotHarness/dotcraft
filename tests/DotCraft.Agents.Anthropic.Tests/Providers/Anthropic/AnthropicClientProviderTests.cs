@@ -122,6 +122,5 @@ public sealed class AnthropicClientProviderTests
             : "https://example.test/v1",
         NetworkTimeoutSeconds: networkTimeoutSeconds,
         MaxOutputTokens: null,
-        IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(protocol));
 }

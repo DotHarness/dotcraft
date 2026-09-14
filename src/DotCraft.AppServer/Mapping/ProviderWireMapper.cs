@@ -10,14 +10,13 @@ public static class ProviderContractMapper
     {
         return config.Providers
             .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, isImplicit: false))
+            .Select(pair => BuildProviderInfo(pair.Key, pair.Value))
             .ToList();
     }
 
     public static Contract.ProviderInfo BuildProviderInfo(
         string id,
-        AppConfig.ModelProviderConfig provider,
-        bool isImplicit)
+        AppConfig.ModelProviderConfig provider)
     {
         var protocol = ModelProviderProtocols.Normalize(provider.Protocol);
         var authMethod = ModelProviderAuthMethods.Normalize(provider.AuthMethod);
@@ -34,7 +33,6 @@ public static class ProviderContractMapper
             StreamMaxRetries = provider.StreamMaxRetries,
             StreamIdleTimeoutMs = provider.StreamIdleTimeoutMs,
             SupportsHostedImageGeneration = ModelProviderResolver.ResolveHostedImageGenerationSupport(provider),
-            IsImplicit = isImplicit,
             AuthMethod = authMethod,
             ChatGptAccountId = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
                 ? provider.ChatGptAccountId.Trim()

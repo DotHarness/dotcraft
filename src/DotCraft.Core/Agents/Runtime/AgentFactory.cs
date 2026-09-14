@@ -1168,7 +1168,6 @@ public sealed class AgentFactory : IAsyncDisposable
             EndPoint,
             NetworkTimeoutSeconds,
             MaxOutputTokens,
-            IsImplicit: ModelProviderResolver.IsImplicitProviderId(ProviderId),
             ModelProviderCapabilities.ForProtocol(ProviderProtocol),
             StreamMaxRetries,
             StreamIdleTimeoutMs,

@@ -35,7 +35,6 @@ public sealed class ChatGptResponsesCompactBackendTests
             "https://example.test",
             30,
             MaxOutputTokens: null,
-            IsImplicit: false,
             ModelProviderCapabilities.ForProtocol(protocol),
             AuthMethod: authMethod);
 
@@ -45,7 +44,7 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
-    public void RequestBuilder_LiteProjectsOnlyCompactSupportedFields()
+    public void RequestBuilder_LiteReusesOrdinaryStreamingShape()
     {
         var input = new ProviderNativeCompactionInput(
             [new ProviderHistoryItem("input:0", ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}"""))],
@@ -93,12 +92,15 @@ public sealed class ChatGptResponsesCompactBackendTests
 
         Assert.Equal(
             [
+                "include",
                 "input",
                 "model",
                 "parallel_tool_calls",
                 "prompt_cache_key",
                 "reasoning",
                 "service_tier",
+                "store",
+                "stream",
                 "text"
             ],
             wire.EnumerateObject()
@@ -111,11 +113,11 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.Equal("high", body.Reasoning?.GetProperty("effort").GetString());
         Assert.Equal("all_turns", body.Reasoning?.GetProperty("context").GetString());
         Assert.Equal(
-            ["additional_tools", "message", "message"],
+            ["additional_tools", "message", "message", "compaction_trigger"],
             body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
-        Assert.False(wire.TryGetProperty("stream", out _));
-        Assert.False(wire.TryGetProperty("store", out _));
-        Assert.False(wire.TryGetProperty("include", out _));
+        Assert.True(wire.GetProperty("stream").GetBoolean());
+        Assert.False(wire.GetProperty("store").GetBoolean());
+        Assert.True(wire.TryGetProperty("include", out _));
         Assert.False(wire.TryGetProperty("client_metadata", out _));
         Assert.False(wire.TryGetProperty("max_output_tokens", out _));
     }
@@ -139,8 +141,9 @@ public sealed class ChatGptResponsesCompactBackendTests
 
         Assert.Null(body.Instructions);
         Assert.Null(body.Tools);
+        Assert.False(body.ParallelToolCalls);
         Assert.Equal(
-            ["additional_tools", "retained"],
+            ["additional_tools", "retained", "compaction_trigger"],
             body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
         Assert.False(wire.TryGetProperty("instructions", out _));
         Assert.False(wire.TryGetProperty("tools", out _));
@@ -178,12 +181,12 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.Equal("high", body.Reasoning?.GetProperty("effort").GetString());
         Assert.False(body.Reasoning?.TryGetProperty("context", out _) ?? false);
         Assert.Equal(
-            ["message"],
+            ["message", "compaction_trigger"],
             body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
     }
 
     [Fact]
-    public async Task Backend_PreservesOrderedUnknownOutputAndDoesNotFallback()
+    public async Task Backend_RetainsInputAndRawCompactionFieldsWithoutFallback()
     {
         var bridge = new FakeBridge(
             new ProviderNativeCompactionInput(
@@ -197,7 +200,7 @@ public sealed class ChatGptResponsesCompactBackendTests
               "id": "compact_response_1",
               "output": [
                 {"type":"retained","provider_field":{"value":1}},
-                {"type":"future_compaction","encrypted_content":"YWJjZA=="}
+                {"type":"compaction","encrypted_content":"YWJjZA==","future_field":{"value":1}}
               ]
             }
             """);
@@ -221,7 +224,8 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
         Assert.True(result.Status.EstimatedTokensAfter > 0);
         var replacement = Assert.IsType<CompactionReplacement.ProviderNative>(result.Replacement);
-        Assert.Equal(["retained", "future_compaction"], replacement.Items.Select(ReadType));
+        Assert.Equal(["message", "compaction"], replacement.Items.Select(ReadType));
+        Assert.Equal(1, replacement.Items[1].GetProperty("future_field").GetProperty("value").GetInt32());
         Assert.Equal(1, transport.CallCount);
         Assert.Equal(1, bridge.CaptureCount);
     }

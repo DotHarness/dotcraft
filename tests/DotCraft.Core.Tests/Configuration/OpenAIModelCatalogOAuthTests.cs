@@ -228,7 +228,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         EndPoint: ModelProviderDefaults.ChatGptBackendEndpoint,
         NetworkTimeoutSeconds: 30,
         MaxOutputTokens: null,
-        IsImplicit: false,
         Capabilities: ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
         ChatGptAccountId: accountId,

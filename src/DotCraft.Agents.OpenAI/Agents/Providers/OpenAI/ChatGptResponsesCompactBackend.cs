@@ -31,7 +31,8 @@ internal static class ChatGptResponsesCompactRequestBuilder
         IReadOnlyList<ChatMessage> neutralHistory,
         ChatOptions? options,
         bool useResponsesLite,
-        IChatClient? rawRepresentationClient = null)
+        IChatClient? rawRepresentationClient = null,
+        string? installationId = null)
     {
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Model must be configured.", nameof(model));
@@ -53,7 +54,7 @@ internal static class ChatGptResponsesCompactRequestBuilder
             rawRepresentationClient: rawRepresentationClient);
         var ordinaryBody = ModelReaderWriter.Write(request.Options);
         var wireBody = useResponsesLite
-            ? OpenAIResponsesLiteRequestMapper.BuildCompactWireBody(ordinaryBody)
+            ? OpenAIResponsesLiteRequestMapper.BuildWireBody(ordinaryBody, installationId)
             : ordinaryBody;
         var compact = JsonSerializer.Deserialize<ChatGptResponsesCompactRequest>(
                           wireBody.ToMemory().Span,
@@ -61,7 +62,8 @@ internal static class ChatGptResponsesCompactRequestBuilder
                       ?? throw new InvalidDataException(
                           "provider_compaction_invalid_request: Responses mapper produced an empty request body.");
 
-        return compact with { Model = model.Trim() };
+        compact.Input.Add(JsonSerializer.SerializeToElement(new { type = "compaction_trigger" }));
+        return compact with { Model = model.Trim(), Stream = true, Store = false };
     }
 }
 
@@ -69,7 +71,8 @@ internal sealed class OpenAIResponsesCompactor(
     string model,
     bool useResponsesLite,
     IChatGptResponsesCompactTransport transport,
-    IChatClient? rawRepresentationClient = null) : IProviderNativeCompactor
+    IChatClient? rawRepresentationClient = null,
+    string? installationId = null) : IProviderNativeCompactor
 {
     public async Task<ProviderNativeCompactionReplacement> CompactAsync(
         ProviderNativeCompactionInput input,
@@ -88,9 +91,10 @@ internal sealed class OpenAIResponsesCompactor(
             neutralHistory,
             options,
             useResponsesLite,
-            rawRepresentationClient);
+            rawRepresentationClient,
+            installationId);
         var response = await transport.CompactAsync(body, cancellationToken).ConfigureAwait(false);
-        var output = ValidateOutput(response);
+        var output = ResponsesCompactionHistory.Build(input.Items, ValidateOutput(response).Single());
         var estimatedTokensAfter = OpenAIResponsesNativeTokenEstimator.Estimate(output, [], options);
         var items = output
             .Select((item, index) => new ProviderHistoryItem($"compact-output:{index}", item))
@@ -120,8 +124,13 @@ internal sealed class OpenAIResponsesCompactor(
                 throw new InvalidDataException(
                     "provider_compaction_invalid_response: Compact output items must be JSON objects.");
             }
-            items.Add(item.Clone());
+            if (item.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
+                && type.GetString() == "compaction")
+                items.Add(item.Clone());
         }
+        if (items.Count != 1)
+            throw new InvalidDataException(
+                "provider_compaction_invalid_response: Expected exactly one compaction output item.");
         return items;
     }
 }

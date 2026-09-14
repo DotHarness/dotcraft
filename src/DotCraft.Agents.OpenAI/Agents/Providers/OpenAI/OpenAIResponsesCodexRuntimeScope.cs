@@ -210,7 +210,7 @@ internal static class OpenAIResponsesCodexMetadata
             ResolveSubagentHeader(conversationIdentity.SubagentKind),
             NormalizeOptional(conversationIdentity.SubagentKind),
             turnMetadata,
-            requestContext?.ConversationState?.ContinuationState ?? context?.TurnState);
+            requestContext is not null ? requestContext.ConversationState?.ContinuationState : context?.TurnState);
     }
 
     internal static OpenAIResponsesCodexMetadataSnapshot GetOrCreateSnapshot(
@@ -233,7 +233,9 @@ internal static class OpenAIResponsesCodexMetadata
 
     internal static OpenAIResponsesRoutingIdentity ResolveRoutingIdentity()
     {
-        if (OpenAIResponsesRoutingIdentityScope.Current is { } requestIdentity)
+        var requestContext = ProviderRequestContextScope.Current;
+        if (requestContext?.CurrentIdentity.RequestKind is not (ProviderRequestKind.Memory or ProviderRequestKind.Compaction)
+            && OpenAIResponsesRoutingIdentityScope.Current is { } requestIdentity)
             return requestIdentity;
 
         var conversationIdentity = ProviderRequestContextScope.Current?.CurrentIdentity

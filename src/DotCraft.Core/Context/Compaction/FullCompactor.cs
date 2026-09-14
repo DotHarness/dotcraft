@@ -119,7 +119,7 @@ public sealed class FullCompactor
             rawSummary,
             transcriptPath: null,
             recentMessagesPreserved: false);
-        var replacement = new ChatMessage(ChatRole.Assistant, formatted);
+        var replacement = CompactionSummaryMessage.Create(formatted);
 
         return FullCompactAttempt.Succeeded(new FullCompactResult(
             SummarizedMessages: messages,

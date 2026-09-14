@@ -93,7 +93,6 @@ public sealed class MemoryConsolidatorTests : IDisposable
             EndPoint: "http://localhost",
             NetworkTimeoutSeconds: 60,
             MaxOutputTokens: 64_000,
-            IsImplicit: false,
             Capabilities: ModelProviderCapabilities.ForProtocol(protocol));
 
     private sealed class ThrowingChatClient(Exception exception) : IChatClient

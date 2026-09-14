@@ -40,10 +40,22 @@ internal sealed record ChatGptResponsesCompactRequest
     [JsonPropertyName("text")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? Text { get; init; }
+
+    [JsonPropertyName("stream")]
+    public bool Stream { get; init; } = true;
+
+    [JsonPropertyName("store")]
+    public bool Store { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalProperties { get; init; }
 }
 
 internal sealed record ChatGptResponsesCompactResponse
 {
+    public string? ResponseId { get; init; }
+    public long? InputTokens { get; init; }
+    public long? OutputTokens { get; init; }
     [JsonPropertyName("output")]
     [JsonRequired]
     public required List<JsonElement>? Output { get; init; }

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.1 |
+| **Version** | 0.4.2 |
 | **Status** | Living |
-| **Date** | 2026-08-12 |
+| **Date** | 2026-09-14 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -58,6 +58,13 @@ selectors constrain normalized protocols; `fast: null` explicitly disables an in
 declaration. Invalid declarations are ignored. Legacy conservative context entries may remain as
 compatibility tombstones for models outside the synchronized set. Provider request adapters and
 `model/list` must resolve capabilities through the same merged catalog.
+
+Desktop caches successful model catalogs by provider for the current connection and workspace.
+Reasoning, speed, context-mode, and model preference changes reuse those catalogs. Concurrent loads
+for the same provider share a request; switching providers reuses their cached results. Manual refresh
+reloads the selected provider. Provider registry or authentication changes invalidate catalogs;
+connection and workspace changes discard them and prevent old responses from repopulating the cache.
+Changing the workspace-selected provider invalidates only the default-provider alias.
 
 ### 2.2 Provider Preferences
 
@@ -333,10 +340,15 @@ already establish the provider. It does not add alternate menu rows, icons, divi
 tooltips.
 
 The Settings `Workspace preferences` header owns the refresh action. MainAgent uses one full-width
-picker. SubAgent uses the same field with a shared `PillSwitch` in the row: the adjacent label is
-`Inherit MainAgent` when off and `Custom` when on. Off removes the provider's SubAgent record and
-disables the field; on clones the current MainAgent preference before editing. Setup is one centered
-wizard screen, configures MainAgent only, and leaves SubAgent inheritance untouched.
+picker under `Main model`. SubAgent uses the same field under `Subagent model`, with a shared
+segmented control in the row offering `Inherit` and `Custom`. Inherit removes the provider's SubAgent
+record and disables the field; Custom clones the current MainAgent preference before editing. Setup is
+one centered wizard screen, configures MainAgent only, and leaves SubAgent inheritance untouched.
+
+Each provider row in `Provider list` summarises its remembered preferences as two clauses, `Main` and
+`Subagent`, each naming the model and reasoning effort with `MAX` appended when the context window is
+maximised. Fast inference reads as a bolt before the model name; Standard adds nothing. A provider
+without a SubAgent record shows `Inherits main model` as its `Subagent` value.
 
 ---
 

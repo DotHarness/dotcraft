@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.18.0 |
+| **Version** | 0.18.1 |
 | **Status** | Living |
-| **Date** | 2026-09-09 |
+| **Date** | 2026-09-14 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md) |
 
@@ -906,8 +906,9 @@ Required behavior:
   - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection;
   - provider credentials and endpoints are personal config, while workspace saves write `providerId` and the provider-keyed `providerPreferences` map;
   - each preference contains model, reasoning, speed, and context-window selections; a workspace record atomically overrides the personal record for the same provider;
-  - MainAgent and SubAgent use the shared ModelPicker menu; the Workspace preferences group owns the catalog refresh action in its header;
-  - SubAgent displays an inline `Inherit MainAgent` switch. Inherit removes the provider-specific SubAgent record; enabling Custom starts from the current MainAgent preference;
+  - MainAgent and SubAgent use the shared ModelPicker menu under `Main model` and `Subagent model`; the Workspace preferences group owns the catalog refresh action in its header;
+  - SubAgent displays an inline `Inherit`/`Custom` switch. Inherit removes the provider-specific SubAgent record; Custom starts from the current MainAgent preference;
+  - each provider row summarises its remembered preferences as `Main` and `Subagent` clauses naming model and reasoning effort, and marks Fast inference with a bolt before the model name;
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
 - Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group. There is no page-level Save/Cancel footer.

@@ -81,7 +81,6 @@ internal static class ProviderChatClientAdapters
             endpoint ?? string.Empty,
             config.NetworkTimeoutSeconds,
             maxOutputTokens,
-            false,
             ModelProviderCapabilities.ForProtocol(normalizedProtocol));
         UseProviderAdapters(
             builder,

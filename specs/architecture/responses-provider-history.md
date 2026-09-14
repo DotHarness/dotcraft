@@ -141,7 +141,7 @@ transition set; adding an isolated lock to one method is not sufficient.
 - **Rollback:** entries for removed turns are excluded. A replacement whose covered turn no longer
   survives is invalid and replay continues to an earlier baseline.
 - **Compaction:** a neutral replacement maps the final compacted MEAI history once. A
-  provider-native replacement installs the compact endpoint's complete raw output without changing
+  provider-native replacement installs the client-built Responses v2 replacement without changing
   MEAI history. Both start a new provider-history generation and share the context-window
   transition defined in [Context Compaction](context-compaction.md).
 - **Protocol change:** leaving Responses leaves the generation untouched. Returning after
@@ -163,6 +163,24 @@ and fork materialization may create `provider_history_replaced`; request-local s
 provider adapter normalization, retry preparation, and ordinary tool-loop projection may not.
 
 ## MEAI projection boundaries
+
+Responses reasoning `content`, `summary`, and `encrypted_content` are distinct replay fields.
+Plain `reasoning_text` must survive projection, local compaction, fork materialization, and cold
+resume; encrypted content is not a substitute for it, and summary text must not be reclassified as
+plain reasoning. The OpenAI adapter stores a versioned replay item in content-scoped additional
+properties, using the existing model-history codec without changing the rollout schema.
+
+Streaming fragments share an attempt-local reasoning item envelope which is finalized from the
+completed native item. Agent aggregation preserves provider-declared content groups, so adjacent
+reasoning items remain separate even when neither has encrypted content. Group identity is internal
+metadata, not a ChatMessage ID. Completion does not repeat text already emitted as deltas.
+
+When rebuilding neutral history, the mapper prefers this envelope, then an available native raw
+reasoning item, then the existing legacy encrypted-content fallback. Invalid or unsupported envelopes
+fail with `responses_reasoning_metadata_invalid` instead of silently losing replay data. Legacy text
+without a known source is not guessed to be plain reasoning. Existing canonical generations remain
+authoritative and are not rewritten or automatically repaired. Replay envelopes must not be included
+in display-history projections, context exports, or diagnostics.
 
 Responses reasoning output is assistant-authored content even when the provider SDK leaves the
 corresponding MEAI streaming update role unset. Before an update enters a cross-service-call
@@ -237,3 +255,18 @@ full image bytes preserved in model history and Session projection. A terminated
 not retain an in-progress image item. Missing results become explicit terminal failures.
 The per-Turn image lifecycle owns one call map containing each projected item and its captured
 artifact destination. Both provider-native and SDK result content use the same completion path.
+
+## Maintenance isolation
+
+Automatic and manual memory consolidation create a detached Memory request context for each work
+item, including fallback requests and tool continuations. Identity and diagnostics are explicit;
+provider history, compaction bridges, mutable conversation state, and parent tool-loop/retry callbacks
+are not shared. Auxiliary HTTP attempts must not overwrite parent attempt diagnostics, and tool
+argument normalization must not modify captured source messages. Automatic scheduling suppresses
+ambient execution-context flow before starting
+the worker. Direct maintenance-fork calls establish the same isolation.
+
+Auxiliary requests must not acquire a provider-history bridge through service lookup. Normal Turn
+coverage validation remains strict. Regression tests must enter through SessionService automatic
+scheduling, including concurrent next Turns and queued maintenance, rather than constructing only
+an already-correct Memory context at the adapter boundary.

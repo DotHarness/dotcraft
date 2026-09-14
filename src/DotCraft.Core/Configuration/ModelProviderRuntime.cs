@@ -108,8 +108,6 @@ public static class ModelProviderResolver
             $"Model provider '{providerId}' is not configured. {MissingProviderMessage}");
     }
 
-    public static bool IsImplicitProviderId(string? providerId) => false;
-
     public static bool ResolveHostedImageGenerationSupport(AppConfig.ModelProviderConfig provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
@@ -202,7 +200,6 @@ public static class ModelProviderResolver
                 endPoint,
                 timeout,
                 maxOutputTokens,
-                IsImplicit: false,
                 ModelProviderCapabilities.ForProtocol(protocol),
                 streamMaxRetries,
                 streamIdleTimeoutMs,
