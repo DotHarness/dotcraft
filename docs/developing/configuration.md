@@ -210,6 +210,18 @@ independently for each model pattern. Set `fast` to `null` to disable an inherit
 Model patterns use case-insensitive longest-prefix matching and also match namespaced suffixes such
 as `provider/custom-fast-model`.
 
+Built-in context-window values are synchronized from the provider-agnostic
+[models.dev](https://models.dev/) catalog for models that support tool calls, include text output,
+and declare a context window of at least 1,000 tokens. The final segment of the canonical model id is
+used as its lowercase key. If a provider serves a different limit, set an override in the global or
+workspace catalog. More-specific keys win over family prefixes, so a concrete model can safely carry
+a different window from its family.
+
+MAX is available only when a model rule matches and its catalog window is larger than the configured
+Default window. Unknown models and matches that would not increase the window do not offer MAX.
+Default mode continues to apply `Compaction.MaxContextWindow`; MAX uses the raw catalog window while
+keeping the normal summary reserve and safety buffer.
+
 ## Reasoning and prompt caching
 
 | Field | Description | Default |
