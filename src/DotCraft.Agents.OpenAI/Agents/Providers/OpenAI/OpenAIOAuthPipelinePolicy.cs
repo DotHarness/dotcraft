@@ -23,7 +23,6 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
     internal const string BetaFeaturesHeader = "x-codex-beta-features";
     internal const string BetaFeaturesValue = "remote_compaction_v2";
     private const string ResponsesPathSuffix = "/responses";
-    private const string ResponsesCompactPathSuffix = "/responses/compact";
     private static readonly string[] SdkPlatformMetadataHeaders =
     [
         "X-Stainless-Lang",
@@ -168,9 +167,9 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
             SetIfPresent(
                 message,
                 OpenAIAuthConstants.TurnStateHeader,
-                ProviderRequestContextScope.Current?.ConversationState?.ContinuationState
-                ?? OpenAIResponsesCodexRuntimeScope.Current?.TurnState
-                ?? codexMetadata.TurnState);
+                ProviderRequestContextScope.Current is { } requestContext
+                    ? requestContext.ConversationState?.ContinuationState
+                    : OpenAIResponsesCodexRuntimeScope.Current?.TurnState ?? codexMetadata.TurnState);
         }
 
         ApplyExperimentalHeaders(message, isResponsesRequest);
@@ -244,8 +243,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
     {
         var uri = message.Request.Uri;
         return uri is not null
-               && (uri.AbsolutePath.EndsWith(ResponsesPathSuffix, StringComparison.Ordinal)
-                   || uri.AbsolutePath.EndsWith(ResponsesCompactPathSuffix, StringComparison.Ordinal));
+               && uri.AbsolutePath.EndsWith(ResponsesPathSuffix, StringComparison.Ordinal);
     }
 
     private static void SetIfPresent(PipelineMessage message, string headerName, string? value)

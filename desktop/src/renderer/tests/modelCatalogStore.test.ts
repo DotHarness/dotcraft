@@ -121,7 +121,7 @@ describe('modelCatalogStore', () => {
     })
   })
 
-  it('runs a provider-specific reload after another model list request is already in flight', async () => {
+  it('loads different providers independently and keeps the selected provider visible', async () => {
     const first = createDeferred<unknown>()
     const second = createDeferred<unknown>()
     appServerListModels
@@ -131,7 +131,7 @@ describe('modelCatalogStore', () => {
     const defaultLoad = useModelCatalogStore.getState().loadIfNeeded()
     const providerLoad = useModelCatalogStore.getState().loadIfNeeded(false, 'anthropic-main')
 
-    expect(appServerListModels).toHaveBeenCalledTimes(1)
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
     first.resolve({
       success: true,
       providerId: 'openai',
@@ -139,6 +139,8 @@ describe('modelCatalogStore', () => {
     })
     await defaultLoad
     await Promise.resolve()
+
+    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'loading', requestedProviderId: 'anthropic-main' })
 
     expect(appServerListModels).toHaveBeenNthCalledWith(2, 'anthropic-main')
     second.resolve({
@@ -227,5 +229,59 @@ describe('modelCatalogStore', () => {
       id: 'gpt-5.5',
       speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
     })
+  })
+
+  it('reuses catalogs across preference changes, provider switches and the resolved default provider', async () => {
+    appServerListModels.mockImplementation(async (providerId) => ({
+      success: true, providerId: providerId ?? 'one', models: [{ id: providerId ?? 'one' }]
+    }))
+    const store = useModelCatalogStore.getState()
+    await store.loadIfNeeded()
+    await store.loadIfNeeded(false, 'one')
+    await store.handleConfigChanged(['workspace.providerPreferences'])
+    await store.loadIfNeeded(false, 'one')
+    await store.loadIfNeeded(false, 'two')
+    await store.loadIfNeeded(false, 'one')
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
+    expect(useModelCatalogStore.getState().modelOptions).toEqual(['one'])
+    await store.handleConfigChanged(['workspace.provider'])
+    await store.loadIfNeeded(false, 'two')
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
+    await store.loadIfNeeded()
+    expect(appServerListModels).toHaveBeenCalledTimes(3)
+    await store.handleConfigChanged(['workspace.provider'])
+    await store.loadIfNeeded()
+    expect(appServerListModels).toHaveBeenCalledTimes(4)
+  })
+
+  it('coalesces refreshes and invalidates catalogs when provider configuration changes', async () => {
+    const store = useModelCatalogStore.getState()
+    appServerListModels.mockResolvedValue({ success: true, providerId: 'one', models: [{ id: 'old' }] })
+    await store.loadIfNeeded(false, 'one')
+    const refreshed = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(refreshed.promise)
+    const first = store.loadIfNeeded(true, 'one')
+    const second = store.loadIfNeeded(true, 'one')
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
+    refreshed.resolve({ success: true, providerId: 'one', models: [{ id: 'new' }] })
+    await Promise.all([first, second])
+    expect(useModelCatalogStore.getState().modelOptions).toEqual(['new'])
+    await store.handleConfigChanged(['providers'])
+    expect(appServerListModels).toHaveBeenCalledTimes(3)
+  })
+
+  it('discards old connection results after reset, including cached provider aliases', async () => {
+    const old = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(old.promise)
+    const store = useModelCatalogStore.getState()
+    const pending = store.loadIfNeeded(false, 'one')
+    store.reset()
+    appServerListModels.mockResolvedValue({ success: true, providerId: 'one', models: [{ id: 'fresh' }] })
+    await store.loadIfNeeded(false, 'one')
+    old.resolve({ success: true, providerId: 'one', models: [{ id: 'stale' }] })
+    await pending
+    await store.loadIfNeeded(false, 'one')
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
+    expect(useModelCatalogStore.getState().modelOptions).toEqual(['fresh'])
   })
 })

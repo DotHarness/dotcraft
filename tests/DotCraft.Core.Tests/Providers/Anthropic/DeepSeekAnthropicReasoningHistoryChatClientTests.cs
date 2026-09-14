@@ -151,7 +151,6 @@ public sealed class DeepSeekAnthropicReasoningHistoryChatClientTests
             endpoint,
             600,
             null,
-            IsImplicit: false,
             ModelProviderCapabilities.ForProtocol(protocol));
 
     private sealed class CaptureHandler : HttpMessageHandler

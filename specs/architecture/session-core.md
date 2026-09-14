@@ -1323,6 +1323,10 @@ SessionEvent
 
 #### Local Summary Compaction Contract
 
+Local partial and full compaction install their synthetic handoff summary with the User role. The
+summary establishes an input boundary before the retained tail; it must not impersonate an Assistant
+response lacking provider-required reasoning. This affects new replacements only.
+
 These requirements apply to the local summary backend. The backend-neutral orchestration,
 provider-native replacement contract, and failure policy are defined in
 [Context Compaction](context-compaction.md). Context compaction is a short-term context-window

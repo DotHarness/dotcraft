@@ -2273,15 +2273,8 @@ export function App(): JSX.Element {
             if (event.regions.includes('hooks')) {
               void useHooksStore.getState().fetchHooks()
             }
-            if (
-              event.regions.includes('providers') ||
-              event.regions.includes('workspace.provider') ||
-              event.regions.includes('workspace.providerPreferences')
-            ) {
-              useModelCatalogStore.getState().reset()
-              if (useConnectionStore.getState().capabilities?.modelCatalogManagement === true) {
-                void useModelCatalogStore.getState().loadIfNeeded(true)
-              }
+            if (useConnectionStore.getState().capabilities?.modelCatalogManagement === true) {
+              void useModelCatalogStore.getState().handleConfigChanged(event.regions)
             }
             if (event.regions.includes('providers') || event.regions.includes('workspace.provider')) {
               if (useConnectionStore.getState().capabilities?.providerManagement === true) {

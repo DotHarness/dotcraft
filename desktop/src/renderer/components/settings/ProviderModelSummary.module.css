@@ -1,0 +1,32 @@
+.row {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dimmed);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 2px;
+}
+
+.clause {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.value {
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fast {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}

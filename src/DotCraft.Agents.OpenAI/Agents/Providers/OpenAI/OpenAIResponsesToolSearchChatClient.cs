@@ -82,7 +82,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         ChatOptions? options = null,
         CancellationToken cancellationToken = default) =>
         await GetStreamingResponseAsync(chatMessages, options, cancellationToken)
-            .ToChatResponseAsync(cancellationToken)
+            .ToAgentResponseAsync(cancellationToken)
             .ConfigureAwait(false);
 
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
@@ -121,8 +121,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         var sdkUpdates = preparedResponse.Updates;
         if (traceCollector != null)
             sdkUpdates = RecordProviderResponseDiagnostics(sdkUpdates, traceCollector, cancellationToken);
-        var providerItemIdentities = new ProviderResponseItemIdentityTracker();
-        sdkUpdates = providerItemIdentities.TrackAsync(sdkUpdates, cancellationToken);
+        var reasoning = new ResponsesReasoningStream();
+        sdkUpdates = reasoning.TrackAsync(sdkUpdates, cancellationToken);
         if (providerHistory != null)
             sdkUpdates = CaptureProviderHistoryAsync(sdkUpdates, providerHistory, cancellationToken);
         var images = new ResponsesImageGenerationStream();
@@ -138,7 +138,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                            .ConfigureAwait(false))
         {
             images.Apply(update);
-            providerItemIdentities.Apply(update);
+            reasoning.Apply(update);
             ResponsesToolSearchMapper.ApplyRecordedFunctionCallNamespaces(update, functionCallNamespaces);
             yield return SuppressProviderContinuation(update);
         }
@@ -378,154 +378,5 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     private sealed class RestoreDiagnosticsScope(IModelRuntimeDiagnostics? previous) : IDisposable
     {
         public void Dispose() => CurrentDiagnosticsLocal.Value = previous;
-    }
-
-    private sealed class ProviderResponseItemIdentityTracker
-    {
-        private readonly Dictionary<int, string> _itemIdsByOutputIndex = [];
-
-        public async IAsyncEnumerable<StreamingResponseUpdate> TrackAsync(
-            IAsyncEnumerable<StreamingResponseUpdate> updates,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
-            {
-                Observe(update);
-                yield return update;
-            }
-        }
-
-        public void Apply(ChatResponseUpdate update)
-        {
-            if (!TryGetReasoningEvent(
-                    update.RawRepresentation,
-                    out var outputIndex,
-                    out var eventItemId))
-                return;
-
-            // MEAI does not currently assign a role to Responses reasoning updates.
-            // Give every event in the reasoning item an Assistant boundary so its
-            // summary/protected content cannot be aggregated into a preceding Tool
-            // message. The provider item ID remains content metadata, not MessageId.
-            update.Role = ChatRole.Assistant;
-
-            if (!TryResolveItemId(outputIndex, eventItemId, out var providerItemId))
-                return;
-
-            foreach (var reasoning in update.Contents.OfType<TextReasoningContent>())
-                OpenAIResponsesItemIdentity.PreserveProviderItemId(reasoning, providerItemId);
-        }
-
-        private void Observe(StreamingResponseUpdate update)
-        {
-            switch (update)
-            {
-                case StreamingResponseOutputItemAddedUpdate added:
-                    RecordItemId(added.OutputIndex, added.Item?.Id);
-                    break;
-                case StreamingResponseOutputItemDoneUpdate done:
-                    if (RecordItemId(done.OutputIndex, done.Item?.Id))
-                        break;
-                    if (done.Item != null
-                        && _itemIdsByOutputIndex.TryGetValue(done.OutputIndex, out var providerItemId))
-                    {
-                        done.Item.Id = providerItemId;
-                    }
-                    break;
-                case StreamingResponseReasoningSummaryPartAddedUpdate reasoning:
-                    RecordItemId(reasoning.OutputIndex, reasoning.ItemId);
-                    break;
-                case StreamingResponseReasoningSummaryPartDoneUpdate reasoning:
-                    RecordItemId(reasoning.OutputIndex, reasoning.ItemId);
-                    break;
-                case StreamingResponseReasoningSummaryTextDeltaUpdate reasoning:
-                    RecordItemId(reasoning.OutputIndex, reasoning.ItemId);
-                    break;
-                case StreamingResponseReasoningSummaryTextDoneUpdate reasoning:
-                    RecordItemId(reasoning.OutputIndex, reasoning.ItemId);
-                    break;
-                case StreamingResponseReasoningTextDeltaUpdate reasoning:
-                    RecordItemId(reasoning.OutputIndex, reasoning.ItemId);
-                    break;
-                case StreamingResponseReasoningTextDoneUpdate reasoning:
-                    RecordItemId(reasoning.OutputIndex, reasoning.ItemId);
-                    break;
-            }
-        }
-
-        private static bool TryGetReasoningEvent(
-            object? rawRepresentation,
-            out int outputIndex,
-            out string? providerItemId)
-        {
-            switch (rawRepresentation)
-            {
-                case StreamingResponseOutputItemAddedUpdate
-                {
-                    Item: ReasoningResponseItem item
-                } added:
-                    outputIndex = added.OutputIndex;
-                    providerItemId = item.Id;
-                    return true;
-                case StreamingResponseOutputItemDoneUpdate
-                {
-                    Item: ReasoningResponseItem item
-                } done:
-                    outputIndex = done.OutputIndex;
-                    providerItemId = item.Id;
-                    return true;
-                case StreamingResponseReasoningSummaryPartAddedUpdate reasoning:
-                    outputIndex = reasoning.OutputIndex;
-                    providerItemId = reasoning.ItemId;
-                    return true;
-                case StreamingResponseReasoningSummaryPartDoneUpdate reasoning:
-                    outputIndex = reasoning.OutputIndex;
-                    providerItemId = reasoning.ItemId;
-                    return true;
-                case StreamingResponseReasoningSummaryTextDeltaUpdate reasoning:
-                    outputIndex = reasoning.OutputIndex;
-                    providerItemId = reasoning.ItemId;
-                    return true;
-                case StreamingResponseReasoningSummaryTextDoneUpdate reasoning:
-                    outputIndex = reasoning.OutputIndex;
-                    providerItemId = reasoning.ItemId;
-                    return true;
-                case StreamingResponseReasoningTextDeltaUpdate reasoning:
-                    outputIndex = reasoning.OutputIndex;
-                    providerItemId = reasoning.ItemId;
-                    return true;
-                case StreamingResponseReasoningTextDoneUpdate reasoning:
-                    outputIndex = reasoning.OutputIndex;
-                    providerItemId = reasoning.ItemId;
-                    return true;
-                default:
-                    outputIndex = default;
-                    providerItemId = null;
-                    return false;
-            }
-        }
-
-        private bool RecordItemId(int outputIndex, string? providerItemId)
-        {
-            if (!OpenAIResponsesItemIdentity.IsValid(providerItemId))
-                return false;
-
-            _itemIdsByOutputIndex[outputIndex] = providerItemId!.Trim();
-            return true;
-        }
-
-        private bool TryResolveItemId(
-            int outputIndex,
-            string? providerItemId,
-            out string resolvedItemId)
-        {
-            if (OpenAIResponsesItemIdentity.IsValid(providerItemId))
-            {
-                resolvedItemId = providerItemId!.Trim();
-                return true;
-            }
-
-            return _itemIdsByOutputIndex.TryGetValue(outputIndex, out resolvedItemId!);
-        }
     }
 }

@@ -207,7 +207,6 @@ public sealed class ChatClientRegistryTests
         Assert.Equal("openrouter-model", runtime.Model);
         Assert.Equal("https://openrouter.ai/api/v1", runtime.EndPoint);
         Assert.Equal(120, runtime.NetworkTimeoutSeconds);
-        Assert.False(runtime.IsImplicit);
     }
 
     [Fact]
@@ -271,7 +270,6 @@ public sealed class ChatClientRegistryTests
         Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, runtime.Protocol);
         Assert.Equal("sk-openai-test", runtime.ApiKey);
         Assert.Equal("https://example.test/v1", runtime.EndPoint);
-        Assert.False(runtime.IsImplicit);
     }
 
     [Fact]
@@ -403,7 +401,6 @@ public sealed class ChatClientRegistryTests
             EndPoint: " https://example.test/v1 ",
             NetworkTimeoutSeconds: 0,
             MaxOutputTokens: 123,
-            IsImplicit: true,
             Capabilities: capabilities,
             StreamMaxRetries: ModelProviderDefaults.MaxStreamMaxRetries + 1,
             StreamIdleTimeoutMs: 0,
@@ -424,7 +421,6 @@ public sealed class ChatClientRegistryTests
         Assert.Equal("https://example.test/v1", received.EndPoint);
         Assert.Equal(1, received.NetworkTimeoutSeconds);
         Assert.Equal(123, received.MaxOutputTokens);
-        Assert.True(received.IsImplicit);
         Assert.Same(capabilities, received.Capabilities);
         Assert.Equal(ModelProviderDefaults.MaxStreamMaxRetries, received.StreamMaxRetries);
         Assert.Equal(1, received.StreamIdleTimeoutMs);
@@ -489,7 +485,6 @@ public sealed class ChatClientRegistryTests
             : "https://example.test/v1",
         NetworkTimeoutSeconds: networkTimeoutSeconds,
         MaxOutputTokens: null,
-        IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(protocol));
 
     private sealed class RecordingModelProvider : IModelProvider

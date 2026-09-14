@@ -864,7 +864,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
 
   const selectProvider = useCallback((providerId: string): void => {
     updateProviderPreference((preference) => ({ ...preference, providerId }))
-    void useModelCatalogStore.getState().loadIfNeeded(true, providerId).then(() => {
+    void useModelCatalogStore.getState().loadIfNeeded(false, providerId).then(() => {
       const catalog = useModelCatalogStore.getState()
       const configured = findProviderPreference(workspaceProviderPreferences, providerId)
       const seeded = configured

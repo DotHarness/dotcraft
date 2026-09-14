@@ -15,6 +15,12 @@ public sealed record StreamingSamplingPreparation(
 /// <summary>Flows Session Core's compaction preparation into the foundation tool loop.</summary>
 public static class StreamingSamplingRuntimeScope
 {
+    internal static IDisposable Suppress()
+    {
+        var previous = CurrentHandler.Value;
+        CurrentHandler.Value = null;
+        return new RestoreScope(() => CurrentHandler.Value = previous);
+    }
     private static readonly AsyncLocal<Func<
         IReadOnlyList<ChatMessage>,
         ChatOptions?,
@@ -51,6 +57,12 @@ public sealed class StreamingGuidanceRuntimeContext
 /// <summary>Flows Session Core guidance callbacks into the foundation tool loop.</summary>
 public static class StreamingGuidanceRuntimeScope
 {
+    internal static IDisposable Suppress()
+    {
+        var previous = CurrentContext.Value;
+        CurrentContext.Value = null;
+        return new RestoreScope(() => CurrentContext.Value = previous);
+    }
     private static readonly AsyncLocal<StreamingGuidanceRuntimeContext?> CurrentContext = new();
 
     public static StreamingGuidanceRuntimeContext? Current => CurrentContext.Value;
@@ -110,6 +122,18 @@ public interface IStreamingToolInvocationObserver
 /// <summary>Flows the Session Core tool observer into the foundation tool loop.</summary>
 public static class StreamingToolInvocationRuntimeScope
 {
+    internal static IDisposable Suppress()
+    {
+        var previousObserver = CurrentObserver.Value;
+        var previousAttempt = CurrentAttempt.Value;
+        CurrentObserver.Value = null;
+        CurrentAttempt.Value = null;
+        return new RestoreScope(() =>
+        {
+            CurrentObserver.Value = previousObserver;
+            CurrentAttempt.Value = previousAttempt;
+        });
+    }
     private static readonly AsyncLocal<IStreamingToolInvocationObserver?> CurrentObserver = new();
     private static readonly AsyncLocal<IStreamingToolInvocationAttempt?> CurrentAttempt = new();
 

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Sessions;
 using DotCraft.Tracing;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
@@ -176,6 +177,18 @@ public sealed class MaintenanceForkRunner(
         MaintenanceForkToolExecutionOptions? toolExecution,
         CancellationToken cancellationToken = default)
     {
+        var parentContext = ProviderRequestContextScope.Current;
+        var requestKind = task.Kind == MaintenanceForkTaskKind.MemoryConsolidation
+            ? ProviderRequestKind.Memory : ProviderRequestKind.Compaction;
+        var identity = parentContext?.CurrentIdentity ?? new ProviderConversationIdentity(
+            snapshot.ThreadId ?? "maintenance", snapshot.ThreadId ?? "maintenance", null, null,
+            snapshot.TurnId, Guid.CreateVersion7().ToString(), requestKind, 0, "maintenance", null);
+        using var auxiliaryScope = new AuxiliaryProviderRequestScope(identity with
+        {
+            RequestKind = requestKind,
+            TurnId = snapshot.TurnId ?? identity.TurnId
+        }, parentContext?.Diagnostics);
+        using var retryScope = ModelStreamRetryRuntimeScope.Suppress();
         var messages = BuildMessages(snapshot, task, messagesBeforeTask).ToList();
         var options = BuildOptions(snapshot, task);
         var sessionKey = ResolveTraceSessionKey(snapshot);
@@ -349,7 +362,7 @@ public sealed class MaintenanceForkRunner(
         {
             return await responseClient
                 .GetStreamingResponseAsync(messages, options, cancellationToken)
-                .ToChatResponseAsync(cancellationToken);
+                .ToAgentResponseAsync(cancellationToken);
         }
 
         return await responseClient.GetResponseAsync(

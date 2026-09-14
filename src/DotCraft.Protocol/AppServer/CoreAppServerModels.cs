@@ -3742,10 +3742,6 @@ public sealed class ProviderInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Id { get; init; }
 
-    [JsonPropertyName("isImplicit")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> IsImplicit { get; init; }
-
     [JsonPropertyName("maxOutputTokens")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> MaxOutputTokens { get; init; }

@@ -52,13 +52,6 @@ internal enum GoalBudgetLimitSteering
     InjectIfNew
 }
 
-internal sealed record AutoMemoryConsolidationWork(
-    SessionThread Thread,
-    SessionTurn Turn,
-    IReadOnlyList<ChatMessage> History,
-    PromptRequestSnapshot? RequestSnapshot,
-    Func<int> NextItemSequence);
-
 internal sealed class ThreadMaintenanceState(string kind) : IDisposable
 {
     public string Kind { get; } = kind;

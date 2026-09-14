@@ -1,7 +1,6 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
-using System.Text;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 
@@ -168,46 +167,20 @@ internal sealed class OpenAIResponsesLiteTransport(ResponsesClient responsesClie
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        using var reader = new StreamReader(
-            stream,
-            Encoding.UTF8,
-            detectEncodingFromByteOrderMarks: true,
-            bufferSize: 4096,
-            leaveOpen: true);
-        var data = new StringBuilder();
-        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        await foreach (var data in ResponsesSseReader.ReadDataAsync(stream, cancellationToken).ConfigureAwait(false))
         {
-            if (line.Length == 0)
-            {
-                if (TryDeserialize(data, out var update))
-                    yield return update;
-                data.Clear();
-                continue;
-            }
-
-            if (line[0] == ':')
-                continue;
-            if (!line.StartsWith("data:", StringComparison.Ordinal))
-                continue;
-            var value = line.AsSpan(5);
-            if (value.Length > 0 && value[0] == ' ')
-                value = value[1..];
-            if (data.Length > 0)
-                data.Append('\n');
-            data.Append(value);
+            if (TryDeserialize(data, out var update))
+                yield return update;
         }
-
-        if (TryDeserialize(data, out var finalUpdate))
-            yield return finalUpdate;
     }
 
-    private static bool TryDeserialize(StringBuilder data, out StreamingResponseUpdate update)
+    private static bool TryDeserialize(string data, out StreamingResponseUpdate update)
     {
         update = null!;
-        if (data.Length == 0 || string.Equals(data.ToString(), "[DONE]", StringComparison.Ordinal))
+        if (data.Length == 0 || string.Equals(data, "[DONE]", StringComparison.Ordinal))
             return false;
         update = ModelReaderWriter.Read<StreamingResponseUpdate>(
-            BinaryData.FromString(data.ToString()),
+            BinaryData.FromString(data),
             ModelReaderWriterOptions.Json)
             ?? throw new InvalidDataException("Responses SSE event could not be deserialized.");
         return true;

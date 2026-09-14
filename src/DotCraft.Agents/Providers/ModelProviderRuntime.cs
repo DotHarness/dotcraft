@@ -148,7 +148,6 @@ public sealed record EffectiveModelRuntime(
     string EndPoint,
     int NetworkTimeoutSeconds,
     int? MaxOutputTokens,
-    bool IsImplicit,
     ModelProviderCapabilities Capabilities,
     int StreamMaxRetries = ModelProviderDefaults.DefaultStreamMaxRetries,
     int StreamIdleTimeoutMs = ModelProviderDefaults.DefaultStreamIdleTimeoutMs,

@@ -1186,7 +1186,7 @@ function ConversationWelcomeCore({
     const previousModel = modelName
     try {
       const cfg = await readEffectiveWorkspaceConfig()
-      await loadModels(true, nextProviderId)
+      await loadModels(false, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
       const remembered = findProviderPreference(
         readProviderPreferences(getCaseInsensitiveConfigValue(cfg, 'ProviderPreferences')),
@@ -1197,7 +1197,7 @@ function ConversationWelcomeCore({
         : createCatalogDefaultPreference(catalogState.models[0], catalogState.modelOptions[0] ?? '')
       if (!nextPreference.model) {
         addToast(t('composer.providerModelUnavailable'), 'error')
-        await loadModels(true, previousProvider)
+        await loadModels(false, previousProvider)
         return
       }
       await persistWelcomePreference(nextPreference, nextProviderId)
@@ -1210,7 +1210,7 @@ function ConversationWelcomeCore({
     } catch (err) {
       setProviderId(previousProvider)
       setModelName(previousModel)
-      await loadModels(true, previousProvider)
+      await loadModels(false, previousProvider)
       addToast(`Failed to switch provider: ${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
       setModelApplying(false)

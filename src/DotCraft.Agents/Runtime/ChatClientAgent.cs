@@ -156,12 +156,12 @@ public sealed class ChatClientAgent
             if (!completed)
             {
                 if (!invocationHistory.LoopObserved && updates.Count > 0)
-                    await invocationHistory.AppendAsync(updates.ToChatResponse().Messages, CancellationToken.None);
+                    await invocationHistory.AppendAsync(updates.ToAgentResponse().Messages, CancellationToken.None);
                 failure ??= new OperationCanceledException(
                     "The agent response stream was not consumed to completion.");
             }
 
-            var responseMessages = completed ? updates.ToChatResponse().Messages : null;
+            var responseMessages = completed ? updates.ToAgentResponse().Messages : null;
             await NotifyProvidersAsync(
                     invocation.Messages,
                     responseMessages,
@@ -170,7 +170,7 @@ public sealed class ChatClientAgent
                 .ConfigureAwait(false);
         }
 
-        var response = updates.ToChatResponse();
+        var response = updates.ToAgentResponse();
         if (!invocationHistory.LoopObserved)
             await invocationHistory.AppendAsync(response.Messages, cancellationToken);
         invocationHistory.Commit();

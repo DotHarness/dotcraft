@@ -290,7 +290,6 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
         "https://api.anthropic.com",
         1024,
         null,
-        IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic));
 
     private sealed class SchemaFunction(string name, string description, JsonElement schema) : AIFunction

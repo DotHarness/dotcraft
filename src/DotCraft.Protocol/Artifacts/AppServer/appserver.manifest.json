@@ -12656,13 +12656,6 @@
           "const": null
         },
         {
-          "name": "isImplicit",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "maxOutputTokens",
           "type": "integer",
           "required": false,

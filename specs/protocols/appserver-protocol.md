@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.0 |
+| **Version** | 0.9.0 |
 | **Status** | Living |
-| **Date** | 2026-09-06 |
+| **Date** | 2026-09-14 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -5382,7 +5382,6 @@ Clients must check `capabilities.providerManagement` before calling any `provide
   "streamMaxRetries": 5,
   "streamIdleTimeoutMs": 300000,
   "supportsHostedImageGeneration": false,
-  "isImplicit": false,
   "capabilities": {
     "streamingChat": true,
     "toolCalling": true,
@@ -5403,7 +5402,6 @@ Clients must check `capabilities.providerManagement` before calling any `provide
 | `streamMaxRetries` | integer? | Provider-specific maximum stream reconnection attempts. Defaults to `5`; valid range is `0`-`100`. |
 | `streamIdleTimeoutMs` | integer? | Provider-specific idle timeout for streaming responses. Defaults to `300000` milliseconds. |
 | `supportsHostedImageGeneration` | boolean | Whether this provider supports OpenAI Responses hosted image generation. The global `Tools.ImageGeneration.Enabled` switch must also be on before DotCraft injects the hosted tool. |
-| `isImplicit` | boolean | Reserved for runtime-managed providers; persisted personal providers return `false`. |
 | `capabilities` | object | Provider-neutral capability flags such as streaming, tool calling, model listing, token usage, prompt-cache shaping, extended thinking, tool-choice controls, raw metadata passthrough, Responses API support, and native deferred tool loading. |
 
 Additional capability flags include:
