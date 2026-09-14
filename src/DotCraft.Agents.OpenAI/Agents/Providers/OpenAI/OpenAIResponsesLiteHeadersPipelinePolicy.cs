@@ -34,8 +34,7 @@ internal sealed class OpenAIResponsesLiteHeadersPipelinePolicy : PipelinePolicy
         OpenAIResponsesLitePipelinePath.EnsureSupported(message.Request.Uri);
 
         message.Request.Headers.Set(ResponsesLiteHeader, "true");
-        if (OpenAIResponsesLitePipelinePath.IsStreamingResponses(message.Request.Uri))
-            message.Request.Headers.Set(AcceptHeader, EventStreamContentType);
+        message.Request.Headers.Set(AcceptHeader, EventStreamContentType);
         return true;
     }
 }
@@ -44,21 +43,11 @@ internal static class OpenAIResponsesLitePipelinePath
 {
     internal static void EnsureSupported(Uri? uri)
     {
-        if (!IsSupported(uri))
+        if (!IsStreamingResponses(uri))
         {
             throw new InvalidOperationException(
-                "Responses Lite pipeline only supports /responses and /responses/compact requests.");
+                "Responses Lite pipeline only supports /responses requests.");
         }
-    }
-
-    internal static bool IsSupported(Uri? uri)
-    {
-        if (uri is null)
-            return false;
-
-        var path = uri.AbsolutePath.TrimEnd('/');
-        return path.EndsWith("/responses", StringComparison.Ordinal)
-            || path.EndsWith("/responses/compact", StringComparison.Ordinal);
     }
 
     internal static bool IsStreamingResponses(Uri? uri)

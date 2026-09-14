@@ -159,7 +159,6 @@ public sealed class FastModeChatClientTests
                     : "https://api.openai.com/v1",
                 30,
                 null,
-                false,
                 ModelProviderCapabilities.ForProtocol(protocol));
             var effectiveSpeed = ModelCatalog.SupportsFast(config, protocol, model)
                 ? speed

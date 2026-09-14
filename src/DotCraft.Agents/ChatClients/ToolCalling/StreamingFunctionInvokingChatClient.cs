@@ -133,7 +133,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
         CancellationToken cancellationToken = default) =>
-        await GetStreamingResponseAsync(messages, options, cancellationToken).ToChatResponseAsync(cancellationToken);
+        await GetStreamingResponseAsync(messages, options, cancellationToken).ToAgentResponseAsync(cancellationToken);
 
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
@@ -144,8 +144,11 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         var invocationHistory = AgentHistoryRuntimeScope.Current;
         if (invocationHistory is not null) invocationHistory.LoopObserved = true;
         var originalMessages = messages.ToList();
-        var providerHistoryBridge = ProviderRequestContextScope.Current?.History
-                                    ?? GetService(typeof(IProviderConversationHistory)) as IProviderConversationHistory;
+        var requestContext = ProviderRequestContextScope.Current;
+        var providerHistoryBridge = requestContext?.CurrentIdentity.RequestKind is ProviderRequestKind.Memory or ProviderRequestKind.Compaction
+            ? null
+            : requestContext?.History
+              ?? GetService(typeof(IProviderConversationHistory)) as IProviderConversationHistory;
         var providerManagedContinuationPolicy =
             GetService(typeof(IProviderManagedContinuationPolicy)) as IProviderManagedContinuationPolicy;
         var providerManagedContinuationLimit = providerManagedContinuationPolicy?.MaximumContinuations ?? 0;
@@ -253,7 +256,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             finally
             {
                 if (!samplingCompleted && updates.Count > 0 && invocationHistory is not null)
-                    await invocationHistory.AppendAsync(updates.ToChatResponse().Messages, CancellationToken.None);
+                    await invocationHistory.AppendAsync(updates.ToAgentResponse().Messages, CancellationToken.None);
             }
 
             var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);
@@ -285,7 +288,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             hasAnyEffectiveProviderOutput |= hasEffectiveProviderOutput;
             awaitingPostToolContinuation = false;
 
-            var response = updates.ToChatResponse();
+            var response = updates.ToAgentResponse();
             await AgentHistoryRuntimeScope.AppendAsync(response.Messages, cancellationToken);
             (responseMessages ??= []).AddRange(response.Messages);
 

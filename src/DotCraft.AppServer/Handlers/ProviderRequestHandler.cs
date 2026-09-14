@@ -104,7 +104,7 @@ internal sealed class ProviderRequestHandler(
         var current = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new Contract.ProviderMutationResult
         {
-            Provider = ProviderContractMapper.BuildProviderInfo(id, current.Providers[id], isImplicit: false)
+            Provider = ProviderContractMapper.BuildProviderInfo(id, current.Providers[id])
         });
     }
 
@@ -196,7 +196,7 @@ internal sealed class ProviderRequestHandler(
         var current = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new Contract.ProviderMutationResult
         {
-            Provider = ProviderContractMapper.BuildProviderInfo(existingKey, current.Providers[existingKey], isImplicit: false)
+            Provider = ProviderContractMapper.BuildProviderInfo(existingKey, current.Providers[existingKey])
         });
     }
 

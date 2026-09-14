@@ -52,9 +52,6 @@
     "id": {
       "type": "string"
     },
-    "isImplicit": {
-      "type": "boolean"
-    },
     "maxOutputTokens": {
       "anyOf": [
         {

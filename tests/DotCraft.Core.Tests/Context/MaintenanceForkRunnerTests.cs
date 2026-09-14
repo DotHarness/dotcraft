@@ -440,12 +440,13 @@ public sealed class MaintenanceForkRunnerTests
     {
         var chatClient = new RecordingChatClient("<summary>ok</summary>");
         var runner = new MaintenanceForkRunner(chatClient);
+        var originalCall = new FunctionCallContent("call-1", "GetStatus", null);
         var snapshot = PromptRequestSnapshot.Capture(
             [
                 new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
                 [
                     new TextContent("checking"),
-                    new FunctionCallContent("call-1", "GetStatus", null)
+                    originalCall
                 ]),
                 new ChatMessage(ChatRole.Tool, (IList<AIContent>)
                 [
@@ -467,6 +468,7 @@ public sealed class MaintenanceForkRunnerTests
             .Single();
         var arguments = Assert.IsAssignableFrom<IDictionary<string, object?>>(call.Arguments);
         Assert.Empty(arguments);
+        Assert.Null(originalCall.Arguments);
     }
 
     [Fact]
@@ -805,7 +807,6 @@ public sealed class MaintenanceForkRunnerTests
             EndPoint: endpoint,
             NetworkTimeoutSeconds: 60,
             MaxOutputTokens: 64_000,
-            IsImplicit: false,
             Capabilities: ModelProviderCapabilities.ForProtocol(protocol));
 
     private static string ReadFile(string path) => "memory file";

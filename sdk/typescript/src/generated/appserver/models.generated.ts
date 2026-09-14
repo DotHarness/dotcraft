@@ -2522,7 +2522,6 @@ export interface ProviderInfo {
   endPoint?: string;
   hasApiKey?: boolean;
   id?: string;
-  isImplicit?: boolean;
   maxOutputTokens?: number | null;
   networkTimeoutSeconds?: number | null;
   protocol?: string;

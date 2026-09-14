@@ -194,6 +194,12 @@ The local backend wraps the existing `CompactionPipeline` behavior:
 - an active Responses adapter maps the final neutral replacement once into a new provider-history
   generation.
 
+The synthetic handoff summary is a User message, for both partial and full replacements. It is
+context supplied to the next model invocation, not a prior Assistant response with missing reasoning.
+This preserves a valid thinking-mode boundary even when the retained API-round tail starts with an
+Assistant tool call and the original user input was summarized. Tail selection and tool pairing do
+not change; existing persisted summaries are not rewritten.
+
 The summary request consumes only the snapshot or trimmed message list supplied by the local
 compaction pipeline. It may retain the active thread identity and prompt-cache routing, but it must
 not read from or append to the active Responses provider-history generation. That generation is
@@ -217,78 +223,39 @@ The backend is active only when all of these conditions hold:
 API-key Responses requests do not use this backend in this version, even if the public OpenAI API
 supports a similarly named endpoint.
 
-### Transport boundary
+### Responses v2 transport and request
 
-The backend calls the configured ChatGPT OAuth backend at:
+The backend uses the configured OAuth `POST /responses` streaming transport, including the
+standard or Lite dialect selected for ordinary sampling. It appends exactly one request-local
+`{"type":"compaction_trigger"}` after the immutable native input snapshot. The trigger is never
+persisted. The existing Responses mapper and OAuth pipeline own tools, instructions, reasoning,
+service tier, prompt cache, client metadata, streaming flags, and conversation routing.
 
-```text
-POST https://chatgpt.com/backend-api/codex/responses/compact
-```
+`IChatGptResponsesCompactTransport` uses the SDK raw create-response protocol method and consumes
+raw SSE events. It must not pass compaction through the normal chat adapter or tool loop, which
+would append provider outputs or execute tools in the live conversation. There is no legacy
+`/responses/compact` or local-summary fallback for this backend.
 
-The implementation may use the OpenAI .NET SDK raw `CompactResponseAsync` protocol method because
-the configured `ResponsesClient` already owns the effective endpoint and client pipeline. The SDK
-method is transport only. Its public API request/response model is not the backend contract and SDK
-CLR response items are not persisted.
+### Completion and replacement
 
-DotCraft owns strongly typed request and response envelope DTOs for this transport boundary. Raw
-JSON values are limited to provider-native item arrays and open nested controls whose schemas must
-remain forward-compatible. Request and response envelopes must not be represented as unstructured
-`JsonElement` values or inspected through ad hoc property lookup.
+A successful stream must reach `response.completed` after exactly one `compaction` item has been
+observed in `response.output_item.done`. Missing or duplicate compaction items, malformed events,
+`response.failed`, `response.incomplete`, errors, and premature EOF fail the attempt. Extra output
+items are ignored and never executed. Preserve the selected item's unknown fields and encrypted
+content as raw JSON; do not round-trip it through SDK response-item types or MEAI.
 
-The transport is isolated behind `IChatGptResponsesCompactTransport`. If a future SDK version
-cannot preserve the ChatGPT backend request, only that transport changes.
+Build the next native window from the captured input, retaining user messages and client developer
+context in order, followed by the new compaction item. Exclude old reasoning, assistant output,
+tool calls/results, old compaction items, and request-local tool/instruction injection. The retained
+message budget is 64,000 estimated tokens using the provider-native estimator, including media.
+Select newest messages first and stop at the budget boundary. A boundary message may truncate text
+on Unicode boundaries but must not split media payloads; remove whole content items when needed.
+Unknown fields in retained messages survive unchanged except for the selected boundary content.
+The replacement estimate includes this complete window and request overhead.
 
-OAuth request classification distinguishes:
-
-- **Responses-family requests:** `/responses` and `/responses/compact`; receive OAuth,
-  account/installation, sticky session/thread, request id, window, Turn metadata, turn-state, and
-  enabled beta headers;
-- **Create-response requests:** `/responses` only; receive ordinary response-body canonicalization
-  and `client_metadata` augmentation.
-
-The compact request must not receive `/responses`-only `client_metadata` or streaming-body
-rewrites.
-
-### Request body
-
-The body is projected from the same fully prepared request shape used by ordinary Responses
-sampling:
-
-| Field | Requirement |
-|---|---|
-| `model` | Required effective Responses model. |
-| `input` | Required ordered native compaction snapshot for the selected phase. |
-| `instructions` | Include when non-empty. |
-| `tools` | Include the final provider-visible tool definitions when present. |
-| `parallel_tool_calls` | Include the final resolved boolean. |
-| `reasoning` | Include the final Responses reasoning object when present. |
-| `service_tier` | Include when the effective ChatGPT request shape supplies it. |
-| `prompt_cache_key` | Include the final explicit or derived cache key when present. |
-| `text` | Include final text/format controls when present. |
-
-The body does not include `stream`, `store`, `include`, `client_metadata`, or
-`max_output_tokens`. Request construction must reuse the Responses mapper's ID normalization,
-tool-call correlation, replayable image-generation projection, and request-local tool-pair
-sanitization.
-
-The active `x-codex-turn-state`, when present, is sent and updated through the existing OAuth
-pipeline. The compact call uses request kind `compaction` while retaining the active conversation
-identity: `x-client-request-id` remains the current executing Thread id.
-
-### Response validation
-
-A successful response must contain a non-empty `output` array whose elements are JSON objects.
-DotCraft must:
-
-- deserialize the top-level response through the provider-owned compact response DTO;
-- preserve every returned element and its array order;
-- preserve unknown item types and unknown properties;
-- accept a window containing retained items in addition to a compaction item;
-- avoid requiring exactly one `type = "compaction"` element;
-- reject invalid JSON, a missing or empty `output`, and non-object elements;
-- avoid converting the output through MEAI or a typed SDK response-item hierarchy.
-
-The complete output becomes the canonical next Responses input window.
+The active turn-state and request kind `compaction` use the existing OAuth pipeline. Completion
+metadata (response id, usage, duration, terminal status, and protocol version) is diagnostic only;
+it does not alter the provider-history schema or neutral transcript.
 
 ## Provider-native trigger phases and coverage
 
@@ -332,7 +299,7 @@ A neutral replacement:
 A provider-native replacement:
 
 1. allocates the next context-window/generation identity without publishing it;
-2. appends one `provider_history_replaced` baseline containing the complete raw output, coverage
+2. appends one `provider_history_replaced` baseline containing the complete client-built replacement, coverage
    Turn, protocol, generation, and reason `remote_compaction`;
 3. treats that durable rollout record as the replacement commit point;
 4. publishes the new provider generation and exact context-window identity only after the append
@@ -462,9 +429,9 @@ Clients do not need to know which backend produced the replacement.
 - A selected remote backend never calls the local summary backend after failure.
 - The compact request uses the ChatGPT endpoint, Responses-family OAuth headers, turn-state, and
   the ordinary Responses request-shape mapper.
-- Compact body tests prove that `/responses`-only `client_metadata` and streaming fields are absent.
-- Multi-item and unknown-item output survives persistence, restart, rollback, and compatible fork
-  without MEAI conversion.
+- Compact body tests prove standard/Lite Responses shaping and a single trailing compaction trigger.
+- Raw compaction fields and retained message order survive persistence, restart, rollback, and compatible fork
+  without MEAI conversion; legacy replacement windows remain readable.
 - Pre-turn input appends the pending user message once; mid-turn input preserves tool-call/result
   correlation.
 - Manual compaction works after cold resume and after protocol-return alignment.
@@ -480,7 +447,7 @@ Clients do not need to know which backend produced the replacement.
 - The existing local compaction test suite remains unchanged in behavior.
 - API-key Responses local summary requests consume their explicit compaction input without reading
   or appending the active provider-history generation.
-- A credential-gated integration test confirms that `/responses/compact` output is accepted as the
+- A credential-gated integration test confirms that the v2 replacement is accepted as the
   next ChatGPT OAuth `/responses` input.
 
 ## Related specs

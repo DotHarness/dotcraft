@@ -16,6 +16,65 @@ namespace DotCraft.Core.Tests.Agents;
 
 public sealed class OpenAIResponsesMaintenanceHistoryTests
 {
+    [Fact]
+    public async Task ForkRunnerDoesNotReportAttemptsToParentTurn()
+    {
+        var completedAttempts = 0;
+        using var retryScope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = (_, _, _) => throw new InvalidOperationException("Parent retry callback leaked."),
+            NotifyAttemptCompleted = _ => completedAttempts++
+        });
+        var transport = new CapturingResponsesTransport(new StreamingResponseOutputTextDeltaUpdate
+        {
+            SequenceNumber = 1, ItemId = "msg_memory", OutputIndex = 0, ContentIndex = 0, Delta = "done"
+        });
+        using var adapter = CreateAdapter(transport);
+        using var retrying = new StreamRetryingChatClient(adapter, new StreamRetryOptions(0, TimeSpan.FromSeconds(5)));
+        var snapshot = PromptRequestSnapshot.Capture([new ChatMessage(ChatRole.User, "remember blue")], null);
+        var result = await new MaintenanceForkRunner(retrying, new TraceCollector(new TraceStore())).RunAsync(snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.MemoryConsolidation, "Extract durable memory."), null,
+            new MaintenanceForkToolExecutionOptions(_ => ModeToolPolicyDecision.Allow));
+
+        Assert.Equal("done", result.Text);
+        Assert.Equal(0, completedAttempts);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(4)]
+    public async Task ForkRunnerDetachesTurnHistoryForEveryInputLength(int snapshotLength)
+    {
+        var records = new List<ThreadRolloutRecord>();
+        var history = CreateContext(CreateIdentity(ProviderRequestKind.Turn),
+            [new ChatMessage(ChatRole.User, "covered"), new ChatMessage(ChatRole.Assistant, "answer"),
+                new ChatMessage(ChatRole.User, "latest")], records);
+        var transport = new CapturingResponsesTransport(new StreamingResponseOutputTextDeltaUpdate
+        {
+            SequenceNumber = 1, ItemId = "msg_memory", OutputIndex = 0, ContentIndex = 0,
+            Delta = "{\"status\":\"unchanged\"}"
+        });
+        using var adapter = CreateAdapter(transport);
+        using var scope = OpenAIResponsesProviderHistoryRuntimeScope.Set(history);
+        var original = ProviderRequestContextScope.Current;
+        var snapshot = PromptRequestSnapshot.Capture(
+            Enumerable.Range(0, snapshotLength).Select(i => new ChatMessage(ChatRole.User, $"snapshot {i}")).ToList(),
+            new ChatOptions { ModelId = "gpt-test" },
+            providerId: "openai", mode: "agent", threadId: "thread_test", turnId: "turn_001");
+
+        var result = await new MaintenanceForkRunner(adapter).RunAsync(snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.MemoryConsolidation, "Extract memory only."));
+
+        Assert.Null(result.FallbackReason);
+        using var request = JsonDocument.Parse(ModelReaderWriter.Write(Assert.Single(transport.Requests)).ToString());
+        Assert.Contains("Extract memory only.", request.RootElement.GetProperty("input").ToString());
+        Assert.DoesNotContain("covered", request.RootElement.GetProperty("input").ToString());
+        Assert.Empty(records);
+        Assert.Same(original, ProviderRequestContextScope.Current);
+        Assert.Equal(ProviderRequestKind.Turn, original!.CurrentIdentity.RequestKind);
+    }
+
     [Theory]
     [InlineData(ProviderRequestKind.Compaction)]
     [InlineData(ProviderRequestKind.Memory)]

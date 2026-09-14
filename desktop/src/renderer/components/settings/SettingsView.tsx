@@ -84,6 +84,7 @@ import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
+import { ProviderModelSummary } from './ProviderModelSummary'
 import { McpPanel } from './panels/McpPanel'
 import {
   StatusIndicator,
@@ -211,7 +212,6 @@ interface ProviderInfoWire {
   endPoint: string
   networkTimeoutSeconds?: number | null
   supportsHostedImageGeneration?: boolean
-  isImplicit: boolean
   capabilities?: ProviderCapabilitiesWire
   authMethod?: 'apiKey' | 'chatgptOAuth'
   chatGptAccountId?: string | null
@@ -302,7 +302,6 @@ function normalizeProviderList(value: unknown): ProviderInfoWire[] {
             ? raw.networkTimeoutSeconds
             : null,
         supportsHostedImageGeneration: raw.supportsHostedImageGeneration === true,
-        isImplicit: raw.isImplicit === true,
         capabilities: raw.capabilities,
         authMethod: rawAuthMethod === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
         chatGptAccountId: typeof raw.chatGptAccountId === 'string' && raw.chatGptAccountId.trim() !== ''
@@ -728,23 +727,6 @@ function providerRowStyle(active: boolean): CSSProperties {
   }
 }
 
-function providerBadgeStyle(tone: 'neutral' | 'accent'): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    minHeight: 20,
-    padding: '2px 7px',
-    borderRadius: 999,
-    background: tone === 'accent'
-      ? 'color-mix(in srgb, var(--accent) 16%, transparent)'
-      : 'var(--bg-tertiary)',
-    color: tone === 'accent' ? 'var(--accent)' : 'var(--text-secondary)',
-    fontSize: 11,
-    fontWeight: 600,
-    lineHeight: 1
-  }
-}
-
 function providerFieldStackStyle(): CSSProperties {
   return {
     display: 'flex',
@@ -1090,7 +1072,6 @@ export function SettingsView({
   const providerEditorIsNew = providerEditorId === '__new__'
   const canDeleteProviderInEditor =
     providerEditorProvider != null &&
-    providerEditorProvider.isImplicit !== true &&
     providerEditorProvider.id !== selectedProviderId
   const providersCountLabel = providers.length === 1
     ? t('settings.llm.providersCount.one', { count: providers.length })
@@ -1726,7 +1707,7 @@ export function SettingsView({
   }
 
   async function handleProviderDelete(provider: ProviderInfoWire): Promise<void> {
-    if (provider.isImplicit || provider.id === selectedProviderId) return
+    if (provider.id === selectedProviderId) return
     setDeletingProvider(true)
     try {
       await window.api.appServer.sendRequest('provider/delete', { id: provider.id }, 20_000)
@@ -3382,30 +3363,6 @@ export function SettingsView({
                           const rememberedSubAgentPreference = active
                             ? subAgentPreference
                             : findProviderPreference(subAgentProviderPreferences, provider.id)
-                          const formatPreference = (preference: ModelPreference): string => {
-                            const reasoning = preference.reasoning.enabled
-                              ? preference.reasoning.effort === 'ultra'
-                                ? t('composer.reasoning.ultra')
-                                : preference.reasoning.effort === 'extraHigh'
-                                  ? t('composer.reasoning.extraHigh')
-                                  : preference.reasoning.effort === 'high'
-                                    ? t('composer.reasoning.high')
-                                    : preference.reasoning.effort === 'medium'
-                                      ? t('composer.reasoning.medium')
-                                      : preference.reasoning.effort === 'low'
-                                        ? t('composer.reasoning.low')
-                                        : t('composer.reasoning.off')
-                              : t('composer.reasoning.off')
-                            const speed = preference.speed === 'fast'
-                              ? t('composer.speed.fast')
-                              : t('composer.speed.standard')
-                            return [
-                              preference.model,
-                              reasoning,
-                              speed,
-                              preference.contextWindow.mode === 'max' ? 'MAX' : null
-                            ].filter(Boolean).join(' · ')
-                          }
                           return (
                             <div
                               key={provider.id}
@@ -3435,12 +3392,6 @@ export function SettingsView({
                                   <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
                                     {provider.displayName}
                                   </div>
-                                  {provider.isImplicit && (
-                                    <span style={providerBadgeStyle('neutral')}>{t('settings.llm.implicitProvider')}</span>
-                                  )}
-                                  {active && (
-                                    <span style={providerBadgeStyle('accent')}>{t('settings.llm.selectedProvider')}</span>
-                                  )}
                                 </div>
                                 <div
                                   style={{
@@ -3468,34 +3419,10 @@ export function SettingsView({
                                     {provider.endPoint || t('settings.llm.providerDefaultEndpoint')}
                                   </span>
                                 </div>
-                                {(rememberedMainAgentPreference || rememberedSubAgentPreference) && (
-                                  <div
-                                    style={{
-                                      marginTop: '4px',
-                                      fontSize: '12px',
-                                      color: 'var(--text-dimmed)',
-                                      display: 'flex',
-                                      flexWrap: 'wrap',
-                                      gap: '6px'
-                                    }}
-                                  >
-                                    {rememberedMainAgentPreference && (
-                                      <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {t('settings.llm.providerRememberedMainAgentModel', {
-                                          model: formatPreference(rememberedMainAgentPreference)
-                                        })}
-                                      </span>
-                                    )}
-                                    {rememberedMainAgentPreference && <span aria-hidden>·</span>}
-                                    <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {rememberedSubAgentPreference
-                                        ? t('settings.llm.providerRememberedSubAgentModel', {
-                                            model: formatPreference(rememberedSubAgentPreference)
-                                          })
-                                        : t('settings.llm.providerInheritedSubAgentPreference')}
-                                    </span>
-                                  </div>
-                                )}
+                                <ProviderModelSummary
+                                  main={rememberedMainAgentPreference}
+                                  subAgent={rememberedSubAgentPreference}
+                                />
                               </div>
                               <span
                                 onClick={(event) => event.stopPropagation()}

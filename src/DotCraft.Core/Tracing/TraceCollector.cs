@@ -35,6 +35,10 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 
         switch (diagnostic.Name)
         {
+            case "provider.compaction":
+            case "maintenance.request":
+                AuxiliaryRequestDiagnostics.Record(store, diagnostic, sessionKey);
+                break;
             case "provider.error":
                 RecordProviderError(
                     sessionKey,

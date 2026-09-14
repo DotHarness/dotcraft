@@ -77,6 +77,12 @@ internal static partial class ResponsesToolSearchMapper
     {
         item = null!;
 
+        if (ResponsesReasoningMetadata.TryRead(reasoning, out item))
+        {
+            EnsureReasoningDefaults(item);
+            return true;
+        }
+
         if (TryCreateReasoningItemFromRaw(reasoning.RawRepresentation, out item))
         {
             if (!item.ContainsKey("encrypted_content") && !string.IsNullOrWhiteSpace(reasoning.ProtectedData))

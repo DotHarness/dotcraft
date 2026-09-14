@@ -113,7 +113,7 @@ preserves the installation id.
 | Auth method | Base URL | Path | Auth header | Extra headers |
 |---|---|---|---|---|
 | API key | `https://api.openai.com/v1` | `/responses`, `/chat/completions`, `/models` | `Authorization: Bearer <api-key>` | — |
-| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses`, `/responses/compact` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
+| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
 ChatGPT OAuth requests intentionally remove the OpenAI .NET SDK's `X-Stainless-*` platform
@@ -231,7 +231,7 @@ uses the SDK's top-level `instructions` and `tools` fields. Model metadata suppl
 `parallel_tool_calls` value; the Lite dialect always forces that value to `false`. The standard
 dialect does not send the Responses Lite header or apply Lite body mapping.
 
-Every OAuth `/responses` and `/responses/compact` request advertises
+Every OAuth `/responses` request advertises
 `x-codex-beta-features: remote_compaction_v2`. The Lite dialect additionally carries
 `x-openai-internal-codex-responses-lite: true`. Sampling requests carry
 `Accept: text/event-stream` and serialize the complete JSON body before applying Zstandard level 3
@@ -244,11 +244,9 @@ and `stream=true`.
 
 Tool choice retains the value resolved by the standard Responses mapper:
 `ChatOptions.ToolMode` maps to `none`, `auto`, `required`, or a required function choice. The
-Responses Lite endpoint does not support parallel tool execution and rejects
-`parallel_tool_calls=true`, so the Lite mapper forces an emitted `parallel_tool_calls` field to
-`false` while preserving its omission when the standard mapper does not emit it. Compact requests
-apply the same restriction and omit sampling-only fields such as `tool_choice`, `stream`, `store`,
-`include`, and `client_metadata`.
+Responses Lite endpoint requires explicit `parallel_tool_calls=false`, including requests without
+tools. Ordinary sampling and v2 compaction share this restriction and the same streaming, storage,
+reasoning inclusion, client metadata, and tool-choice shaping.
 
 Every OAuth `/responses` request uses `store=false`, includes
 `reasoning.encrypted_content`, and contains a `reasoning` object. The object may be empty or carry
@@ -303,24 +301,18 @@ identifiers, request or response bodies, prompts, and raw routing values are nev
 
 ## Responses compaction transport
 
-ChatGPT OAuth server-managed Responses threads use the provider-native backend defined in
-[Context Compaction](context-compaction.md). The backend sends
-`POST https://chatgpt.com/backend-api/codex/responses/compact`; it does not send the public OpenAI
-API compact contract to `api.openai.com`.
+ChatGPT OAuth server-managed Responses threads use the Responses v2 backend defined in
+[Context Compaction](context-compaction.md). The backend sends a streaming `POST /responses`
+request with a trailing `compaction_trigger`, using the configured OAuth client's endpoint and
+pipeline. Standard and Lite requests use the same dialect, body shaping, compression policy,
+client metadata, routing and turn-state rules as ordinary sampling.
 
-The configured OpenAI .NET `ResponsesClient` may supply the raw protocol transport because its base
-endpoint and client pipeline already belong to the ChatGPT OAuth runtime. DotCraft constructs and
-validates the ChatGPT-compatible JSON itself. SDK response-item objects and MEAI
-`RawRepresentation` are not persistence formats.
-
-`/responses/compact` is a Responses-family request for OAuth headers, sticky routing, Turn metadata,
-and `x-codex-turn-state`. It is not a create-response request: the OAuth body policy must not inject
-`client_metadata`, streaming fields, or other `/responses`-only body rewrites. The complete raw
-`output` array is persisted as the next canonical Responses generation. Compaction uses the same
-model metadata decision as sampling: standard models use the standard OAuth SDK transport, while
-Lite models use the Lite header, body mapper, and parallel-tool restriction. Neither compact dialect
-uses request-body compression.
-Sampling and compaction for one runtime must not mix dialects.
+DotCraft consumes raw SSE completion events without executing tools or appending intermediate
+outputs to live history. Exactly one raw compaction item and `response.completed` are required.
+The client-built retained-message window followed by that item becomes the next canonical
+generation after the rollout commit. SDK response-item objects and MEAI `RawRepresentation` are
+not persistence formats. Persisted legacy windows remain readable; new calls never use the old
+compact endpoint.
 
 ## HTTP 401 recovery
 

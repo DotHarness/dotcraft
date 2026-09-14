@@ -13,6 +13,7 @@ public sealed partial class SessionService
 {
     private sealed class MaintenanceCoordinator(SessionService owner)
     {
+        private readonly MemoryConsolidationExecutor _memory = new(owner);
         public Task<ThreadCompactResult> StartCompact(string threadId, CancellationToken ct)
         {
             var thread = GetLoadedThreadForAdmission(threadId);
@@ -458,16 +459,7 @@ public sealed partial class SessionService
             using var linkedMaintenanceCts = CancellationTokenSource.CreateLinkedTokenSource(ct, maintenance.Token);
             try
             {
-                var providerIdentity = ThreadConversationIdentity.Create(
-                    thread,
-                    turn: null,
-                    owner.GetOrCreateResponsesContextWindow(threadId).CurrentWindowId,
-                    ProviderRequestKind.Memory);
-                using var codexResponsesScope = ProviderRequestContextScope.Push(
-                    new ProviderRequestContext(
-                        providerIdentity,
-                        ConversationState: new ProviderConversationState(providerIdentity)));
-                return await RunMemoryConsolidationAsync(
+                return await _memory.RunAsync(
                     threadId,
                     thread,
                     completedTurn,
@@ -621,7 +613,9 @@ public sealed partial class SessionService
                 turn,
                 history,
                 requestSnapshot,
-                nextItemSequence);
+                nextItemSequence,
+                ThreadConversationIdentity.Create(thread, turn,
+                    owner.GetOrCreateResponsesContextWindow(threadId).CurrentWindowId, ProviderRequestKind.Memory));
             return TryStartAutoMemoryConsolidation(threadId, work, eventChannel);
         }
 
@@ -757,6 +751,7 @@ public sealed partial class SessionService
             runtime.ResetTurnsSinceConsolidation();
             eventChannel?.EmitSystemEvent("consolidating");
 
+            using var flow = ExecutionContext.IsFlowSuppressed() ? default : ExecutionContext.SuppressFlow();
             _ = Task.Run(async () =>
             {
                 var current = work;
@@ -765,7 +760,7 @@ public sealed partial class SessionService
                 {
                     while (true)
                     {
-                        await RunMemoryConsolidationAsync(
+                        await _memory.RunAsync(
                             threadId,
                             current.Thread,
                             current.Turn,
@@ -773,7 +768,8 @@ public sealed partial class SessionService
                             current.RequestSnapshot,
                             current.NextItemSequence,
                             broker,
-                            CancellationToken.None);
+                            CancellationToken.None,
+                            current.Identity);
 
                         if (runtime.TryTakePendingAutoMemoryConsolidation(out current))
                         {
@@ -809,120 +805,12 @@ public sealed partial class SessionService
             return true;
         }
 
-        private async Task<ThreadMemoryConsolidationResult> RunMemoryConsolidationAsync(
-            string threadId,
-            SessionThread thread,
-            SessionTurn turn,
-            IReadOnlyList<ChatMessage> history,
-            PromptRequestSnapshot? requestSnapshot,
-            Func<int> nextItemSequence,
-            ThreadEventBroker broker,
-            CancellationToken ct)
-        {
-            var currentConfig = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
-            var consolidator = owner.AgentFactory.CreateConsolidatorForRuntime(
-                currentConfig,
-                thread.Configuration?.ProviderId,
-                thread.Configuration?.Model,
-                thread.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
-            if (consolidator is null)
-            {
-                const string message = "memory_consolidator_unavailable";
-                broker.PublishSystemEvent("consolidationFailed", message: message);
-                return new ThreadMemoryConsolidationResult
-                {
-                    Outcome = "failed",
-                    Message = message
-                };
-            }
-
-            try
-            {
-                var result = consolidator is IMemoryForkConsolidator forkConsolidator
-                    ? await forkConsolidator.ConsolidateAsync(history, requestSnapshot, ct)
-                    : await consolidator.ConsolidateAsync(history, ct);
-                switch (result.Outcome)
-                {
-                    case MemoryConsolidationOutcome.Succeeded:
-                        await AppendMemoryConsolidationNoticeAsync(
-                            threadId,
-                            thread,
-                            turn,
-                            nextItemSequence,
-                            broker,
-                            ct);
-                        if (result.MemoryWritten)
-                            owner.MarkMemoryContextDirty();
-                        owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MemoryConsolidated, null);
-                        broker.PublishSystemEvent("consolidated");
-                        return new ThreadMemoryConsolidationResult
-                        {
-                            Outcome = "succeeded",
-                            MemoryWritten = result.MemoryWritten,
-                            HistoryWritten = result.HistoryWritten
-                        };
-
-                    case MemoryConsolidationOutcome.Skipped:
-                        broker.PublishSystemEvent("consolidationSkipped", message: result.Message);
-                        return new ThreadMemoryConsolidationResult
-                        {
-                            Outcome = "skipped",
-                            Message = result.Message,
-                            MemoryWritten = result.MemoryWritten,
-                            HistoryWritten = result.HistoryWritten
-                        };
-
-                    case MemoryConsolidationOutcome.Failed:
-                        owner.Logger?.LogWarning(
-                            "Memory consolidation failed for thread {ThreadId}: {Message}",
-                            threadId,
-                            result.Message);
-                        broker.PublishSystemEvent("consolidationFailed", message: result.Message);
-                        return new ThreadMemoryConsolidationResult
-                        {
-                            Outcome = "failed",
-                            Message = result.Message,
-                            MemoryWritten = result.MemoryWritten,
-                            HistoryWritten = result.HistoryWritten
-                        };
-
-                    default:
-                        var outcome = result.Outcome.ToString().ToLowerInvariant();
-                        broker.PublishSystemEvent("consolidationFailed", message: outcome);
-                        return new ThreadMemoryConsolidationResult
-                        {
-                            Outcome = "failed",
-                            Message = outcome
-                        };
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                broker.PublishSystemEvent("consolidationCancelled", message: "cancelled");
-                return new ThreadMemoryConsolidationResult
-                {
-                    Outcome = "cancelled",
-                    Message = "cancelled"
-                };
-            }
-            catch (Exception ex)
-            {
-                owner.Logger?.LogWarning(ex, "Memory consolidation failed for thread {ThreadId}", threadId);
-                broker.PublishSystemEvent("consolidationFailed", message: ex.Message);
-                return new ThreadMemoryConsolidationResult
-                {
-                    Outcome = "failed",
-                    Message = ex.Message
-                };
-            }
-        }
-
         private static IReadOnlyList<ChatMessage> SnapshotSessionHistoryForConsolidation(
             List<ChatMessage> session,
             SessionThread thread)
         {
             if (session.Count > 0)
-                return session.ToList();
+                return session.Select(message => message.Clone()).ToList();
 
             var fallback = new List<ChatMessage>();
             foreach (var turn in thread.Turns)
@@ -966,43 +854,5 @@ public sealed partial class SessionService
             broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, noticeItem);
         }
 
-        private static SessionItem CreateMemoryConsolidationNoticeItem(SessionTurn turn, int seq)
-        {
-            return new SessionItem
-            {
-                Id = SessionIdGenerator.NewItemId(seq),
-                TurnId = turn.Id,
-                Type = ItemType.SystemNotice,
-                Status = ItemStatus.Completed,
-                CreatedAt = DateTimeOffset.UtcNow,
-                CompletedAt = DateTimeOffset.UtcNow,
-                Payload = new SystemNoticePayload
-                {
-                    Kind = "memoryConsolidated"
-                }
-            };
-        }
-
-        private async Task AppendMemoryConsolidationNoticeAsync(
-            string threadId,
-            SessionThread thread,
-            SessionTurn turn,
-            Func<int> nextItemSequence,
-            ThreadEventBroker broker,
-            CancellationToken ct = default)
-        {
-            if (owner.IsPendingPermanentDeletion(threadId))
-                return;
-
-            using var gateLock = await owner.Gate.AcquireAsync(threadId, ct);
-            if (owner.IsPendingPermanentDeletion(threadId))
-                return;
-
-            var noticeItem = CreateMemoryConsolidationNoticeItem(turn, nextItemSequence());
-            turn.Items.Add(noticeItem);
-            broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, noticeItem);
-            broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, noticeItem);
-            await owner.PersistThreadWithMaterializationAsync(thread, ct);
-        }
     }
 }

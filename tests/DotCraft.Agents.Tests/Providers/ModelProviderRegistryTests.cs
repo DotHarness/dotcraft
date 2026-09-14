@@ -74,7 +74,6 @@ public sealed class ModelProviderRegistryTests
         "https://example.test",
         30,
         null,
-        false,
         ModelProviderCapabilities.ForProtocol(protocol));
 
     private sealed class TestProvider(string protocol, object? capability = null) : IModelProvider

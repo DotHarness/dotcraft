@@ -397,7 +397,6 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
             EndPoint: "http://localhost",
             NetworkTimeoutSeconds: 60,
             MaxOutputTokens: 64_000,
-            IsImplicit: false,
             Capabilities: ModelProviderCapabilities.ForProtocol(protocol));
 
     private sealed class FakeMemoryConsolidator(MemoryConsolidationResult result) : IMemoryConsolidator

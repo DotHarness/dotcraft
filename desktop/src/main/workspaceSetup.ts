@@ -153,10 +153,6 @@ function normalizeOptionalNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function isImplicitProviderId(_providerId: string): boolean {
-  return false
-}
-
 function readExplicitProviders(config: Record<string, unknown>): WorkspaceSetupProviderSummary[] {
   const providers = getConfigValueCaseInsensitive(config, 'Providers')
   if (providers == null || typeof providers !== 'object' || Array.isArray(providers)) {
@@ -166,7 +162,7 @@ function readExplicitProviders(config: Record<string, unknown>): WorkspaceSetupP
   return Object.entries(providers as Record<string, unknown>)
     .map(([rawId, rawProvider]): WorkspaceSetupProviderSummary | null => {
       const id = rawId.trim()
-      if (!id || isImplicitProviderId(id) || rawProvider == null || typeof rawProvider !== 'object' || Array.isArray(rawProvider)) {
+      if (!id || rawProvider == null || typeof rawProvider !== 'object' || Array.isArray(rawProvider)) {
         return null
       }
 
@@ -204,7 +200,7 @@ function getUserConfigStatusFromParsed(
     hasUserConfig: true,
     userConfigDefaults: {
       providerId:
-        providerId && !isImplicitProviderId(providerId) && explicitProviderIds.has(providerId.toLowerCase())
+        providerId && explicitProviderIds.has(providerId.toLowerCase())
           ? providerId
           : undefined,
       model: preference?.model,
@@ -260,7 +256,7 @@ function hasConfiguredProvider(
   providerId: string,
   providers: WorkspaceSetupProviderSummary[]
 ): boolean {
-  if (!providerId || isImplicitProviderId(providerId)) return false
+  if (!providerId) return false
   return providers.some((provider) => provider.id.toLowerCase() === providerId.toLowerCase())
 }
 

@@ -885,7 +885,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                 "https://api.deepseek.com/v1",
                 30,
                 null,
-                false,
                 ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIChatCompletions)));
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
         var client = new StreamingFunctionInvokingChatClient(deepThinking)

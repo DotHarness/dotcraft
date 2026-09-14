@@ -138,6 +138,7 @@ public sealed class CompactionPipelineTests
         Assert.Null(result.Status.FailureReason);
         Assert.Single(result.Messages);
         Assert.Contains("single round summary", result.Messages[0].Text);
+        Assert.Equal(ChatRole.User, result.Messages[0].Role);
         Assert.False(pipeline.Failures.IsTripped("thread-1"));
     }
 
@@ -175,6 +176,7 @@ public sealed class CompactionPipelineTests
         Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
         Assert.True(result.Messages.Count < messages.Count);
         Assert.Contains("important context", result.Messages[0].Text);
+        Assert.Equal(ChatRole.User, result.Messages[0].Role);
         Assert.True(result.Status.EstimatedTokensAfter < result.Status.EstimatedTokensBefore);
     }
 

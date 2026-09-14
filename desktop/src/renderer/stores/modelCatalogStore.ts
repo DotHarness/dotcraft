@@ -70,12 +70,14 @@ interface ModelCatalogState {
 
 interface ModelCatalogActions {
   loadIfNeeded(force?: boolean, providerId?: string | null): Promise<void>
+  handleConfigChanged(regions: string[]): Promise<void>
   reset(): void
 }
 
 type ModelCatalogStore = ModelCatalogState & ModelCatalogActions
 
-let inFlightLoad: Promise<void> | null = null
+const catalogs = new Map<string | null, ModelCatalogState>()
+const inFlightLoads = new Map<string | null, Promise<ModelCatalogState>>()
 
 const initialState: ModelCatalogState = {
   status: 'idle',
@@ -227,97 +229,68 @@ function parseModelListError(payload: unknown): { code: string | null; message: 
   }
 }
 
+async function fetchCatalog(providerId: string | null): Promise<ModelCatalogState> {
+  const state = { ...initialState, providerId, requestedProviderId: providerId }
+  try {
+    const result = await window.api.appServer.listModels(providerId)
+    if (result == null) return state
+    state.providerId = parseEffectiveProviderId(result, providerId)
+    const error = parseModelListError(result)
+    if (error.code || error.message) {
+      return { ...state, status: 'error', modelListUnsupportedEndpoint: parseModelListUnsupportedEndpoint(result),
+        errorCode: error.code, errorMessage: error.message }
+    }
+    const models = parseModelCatalogItems(result)
+    return { ...state, status: 'ready', models, modelOptions: models.map(model => model.id) }
+  } catch (error) {
+    return { ...state, status: 'error', errorMessage: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
   ...initialState,
 
   async loadIfNeeded(force = false, providerId = null) {
-    const normalizedProviderId = typeof providerId === 'string' && providerId.trim() !== '' ? providerId.trim() : null
-    for (;;) {
-      const current = get()
-      const providerChanged = current.requestedProviderId !== normalizedProviderId
-      if (!force && !providerChanged && current.status === 'ready') {
-        return
-      }
-      if (!force && !providerChanged && current.status === 'loading' && inFlightLoad) {
-        await inFlightLoad
-        return
-      }
-      if (inFlightLoad) {
-        await inFlightLoad
-        force = true
-        continue
-      }
-      break
+    const key = providerId?.trim() || null
+    const current = get()
+    if (!force && current.status === 'ready' && current.requestedProviderId === key) return
+    const cached = catalogs.get(key)
+    if (!force && cached) {
+      set({ ...cached, requestedProviderId: key })
+      return
     }
+    set({ ...initialState, status: 'loading', providerId: key, requestedProviderId: key })
+    let load = inFlightLoads.get(key)
+    if (!load) {
+      load = fetchCatalog(key)
+      inFlightLoads.set(key, load)
+    }
+    const result = await load
+    if (inFlightLoads.get(key) !== load) return
+    inFlightLoads.delete(key)
+    if (result.status === 'ready') {
+      catalogs.set(key, result)
+      if (result.providerId) catalogs.set(result.providerId, result)
+      if (catalogs.get(null)?.providerId === result.providerId) catalogs.set(null, result)
+    }
+    if (get().requestedProviderId === key) set(result)
+  },
 
-    set({ status: 'loading', requestedProviderId: normalizedProviderId })
-    const load = (async () => {
-      try {
-        const result = await window.api.appServer.listModels(normalizedProviderId)
-        if (result == null) {
-          set({
-            models: [],
-            modelOptions: [],
-            status: 'idle',
-            providerId: normalizedProviderId,
-            requestedProviderId: normalizedProviderId,
-            modelListUnsupportedEndpoint: false,
-            errorCode: null,
-            errorMessage: null
-          })
-          return
-        }
-        const effectiveProviderId = parseEffectiveProviderId(result, normalizedProviderId)
-        const error = parseModelListError(result)
-        if (error.code || error.message) {
-          set({
-            models: [],
-            modelOptions: [],
-            status: 'error',
-            providerId: effectiveProviderId,
-            requestedProviderId: normalizedProviderId,
-            modelListUnsupportedEndpoint: parseModelListUnsupportedEndpoint(result),
-            errorCode: error.code,
-            errorMessage: error.message
-          })
-          return
-        }
-
-        const models = parseModelCatalogItems(result)
-        set({
-          models,
-          modelOptions: models.map((model) => model.id),
-          status: 'ready',
-          providerId: effectiveProviderId,
-          requestedProviderId: normalizedProviderId,
-          modelListUnsupportedEndpoint: false,
-          errorCode: null,
-          errorMessage: null
-        })
-      } catch (err) {
-        set({
-          modelOptions: [],
-          models: [],
-          status: 'error',
-          providerId: normalizedProviderId,
-          requestedProviderId: normalizedProviderId,
-          modelListUnsupportedEndpoint: false,
-          errorCode: null,
-          errorMessage: err instanceof Error ? err.message : String(err)
-        })
-      }
-    })()
-    inFlightLoad = load
-
-    try {
-      await load
-    } finally {
-      if (inFlightLoad === load) inFlightLoad = null
+  async handleConfigChanged(regions) {
+    if (regions.includes('providers')) {
+      const providerId = get().requestedProviderId
+      get().reset()
+      await get().loadIfNeeded(false, providerId)
+    } else if (regions.includes('workspace.provider')) {
+      catalogs.delete(null)
+      inFlightLoads.delete(null)
+      if (get().requestedProviderId === null) set({ ...initialState })
     }
   },
 
   reset() {
-    inFlightLoad = null
+    catalogs.clear()
+    inFlightLoads.clear()
     set({ ...initialState })
   }
 }))

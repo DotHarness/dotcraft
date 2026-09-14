@@ -52,6 +52,12 @@ internal static class AgentHistoryRuntimeScope
 {
     private static readonly AsyncLocal<AgentInvocationHistory?> Ambient = new();
     public static AgentInvocationHistory? Current => Ambient.Value;
+    internal static IDisposable Suppress()
+    {
+        var previous = Ambient.Value;
+        Ambient.Value = null;
+        return new RestoreScope(() => Ambient.Value = previous);
+    }
     public static IDisposable Set(AgentInvocationHistory history)
     {
         var previous = Ambient.Value;

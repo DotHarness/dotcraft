@@ -46,28 +46,21 @@ internal static class OpenAIResponsesLiteRequestMapper
         if (string.IsNullOrWhiteSpace(installationId))
             throw new ArgumentException("Installation id must be non-empty.", nameof(installationId));
 
-        var sdkJson = ModelReaderWriter.Write(options).ToString();
-        var canonicalJson = OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(sdkJson)
-                            ?? throw new InvalidDataException("Responses request must be a JSON object.");
-        var root = JsonNode.Parse(canonicalJson)?.AsObject()
-                   ?? throw new InvalidDataException("Responses request must be a JSON object.");
-
-        ApplyLiteDialect(root);
-
-        var snapshot = OpenAIResponsesCodexMetadata.CreateSnapshot(installationId);
-        MergeClientMetadata(root, OpenAIResponsesCodexMetadata.BuildClientMetadata(snapshot));
-        return BinaryData.FromString(root.ToJsonString());
+        return BuildWireBody(ModelReaderWriter.Write(options), installationId);
     }
 
-    internal static BinaryData BuildCompactWireBody(BinaryData standardBody)
+    internal static BinaryData BuildWireBody(BinaryData standardBody, string? installationId)
     {
         ArgumentNullException.ThrowIfNull(standardBody);
-        var canonicalJson = OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(
-                                standardBody.ToString())
-                            ?? throw new InvalidDataException("Responses compact request must be a JSON object.");
-        var root = JsonNode.Parse(canonicalJson)?.AsObject()
-                   ?? throw new InvalidDataException("Responses compact request must be a JSON object.");
+        var canonicalJson = OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(standardBody.ToString())
+                            ?? throw new InvalidDataException("Responses request must be a JSON object.");
+        var root = JsonNode.Parse(canonicalJson)!.AsObject();
         ApplyLiteDialect(root);
+        if (!string.IsNullOrWhiteSpace(installationId))
+        {
+            var snapshot = OpenAIResponsesCodexMetadata.CreateSnapshot(installationId);
+            MergeClientMetadata(root, OpenAIResponsesCodexMetadata.BuildClientMetadata(snapshot));
+        }
         return BinaryData.FromString(root.ToJsonString());
     }
 
@@ -111,10 +104,7 @@ internal static class OpenAIResponsesLiteRequestMapper
         root.Remove("max_output_tokens");
         root["store"] = false;
         root["stream"] = true;
-        // The Responses Lite endpoint rejects parallel_tool_calls=true instead of ignoring it.
-        // Preserve omission when no tool control was emitted, but force every emitted value off.
-        if (root.ContainsKey("parallel_tool_calls"))
-            root["parallel_tool_calls"] = false;
+        root["parallel_tool_calls"] = false;
         var reasoning = root["reasoning"] as JsonObject ?? new JsonObject();
         reasoning["context"] = "all_turns";
         root["reasoning"] = reasoning;

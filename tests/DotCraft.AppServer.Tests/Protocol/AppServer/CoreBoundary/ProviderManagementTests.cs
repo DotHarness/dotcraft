@@ -420,7 +420,6 @@ public sealed class ProviderManagementTests : IDisposable
         var providers = response.RootElement.GetProperty("result").GetProperty("providers").EnumerateArray().ToList();
         var explicitProvider = Assert.Single(providers);
         Assert.Equal("anthropic-main", explicitProvider.GetProperty("id").GetString());
-        Assert.False(explicitProvider.GetProperty("isImplicit").GetBoolean());
         Assert.Equal("Anthropic Main", explicitProvider.GetProperty("displayName").GetString());
     }
 
