@@ -28,8 +28,6 @@ const electronMock = vi.hoisted(() => {
       goForward: vi.fn()
     }
   }
-  const setBounds = vi.fn()
-  const WebContentsView = vi.fn(() => ({ webContents, setBounds }))
   const fromPartition = vi.fn(() => ({
     protocol: { handle: vi.fn() },
     on: vi.fn(),
@@ -39,8 +37,6 @@ const electronMock = vi.hoisted(() => {
   return {
     loadURL,
     webContents,
-    setBounds,
-    WebContentsView,
     fromPartition,
     reset() {
       currentUrl = 'about:blank'
@@ -59,8 +55,6 @@ const electronMock = vi.hoisted(() => {
       webContents.navigationHistory.canGoForward.mockClear()
       webContents.navigationHistory.goBack.mockClear()
       webContents.navigationHistory.goForward.mockClear()
-      setBounds.mockClear()
-      WebContentsView.mockClear()
       fromPartition.mockClear()
     }
   }
@@ -68,7 +62,6 @@ const electronMock = vi.hoisted(() => {
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn(() => null) },
-  WebContentsView: electronMock.WebContentsView,
   nativeImage: { createFromBuffer: vi.fn(() => ({ isEmpty: () => true })) },
   session: { fromPartition: electronMock.fromPartition },
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
@@ -225,96 +218,35 @@ describe('loadOrReport', () => {
 })
 
 describe('ViewerBrowserManager tab creation', () => {
-  function createFakeWindow() {
-    return {
-      id: 1,
-      isDestroyed: () => false,
-      getContentBounds: () => ({ x: 0, y: 0, width: 1600, height: 900 }),
-      webContents: {
-        isDestroyed: () => false,
-        send: vi.fn()
-      },
-      contentView: {
-        addChildView: vi.fn(),
-        removeChildView: vi.fn()
-      }
-    } as unknown as Electron.BrowserWindow
-  }
+  const win = { id: 1, isDestroyed: () => false, webContents: { isDestroyed: () => false, send: vi.fn() } } as unknown as Electron.BrowserWindow
 
-  it('keeps the start page load for regular blank browser tabs', () => {
+  it('waits for a guest before loading a regular page', async () => {
     const manager = new ViewerBrowserManager()
-
-    manager.createTab(createFakeWindow(), {
-      tabId: 'tab-regular',
-      workspacePath: '/workspace/test-root',
-      initialUrl: 'about:blank'
-    })
-
-    expect(electronMock.loadURL).toHaveBeenCalledTimes(1)
-    expect(electronMock.loadURL.mock.calls[0]?.[0]).toContain('data:text/html')
-  })
-
-  it('does not load the start page for automation tabs before target navigation', () => {
-    const manager = new ViewerBrowserManager()
-
-    manager.createAutomationTab(createFakeWindow(), {
-      tabId: 'tab-automation',
-      workspacePath: '/workspace/test-root',
-      initialUrl: 'about:blank'
-    })
-
+    let ready!: (page: Electron.WebContents) => void
+    vi.spyOn(manager.hosts, 'request').mockReturnValue(new Promise(resolve => { ready = resolve }))
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    const creation = manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace', initialUrl: 'https://example.com' })
     expect(electronMock.loadURL).not.toHaveBeenCalled()
-    expect(electronMock.setBounds).toHaveBeenCalledWith({
-      x: -10000,
-      y: -10000,
-      width: 1280,
-      height: 720
-    })
+    ready(electronMock.webContents as unknown as Electron.WebContents)
+    await creation
+    expect(electronMock.loadURL).toHaveBeenCalledWith('https://example.com/')
+    expect(manager.getTabWebContents(win, 'tab')).toBe(electronMock.webContents)
   })
 
-  it('does not attach a visible browser view before validated bounds arrive', () => {
+  it('retains the same guest when its presentation changes', async () => {
     const manager = new ViewerBrowserManager()
-    const win = createFakeWindow() as Electron.BrowserWindow & {
-      contentView: { addChildView: ReturnType<typeof vi.fn> }
-    }
-
-    manager.createTab(win, {
-      tabId: 'tab-regular',
-      workspacePath: '/workspace/test-root',
-      initialUrl: 'https://example.com'
-    })
-    manager.setVisible(win, { tabId: 'tab-regular', visible: true })
-
-    expect(win.contentView.addChildView).not.toHaveBeenCalled()
-
-    manager.setBounds(win, { tabId: 'tab-regular', x: 960, y: 80, width: 560, height: 720 })
-
-    expect(electronMock.setBounds).toHaveBeenCalledWith({ x: 960, y: 80, width: 560, height: 720 })
-    expect(win.contentView.addChildView).toHaveBeenCalledTimes(1)
-  })
-
-  it('rejects suspicious top-left partial browser bounds', () => {
-    const manager = new ViewerBrowserManager()
-    const win = createFakeWindow() as Electron.BrowserWindow & {
-      contentView: { addChildView: ReturnType<typeof vi.fn> }
-    }
-
-    manager.createTab(win, {
-      tabId: 'tab-regular',
-      workspacePath: '/workspace/test-root',
-      initialUrl: 'https://example.com'
-    })
-    manager.setVisible(win, { tabId: 'tab-regular', visible: true })
-    manager.setBounds(win, { tabId: 'tab-regular', x: 0, y: 0, width: 900, height: 700 })
-
-    expect(win.contentView.addChildView).not.toHaveBeenCalled()
-    expect(electronMock.setBounds).not.toHaveBeenCalledWith({ x: 0, y: 0, width: 900, height: 700 })
-    expect(electronMock.setBounds).toHaveBeenCalledWith({
-      x: -10000,
-      y: -10000,
-      width: 1280,
-      height: 720
-    })
+    const request = vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    const update = vi.spyOn(manager.hosts, 'update')
+    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
+    manager.setVisible(win, { tabId: 'tab', visible: true })
+    manager.setBounds(win, { tabId: 'tab', x: 12, y: 40, width: 600, height: 400 })
+    expect(update).toHaveBeenLastCalledWith(win, 'tab', { bounds: { x: 12, y: 40, width: 600, height: 400 }, visible: true })
+    manager.setVisible(win, { tabId: 'tab', visible: false })
+    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
+    expect(request).toHaveBeenCalledOnce()
+    expect(electronMock.webContents.close).not.toHaveBeenCalled()
+    expect(electronMock.loadURL).toHaveBeenCalledOnce()
   })
 })
 
@@ -328,7 +260,6 @@ describe('ViewerBrowserManager automation input', () => {
       insertText: vi.fn(),
       executeJavaScript: vi.fn(async () => undefined)
     }
-    const setBounds = vi.fn()
     const win = {
       id: 1,
       isDestroyed: () => false,
@@ -352,7 +283,7 @@ describe('ViewerBrowserManager automation input', () => {
       tabs: new Map([['tab-1', {
         tabId: 'tab-1',
         workspacePath: '/workspace/test-root',
-        view: { webContents, setBounds },
+        page: webContents,
         desiredVisible: true,
         visible: true,
         boundsInitialized: true,
@@ -361,10 +292,10 @@ describe('ViewerBrowserManager automation input', () => {
         automationEnabled: true
       }]])
     })
-    return { manager, win, webContents, setBounds, events }
+    return { manager, win, webContents, events }
   }
 
-  it('initializes the virtual cursor at the automation tab center', () => {
+  it('initializes the virtual cursor at the automation tab center', async () => {
     const manager = new ViewerBrowserManager()
     const win = {
       id: 1,
@@ -379,7 +310,9 @@ describe('ViewerBrowserManager automation input', () => {
       }
     } as unknown as Electron.BrowserWindow & { webContents: { send: ReturnType<typeof vi.fn> } }
 
-    manager.createAutomationTab(win, {
+    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab-center' } as never])
+    await manager.createAutomationTab(win, {
       tabId: 'tab-center',
       workspacePath: '/workspace/test-root',
       width: 1280,
@@ -398,11 +331,12 @@ describe('ViewerBrowserManager automation input', () => {
   })
 
   it('recenters the virtual cursor on real bounds until the agent moves it', async () => {
-    const { manager, win, setBounds } = createAutomationHarness()
+    const { manager, win } = createAutomationHarness()
+    const update = vi.spyOn(manager.hosts, 'update')
 
     manager.setBounds(win, { tabId: 'tab-1', x: 20, y: 30, width: 800, height: 600 })
 
-    expect(setBounds).toHaveBeenCalledWith({ x: 20, y: 30, width: 800, height: 600 })
+    expect(update).toHaveBeenCalledWith(win, 'tab-1', { bounds: { x: 20, y: 30, width: 800, height: 600 }, visible: true })
     expect(win.webContents.send).toHaveBeenCalledWith(
       'viewer:browser:event',
       expect.objectContaining({
@@ -508,7 +442,7 @@ describe('ViewerBrowserManager automation input', () => {
           tabId: 'tab-other',
           threadId: 'thread-other',
           workspacePath: '/workspace/test-root',
-          view: { webContents },
+          page: webContents,
           desiredVisible: true,
           visible: true,
           boundsInitialized: true,
@@ -519,7 +453,7 @@ describe('ViewerBrowserManager automation input', () => {
           tabId: 'tab-current',
           threadId: 'thread-a',
           workspacePath: '/workspace/test-root',
-          view: { webContents },
+          page: webContents,
           desiredVisible: true,
           visible: true,
           boundsInitialized: true,

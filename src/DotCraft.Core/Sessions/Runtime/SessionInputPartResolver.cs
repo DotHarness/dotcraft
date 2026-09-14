@@ -47,6 +47,11 @@ public static class SessionInputPartResolver
         var result = new List<AIContent>(parts.Count);
         foreach (var part in parts)
         {
+            if (part.Type == "contextRef")
+            {
+                result.AddRange(await ResolveAsync(SessionContextMaterializer.Materialize(SessionContextMaterializer.Validate(part.Context)).ToArray(), rejectInvalidImages, maxInlineImageBytes, ct));
+                continue;
+            }
             AIContent content;
             switch (part.Type)
             {

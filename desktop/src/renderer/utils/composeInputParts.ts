@@ -1,9 +1,11 @@
+import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ImageAttachment, InputPart } from '../types/conversation'
 import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
 
 interface BuildComposerInputPartsArgs {
   text: string
+  contexts?: ComposerContextRecord[]
   segments?: ComposerDraftSegment[]
   files?: ComposerFileAttachment[]
   images?: ImageAttachment[]
@@ -58,6 +60,7 @@ export function buildComposerInputParts({
   text,
   segments,
   files = [],
+  contexts = [],
   images = []
 }: BuildComposerInputPartsArgs): BuildComposerInputPartsResult {
   const normalizedSegments = normalizeSegments(text, segments)
@@ -82,6 +85,12 @@ export function buildComposerInputParts({
     inputParts.push({ type: 'text', text: '\n\n' })
   }
 
+  for (const context of contexts) {
+    const persisted = context.kind === 'pageReference' && context.image
+      ? { ...context, image: { tempPath: context.image.tempPath, mimeType: context.image.mimeType, fileName: context.image.fileName } }
+      : context
+    inputParts.push({ type: 'contextRef', context: persisted })
+  }
   inputParts.push(...segmentsToInputParts(normalizedSegments))
 
   for (const image of images) {

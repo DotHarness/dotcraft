@@ -52,18 +52,18 @@ The runtime has five layers:
    - Forwards `threadId`, `turnId`, `evaluationId`, and `browserSession` to Desktop through `ext/nodeRepl/evaluate`.
 
 2. **Desktop Node REPL manager**
-   - Owns one persistent JavaScript context per bound thread while the Desktop connection remains active.
-   - Injects `nodeRepl`, `dotcraft`, and `display`.
+   - Routes each bound thread to a lazy persistent utility process while the Desktop connection remains active.
+   - Bridges host capabilities to the worker, which exposes `nodeRepl` and `dotcraft`.
    - Exposes `dotcraft.browserClientPath` and active `dotcraft.browserSession` so the browser client can initialize in the current turn.
    - Must not pre-install browser `agent`, `agent.browser`, or `agent.browsers` globals; the bundled browser client owns those model-facing APIs.
    - Preserves REPL state across recoverable browser command errors.
 
 3. **DotCraft browser client**
-   - Provides `setupBrowserRuntime({ globals })`.
+   - Provides `setupBrowserRuntime()`.
    - Discovers browser backends through `nodeRepl.nativePipe`.
-   - Installs `agent.browsers`, browser handles, tab handles, capabilities, and browser-use helper APIs.
+   - Returns an agent exposing `agent.browsers`, browser handles, tab handles, capabilities, and browser-use helper APIs.
    - Treats the Desktop in-app browser backend as `iab` inside the browser-use API.
-   - Is maintained as DotCraft source code under `desktop/resources/browser/scripts/`, not as an upstream minified browser client artifact.
+   - Is maintained as DotCraft source code under `desktop/resources/browser/scripts/`.
 
 4. **Desktop IAB backend server**
    - Runs in the Electron main process.
@@ -72,7 +72,9 @@ The runtime has five layers:
    - Maps browser-use backend commands to viewer tabs, Electron `webContents`, CDP, Desktop browser policy, virtual cursor state, and diagnostics.
 
 5. **Viewer browser surface**
-   - Hosts in-app browser tabs as regular viewer tabs.
+   - Hosts in-app browser tabs as persistent DOM webview guests in a window-level renderer host. Main registers the guest WebContents and preserves the existing partition, controls and CDP ownership.
+   - Tab creation waits for guest readiness, including hidden automation tabs. Switching tasks or hiding the panel changes presentation without removing guest nodes; explicit tab/window closure disposes them.
+   - Renderer portals share the page composition hierarchy; ordinary menus never hide the page. Guest viewport dimensions remain available while automation runs in the background.
    - Shows automation state, session name, last action hints, and virtual cursor movement when available.
    - Keeps user focus stable after the initial agent-created tab open.
 
@@ -120,14 +122,14 @@ Desktop must provide the browser client with the following globals:
 | `nodeRepl.nativePipe.createConnection(path)` | Opens a connection only to DotCraft-owned browser-use native pipes. |
 | `nodeRepl.env` | Provides browser-client environment toggles. |
 | `nodeRepl.tmpDir` | Points to the platform temp directory used for pipe discovery where applicable. |
+| `nodeRepl.write(value)` | Writes explicit text output to the evaluation logs. |
 | `nodeRepl.emitImage(image)` | Displays screenshots and other image outputs. |
-| `nodeRepl.setResponseMeta(key, value)` | Records browser-use response metadata. |
 | `nodeRepl.createElicitation(request)` | Routes browser-use confirmation prompts through Desktop approval UX when required. |
 | `nodeRepl.fetch` | May be provided for browser-client compatibility, but ambient network checks should be disabled unless explicitly required. |
 | `dotcraft.browserClientPath` | Absolute path to the bundled browser client entrypoint. |
 | `dotcraft.browserSession` | Active browser session metadata for the current evaluation. |
 
-`globalThis.agent` is intentionally absent in a fresh Node REPL browser cell. It is installed only after `setupBrowserRuntime({ globals })` runs from the bundled browser client.
+`setupBrowserRuntime()` returns an agent for an explicit lexical binding. Neither bootstrap nor the host installs user `agent` or `browser` globals.
 
 Node REPL evaluations for the same thread must be serialized by Desktop. Accidental overlapping browser cells should queue behind the active cell instead of failing with an "already running" error. Cancelling or resetting an active evaluation should also cancel queued evaluations that were waiting on the same stale browser state.
 
@@ -238,9 +240,9 @@ Rules:
 - Agent-created tabs are regular viewer tabs.
 - Creating the first browser tab for a session may focus the viewer tab; later automation updates must not steal focus.
 - Agent-created tabs close by default at finalization.
-- Claimed user tabs release by default at finalization.
+- Claimed user tabs release by default at finalization. Release removes agent registrations, debugger connections, listeners and page caches without destroying or reloading the Viewer page. All released pages remain discoverable for explicit re-acquisition.
 - Stale guessed tab ids are rejected with `TabStale` or `InvalidArgument`.
-- `browser.tabs.finalize({ keep })` is the authoritative cleanup boundary.
+- Only a turn that actually used browser commands triggers automatic cleanup on completion, failure, or cancellation. `tab.markDeliverable()` releases the live page from agent management at cleanup; it remains a user page. `tab.markHandoff()` keeps a temporary page under agent management until the next browser-using turn; the latest mark wins and is consumed at cleanup. Explicit `browser.tabs.finalize({ keep })` remains compatible early cleanup and writes equivalent turn marks. Evaluation completion does not clean up tabs. See [Desktop browser and context feedback](desktop-browser-feedback.md).
 - Keep entries must be typed as `handoff` or `deliverable` when typed finalize is advertised.
 - Model-facing API descriptions and validation errors should show the typed form `finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })`.
 - Temporary tabs used only for inspection should be closed explicitly with `tab.close()` or cleaned up through finalization; `browser.tabs.content({ urls })` is preferred for read-only temporary page fetches.
@@ -274,7 +276,7 @@ The model-visible Browser API is defined by the bundled browser client and the b
 
 Requirements:
 
-- `agent.browsers`, browser handles, tab handles, locators, CUA, DOM-CUA, capabilities, and helper APIs are model-facing only after the bundled browser client installs them through `setupBrowserRuntime({ globals })`.
+- `agent.browsers`, browser handles, tab handles, locators, CUA, DOM-CUA, capabilities, and helper APIs are model-facing only after the bundled browser client returns them through `setupBrowserRuntime()`.
 - Capability lookup examples must use the explicit handle shape: `const visibility = await browser.capabilities.get("visibility"); await visibility.set(true);`. Do not document chained `browser.capabilities.get(...).set(...)` or `tab.capabilities.get(...).list()` usage even though Desktop may tolerate it for compatibility.
 - Unsupported APIs fail with `UnsupportedApi` and a stable English fallback message instead of being absent, hanging, or silently ignored.
 - `browser.tabs.list()` and `browser.user.openTabs()` must return serializable `TabInfo` objects, not live tab handles. Callers must use `browser.tabs.get(info.id)` or `browser.user.claimTab(info)` before invoking tab methods.
@@ -286,10 +288,10 @@ Requirements:
 - Playwright-compatible helpers exposed by the browser client must be backed by CDP primitives where practical, including locator actions, `getBy*` helpers, title, URL, and bounded evaluate helpers.
 - `playwright.evaluate(fnOrExpression, arg?, options?)` is model-facing bounded page evaluation. It may read page state and compute bounded results, but must reject common navigation, DOM mutation, storage mutation, network-send, scroll, click, focus, and form side effects. Interaction side effects belong to locators, CUA, DOM-CUA, navigation, or wait helpers.
 - When a Playwright-compatible helper cannot be implemented safely in IAB, the Browser skill must not claim it as supported.
-- Ordinary page downloads, `waitForEvent("download")`, file chooser APIs, file upload, CUA media download, `browser.user.history()`, and complex content exports such as `tab_content_export` are not Desktop IAB capabilities and must fail with `UnsupportedApi` or the browser-use compatible unsupported behavior.
-- `pageAssets.bundle()` is the only file-transfer download exception in M3. It uses the browser client's file-transfer prompt, Desktop IAB approval handling, and safe temp output; it does not expose ordinary browser downloads.
+- Agent download APIs including `waitForEvent("download")`, file chooser APIs, file upload, CUA media download, `browser.user.history()`, and complex content exports such as `tab_content_export` are not Desktop IAB automation capabilities and must fail with `UnsupportedApi` or the browser-use compatible unsupported behavior. Ordinary user downloads are a separate Desktop UI capability defined in [Desktop browser and context feedback](desktop-browser-feedback.md).
+- `pageAssets.bundle()` remains the supported automation file-transfer download path. It uses the browser client's file-transfer prompt, Desktop IAB approval handling, and safe temp output; it does not enable ordinary Agent download APIs.
 - WebMCP support is a current-page capability limited to tools explicitly exposed through `navigator.modelContext`. `tab.capabilities.list()` must omit `webmcp` unless the current page exposes usable `getTools` and `executeTool` functions. Desktop IAB must not synthesize tools from hidden browser state, extension storage, cookies, or local profile data.
-- `domSnapshot()` returns a string payload owned by the bundled browser client. When the Desktop IAB implementation uses JSON content for that string, callers that need structured fields must parse it explicitly. JSON snapshots must order top-level fields as `title`, `url`, `bodyText`, `accessibilitySnapshot`, then `elements` so model-facing orientation data appears before full element arrays.
+- `domSnapshot()` returns a string payload through the bundled browser client from the host's shared observation implementation. Snapshot and DOM-CUA identifiers refer to the same observed elements and are opaque to callers. Callers that need structured fields must parse JSON explicitly. JSON snapshots must order top-level fields as `title`, `url`, `bodyText`, `accessibilitySnapshot`, then `elements` so model-facing orientation data appears before full element arrays.
 - `waitForLoadState` must observe the Desktop backend load state and must not be implemented as a client-side no-op.
 - Page text, DOM snapshots, console logs, and evaluate results must be size-limited before crossing the REPL boundary.
 - `ResultTooLarge` includes the configured limit and coarse size metadata when known, but never includes the oversized content.
@@ -300,12 +302,12 @@ Default serialized browser result cap: 1 MB unless `capabilities.browserUse.maxB
 
 ## 11. Coordinate Input and DOM-CUA
 
-Coordinate and DOM-CUA behavior must be independent of the legacy DOM snapshot path.
+Coordinate and DOM-CUA behavior must be independent of the DOM snapshot path.
 
 Rules:
 
 - Coordinate actions require object-shaped finite coordinates such as `{ x: 940, y: 444 }`.
-- Legacy positional calls such as `tab.cua.click(940, 444)` fail with `InvalidArgument` and a message showing the object-shaped form.
+- Positional calls such as `tab.cua.click(940, 444)` fail with `InvalidArgument` and a message showing the object-shaped form.
 - Pointer actions should move the visible virtual cursor along a short path before click, double-click, drag, and scroll input is sent.
 - Coordinate scroll should prefer CDP `Input.synthesizeScrollGesture` with mouse source, no fling, and deterministic speed after moving the visible virtual cursor. Electron wheel input may be used only as a fallback when CDP scroll is unavailable.
 - CUA scroll treats `x`/`y` as viewport origin coordinates and `scrollX`/`scrollY` or `deltaX`/`deltaY` as scroll distance. Zero-distance CUA scroll must fail clearly instead of reporting success.
@@ -335,8 +337,8 @@ Rules:
 - `ext/nodeRepl/cancel` and outer evaluation timeout first cancel pending backend commands for the matching `evaluationId`.
 - Late results for cancelled commands are ignored.
 - CDP `message` and `detach` events from Electron debugger are forwarded as `onCDPEvent` notifications with `{ tabId, sessionId? }` source metadata; navigation and wait APIs must consume these real events instead of unconditional synthetic success.
-- Recoverable browser command errors must not clear `globalThis.browser`, `globalThis.tab`, or unrelated user-defined globals.
-- The REPL context may be rebuilt for explicit reset, VM creation failure, app shutdown, thread binding replacement, or unrecoverable JavaScript runtime corruption.
+- Recoverable browser command errors must not clear `browser`, `tab`, or unrelated user-defined globals.
+- The REPL context may be rebuilt for explicit reset, REPL process startup failure, app shutdown, thread binding replacement, or unrecoverable JavaScript runtime corruption.
 
 ---
 
@@ -403,8 +405,8 @@ Rules:
 
 - The bundled plugin resource is the source of truth for Browser skill text; workspace-installed copies are derived artifacts.
 - Skill examples must match the actual asynchronous API shape.
-- The skill must document Node REPL output rules, including using `console.log` for text and `nodeRepl.emitImage` for images.
-- The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, Browser client mismatch checks, and the `iab` browser id; it must state that `agent` is installed by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
+- The skill must document Node REPL output rules, including using `nodeRepl.write` for text and `nodeRepl.emitImage` for images.
+- The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, and the `iab` browser id; it must state that `agent` is returned by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
 - The skill must document model-facing operating discipline for visibility, user-facing progress wording, persistent JavaScript bindings, tab reuse, temporary-tab cleanup, search/URL fallback limits, and stopping repeated verification once an authoritative page signal is present.
 - The skill must state that `tab.playwright` is a supported subset, not a full Playwright page object. It must not encourage methods absent from the bundled API reference, such as `locator.evaluate()` or `locator.evaluateAll()`.
 - The skill must document locator discipline, strict locator failures, search-result narrowing, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, bounded evaluate limits, and the supported Playwright-compatible subset.
@@ -418,7 +420,7 @@ Rules:
 ## 16. Acceptance
 
 - Desktop declares `desktop-iab` to AppServer and exposes an internal browser-use backend id `iab` in Node REPL.
-- The DotCraft browser client can initialize through `setupBrowserRuntime({ globals })`, discover the IAB backend through native pipe discovery, and install `agent.browsers`.
+- The DotCraft browser client can initialize through `setupBrowserRuntime()`, discover the IAB backend through native pipe discovery, and return an agent exposing `agent.browsers`.
 - A fresh Node REPL browser cell does not expose browser `agent` globals before browser-client setup.
 - `metadata.dotcraftSessionId` binds discovered IAB backends to the active DotCraft thread/session.
 - Browser commands carry session and evaluation metadata and can be cancelled independently of the outer REPL request.
@@ -427,8 +429,12 @@ Rules:
 - Screenshot can run on empty or error pages without waiting for DOM snapshot readiness.
 - DOM-CUA visible node discovery does not depend on the DOM snapshot string path.
 - CUA rejects positional coordinate calls with a clear `InvalidArgument` error.
-- Created and claimed tabs follow explicit finalize rules.
+- Created and claimed tabs follow turn-terminal cleanup, turn-scoped marks, and compatible explicit finalize rules.
 - Hidden temporary content tabs never become user-visible tabs and are excluded from renderer open/close lifecycle events.
 - Result-size limits are enforced before data crosses the REPL boundary.
 - Viewer tabs show automation state and virtual cursor movement where possible without stealing user focus after the initial open.
 - AppServer, Desktop main-process, browser backend transport, Node REPL, and Browser skill tests cover the runtime contract.
+
+### Persistent Node REPL execution
+
+The shared [Node REPL contract](node-repl.md) owns lexical state, native imports, explicit output, task process isolation, cancellation and bootstrap. Browser clients return their agent directly and read task-scoped host capabilities inside the worker. Browser-command failures preserve that environment; outer cancellation and reset replace it while retaining delivered pages.

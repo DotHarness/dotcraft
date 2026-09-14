@@ -1,17 +1,13 @@
+import type { ComposerContextRecord } from '../../shared/composerContext'
+import { readPlainComposerDraft, savePlainComposerDraft } from '../utils/plainComposerDraft'
 import { create } from 'zustand'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ImageAttachment } from '../types/conversation'
 
-/**
- * Unsent composer input for a single thread, preserved in memory so navigating
- * away (another thread, the Welcome screen, Settings, …) and back does not lose
- * what the user typed. Mirrors the per-workspace `welcomeDraft` in `uiStore`,
- * but keyed per thread.
- *
- * In-memory only: drafts are not persisted to disk and are gone on app restart.
- */
 export interface ThreadComposerDraft {
+  clientUserMessageId?: string
   text: string
+  contexts?: ComposerContextRecord[]
   segments: ComposerDraftSegment[]
   images: ImageAttachment[]
   files: ComposerFileAttachment[]
@@ -22,9 +18,9 @@ export interface ThreadComposerDraft {
 export type ThreadComposerDraftInput = Omit<ThreadComposerDraft, 'updatedAt'>
 
 export function threadComposerDraftHasContent(
-  draft: Pick<ThreadComposerDraft, 'text' | 'images' | 'files'>
+  draft: Pick<ThreadComposerDraft, 'text' | 'images' | 'files' | 'contexts'>
 ): boolean {
-  return draft.text.trim().length > 0 || draft.images.length > 0 || draft.files.length > 0
+  return draft.text.trim().length > 0 || draft.images.length > 0 || draft.files.length > 0 || (draft.contexts?.length ?? 0) > 0
 }
 
 interface ComposerDraftStore {
@@ -41,24 +37,31 @@ export const useComposerDraftStore = create<ComposerDraftStore>((set, get) => ({
   draftsByThread: {},
 
   getDraft(threadId) {
-    return get().draftsByThread[threadId] ?? null
+    const draft = get().draftsByThread[threadId]
+    if (draft) return draft
+    const text = readPlainComposerDraft(threadId)
+    return text ? { text, segments: [{ type: 'text', value: text }], images: [], files: [], updatedAt: 0 } : null
   },
 
   saveDraft(threadId, draft) {
     if (!threadId) return
     const next: ThreadComposerDraft = {
+      clientUserMessageId: draft.clientUserMessageId,
       text: draft.text,
+      contexts: draft.contexts,
       segments: [...draft.segments],
       images: [...draft.images],
       files: [...draft.files],
       updatedAt: Date.now()
     }
+    savePlainComposerDraft(threadId, draft.text)
     set((state) => ({
       draftsByThread: { ...state.draftsByThread, [threadId]: next }
     }))
   },
 
   clearDraft(threadId) {
+    savePlainComposerDraft(threadId, '')
     set((state) => {
       if (!(threadId in state.draftsByThread)) return state
       const draftsByThread = { ...state.draftsByThread }

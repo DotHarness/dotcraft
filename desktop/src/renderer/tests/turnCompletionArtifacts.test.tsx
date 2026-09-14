@@ -90,7 +90,7 @@ describe('turn completion artifacts', () => {
     deleteFile.mockResolvedValue(undefined)
     installDesktopApiMock({
       settings: { get: settingsGet, set: settingsSet },
-      shell: { listEditors, launchEditor },
+      shell: { listEditors, launchLocalPathInEditor: launchEditor },
       file: { writeFile, deleteFile },
       workspace: {
         viewer: {

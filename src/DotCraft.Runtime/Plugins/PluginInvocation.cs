@@ -152,7 +152,16 @@ internal sealed class PluginInvocation
         return new PluginContributionException(
             PluginId,
             GenerationId,
-            "Plugin callback failed.");
+            Describe(exception));
+    }
+
+    /// <summary>Copies the cause as text; holding the exception would pin the collectible generation.</summary>
+    private static string Describe(Exception exception)
+    {
+        var text = $"{exception.GetType().Name}: {exception.Message}";
+        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
+            text += $" -> {inner.GetType().Name}: {inner.Message}";
+        return text;
     }
 }
 

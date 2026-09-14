@@ -4,6 +4,7 @@ import type { Api } from './index'
 // single source of truth for both the exposed API and its bridge DTOs.
 export type * from './index'
 export type { ThemeMode } from '../shared/theme'
+export type * from '../shared/viewer/browserFeedback'
 export type {
   BrowserEventPayload,
   TerminalDataEventPayload,

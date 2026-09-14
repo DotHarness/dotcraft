@@ -1,4 +1,7 @@
-import { BrowserWindow, WebContentsView, nativeImage, session, shell } from 'electron'
+import { BrowserGuestRegistry } from './browserGuestRegistry'
+import { app, BrowserWindow, nativeImage, session, shell } from 'electron'
+import { join } from 'node:path'
+import { BrowserDownloads } from './browserDownloads'
 import { createHash } from 'crypto'
 import { fileURLToPath } from 'url'
 import type { BrowserEventPayload } from '../shared/viewer/types'
@@ -19,7 +22,7 @@ interface BrowserTabRuntime {
   tabId: string
   threadId?: string
   workspacePath: string
-  view: WebContentsView
+  page: Electron.WebContents
   desiredVisible: boolean
   visible: boolean
   boundsInitialized: boolean
@@ -137,12 +140,6 @@ function extractScheme(raw: string): string | null {
 function clampViewportCoordinate(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.round(value))
-}
-
-function roundedPositiveDimension(value: number): number | null {
-  if (!Number.isFinite(value)) return null
-  const rounded = Math.round(value)
-  return rounded > 1 ? rounded : null
 }
 
 function mouseButton(button?: BrowserAutomationMouseButton): BrowserAutomationMouseButton {
@@ -354,6 +351,8 @@ export async function loadOrReport(params: {
 }
 
 export class ViewerBrowserManager {
+  readonly hosts = new BrowserGuestRegistry()
+  private downloads: BrowserDownloads | null = null
   private readonly byWindowId = new Map<number, WindowRuntime>()
   private readonly configuredPartitions = new Set<string>()
   private startPageHint = 'Enter a URL in the address bar to begin browsing.'
@@ -362,14 +361,15 @@ export class ViewerBrowserManager {
     this.startPageHint = hint.trim() || this.startPageHint
   }
 
-  createTab(win: BrowserWindow, params: {
+  async createTab(win: BrowserWindow, params: {
     tabId: string
     threadId?: string
     workspacePath: string
     initialUrl?: string
     allowFileScheme?: boolean
     skipStartPageLoad?: boolean
-  }): BrowserSnapshot {
+    viewport?: { width: number; height: number }
+  }): Promise<BrowserSnapshot> {
     const runtime = this.ensureWindowRuntime(win)
     const existing = runtime.tabs.get(params.tabId)
     if (existing) {
@@ -381,20 +381,15 @@ export class ViewerBrowserManager {
     const partitionSession = session.fromPartition(partition)
     this.configurePartitionSession(partition, partitionSession)
 
-    const view = new WebContentsView({
-      webPreferences: {
-        session: partitionSession,
-        devTools: import.meta.env.DEV,
-        contextIsolation: true,
-        sandbox: true,
-        nodeIntegration: false
-      }
-    })
+    const page = await this.hosts.request(win, params.tabId, partition, params.viewport)
+    if (page.isDestroyed() || !this.hosts.list(win).some(host => host.tabId === params.tabId)) throw new Error('Browser page closed.')
+    const attached = runtime.tabs.get(params.tabId)
+    if (attached) return this.snapshotFromRuntime(attached)
     const tabRuntime: BrowserTabRuntime = {
       tabId: params.tabId,
       threadId: params.threadId,
       workspacePath: params.workspacePath,
-      view,
+      page,
       desiredVisible: false,
       visible: false,
       boundsInitialized: false,
@@ -414,7 +409,7 @@ export class ViewerBrowserManager {
         tabId: params.tabId,
         threadId: params.threadId,
         url: START_URL,
-        load: () => view.webContents.loadURL(startPageUrl),
+        load: () => page.loadURL(startPageUrl),
         emit: (payload) => emitBrowserEvent(win, payload)
       })
     } else {
@@ -432,15 +427,11 @@ export class ViewerBrowserManager {
 
   destroyTab(win: BrowserWindow, tabId: string): void {
     const runtime = this.byWindowId.get(win.id)
+    this.hosts.remove(win, tabId)
     if (!runtime) return
     const tab = runtime.tabs.get(tabId)
     if (!tab) return
-
-    this.detachView(win, tab)
     runtime.tabs.delete(tabId)
-    if (!tab.view.webContents.isDestroyed()) {
-      tab.view.webContents.close({ waitForBeforeUnload: false })
-    }
     if (runtime.activeTabId === tabId) runtime.activeTabId = null
   }
 
@@ -450,10 +441,11 @@ export class ViewerBrowserManager {
     for (const tabId of [...runtime.tabs.keys()]) {
       this.destroyTab(win, tabId)
     }
+    this.hosts.clear(win)
     this.byWindowId.delete(win.id)
   }
 
-  createAutomationTab(win: BrowserWindow, params: {
+  async createAutomationTab(win: BrowserWindow, params: {
     tabId: string
     threadId?: string
     workspacePath: string
@@ -461,14 +453,15 @@ export class ViewerBrowserManager {
     width?: number
     height?: number
     allowFileScheme?: boolean
-  }): BrowserSnapshot {
-    const snapshot = this.createTab(win, {
+  }): Promise<BrowserSnapshot> {
+    const snapshot = await this.createTab(win, {
       tabId: params.tabId,
       threadId: params.threadId,
       workspacePath: params.workspacePath,
       initialUrl: params.initialUrl,
       allowFileScheme: params.allowFileScheme,
-      skipStartPageLoad: true
+      skipStartPageLoad: true,
+      viewport: { width: Math.max(1, Math.round(params.width ?? 1280)), height: Math.max(1, Math.round(params.height ?? 720)) }
     })
     const tab = this.getTab(win, params.tabId)
     if (tab) {
@@ -478,15 +471,7 @@ export class ViewerBrowserManager {
       tab.viewportWidth = width
       tab.viewportHeight = height
       this.centerVirtualMouse(tab)
-      // Keep automation pages at a useful capture size before the renderer has
-      // measured the actual detail-panel slot. This must not count as initialized
-      // UI bounds, otherwise addChildView can briefly cover the whole window.
-      tab.view.setBounds({
-        x: -10000,
-        y: -10000,
-        width,
-        height
-      })
+      this.hosts.update(win, tab.tabId, { automation: true, bounds: { x: 0, y: 0, width, height } })
       this.emitVirtualCursor(win, tab, tab.virtualMouseX!, tab.virtualMouseY!)
     }
     return snapshot
@@ -494,19 +479,26 @@ export class ViewerBrowserManager {
 
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null {
     const tab = this.getTab(win, tabId)
-    if (!tab || tab.view.webContents.isDestroyed()) return null
-    return tab.view.webContents
+    if (!tab || tab.page.isDestroyed()) return null
+    return tab.page
+  }
+
+  listAutomationTargetTabs(win: BrowserWindow, threadId: string): BrowserSnapshot[] {
+    const runtime = this.byWindowId.get(win.id)
+    return runtime ? [...runtime.tabs.values()]
+      .filter(tab => tab.threadId === threadId && !tab.page.isDestroyed())
+      .map(tab => this.snapshotFromRuntime(tab)) : []
   }
 
   getAutomationTargetTab(win: BrowserWindow, threadId: string): BrowserSnapshot | null {
     const runtime = this.byWindowId.get(win.id)
     if (!runtime) return null
     const active = runtime.activeTabId ? runtime.tabs.get(runtime.activeTabId) : null
-    if (active?.threadId === threadId && !active.view.webContents.isDestroyed()) {
+    if (active?.threadId === threadId && !active.page.isDestroyed()) {
       return this.snapshotFromRuntime(active)
     }
     const recent = [...runtime.tabs.values()].reverse().find((tab) => (
-      tab.threadId === threadId && !tab.view.webContents.isDestroyed()
+      tab.threadId === threadId && !tab.page.isDestroyed()
     ))
     return recent ? this.snapshotFromRuntime(recent) : null
   }
@@ -518,11 +510,11 @@ export class ViewerBrowserManager {
       tabId: params.tabId,
       threadId: tab.threadId,
       url: params.url,
-      load: () => tab.view.webContents.loadURL(params.url),
+      load: () => tab.page.loadURL(params.url),
       emit: (payload) => emitBrowserEvent(win, payload),
       throwOnFailure: true
     })
-    tab.currentUrl = tab.view.webContents.getURL() || tab.currentUrl
+    tab.currentUrl = tab.page.getURL() || tab.currentUrl
   }
 
   async navigate(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
@@ -551,54 +543,47 @@ export class ViewerBrowserManager {
       tabId: params.tabId,
       threadId: tab.threadId,
       url: normalized,
-      load: () => tab.view.webContents.loadURL(normalized),
+      load: () => tab.page.loadURL(normalized),
       emit: (payload) => emitBrowserEvent(win, payload)
     })
-    tab.currentUrl = tab.view.webContents.getURL() || tab.currentUrl
+    tab.currentUrl = tab.page.getURL() || tab.currentUrl
   }
 
   goBack(win: BrowserWindow, tabId: string): void {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    const history = historyOf(tab.view.webContents)
+    const history = historyOf(tab.page)
     if (history.canGoBack()) history.goBack()
   }
 
   goForward(win: BrowserWindow, tabId: string): void {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    const history = historyOf(tab.view.webContents)
+    const history = historyOf(tab.page)
     if (history.canGoForward()) history.goForward()
   }
 
   reload(win: BrowserWindow, tabId: string): void {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    tab.view.webContents.reload()
+    tab.page.reload()
   }
 
   stop(win: BrowserWindow, tabId: string): void {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    tab.view.webContents.stop()
+    tab.page.stop()
   }
 
   setBounds(win: BrowserWindow, params: { tabId: string; x: number; y: number; width: number; height: number }): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
-    const bounds = this.validatedBounds(win, tab, params)
-    if (!bounds) {
-      tab.boundsInitialized = false
-      this.detachView(win, tab)
-      return
-    }
-    tab.viewportWidth = bounds.width
-    tab.viewportHeight = bounds.height
-    tab.view.setBounds(bounds)
+    const { x, y, width, height } = params
+    if (![x, y, width, height].every(Number.isFinite) || width <= 1 || height <= 1) return
+    tab.viewportWidth = width
+    tab.viewportHeight = height
     tab.boundsInitialized = true
-    if (tab.desiredVisible && !tab.visible) {
-      this.attachView(win, tab)
-    }
+    this.hosts.update(win, tab.tabId, { bounds: { x, y, width, height }, visible: tab.desiredVisible })
     if (tab.automationEnabled && !tab.virtualMouseMoved) {
       this.centerVirtualMouse(tab)
       this.emitVirtualCursor(win, tab, tab.virtualMouseX!, tab.virtualMouseY!)
@@ -610,11 +595,8 @@ export class ViewerBrowserManager {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
     tab.desiredVisible = params.visible
-    if (params.visible) {
-      if (tab.boundsInitialized) this.attachView(win, tab)
-    } else {
-      this.detachView(win, tab)
-    }
+    tab.visible = params.visible && tab.boundsInitialized
+    this.hosts.update(win, tab.tabId, { visible: tab.visible })
   }
 
   setActiveTab(win: BrowserWindow, tabId: string): void {
@@ -630,41 +612,10 @@ export class ViewerBrowserManager {
     this.emitHistoryFlags(win, active)
   }
 
-  private validatedBounds(
-    win: BrowserWindow,
-    tab: BrowserTabRuntime,
-    params: { x: number; y: number; width: number; height: number }
-  ): Electron.Rectangle | null {
-    const x = Math.round(Number(params.x))
-    const y = Math.round(Number(params.y))
-    const width = roundedPositiveDimension(Number(params.width))
-    const height = roundedPositiveDimension(Number(params.height))
-    if (!Number.isFinite(x) || !Number.isFinite(y) || width == null || height == null) return null
-    if (x < 0 || y < 0) return null
-    const contentBounds = typeof win.getContentBounds === 'function'
-      ? win.getContentBounds()
-      : null
-    if (contentBounds) {
-      const contentWidth = Math.max(1, Math.round(contentBounds.width))
-      const contentHeight = Math.max(1, Math.round(contentBounds.height))
-      const tolerance = 8
-      if (x >= contentWidth || y >= contentHeight) return null
-      if (x + width > contentWidth + tolerance || y + height > contentHeight + tolerance) return null
-      const suspiciousTopLeftPartial =
-        x === 0 &&
-        y === 0 &&
-        width < contentWidth - 24 &&
-        height < contentHeight - 24 &&
-        !tab.automationEnabled
-      if (suspiciousTopLeftPartial) return null
-    }
-    return { x, y, width, height }
-  }
-
   async openInOsBrowser(win: BrowserWindow, tabId: string): Promise<void> {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    const current = tab.currentUrl || tab.view.webContents.getURL()
+    const current = tab.currentUrl || tab.page.getURL()
     const scheme = extractScheme(current)
     if (!scheme || this.classifyUrlForTab(tab, current) === 'blocked') return
     if (scheme === VIEWER_SCHEME) {
@@ -720,8 +671,8 @@ export class ViewerBrowserManager {
     const button = mouseButton(params.button)
     this.focusTabWebContents(tab)
     await this.animateMouseTo(win, tab, x, y)
-    tab.view.webContents.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    tab.view.webContents.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
     void this.showVirtualClick(tab, x, y)
   }
 
@@ -732,10 +683,10 @@ export class ViewerBrowserManager {
     const button = mouseButton(params.button)
     this.focusTabWebContents(tab)
     await this.animateMouseTo(win, tab, x, y)
-    tab.view.webContents.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    tab.view.webContents.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    tab.view.webContents.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 2 } as Electron.MouseInputEvent)
-    tab.view.webContents.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 2 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 2 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 2 } as Electron.MouseInputEvent)
     void this.showVirtualClick(tab, x, y)
   }
 
@@ -749,12 +700,12 @@ export class ViewerBrowserManager {
     const first = points[0]!
     this.focusTabWebContents(tab)
     await this.animateMouseTo(win, tab, first.x, first.y)
-    tab.view.webContents.sendInputEvent({ type: 'mouseDown', x: first.x, y: first.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseDown', x: first.x, y: first.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent)
     for (const point of points.slice(1)) {
       await this.animateMouseTo(win, tab, point.x, point.y, { button: 'left' })
     }
     const last = points[points.length - 1]!
-    tab.view.webContents.sendInputEvent({ type: 'mouseUp', x: last.x, y: last.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent)
+    tab.page.sendInputEvent({ type: 'mouseUp', x: last.x, y: last.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent)
   }
 
   async scrollMouse(win: BrowserWindow, params: BrowserAutomationScrollParams): Promise<void> {
@@ -762,7 +713,7 @@ export class ViewerBrowserManager {
     const x = clampViewportCoordinate(params.x)
     const y = clampViewportCoordinate(params.y)
     await this.animateMouseTo(win, tab, x, y)
-    tab.view.webContents.sendInputEvent({
+    tab.page.sendInputEvent({
       type: 'mouseWheel',
       x,
       y,
@@ -773,7 +724,7 @@ export class ViewerBrowserManager {
 
   async typeText(win: BrowserWindow, params: BrowserAutomationTypeParams): Promise<void> {
     const tab = this.requireTab(win, params.tabId)
-    tab.view.webContents.insertText(String(params.text ?? ''))
+    tab.page.insertText(String(params.text ?? ''))
   }
 
   keypress(win: BrowserWindow, params: BrowserAutomationKeypressParams): void {
@@ -782,8 +733,8 @@ export class ViewerBrowserManager {
     if (normalized.length === 0) return
     const keyCode = normalized[normalized.length - 1]!
     const modifiers = electronModifiers(normalized.slice(0, -1))
-    tab.view.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as Electron.KeyboardInputEvent)
-    tab.view.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as Electron.KeyboardInputEvent)
+    tab.page.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as Electron.KeyboardInputEvent)
+    tab.page.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as Electron.KeyboardInputEvent)
   }
 
   snapshotState(win: BrowserWindow, tabId: string): BrowserSnapshot | null {
@@ -792,8 +743,28 @@ export class ViewerBrowserManager {
     return this.snapshotFromRuntime(tab)
   }
 
+  feedbackTarget(win: BrowserWindow, tabId: string): { page: Electron.WebContents; tabId: string; threadId?: string } {
+    const tab = this.requireTab(win, tabId)
+    return { page: tab.page, tabId: tab.tabId, threadId: tab.threadId }
+  }
+
+  userDownloads(): BrowserDownloads {
+    if (!this.downloads) {
+      this.downloads = new BrowserDownloads(
+        app.getPath('downloads'), join(app.getPath('userData'), 'browser-downloads.json'),
+        (records) => {
+          for (const id of this.byWindowId.keys()) {
+            const win = BrowserWindow.fromId(id)
+            if (win && !win.isDestroyed()) win.webContents.send('viewer:browser:feedback', { type: 'downloads', records })
+          }
+        }, (path) => shell.openPath(path)
+      )
+    }
+    return this.downloads
+  }
+
   private snapshotFromRuntime(tab: BrowserTabRuntime): BrowserSnapshot {
-    const history = historyOf(tab.view.webContents)
+    const history = historyOf(tab.page)
     return {
       tabId: tab.tabId,
       threadId: tab.threadId,
@@ -802,7 +773,7 @@ export class ViewerBrowserManager {
       faviconDataUrl: tab.faviconDataUrl,
       canGoBack: history.canGoBack(),
       canGoForward: history.canGoForward(),
-      loading: tab.view.webContents.isLoading()
+      loading: tab.page.isLoading()
     }
   }
 
@@ -823,7 +794,7 @@ export class ViewerBrowserManager {
 
   private requireTab(win: BrowserWindow, tabId: string): BrowserTabRuntime {
     const tab = this.getTab(win, tabId)
-    if (!tab || tab.view.webContents.isDestroyed()) {
+    if (!tab || tab.page.isDestroyed()) {
       throw new Error(`Browser tab is no longer available: ${tabId}`)
     }
     tab.automationEnabled = true
@@ -873,7 +844,7 @@ export class ViewerBrowserManager {
       const point = path[idx]!
       tab.virtualMouseX = point.x
       tab.virtualMouseY = point.y
-      tab.view.webContents.sendInputEvent({
+      tab.page.sendInputEvent({
         type: 'mouseMove',
         x: point.x,
         y: point.y,
@@ -891,14 +862,14 @@ export class ViewerBrowserManager {
 
   private focusTabWebContents(tab: BrowserTabRuntime): void {
     try {
-      ;(tab.view.webContents as Electron.WebContents & { focus?: () => void }).focus?.()
+      ;(tab.page as Electron.WebContents & { focus?: () => void }).focus?.()
     } catch {
       // Best effort focus before native input.
     }
   }
 
   private executeOverlayScript(tab: BrowserTabRuntime, script: string): Promise<unknown> {
-    const execution = tab.view.webContents.executeJavaScript(script, true)
+    const execution = tab.page.executeJavaScript(script, true)
     execution.catch(() => {})
     return new Promise((resolve, reject) => {
       let settled = false
@@ -925,7 +896,7 @@ export class ViewerBrowserManager {
   }
 
   private async injectVirtualMouse(tab: BrowserTabRuntime, position?: { x: number; y: number }): Promise<void> {
-    if (!tab.automationEnabled || tab.view.webContents.isDestroyed()) return
+    if (!tab.automationEnabled || tab.page.isDestroyed()) return
     try {
       if (!tab.virtualMouseMoved && (tab.virtualMouseX === undefined || tab.virtualMouseY === undefined)) {
         this.centerVirtualMouse(tab)
@@ -989,7 +960,7 @@ export class ViewerBrowserManager {
   }
 
   private emitHistoryFlags(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    const history = historyOf(tab.view.webContents)
+    const history = historyOf(tab.page)
     emitBrowserEvent(win, {
       tabId: tab.tabId,
       threadId: tab.threadId,
@@ -1000,7 +971,7 @@ export class ViewerBrowserManager {
   }
 
   private bindWebContentsEvents(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    const wc = tab.view.webContents
+    const wc = tab.page
 
     wc.on('did-start-loading', () => {
       emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'did-start-loading' })
@@ -1034,7 +1005,7 @@ export class ViewerBrowserManager {
         errorCode,
         errorDescription,
         validatedURL,
-        finalURL: tab.view.webContents.getURL(),
+        finalURL: tab.page.getURL(),
         isMainFrame
       })
     })
@@ -1138,23 +1109,15 @@ export class ViewerBrowserManager {
     this.configuredPartitions.add(partitionName)
 
     partitionSession.on('will-download', (event, item, webContents) => {
-      event.preventDefault()
-      item.cancel()
-      const win = BrowserWindow.fromWebContents(webContents)
-      if (!win) return
-      const runtime = this.byWindowId.get(win.id)
-      if (!runtime) return
-      for (const tab of runtime.tabs.values()) {
-        if (tab.view.webContents.id === webContents.id) {
-          emitBrowserEvent(win, {
-            tabId: tab.tabId,
-            threadId: tab.threadId,
-            type: 'download-blocked',
-            message: 'Downloads are disabled in embedded browser tabs.'
-          })
-          return
+      for (const runtime of this.byWindowId.values()) {
+        for (const tab of runtime.tabs.values()) {
+          if (tab.page.id === webContents.id) {
+            this.userDownloads().start(item, { tabId: tab.tabId, threadId: tab.threadId })
+            return
+          }
         }
       }
+      event.preventDefault()
     })
 
     partitionSession.setPermissionCheckHandler((_wc, permission) => {
@@ -1165,42 +1128,6 @@ export class ViewerBrowserManager {
     })
   }
 
-  private detachView(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    if (tab.view.webContents.isDestroyed()) {
-      tab.visible = false
-      return
-    }
-    if (tab.visible) {
-      try {
-        win.contentView.removeChildView(tab.view)
-      } catch {
-        // Ignore removal races when window is tearing down.
-      }
-    }
-    this.moveViewOffscreen(tab)
-    tab.visible = false
-  }
-
-  private attachView(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    if (tab.visible) return
-    if (tab.view.webContents.isDestroyed()) return
-    if (!tab.boundsInitialized) return
-    const runtime = this.byWindowId.get(win.id)
-    if (runtime?.activeTabId && runtime.activeTabId !== tab.tabId) return
-    win.contentView.addChildView(tab.view)
-    tab.visible = true
-  }
-
-  private moveViewOffscreen(tab: BrowserTabRuntime): void {
-    if (tab.view.webContents.isDestroyed()) return
-    const width = Math.max(1, Math.round(tab.viewportWidth ?? 1))
-    const height = Math.max(1, Math.round(tab.viewportHeight ?? 1))
-    try {
-      tab.view.setBounds({ x: -10000, y: -10000, width, height })
-    } catch {
-      // Ignore teardown races.
-    }
-  }
 }
 
 export const viewerBrowserManager = new ViewerBrowserManager()

@@ -12,6 +12,8 @@ import {
   type BrowserUseBackendRequestHandler
 } from './browserUseBackendServer'
 import { viewerBrowserManager } from './viewerBrowser'
+import { BrowserTabLifecycle, readBrowserTurnNotification } from './browserTabLifecycle'
+import { browserObservationSource } from './browserUseObservation'
 import type { AppSettings } from './settings'
 import {
   isBrowserUseUrlAllowed as isBrowserUseUrlAllowedByPolicy,
@@ -260,6 +262,7 @@ interface BrowserUseViewerHost {
     allowFileScheme?: boolean
   }): unknown
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null
+  listAutomationTargetTabs?(win: BrowserWindow, threadId: string): Array<{ tabId: string; currentUrl: string; title: string; loading: boolean }>
   getAutomationTargetTab?(win: BrowserWindow, threadId: string): {
     tabId: string
     currentUrl: string
@@ -303,6 +306,7 @@ interface BrowserUseTabRuntime {
   clipboardItems: BrowserUseClipboardItem[]
   adopted?: boolean
   userOwned?: boolean
+  disposeListeners?: () => void
   keptStatus?: BrowserFinalizeKeepStatus
   closed?: boolean
   exposedToRenderer?: boolean
@@ -417,6 +421,7 @@ interface BrowserUseBackendPendingCommand {
 
 interface BrowserUseThreadRuntime {
   threadId: string
+  lifecycle: BrowserTabLifecycle
   owner: BrowserWindow
   workspacePath: string
   sessionName?: string
@@ -660,15 +665,35 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     return { ok: true }
   }
 
+  handleTurnNotification(method: string, params: unknown, workspacePath?: string): ReturnType<typeof readBrowserTurnNotification> {
+    const turn = readBrowserTurnNotification(method, params)
+    if (!turn) return
+    const runtime = this.runtimes.get(turn.threadId)
+    if (!runtime) return turn
+    if (workspacePath && runtime.workspacePath && workspacePath !== runtime.workspacePath) return
+    if (!turn.terminal) runtime.lifecycle.beginTurn(turn.turnId)
+    else runtime.lifecycle.finishTurn(turn.turnId, runtime.tabs.values(), this.lifecycleEffects(runtime))
+    return turn
+  }
+
+  private lifecycleEffects(runtime: BrowserUseThreadRuntime) {
+    return {
+      release: (tab: BrowserUseTabRuntime, status?: BrowserFinalizeKeepStatus) => this.releaseTab(runtime, tab, status),
+      retain: (tab: BrowserUseTabRuntime, status: BrowserFinalizeKeepStatus) => {
+        this.detachDebugger(tab)
+        this.setAutomationState(runtime, tab, false, status)
+      },
+      close: (tab: BrowserUseTabRuntime) => this.closeTab(tab)
+    }
+  }
+
   reset(threadId: string): { ok: boolean } {
     const runtime = this.runtimes.get(threadId)
     if (!runtime) return { ok: false }
     for (const tab of [...runtime.tabs.values()]) {
       this.detachDebugger(tab)
       if (tab.adopted || tab.userOwned) {
-        this.setAutomationState(runtime, tab, false)
-        tab.adopted = false
-        tab.userOwned = false
+        this.releaseTab(runtime, tab)
       } else {
         this.closeTab(tab)
       }
@@ -695,6 +720,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const resolvedWorkspace = workspacePath || ''
     const runtime: BrowserUseThreadRuntime = {
       threadId,
+      lifecycle: new BrowserTabLifecycle(),
       owner,
       workspacePath: resolvedWorkspace,
       tabs: new Map<string, BrowserUseTabRuntime>(),
@@ -770,6 +796,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   ): Promise<unknown> {
     if (method === 'ping') return 'pong'
     const runtime = this.runtimeForBackendParams(params)
+    const turnId = typeof params.turn_id === 'string' ? params.turn_id : runtime.browserSession?.turnId
+    if (turnId) runtime.lifecycle.recordUse(turnId)
     return await this.withBackendCommand(runtime, method, params, context ?? this.standaloneBackendContext(method), async (signal) => {
       switch (method) {
         case 'getInfo':
@@ -1104,8 +1132,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private backendUserTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
     const candidate = this.viewerHost.getAutomationTargetTab?.(runtime.owner, runtime.threadId)
-    if (candidate && !runtime.tabs.has(candidate.tabId)) {
-      this.registerTab(runtime.owner, runtime, candidate.tabId, false, true)
+    const candidates = this.viewerHost.listAutomationTargetTabs?.(runtime.owner, runtime.threadId) ?? (candidate ? [candidate] : [])
+    for (const page of candidates) {
+      if (!runtime.tabs.has(page.tabId)) this.registerTab(runtime.owner, runtime, page.tabId, false, true)
     }
     const tabs = this.backendTabList(runtime)
     runtime.recentUserBackendTabIds = new Set(tabs.map((tab) => Number(tab.id)).filter((id) => Number.isInteger(id)))
@@ -1138,30 +1167,20 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     runtime: BrowserUseThreadRuntime,
     params: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    const keep = this.parseBackendFinalizeKeep(params.keep)
-    const kept: number[] = []
-    const closed: number[] = []
-    const released: number[] = []
-    for (const tab of [...runtime.tabs.values()]) {
-      const backendTabId = this.backendTabIdFor(runtime, tab)
-      const keptStatus = keep.get(backendTabId)
-      if (keptStatus) {
-        tab.keptStatus = keptStatus
-        kept.push(backendTabId)
-        this.setAutomationState(runtime, tab, true, keptStatus)
-        continue
-      }
-      if (tab.adopted || tab.userOwned) {
-        this.setAutomationState(runtime, tab, false)
-        tab.adopted = false
-        tab.userOwned = false
-        released.push(backendTabId)
-        continue
-      }
-      this.closeTab(tab)
-      closed.push(backendTabId)
+    const backendKeep = this.parseBackendFinalizeKeep(params.keep)
+    const ids = new Map([...runtime.tabs.values()].map((tab) => [tab.id, this.backendTabIdFor(runtime, tab)]))
+    const keep = new Map<string, BrowserFinalizeKeepStatus>()
+    for (const [id, backendId] of ids) {
+      const status = backendKeep.get(backendId)
+      if (status) keep.set(id, status)
     }
-    return { ok: true, kept, closed, released }
+    const result = runtime.lifecycle.finalize(runtime.tabs.values(), keep, this.lifecycleEffects(runtime))
+    return {
+      ok: true,
+      kept: result.kept.map((id) => ids.get(id)!),
+      closed: result.closed.map((id) => ids.get(id)!),
+      released: result.released.map((id) => ids.get(id)!)
+    }
   }
 
   private backendNameSession(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): Record<string, unknown> {
@@ -1346,6 +1365,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const type = this.stringParam(params, 'type')
     if (!type) throw BrowserUseBackendError.invalidArgument('executeUnhandledCommand requires a type.')
     switch (type) {
+      case 'tab_mark': {
+        const tab = this.backendTabForParams(runtime, params)
+        const status = params.status
+        if (status !== 'handoff' && status !== 'deliverable') {
+          throw BrowserUseBackendError.invalidArgument('tab_mark requires status handoff or deliverable.')
+        }
+        runtime.lifecycle.mark(tab.id, status)
+        tab.keptStatus = status
+        this.setAutomationState(runtime, tab, true, status)
+        return { ok: true }
+      }
       case 'runtime_config':
         return {
           display_truncate_max_chars: BROWSER_USE_DISPLAY_TRUNCATE_MAX_CHARS,
@@ -1389,6 +1419,21 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         return await this.backendPlaywrightElementScreenshot(runtime, params, signal)
       case 'playwright_evaluate':
         return await this.backendPlaywrightEvaluate(runtime, params)
+      case 'playwright_locator_operation': {
+        const tab = this.backendTabForCommand(runtime, params)
+        await this.ensurePlaywrightInjected(tab)
+        const value = await this.executeJavaScript<unknown>(tab,
+          `window.__dotcraftBrowserUseLocator(${JSON.stringify(params.descriptor)}, ${JSON.stringify(params.operation)}, ${JSON.stringify(params.payload ?? {})})`, 'locator.operation')
+        if (params.operation === 'fill' && (value as { needsInput?: boolean })?.needsInput) {
+          await this.cuaType(tab, { text: String((params.payload as { value?: unknown })?.value ?? '') })
+        }
+        return { value }
+      }
+      case 'dom_cua_node_info': {
+        const tab = this.backendTabForCommand(runtime, params)
+        await this.ensurePlaywrightInjected(tab)
+        return await this.executeJavaScript(tab, `window.__dotcraftBrowserUseNode(${JSON.stringify(params.node_id)})`, 'domCua.node')
+      }
       case 'playwright_dom_snapshot':
         return await this.backendPlaywrightDomSnapshot(runtime, params)
       case 'playwright_wait_for_timeout':
@@ -2512,27 +2557,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     options?: { keep?: unknown[] }
   ): Promise<Record<string, unknown>> {
     const keep = this.parseFinalizeKeep(options)
-    const kept: string[] = []
-    const closed: string[] = []
-    const released: string[] = []
-    for (const tab of [...runtime.tabs.values()]) {
-      const keptStatus = keep.get(tab.id)
-      if (keptStatus) {
-        tab.keptStatus = keptStatus
-        kept.push(tab.id)
-        this.setAutomationState(runtime, tab, true, keptStatus)
-        continue
-      }
-      if (tab.adopted || tab.userOwned) {
-        this.setAutomationState(runtime, tab, false)
-        tab.adopted = false
-        tab.userOwned = false
-        released.push(tab.id)
-        continue
-      }
-      this.closeTab(tab)
-      closed.push(tab.id)
-    }
+    const { kept, closed, released } = runtime.lifecycle.finalize(runtime.tabs.values(), keep, this.lifecycleEffects(runtime))
     runtime.logs.push(
       `Browser finalize summary sessionId=${runtime.browserSession?.sessionId ?? runtime.threadId} ` +
       `turnId=${runtime.browserSession?.turnId ?? ''} evaluationId=${runtime.browserSession?.evaluationId ?? runtime.activeEvaluationId ?? ''} ` +
@@ -2592,7 +2617,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       await this.ensureNavigationAllowed(owner, runtime, id, normalizedInitial)
     }
 
-    this.viewerHost.createAutomationTab(owner, {
+    await this.viewerHost.createAutomationTab(owner, {
       tabId: id,
       threadId: runtime.threadId,
       workspacePath: runtime.workspacePath || owner.getTitle(),
@@ -3292,7 +3317,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
     runtime.tabs.set(id, tab)
 
-    wc.on('console-message', (_event, level, message) => {
+    const onConsole = (_event: unknown, level: number, message: string) => {
       const levelNames = ['debug', 'info', 'warn', 'error'] as const
       tab.logs.push({
         level: levelNames[level as number] ?? String(level ?? 'log'),
@@ -3300,19 +3325,28 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         timestamp: new Date().toISOString(),
         url: wc.getURL()
       })
-    })
-    wc.once('destroyed', () => {
+    }
+    const onDestroyed = () => {
+      tab.disposeListeners?.()
       this.detachDebugger(tab)
       runtime.tabs.delete(id)
       this.forgetBackendTab(runtime, tab)
       if (runtime.selectedTabId === id) runtime.selectedTabId = null
-    })
+    }
+    wc.on('console-message', onConsole)
+    wc.once('destroyed', onDestroyed)
+    tab.disposeListeners = () => {
+      wc.off('console-message', onConsole)
+      wc.off('destroyed', onDestroyed)
+    }
     return tab
   }
 
   private createTabApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
     return {
       id: tab.id,
+      markDeliverable: async () => this.markTabForTurn(tab, 'deliverable'),
+      markHandoff: async () => this.markTabForTurn(tab, 'handoff'),
       navigate: async (url: string) => this.navigate(tab, url),
       goto: async (url: string) => this.navigate(tab, url),
       back: async () => this.goBack(tab),
@@ -4290,6 +4324,13 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     this.setAutomationState(runtime, tab, true, action)
   }
 
+  private markTabForTurn(tab: BrowserUseTabRuntime, status: BrowserFinalizeKeepStatus): void {
+    const runtime = this.getRuntimeForTab(tab)
+    runtime.lifecycle.mark(tab.id, status)
+    tab.keptStatus = status
+    this.setAutomationState(runtime, tab, true, status)
+  }
+
   private async goBack(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
     this.markAutomation(tab, 'back')
     this.clearNavigationFailure(tab)
@@ -4326,6 +4367,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     })
     this.throwIfNavigationFailed(tab)
     return this.tabSnapshot(tab)
+  }
+
+  private releaseTab(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime, status?: BrowserFinalizeKeepStatus): void {
+    this.setAutomationState(runtime, tab, false, status)
+    this.detachDebugger(tab)
+    tab.disposeListeners?.()
+    this.invalidatePageScopedCaches(tab)
+    this.forgetBackendTab(runtime, tab)
+    runtime.recentOpenTabIds.delete(tab.id)
+    runtime.tabs.delete(tab.id)
+    if (runtime.selectedTabId === tab.id) runtime.selectedTabId = null
   }
 
   private closeTab(tab: BrowserUseTabRuntime): void {
@@ -4534,7 +4586,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       'domSnapshot')
     const snapshot = this.normalizeSnapshotPayload(rawSnapshot)
     const elements = this.assignSnapshotRefs(tab, snapshot.elements)
-    const accessibilitySnapshot = this.formatAccessibilitySnapshot(elements)
+    const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(elements)
     return JSON.stringify({
       title: snapshot.title,
       url: snapshot.url,
@@ -4548,6 +4600,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     title: string
     url: string
     bodyText: string
+    accessibilitySnapshot: string
     elements: BrowserUseElementMatch[]
   } {
     const parsed = typeof rawSnapshot === 'string'
@@ -4561,6 +4614,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       title: typeof obj.title === 'string' ? obj.title : '',
       url: typeof obj.url === 'string' ? obj.url : '',
       bodyText: typeof obj.bodyText === 'string' ? obj.bodyText : '',
+      accessibilitySnapshot: typeof obj.accessibilitySnapshot === 'string' ? obj.accessibilitySnapshot : '',
       elements
     }
   }
@@ -4628,7 +4682,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     tab.snapshotGeneration += 1
     tab.snapshotRefs.clear()
     return elements.map((element, index) => {
-      const ref = `e${index + 1}`
+      const ref = element.ref ?? `e${index + 1}`
       const withRef = {
         ...element,
         ref,
@@ -4665,148 +4719,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       'playwright.inject.check').catch(() => false)
     if (installed === true) return
 
-    await this.executeJavaScript(tab, `
-      (() => {
-        const module = { exports: {} };
-        ${playwrightInjectedScriptSource}
-        const injected = new (module.exports.InjectedScript())(globalThis, {
-          isUnderTest: false,
-          sdkLanguage: "javascript",
-          testIdAttributeName: "data-testid",
-          stableRafCount: 2,
-          browserName: "chromium",
-          isUtilityWorld: false,
-          customEngines: []
-        });
-        const normalize = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
-        const cssEscape = (value) => window.CSS?.escape
-          ? CSS.escape(String(value))
-          : String(value).replace(/[^a-zA-Z0-9_-]/g, (ch) => '\\\\' + ch);
-        const attrValue = (value) => String(value ?? '').replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
-        const visible = (el) => {
-          const style = window.getComputedStyle(el);
-          const rect = el.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        const enabled = (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true' && !el.closest('[aria-disabled="true"]');
-        const roleOf = (el) => {
-          const explicit = el.getAttribute('role');
-          if (explicit) return normalize(explicit).split(' ')[0];
-          const tag = el.tagName.toLowerCase();
-          if (tag === 'a' && el.hasAttribute('href')) return 'link';
-          if (tag === 'button') return 'button';
-          if (tag === 'input') {
-            const type = (el.getAttribute('type') || 'text').toLowerCase();
-            if (type === 'button' || type === 'submit' || type === 'reset') return 'button';
-            if (type === 'checkbox') return 'checkbox';
-            if (type === 'radio') return 'radio';
-            if (type === 'search') return 'searchbox';
-            return 'textbox';
-          }
-          if (tag === 'textarea') return 'textbox';
-          if (tag === 'select') return 'combobox';
-          if (tag === 'summary') return 'button';
-          return '';
-        };
-        const textOf = (el) => normalize(
-          el.innerText ||
-          el.textContent ||
-          el.getAttribute('aria-label') ||
-          el.getAttribute('placeholder') ||
-          el.getAttribute('value') ||
-          ''
-        );
-        const nameOf = (el) => {
-          return normalize(
-            el.getAttribute('aria-label') ||
-            el.getAttribute('aria-labelledby')?.split(/\\s+/).map((id) => document.getElementById(id)?.textContent || '').join(' ') ||
-            el.getAttribute('title') ||
-            el.getAttribute('alt') ||
-            el.innerText ||
-            el.textContent ||
-            el.getAttribute('placeholder') ||
-            el.getAttribute('value') ||
-            ''
-          );
-        };
-        const fallbackSelectorOf = (el) => {
-          const tag = el.tagName.toLowerCase();
-          if (el.id) return tag + '#' + cssEscape(el.id);
-          const testId = el.getAttribute('data-testid');
-          if (testId) return tag + '[data-testid="' + attrValue(testId) + '"]';
-          const href = el.getAttribute('href');
-          if (tag === 'a' && href) return 'a[href="' + attrValue(href) + '"]';
-          const name = el.getAttribute('name');
-          if (name) return tag + '[name="' + attrValue(name) + '"]';
-          const aria = el.getAttribute('aria-label');
-          if (aria) return tag + '[aria-label="' + attrValue(aria) + '"]';
-          return tag;
-        };
-        const selectorOf = (el) => {
-          try {
-            return injected.generateSelectorSimple(el) || fallbackSelectorOf(el);
-          } catch {
-            return fallbackSelectorOf(el);
-          }
-        };
-        const elementInfo = (el, index) => {
-          const tagName = el.tagName.toLowerCase();
-          const rect = el.getBoundingClientRect();
-          const text = textOf(el);
-          const name = nameOf(el);
-          return {
-            index,
-            tagName,
-            tag: tagName,
-            role: roleOf(el),
-            name,
-            text,
-            href: el.getAttribute('href') || undefined,
-            testId: el.getAttribute('data-testid') || undefined,
-            selector: selectorOf(el),
-            visible: visible(el),
-            enabled: enabled(el),
-            visibleText: text,
-            ariaName: name,
-            boundingBox: rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : null
-          };
-        };
-        window.__dotcraftPlaywrightInjected = injected;
-        window.__dotcraftBrowserUseElementInfo = elementInfo;
-        window.__dotcraftBrowserUseResolveSelector = (parsed) => {
-          const elements = injected.querySelectorAll(parsed, document);
-          injected.checkDeprecatedSelectorUsage(parsed, elements);
-          return elements.slice(0, 100).map(elementInfo);
-        };
-        window.__dotcraftBrowserUseSnapshot = () => {
-          const interesting = [
-            'a',
-            'button',
-            'input',
-            'textarea',
-            'select',
-            'summary',
-            '[role="button"]',
-            '[role="link"]',
-            '[role="menuitem"]',
-            '[role="tab"]',
-            '[contenteditable="true"]'
-          ];
-          const seen = new Set();
-          const elements = Array.from(document.querySelectorAll(interesting.join(',')))
-            .filter((el) => {
-              if (!el || seen.has(el) || !visible(el)) return false;
-              seen.add(el);
-              return true;
-            })
-            .slice(0, 200)
-            .map(elementInfo);
-          const bodyText = (document.body?.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 4000);
-          return { title: document.title, url: location.href, bodyText, elements };
-        };
-        return true;
-      })()
-    `, 'playwright.inject')
+    await this.executeJavaScript(tab, browserObservationSource(playwrightInjectedScriptSource), 'playwright.inject')
   }
 
   private async evaluateInPage(

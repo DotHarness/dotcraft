@@ -16,6 +16,8 @@ import { VoiceSetupDialog, type VoiceSetupStage } from './VoiceSetupDialog'
 
 interface VoiceInputControlProps {
   threadId: string
+  enableShortcut?: boolean
+  compact?: boolean
 }
 
 export function VoiceInputStatus({ threadId }: VoiceInputControlProps): JSX.Element | null {
@@ -30,7 +32,7 @@ export function VoiceInputStatus({ threadId }: VoiceInputControlProps): JSX.Elem
   )
 }
 
-export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Element {
+export function VoiceInputControl({ threadId, enableShortcut = true, compact = false }: VoiceInputControlProps): JSX.Element {
   const t = useT()
   const initialize = useVoiceStore((state) => state.initialize)
   const snapshot = useVoiceStore((state) => state.snapshot)
@@ -65,7 +67,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
         void abortRecording()
         return
       }
-      if (event.code !== 'KeyD' || !event.ctrlKey || !event.shiftKey || event.repeat || !document.hasFocus()) return
+      if (!enableShortcut || event.code !== 'KeyD' || !event.ctrlKey || !event.shiftKey || event.repeat || !document.hasFocus()) return
       if (snapshot.model.phase !== 'installed') return
       if (isBlockedMicrophonePermission(useVoiceStore.getState().microphonePermission)) {
         setSetupStage('recovery')
@@ -103,7 +105,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
         void useVoiceStore.getState().stopRecording('insert')
       }
     }
-  }, [abortRecording, cancelRecordingStart, snapshot.model.phase, startRecording, stopRecording, threadId])
+  }, [abortRecording, cancelRecordingStart, enableShortcut, snapshot.model.phase, startRecording, stopRecording, threadId])
 
   const session = sessionForThread(snapshot, threadId)
   const occupied = snapshot.sessions.length + (globalRecording ? 1 : 0) + (globalFinalizing ? 1 : 0)
@@ -239,7 +241,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
   return (
     <>
       {elapsedMs != null && <time style={timerStyle}>{formatElapsed(elapsedMs)}</time>}
-      <ActionTooltip label={view.label} shortcut={view.kind === 'mic' ? ['Ctrl', 'Shift', 'D'] : undefined} placement="top">
+      <ActionTooltip label={view.label} shortcut={enableShortcut && view.kind === 'mic' ? ['Ctrl', 'Shift', 'D'] : undefined} placement="top">
         <button
           type="button"
           aria-label={view.label}
@@ -255,7 +257,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
             }
             void activate()
           }}
-          style={controlStyle(recording != null)}
+          style={controlStyle(recording != null, compact)}
         >
           {view.kind === 'recording' || view.kind === 'processing'
             ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden style={{ display: 'block' }} />
@@ -401,10 +403,10 @@ function formatElapsed(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
 }
 
-function controlStyle(active: boolean): CSSProperties {
+function controlStyle(active: boolean, compact: boolean): CSSProperties {
   return {
-    width: 32,
-    height: 32,
+    width: compact ? 28 : 32,
+    height: compact ? 28 : 32,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',

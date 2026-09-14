@@ -96,7 +96,7 @@ export interface PendingProjectThreadOpen {
 export interface UIState {
   activeMainView: ActiveMainView
   pluginCatalogSurface: PluginCatalogSurface
-  /** Active tab inside Automations view (spec §21.1). */
+  browserDownloadHistoryOpen: boolean
   activeSettingsTab: SettingsTab
   /** Selected channel detail, kept outside ChannelsView so app history can restore it. */
   selectedChannelKey: SelectedChannelKey
@@ -348,6 +348,7 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
 export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   activeMainView: 'conversation',
   pluginCatalogSurface: 'plugins',
+  browserDownloadHistoryOpen: false,
   activeSettingsTab: 'general',
   selectedChannelKey: null,
   settingsCloseRequestSeq: 0,
@@ -411,7 +412,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
 
   setActiveSettingsTab(tab) {
-    set({ activeSettingsTab: normalizeSettingsTab(tab) })
+    set({ activeSettingsTab: normalizeSettingsTab(tab), browserDownloadHistoryOpen: false })
   },
 
   setSelectedChannelKey(key) {

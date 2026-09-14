@@ -80,4 +80,24 @@ describe('DesktopAppServerClient', () => {
     await expect(first).resolves.toEqual({ value: 7 })
     await expect(client.sendRequest('fixture/timeout', {}, 5)).rejects.toThrow(/timed out/i)
   })
+
+  it('holds the wire subscription through UI unsubscribe and releases it at browser turn end', async () => {
+    const retain = client.retainBrowserTurn('thread', 'turn')
+    const subscribe = await readRequest()
+    expect(subscribe).toMatchObject({ method: 'thread/subscribe', params: { threadId: 'thread', replayRecent: false } })
+    await expect(client.sendRequest('thread/unsubscribe', { threadId: 'thread' })).resolves.toEqual({})
+    push({ jsonrpc: '2.0', id: subscribe.id, result: {} })
+    await retain
+    const release = client.releaseBrowserTurn('thread', 'turn')
+    const unsubscribe = await readRequest()
+    expect(unsubscribe).toMatchObject({ method: 'thread/unsubscribe', params: { threadId: 'thread' } })
+    push({ jsonrpc: '2.0', id: unsubscribe.id, result: {} })
+    await release
+    await client.releaseBrowserTurn('thread', 'turn')
+    const next = client.sendRequest('fixture/next', {})
+    const request = await readRequest()
+    expect(request.method).toBe('fixture/next')
+    push({ jsonrpc: '2.0', id: request.id, result: {} })
+    await next
+  })
 })

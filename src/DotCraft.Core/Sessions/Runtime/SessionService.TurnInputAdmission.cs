@@ -56,6 +56,7 @@ public sealed partial class SessionService
             {
                 Text = displayText,
                 DeliveryMode = "guidance",
+                ClientUserMessageId = queued.ClientUserMessageId,
                 NativeInputParts = nativeParts,
                 MaterializedInputParts = materializedParts,
                 SenderId = queued.Sender?.SenderId,

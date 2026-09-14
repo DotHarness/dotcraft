@@ -1,40 +1,75 @@
 .overlay {
   position: fixed;
-  z-index: var(--z-tooltip);
-  top: calc(var(--chrome-header-height) + 8px);
-  right: 20px;
+  z-index: 9999;
+  top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  width: 340px;
+  max-width: 70vw;
+  overflow: hidden;
+  border: 0.5px solid var(--border-default);
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-level-2);
+  -webkit-app-region: no-drag;
+}
+.field {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
-  padding: 5px 6px 5px 10px;
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-level-2);
-  gap: 4px;
+  gap: 8px;
+  height: 44px;
+  padding-left: 16px;
+  min-width: 0;
 }
-
-.input {
-  color: var(--text-primary);
-  font-size: var(--type-ui-size);
-  line-height: var(--type-ui-line-height);
-}
-
+.field > svg { flex-shrink: 0; }
 .input[data-bare] {
-  width: 200px;
-  padding: 3px 0;
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  height: 24px;
+  padding: 0;
+  font-size: var(--type-body-size);
+  line-height: 24px;
 }
-
-.input::placeholder {
-  color: var(--text-dimmed);
+.input::placeholder { color: var(--text-tertiary); }
+.scope {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
 }
-
+.close {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  padding-right: 14px;
+}
+.close::before {
+  content: '';
+  height: 16px;
+  width: 1px;
+  margin: 0 8px;
+  background: var(--border-default);
+}
+.results {
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border-top: 1px solid var(--border-default);
+  padding: 4px 16px;
+}
 .counter {
-  min-width: 74px;
-  padding-right: 2px;
+  flex: 1;
   color: var(--text-secondary);
-  font-size: var(--type-hint-size);
+  font-size: var(--type-ui-size);
   font-variant-numeric: tabular-nums;
   text-align: right;
-  user-select: none;
-  white-space: nowrap;
 }

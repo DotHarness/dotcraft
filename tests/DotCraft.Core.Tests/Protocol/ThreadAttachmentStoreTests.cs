@@ -77,6 +77,31 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.True(File.Exists(imagePath));
     }
 
+    [Fact]
+    public async Task ContextOwnedImage_IsTrackedWithoutOrdinaryImageMetadata()
+    {
+        var imagePath = CreateAttachment("context.png");
+        var thread = CreateThread("context-image", imagePath);
+        var user = thread.Turns[0].Input!;
+        user.Payload = new UserMessagePayload
+        {
+            ClientUserMessageId = "submission",
+            NativeInputParts = [new SessionInputPart { Type = "contextRef", Context = new SessionInputContext
+            {
+                Id = "page", Kind = "pageReference", Url = "https://example.test", Title = "Page", SelectionKind = "region", Text = "", Comment = "Explain",
+                Image = new SessionContextImage { TempPath = imagePath, FileName = "context.png", MimeType = "image/png" }
+            } }]
+        };
+        await _store.SaveThreadAsync(thread);
+        Assert.Equal(1, CountAttachmentRows());
+        var restored = await _store.LoadThreadAsync(thread.Id);
+        var payload = Assert.IsType<UserMessagePayload>(restored!.Turns[0].Input!.Payload);
+        Assert.Equal("submission", payload.ClientUserMessageId);
+        Assert.Equal(imagePath, Assert.Single(payload.NativeInputParts!).Context!.Image!.TempPath);
+        _store.DeleteThread(thread.Id);
+        Assert.False(File.Exists(imagePath));
+    }
+
     public void Dispose()
     {
         try

@@ -21,6 +21,10 @@ public sealed class UserMessageImage : ExtensibleJsonObject
 /// <summary>Canonical payload for a user message item.</summary>
 public sealed class UserMessagePayload : ExtensibleJsonObject
 {
+    [JsonPropertyName("clientUserMessageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientUserMessageId { get; init; }
+
     [JsonPropertyName("text")]
     public required string Text { get; init; }
 

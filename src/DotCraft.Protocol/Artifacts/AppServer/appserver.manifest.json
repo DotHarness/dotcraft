@@ -5514,6 +5514,38 @@
       "variants": []
     },
     {
+      "id": "core.ContextImage",
+      "name": "ContextImage",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ContextImage.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "fileName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mimeType",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "tempPath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ContextUsageSnapshot",
       "name": "ContextUsageSnapshot",
       "module": "core",
@@ -7581,6 +7613,150 @@
       "variants": []
     },
     {
+      "id": "core.InputContext",
+      "name": "InputContext",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/InputContext.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "characterCount",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "comment",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "endLine",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "fileName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "image",
+          "type": "core.ContextImage",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "preview",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "selectedText",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "selectionKind",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "side",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "startLine",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.InputPart",
       "name": "InputPart",
       "module": "core",
@@ -7591,6 +7767,13 @@
         {
           "name": "argsText",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "context",
+          "type": "core.InputContext",
           "required": false,
           "nullable": true,
           "const": null
@@ -12779,6 +12962,13 @@
       "schema": "schemas/core/QueuedTurnInput.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "clientUserMessageId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "createdAt",
           "type": "date-time",
@@ -21536,6 +21726,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "clientUserMessageId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "input",
           "type": "array<core.InputPart>",
           "required": true,
@@ -21853,6 +22050,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "clientUserMessageId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "cwd",
           "type": "string",
           "required": false,
@@ -21930,6 +22134,13 @@
       "schema": "schemas/core/TurnSteerParams.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "clientUserMessageId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "expectedTurnId",
           "type": "string",
@@ -22754,6 +22965,13 @@
         },
         {
           "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "clientUserMessageId",
           "type": "string",
           "required": false,
           "nullable": true,

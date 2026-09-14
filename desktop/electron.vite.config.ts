@@ -11,7 +11,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          voiceWorker: resolve('src/main/voice/voiceWorkerProcess.ts')
+          voiceWorker: resolve('src/main/voice/voiceWorkerProcess.ts'),
+          nodeReplWorker: resolve('src/main/repl/nodeReplWorkerProcess.ts')
         }
       }
     }

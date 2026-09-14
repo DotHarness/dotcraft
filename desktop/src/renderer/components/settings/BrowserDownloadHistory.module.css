@@ -1,0 +1,76 @@
+.title {
+  margin: 12px 0 0;
+  font-size: var(--type-page-title-size);
+  line-height: var(--type-page-title-line-height);
+  font-weight: 600;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 36px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  margin: 20px 0;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.empty strong {
+  color: var(--text-primary);
+}
+.empty span {
+  max-width: 340px;
+}
+.record {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+}
+.record + .record {
+  border-top: 1px solid var(--border-default);
+}
+.file {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.file strong, .file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file span {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+}
+.file progress {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.file progress::-webkit-progress-bar {
+  background: var(--bg-tertiary);
+}
+.file progress::-webkit-progress-value {
+  background: var(--text-secondary);
+}

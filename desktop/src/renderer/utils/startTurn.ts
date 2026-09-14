@@ -1,5 +1,7 @@
+import { createOptimisticUserMessage } from './inputPresentation'
+import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerFileAttachment, ImageAttachment } from '../types/conversation'
-import type { ConversationItem, ConversationTurn } from '../types/conversation'
+import type { ConversationTurn } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -8,10 +10,12 @@ import { getFallbackThreadName } from './threadFallbackName'
 import { runtimeWorkspaceRootsFor } from './workspaceRuntimeRoots'
 
 interface StartTurnParams {
+  clientUserMessageId?: string
   threadId: string
   workspacePath: string
   identityWorkspacePath?: string
   text: string
+  contexts?: ComposerContextRecord[]
   segments?: ComposerDraftSegment[]
   images?: ImageAttachment[]
   files?: ComposerFileAttachment[]
@@ -29,11 +33,13 @@ interface StartTurnParams {
  * Returns true when the turn/start RPC is issued, false when there is no input.
  */
 export async function startTurnWithOptimisticUI({
+  clientUserMessageId = crypto.randomUUID(),
   threadId,
   workspacePath,
   identityWorkspacePath,
   text,
   segments,
+  contexts,
   images = [],
   files = [],
   fallbackThreadName,
@@ -43,7 +49,7 @@ export async function startTurnWithOptimisticUI({
   throwOnStartError = false,
   sentAsGoal = false
 }: StartTurnParams): Promise<boolean> {
-  const { inputParts, visibleText } = buildComposerInputParts({ text, segments, files, images })
+  const { inputParts, visibleText } = buildComposerInputParts({ text, segments, files, images, contexts })
   if (inputParts.length === 0) {
     return false
   }
@@ -63,24 +69,9 @@ export async function startTurnWithOptimisticUI({
     }
   }
 
-  const optimisticTurnId = `local-turn-${Date.now()}`
+  const optimisticTurnId = `local-turn-${clientUserMessageId}`
   const optimisticNow = new Date().toISOString()
-  const optimisticItems: ConversationItem[] = [{
-    id: `local-${Date.now()}`,
-    type: 'userMessage',
-    status: 'completed',
-    text: visibleText,
-    nativeInputParts: inputParts.filter((part) => part.type !== 'localImage' && part.type !== 'image'),
-    imageDataUrls: images.map((i) => i.dataUrl),
-    images: images.map((i) => ({
-      path: i.tempPath,
-      mimeType: i.mimeType,
-      fileName: i.fileName
-    })),
-    sentAsGoal: sentAsGoal ? true : undefined,
-    createdAt: optimisticNow,
-    completedAt: optimisticNow
-  }]
+  const optimisticItems = [createOptimisticUserMessage(inputParts, visibleText, clientUserMessageId, sentAsGoal)]
 
   const optimisticTurn: ConversationTurn = {
     id: optimisticTurnId,
@@ -100,6 +91,7 @@ export async function startTurnWithOptimisticUI({
     const result = await window.api.appServer.sendRequest('turn/start', {
       threadId,
       input: inputParts,
+      clientUserMessageId,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
       ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
       identity: {

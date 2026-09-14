@@ -127,6 +127,42 @@ public sealed class NodeReplToolProviderTests
         Assert.Equal(1, proxy.LastMetadata.ProtocolVersion);
     }
 
+    [Fact]
+    public async Task Source_GeneratedSchemaPreservesRequiredCodeAndOptionalIntegerTimeout()
+    {
+        var fixture = CreateSource(new FakeNodeReplProxy(true));
+        var registration = Assert.Single(await fixture.Source.GetRegistrationsAsync(fixture.Planning));
+        var schema = registration.Definition.InputSchema;
+
+        Assert.Equal("code", Assert.Single(schema.GetProperty("required").EnumerateArray()).GetString());
+        var properties = schema.GetProperty("properties");
+        Assert.Equal("string", properties.GetProperty("code").GetProperty("type").GetString());
+        var timeout = properties.GetProperty("timeoutSeconds");
+        Assert.Equal("integer", timeout.GetProperty("type").GetString());
+        Assert.False(timeout.TryGetProperty("default", out _));
+        Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(45)]
+    public async Task Dispatch_PreservesOmittedAndExplicitTimeout(int? timeoutSeconds)
+    {
+        var proxy = new FakeNodeReplProxy(true);
+        var fixture = CreateSource(proxy);
+        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([fixture.Source], fixture.Planning);
+        var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
+        var arguments = new System.Text.Json.Nodes.JsonObject { ["code"] = "1 + 1" };
+        if (timeoutSeconds.HasValue) arguments["timeoutSeconds"] = timeoutSeconds.Value;
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot, snapshot.ProviderFlatNames[definition.Name], arguments,
+            new ToolInvocationRequest("thread_test", "turn_001", "timeout-test", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        Assert.Equal(timeoutSeconds, proxy.LastTimeoutSeconds);
+    }
+
     private static SourceFixture CreateSource(
         INodeReplProxy proxy,
         IReadOnlyList<string>? pluginIds = null)
@@ -167,6 +203,7 @@ public sealed class NodeReplToolProviderTests
         public bool IsAvailable => available;
 
         public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
+        public int? LastTimeoutSeconds { get; private set; }
 
         public Task<NodeReplEvaluation?> EvaluateAsync(
             string code,
@@ -175,6 +212,7 @@ public sealed class NodeReplToolProviderTests
             NodeReplEvaluationMetadata? metadata = null)
         {
             LastMetadata = metadata;
+            LastTimeoutSeconds = timeoutSeconds;
             return Task.FromResult<NodeReplEvaluation?>(
                 result ?? new NodeReplEvaluation { ResultText = "ok" });
         }

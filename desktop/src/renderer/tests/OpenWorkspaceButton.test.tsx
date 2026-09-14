@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { OpenWorkspaceButton } from '../components/conversation/OpenWorkspaceButton'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useToastStore } from '../stores/toastStore'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -40,7 +41,7 @@ describe('OpenWorkspaceButton', () => {
       },
       shell: {
         listEditors: shellListEditors,
-        launchEditor: shellLaunchEditor
+        launchLocalPathInEditor: shellLaunchEditor
       }
     })
   })
@@ -116,6 +117,18 @@ describe('OpenWorkspaceButton', () => {
       expect(shellLaunchEditor).toHaveBeenCalledWith('cursor', 'X:\\fixtures\\workspace')
     })
     expect(settingsSet).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed launch', async () => {
+    useToastStore.setState({ toasts: [] })
+    shellLaunchEditor.mockRejectedValueOnce(new Error('Application unavailable'))
+    renderButton()
+    const button = await screen.findByRole('button', { name: 'Open' })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
+    await waitFor(() => expect(useToastStore.getState().toasts).toEqual([
+      expect.objectContaining({ message: 'Could not open this path', type: 'warning' })
+    ]))
   })
 
   it('switching default updates primary button aria-label', async () => {

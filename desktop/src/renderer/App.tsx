@@ -1,3 +1,5 @@
+import { createOptimisticUserMessage } from './utils/inputPresentation'
+import { acceptWelcomeInput, restoreRejectedWelcomeInput } from './utils/welcomeSubmissionRecovery'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
@@ -73,7 +75,7 @@ import {
 import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
-import type { ApprovalDecision, ConversationItem, ConversationTurn, QueuedTurnInput } from './types/conversation'
+import type { ApprovalDecision, ConversationTurn, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
@@ -3042,25 +3044,10 @@ export function App(): JSX.Element {
               })
               useThreadStore.getState().renameThread(threadId, autoName)
             }
-            const optimisticItemId = `local-${Date.now()}`
-            const optimisticTurnId = `local-turn-${Date.now()}`
+            const clientUserMessageId = crypto.randomUUID()
+            const optimisticTurnId = `local-turn-${clientUserMessageId}`
             const optimisticNow = new Date().toISOString()
-            const userItem: ConversationItem = {
-              id: optimisticItemId,
-              type: 'userMessage',
-              status: 'completed',
-              text: pendingText,
-              nativeInputParts: pendingInputParts.filter((part) => part.type !== 'localImage' && part.type !== 'image'),
-              imageDataUrls: pendingImages?.map((i) => i.dataUrl),
-              images: pendingImages?.map((i) => ({
-                path: i.tempPath,
-                mimeType: i.mimeType,
-                fileName: i.fileName
-              })),
-              sentAsGoal: pendingWelcome.sentAsGoal === true ? true : undefined,
-              createdAt: optimisticNow,
-              completedAt: optimisticNow
-            }
+            const userItem = createOptimisticUserMessage(pendingInputParts, pendingText, clientUserMessageId, pendingWelcome.sentAsGoal)
             const optimisticTurn: ConversationTurn = {
               id: optimisticTurnId,
               threadId,
@@ -3084,6 +3071,7 @@ export function App(): JSX.Element {
                 .sendRequest('turn/start', {
                   threadId,
                   input: pendingInputParts,
+                  clientUserMessageId,
                   ...(pendingWelcome.sentAsGoal ? { sentAsGoal: true } : {}),
                   identity: {
                     channelName: 'dotcraft-desktop',
@@ -3093,12 +3081,14 @@ export function App(): JSX.Element {
                   }
                 })
               .then((result) => {
+                acceptWelcomeInput(threadId, pendingInputParts)
                 const res = result as { turn?: { id?: string } }
                 if (res.turn?.id) {
                   useConversationStore.getState().promoteOptimisticTurn(optimisticTurnId, res.turn.id)
                 }
               })
               .catch((turnErr: unknown) => {
+                void restoreRejectedWelcomeInput(threadId, pendingInputParts).catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
                 console.error('Welcome screen turn/start failed:', turnErr)
                 useConversationStore.getState().removeOptimisticTurn(optimisticTurnId)
               })

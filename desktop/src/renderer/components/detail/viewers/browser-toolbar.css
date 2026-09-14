@@ -1,0 +1,72 @@
+/* Rescoping the band tokens puts every control in the strip on one geometry. */
+.dc-browser-toolbar {
+  --button-height: var(--toolbar-control-height);
+  --button-radius: var(--toolbar-control-radius);
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  height: 40px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.dc-browser-toolbar__address {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 770px;
+  margin: 0;
+}
+
+/* Outranks the field's own band padding so the trailing action has room. */
+.dc-browser-toolbar .dc-browser-toolbar__field {
+  padding-inline-end: 30px;
+}
+
+.dc-browser-toolbar__external {
+  position: absolute;
+  inset-inline-end: 2px;
+  top: 2px;
+  display: inline-flex;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.dc-browser-toolbar__address:hover .dc-browser-toolbar__external,
+.dc-browser-toolbar__address:focus-within .dc-browser-toolbar__external {
+  opacity: 1;
+}
+
+.dc-browser-toolbar__actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+.dc-browser-toolbar__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  animation: dc-browser-toolbar-pulse 1.2s var(--ease-standard) infinite;
+}
+
+@keyframes dc-browser-toolbar-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}

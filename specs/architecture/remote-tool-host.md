@@ -301,8 +301,10 @@ Session Core records a persistent `systemNotice` item with `kind = "remoteRoute"
 and disconnect a person or the model caused, and for every lease loss, so a thread's history shows
 where its tools ran; disconnects the Agent Host performs on teardown are not recorded. The notice
 is appended to the running Turn when one is in flight and otherwise to the latest completed Turn; a
-thread with no Turn records nothing, because a divider with nothing to divide is noise. Its payload
-is defined in [Session Core](session-core.md) §4.2.
+thread with no Turn records nothing, because a divider with nothing to divide is noise. A notice on a
+running Turn is placed at the point in that Turn where the route changed, so the Items before it are
+the work that ran in the previous location and the Items after it are the work that ran in the new
+one. Its payload is defined in [Session Core](session-core.md) §4.2.
 
 At the start of each Turn, the Agent Host appends a Remote Tool Host section to the latest user
 message runtime context when the thread has a connected or lost route. The section contains
@@ -588,7 +590,8 @@ Conformance tests cover:
   that include both build versions;
 - local, same-Turn connect, remote, disconnect, and no-fallback execution;
 - one route-change event per transition from all three entries, its initiator, lease-loss route
-  retention, and the persisted `remoteRoute` notice landing on the running or latest completed Turn;
+  retention, and the persisted `remoteRoute` notice landing on the running or latest completed Turn,
+  placed in a running Turn between the Items that preceded the change and those that followed it;
 - Native SubAgent inheritance and independent routes over a shared process lease;
 - same-client sharing, cross-client `WorkspaceBusy` with `self`/`other` owner markers, heartbeat
   expiry, and process failure;

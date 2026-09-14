@@ -6,37 +6,24 @@ tools: NodeReplJs
 
 # Chrome Browser
 
-Use `NodeReplJs` for Chrome work. The runtime is thread-bound and persistent; `globalThis` state survives between calls.
+Use `NodeReplJs` for Chrome work. The runtime is thread-bound and persistent; top-level `const` and `let` bindings survive between calls.
 
 Chrome is the user's real browser profile. Treat browser contents as sensitive.
 
 ## First Cell
 
-Start with this guarded cell. It avoids redeclaring `const tab` across REPL calls and works when the cell is rerun:
+Initialize once per REPL environment and read the runtime documentation before acquiring a tab:
 
 ```js
-let chromeBackendReady = false;
-try {
-  chromeBackendReady = (await agent.browsers.list()).some((item) => item?.id === "extension");
-} catch {
-  chromeBackendReady = false;
-}
-if (!chromeBackendReady) {
-  const { setupBrowserRuntime } = await import(dotcraft.chromeBrowserClientPath);
-  await setupBrowserRuntime({ globals: globalThis, backend: "extension" });
-}
-if (!globalThis.browser) {
-  globalThis.browser = await agent.browsers.get("extension");
-}
-await browser.nameSession("Chrome");
-if (typeof tab === "undefined") {
-  try {
-    globalThis.tab = await browser.tabs.selected();
-  } catch {
-    globalThis.tab = await browser.tabs.new();
-  }
-}
+const { setupBrowserRuntime } = await import(dotcraft.chromeBrowserClientPath);
+const agent = await setupBrowserRuntime();
+const browser = await agent.browsers.get("extension");
+nodeRepl.write(await browser.documentation());
 ```
+
+The client returns `agent` without installing user globals. Keep stable bindings as `const`, and use `let tab` when the handle needs reassignment. Bindings may be redeclared across calls; prefer reassigning an existing `let`. Use `nodeRepl.write(value)` for text and `await nodeRepl.emitImage(image)` for images. Expression results and console output remain supported; top-level `return` is invalid.
+
+Ordinary syntax, runtime and browser command errors preserve bindings and previous side effects. A closed or stale tab requires a new tab handle, not a new runtime; an empty tab list is normal. A browser disconnect requires reconnecting the browser, not redeclaring the bootstrap. Outer timeout, cancellation and explicit REPL reset discard bindings and module cache; bootstrap again only in the new environment. Delivered pages remain open.
 
 After setup, run a lightweight check such as `await browser.user.openTabs()`. If it fails, wait about two seconds and retry once.
 
@@ -54,7 +41,7 @@ Stable Chrome error categories map to these recovery actions:
 
 - `BridgeDisconnected`: explain as Chrome backend disconnected, run `dotcraft.chrome.checkSetup()`, then ask the user to click the DotCraft Chrome extension icon if setup is otherwise healthy.
 - `CommandCancelled`: do not blindly retry; confirm whether the user cancelled, the turn timed out, or the workflow should be resumed.
-- `SessionMetadataMissing`: rerun the first setup cell in the current Node REPL context so `dotcraft.browserSession` is available.
+- `SessionMetadataMissing`: report the missing host session metadata; rerunning bootstrap does not repair it.
 - `DebuggerUnavailable`: ask the user to close DevTools or another extension UI controlling the tab, then retry the specific command.
 - `ResultTooLarge`: narrow the query, lower `maxLength`, or read smaller chunks; do not retry the same large result with a longer timeout.
 
@@ -64,7 +51,7 @@ Navigation and clicks can take a moment to become visible to the bridge. After o
 
 ```js
 await tab.goto("https://example.com");
-globalThis.lastObservation = await tab.observe();
+let lastObservation = await tab.observe();
 console.log(lastObservation.url, lastObservation.title);
 ```
 
@@ -75,16 +62,14 @@ await tab.playwright.expectNavigation(
   () => tab.playwright.getByText("Open").click(),
   { timeoutMs: 10000 }
 );
-globalThis.lastObservation = await tab.observe();
+lastObservation = await tab.observe();
 ```
 
 If the URL or title looks stale, wait or observe once before creating a new tab. Do not open a replacement tab just because the immediate return value looked unchanged.
 
-## REPL Sandbox Rules
+## DotCraft Host Paths
 
-DotCraft's Node REPL is sandboxed. Do not use `require`, `process`, `process.cwd()`, `__dirname`, or `dotcraft.workspace`.
-
-Use these safe globals instead:
+The REPL runs in a task-specific Node process. Use the provided host paths and setup APIs for DotCraft integration:
 
 - `dotcraft.workspacePath`
 - `dotcraft.chromePluginRoot`
@@ -96,7 +81,7 @@ Use these safe globals instead:
 For setup diagnostics, prefer:
 
 ```js
-console.log(JSON.stringify(await dotcraft.chrome.checkSetup(), null, 2));
+nodeRepl.write(await dotcraft.chrome.checkSetup());
 ```
 
 If shell/Exec is available outside the REPL, setup scripts may also be run from `dotcraft.chromeScriptsPath`. Keep diagnostics read-only.

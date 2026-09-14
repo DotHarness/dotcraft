@@ -1,3 +1,4 @@
+import type { ComposerContextRecord } from '../../shared/composerContext'
 import { stripSystemReminderBlocks } from '../utils/systemReminderText'
 
 export type TurnStatus = 'running' | 'completed' | 'failed' | 'cancelled'
@@ -106,6 +107,7 @@ export interface RemoteFileTransferProgress {
  * code straightforward when mapping wire payloads.
  */
 export interface ConversationItem {
+  clientUserMessageId?: string
   id: string
   type: ItemType
   status: ItemStatus
@@ -113,6 +115,7 @@ export interface ConversationItem {
   deliveryMode?: 'normal' | 'queued' | 'guidance' | 'subagentMailbox' | 'async'
   /** Primary text content: userMessage text, agentMessage markdown, error message */
   text?: string
+  phase?: 'commentary' | 'final'
   /** Native user input parts used as the source of truth for history rendering. */
   nativeInputParts?: InputPart[]
   /** Materialized user input parts that were actually sent to the model. */
@@ -230,6 +233,7 @@ export interface ConversationTurn {
 
 /** Supported input part types for turn/start */
 export type InputPart =
+  | { type: 'contextRef'; context: ComposerContextRecord }
   | { type: 'text'; text: string }
   | { type: 'commandRef'; name: string; argsText?: string; rawText?: string }
   | { type: 'skillRef'; name: string }
@@ -249,6 +253,7 @@ export interface PendingComposerMessage {
 }
 
 export interface QueuedTurnInput {
+  clientUserMessageId?: string
   id: string
   threadId: string
   nativeInputParts?: InputPart[]
@@ -407,6 +412,8 @@ function mapInputPart(raw: unknown): InputPart | null {
   const part = raw as Record<string, unknown>
   const type = typeof part.type === 'string' ? part.type : ''
   switch (type) {
+    case 'contextRef':
+      return { type: 'contextRef', context: part.context as ComposerContextRecord }
     case 'text': {
       const text = typeof part.text === 'string' ? part.text : ''
       return { type: 'text', text }
@@ -624,6 +631,8 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     text: type === 'userMessage' && typeof text === 'string'
       ? stripSystemReminderBlocks(text)
       : text,
+    phase: (raw.phase ?? payload.phase) === 'commentary' ? 'commentary' : (raw.phase ?? payload.phase) === 'final' ? 'final' : undefined,
+    clientUserMessageId: (raw.clientUserMessageId ?? payload.clientUserMessageId) as string | undefined,
     nativeInputParts: payloadNativeInputParts,
     materializedInputParts: payloadMaterializedInputParts,
     reasoning: (raw.reasoning as string | undefined)

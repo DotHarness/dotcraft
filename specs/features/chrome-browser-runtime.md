@@ -33,7 +33,7 @@ This spec does not define:
 ## 2. Goals
 
 1. **Durable browser sessions**: Browser automation is a thread-bound session with explicit turn and evaluation metadata, stable JavaScript bindings, and deterministic cleanup semantics.
-2. **Stable agent state**: Recoverable browser command errors do not destroy unrelated Node REPL state such as `globalThis.browser` or `globalThis.tab`.
+2. **Stable agent state**: Recoverable browser command errors do not destroy unrelated Node REPL state such as `browser` or `tab`.
 3. **Predictable tab ownership**: User, claimed, created, kept, released, and closed tabs have explicit lifecycle rules.
 4. **Bounded data transfer**: Page data and `tab.evaluate` results are capped before large payloads can destabilize the REPL or transport.
 5. **Actionable recovery**: Setup, backend, command, timeout, cancellation, debugger, and result-size failures have stable categories and user-safe recovery guidance.
@@ -70,7 +70,7 @@ The runtime has four layers:
 
 ## 4. AppServer and Session Metadata
 
-`ext/nodeRepl/evaluate` accepts optional browser metadata in addition to the legacy evaluate payload:
+`ext/nodeRepl/evaluate` accepts optional browser metadata alongside the JavaScript evaluation fields:
 
 ```json
 {
@@ -108,7 +108,7 @@ There are two timeout and cancellation levels:
 
 | Level | Owner | Effect |
 |-------|-------|--------|
-| Evaluation timeout/cancel | Desktop Node REPL manager | Cancels the active evaluation and may reset the REPL context. |
+| Evaluation timeout/cancel | Desktop Node REPL manager | Cancels the active evaluation and terminates the REPL process. |
 | Browser command timeout/cancel | Browser client/backend | Fails only the current JavaScript promise and preserves thread REPL state. |
 
 Command-level errors must not clear REPL state. Examples:
@@ -122,12 +122,12 @@ Command-level errors must not clear REPL state. Examples:
 - `UnsupportedApi`
 - ordinary JavaScript rejection from a browser command
 
-Outer control errors may clear or rebuild REPL state:
+Outer control errors discard the REPL process and state:
 
 - `NodeReplJs timed out after ...`
 - `NodeReplJs cancelled`
 - explicit user/client reset
-- VM context creation failure
+- REPL process startup failure
 - AppServer thread binding replacement or disconnection
 
 Outer timeout/cancel must first invoke the registered Chrome cancellation hook for the active `evaluationId`, then proceed with normal REPL cleanup.
@@ -270,12 +270,6 @@ await browser.tabs.finalize({
 
 `status` must be `"handoff"` or `"deliverable"`.
 
-Invalid legacy shapes:
-
-- `browser.tabs.finalize({ keep: [tab] })`
-- `browser.tabs.finalize({ keep: [id] })`
-- `browser.tabs.finalize({ keep: true })`
-
 Finalize returns a summary:
 
 ```json
@@ -345,7 +339,7 @@ Forbidden diagnostics:
 - native host manifest paths;
 - oversized result content.
 
-Desktop settings use "Chrome backend" / "Chrome 后端" terminology. "Chrome Bridge" is legacy wording and must not appear in new UI copy.
+Desktop settings use "Chrome backend" / "Chrome 后端" terminology.
 
 Overall setup status priority:
 
@@ -386,7 +380,7 @@ Agent recovery:
 - `BridgeDisconnected`: explain as Chrome backend disconnected; run `dotcraft.chrome.checkSetup()` and ask the user to click the DotCraft Chrome extension icon if setup is otherwise healthy.
 - `CommandTimeout`: fail only the current JavaScript promise; retry only after narrowing the command or increasing command timeout for a specific wait.
 - `CommandCancelled`: do not blindly retry; confirm whether the user cancelled, the turn timed out, or the workflow should resume.
-- `SessionMetadataMissing`: rerun Chrome runtime setup in the current Node REPL context so `dotcraft.browserSession` is available.
+- `SessionMetadataMissing`: report the missing host metadata; bootstrap cannot repair an invalid host session.
 - `DebuggerUnavailable`: ask the user to close DevTools or another extension UI controlling the tab, then retry the specific command.
 - `ResultTooLarge`: narrow the query, use `maxLength`, or read smaller chunks; do not retry the same large result with a longer timeout.
 - `UnsupportedApi`: use the documented Chrome compatibility subset or ask before switching browser-control paths.
@@ -396,7 +390,7 @@ Agent recovery:
 ## 12. Acceptance
 
 - Browser automation is thread-bound and survives normal command failures.
-- `globalThis.browser` and `globalThis.tab` remain reusable across Node REPL calls until the thread binding or runtime is intentionally reset.
+- `browser` and `tab` remain reusable across Node REPL calls until the thread binding or runtime is intentionally reset.
 - Every Chrome command carries `sessionId`, `turnId`, `evaluationId`, and `commandId`.
 - Missing session metadata fails with `SessionMetadataMissing`.
 - Chrome backend discovery uses native pipe candidates and framed host protocol, with no fixed TCP fallback.
@@ -408,3 +402,7 @@ Agent recovery:
 - `browser.tabs.finalize({ keep: [{ tab, status }] })` is the authoritative cleanup boundary.
 - Desktop and extension setup diagnostics show safe, actionable Chrome backend status.
 - AppServer, Desktop, Chrome extension, native host, and browser-client tests cover command timeout, command failure, cancellation, result-size limits, tab finalization, setup diagnostics, and reconnect behavior.
+
+### Persistent Node REPL execution
+
+The shared [Node REPL contract](node-repl.md) owns lexical state, native imports, explicit output, task process isolation, cancellation and bootstrap. Browser clients return their agent directly and read task-scoped host capabilities inside the worker. Browser-command failures preserve that environment; outer cancellation and reset replace it while retaining delivered pages.

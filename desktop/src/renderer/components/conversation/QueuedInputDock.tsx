@@ -22,6 +22,7 @@ import { useT } from '../../contexts/LocaleContext'
 import type { QueuedTurnInput } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
+import { projectInputParts } from '../../utils/inputPresentation'
 
 const EMPTY_QUEUED_INPUTS: QueuedTurnInput[] = []
 
@@ -269,12 +270,17 @@ function summarizeQueuedInput(
   item: QueuedTurnInput,
   t: (key: string, vars?: Record<string, string | number>) => string
 ): string {
-  const text = item.displayText?.trim()
+  const parts = item.nativeInputParts ?? []
+  const decoded = projectInputParts(parts)
+  const text = decoded.contexts.length
+    ? decoded.parts.filter((part) => part.type === 'text').map((part) => part.text).join('').trim()
+    : item.displayText?.trim()
   if (text) return text.length > 90 ? `${text.slice(0, 90)}...` : text
-  const parts = item.nativeInputParts ?? item.materializedInputParts ?? []
   const files = parts.filter((part) => part.type === 'fileRef').length
   const images = parts.filter((part) => part.type === 'image' || part.type === 'localImage').length
   const labels: string[] = []
+  if (decoded.contexts.some((context) => context.kind === 'pastedText')) labels.push(t('composer.context.pastedText'))
+  if (decoded.contexts.some((context) => context.kind !== 'pastedText')) labels.push(t('composer.context.comment'))
   if (files > 0) {
     labels.push(t(files === 1 ? 'composer.queueFileCountOne' : 'composer.queueFileCountMany', { count: files }))
   }

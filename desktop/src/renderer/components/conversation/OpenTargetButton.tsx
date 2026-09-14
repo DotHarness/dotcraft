@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useT } from '../../contexts/LocaleContext'
+import { addToast } from '../../stores/toastStore'
 import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import type { ButtonVariant } from '../ui/Button'
 import {
@@ -89,9 +90,9 @@ export function OpenTargetButton({
 
   async function handleLaunch(id: EditorId): Promise<void> {
     try {
-      await window.api.shell.launchEditor(id, targetPath)
+      await window.api.shell.launchLocalPathInEditor(id, targetPath)
     } catch {
-      // Keep silent to avoid interrupting regular conversation flow.
+      addToast(t('conversation.reference.openFailed'), 'warning')
     }
   }
 

@@ -377,3 +377,20 @@ describe('RichInputArea catalog-aware paste parsing', () => {
     ])
   })
 })
+
+
+describe('long pasted text handoff', () => {
+  it.each([4_999, 5_000, 120_000])('hands off %i characters before editor truncation', (length) => {
+    const onPasteText = vi.fn(() => true)
+    const onOversized = vi.fn()
+    render(<RichInputArea onSubmit={vi.fn()} onPasteText={onPasteText} onPasteTextOversized={onOversized} />)
+    const textbox = screen.getByRole('textbox')
+    const text = 'x'.repeat(length)
+    fireEvent.paste(textbox, { clipboardData: { items: [], getData: (type: string) => type === 'text/plain' ? text : '' } })
+    if (length >= 5_000) {
+      expect(onPasteText).toHaveBeenCalledWith(text)
+      expect(textbox.textContent).toBe('')
+    } else expect(onPasteText).not.toHaveBeenCalled()
+    expect(onOversized).not.toHaveBeenCalled()
+  })
+})

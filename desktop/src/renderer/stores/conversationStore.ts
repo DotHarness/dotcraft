@@ -1,3 +1,4 @@
+import { optimisticUserMessageRepresentedByIncoming, removeRepresentedOptimisticTurns, turnRepresentsOptimisticTurn } from './optimisticMessages'
 import { create } from 'zustand'
 import type {
   ConversationTurn,
@@ -989,156 +990,6 @@ function findMatchingRealtimeItem(
   return undefined
 }
 
-const OPTIMISTIC_TURN_CLOCK_SKEW_MS = 1000
-const OPTIMISTIC_TURN_MATCH_WINDOW_MS = 5 * 60 * 1000
-
-function isOptimisticTurn(turn: ConversationTurn): boolean {
-  return turn.id.startsWith('local-turn-')
-}
-
-function isOrdinaryUserMessage(item: ConversationItem): boolean {
-  return item.type === 'userMessage' &&
-    item.deliveryMode !== 'guidance' &&
-    item.deliveryMode !== 'subagentMailbox' &&
-    item.triggerKind == null
-}
-
-function isOptimisticUserMessage(item: ConversationItem): boolean {
-  return isOrdinaryUserMessage(item) && item.id.startsWith('local-')
-}
-
-function firstOrdinaryUserMessage(turn: ConversationTurn): ConversationItem | undefined {
-  return turn.items.find(isOrdinaryUserMessage)
-}
-
-function itemPayloadRecord(item: ConversationItem): Record<string, unknown> {
-  const payload = (item as unknown as { payload?: unknown }).payload
-  return payload != null && typeof payload === 'object' && !Array.isArray(payload)
-    ? payload as Record<string, unknown>
-    : {}
-}
-
-function userMessageImageCount(item: ConversationItem): number {
-  const payloadImages = itemPayloadRecord(item).images
-  return Math.max(
-    item.images?.length ?? 0,
-    item.imageDataUrls?.length ?? 0,
-    Array.isArray(payloadImages) ? payloadImages.length : 0
-  )
-}
-
-function userMessageNativeInputParts(item: ConversationItem): unknown {
-  return item.nativeInputParts ?? itemPayloadRecord(item).nativeInputParts
-}
-
-function inputPartSignature(parts: unknown): string | null {
-  if (!Array.isArray(parts) || parts.length === 0) return null
-  const normalized = parts
-    .flatMap((rawPart) => {
-      if (rawPart == null || typeof rawPart !== 'object') return []
-      const part = rawPart as Record<string, unknown>
-      const type = typeof part.type === 'string' ? part.type : ''
-      switch (type) {
-        case 'text':
-          return [{ type, text: typeof part.text === 'string' ? part.text : '' }]
-        case 'commandRef':
-          return [{
-            type,
-            name: typeof part.name === 'string' ? part.name : '',
-            argsText: typeof part.argsText === 'string' ? part.argsText : undefined,
-            rawText: typeof part.rawText === 'string' ? part.rawText : undefined
-          }]
-        case 'skillRef':
-          return [{ type, name: typeof part.name === 'string' ? part.name : '' }]
-        case 'fileRef':
-          return [{
-            type,
-            path: typeof part.path === 'string' ? part.path : '',
-            displayPath: typeof part.displayPath === 'string' ? part.displayPath : undefined
-          }]
-        case 'image':
-        case 'localImage':
-          return []
-        default:
-          return [{ type }]
-      }
-    })
-  return JSON.stringify(normalized)
-}
-
-function normalizedUserMessageText(item: ConversationItem): string {
-  const payload = itemPayloadRecord(item)
-  const text =
-    item.text
-    ?? (typeof payload.text === 'string' ? payload.text : undefined)
-    ?? (typeof payload.message === 'string' ? payload.message : undefined)
-  return (text ?? '').trim()
-}
-
-function userMessagesRepresentSameRequest(a: ConversationItem, b: ConversationItem): boolean {
-  if (!isOrdinaryUserMessage(a) || !isOrdinaryUserMessage(b)) return false
-
-  const imageCountA = userMessageImageCount(a)
-  const imageCountB = userMessageImageCount(b)
-  if ((imageCountA > 0 || imageCountB > 0) && imageCountA !== imageCountB) return false
-
-  const partsA = inputPartSignature(userMessageNativeInputParts(a))
-  const partsB = inputPartSignature(userMessageNativeInputParts(b))
-  if (partsA != null && partsB != null) return partsA === partsB
-
-  const textA = normalizedUserMessageText(a)
-  const textB = normalizedUserMessageText(b)
-  if (textA.length > 0 || textB.length > 0) return textA === textB
-
-  return imageCountA > 0 && imageCountA === imageCountB
-}
-
-function optimisticUserMessageRepresentedByIncoming(
-  existingItem: ConversationItem,
-  incomingItems: ConversationItem[]
-): boolean {
-  return isOptimisticUserMessage(existingItem) &&
-    incomingItems.some((incomingItem) =>
-      !isOptimisticUserMessage(incomingItem) &&
-      userMessagesRepresentSameRequest(existingItem, incomingItem)
-    )
-}
-
-function turnStartedAtMs(turn: ConversationTurn): number | null {
-  const value = Date.parse(turn.startedAt)
-  return Number.isFinite(value) ? value : null
-}
-
-function turnCompletedAtMs(turn: ConversationTurn): number | null {
-  const value = turn.completedAt ? Date.parse(turn.completedAt) : Number.NaN
-  return Number.isFinite(value) ? value : null
-}
-
-function turnRepresentsOptimisticTurn(
-  incoming: ConversationTurn,
-  optimistic: ConversationTurn
-): boolean {
-  if (!isOptimisticTurn(optimistic)) return false
-  if (incoming.threadId && optimistic.threadId && incoming.threadId !== optimistic.threadId) return false
-
-  const incomingStartedAt = turnStartedAtMs(incoming)
-  const optimisticStartedAt = turnStartedAtMs(optimistic)
-  if (incomingStartedAt != null && optimisticStartedAt != null) {
-    if (incomingStartedAt < optimisticStartedAt - OPTIMISTIC_TURN_CLOCK_SKEW_MS) return false
-    if (incomingStartedAt < optimisticStartedAt && isTerminalTurnStatus(incoming.status)) {
-      const incomingCompletedAt = turnCompletedAtMs(incoming)
-      if (incomingCompletedAt == null || incomingCompletedAt < optimisticStartedAt) return false
-    }
-    if (incomingStartedAt - optimisticStartedAt > OPTIMISTIC_TURN_MATCH_WINDOW_MS) return false
-  }
-
-  const incomingUser = firstOrdinaryUserMessage(incoming)
-  const optimisticUser = firstOrdinaryUserMessage(optimistic)
-  return incomingUser != null &&
-    optimisticUser != null &&
-    userMessagesRepresentSameRequest(incomingUser, optimisticUser)
-}
-
 function findRepresentedOptimisticTurn(
   incoming: ConversationTurn,
   existingTurns: ConversationTurn[],
@@ -1326,7 +1177,7 @@ function mergeExistingRealtimeTurns(
       merged.push(existing)
     }
   }
-  return merged.sort(
+  return removeRepresentedOptimisticTurns(merged).sort(
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
   )
 }
@@ -1494,6 +1345,7 @@ function normalizeToolPresentation(value: unknown): ConversationItem['presentati
 }
 
 function upsertItemById(items: ConversationItem[], item: ConversationItem): ConversationItem[] {
+  items = items.filter(existing => !optimisticUserMessageRepresentedByIncoming(existing, [item]))
   const existingIndex = items.findIndex((i) => i.id === item.id)
   if (existingIndex < 0) {
     return sortItemsByCreatedAt([...items, item])
@@ -1502,10 +1354,6 @@ function upsertItemById(items: ConversationItem[], item: ConversationItem): Conv
   const next = [...items]
   next[existingIndex] = { ...next[existingIndex], ...item }
   return sortItemsByCreatedAt(next)
-}
-
-function isGuidanceUserMessage(item: ConversationItem): boolean {
-  return item.type === 'userMessage' && item.deliveryMode === 'guidance'
 }
 
 const SYSTEM_LABELS: Record<string, string | null> = {
@@ -1935,11 +1783,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const alreadyExists = state.turns.find((t) => t.id === turn.id)
       if (alreadyExists) {
         return {
-          turns: state.turns.map((t) =>
+          turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
             t.id === turn.id
               ? { ...mergeExistingRealtimeTurn(turn, t), status: 'running', startedAt: turn.startedAt }
               : t
-          ),
+          )),
           turnStatus: 'running',
           activeTurnId: turn.id,
           interruptingTurnId: null,
@@ -1962,9 +1810,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         }
       }
 
-      // Replace the most recent optimistic turn (local-turn-*) with the real turn,
-      // preserving the user message items that were added optimistically.
-      const lastOptimistic = [...state.turns].reverse().find((t) => t.id.startsWith('local-turn-'))
+            const lastOptimistic = state.turns.find((candidate) => turnRepresentsOptimisticTurn(turn, candidate))
       let nextTurns: ConversationTurn[]
       if (lastOptimistic) {
         nextTurns = state.turns.map((t) =>
@@ -2121,11 +1967,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }))
     } else if (type === 'userMessage') {
       const newItem = wireItemToConversationItem(item)
-      if (!isGuidanceUserMessage(newItem)) return
       set((state) => ({
-        turns: state.turns.map((t) =>
+        turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
           t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-        )
+        ))
       }))
     } else if (type === 'reasoningContent') {
       const newItem: ConversationItem = {
@@ -2662,11 +2507,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       })
     } else if (type === 'userMessage') {
       const newItem = wireItemToConversationItem(item)
-      if (!isGuidanceUserMessage(newItem)) return
       set((s) => ({
-        turns: s.turns.map((t) =>
+        turns: removeRepresentedOptimisticTurns(s.turns.map((t) =>
           t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-        )
+        ))
       }))
     } else if (type === 'error') {
       const newItem = wireItemToConversationItem(item)
@@ -2676,33 +2520,17 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         )
       }))
     } else if (type === 'systemNotice') {
-      const itemId = (item?.id as string) ?? ''
-      const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
-      const notice = {
-        kind: (itemPayload.kind as string | undefined) ?? 'compacted',
-        trigger: itemPayload.trigger as string | undefined,
-        mode: itemPayload.mode as string | undefined,
-        tokensBefore: itemPayload.tokensBefore as number | undefined,
-        tokensAfter: itemPayload.tokensAfter as number | undefined,
-        percentLeftAfter: itemPayload.percentLeftAfter as number | undefined,
-        clearedToolResults: itemPayload.clearedToolResults as number | undefined,
-        sourceThreadId: itemPayload.sourceThreadId as string | undefined
-      }
-      const newItem: ConversationItem = {
-        id: itemId,
-        type: 'systemNotice',
-        status: 'completed',
-        createdAt: (item?.createdAt as string) ?? new Date().toISOString(),
-        completedAt: (item?.completedAt as string) ?? new Date().toISOString(),
-        systemNotice: notice
-      }
+      const newItem = wireItemToConversationItem(item)
+      const notice = newItem.systemNotice
       set((s) => ({
         turns: s.turns.map((t) => {
           if (t.id !== turnId) return t
-          if (t.items.some((i) => i.id === itemId)) return t
+          if (t.items.some((i) => i.id === newItem.id)) return t
           return { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
         }),
-        contextUsage: applyCompactedNoticeToContextUsage(s.contextUsage, notice)
+        contextUsage: notice
+          ? applyCompactedNoticeToContextUsage(s.contextUsage, notice)
+          : s.contextUsage
       }))
     } else if (type === 'imageGeneration') {
       const completedItem: ConversationItem = {

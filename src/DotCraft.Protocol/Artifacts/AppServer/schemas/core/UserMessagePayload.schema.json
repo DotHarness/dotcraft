@@ -24,6 +24,16 @@
         }
       ]
     },
+    "clientUserMessageId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "deliveryBindingId": {
       "anyOf": [
         {

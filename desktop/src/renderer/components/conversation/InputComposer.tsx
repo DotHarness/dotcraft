@@ -1,3 +1,7 @@
+import { savePlainComposerDraft } from '../../utils/plainComposerDraft'
+import { hasPendingPastedText, usePastedText } from './usePastedText'
+import { buildComposerHistory, queuedInputToComposerDraft, linearLengthOfComposerEntry, type ComposerHistoryEntry, type ComposerDraftSnapshot } from '../../utils/composerHistory'
+import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { Archive, Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
@@ -22,8 +26,6 @@ import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type {
   ComposerFileAttachment,
-  ConversationItem,
-  ConversationTurn,
   ImageAttachment,
   InputPart,
   QueuedTurnInput
@@ -44,6 +46,7 @@ import {
 import { PendingMessageIndicator } from './PendingMessageIndicator'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { AttachmentStrip } from './AttachmentStrip'
+import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { FileSearchPopover } from './FileSearchPopover'
 import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
 import { GoalControlPopover } from './GoalControlPopover'
@@ -73,7 +76,6 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ConversationColumn } from './ConversationColumn'
-import { stringifyComposerDraftSegments } from './richInputSerialization'
 import { resolveComposerMascotEffectState } from './composerMascotEffectState'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
@@ -95,16 +97,6 @@ const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MANUAL_COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
 const MANUAL_MEMORY_CONSOLIDATION_TIMEOUT_MS = 5 * 60 * 1000
-
-interface ComposerHistoryEntry {
-  text: string
-  segments: ComposerDraftSegment[]
-}
-
-interface ComposerDraftSnapshot extends ComposerHistoryEntry {
-  files: ComposerFileAttachment[]
-  images: ImageAttachment[]
-}
 
 function emptyComposerDraftSnapshot(): ComposerDraftSnapshot {
   return { text: '', segments: [], files: [], images: [] }
@@ -491,18 +483,25 @@ function InputComposerCore({
     historyDraftRef.current = null
   }, [threadId])
 
+  const pastedText = usePastedText(threadId, effectiveFileWorkspacePath, remoteWorkspace)
+  const contexts = useComposerContextStore((state) => state.getContexts(threadId))
+
+  const restoredSubmissionId = useRef<string | undefined>(undefined)
   const captureComposerDraft = useCallback((): ComposerDraftSnapshot => ({
+    clientUserMessageId: restoredSubmissionId.current,
     text: richRef.current?.getText() ?? '',
     segments: richRef.current?.getSegments() ?? [],
     files: [...files],
+    contexts: useComposerContextStore.getState().getContexts(threadId),
     images: [...images]
-  }), [files, images])
+  }), [files, images, threadId])
 
   const applyComposerSnapshot = useCallback((
     snapshot: ComposerHistoryEntry,
     nextFiles: ComposerFileAttachment[] = [],
-    nextImages: ImageAttachment[] = []
+    nextImages: ImageAttachment[] = snapshot.images ?? []
   ): void => {
+    restoredSubmissionId.current = snapshot.clientUserMessageId
     applyingHistoryRef.current = true
     try {
       richRef.current?.setContent({
@@ -511,24 +510,34 @@ function InputComposerCore({
       })
       const cursor = linearLengthOfComposerEntry(snapshot)
       richRef.current?.setSelectionRange({ start: cursor, end: cursor })
+      useComposerContextStore.getState().setContexts(threadId, snapshot.contexts ?? [])
       setFiles([...nextFiles])
       setImages([...nextImages])
     } finally {
       applyingHistoryRef.current = false
     }
-  }, [])
+  }, [threadId])
+
+  const restoreRequest = useComposerContextStore((state) => state.restoreRequests[threadId])
+  useEffect(() => {
+    if (!restoreRequest) return
+    applyComposerSnapshot(restoreRequest, restoreRequest.files, restoreRequest.images)
+    useComposerContextStore.getState().consumeRestore(threadId)
+  }, [restoreRequest, applyComposerSnapshot, threadId])
 
   const handleComposerContentChange = useCallback((): void => {
     latestDraftRef.current = {
       ...latestDraftRef.current,
+      clientUserMessageId: restoredSubmissionId.current,
       text: richRef.current?.getText() ?? '',
       segments: richRef.current?.getSegments() ?? []
     }
+    savePlainComposerDraft(threadId, latestDraftRef.current.text)
     setContentRevision((n) => n + 1)
     if (applyingHistoryRef.current) return
     setHistoryCursor(null)
     historyDraftRef.current = null
-  }, [])
+  }, [threadId])
 
   useEffect(() => {
     latestDraftRef.current = { ...latestDraftRef.current, images }
@@ -537,7 +546,11 @@ function InputComposerCore({
     latestDraftRef.current = { ...latestDraftRef.current, files }
   }, [files])
 
+  useEffect(() => { latestDraftRef.current = { ...latestDraftRef.current, contexts } }, [contexts])
+
   const resetComposerInput = useCallback((): void => {
+    restoredSubmissionId.current = undefined
+    useComposerContextStore.getState().clearContexts(threadId)
     richRef.current?.clear()
     setImages([])
     setFiles([])
@@ -545,10 +558,22 @@ function InputComposerCore({
     useComposerDraftStore.getState().clearDraft(threadId)
   }, [threadId])
 
-  // Restore a saved draft on (re)mount and save on unmount or thread switch. Drafts
-  // are in-memory only (see composerDraftStore); sending clears them.
+  const acceptComposerInput = (text: string, acceptedContexts: typeof contexts, acceptedFiles: ComposerFileAttachment[], acceptedImages: ImageAttachment[]): void => {
+    restoredSubmissionId.current = undefined
+    latestDraftRef.current = { ...latestDraftRef.current, clientUserMessageId: undefined }
+    const currentText = richRef.current?.getText() ?? ''
+    if (currentText.trim() === text.trim()) richRef.current?.clear()
+    setFiles((current) => current.filter((file) => !acceptedFiles.some((accepted) => accepted.path === file.path)))
+    setImages((current) => current.filter((image) => !acceptedImages.some((accepted) => accepted.tempPath === image.tempPath)))
+    const contextStore = useComposerContextStore.getState()
+    contextStore.setContexts(threadId, contextStore.getContexts(threadId).filter((context) => !acceptedContexts.some((accepted) => accepted.id === context.id)))
+    useComposerDraftStore.getState().clearDraft(threadId)
+    savePlainComposerDraft(threadId, richRef.current?.getText() ?? '')
+  }
+
   useEffect(() => {
     const id = threadId
+    restoredSubmissionId.current = undefined
     latestDraftRef.current = emptyComposerDraftSnapshot()
     let restoreTimer: number | undefined
     // A one-shot prefill (e.g. "Try in chat") takes precedence over a saved draft.
@@ -556,9 +581,11 @@ function InputComposerCore({
       const draft = useComposerDraftStore.getState().getDraft(id)
       if (draft && threadComposerDraftHasContent(draft)) {
         restoreTimer = window.setTimeout(() => {
-          applyComposerSnapshot({ text: draft.text, segments: draft.segments }, draft.files, draft.images)
+          applyComposerSnapshot({ clientUserMessageId: draft.clientUserMessageId, text: draft.text, segments: draft.segments, contexts: useComposerContextStore.getState().getContexts(id).length ? useComposerContextStore.getState().getContexts(id) : draft.contexts }, draft.files, draft.images)
           latestDraftRef.current = {
+            clientUserMessageId: draft.clientUserMessageId,
             text: draft.text,
+            contexts: draft.contexts,
             segments: [...draft.segments],
             files: [...draft.files],
             images: [...draft.images]
@@ -898,6 +925,7 @@ function InputComposerCore({
       if (isBusyForInput) {
         const { inputParts } = buildComposerInputParts({ text: objective })
         await window.api.appServer.sendRequest('turn/enqueue', {
+          clientUserMessageId: crypto.randomUUID(),
           threadId,
           input: inputParts,
           sender: undefined,
@@ -1036,6 +1064,7 @@ function InputComposerCore({
   )
 
   const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput) => {
+    if (hasPendingPastedText(threadId)) return
     if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
       await sendGoalFromComposer()
       return
@@ -1044,8 +1073,9 @@ function InputComposerCore({
     const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
     const inputImages = draftOverride?.images ?? images
     const inputFiles = draftOverride?.files ?? files
+    const inputContexts = draftOverride?.contexts ?? useComposerContextStore.getState().getContexts(threadId)
     const trimmed = text.trim()
-    if (!trimmed && inputImages.length === 0 && inputFiles.length === 0) return
+    if (!trimmed && inputImages.length === 0 && inputFiles.length === 0 && inputContexts.length === 0) return
     if (isWaitingApproval || isWaitingInput) return
     if (modelLoading) return
     if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
@@ -1119,11 +1149,11 @@ function InputComposerCore({
       const { inputParts, visibleText, bodyText } = buildComposerInputParts({
         text: trimmed,
         segments: capturedSegments,
+        contexts: inputContexts,
         files: capturedFiles,
         images: capturedImages
       })
       try {
-        resetComposerInput()
         await submitOverride({
           text: trimmed,
           segments: capturedSegments,
@@ -1133,11 +1163,9 @@ function InputComposerCore({
           visibleText,
           bodyText
         })
+        acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
       } catch (err) {
         console.error('composer submit override failed:', err)
-        richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
-        setImages(capturedImages)
-        setFiles(capturedFiles)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
         sendInFlightRef.current = false
@@ -1149,16 +1177,17 @@ function InputComposerCore({
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
       try {
-        if (trimmed || inputFiles.length > 0 || inputImages.length > 0) {
+        if (trimmed || inputFiles.length > 0 || inputImages.length > 0 || inputContexts.length > 0) {
           const { inputParts } = buildComposerInputParts({
             text: trimmed,
             segments,
+            contexts: inputContexts,
             files: inputFiles,
             images: inputImages
           })
-          await sendComposerFollowUp({ mode: followUpMode, threadId, activeTurnId, input: inputParts })
+          await sendComposerFollowUp({ clientUserMessageId: restoredSubmissionId.current, mode: followUpMode, threadId, activeTurnId, input: inputParts })
         }
-        resetComposerInput()
+        acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
       } catch (err) {
         console.error(`turn/${followUpMode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
         addToast(err instanceof Error ? err.message : String(err), 'error')
@@ -1176,17 +1205,19 @@ function InputComposerCore({
     const { inputParts } = buildComposerInputParts({
       text: trimmed,
       segments: capturedSegments,
+      contexts: inputContexts,
       files: capturedFiles,
       images: capturedImages
     })
     try {
-      resetComposerInput()
       await startTurnWithOptimisticUI({
+        clientUserMessageId: restoredSubmissionId.current,
         threadId,
         workspacePath: effectiveFileWorkspacePath,
         identityWorkspacePath: workspacePath,
         text: trimmed,
         segments,
+        contexts: inputContexts,
         images: capturedImages,
         files: capturedFiles,
         fallbackThreadName: t('toast.imageMessage'),
@@ -1194,6 +1225,7 @@ function InputComposerCore({
         attachmentFallbackThreadName: t('toast.attachmentMessage'),
         throwOnStartError: true
       })
+      acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
     } catch (err) {
       console.error('turn/start failed:', err)
       const currentMaintenanceKind = useConversationStore.getState().maintenanceKind
@@ -1201,23 +1233,19 @@ function InputComposerCore({
         && (currentMaintenanceKind === 'compacting' || currentMaintenanceKind === 'consolidating')) {
         try {
           await window.api.appServer.sendRequest('turn/enqueue', {
+            clientUserMessageId: crypto.randomUUID(),
             threadId,
             input: inputParts,
             sender: undefined
           })
+          acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
           return
         } catch (enqueueErr) {
           console.error('turn/enqueue fallback failed:', enqueueErr)
-          richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
-          setImages(capturedImages)
-          setFiles(capturedFiles)
           addToast(enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr), 'error')
           return
         }
       }
-      richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
-      setImages(capturedImages)
-      setFiles(capturedFiles)
       addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false
@@ -1227,9 +1255,11 @@ function InputComposerCore({
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
     apply: (draft) => {
-      applyComposerSnapshot({ text: draft.text, segments: draft.segments }, draft.files, draft.images)
+      applyComposerSnapshot({ clientUserMessageId: draft.clientUserMessageId, text: draft.text, segments: draft.segments, contexts: draft.contexts }, draft.files, draft.images)
       latestDraftRef.current = {
+        clientUserMessageId: draft.clientUserMessageId,
         text: draft.text,
+        contexts: draft.contexts,
         segments: [...draft.segments],
         files: [...draft.files],
         images: [...draft.images]
@@ -1270,7 +1300,9 @@ function InputComposerCore({
       useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
       applyComposerSnapshot(draft, draft.files, draft.images)
       latestDraftRef.current = {
+        clientUserMessageId: draft.clientUserMessageId,
         text: draft.text,
+        contexts: draft.contexts,
         segments: [...draft.segments],
         files: [...draft.files],
         images: [...draft.images]
@@ -1516,8 +1548,8 @@ function InputComposerCore({
 
   const canSend = useMemo(() => {
     const textLen = (richRef.current?.getText() ?? '').trim().length
-    return (textLen > 0 || images.length > 0 || files.length > 0) && !isWaitingApproval && !isWaitingInput && !modelLoading
-  }, [contentRevision, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
+    return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && !isWaitingApproval && !isWaitingInput && !modelLoading
+  }, [contentRevision, pastedText.pending, contexts.length, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
   const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording && !isBusyForInput) {
@@ -1664,6 +1696,8 @@ function InputComposerCore({
         mascotHandoff
         attachmentStrip={
           <AttachmentStrip
+            hasContextAttachments={contexts.length > 0 || pastedText.pending > 0}
+            contextAttachments={<ComposerContextAttachments threadId={threadId} editorRef={richRef} pastedText={pastedText} />}
             images={images}
             files={files}
             onRemoveImage={(idx) => {
@@ -1768,6 +1802,7 @@ function InputComposerCore({
                 onContentChange={handleComposerContentChange}
                 onFocusChange={setEditorFocused}
                 onPasteImage={onPasteImage}
+                onPasteText={pastedText.onPasteText}
                 onPasteTextOversized={() => {
                   addToast(
                     t('input.truncated', { max: MAX_TEXT_LENGTH.toLocaleString() }),
@@ -1954,160 +1989,6 @@ function InputComposerCore({
 const composerDockStyle: CSSProperties = {
   flexShrink: 0,
   padding: '0 clamp(20px, 4vw, 40px)'
-}
-
-function buildComposerHistory(turns: ConversationTurn[], threadId: string): ComposerHistoryEntry[] {
-  const entries: ComposerHistoryEntry[] = []
-  for (const turn of turns) {
-    if (turn.threadId !== threadId) continue
-    for (const item of turn.items) {
-      const entry = userItemToComposerHistoryEntry(item)
-      if (entry) entries.push(entry)
-    }
-  }
-  return entries
-}
-
-function userItemToComposerHistoryEntry(item: ConversationItem): ComposerHistoryEntry | null {
-  if (item.type !== 'userMessage') return null
-  if (item.deliveryMode === 'guidance') return null
-  const text = item.text ?? ''
-
-  const inputParts = item.nativeInputParts ?? item.materializedInputParts
-  if (inputParts && inputParts.length > 0) {
-    const segments = inputPartsToComposerSegments(inputParts)
-    const serialized = stringifyComposerDraftSegments(segments).trim()
-    if (serialized.length === 0) return null
-    return {
-      text: serialized,
-      segments
-    }
-  }
-
-  const trimmedText = text.trim()
-  if (trimmedText.length === 0) return null
-  return {
-    text,
-    segments: []
-  }
-}
-
-function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[] {
-  const segments: ComposerDraftSegment[] = []
-  for (const part of parts) {
-    switch (part.type) {
-      case 'text':
-        pushComposerTextSegment(segments, part.text)
-        break
-      case 'fileRef':
-        segments.push({ type: 'file', relativePath: part.displayPath ?? part.path })
-        break
-      case 'commandRef':
-        pushCommandRefSegments(segments, part)
-        break
-      case 'skillRef':
-        if (part.name.trim().length > 0) {
-          segments.push({ type: 'skill', skillName: part.name.trim() })
-        }
-        break
-      default:
-        break
-    }
-  }
-  return segments
-}
-
-async function queuedInputToComposerDraft(item: QueuedTurnInput): Promise<ComposerDraftSnapshot> {
-  const parts = item.nativeInputParts?.length
-    ? item.nativeInputParts
-    : item.materializedInputParts?.length
-      ? item.materializedInputParts
-      : null
-
-  if (!parts) {
-    if (!item.displayText) throw new Error('Queued message has no editable content.')
-    return {
-      text: item.displayText,
-      segments: [{ type: 'text', value: item.displayText }],
-      files: [],
-      images: []
-    }
-  }
-
-  if (parts.some((part) => part.type === 'image')) {
-    throw new Error('Remote image inputs cannot be restored in the composer.')
-  }
-
-  const segments = inputPartsToComposerSegments(parts)
-  const images: ImageAttachment[] = []
-  for (const part of parts) {
-    if (part.type !== 'localImage') continue
-    const { dataUrl } = await window.api.workspace.readImageAsDataUrl({ path: part.path })
-    if (!dataUrl) throw new Error(`Unable to read queued image: ${part.fileName || part.path}`)
-    images.push({
-      tempPath: part.path,
-      dataUrl,
-      fileName: part.fileName?.trim() || fileNameFromPath(part.path),
-      mimeType: part.mimeType?.trim() || mimeTypeFromDataUrl(dataUrl) || 'image/png'
-    })
-  }
-
-  return {
-    text: stringifyComposerDraftSegments(segments),
-    segments,
-    files: [],
-    images
-  }
-}
-
-function fileNameFromPath(path: string): string {
-  return path.split(/[/\\]/).pop() || path
-}
-
-function mimeTypeFromDataUrl(dataUrl: string): string | null {
-  const match = /^data:([^;,]+)[;,]/i.exec(dataUrl)
-  return match?.[1] ?? null
-}
-
-function pushComposerTextSegment(segments: ComposerDraftSegment[], value: string): void {
-  if (value.length === 0) return
-  const previous = segments[segments.length - 1]
-  if (previous?.type === 'text') {
-    previous.value += value
-    return
-  }
-  segments.push({ type: 'text', value })
-}
-
-function pushCommandRefSegments(
-  segments: ComposerDraftSegment[],
-  part: Extract<InputPart, { type: 'commandRef' }>
-): void {
-  const rawText = typeof part.rawText === 'string' ? part.rawText.trim() : ''
-  const name = typeof part.name === 'string' ? part.name.trim().replace(/^\/+/, '') : ''
-  const normalizedRaw = rawText.length > 0
-    ? (rawText.startsWith('/') ? rawText : `/${rawText}`)
-    : name.length > 0
-      ? `/${name}`
-      : ''
-  if (normalizedRaw.length === 0) return
-
-  const firstWhitespace = normalizedRaw.search(/\s/)
-  const command = firstWhitespace >= 0 ? normalizedRaw.slice(0, firstWhitespace) : normalizedRaw
-  const rawArgs = firstWhitespace >= 0 ? normalizedRaw.slice(firstWhitespace + 1).trim() : ''
-  const argsText = (part.argsText?.trim() || rawArgs).trim()
-  segments.push({ type: 'command', command })
-  if (argsText.length > 0) {
-    pushComposerTextSegment(segments, ` ${argsText}`)
-  }
-}
-
-function linearLengthOfComposerEntry(entry: ComposerHistoryEntry): number {
-  if (entry.segments.length === 0) return entry.text.length
-  return entry.segments.reduce((total, segment) => {
-    if (segment.type === 'text') return total + segment.value.length
-    return total + 1
-  }, 0)
 }
 
 function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'compact' | 'consolidate' } | null {

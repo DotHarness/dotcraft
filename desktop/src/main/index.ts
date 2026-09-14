@@ -650,14 +650,21 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
     if (!p.threadId || typeof p.code !== 'string') {
       return { error: 'Invalid Node REPL evaluate request.', images: [], logs: [] }
     }
-    return nodeReplManager.evaluate(mainWindow, {
+    const browserTurnId = p.browserSession?.turnId ?? p.turnId
+    const browserClient = wireClient
+    const browserOwner = mainWindow
+    const browserWorkspace = currentWorkspacePath
+    if (browserClient && typeof browserTurnId === 'string') {
+      await browserClient.retainBrowserTurn(p.threadId, browserTurnId)
+    }
+    return nodeReplManager.evaluate(browserOwner, {
       threadId: p.threadId,
       turnId: p.turnId,
       evaluationId: p.evaluationId,
       browserSession: p.browserSession,
       code: p.code,
       timeoutMs: p.timeoutMs,
-      workspacePath: currentWorkspacePath
+      workspacePath: browserWorkspace
     })
   }
 
@@ -1128,6 +1135,7 @@ async function teardownRuntime(
     cleanupIpcHandlers?: boolean
   }
 ): Promise<void> {
+  await nodeReplManager.disposeAll()
   const moduleManager = getChannelModuleManager()
   const cleanedIpc = options?.cleanupIpcHandlers
     ? unregisterDesktopIpcHandlers()
@@ -1454,6 +1462,7 @@ function createWindow(
         }),
     autoHideMenuBar: !isMac,
     webPreferences: {
+      webviewTag: true,
       preload: join(__dirname, '../preload/index.js'),
       devTools: isDev,
       additionalArguments: [
@@ -1471,6 +1480,7 @@ function createWindow(
   })
 
   const workspaceName = workspaceTitleName(workspacePath, initialLocale)
+  viewerBrowserManager.hosts.attachWindow(win)
   attachDesktopPet(win)
   win.setTitle(translate(initialLocale, 'app.titleWithWorkspace', { name: workspaceName }))
 
@@ -1906,6 +1916,11 @@ async function connectViaWebSocket(
     })
 
   client.onNotification((method, params) => {
+    if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
+      nodeReplManager.handleNotification(method, params)
+      const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
+      if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
+    }
     const foreground = getWorkspaceNotificationForeground(method, {
       appQuitting: isAppQuitting,
       mainWindow,
@@ -2237,6 +2252,11 @@ function createSecondaryWorkspaceConnection(
   emitWorkspaceProjects()
 
   client.onNotification((method, params) => {
+    if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
+      nodeReplManager.handleNotification(method, params)
+      const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
+      if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
+    }
     const foreground = getWorkspaceNotificationForeground(method, {
       appQuitting: isAppQuitting,
       mainWindow,

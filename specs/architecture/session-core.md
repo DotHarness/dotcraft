@@ -194,6 +194,19 @@ requests cancellation through the mutable Turn state, while the task applies the
 success, cancellation, and failure policy. The Agent pipeline continues to own model sampling and
 tool invocation.
 
+An Item that a running Turn did not produce on its own execution path still belongs to that Turn. A
+producer of such an Item delivers it to the live Turn, and the Turn's own writing path records it at
+the next Item boundary it reaches, allocating from that Turn's item sequence and publishing on its
+event channel. Such a producer must not reach the Turn by waiting on a Thread-level serialization
+point that the running Turn holds for its whole duration, because a producer that waits there cannot
+record an Item until the Turn it belongs to has ended. When no Turn is live, the producer appends to
+the latest completed Turn under the Thread's ordinary serialization, allocating above that Turn's
+highest existing item sequence; a Thread with no Turn records nothing. Resolving the target Turn is a
+read of existing runtime state: an out-of-band producer never admits, restores, or recreates a Turn
+in order to have somewhere to write. An Item's creation time is the moment it is appended, so a
+Turn's Items stay ordered by creation time in array order; when the instant an event occurred must
+also be known, it belongs in the Item's payload rather than in its creation time.
+
 Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state,
 the model-history suffix, and any compaction checkpoint through the existing rollout contract. Live
 Turn-state cleanup returns through the Thread command owner, and delayed cleanup is rejected when
@@ -508,6 +521,8 @@ Each Item type has a specific payload structure:
   "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
 }
 ```
+
+`clientUserMessageId` correlates a client submission with its persisted user message and is preserved through queued and guidance delivery. It is not an idempotency key. Typed `contextRef` native parts retain source snapshots and owned image references; their materialized parts contain the model-facing expansion.
 
 `nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` supports compatibility and preview generation; it is not the source of truth for user-message reconstruction.
 
@@ -847,7 +862,10 @@ fork-specific work. They carry `sourceThreadId`, are not model-visible, and
 must not mutate the source thread.
 `remoteRoute` notices mark where a thread's eligible tools started or stopped running on a
 [Remote Tool Host](remote-tool-host.md). Session Core appends one to the running Turn when a Turn is
-in flight and otherwise to the latest completed Turn; a thread with no Turn records nothing. Connects
+in flight and otherwise to the latest completed Turn; a thread with no Turn records nothing. A notice
+appended to a running Turn lands where the route changed within that Turn — after the Items that
+preceded the change and before the Items that follow it — so a route the model changed divides the
+work it changed rather than trailing the Turn that changed it. Connects
 and disconnects are recorded only when a person or the model caused them: thread release and process
 teardown are not history. A lost lease is always recorded, with `initiator = "system"`. `hostId`
 and `workspaceId` name the route the change was about, including the route a disconnect removed.

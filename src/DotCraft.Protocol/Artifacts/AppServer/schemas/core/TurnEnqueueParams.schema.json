@@ -4,6 +4,16 @@
   "title": "TurnEnqueueParams",
   "type": "object",
   "properties": {
+    "clientUserMessageId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "input": {
       "type": "array",
       "items": {

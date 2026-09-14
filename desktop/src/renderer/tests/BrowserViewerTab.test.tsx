@@ -14,6 +14,10 @@ const TAB_ID = 'browser-tab-a'
 const WORKSPACE_PATH = 'F:/workspace'
 
 const browserApi = {
+  cancelSelection: vi.fn(),
+  onFeedback: vi.fn(),
+  downloads: vi.fn(),
+  enableFeedback: vi.fn(),
   back: vi.fn(),
   create: vi.fn(),
   forward: vi.fn(),
@@ -57,6 +61,10 @@ beforeEach(() => {
     canGoForward: false,
     loading: false
   })
+  browserApi.cancelSelection.mockResolvedValue(undefined)
+  browserApi.onFeedback.mockReturnValue(() => {})
+  browserApi.downloads.mockResolvedValue([])
+  browserApi.enableFeedback.mockResolvedValue({ find: { open: false, query: '', current: 0, total: 0 }, zoomPercent: 100 })
   installWindowApi()
   Object.defineProperty(window, 'ResizeObserver', {
     value: ResizeObserverMock,
@@ -179,7 +187,7 @@ describe('BrowserViewerTab', () => {
     rectSpy.mockRestore()
   })
 
-  it('omits the redundant page and automation status row', () => {
+  it('omits the redundant page and automation status row', async () => {
     useViewerTabStore.getState().updateBrowserTab(THREAD_ID, TAB_ID, {
       title: 'Composer subscription placement review',
       automationActive: true,
@@ -193,42 +201,20 @@ describe('BrowserViewerTab', () => {
       </LocaleProvider>
     )
 
+    await waitFor(() => expect(browserApi.enableFeedback).toHaveBeenCalled())
     expect(screen.queryByText('Composer subscription placement review')).not.toBeInTheDocument()
     expect(screen.queryByText('Design review')).not.toBeInTheDocument()
     expect(screen.queryByText('screenshot')).not.toBeInTheDocument()
   })
 
-  it('keeps the native view hidden until every fullscreen renderer blocker closes', async () => {
-    useUIStore.setState({
-      activeDetailTab: { kind: 'viewer', id: TAB_ID }
-    })
-    act(() => {
-      useTransientOverlayStore.getState().pushNativeViewBlocker()
-      useTransientOverlayStore.getState().pushNativeViewBlocker()
-    })
-
-    render(
-      <LocaleProvider>
-        <BrowserViewerTab tabId={TAB_ID} />
-      </LocaleProvider>
-    )
-
-    await waitFor(() => {
-      expect(browserApi.setVisible).toHaveBeenCalledWith({ tabId: TAB_ID, visible: false })
-    })
+  it('keeps the ready guest visible beneath renderer overlays', async () => {
+    useUIStore.setState({ activeDetailTab: { kind: 'viewer', id: TAB_ID } })
+    render(<LocaleProvider><BrowserViewerTab tabId={TAB_ID} /></LocaleProvider>)
+    await waitFor(() => expect(browserApi.setVisible).toHaveBeenCalledWith({ tabId: TAB_ID, visible: true }))
     browserApi.setVisible.mockClear()
-
-    act(() => {
-      useTransientOverlayStore.getState().popNativeViewBlocker()
-    })
-    expect(browserApi.setVisible).not.toHaveBeenCalledWith({ tabId: TAB_ID, visible: true })
-
-    act(() => {
-      useTransientOverlayStore.getState().popNativeViewBlocker()
-    })
-
-    await waitFor(() => {
-      expect(browserApi.setVisible).toHaveBeenCalledWith({ tabId: TAB_ID, visible: true })
-    })
+    act(() => useTransientOverlayStore.getState().pushNativeViewBlocker())
+    act(() => useTransientOverlayStore.getState().popNativeViewBlocker())
+    expect(browserApi.setVisible).not.toHaveBeenCalled()
+    expect(browserApi.create).toHaveBeenCalledOnce()
   })
 })

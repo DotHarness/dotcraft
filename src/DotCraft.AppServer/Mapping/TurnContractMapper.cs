@@ -11,6 +11,7 @@ public static class TurnContractMapper
     public static SessionInputPart ToDomain(Contract.InputPart value) => new()
     {
         Type = value.Type,
+        Context = ToContext(value.Context),
         Text = value.Text,
         Name = value.Name,
         ArgsText = value.ArgsText,
@@ -35,6 +36,7 @@ public static class TurnContractMapper
     public static Contract.QueuedTurnInput ToContract(QueuedTurnInput value) => new()
     {
         Id = value.Id,
+        ClientUserMessageId = value.ClientUserMessageId,
         ThreadId = value.ThreadId,
         NativeInputParts = value.NativeInputParts.Select(ToContract).ToArray(),
         MaterializedInputParts = value.MaterializedInputParts.Select(ToContract).ToArray(),
@@ -57,6 +59,7 @@ public static class TurnContractMapper
     private static Contract.InputPart ToContract(SessionInputPart value) => new()
     {
         Type = value.Type,
+        Context = ToContext(value.Context),
         Text = value.Text,
         Name = value.Name,
         ArgsText = value.ArgsText,
@@ -77,4 +80,50 @@ public static class TurnContractMapper
             SenderRole = value.SenderRole,
             GroupId = value.GroupId
         };
+
+    private static SessionInputContext? ToContext(Contract.InputContext? value) => value is null ? null : new()
+    {
+        Id = value.Id,
+        Kind = value.Kind,
+        Path = value.Path,
+        FileName = value.FileName,
+        Preview = value.Preview,
+        CharacterCount = value.CharacterCount,
+        ThreadId = value.ThreadId,
+        TurnId = value.TurnId,
+        ItemId = value.ItemId,
+        SelectedText = value.SelectedText,
+        Comment = value.Comment,
+        Side = value.Side,
+        StartLine = value.StartLine,
+        EndLine = value.EndLine,
+        Url = value.Url,
+        Title = value.Title,
+        SelectionKind = value.SelectionKind,
+        Text = value.Text,
+        Image = value.Image is null ? null : new() { TempPath = value.Image.TempPath, FileName = value.Image.FileName, MimeType = value.Image.MimeType }
+    };
+
+    private static Contract.InputContext? ToContext(SessionInputContext? value) => value is null ? null : new()
+    {
+        Id = value.Id,
+        Kind = value.Kind,
+        Path = value.Path,
+        FileName = value.FileName,
+        Preview = value.Preview,
+        CharacterCount = value.CharacterCount,
+        ThreadId = value.ThreadId,
+        TurnId = value.TurnId,
+        ItemId = value.ItemId,
+        SelectedText = value.SelectedText,
+        Comment = value.Comment,
+        Side = value.Side,
+        StartLine = value.StartLine,
+        EndLine = value.EndLine,
+        Url = value.Url,
+        Title = value.Title,
+        SelectionKind = value.SelectionKind,
+        Text = value.Text,
+        Image = value.Image is null ? null : new() { TempPath = value.Image.TempPath, FileName = value.Image.FileName, MimeType = value.Image.MimeType }
+    };
 }

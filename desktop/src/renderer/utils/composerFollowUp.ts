@@ -2,11 +2,13 @@ import type { FollowUpQueueMode } from '../../shared/desktopSettings'
 import type { InputPart } from '../types/conversation'
 
 export async function sendComposerFollowUp({
+  clientUserMessageId = crypto.randomUUID(),
   mode,
   threadId,
   activeTurnId,
   input
 }: {
+  clientUserMessageId?: string
   mode: FollowUpQueueMode
   threadId: string
   activeTurnId: string | null
@@ -18,11 +20,12 @@ export async function sendComposerFollowUp({
     }
     await window.api.appServer.sendRequest('turn/steer', {
       threadId,
+      clientUserMessageId,
       expectedTurnId: activeTurnId,
       input,
       sender: undefined
     })
   } else {
-    await window.api.appServer.sendRequest('turn/enqueue', { threadId, input, sender: undefined })
+    await window.api.appServer.sendRequest('turn/enqueue', { threadId, input, clientUserMessageId, sender: undefined })
   }
 }

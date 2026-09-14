@@ -1,19 +1,13 @@
-import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ArrowLeft,
-  ArrowRight,
-  ExternalLink,
-  Globe,
-  RotateCw,
-  Square
-} from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Globe } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useUIStore } from '../../../stores/uiStore'
-import { useTransientOverlayStore } from '../../../stores/transientOverlayStore'
-import { IconButton } from '../../ui/IconButton'
-import { Input } from '../../ui/Input'
+import { BrowserFeedbackControls, BrowserFindBar } from './BrowserFeedbackControls'
+import { BrowserPageFeedback } from './BrowserPageFeedback'
+import { BrowserToolbar } from './BrowserToolbar'
+import { useBrowserFeedback } from './useBrowserFeedback'
 
 interface BrowserViewerTabProps {
   tabId: string
@@ -33,6 +27,7 @@ function findBrowserTab(
 
 export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element {
   const t = useT()
+  const feedback = useBrowserFeedback(tabId)
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
   const existsTab = useViewerTabStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)))
   const loading = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.loading ?? false)
@@ -48,11 +43,8 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const activeMainView = useUIStore((s) => s.activeMainView)
   const activeDetailTab = useUIStore((s) => s.activeDetailTab)
   const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
-  const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
-  const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
 
-  const [urlInput, setUrlInput] = useState('')
-  const [editingAddress, setEditingAddress] = useState(false)
+  const [readyTab, setReadyTab] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
   // A fresh tab sits on the internal start page (about:blank / a data: start
@@ -62,19 +54,13 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const isActiveBrowserSurface = existsTab &&
     activeMainView === 'conversation' &&
     detailPanelVisible &&
-    !quickOpenVisible &&
-    !nativeViewBlocked &&
     activeDetailTab.kind === 'viewer' &&
     activeDetailTab.id === tabId
-  const nativeViewVisible = isActiveBrowserSurface && !isBlank
-
-  useEffect(() => {
-    if (editingAddress) return
-    setUrlInput(isBlank ? '' : currentUrl)
-  }, [currentUrl, editingAddress, isBlank])
+  const pageVisible = isActiveBrowserSurface && !isBlank && readyTab === tabId
 
   useEffect(() => {
     if (!currentThreadId || !workspacePath || !existsTab) return
+    let disposed = false
     const state = useViewerTabStore.getState()
     const found = findBrowserTab(state, currentThreadId, tabId)
     const initialUrl = found?.currentUrl || 'about:blank'
@@ -84,7 +70,8 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       workspacePath,
       initialUrl
     }).then((snapshot) => {
-      if (!currentThreadId) return
+      if (disposed) return
+      setReadyTab(tabId)
       updateBrowserTab(currentThreadId, tabId, {
         currentUrl: snapshot.currentUrl,
         title: snapshot.title,
@@ -93,23 +80,28 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
         canGoForward: snapshot.canGoForward,
         loading: snapshot.loading
       })
-    }).catch(() => {})
-  }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath])
+      return window.api.workspace.viewer.browser.enableFeedback({ tabId, labels: {
+        copyLink: t('viewer.browser.copyLink'), newTab: t('viewer.browser.newTab'),
+        external: t('viewer.browser.openExternal'), inspect: t('viewer.browser.inspect'), quoteSelection: t('viewer.browser.annotate')
+      } }).then(feedback.initialize)
+    }).catch(error => {
+      if (!disposed) updateBrowserTab(currentThreadId, tabId, { errorMessage: String(error instanceof Error ? error.message : error) })
+    })
+    return () => { disposed = true }
+  }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath, t, feedback.initialize])
 
   useEffect(() => {
     if (!existsTab) return
-    // Keep the native view hidden on the start page so the themed empty state
-    // below is visible instead of a blank/white web page.
-    const visible = nativeViewVisible
+    const visible = pageVisible
     if (visible) void window.api.workspace.viewer.browser.setActive({ tabId })
     void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
     return () => {
       void window.api.workspace.viewer.browser.setVisible({ tabId, visible: false })
     }
-  }, [existsTab, tabId, nativeViewVisible])
+  }, [existsTab, tabId, pageVisible])
 
   const pushBounds = useCallback(() => {
-    if (!nativeViewVisible) return
+    if (!pageVisible) return
     if (!bodyRef.current) return
     if (!bodyRef.current.isConnected) return
     const rect = bodyRef.current.getBoundingClientRect()
@@ -122,10 +114,10 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       width: Math.round(rect.width),
       height: Math.round(rect.height)
     })
-  }, [nativeViewVisible, tabId])
+  }, [pageVisible, tabId])
 
   const scheduleBounds = useCallback(() => {
-    if (!nativeViewVisible) return () => {}
+    if (!pageVisible) return () => {}
     const requestFrame = typeof window.requestAnimationFrame === 'function'
       ? window.requestAnimationFrame.bind(window)
       : (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0)
@@ -134,10 +126,10 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       : (handle: number) => window.clearTimeout(handle)
     const frame = requestFrame(() => pushBounds())
     return () => cancelFrame(frame)
-  }, [nativeViewVisible, pushBounds])
+  }, [pageVisible, pushBounds])
 
   useEffect(() => {
-    if (!existsTab || !nativeViewVisible) return
+    if (!existsTab || !pageVisible) return
     let cancelPendingBounds: (() => void) | null = null
     const queueBounds = () => {
       cancelPendingBounds?.()
@@ -160,9 +152,8 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll, true)
     }
-  }, [existsTab, nativeViewVisible, scheduleBounds])
+  }, [existsTab, pageVisible, scheduleBounds])
 
-  const toolbarDisabled = !existsTab
   if (!existsTab) {
     return (
       <div style={{
@@ -178,86 +169,25 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
     )
   }
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>): void => {
-    e.preventDefault()
-    void window.api.workspace.viewer.browser.navigate({ tabId, url: urlInput })
-    setEditingAddress(false)
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '6px 8px',
-        borderBottom: '1px solid var(--border-default)',
-        flexShrink: 0
-      }}>
-        <ToolbarButton
-          disabled={toolbarDisabled || !canGoBack}
-          title={t('viewer.browser.back')}
-          onClick={() => window.api.workspace.viewer.browser.back({ tabId })}
-        >
-          <ArrowLeft size={14} aria-hidden style={{ display: 'block' }} />
-        </ToolbarButton>
-        <ToolbarButton
-          disabled={toolbarDisabled || !canGoForward}
-          title={t('viewer.browser.forward')}
-          onClick={() => window.api.workspace.viewer.browser.forward({ tabId })}
-        >
-          <ArrowRight size={14} aria-hidden style={{ display: 'block' }} />
-        </ToolbarButton>
-        <ToolbarButton
-          disabled={toolbarDisabled}
-          title={loading ? t('viewer.browser.stop') : t('viewer.browser.reload')}
-          onClick={() => {
-            if (loading) {
-              void window.api.workspace.viewer.browser.stop({ tabId })
-            } else {
-              void window.api.workspace.viewer.browser.reload({ tabId })
-            }
-          }}
-        >
-          {loading
-            ? <Square size={12} aria-hidden style={{ display: 'block' }} />
-            : <RotateCw size={14} aria-hidden style={{ display: 'block' }} />}
-        </ToolbarButton>
-        <form onSubmit={onSubmit} style={{ flex: 1, minWidth: 0 }}>
-          <Input
-            value={urlInput}
-            onFocus={() => setEditingAddress(true)}
-            onBlur={() => setEditingAddress(false)}
-            onChange={(e) => setUrlInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.preventDefault()
-                setEditingAddress(false)
-                void window.api.workspace.viewer.browser.setActive({ tabId })
-              }
-            }}
-            placeholder={t('viewer.browser.urlPlaceholder')}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            style={{
-              height: '26px',
-              borderRadius: '4px',
-              background: 'var(--bg-tertiary)',
-              fontSize: '12px',
-              padding: '0 8px',
-              outline: 'none'
-            }}
-          />
-        </form>
-        <ToolbarButton
-          disabled={toolbarDisabled}
-          title={t('viewer.browser.openExternal')}
-          onClick={() => window.api.workspace.viewer.browser.openExternal({ tabId })}
-        >
-          <ExternalLink size={14} aria-hidden style={{ display: 'block' }} />
-        </ToolbarButton>
-      </div>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <BrowserToolbar
+        url={isBlank ? '' : currentUrl}
+        loading={loading}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onBack={() => window.api.workspace.viewer.browser.back({ tabId })}
+        onForward={() => window.api.workspace.viewer.browser.forward({ tabId })}
+        onReload={() => window.api.workspace.viewer.browser.reload({ tabId })}
+        onStop={() => window.api.workspace.viewer.browser.stop({ tabId })}
+        onNavigate={(url) => { void window.api.workspace.viewer.browser.navigate({ tabId, url }) }}
+        onOpenExternal={() => window.api.workspace.viewer.browser.openExternal({ tabId })}
+        onAddressDismiss={() => { void window.api.workspace.viewer.browser.setActive({ tabId }) }}
+        annotate={<BrowserPageFeedback tabId={tabId} threadId={currentThreadId} body={bodyRef} disabled={isBlank} run={feedback.run} />}
+        controls={<BrowserFeedbackControls active={isActiveBrowserSurface} tabId={tabId} state={feedback.state} run={feedback.run} />}
+      />
+      <BrowserFindBar active={isActiveBrowserSurface} tabId={tabId} state={feedback.state.find} run={feedback.run} />
+      {feedback.state.error && <div role="alert">{feedback.state.error}</div>}
 
       {(blockedMessage || downloadMessage || crashed || errorMessage) && (
         <div
@@ -326,31 +256,5 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
         )}
       </div>
     </div>
-  )
-}
-
-function ToolbarButton({
-  title,
-  onClick,
-  disabled,
-  children
-}: {
-  title: string
-  onClick: () => void
-  disabled?: boolean
-  children: ReactNode
-}): JSX.Element {
-  return (
-    <IconButton
-      size={24}
-      label={title}
-      tooltipLabel={title}
-      tooltipPlacement="bottom"
-      disabledReason={disabled ? title : undefined}
-      onClick={onClick}
-      disabled={disabled}
-      style={{ borderRadius: 4 }}
-      icon={children}
-    />
   )
 }

@@ -14,6 +14,16 @@
         }
       ]
     },
+    "context": {
+      "anyOf": [
+        {
+          "$ref": "./InputContext.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "displayPath": {
       "anyOf": [
         {

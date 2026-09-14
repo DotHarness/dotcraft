@@ -45,6 +45,9 @@
 @import "./shared/whats-new.css";
 @import "./shared/action-tooltip.css";
 @import "../components/conversation/styles/inline-visualization.css";
+@import "../components/conversation/styles/context-attachments.css";
+@import "../components/detail/viewers/browser-feedback.css";
+@import "../components/detail/viewers/browser-toolbar.css";
 @import "./shared/accessibility.css";
 @import "./shared/reduced-motion.css";
 @import "./shared/pointer.css";
@@ -54,3 +57,5 @@
 @import "../components/automations/automations.css";
 @import "../components/desktopPet/desktop-pet.css";
 @import "../components/desktopPet/desktop-pet-pill.css";
+
+@import "../browser/browser-guest.css";

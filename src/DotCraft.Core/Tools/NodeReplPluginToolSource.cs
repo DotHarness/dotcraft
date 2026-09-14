@@ -1,9 +1,19 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 
 namespace DotCraft.Tools;
+
+internal interface INodeReplToolDeclaration
+{
+    [ToolDeclaration(Name = "NodeReplJs")]
+    [Description("Execute JavaScript in the current thread's persistent Node REPL with top-level await and dynamic imports. Use nodeRepl.write(value) for text and await nodeRepl.emitImage(image) for images. Outer timeout or cancellation clears JavaScript state.")]
+    void Evaluate(
+        [Description("JavaScript code to execute.")] string code,
+        [Description("Optional execution timeout in seconds. Defaults to 30 seconds.")] int timeoutSeconds = 0);
+}
 
 /// <summary>
 /// Provides the Desktop persistent Node REPL as a plugin-native source with a live proxy binding.
@@ -62,25 +72,19 @@ public sealed class NodeReplPluginToolSource(
         return source.GetRegistrationsAsync(context, cancellationToken);
     }
 
-    private static PluginFunctionDescriptor CreateDescriptor(string pluginId) =>
-        new()
+    private static PluginFunctionDescriptor CreateDescriptor(string pluginId)
+    {
+        var declaration = DotCraft.GeneratedTools.Core.GeneratedToolDeclarations.INodeReplToolDeclaration_Evaluate_Declaration;
+        return new PluginFunctionDescriptor
         {
             PluginId = pluginId,
-            FunctionId = "NodeReplJs",
+            FunctionId = declaration.Name,
             Namespace = "node_repl",
-            Name = "NodeReplJs",
-            Description = "Evaluate JavaScript in the Desktop persistent Node REPL for the current thread. The runtime supports top-level state, agent.browser, display(), and screenshot image output.",
-            InputSchema = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
-                {
-                    ["code"] = new JsonObject { ["type"] = "string" },
-                    ["timeoutSeconds"] = new JsonObject { ["type"] = "integer" }
-                },
-                ["required"] = new JsonArray("code")
-            }
+            Name = declaration.Name,
+            Description = declaration.Description,
+            InputSchema = JsonNode.Parse(declaration.InputSchema.GetRawText())!.AsObject()
         };
+    }
 
     private sealed class NodeReplPluginToolInvoker(INodeReplProxy proxy) : IPluginToolInvoker
     {
