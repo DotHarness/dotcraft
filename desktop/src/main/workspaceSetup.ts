@@ -338,14 +338,14 @@ export async function loginSetupChatGpt(
   providerId: string,
   settings: AppSettings,
   runBackend?: (args: string[], stdin?: string, timeoutMs?: number) => Promise<WorkspaceSetupModelListResult>
-): Promise<{ kind: 'success' | 'error' }> {
+): Promise<{ kind: 'success' | 'error'; errorCode?: string; errorMessage?: string }> {
   const args = ['auth', 'openai', 'login', '--provider-id', providerId, '--no-bind']
   try {
     if (runBackend) await runBackend(args, undefined, 15 * 60_000)
     else await runSetupBackend(resolveDesktopBinary(settings), args, undefined, 15 * 60_000, false)
     return { kind: 'success' }
-  } catch {
-    return { kind: 'error' }
+  } catch (error) {
+    return { kind: 'error', errorCode: 'openai_login_failed', errorMessage: error instanceof Error ? error.message : 'ChatGPT sign-in failed.' }
   }
 }
 

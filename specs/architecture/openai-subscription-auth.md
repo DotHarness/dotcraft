@@ -444,8 +444,9 @@ tokens, and updates the global provider registry. `--no-browser` prints the URL 
 headless setups). `logout` revokes the refresh token at OpenAI and deletes the local `auth.json`.
 
 `dotcraft setup` and the Desktop wizard accept `--auth-method chatgptOAuth` on the bootstrapped
-provider; the wizard records the preference but actual sign-in happens afterward in
-Settings → Providers.
+provider. The wizard signs in before completion using `auth openai login --no-bind`: tokens are
+saved immediately, while provider configuration is saved only when setup is submitted.
+Login and setup model discovery use the same host-selected user data directory.
 
 ## AppServer JSON-RPC
 
@@ -470,17 +471,20 @@ advertise whether the auth and usage surfaces are available.
 
 Workspace setup wizard:
 - The "OpenAI" provider template card surfaces a two-option authentication selector.
-- "Sign in with ChatGPT" hides the API-key field and shows a hint that sign-in happens after setup
-  completes.
-- The model picker is preseeded from the bundled ChatGPT fallback catalog before sign-in. After
-  ChatGPT sign-in, AppServer `model/list` refreshes the account-scoped catalog from
-  `/backend-api/codex/models`.
+- "Sign in with ChatGPT" hides the API-key field and allows authorization during setup.
+- Existing authenticated providers and newly authenticated drafts load the account model catalog
+  and display the model picker. Missing credentials show sign-in; catalog failures show retry.
+- Setup persists account metadata from host-owned credentials when saving an OAuth provider.
 
 Settings → Providers:
 - The OpenAI provider editor renders the same authentication selector.
 - In OAuth mode the API-key + endpoint fields are replaced by a Sign in / Sign out panel.
 - A live notification stream shows the authorization URL with a "Copy URL" button while a
   sign-in request is pending.
+
+- Successful login creates or updates the requested provider, then opens its saved editor.
+  Editor navigation is independent of workspace activation. A valid OAuth selection must not
+  be replaced merely because it has no API key. Late login results must not change another editor.
 
 Composer footer:
 - When the active provider's `AuthMethod` is `chatgptOAuth`, a compact icon-only usage control is

@@ -1019,7 +1019,7 @@ const api = {
     listSetupModels(request: WorkspaceSetupModelListRequest): Promise<WorkspaceSetupModelListResult> {
       return ipcRenderer.invoke('workspace:list-setup-models', request)
     },
-    loginSetupChatGpt(providerId: string): Promise<{ kind: 'success' | 'error' }> {
+    loginSetupChatGpt(providerId: string): Promise<{ kind: 'success' | 'error'; errorCode?: string; errorMessage?: string }> {
       return ipcRenderer.invoke('workspace:login-setup-chatgpt', providerId)
     },
 

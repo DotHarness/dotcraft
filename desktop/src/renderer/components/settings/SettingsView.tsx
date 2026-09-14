@@ -1,3 +1,4 @@
+import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   Archive,
@@ -905,227 +906,6 @@ function ChromeStatusPill({
   )
 }
 
-interface ChatGptOAuthPanelProps {
-  providerId: string
-  providerInfo: ProviderInfoWire | null
-  selectedProviderId: string | null
-  selectedProviderHasApiKey: boolean
-  onAfterMutation: () => void
-  onProviderActivated?: (providerId: string) => void
-}
-
-function ChatGptOAuthPanel({
-  providerId,
-  providerInfo,
-  selectedProviderId,
-  selectedProviderHasApiKey,
-  onAfterMutation,
-  onProviderActivated
-}: ChatGptOAuthPanelProps): JSX.Element {
-  const t = useT()
-  const [pending, setPending] = useState(false)
-  const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!pending) return
-    const unsubscribe = window.api.appServer.onNotification((payload) => {
-      if (payload?.method === 'auth/openai/authorizeUrl') {
-        const params = payload.params as { url?: string } | undefined
-        if (typeof params?.url === 'string') {
-          setAuthorizeUrl(params.url)
-        }
-      }
-    })
-    return () => unsubscribe()
-  }, [pending])
-
-  async function handleSignIn(): Promise<void> {
-    setPending(true)
-    setError(null)
-    setAuthorizeUrl(null)
-    try {
-      await window.api.appServer.sendRequest(
-        'auth/openai/login',
-        { providerId, openBrowser: true },
-        15 * 60 * 1000 // up to 15 minutes for the user to complete browser flow
-      )
-      // Only auto-activate over an empty or broken selection, never over an intentional
-      // one. Must run before onAfterMutation so reloadProviders() sees it in one pass.
-      const shouldActivate =
-        !selectedProviderId ||
-        selectedProviderId === providerId ||
-        !selectedProviderHasApiKey
-      let activated = false
-      if (shouldActivate && selectedProviderId !== providerId) {
-        try {
-          await window.api.appServer.sendRequest(
-            'workspace/config/update',
-            { providerId },
-            20_000
-          )
-          activated = true
-          onProviderActivated?.(providerId)
-        } catch (activateErr) {
-          addToast(t('settings.llm.toast.saveProviderSelectionFailed', {
-            error: activateErr instanceof Error ? activateErr.message : String(activateErr)
-          }), 'error')
-        }
-      } else if (selectedProviderId === providerId) {
-        // Already the active provider — no switch needed, but still treat as activated for messaging.
-        activated = true
-      }
-      if (activated) {
-        addToast(t('settings.llm.toast.chatgptActivated'), 'success')
-      } else if (shouldActivate) {
-        // Activation attempted but failed — error toast was already shown above.
-      } else {
-        addToast(t('settings.llm.toast.chatgptActivateSkipped'), 'info')
-      }
-      onAfterMutation()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setError(message)
-      addToast(t('settings.llm.authMethod.signInFailed', { error: message }), 'error')
-    } finally {
-      setPending(false)
-      setAuthorizeUrl(null)
-    }
-  }
-
-  async function handleSignOut(): Promise<void> {
-    setPending(true)
-    setError(null)
-    try {
-      await window.api.appServer.sendRequest('auth/openai/logout', { providerId }, 30_000)
-      onAfterMutation()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setError(message)
-    } finally {
-      setPending(false)
-    }
-  }
-
-  async function handleCopyUrl(): Promise<void> {
-    if (!authorizeUrl) return
-    try {
-      await navigator.clipboard.writeText(authorizeUrl)
-      addToast(t('settings.llm.authMethod.urlCopied'), 'success')
-    } catch {
-      // Silent; user can still see the URL in the panel.
-    }
-  }
-
-  const signedIn = providerInfo?.authMethod === 'chatgptOAuth' && Boolean(providerInfo?.chatGptAccountId)
-
-  return (
-    <div style={{ display: 'grid', gap: '12px' }}>
-      {signedIn ? (
-        <div
-          style={{
-            padding: '12px 14px',
-            borderRadius: '8px',
-            border: '1px solid var(--accent)',
-            background: 'var(--bg-tertiary)',
-            color: 'var(--text-primary)',
-            fontSize: '13px',
-            lineHeight: 1.55
-          }}
-        >
-          <div style={{ fontWeight: 600 }}>
-            {t('settings.llm.authMethod.signedInAs', {
-              account: maskAccountId(providerInfo!.chatGptAccountId!),
-              plan: providerInfo!.chatGptPlanType ?? 'unknown'
-            })}
-          </div>
-        </div>
-      ) : (
-        <div
-          style={{
-            padding: '12px 14px',
-            borderRadius: '8px',
-            border: '1px dashed var(--border-default)',
-            color: 'var(--text-secondary)',
-            fontSize: '12px',
-            lineHeight: 1.55
-          }}
-        >
-          {t('settings.llm.authMethod.notSignedIn')}
-        </div>
-      )}
-
-      {pending && authorizeUrl && (
-        <div
-          style={{
-            padding: '10px 12px',
-            borderRadius: '8px',
-            border: '1px solid var(--border-default)',
-            background: 'var(--bg-secondary)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
-          }}
-        >
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            {t('settings.llm.authMethod.signInPending')}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: '11px',
-              wordBreak: 'break-all',
-              color: 'var(--text-primary)'
-            }}
-          >
-            {authorizeUrl}
-          </div>
-          <Button
-            onClick={() => void handleCopyUrl()}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            {t('settings.llm.authMethod.copyUrl')}
-          </Button>
-        </div>
-      )}
-
-      {error && (
-        <div style={{ fontSize: '12px', color: 'var(--error)' }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <Button
-          variant="primary"
-          onClick={() => void handleSignIn()}
-          disabled={pending}
-        >
-          {pending
-            ? t('settings.llm.authMethod.signInPending')
-            : signedIn
-              ? t('settings.llm.authMethod.signIn')
-              : t('settings.llm.authMethod.signIn')}
-        </Button>
-        {signedIn && (
-          <Button
-            onClick={() => void handleSignOut()}
-            disabled={pending}
-          >
-            {t('settings.llm.authMethod.signOut')}
-          </Button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function maskAccountId(accountId: string): string {
-  const trimmed = accountId.trim()
-  if (trimmed.length <= 8) return trimmed
-  return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`
-}
-
 export function SettingsView({
   workspacePath,
   identityWorkspacePath,
@@ -1218,6 +998,9 @@ export function SettingsView({
   // restore those values if they toggle the auth method back to API key without saving.
   const preChatGptDraftRef = useRef<{ id: string; displayName: string } | null>(null)
   const [providerEditorId, setProviderEditorId] = useState<ProviderEditorId>(null)
+  const pendingOAuthEditorRef = useRef<string | null>(null)
+  const providerEditorIdRef = useRef(providerEditorId)
+  providerEditorIdRef.current = providerEditorId
   const [selectedProviderId, setSelectedProviderId] = useState('')
   const selectedProviderIdRef = useRef('')
   const [workspacePreference, setWorkspacePreference] = useState<ModelPreference>(
@@ -1416,19 +1199,27 @@ export function SettingsView({
     applyWorkspaceCoreBaseline(core, false)
   }
 
-  async function reloadProviders(): Promise<void> {
+  async function reloadProviders(): Promise<boolean> {
     if (!providerManagementEnabled) {
       setProviders([])
-      return
+      return false
     }
     setProvidersLoading(true)
     try {
       const result = await window.api.appServer.sendRequest('provider/list', {}, 20_000)
-      setProviders(normalizeProviderList(result))
+      const refreshed = normalizeProviderList(result)
+      setProviders(refreshed)
+      const editor = refreshed.find((provider) => provider.id === providerEditorIdRef.current)
+      if (editor && pendingOAuthEditorRef.current === editor.id) {
+        setProviderDraft(providerDraftFromInfo(editor))
+        pendingOAuthEditorRef.current = null
+      }
+      return true
     } catch (err) {
       addToast(t('settings.llm.toast.loadProvidersFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
+      return false
     } finally {
       setProvidersLoading(false)
     }
@@ -1602,18 +1393,24 @@ export function SettingsView({
   }, [selectedProviderMissing, workspaceProviderMissingMessage])
 
   function startCreateProvider(): void {
+    pendingOAuthEditorRef.current = null
+    providerEditorIdRef.current = '__new__'
     setProviderEditorId('__new__')
     setProviderDraft(createProviderDraft())
     setProviderTestResult(null)
   }
 
   function startEditProvider(provider: ProviderInfoWire): void {
+    pendingOAuthEditorRef.current = null
+    providerEditorIdRef.current = provider.id
     setProviderEditorId(provider.id)
     setProviderDraft(providerDraftFromInfo(provider))
     setProviderTestResult(null)
   }
 
   function closeProviderEditor(): void {
+    pendingOAuthEditorRef.current = null
+    providerEditorIdRef.current = null
     setProviderEditorId(null)
     setProviderTestResult(null)
   }
@@ -3902,13 +3699,17 @@ export function SettingsView({
                      providerDraft.authMethod === 'chatgptOAuth' ? (
                       <SettingsGroup title={t('settings.llm.connectionTitle')} flush>
                         <ChatGptOAuthPanel
+                          key={providerDraft.id}
                           providerId={providerDraft.id}
                           providerInfo={providerEditorProvider}
                           selectedProviderId={selectedProviderId || null}
-                          selectedProviderHasApiKey={
-                            providers.find((p) => p.id === selectedProviderId)?.hasApiKey ?? false
-                          }
-                          onAfterMutation={() => void reloadProviders()}
+                          selectedProviderUsable={providers.some((p) => p.id === selectedProviderId && (p.hasApiKey || (p.authMethod === 'chatgptOAuth' && Boolean(p.chatGptAccountId))))}
+                          onAfterMutation={reloadProviders}
+                          onSignedIn={(id) => {
+                            pendingOAuthEditorRef.current = id
+                            providerEditorIdRef.current = id
+                            setProviderEditorId(id)
+                          }}
                           onProviderActivated={(activatedId) => {
                             selectedProviderIdRef.current = activatedId
                             setSelectedProviderId(activatedId)

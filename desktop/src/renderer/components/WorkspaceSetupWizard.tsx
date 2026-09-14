@@ -28,6 +28,7 @@ import {
   OPENAI_RESPONSES_PROTOCOL,
   providerProtocolLabel
 } from '../../shared/providerProtocols'
+import { useSetupModelCatalog } from '../hooks/useSetupModelCatalog'
 import { slugProviderId, uniqueProviderId } from '../utils/providerId'
 import {
   cloneModelPreference,
@@ -35,12 +36,9 @@ import {
   type ModelPreference
 } from '../../shared/modelPreference'
 import {
-  parseModelCatalogItems,
   type ModelCatalogItem
 } from '../stores/modelCatalogStore'
 import {
-  createCatalogDefaultPreference,
-  normalizePreferenceForModel,
   PreferenceModelPicker
 } from './conversation/PreferenceModelPicker'
 
@@ -169,10 +167,6 @@ export function WorkspaceSetupWizard({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitWarning, setSubmitWarning] = useState<string | null>(null)
-  const [modelLoadState, setModelLoadState] = useState<'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'>('idle')
-  const [modelCatalog, setModelCatalog] = useState<ModelCatalogItem[]>([])
-  const [chatGptLoginPending, setChatGptLoginPending] = useState(false)
-  const [modelReloadSeq, setModelReloadSeq] = useState(0)
   const [switchingDisplayLocale, setSwitchingDisplayLocale] = useState(false)
   const logoNodeRef = useRef<HTMLDivElement | null>(null)
   const localizedDisplayLanguage =
@@ -221,6 +215,9 @@ export function WorkspaceSetupWizard({
     activeDraft != null &&
     activeDraft.endPoint.trim().length > 0 &&
     !isValidHttpUrl(activeDraft.endPoint)
+  const { modelLoadState, modelCatalog, chatGptLoginPending, loginError, loginChatGptForSetup, retry } = useSetupModelCatalog({
+    step, configStepIndex, providerChoice, activeDraft, activeExistingProvider, modelDirty, userConfigDefaults, setPreference
+  })
   const modelListLoading = modelLoadState === 'loading'
   const modelSelectAvailable =
     modelLoadState === 'ready' &&
@@ -276,78 +273,6 @@ export function WorkspaceSetupWizard({
     setSetAsUserDefault(providerChoice === 'openai-template' || providerChoice === 'anthropic-template' || providerChoice === 'custom')
   }, [defaultScopeDirty, providerChoice])
 
-  useEffect(() => {
-    if (step !== configStepIndex) {
-      return
-    }
-
-    const controller = new AbortController()
-    setModelLoadState('loading')
-
-    const request = providerChoice === 'existing'
-      ? activeExistingProvider
-        ? { providerId: activeExistingProvider.id }
-        : null
-      : activeDraft
-        ? { provider: activeDraft }
-        : null
-
-    if (request == null) {
-      setModelLoadState('error')
-      setModelCatalog([])
-      return
-    }
-
-    void window.api.workspace
-      .listSetupModels(request)
-      .then((result) => {
-        if (controller.signal.aborted) return
-
-        if (result.kind === 'success') {
-          const parsedModels = parseModelCatalogItems({ success: true, models: result.models })
-          const parsedById = new Map(parsedModels.map((item) => [item.id, item]))
-          const models = result.models
-            .map((item) => parsedById.get(item.id))
-            .filter((item): item is ModelCatalogItem => item != null)
-          setModelCatalog(models)
-          setModelLoadState('ready')
-          if (!modelDirty && models.length > 0) {
-            const remembered = userConfigDefaults?.preference
-            setPreference(remembered && models.some((item) => item.id === remembered.model)
-              ? normalizePreferenceForModel(remembered, models)
-              : createCatalogDefaultPreference(models[0], models[0].id))
-          }
-          return
-        }
-
-        setModelCatalog([])
-        setModelLoadState(result.kind)
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return
-        setModelCatalog([])
-        setModelLoadState('error')
-      })
-
-    return () => {
-      controller.abort()
-    }
-  }, [activeDraft, activeExistingProvider, configStepIndex, modelDirty, modelReloadSeq, providerChoice, step, userConfigDefaults?.preference])
-
-  const loginChatGptForSetup = useCallback(async (): Promise<void> => {
-    const providerId = providerChoice === 'existing' ? activeExistingProvider?.id : activeDraft?.id
-    if (!providerId || chatGptLoginPending) return
-    setChatGptLoginPending(true)
-    try {
-      const result = await window.api.workspace.loginSetupChatGpt(providerId)
-      if (result.kind === 'success') setModelReloadSeq((value) => value + 1)
-      else setModelLoadState('error')
-    } catch {
-      setModelLoadState('error')
-    } finally {
-      setChatGptLoginPending(false)
-    }
-  }, [activeDraft?.id, activeExistingProvider?.id, chatGptLoginPending, providerChoice])
 
   async function handleSubmit(): Promise<void> {
     const request = buildSetupRequest()
@@ -686,9 +611,10 @@ export function WorkspaceSetupWizard({
                 modelListLoading={modelListLoading}
                 modelSelectAvailable={modelSelectAvailable}
                 modelLoadState={modelLoadState}
+                loginError={loginError}
                 chatGptLoginPending={chatGptLoginPending}
                 onLoginChatGpt={() => { void loginChatGptForSetup() }}
-                onRetry={() => setModelReloadSeq((value) => value + 1)}
+                onRetry={retry}
                 onChange={(nextPreference) => {
                   setModelDirty(true)
                   setPreference(nextPreference)
@@ -1088,21 +1014,7 @@ function TemplateProviderForm({
         </div>
       )}
 
-      {oauthMode ? (
-        <div
-          style={{
-            padding: '10px 12px',
-            borderRadius: '8px',
-            border: '1px solid var(--border-default)',
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-secondary)',
-            fontSize: '12px',
-            lineHeight: 1.55
-          }}
-        >
-          {t('setupWizard.authMethod.chatgptHint')}
-        </div>
-      ) : (
+      {!oauthMode && (
         <>
           <div>
             <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
@@ -1251,6 +1163,7 @@ function ModelField({
   modelSelectAvailable,
   modelLoadState,
   chatGptLoginPending,
+  loginError,
   onLoginChatGpt,
   onRetry,
   onChange
@@ -1261,6 +1174,7 @@ function ModelField({
   modelSelectAvailable: boolean
   modelLoadState: 'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'
   chatGptLoginPending: boolean
+  loginError: string | null
   onLoginChatGpt(): void
   onRetry(): void
   onChange(preference: ModelPreference): void
@@ -1284,6 +1198,7 @@ function ModelField({
         inputAriaLabel={t('setupWizard.field.model')}
         placeholder={t('setupWizard.placeholder.model')}
       />
+      {loginError && <div role="alert">{t('settings.llm.authMethod.signInFailed', { error: loginError })}</div>}
       {modelLoadState === 'auth-required' && (
         <Button variant="primary" onClick={onLoginChatGpt} loading={chatGptLoginPending} style={{ marginTop: '8px' }}>
           {chatGptLoginPending ? t('settings.llm.authMethod.signInPending') : t('setupWizard.authMethod.chatgpt')}

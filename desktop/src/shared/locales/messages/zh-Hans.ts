@@ -1251,9 +1251,7 @@ export const MESSAGES_ZH_HANS = {
   'setupWizard.authMethod.apiKeyDescription': '使用 OpenAI 按量付费的 API Key（sk-...）。',
   'setupWizard.authMethod.chatgpt': '使用 ChatGPT 订阅',
   'setupWizard.authMethod.chatgptDescription':
-    '复用你的 ChatGPT Plus / Pro / Team / Business / Enterprise 订阅。设置完成后再完成登录。',
-  'setupWizard.authMethod.chatgptHint':
-    '无需 API Key。完成创建后，前往「设置 → Providers → 使用 ChatGPT 登录」即可。',
+    '使用你的 ChatGPT 订阅，在设置过程中完成登录。',
   'setupWizard.placeholder.apiKey': '输入你的模型服务 API Key',
   'setupWizard.placeholder.displayName': '提供商名称',
   'setupWizard.placeholder.model': '输入模型 ID',

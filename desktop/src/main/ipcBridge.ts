@@ -907,7 +907,7 @@ export interface IpcHandlerCallbacks {
   onListSetupModels: (
     request: WorkspaceSetupModelListRequest
   ) => Promise<WorkspaceSetupModelListResult>
-  onLoginSetupChatGpt?: (providerId: string) => Promise<{ kind: 'success' | 'error' }>
+  onLoginSetupChatGpt?: (providerId: string) => Promise<{ kind: 'success' | 'error'; errorCode?: string; errorMessage?: string }>
   onOpenNewWindow: () => void
   onRestartManagedAppServer: () => Promise<void>
   onRetryAppServerConnection?: (request?: RetryConnectionRequest) => Promise<void>
