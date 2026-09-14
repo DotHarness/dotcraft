@@ -5,6 +5,8 @@ namespace DotCraft.Sessions;
 /// </summary>
 public sealed record SessionInputPart
 {
+    public SessionInputContext? Context { get; init; }
+
     /// <summary>Gets the input discriminator.</summary>
     public string Type { get; init; } = "text";
 

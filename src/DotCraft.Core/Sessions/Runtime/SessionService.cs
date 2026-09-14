@@ -1812,6 +1812,7 @@ public sealed partial class SessionService(
             {
                 Text = text,
                 DeliveryMode = inputSnapshot?.DeliveryMode,
+                ClientUserMessageId = inputSnapshot?.ClientUserMessageId,
                 NativeInputParts = inputSnapshot?.NativeInputParts,
                 MaterializedInputParts = inputSnapshot?.MaterializedInputParts,
                 SenderId = sender?.SenderId,

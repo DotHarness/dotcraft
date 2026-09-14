@@ -25,6 +25,8 @@ public sealed record UserMessageImage
 /// </summary>
 public sealed record UserMessagePayload
 {
+    public string? ClientUserMessageId { get; init; }
+
     public string Text { get; init; } = string.Empty;
 
     /// <summary>
@@ -122,6 +124,8 @@ public sealed record UserMessagePayload
 /// </summary>
 public sealed record SessionInputSnapshot
 {
+    public string? ClientUserMessageId { get; init; }
+
     /// <summary>
     /// Native transport parts (commandRef/skillRef/fileRef/text/etc.) as supplied by the client.
     /// </summary>
@@ -164,6 +168,8 @@ public sealed record SessionInputSnapshot
 /// </summary>
 public sealed record QueuedTurnInput
 {
+    public string? ClientUserMessageId { get; init; }
+
     public string Id { get; init; } = string.Empty;
 
     public string ThreadId { get; init; } = string.Empty;

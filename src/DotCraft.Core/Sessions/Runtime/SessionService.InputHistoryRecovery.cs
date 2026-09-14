@@ -32,7 +32,7 @@ public sealed partial class SessionService
                         Payload = new UserMessagePayload
                         {
                             Text = input.DisplayText ?? SessionWireMapper.BuildDisplayText(input.NativeInputParts),
-                            DeliveryMode = "guidance", NativeInputParts = input.NativeInputParts,
+                            DeliveryMode = "guidance", ClientUserMessageId = input.ClientUserMessageId, NativeInputParts = input.NativeInputParts,
                             MaterializedInputParts = input.MaterializedInputParts,
                             SenderId = input.Sender?.SenderId, SenderName = input.Sender?.SenderName,
                             SenderRole = input.Sender?.SenderRole, ChannelName = turn.OriginChannel,

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { BrowserTurnSubscriptions } from './browserTurnSubscriptions'
 import { createInterface } from 'readline'
 import type { Readable, Writable } from 'stream'
 import {
@@ -81,6 +82,7 @@ class DesktopStreamTransport implements Transport {
 /** Desktop host policy around the SDK Wire client. JSON-RPC remains owned by @dotcraft/sdk. */
 export class DesktopAppServerClient extends EventEmitter {
   private readonly wire: DotCraftWireClient
+  private readonly browserSubscriptions: BrowserTurnSubscriptions
   private readonly initializeTimeoutMs: number | null
   private readonly initializeProfile: InitializeProfile
   private notificationCallbacks: NotificationCallback[] = []
@@ -105,6 +107,7 @@ export class DesktopAppServerClient extends EventEmitter {
       defaultTimeoutMs: options.defaultTimeoutMs ?? 30_000,
       initializeTimeoutMs: this.initializeTimeoutMs
     })
+    this.browserSubscriptions = new BrowserTurnSubscriptions((method, params) => this.wire.requestRaw(method, params))
     this.bindWire()
     if (!(transport instanceof WebSocketTransport)) void this.wire.start()
   }
@@ -144,6 +147,7 @@ export class DesktopAppServerClient extends EventEmitter {
     this.wire.registerServerRequestFallbackRaw((method, id, params) => bridge(id, params, method))
     this.wire.onStateChanged((state, error) => {
       if (state === 'disconnected') {
+        this.browserSubscriptions.clear()
         this.reconnectObserved = true
         this.emit('close')
       } else if (state === 'reconnectError') {
@@ -174,10 +178,18 @@ export class DesktopAppServerClient extends EventEmitter {
     timeoutMs?: number | null
   ): Promise<T> {
     try {
-      return await this.wire.requestRaw<T>(method, params, timeoutMs)
+      return await this.browserSubscriptions.request(method, params, () => this.wire.requestRaw<T>(method, params, timeoutMs))
     } catch (error) {
       throw normalizeDesktopRpcError(error)
     }
+  }
+
+  retainBrowserTurn(threadId: string, turnId: string): Promise<void> {
+    return this.browserSubscriptions.retain(threadId, turnId)
+  }
+
+  releaseBrowserTurn(threadId: string, turnId: string): Promise<void> {
+    return this.browserSubscriptions.release(threadId, turnId)
   }
 
   async sendNotification(method: string, params?: unknown): Promise<void> {
@@ -226,6 +238,7 @@ export class DesktopAppServerClient extends EventEmitter {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.browserSubscriptions.clear()
     this.notificationCallbacks = []
     this.serverRequestHandler = null
     void this.wire.stop()

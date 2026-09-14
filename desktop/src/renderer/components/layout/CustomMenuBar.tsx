@@ -160,7 +160,7 @@ export function CustomMenuBar(): JSX.Element {
 
       <div style={{ flex: 1, alignSelf: 'stretch' }} />
 
-      <div style={{ ...noDrag, display: 'flex', alignItems: 'stretch', height: '100%' }}>
+      <div data-window-controls style={{ ...noDrag, display: 'flex', alignItems: 'stretch', height: '100%' }}>
         <WindowControlButton
           label="Minimize"
           onClick={() => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { FileText, X } from 'lucide-react'
 import type { ComposerFileAttachment, ImageAttachment } from '../../types/conversation'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -14,33 +14,11 @@ interface AttachmentStripProps {
   files: ComposerFileAttachment[]
   onRemoveImage: (index: number) => void
   onRemoveFile: (index: number) => void
+  contextAttachments?: ReactNode
+  hasContextAttachments?: boolean
   removeImageLabel?: string
   removeFileLabel?: string
 }
-
-const chipStyle = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  flexShrink: 0,
-  maxWidth: '220px',
-  padding: '4px 8px',
-  borderRadius: '8px',
-  border: '1px solid var(--glass-border)',
-  fontSize: '12px',
-  color: 'var(--text-secondary)',
-  backdropFilter: 'var(--glass-blur-soft)',
-  WebkitBackdropFilter: 'var(--glass-blur-soft)'
-} as const
-
-const railStyle = {
-  display: 'flex',
-  flexWrap: 'nowrap',
-  gap: '8px',
-  overflowX: 'auto',
-  alignItems: 'flex-start',
-  minWidth: 0
-} as const
 
 const imageThumbnailFrameStyle = {
   position: 'relative',
@@ -90,6 +68,8 @@ export function AttachmentStrip({
   files,
   onRemoveImage,
   onRemoveFile,
+  contextAttachments,
+  hasContextAttachments = false,
   removeImageLabel = 'Remove image',
   removeFileLabel = 'Remove file'
 }: AttachmentStripProps): JSX.Element | null {
@@ -98,24 +78,15 @@ export function AttachmentStrip({
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  if (images.length === 0 && files.length === 0) return null
+  if (images.length === 0 && files.length === 0 && !hasContextAttachments) return null
 
   const canOpenFileAttachment = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
 
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          paddingBottom: '4px',
-          alignItems: 'stretch',
-          minWidth: 0
-        }}
-      >
+      <div className="dc-attachment-strip">
         {images.length > 0 && (
-          <div style={railStyle}>
+          <>
             {images.map((img, idx) => (
               <div key={`image-${img.tempPath}-${idx}`} style={imageThumbnailFrameStyle}>
                 <ActionTooltip label={img.fileName} placement="top" wrapperStyle={imageThumbnailButtonWrapperStyle}>
@@ -142,18 +113,15 @@ export function AttachmentStrip({
                 />
               </div>
             ))}
-          </div>
+          </>
         )}
 
         {files.length > 0 && (
-          <div style={railStyle}>
+          <>
             {files.map((file, idx) => (
               <ActionTooltip key={`file-${file.path}-${idx}`} label={file.path}>
                 <div
-                  style={{
-                    ...chipStyle,
-                    background: 'var(--glass-surface-soft)'
-                  }}
+                  className="dc-context-attachment dc-context-attachment--file"
                 >
                   <button
                     type="button"
@@ -182,16 +150,10 @@ export function AttachmentStrip({
                       font: 'inherit'
                     }}
                   >
-                    <FileText size={14} strokeWidth={1.9} aria-hidden style={{ flexShrink: 0 }} />
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '150px'
-                      }}
-                    >
-                      {file.fileName}
+                    <span className="dc-context-attachment__icon"><FileText size={20} strokeWidth={1.9} aria-hidden /></span>
+                    <span className="dc-context-attachment__copy">
+                      <span className="dc-context-attachment__title">{file.fileName}</span>
+                      <span className="dc-context-attachment__subtitle">{file.fileName.includes('.') ? file.fileName.split('.').pop()?.toUpperCase() : t('menu.file')}</span>
                     </span>
                   </button>
                   <IconButton
@@ -206,8 +168,9 @@ export function AttachmentStrip({
                 </div>
               </ActionTooltip>
             ))}
-          </div>
+          </>
         )}
+        {contextAttachments}
       </div>
       {previewImage && (
         <ImageLightbox

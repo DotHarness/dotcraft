@@ -1,0 +1,163 @@
+.dc-browser-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dc-browser-controls__popup {
+  position: fixed;
+  z-index: 9999;
+  width: min(240px, calc(100vw - 16px));
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-level-2);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+.dc-browser-controls__menu {
+  width: min(240px, calc(100vw - 16px));
+  padding: 4px;
+}
+.dc-browser-controls__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.dc-browser-controls__item:hover,
+.dc-browser-controls__item:focus-visible {
+  background: var(--sidebar-control-hover);
+}
+.dc-browser-controls__item:focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: -1px;
+}
+.dc-browser-controls__separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border-default);
+}
+.dc-browser-controls__zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+}
+.dc-browser-controls__zoom > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-browser-controls__zoom-stepper {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+}
+.dc-browser-controls__zoom-percent {
+  width: 44px;
+  border-inline: 1px solid var(--border-default);
+  text-align: center;
+  font-size: var(--type-secondary-size);
+  font-variant-numeric: tabular-nums;
+}
+.dc-browser-page-feedback {
+  position: fixed;
+  z-index: 9999;
+  overflow: hidden;
+}
+.dc-browser-page-feedback__preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.dc-browser-page-feedback__selection {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+.dc-browser-page-feedback__marker {
+  position: absolute;
+  right: -13px;
+  bottom: -12px;
+  width: 26px;
+  height: 25px;
+}
+.dc-browser-page-feedback__marker svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dc-browser-page-feedback__editor {
+  position: absolute;
+  width: 294px;
+  max-width: calc(100% - 32px);
+}
+.dc-browser-page-feedback__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.dc-button.dc-browser-annotate {
+  max-width: 28px;
+  min-width: 28px;
+  padding: 0;
+  gap: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  transition:
+    max-width var(--duration-expand) var(--ease-expand),
+    padding var(--duration-expand) var(--ease-expand),
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+.dc-browser-annotate .dc-button__icon {
+  width: calc(var(--button-height) - 2px);
+}
+.dc-browser-annotate .dc-button__label {
+  display: inline-block;
+  max-width: 0;
+  margin-inline-start: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition:
+    max-width var(--duration-expand) var(--ease-expand),
+    margin-inline-start var(--duration-expand) var(--ease-expand),
+    opacity var(--duration-base) var(--ease-standard);
+}
+.dc-button.dc-browser-annotate[aria-pressed="true"] {
+  max-width: 160px;
+  padding: 0 10px 0 0;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.dc-browser-annotate[aria-pressed="true"] .dc-button__label {
+  max-width: 128px;
+  margin-inline-start: 4px;
+  opacity: 1;
+}
+.dc-button.dc-browser-annotate[aria-pressed="true"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}

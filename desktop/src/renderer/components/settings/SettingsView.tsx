@@ -1,3 +1,5 @@
+import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
+import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
@@ -919,6 +921,7 @@ export function SettingsView({
   const isMac = window.api.platform === 'darwin'
   const setUiLocale = useSetUiLocale()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
+  const browserDownloadHistoryOpen = useUIStore(state => state.browserDownloadHistoryOpen)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
   const settingsCloseRequestSeq = useUIStore((s) => s.settingsCloseRequestSeq)
@@ -4233,7 +4236,8 @@ export function SettingsView({
               />
             )}
 
-            {activeSettingsTab === 'browserUse' && (
+            {activeSettingsTab === 'browserUse' && browserDownloadHistoryOpen && <GeneralPanel><BrowserDownloadHistory /></GeneralPanel>}
+            {activeSettingsTab === 'browserUse' && !browserDownloadHistoryOpen && (
               <GeneralPanel>
               <SettingsPanelShell
                   title={t('settings.browserUse.pageTitle')}
@@ -4254,6 +4258,7 @@ export function SettingsView({
                   </SettingsGroup>
                 )}
 
+                <BrowserDownloadsSettings />
                 <SettingsGroup title={t('settings.browserUse.browsingData')}>
                   <SettingsRow
                     label={t('settings.browserUse.cookies')}

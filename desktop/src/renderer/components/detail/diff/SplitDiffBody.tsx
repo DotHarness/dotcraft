@@ -6,7 +6,19 @@ import { useFindSurface } from '../../../find/useFindSurface'
 import type { FindSegment } from '../../../find/types'
 import type { FileDiff } from '../../../types/toolCall'
 import { buildSplitRows, type DiffCell, type SplitRow } from './diffRows'
-import { DiffContent, DiffGutter, DiffMarker, DiffRowFrame, EmptyDiffMessage, UnchangedDivider } from './DiffRow'
+import {
+  DiffContent,
+  DiffGutter,
+  DiffMarker,
+  DiffRowFrame,
+  EmptyDiffMessage,
+  UnchangedDivider,
+} from './DiffRow'
+import {
+  DiffFeedbackGutter,
+  DiffFeedbackRow,
+  DiffLineFeedback,
+} from './DiffFeedback'
 import type { DiffModel } from './useDiffModel'
 
 export interface SplitDiffBodyProps {
@@ -20,27 +32,41 @@ export function SplitDiffBody({
   diff,
   model,
   relativePath,
-  wordWrap = false
+  wordWrap = false,
 }: SplitDiffBodyProps): JSX.Element {
   const leftPaneRef = useRef<HTMLDivElement>(null)
   const rightPaneRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const rows = useMemo(() => buildSplitRows(diff, model.sides), [diff, model.sides])
+  const rows = useMemo(
+    () => buildSplitRows(diff, model.sides),
+    [diff, model.sides],
+  )
 
-  const segments = useMemo((): FindSegment[] => rows.flatMap((row, index) => {
-    if (row.kind !== 'line') return []
-    return ([['deletion', row.left], ['addition', row.right]] as const).flatMap(([side, cell]) =>
-      cell.type === 'blank'
-        ? []
-        : [{
-            key: `${index}:${side}`,
-            rowIndex: index,
-            lineId: `${index}:${side}`,
-            scopeSelector: `[data-diff-side="${side}"]`,
-            text: cell.content
-          }]
-    )
-  }), [rows])
+  const segments = useMemo(
+    (): FindSegment[] =>
+      rows.flatMap((row, index) => {
+        if (row.kind !== 'line') return []
+        return (
+          [
+            ['deletion', row.left],
+            ['addition', row.right],
+          ] as const
+        ).flatMap(([side, cell]) =>
+          cell.type === 'blank'
+            ? []
+            : [
+                {
+                  key: `${index}:${side}`,
+                  rowIndex: index,
+                  lineId: `${index}:${side}`,
+                  scopeSelector: `[data-diff-side="${side}"]`,
+                  text: cell.content,
+                },
+              ],
+        )
+      }),
+    [rows],
+  )
 
   useFindSurface({
     id: diff.diffHunks.length === 0 ? undefined : `diff:${diff.filePath}:split`,
@@ -48,7 +74,7 @@ export function SplitDiffBody({
     priority: 20,
     getSegments: () => segments,
     getContainer: () => containerRef.current,
-    contentKey: model.cacheKey
+    contentKey: model.cacheKey,
   })
 
   if (diff.diffHunks.length === 0) return <EmptyDiffMessage />
@@ -57,7 +83,8 @@ export function SplitDiffBody({
     if (wordWrap) return
     const from = source === 'left' ? leftPaneRef.current : rightPaneRef.current
     const to = source === 'left' ? rightPaneRef.current : leftPaneRef.current
-    if (from === null || to === null || to.scrollLeft === from.scrollLeft) return
+    if (from === null || to === null || to.scrollLeft === from.scrollLeft)
+      return
     to.scrollLeft = from.scrollLeft
   }
 
@@ -73,7 +100,7 @@ export function SplitDiffBody({
         display: 'grid',
         minWidth: 0,
         gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
     >
       <div
@@ -115,7 +142,7 @@ function SplitPaneRows({
   side,
   model,
   title,
-  wordWrap
+  wordWrap,
 }: {
   rows: SplitRow[]
   side: 'deletion' | 'addition'
@@ -132,24 +159,37 @@ function SplitPaneRows({
         }
         const cell: DiffCell = side === 'deletion' ? row.left : row.right
         return (
-          <DiffRowFrame
-            key={`line-${index}`}
-            type={cell.type}
-            signMode={signMode}
-            wordWrap={wordWrap}
-            style={{ width: wordWrap ? '100%' : 'max-content', minWidth: '100%' }}
-          >
-            <DiffGutter value={cell.num} />
-            {signMode && <DiffMarker type={cell.type} />}
-            <DiffContent
-              cell={cell}
-              line={model.lineFor(cell)}
-              lineId={`${index}:${side}`}
-              highlighted={model.highlighted}
-              title={title}
+          <DiffFeedbackRow key={`line-${index}`} index={index} side={side}>
+            <DiffRowFrame
+              type={cell.type}
+              signMode={signMode}
               wordWrap={wordWrap}
+              style={{
+                width: wordWrap ? '100%' : 'max-content',
+                minWidth: '100%',
+              }}
+            >
+              <DiffFeedbackGutter
+                side={side === 'deletion' ? 'left' : 'right'}
+                value={cell.num}
+              >
+                <DiffGutter value={cell.num} />
+              </DiffFeedbackGutter>
+              {signMode && <DiffMarker type={cell.type} />}
+              <DiffContent
+                cell={cell}
+                line={model.lineFor(cell)}
+                lineId={`${index}:${side}`}
+                highlighted={model.highlighted}
+                title={title}
+                wordWrap={wordWrap}
+              />
+            </DiffRowFrame>
+            <DiffLineFeedback
+              side={side === 'deletion' ? 'left' : 'right'}
+              line={cell.num}
             />
-          </DiffRowFrame>
+          </DiffFeedbackRow>
         )
       })}
     </div>

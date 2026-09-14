@@ -7,6 +7,7 @@ import { useTypewriterReveal } from '../../hooks/useTypewriterReveal'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import { InlineVisualizationMessage } from './InlineVisualizationMessage'
 import { stripInlineVisualizationDirectives } from './inlineVisualizationParser'
+import { ResponseFeedback } from './ResponseFeedback'
 import { MessageCopyButton } from './MessageCopyButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { canForkThread, canForkWorktree, runThreadFork, type ThreadForkMode } from '../../utils/threadFork'
@@ -128,7 +129,11 @@ export function AgentMessage({
       }}
       onContextMenu={handleContextMenu}
     >
-      <InlineVisualizationMessage text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} />
+      {threadId && turnId && itemId && !streaming ? (
+        <ResponseFeedback key={`${threadId}:${turnId}:${itemId}`} threadId={threadId} turnId={turnId} itemId={itemId}>
+          <InlineVisualizationMessage text={displayText} streaming={false} threadId={threadId} turnId={turnId} itemId={itemId} />
+        </ResponseFeedback>
+      ) : <InlineVisualizationMessage text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} />}
       {afterContent}
       {showFooter && (
         <div

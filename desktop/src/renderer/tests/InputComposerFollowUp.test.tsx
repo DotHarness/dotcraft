@@ -1,3 +1,6 @@
+import { useComposerContextStore } from '../stores/composerContextStore'
+import { usePendingPasteStore } from '../components/conversation/usePastedText'
+import { projectInputParts } from '../utils/inputPresentation'
 import './setupPluginRuntime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -38,7 +41,21 @@ function draft(text = 'follow up'): HTMLElement {
 }
 
 describe('InputComposer follow-up routing', () => {
+  it('blocks keyboard submission while a pasted file is still being written', async () => {
+    renderComposer()
+    const textbox = draft('Wait for my attachment')
+    act(() => usePendingPasteStore.getState().setPaste({ id: 'pending', threadId: 'thread-1', text: 'x'.repeat(5000), status: 'writing' }))
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+    expect(sendRequest.mock.calls.some(([method]) => method === 'turn/steer')).toBe(false)
+    expect(textbox).toHaveTextContent('Wait for my attachment')
+    act(() => usePendingPasteStore.getState().remove('pending'))
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/steer', expect.anything()))
+  })
   beforeEach(() => {
+    localStorage.clear()
+    useComposerContextStore.setState({ byThread: {} })
+    usePendingPasteStore.setState({ pastes: [] })
     sendRequest.mockReset().mockResolvedValue({})
     settingsSet.mockReset().mockResolvedValue(undefined)
     installDesktopApiMock({
@@ -74,7 +91,7 @@ describe('InputComposer follow-up routing', () => {
     else fireEvent.click(button)
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(
       mode === 'queue' ? 'turn/enqueue' : 'turn/steer',
-      { threadId: 'thread-1', input: [{ type: 'text', text: 'follow up' }], sender: undefined,
+      { threadId: 'thread-1', input: [{ type: 'text', text: 'follow up' }], sender: undefined, clientUserMessageId: expect.any(String),
         ...(mode === 'steer' ? { expectedTurnId: 'turn-123' } : {}) }
     ))
     expect(sendRequest).not.toHaveBeenCalledWith(mode === 'queue' ? 'turn/steer' : 'turn/enqueue', expect.anything())
@@ -148,4 +165,32 @@ describe('InputComposer follow-up routing', () => {
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.anything()))
     expect(sendRequest).not.toHaveBeenCalledWith('turn/steer', expect.anything())
   })
+  it.each(['start', 'queue', 'steer'] as const)('preserves typed context through %s without a new wire type', async (mode) => {
+    const context = { kind: 'responseAnnotation' as const, id: 'annotation', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', selectedText: 'selected reply', comment: 'correct this' }
+    useComposerContextStore.getState().addContext('thread-1', context)
+    if (mode === 'start') useConversationStore.setState({ turnStatus: 'completed', activeTurnId: null })
+    else useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
+    renderComposer()
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', code: 'Enter' })
+    const method = mode === 'start' ? 'turn/start' : mode === 'queue' ? 'turn/enqueue' : 'turn/steer'
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(method, expect.anything()))
+    const args = sendRequest.mock.calls.find(([name]) => name === method)![1]
+    expect(projectInputParts(args.input).contexts).toEqual([context])
+    await waitFor(() => expect(useComposerContextStore.getState().getContexts('thread-1')).toEqual([]))
+  })
+
+  it('keeps feedback added while the accepted message is in flight', async () => {
+    let accept!: () => void
+    sendRequest.mockImplementation((method) => method === 'turn/enqueue' ? new Promise<void>((resolve) => { accept = resolve }) : Promise.resolve({}))
+    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: 'queue' })
+    const first = { kind: 'responseAnnotation' as const, id: 'one', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', selectedText: 'one', comment: 'change' }
+    useComposerContextStore.getState().addContext('thread-1', first)
+    renderComposer()
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(accept).toBeDefined())
+    act(() => useComposerContextStore.getState().addContext('thread-1', { ...first, id: 'two' }))
+    await act(async () => accept())
+    expect(useComposerContextStore.getState().getContexts('thread-1').map((context) => context.id)).toEqual(['two'])
+  })
+
 })

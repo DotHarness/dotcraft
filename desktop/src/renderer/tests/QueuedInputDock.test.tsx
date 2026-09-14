@@ -4,8 +4,16 @@ import { render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { QueuedInputDock } from '../components/conversation/QueuedInputDock'
 import { useSubAgentStore } from '../stores/subAgentStore'
+import { buildComposerInputParts } from '../utils/composeInputParts'
 
 describe('QueuedInputDock', () => {
+  it('summarizes the request without showing encoded attachment metadata', () => {
+    const text = 'Review the attached notes.'
+    const { inputParts } = buildComposerInputParts({ text, contexts: [{ kind: 'pastedText', id: 'paste', path: '/fixture/paste.txt', fileName: 'paste.txt', preview: 'review', characterCount: 5000 }] })
+    render(<LocaleProvider><QueuedInputDock queuedInputs={[{ id: 'queued', threadId: 'task', status: 'queued', createdAt: '', displayText: text, nativeInputParts: inputParts }]} /></LocaleProvider>)
+    expect(screen.getByText('Review the attached notes.')).toBeInTheDocument()
+    expect(screen.queryByText(/dotcraft-context/)).toBeNull()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     installDesktopApiMock({

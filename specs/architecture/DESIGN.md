@@ -1,5 +1,5 @@
 ---
-version: "0.16.0"
+version: "0.17.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -471,7 +471,7 @@ once; nothing opts in per control.
 | Install pill | `28px` / `999px` / `12px` | the plugin-package Install action across browse, manage, and detail | `sm` |
 | Icon, standard | `32px` / `8px` | ordinary icon buttons | `icon` |
 | Icon, compact | `28px` / `10px` | icon buttons on either compact band above | `iconSm` |
-| Icon, viewer chrome | `16px`, `24px`, or `28px` | a viewer tab slot or toolbar that already reserves that footprint | — |
+| Icon, viewer chrome | `16px`, `24px`, or `28px` | a viewer tab slot or toolbar that already reserves that footprint; the in-app browser toolbar scopes the catalog band (`28px` / `10px`) over every control, including its address field | — |
 
 Horizontal padding is around `12–14px` (`10px` on the settings band), icon+label
 controls keep a `6px` gap, and every band sets `box-sizing: border-box`.
@@ -533,6 +533,14 @@ press. Transform-based control motion is allowed only when a feature explicitly
 requires and documents it (for example, a directional affordance or a functional
 drag interaction), and it must honor the shared reduced-motion preference.
 
+A mode toggle may reveal its label when it turns on. The control keeps its band
+height and its icon position and grows only on `max-width` and inline padding —
+over `--duration-expand` on `--ease-expand`, the label fading in on opacity — so
+the change reads as the control settling into a state, not as press feedback. The
+growth is taken from the row's flexible neighbor; fixed peers do not move. The
+shared reduced-motion rule collapses the transition. The in-app browser Annotate
+control is the reference case; ordinary toggles keep the icon-only `active` tint.
+
 ### Icon Buttons
 
 Icon buttons (the shared `IconButton`, styled by `.dc-icon-button`) are frameless by
@@ -543,6 +551,8 @@ default, matching the frameless action language:
 - `var(--text-secondary)` icon color, with a neutral hover fill
   (`var(--bg-tertiary)` + `var(--text-primary)`);
 - `active` marks a selected/toggled state with a subtle accent tint.
+- `aria-pressed` marks a mode toggle; its on state uses the same accent tint and
+  never an accent border.
 - `aria-expanded="true"` marks an open menu or popover with a neutral fill; opening
   ordinary chrome is not a selected accent state.
 - destructive icon-only actions use the shared danger tone rather than a locally
@@ -1181,6 +1191,10 @@ block is the shared `Skeleton` family (`Skeleton`, `SkeletonRow`,
 - Skeleton animation honors `data-reduce-motion` via the global reduced-motion
   rule; never gate the *meaning* of a loading state on motion — under reduced
   motion the skeleton still reads as a placeholder.
+- A wait with no shape to match — the in-app browser loading a page — runs a 2px
+  accent bar along the toolbar's bottom edge, pulsing on opacity. It is
+  `aria-hidden`; the Reload/Stop control is the accessible state. Under reduced
+  motion the bar stays as a static rule.
 
 The workspace launch transition is the one wait with no shape to match, because the
 workspace it is opening does not exist on screen yet. While it connects or prepares, the

@@ -1109,6 +1109,13 @@ export interface ConfigSchemaSection {
   [key: string]: unknown;
 }
 
+export interface ContextImage {
+  fileName: string;
+  mimeType: string;
+  tempPath: string;
+  [key: string]: unknown;
+}
+
 export interface ContextUsageSnapshot {
   autoCompactThreshold?: number;
   contextWindow?: number;
@@ -1525,8 +1532,32 @@ export interface InlineVisualizationViewOpenResult {
   [key: string]: unknown;
 }
 
+export interface InputContext {
+  characterCount?: number | null;
+  comment?: string | null;
+  endLine?: number | null;
+  fileName?: string | null;
+  id: string;
+  image?: ContextImage | null;
+  itemId?: string | null;
+  kind: string;
+  path?: string | null;
+  preview?: string | null;
+  selectedText?: string | null;
+  selectionKind?: string | null;
+  side?: string | null;
+  startLine?: number | null;
+  text?: string | null;
+  threadId?: string | null;
+  title?: string | null;
+  turnId?: string | null;
+  url?: string | null;
+  [key: string]: unknown;
+}
+
 export interface InputPart {
   argsText?: string | null;
+  context?: InputContext | null;
   displayPath?: string | null;
   fileName?: string | null;
   mimeType?: string | null;
@@ -2584,6 +2615,7 @@ export interface ProviderUpdateParams {
 }
 
 export interface QueuedTurnInput {
+  clientUserMessageId?: string | null;
   createdAt: string;
   deliveryBindingId?: string | null;
   displayText: string;
@@ -4316,6 +4348,7 @@ export interface ToolSourceProvenancePayload {
 }
 
 export interface TurnEnqueueParams {
+  clientUserMessageId?: string | null;
   input: InputPart[];
   sender?: SenderContext | null;
   sentAsGoal?: boolean | null;
@@ -4388,6 +4421,7 @@ export interface TurnQueueUpdateResult {
 }
 
 export interface TurnStartParams {
+  clientUserMessageId?: string | null;
   cwd?: string | null;
   input: InputPart[];
   messages?: JsonValue;
@@ -4404,6 +4438,7 @@ export interface TurnStartResult {
 }
 
 export interface TurnSteerParams {
+  clientUserMessageId?: string | null;
   expectedTurnId: string;
   input: InputPart[];
   sender?: SenderContext | null;
@@ -4559,6 +4594,7 @@ export interface UserMessageImage {
 export interface UserMessagePayload {
   channelContext?: string | null;
   channelName?: string | null;
+  clientUserMessageId?: string | null;
   deliveryBindingId?: string | null;
   deliveryMode?: string | null;
   groupId?: string | null;

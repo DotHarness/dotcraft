@@ -146,6 +146,53 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         Assert.Equal(HostId, notice.HostId);
     }
 
+    /// <summary>
+    /// A running Turn holds the session gate for its whole run, so a notice that waited for the gate
+    /// could only ever land after the Turn's last Item.
+    /// </summary>
+    [Fact]
+    public async Task Notice_RaisedDuringATurn_LandsAtTheItemBoundaryTheTurnReached()
+    {
+        var client = new RouteEventClient();
+        var gate = new SessionGate();
+        var (service, thread) = await CreateThreadAsync(client, gate);
+        var turn = MakeTurn("turn_001", TurnStatus.Running);
+        turn.Items.Add(MakeItem(turn.Id, "item_001"));
+        turn.Items.Add(MakeItem(turn.Id, "item_002"));
+        thread.Turns.Add(turn);
+
+        using (await gate.AcquireAsync(thread.Id))
+        {
+            await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
+            var sequence = SessionIdGenerator.LastItemSequence(turn.Items);
+            var drained = service.DrainRemoteRouteNoticesIntoTurn(thread.Id, turn, () => ++sequence);
+            Assert.Equal("item_003", Assert.Single(drained).Id);
+            turn.Items.Add(MakeItem(turn.Id, "item_004"));
+        }
+
+        await service.DrainRemoteRouteNoticesAsync();
+
+        Assert.Equal(2, turn.Items.FindIndex(IsRemoteRouteNotice));
+        Assert.Single(turn.Items, IsRemoteRouteNotice);
+    }
+
+    /// <summary>A duplicate id would silently overwrite the Item already holding it.</summary>
+    [Fact]
+    public async Task Notice_AllocatesAboveTheTurnsHighestItemSequence()
+    {
+        var client = new RouteEventClient();
+        var (service, thread) = await CreateThreadAsync(client);
+        var turn = MakeTurn("turn_001", TurnStatus.Completed);
+        turn.Items.Add(MakeItem(turn.Id, "item_001"));
+        turn.Items.Add(MakeItem(turn.Id, "item_005"));
+        thread.Turns.Add(turn);
+
+        await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
+        await service.DrainRemoteRouteNoticesAsync();
+
+        Assert.Equal("item_006", Assert.Single(turn.Items, IsRemoteRouteNotice).Id);
+    }
+
     [Fact]
     public async Task Control_tools_carry_the_remote_tool_host_presentation()
     {
@@ -184,6 +231,17 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         Assert.IsType<SystemNoticePayload>(
             Assert.Single(thread.Turns.Single(turn => turn.Id == turnId).Items, IsRemoteRouteNotice).Payload);
 
+    private static SessionItem MakeItem(string turnId, string itemId) => new()
+    {
+        Id = itemId,
+        TurnId = turnId,
+        Type = ItemType.AgentMessage,
+        Status = ItemStatus.Completed,
+        CreatedAt = DateTimeOffset.UtcNow,
+        CompletedAt = DateTimeOffset.UtcNow,
+        Payload = new AgentMessagePayload { Text = itemId }
+    };
+
     private static SessionTurn MakeTurn(string turnId, TurnStatus status) => new()
     {
         Id = turnId,
@@ -192,9 +250,11 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         CompletedAt = status == TurnStatus.Completed ? DateTimeOffset.UtcNow : null
     };
 
-    private async Task<(SessionService Service, SessionThread Thread)> CreateThreadAsync(RouteEventClient client)
+    private async Task<(SessionService Service, SessionThread Thread)> CreateThreadAsync(
+        RouteEventClient client,
+        SessionGate? gate = null)
     {
-        var service = CreateService(client);
+        var service = CreateService(client, gate ?? new SessionGate());
         var thread = await service.CreateThreadAsync(new SessionIdentity
         {
             ChannelName = "test",
@@ -204,7 +264,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         return (service, thread);
     }
 
-    private SessionService CreateService(RouteEventClient client)
+    private SessionService CreateService(RouteEventClient client, SessionGate gate)
     {
         var agentFactory = new AgentFactory(
             dotcraftPath: _tempDir,
@@ -221,7 +281,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
             agentFactory,
             defaultAgent: null,
             new SessionPersistenceService(new ThreadStore(_tempDir)),
-            new SessionGate());
+            gate);
         service.AttachRemoteRouteNotices();
         return service;
     }

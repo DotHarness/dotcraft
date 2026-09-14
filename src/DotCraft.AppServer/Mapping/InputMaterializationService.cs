@@ -47,6 +47,9 @@ internal sealed class InputMaterializationService(
         {
             switch (part.Type)
             {
+                case "contextRef":
+                    normalized.Add(part with { Context = SessionContextMaterializer.Validate(part.Context) });
+                    break;
                 case "text":
                     if (!string.IsNullOrEmpty(part.Text))
                         normalized.Add(part with { Text = part.Text });
@@ -117,6 +120,10 @@ internal sealed class InputMaterializationService(
     {
         switch (part.Type)
         {
+            case "contextRef":
+                foreach (var expanded in SessionContextMaterializer.Materialize(part.Context!))
+                    yield return expanded;
+                yield break;
             case "commandRef":
                 yield return new SessionInputPart
                 {

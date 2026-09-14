@@ -1,3 +1,4 @@
+import { browserDocumentation, browserTopic } from './browser-documentation.mjs'
 import { Buffer } from 'node:buffer'
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir, platform } from 'node:os'
@@ -5,7 +6,6 @@ import path from 'node:path'
 
 const FRAME_HEADER_BYTES = 4
 const MAX_RESULT_BYTES = 1024 * 1024
-const RESPONSE_META_KEY = 'dotcraft/browserUse'
 const REQUEST_META_KEY = 'x-dotcraft-turn-metadata'
 const PIPE_DIR_NAME = 'dotcraft-browser-use'
 const WINDOWS_PIPE_PREFIX = '\\\\.\\pipe\\dotcraft-browser-use'
@@ -600,268 +600,6 @@ function withLocatorOptions(descriptor, options = {}) {
   return { ...base, filters: [...asArray(base.filters), ...filters] }
 }
 
-const LOCATOR_RUNTIME_SCRIPT = String.raw`
-  const __dotcraftBrowserUseClientLocator = true;
-  const normalize = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
-  const cssEscape = (value) => globalThis.CSS?.escape
-    ? CSS.escape(String(value))
-    : String(value).replace(/[^a-zA-Z0-9_-]/g, (ch) => '\\' + ch);
-  const matchesText = (actual, expected, exact) => {
-    const left = normalize(actual);
-    const right = normalize(expected);
-    return exact ? left === right : left.toLowerCase().includes(right.toLowerCase());
-  };
-  const matchesMatcher = (actual, matcher) => {
-    const config = matcher && typeof matcher === 'object' ? matcher : { value: matcher };
-    if (config.pattern != null) {
-      try {
-        return new RegExp(String(config.pattern), String(config.flags || '')).test(normalize(actual));
-      } catch (error) {
-        throw new Error('InvalidArgument: invalid text matcher RegExp: ' + (error?.message || error));
-      }
-    }
-    return matchesText(actual, config.value, config.exact === true);
-  };
-  const visible = (el) => {
-    const style = getComputedStyle(el);
-    const rect = el.getBoundingClientRect();
-    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-  };
-  const enabled = (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true' && !el.closest('[aria-disabled="true"]');
-  const roleOf = (el) => {
-    const explicit = normalize(el.getAttribute('role')).split(' ')[0].toLowerCase();
-    if (explicit) return explicit;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'a' && el.hasAttribute('href')) return 'link';
-    if (tag === 'button') return 'button';
-    if (tag === 'textarea') return 'textbox';
-    if (tag === 'select') return 'combobox';
-    if (tag === 'summary') return 'button';
-    if (tag !== 'input') return '';
-    const type = (el.getAttribute('type') || 'text').toLowerCase();
-    if (type === 'button' || type === 'submit' || type === 'reset') return 'button';
-    if (type === 'checkbox') return 'checkbox';
-    if (type === 'radio') return 'radio';
-    if (type === 'search') return 'searchbox';
-    return 'textbox';
-  };
-  const textOf = (el) => normalize(
-    el.innerText ||
-    el.textContent ||
-    el.getAttribute('aria-label') ||
-    el.getAttribute('placeholder') ||
-    el.getAttribute('value') ||
-    ''
-  );
-  const nameOf = (el) => normalize(
-    el.getAttribute('aria-label') ||
-    el.getAttribute('aria-labelledby')?.split(/\s+/).map((id) => el.ownerDocument.getElementById(id)?.textContent || '').join(' ') ||
-    el.getAttribute('title') ||
-    el.getAttribute('alt') ||
-    el.innerText ||
-    el.textContent ||
-    el.getAttribute('placeholder') ||
-    el.getAttribute('value') ||
-    ''
-  );
-  const cssQuery = (root, selector) => {
-    try {
-      return Array.from(root.querySelectorAll(String(selector || '*')));
-    } catch (error) {
-      throw new Error('InvalidArgument: invalid selector ' + JSON.stringify(String(selector || '')) + ': ' + (error?.message || error));
-    }
-  };
-  const allElements = (root) => cssQuery(root, '*');
-  const attrSelector = (name, value) => '[' + name + '="' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
-  const elementInfo = (el, index) => {
-    const rect = el.getBoundingClientRect();
-    const attributes = {};
-    for (const attr of Array.from(el.attributes || [])) attributes[attr.name] = attr.value;
-    const tagName = el.tagName.toLowerCase();
-    const testId = el.getAttribute('data-testid') || el.getAttribute('data-test-id') || undefined;
-    const id = el.getAttribute('id') || '';
-    const fallbackSelector =
-      id ? tagName + '#' + cssEscape(id) :
-      testId ? tagName + attrSelector('data-testid', testId) :
-      tagName;
-    return {
-      index,
-      tagName,
-      tag: tagName,
-      role: roleOf(el),
-      name: nameOf(el),
-      text: textOf(el),
-      href: el.getAttribute('href') || undefined,
-      testId,
-      selector: fallbackSelector,
-      visible: visible(el),
-      enabled: enabled(el),
-      visibleText: textOf(el),
-      ariaName: nameOf(el),
-      attributes,
-      boundingBox: rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : null
-    };
-  };
-  const unique = (items) => {
-    const seen = new Set();
-    const result = [];
-    for (const item of items) {
-      if (!item || seen.has(item)) continue;
-      seen.add(item);
-      result.push(item);
-    }
-    return result;
-  };
-  const applyIndex = (items, descriptor) => {
-    if (!Number.isInteger(descriptor?.index)) return items;
-    const index = descriptor.index < 0 ? items.length + descriptor.index : descriptor.index;
-    return items[index] ? [items[index]] : [];
-  };
-  const applyFilters = (items, descriptor) => {
-    const filters = Array.isArray(descriptor?.filters) ? descriptor.filters : [];
-    if (filters.length === 0) return items;
-    return items.filter((el) => filters.every((filter) => {
-      const kind = String(filter?.kind || '');
-      if (kind === 'hasText') return matchesMatcher(textOf(el), filter.matcher || filter);
-      if (kind === 'hasNotText') return !matchesMatcher(textOf(el), filter.matcher || filter);
-      if (kind === 'visible') return visible(el) === (filter.value !== false);
-      if (kind === 'has') return resolveWithin(filter.descriptor, el).length > 0;
-      if (kind === 'hasNot') return resolveWithin(filter.descriptor, el).length === 0;
-      throw new Error('UnsupportedApi: unsupported locator filter ' + kind);
-    }));
-  };
-  const labelTargets = (root, descriptor) => {
-    const controls = [];
-    const labels = allElements(root)
-      .filter((el) => el.tagName?.toLowerCase() === 'label')
-      .filter((label) => matchesText(textOf(label), descriptor.value, descriptor.exact));
-    for (const label of labels) {
-      const id = label.getAttribute('for');
-      const control = id ? label.ownerDocument.getElementById(id) : null;
-      if (control) controls.push(control);
-      controls.push(...cssQuery(label, 'button,input,select,textarea,[contenteditable="true"]'));
-    }
-    controls.push(...allElements(root).filter((el) => matchesText(el.getAttribute('aria-label') || el.getAttribute('title') || '', descriptor.value, descriptor.exact)));
-    return unique(controls);
-  };
-  const resolveWithin = (descriptor, root) => {
-    const kind = descriptor?.kind || 'css';
-    let matches = [];
-    if (kind === 'chain') {
-      const parents = resolveWithin(descriptor.parent, root);
-      for (const parent of parents) matches.push(...resolveWithin(descriptor.child, parent));
-    } else if (kind === 'and') {
-      const left = resolveWithin(descriptor.left, root);
-      const right = new Set(resolveWithin(descriptor.right, root));
-      matches = left.filter((item) => right.has(item));
-    } else if (kind === 'or') {
-      matches = [...resolveWithin(descriptor.left, root), ...resolveWithin(descriptor.right, root)];
-    } else if (kind === 'css') {
-      matches = cssQuery(root, descriptor.value || '*');
-    } else if (kind === 'text') {
-      matches = allElements(root).filter((el) => matchesText(textOf(el), descriptor.value, descriptor.exact));
-    } else if (kind === 'role') {
-      matches = allElements(root).filter((el) => {
-        if (roleOf(el) !== String(descriptor.value || '').toLowerCase()) return false;
-        return descriptor.name == null || matchesText(nameOf(el), descriptor.name, descriptor.exact);
-      });
-    } else if (kind === 'label') {
-      matches = labelTargets(root, descriptor);
-    } else if (kind === 'placeholder') {
-      matches = allElements(root).filter((el) => matchesText(el.getAttribute('placeholder') || '', descriptor.value, descriptor.exact));
-    } else if (kind === 'testId') {
-      matches = cssQuery(root, attrSelector('data-testid', descriptor.value));
-    } else {
-      throw new Error('UnsupportedApi: unsupported locator kind ' + kind);
-    }
-    return applyIndex(applyFilters(unique(matches), descriptor), descriptor);
-  };
-  const frameDocuments = (frameSelectors) => {
-    let docs = [document];
-    for (const selector of frameSelectors || []) {
-      const next = [];
-      for (const doc of docs) {
-        for (const frame of cssQuery(doc, selector)) {
-          const child = frame.contentDocument;
-          if (!child) throw new Error('UnsupportedApi: frameLocator only supports same-origin frames in DotCraft Desktop IAB.');
-          next.push(child);
-        }
-      }
-      docs = next;
-    }
-    return docs;
-  };
-  const resolveElements = (descriptor) => {
-    const docs = frameDocuments(descriptor.frameSelectors || []);
-    const matches = [];
-    for (const doc of docs) matches.push(...resolveWithin(descriptor, doc));
-    return unique(matches).slice(0, 100);
-  };
-  const strictElement = (descriptor, label) => {
-    const matches = resolveElements(descriptor);
-    if (matches.length === 0) throw new Error('No element found for locator: ' + label);
-    if (matches.length > 1) throw new Error('Strict mode violation for locator ' + label + ': ' + matches.length + ' elements matched.');
-    return matches[0];
-  };
-  const label = payload.label || JSON.stringify(descriptor);
-  if (operation === 'resolve') return resolveElements(descriptor).map(elementInfo);
-  const el = strictElement(descriptor, label);
-  if (operation === 'textContent') return el.textContent || '';
-  if (operation === 'innerText') return el.innerText || el.textContent || '';
-  if (operation === 'getAttribute') return el.getAttribute(String(payload.name || ''));
-  if (operation === 'isEnabled') return enabled(el);
-  if (operation === 'fill') {
-    el.focus();
-    if ('value' in el) {
-      el.value = String(payload.value ?? '');
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: String(payload.value ?? '') }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-    el.textContent = String(payload.value ?? '');
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: String(payload.value ?? '') }));
-    return true;
-  }
-  if (operation === 'setChecked') {
-    if (!('checked' in el)) throw new Error('Locator does not resolve to a checkable control.');
-    const checked = payload.checked === true;
-    if (el.checked !== checked) {
-      el.focus();
-      el.checked = checked;
-      el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    return true;
-  }
-  if (operation === 'selectOption') {
-    if (el.tagName?.toLowerCase() !== 'select') throw new Error('selectOption requires a native <select> element.');
-    const requested = Array.isArray(payload.values) ? payload.values : [payload.values];
-    const options = Array.from(el.options);
-    const selected = [];
-    for (const item of requested) {
-      const wanted = item && typeof item === 'object' ? item : { value: String(item ?? '') };
-      const match = options.find((option, index) =>
-        (wanted.index !== undefined && index === Number(wanted.index)) ||
-        (wanted.value !== undefined && option.value === String(wanted.value)) ||
-        (wanted.label !== undefined && option.label === String(wanted.label))
-      );
-      if (!match) throw new Error('No matching <option> found for selectOption.');
-      selected.push(match);
-    }
-    if (!el.multiple && selected.length > 1) throw new Error('Cannot select multiple options on a single-select element.');
-    for (const option of options) option.selected = selected.includes(option);
-    el.focus();
-    el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  }
-  throw new Error('UnsupportedApi: unsupported locator operation ' + operation);
-`
-
-function locatorRuntimeExpression(descriptor, operation, payload = {}) {
-  return `((descriptor, operation, payload) => { ${LOCATOR_RUNTIME_SCRIPT} })(${JSON.stringify(locatorDescriptor(descriptor))}, ${JSON.stringify(operation)}, ${JSON.stringify(payload)})`
-}
-
 function unsupportedDownload(browserName) {
   return `Downloads are not supported by ${browserName}.`
 }
@@ -882,6 +620,8 @@ class BrowserHandle {
     this.user = this.createUserApi()
     this.capabilities = this.createCapabilitiesApi()
   }
+
+  async documentation() { return browserDocumentation(this.info) }
 
   async nameSession(name) {
     return await this.api.nameSession(String(name ?? ''))
@@ -973,7 +713,7 @@ class BrowserHandle {
   }
 
   describeApi() {
-    return ['nameSession(name)', 'goto(url)', 'tabs.*', 'user.*', 'capabilities.*']
+    return ['documentation()', 'nameSession(name)', 'goto(url)', 'tabs.*', 'user.*', 'capabilities.*']
   }
 }
 
@@ -1004,6 +744,9 @@ class TabHandle {
       describeApi: () => ['export() unsupported', 'exportGsuite(format) unsupported']
     }
   }
+
+  async markDeliverable() { await this.api.executeUnhandledCommand({ type: 'tab_mark', tab_id: this.numericId, status: 'deliverable' }) }
+  async markHandoff() { await this.api.executeUnhandledCommand({ type: 'tab_mark', tab_id: this.numericId, status: 'handoff' }) }
 
   target() {
     return { tabId: this.numericId }
@@ -1120,7 +863,7 @@ class TabHandle {
   }
 
   describeApi() {
-    return ['goto(url)', 'reload()', 'back()', 'forward()', 'close()', 'url()', 'title()', 'screenshot(options?)', 'playwright.*', 'cua.*', 'dom_cua.*', 'capabilities.*']
+    return ['goto(url)', 'reload()', 'back()', 'forward()', 'close()', 'markDeliverable()', 'markHandoff()', 'url()', 'title()', 'screenshot(options?)', 'playwright.*', 'cua.*', 'dom_cua.*', 'capabilities.*']
   }
 
   toJSON() {
@@ -1141,50 +884,8 @@ class PlaywrightApi {
   }
 
   async domSnapshot() {
-    const pageSummary = asObject(await this.tab.eval(`(() => {
-      const bodyText = (document.body?.innerText || '').trim().replace(/\\s+/g, ' ')
-      return {
-        title: document.title || '',
-        url: window.location.href || '',
-        bodyText: bodyText.slice(0, 4000)
-      }
-    })()`).catch(() => ({})))
-    const document = asObject(await this.tab.cdp('DOM.getDocument', { depth: -1, pierce: true }))
-    await this.tab.cdp('DOMSnapshot.captureSnapshot', { computedStyles: [] }).catch(() => ({}))
-    const elements = []
-    const visit = (node) => {
-      const current = asObject(node)
-      const backendNodeId = Number(current.backendNodeId)
-      const name = String(current.nodeName ?? current.localName ?? '').toLowerCase()
-      const attrs = {}
-      const rawAttrs = asArray(current.attributes)
-      for (let index = 0; index + 1 < rawAttrs.length; index += 2) attrs[String(rawAttrs[index])] = String(rawAttrs[index + 1])
-      const text = asArray(current.children).filter((child) => asObject(child).nodeType === 3).map((child) => String(asObject(child).nodeValue ?? '')).join('').trim()
-      if (backendNodeId && name && name !== '#text') {
-        elements.push({
-          ref: `e${elements.length + 1}`,
-          node_id: String(backendNodeId),
-          backendNodeId,
-          tagName: name,
-          role: attrs.role || (name === 'button' ? 'button' : name),
-          name: attrs['aria-label'] || text,
-          text,
-          selector: name,
-          visible: true,
-          enabled: true,
-          attributes: attrs
-        })
-      }
-      for (const child of asArray(current.children)) visit(child)
-    }
-    visit(asObject(document.root))
-    return JSON.stringify({
-      title: String(pageSummary.title ?? ''),
-      url: String(pageSummary.url ?? ''),
-      bodyText: String(pageSummary.bodyText ?? ''),
-      accessibilitySnapshot: elements.map((item) => `- ${item.role} "${item.name}"`).join('\n'),
-      elements
-    }, null, 2)
+    const result = await this.tab.api.executeUnhandledCommand({ type: 'playwright_dom_snapshot', tab_id: this.tab.numericId })
+    return String(asObject(result).dom_snapshot ?? '')
   }
 
   async screenshot(options) { return await this.tab.screenshot(options) }
@@ -1271,7 +972,7 @@ class Locator {
   }
 
   async matches() {
-    const result = await this.tab.eval(locatorRuntimeExpression(this.descriptor, 'resolve', { label: this.selector }))
+    const result = await this.locatorOperation('resolve')
     return asArray(result).map((item) => asObject(item))
   }
 
@@ -1283,7 +984,11 @@ class Locator {
   }
 
   async locatorOperation(operation, payload = {}) {
-    return await this.tab.eval(locatorRuntimeExpression(this.descriptor, operation, { label: this.selector, ...payload }))
+    const result = await this.tab.api.executeUnhandledCommand({
+      type: 'playwright_locator_operation', tab_id: this.tab.numericId,
+      descriptor: this.descriptor, operation, payload
+    })
+    return asObject(result).value
   }
 
   async count() {
@@ -1435,20 +1140,6 @@ class Locator {
   describeApi() { return ['count()', 'all()', 'filter(options)', 'and(locator)', 'or(locator)', 'click(options?)', 'dblclick(options?)', 'fill(value, options?)', 'type(value, options?)', 'press(key, options?)', 'innerText(options?)', 'textContent(options?)', 'getAttribute(name, options?)', 'isVisible()', 'isEnabled()', 'waitFor({ state, timeoutMs })', 'allTextContents(options?)', 'check(options?)', 'uncheck(options?)', 'setChecked(checked, options?)', 'selectOption(value, options?)', 'downloadMedia() unsupported'] }
 }
 
-function centerFromQuad(quad, fallback) {
-  const xs = []
-  const ys = []
-  for (let index = 0; index + 1 < quad.length; index += 2) {
-    xs.push(Number(quad[index]))
-    ys.push(Number(quad[index + 1]))
-  }
-  if (xs.length === 0) return fallback
-  return {
-    x: (Math.min(...xs) + Math.max(...xs)) / 2,
-    y: (Math.min(...ys) + Math.max(...ys)) / 2
-  }
-}
-
 async function dispatchClick(tab, point, clickCount) {
   await tab.api.moveMouse({ tabId: tab.numericId, x: point.x, y: point.y })
   await tab.cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount })
@@ -1551,11 +1242,12 @@ class DomCuaApi {
     }).join('\n')
   }
   async pointFor(options = {}) {
-    const backendNodeId = Number(options.node_id ?? options.nodeId)
-    if (!Number.isFinite(backendNodeId) || backendNodeId <= 0) throw new Error('InvalidArgument: DOM CUA action requires node_id from get_visible_dom().')
-    await this.tab.cdp('DOM.scrollIntoViewIfNeeded', { backendNodeId })
-    const model = asObject(asObject(await this.tab.cdp('DOM.getBoxModel', { backendNodeId })).model)
-    return centerFromQuad(asArray(model.border), { x: 20, y: 20 })
+    const nodeId = options.node_id ?? options.nodeId
+    if (!nodeId) throw new Error('InvalidArgument: DOM CUA action requires node_id from get_visible_dom().')
+    const info = asObject(await this.tab.api.executeUnhandledCommand({ type: 'dom_cua_node_info', tab_id: this.tab.numericId, node_id: String(nodeId) }))
+    if (info.visible !== true || info.enabled !== true) throw new Error('Element is not actionable.')
+    const box = asObject(info.boundingBox)
+    return { x: Number(box.x) + Number(box.width) / 2, y: Number(box.y) + Number(box.height) / 2 }
   }
   async click(options = {}) { await dispatchClick(this.tab, await this.pointFor(options), 1) }
   async double_click(options = {}) { await dispatchClick(this.tab, await this.pointFor(options), 2) }
@@ -1772,7 +1464,6 @@ export async function setupBrowserRuntime(options = {}) {
   if (!globals.nodeRepl?.nativePipe?.createConnection) {
     throw new Error('privileged native pipe bridge is not available; DotCraft browser client is not trusted')
   }
-  globals.nodeRepl.setResponseMeta?.({ [RESPONSE_META_KEY]: true })
   const getTurnMetadata = () => turnMetadata(globals)
   const discovered = await discoverIabBackends(globals, getTurnMetadata)
   if (discovered.length === 0) {
@@ -1782,7 +1473,7 @@ export async function setupBrowserRuntime(options = {}) {
   const requested = options.backend ? String(options.backend) : null
   const available = requested ? browsers.filter((browser) => browser.id === requested || browser.info.type === requested) : browsers
   if (available.length === 0) throw new Error(`Browser backend not found: ${requested}`)
-  const agent = globals.agent && typeof globals.agent === 'object' ? globals.agent : {}
+  const agent = {}
   agent.browsers = {
     list: async () => available.map((browser) => ({
       id: browser.id,
@@ -1799,7 +1490,7 @@ export async function setupBrowserRuntime(options = {}) {
     },
     describeApi: () => ['list()', 'get("iab")']
   }
+  agent.documentation = { get: async (name) => browserTopic(available[0].info, String(name)) }
   agent.browser = available[0]
-  globals.agent = agent
-  return { agent, browsers: available }
+  return agent
 }

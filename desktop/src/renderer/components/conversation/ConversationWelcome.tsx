@@ -1,3 +1,7 @@
+import type { WelcomeDraft } from '../../stores/uiStore'
+import { useComposerContextStore } from '../../stores/composerContextStore'
+import { hasPendingPastedText, usePastedText } from './usePastedText'
+import { readPlainComposerDraft, savePlainComposerDraft } from '../../utils/plainComposerDraft'
 import {
   useCallback,
   useEffect,
@@ -41,6 +45,7 @@ import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
 import { AttachmentStrip } from './AttachmentStrip'
+import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { SparkIcon } from '../ui/AppIcons'
 import { IdentityMark } from '../ui/IdentityMark'
@@ -875,7 +880,8 @@ function ConversationWelcomeCore({
   }, [canUseSkillPicker, fetchSkills])
 
   useEffect(() => {
-    const welcomeDraft = initialWelcomeDraftRef.current
+    const persistedText = readPlainComposerDraft(`welcome:${draftProjectKey}`)
+    const welcomeDraft: WelcomeDraft | null = initialWelcomeDraftRef.current ?? (persistedText ? { text: persistedText, segments: [], images: [], mode: 'agent' as const, model: 'Default', updatedAt: 0 } : null)
     if (draftHydratedRef.current) return
     if (!welcomeDraft) {
       draftHydratedRef.current = true
@@ -1046,14 +1052,19 @@ function ConversationWelcomeCore({
     return welcomeContextExplicit ? { mode: welcomeContextMode } : undefined
   }, [welcomeContextExplicit, welcomeContextMode])
 
+  const contextKey = `welcome:${draftProjectKey}`
+  const contexts = useComposerContextStore((state) => state.getContexts(contextKey))
+  const pastedText = usePastedText(contextKey, workspacePath, remoteWorkspace)
+
   const flushWelcomeDraft = useCallback((): void => {
     if (skipDraftPersistRef.current) return
     const text = richRef.current?.getText() ?? latestDraftTextRef.current
     const segments = richRef.current?.getSegments() ?? latestDraftSegmentsRef.current
     const selection = latestDraftSelectionRef.current ?? richRef.current?.getSelectionRange()
+    savePlainComposerDraft(contextKey, text)
     const hasText = text.trim().length > 0
     const hasImages = images.length > 0
-    const hasFiles = files.length > 0
+    const hasFiles = files.length > 0 || useComposerContextStore.getState().getContexts(contextKey).length > 0
     const model = modelName || 'Default'
     const hasCustomReasoning = reasoningConfig.enabled
       || reasoningConfig.effort !== DEFAULT_REASONING_CONFIG.effort
@@ -1412,6 +1423,7 @@ function ConversationWelcomeCore({
 
       skipDraftPersistRef.current = true
       latestDraftTextRef.current = ''
+      savePlainComposerDraft(contextKey, '')
       latestDraftSegmentsRef.current = []
       latestDraftSelectionRef.current = null
       clearWelcomeDraft(draftProjectKey)
@@ -1469,14 +1481,16 @@ function ConversationWelcomeCore({
   }, [canUseThreadGoals, createGoalBackedThread, enterGoalComposeMode, showGoalUnavailable, t])
 
   const sendFromWelcome = useCallback(async (draftOverride?: ThreadComposerDraftInput): Promise<void> => {
+    if (hasPendingPastedText(contextKey)) return
     const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
     const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
     const inputImages = draftOverride?.images ?? images
     const inputFiles = draftOverride?.files ?? files
+    const inputContexts = draftOverride?.contexts ?? useComposerContextStore.getState().getContexts(contextKey)
     const trimmed = text.trim()
     const isInitCommand = trimmed.toLowerCase() === '/init'
     if (
-      (!trimmed && inputImages.length === 0 && inputFiles.length === 0) ||
+      (!trimmed && inputImages.length === 0 && inputFiles.length === 0 && inputContexts.length === 0) ||
       sendInFlightRef.current ||
       connectionStatus !== 'connected' ||
       modelLoading
@@ -1533,15 +1547,19 @@ function ConversationWelcomeCore({
 
       skipDraftPersistRef.current = true
       latestDraftTextRef.current = ''
+      savePlainComposerDraft(contextKey, '')
       latestDraftSegmentsRef.current = []
       latestDraftSelectionRef.current = null
       clearWelcomeDraft(draftProjectKey)
       const { inputParts } = buildComposerInputParts({
         text: turnText,
         segments: isInitCommand ? [] : segments,
+        contexts: inputContexts,
         files: capturedFiles,
         images: capturedImages
       })
+      useComposerContextStore.getState().setContexts(thread.id, inputContexts)
+      useComposerContextStore.getState().clearContexts(contextKey)
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
         text: turnText,
@@ -1585,8 +1603,9 @@ function ConversationWelcomeCore({
     text: richRef.current?.getText() ?? latestDraftTextRef.current,
     segments: richRef.current?.getSegments() ?? latestDraftSegmentsRef.current,
     images: [...images],
-    files: [...files]
-  }), [files, images])
+    files: [...files],
+    contexts: useComposerContextStore.getState().getContexts(contextKey)
+  }), [files, images, contextKey])
 
   const applyWelcomeVoiceDraft = useCallback((draft: ThreadComposerDraftInput): void => {
     richRef.current?.setContent({ text: draft.text, segments: draft.segments })
@@ -1596,6 +1615,7 @@ function ConversationWelcomeCore({
     latestDraftSelectionRef.current = { start: draft.text.length, end: draft.text.length }
     setImages([...draft.images])
     setFiles([...draft.files])
+    useComposerContextStore.getState().setContexts(contextKey, draft.contexts ?? [])
     setContentRevision((revision) => revision + 1)
     useComposerDraftStore.getState().clearDraft(voiceThreadId)
   }, [voiceThreadId])
@@ -1710,8 +1730,8 @@ function ConversationWelcomeCore({
 
   const canSend = useMemo(() => {
     const textLen = (richRef.current?.getText() ?? '').trim().length
-    return (textLen > 0 || images.length > 0 || files.length > 0) && isConnected && !starting && !modelLoading
-  }, [contentRevision, files.length, images.length, isConnected, starting, modelLoading])
+    return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && isConnected && !starting && !modelLoading
+  }, [contentRevision, contexts.length, pastedText.pending, files.length, images.length, isConnected, starting, modelLoading])
   const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording) {
@@ -1831,6 +1851,8 @@ function ConversationWelcomeCore({
               mascotName={resolvedProfileName}
               attachmentStrip={
                 <AttachmentStrip
+                  hasContextAttachments={contexts.length > 0 || pastedText.pending > 0}
+                  contextAttachments={<ComposerContextAttachments threadId={contextKey} editorRef={richRef} pastedText={pastedText} />}
                   images={images}
                   files={files}
                   onRemoveImage={(idx) => {
@@ -1929,6 +1951,7 @@ function ConversationWelcomeCore({
                       }}
                       onFocusChange={setEditorFocused}
                       onPasteImage={onPasteImage}
+                      onPasteText={pastedText.onPasteText}
                       onPasteTextOversized={() => {
                         addToast(
                           t('input.truncated', { max: MAX_TEXT_LENGTH.toLocaleString() }),

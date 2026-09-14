@@ -696,6 +696,10 @@ public sealed class ThreadItemsListParams : ExtensibleJsonObject
 /// <summary>One input part in a turn request.</summary>
 public sealed class InputPart : ExtensibleJsonObject
 {
+    [JsonPropertyName("context")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InputContext? Context { get; init; }
+
     [JsonPropertyName("type")]
     public required string Type { get; init; }
 
@@ -787,6 +791,10 @@ public sealed class TurnInitiatorContext : ExtensibleJsonObject
 /// <summary>Parameters for starting a turn.</summary>
 public sealed class TurnStartParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("clientUserMessageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientUserMessageId { get; init; }
+
     [JsonPropertyName("threadId")]
     public required string ThreadId { get; init; }
 
@@ -817,6 +825,10 @@ public sealed class TurnStartParams : ExtensibleJsonObject
 /// <summary>Parameters for queueing a turn.</summary>
 public sealed class TurnEnqueueParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("clientUserMessageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientUserMessageId { get; init; }
+
     [JsonPropertyName("threadId")]
     public required string ThreadId { get; init; }
 
@@ -835,6 +847,10 @@ public sealed class TurnEnqueueParams : ExtensibleJsonObject
 /// <summary>Parameters for steering an active turn.</summary>
 public sealed class TurnSteerParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("clientUserMessageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientUserMessageId { get; init; }
+
     [JsonPropertyName("threadId")]
     public required string ThreadId { get; init; }
 
@@ -1410,6 +1426,10 @@ public sealed class TurnStartResult : ExtensibleJsonObject
 /// <summary>Queued turn input returned by queue operations.</summary>
 public sealed class QueuedTurnInput : ExtensibleJsonObject
 {
+    [JsonPropertyName("clientUserMessageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientUserMessageId { get; init; }
+
     [JsonPropertyName("id")]
     public required string Id { get; init; }
 

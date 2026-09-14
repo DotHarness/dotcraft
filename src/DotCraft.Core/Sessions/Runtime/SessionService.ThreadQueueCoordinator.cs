@@ -39,6 +39,7 @@ public sealed partial class SessionService
             {
                 Id = SessionIdGenerator.NewQueuedInputId(),
                 ThreadId = threadId,
+                ClientUserMessageId = inputSnapshot?.ClientUserMessageId,
                 NativeInputParts = nativeParts,
                 MaterializedInputParts = materializedParts,
                 DisplayText = displayText,
@@ -128,6 +129,7 @@ public sealed partial class SessionService
                 {
                     Id = SessionIdGenerator.NewQueuedInputId(),
                     ThreadId = threadId,
+                    ClientUserMessageId = inputSnapshot?.ClientUserMessageId,
                     NativeInputParts = nativeParts,
                     MaterializedInputParts = materializedParts,
                     DisplayText = displayText,
@@ -362,6 +364,7 @@ public sealed partial class SessionService
                     messages: null,
                     new SessionInputSnapshot
                     {
+                        ClientUserMessageId = queued.ClientUserMessageId,
                         NativeInputParts = queued.NativeInputParts,
                         MaterializedInputParts = queued.MaterializedInputParts,
                         DisplayText = queued.DisplayText,

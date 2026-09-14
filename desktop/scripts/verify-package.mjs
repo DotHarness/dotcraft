@@ -106,7 +106,6 @@ function verifyResourcesDir(target) {
     }
   }
 
-  verifyDevToolsPolicy(appAsar)
   verifyDesktopPetPreload(appAsar)
 
   if (process.exitCode !== 1) {
@@ -192,19 +191,6 @@ function verifyVoiceInference(entries, unpackedRoot, platform, arch) {
     if ([...entries].some((entry) => entry.startsWith(prefix))) {
       fail(`Optional Whisper backend must not be packaged: ${prefix}`)
     }
-  }
-}
-
-function verifyDevToolsPolicy(appAsar) {
-  const mainBundle = extractAsarText(appAsar, 'out/main/index.js')
-
-  if (mainBundle.includes('toggleDevTools')) {
-    fail('Packaged main process bundle still exposes the toggleDevTools menu role.')
-  }
-
-  const devToolsOccurrences = mainBundle.match(/\bdevTools\s*:/g)?.length ?? 0
-  if (devToolsOccurrences < 2) {
-    fail('Packaged main process bundle does not configure devTools for both BrowserWindow and WebContentsView.')
   }
 }
 

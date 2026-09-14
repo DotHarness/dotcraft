@@ -1,3 +1,6 @@
+import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
+import type { PastedTextContext } from '../shared/composerContext'
+import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { desktopPet } from './desktopPet'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
@@ -1037,6 +1040,15 @@ const api = {
     },
 
     /** Writes into the workspace's `.craft/attachments/images/`, not an OS temp dir. */
+    createPastedText(params: { text: string; workspacePath?: string }): Promise<PastedTextContext> {
+      return ipcRenderer.invoke('workspace:create-pasted-text', params)
+    },
+    readPastedText(params: { path: string }): Promise<{ text: string }> {
+      return ipcRenderer.invoke('workspace:read-pasted-text', params)
+    },
+    restorePastedText(params: { path: string }): Promise<{ text: string }> {
+      return ipcRenderer.invoke('workspace:restore-pasted-text', params)
+    },
     saveImageToTemp(params: { dataUrl: string; fileName?: string }): Promise<{ path: string }> {
       return ipcRenderer.invoke('workspace:save-image-to-temp', params)
     },
@@ -1111,6 +1123,40 @@ const api = {
       },
 
         browser: {
+        host: {
+          list: () => ipcRenderer.invoke('viewer:browser:host-list'),
+          bind: (params) => ipcRenderer.invoke('viewer:browser:host-bind', params),
+          failed: (params) => ipcRenderer.invoke('viewer:browser:host-failed', params),
+          onEvent(callback) {
+            const listener = (_event: Electron.IpcRendererEvent, payload: BrowserHostEvent) => callback(payload)
+            ipcRenderer.on('viewer:browser:host-event', listener)
+            return () => ipcRenderer.removeListener('viewer:browser:host-event', listener)
+          }
+        } satisfies BrowserHostApi,
+        enableFeedback(params: { tabId: string; labels: { copyLink: string; newTab: string; external: string; inspect: string; quoteSelection?: string } }): Promise<{ find: BrowserFindState; zoomPercent: number }> {
+          return ipcRenderer.invoke('viewer:browser:feedback-enable', params)
+        },
+        inspect(params: { tabId: string }): Promise<void> { return ipcRenderer.invoke('viewer:browser:inspect', params) },
+        downloads(): Promise<BrowserDownloadRecord[]> { return ipcRenderer.invoke('viewer:browser:downloads') },
+        removeDownload(params: { id?: string }): Promise<void> { return ipcRenderer.invoke('viewer:browser:download-remove', params) },
+        downloadLocation(): Promise<string> { return ipcRenderer.invoke('viewer:browser:download-location') },
+        changeDownloadLocation(): Promise<string> { return ipcRenderer.invoke('viewer:browser:download-location-change') },
+        cancelDownload(params: { id: string }): Promise<void> { return ipcRenderer.invoke('viewer:browser:download-cancel', params) },
+        openDownload(params: { id: string }): Promise<void> { return ipcRenderer.invoke('viewer:browser:download-open', params) },
+        find(params: { tabId: string; query: string; direction?: 'next' | 'previous' }): Promise<BrowserFindState> {
+          return ipcRenderer.invoke('viewer:browser:find', params)
+        },
+        closeFind(params: { tabId: string; restoreFocus?: boolean }): Promise<void> { return ipcRenderer.invoke('viewer:browser:find-close', params) },
+        zoom(params: { tabId: string; action: 'in' | 'out' | 'reset' }): Promise<number> { return ipcRenderer.invoke('viewer:browser:zoom', params) },
+        select(params: BrowserSelectRequest): Promise<BrowserPageReference | null> {
+          return ipcRenderer.invoke('viewer:browser:select', params)
+        },
+        cancelSelection(params: { tabId: string }): Promise<void> { return ipcRenderer.invoke('viewer:browser:selection-cancel', params) },
+        onFeedback(listener: (event: BrowserFeedbackEvent) => void): UnsubscribeFn {
+          const wrapped = (_event: Electron.IpcRendererEvent, payload: BrowserFeedbackEvent) => listener(payload)
+          ipcRenderer.on('viewer:browser:feedback', wrapped)
+          return () => ipcRenderer.removeListener('viewer:browser:feedback', wrapped)
+        },
         create(params: {
           tabId: string
           threadId?: string

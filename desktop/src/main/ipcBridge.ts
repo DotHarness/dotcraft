@@ -1,3 +1,4 @@
+import { createPastedTextAttachment, readPastedTextAttachment, restorePastedTextAttachment } from './pastedTextAttachments'
 import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session, type OpenDialogOptions } from 'electron'
 import { promises as fs, existsSync } from 'fs'
 import { execFile } from 'child_process'
@@ -60,6 +61,7 @@ import {
   type DesktopPluginModuleRequest
 } from './pluginFileProtocol'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
+import { BROWSER_FEEDBACK_CHANNELS, registerBrowserFeedbackIpc } from './browserFeedbackIpc'
 import { viewerTerminalManager } from './viewerTerminal'
 import { browserUseManager } from './browserUseManager'
 import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
@@ -1740,6 +1742,18 @@ export function registerIpcHandlers(
     return checkWorkspaceLock(wsPath)
   })
 
+  handleSafe('workspace:create-pasted-text', async (_event, params: { text: string; workspacePath?: string }) => {
+    const root = params.workspacePath || workspacePath
+    if (!root) throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+    return createPastedTextAttachment(root, params.text)
+  })
+  handleSafe('workspace:read-pasted-text', async (_event, params: { path: string }) => {
+    return { text: await readPastedTextAttachment(params.path) }
+  })
+  handleSafe('workspace:restore-pasted-text', async (_event, params: { path: string }) => {
+    return { text: await restorePastedTextAttachment(params.path) }
+  })
+
   handleSafe(
     'workspace:save-image-to-temp',
     async (_event, params: { dataUrl: string; fileName?: string }) => {
@@ -2001,6 +2015,17 @@ export function registerIpcHandlers(
     }
   )
 
+  for (const operation of ['list', 'bind', 'failed'] as const) {
+    handleSafe(`viewer:browser:host-${operation}`, async (event, params?: { tabId: string; webContentsId: number; message: string }) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win || win.isDestroyed()) throw new Error('Browser window not available.')
+      if (operation === 'list') return viewerBrowserManager.hosts.list(win)
+      if (!params) throw new Error('Browser host parameters are required.')
+      if (operation === 'bind') viewerBrowserManager.hosts.bind(win, params.tabId, params.webContentsId)
+      else viewerBrowserManager.hosts.remove(win, params.tabId, params.message)
+    })
+  }
+  registerBrowserFeedbackIpc(viewerBrowserManager)
   handleSafe(
     'viewer:browser:create',
     async (event, params: { tabId: string; threadId?: string; workspacePath: string; initialUrl?: string }) => {
@@ -2634,6 +2659,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('desktop-plugin:app-connection-start')
   ipcMain.removeHandler('desktop-plugin:app-open')
   clearDesktopPluginModuleRoutes()
+  for (const channel of BROWSER_FEEDBACK_CHANNELS) ipcMain.removeHandler(channel)
   ipcMain.removeHandler('viewer:browser:create')
   ipcMain.removeHandler('viewer:browser:destroy')
   ipcMain.removeHandler('viewer:browser:navigate')

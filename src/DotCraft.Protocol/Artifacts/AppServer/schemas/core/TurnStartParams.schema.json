@@ -4,6 +4,16 @@
   "title": "TurnStartParams",
   "type": "object",
   "properties": {
+    "clientUserMessageId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "cwd": {
       "anyOf": [
         {

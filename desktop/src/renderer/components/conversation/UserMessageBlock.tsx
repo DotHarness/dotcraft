@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { projectInputParts } from '../../utils/inputPresentation'
+import { SentContextAttachments } from './SentContextAttachments'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Image as ImageIcon, Pencil, Sparkle, Terminal } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { Textarea } from '../ui/Input'
@@ -54,8 +56,8 @@ interface UserMessageBlockProps {
 export function UserMessageBlock({
   text,
   nativeInputParts,
-  imageDataUrls,
-  images,
+  imageDataUrls: persistedImageDataUrls,
+  images: persistedImages,
   createdAt,
   deliveryMode,
   triggerKind,
@@ -72,6 +74,9 @@ export function UserMessageBlock({
   onCancelEdit,
   onSubmitEdit
 }: UserMessageBlockProps): JSX.Element {
+  const projected = useMemo(() => nativeInputParts ? projectInputParts(nativeInputParts) : null, [nativeInputParts])
+  const images = projected?.images ?? persistedImages
+  const imageDataUrls = projected?.imageDataUrls ?? persistedImageDataUrls
   const t = useT()
   const editAreaRef = useRef<HTMLTextAreaElement | null>(null)
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
@@ -89,7 +94,7 @@ export function UserMessageBlock({
   const hasImages = hydratedImages.length > 0
   const displayText = stripSystemReminderBlocks(text)
   const segments = nativeInputParts != null && nativeInputParts.length > 0
-    ? segmentsFromNativeInputParts(nativeInputParts)
+    ? segmentsFromNativeInputParts(projected!.parts)
     : displayText.length > 0
       ? parseUserMessageSegments(displayText)
       : []
@@ -114,26 +119,20 @@ export function UserMessageBlock({
     let cancelled = false
 
     const hydrateImages = async (): Promise<void> => {
-      if (Array.isArray(imageDataUrls) && imageDataUrls.length > 0) {
-        if (cancelled) return
-        setHydratedImages(imageDataUrls.map((url) => ({ url })))
-        setFailedImages([])
-        return
-      }
+      const loaded: Array<{ url: string; absolutePath?: string }> = (imageDataUrls ?? []).map(url => ({ url }))
       if (!Array.isArray(images) || images.length === 0) {
         if (cancelled) return
-        setHydratedImages([])
+        setHydratedImages(loaded)
         setFailedImages([])
         return
       }
       if (remoteWorkspaceActive) {
         if (cancelled) return
-        setHydratedImages([])
+        setHydratedImages(loaded)
         setFailedImages(images)
         return
       }
 
-      const loaded: Array<{ url: string; absolutePath?: string }> = []
       const failed: UserMessageImageRef[] = []
       for (const image of images) {
         const cached = imageDataUrlCache.get(image.path)
@@ -210,6 +209,7 @@ export function UserMessageBlock({
             userSelect: 'text'
           }}
         >
+          {!editing && projected && <SentContextAttachments contexts={projected.contexts} />}
           {editing ? (
             <>
               <Textarea

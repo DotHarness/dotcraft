@@ -4,6 +4,7 @@
  */
 
 export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow'
+export type * from './browserFeedback'
 
 export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
 

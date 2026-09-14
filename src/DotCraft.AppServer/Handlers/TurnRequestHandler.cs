@@ -146,6 +146,7 @@ internal sealed class TurnRequestHandler(
             CancellationToken.None,
             new SessionInputSnapshot
             {
+                ClientUserMessageId = p.ClientUserMessageId,
                 NativeInputParts = materializedInput.NativeInputParts,
                 MaterializedInputParts = materializedInput.MaterializedInputParts,
                 DisplayText = materializedInput.DisplayText,
@@ -312,6 +313,7 @@ internal sealed class TurnRequestHandler(
             ct,
             new SessionInputSnapshot
             {
+                ClientUserMessageId = p.ClientUserMessageId,
                 NativeInputParts = materializedInput.NativeInputParts,
                 MaterializedInputParts = materializedInput.MaterializedInputParts,
                 DisplayText = materializedInput.DisplayText,
@@ -352,6 +354,7 @@ internal sealed class TurnRequestHandler(
             ct,
             new SessionInputSnapshot
             {
+                ClientUserMessageId = p.ClientUserMessageId,
                 NativeInputParts = materializedInput.NativeInputParts,
                 MaterializedInputParts = materializedInput.MaterializedInputParts,
                 DisplayText = materializedInput.DisplayText
@@ -493,12 +496,13 @@ internal sealed class TurnRequestHandler(
             skillVariants.IsVariantModeEnabled(),
             skillVariants.BuildTarget(),
             threadId);
-        var normalizedInput = InputMaterializationService.NormalizeInputParts(input);
-        ValidateTurnInput(normalizedInput);
-        var materializedInput = inputMaterialization.MaterializeNormalized(normalizedInput);
+        SessionInputMaterializationResult materializedInput;
         List<AIContent> content;
         try
         {
+            var normalizedInput = InputMaterializationService.NormalizeInputParts(input);
+            ValidateTurnInput(normalizedInput);
+            materializedInput = inputMaterialization.MaterializeNormalized(normalizedInput);
             content = await SessionInputPartResolver.ResolveStrictAsync(
                 materializedInput.MaterializedInputParts,
                 ct);

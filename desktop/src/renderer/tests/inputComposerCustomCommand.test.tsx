@@ -64,6 +64,7 @@ function setCaretToEnd(element: HTMLElement): void {
 
 describe('InputComposer custom command expansion', () => {
   beforeEach(() => {
+    localStorage.clear()
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
     saveImageToTemp.mockResolvedValue({ path: 'C:\\temp\\image.png' })

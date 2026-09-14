@@ -1,3 +1,4 @@
+import { BrowserGuestHost } from './browser/BrowserGuestHostMount'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
@@ -59,6 +60,7 @@ createRoot(rootElement).render(
           <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
         </div>
         <div className="dotcraft-plugin-app-seat">
+          <BrowserGuestHost />
           <DesktopPluginSurface name="app" context={appSurfaceContext}>
             <App />
           </DesktopPluginSurface>

@@ -7713,3 +7713,9 @@ JSON-RPC path.
 ### Agent Profile names
 
 Profile `id` references carry the canonical `name`: trim plus Unicode NFC, ordinal equality, 1–240 Unicode scalar values, no control characters. `agent/profiles/upsert` accepts optional `previousName` to rename within the selected writable source without a client-side delete. A conflicting destination returns the profile conflict error and leaves the old document intact. Filenames are storage details and never define the Profile name.
+
+### Structured context input and submission identity
+
+`InputPart` supports `contextRef` with a typed `context` record (`pastedText`, `pageReference`, `responseAnnotation`, or `diffAnnotation`). Context identity, source snapshot, comment and owned image reference are persisted in native input; materialization expands the record into text/image parts once. Preview data URLs are not part of context records.
+
+`turn/start`, `turn/enqueue`, and `turn/steer` accept `clientUserMessageId`. Desktop supplies a fresh UUID for each submission; queue updates retain the existing ID. User-message payloads and queued inputs return that ID so live clients correlate acknowledgements without content matching. Channels without optimistic presentation may omit it.

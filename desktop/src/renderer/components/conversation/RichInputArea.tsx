@@ -78,6 +78,7 @@ interface RichInputAreaProps {
   onSelectionChange?: (range: SelectionRange | null) => void
   onFocusChange?: (focused: boolean) => void
   onPasteImage?: (file: File) => void
+  onPasteText?: (text: string) => boolean
   onPasteTextOversized?: () => void
   refCatalog?: ComposerRefCatalog
 }
@@ -334,6 +335,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
     onSelectionChange,
     onFocusChange,
     onPasteImage,
+    onPasteText,
     onPasteTextOversized,
     refCatalog = EMPTY_REF_CATALOG
   }: RichInputAreaProps,
@@ -1094,6 +1096,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
           }
         }
         const pasted = e.clipboardData.getData('text/plain')
+        if (pasted.length >= 5_000 && onPasteText?.(pasted)) {
+          e.preventDefault()
+          return
+        }
         if (pasted.length > MAX_TEXT_LEN) {
           e.preventDefault()
           const truncated = pasted.slice(0, MAX_TEXT_LEN)
@@ -1109,7 +1115,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         insertClipboardSegmentsAtCaret(segments)
         onInput()
       },
-      [insertClipboardSegmentsAtCaret, onInput, onPasteImage, onPasteTextOversized, refCatalog]
+      [insertClipboardSegmentsAtCaret, onInput, onPasteImage, onPasteText, onPasteTextOversized, refCatalog]
     )
 
     return (

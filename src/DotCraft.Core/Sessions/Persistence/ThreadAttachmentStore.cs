@@ -181,10 +181,11 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
 
         foreach (var part in parts)
         {
-            if (!string.Equals(part.Type, "localImage", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(part.Path))
+            var imagePath = part.Type == "contextRef" ? part.Context?.Image?.TempPath : part.Type == "localImage" ? part.Path : null;
+            if (string.IsNullOrWhiteSpace(imagePath))
                 continue;
 
-            var fullPath = Path.GetFullPath(part.Path);
+            var fullPath = Path.GetFullPath(imagePath);
             if (IsManagedImagePath(fullPath))
                 yield return fullPath;
         }
