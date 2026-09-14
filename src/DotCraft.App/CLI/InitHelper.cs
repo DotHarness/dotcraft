@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Configuration;
+using DotCraft.Auth.OpenAI;
 using DotCraft.Text;
 using Spectre.Console;
 
@@ -183,7 +184,7 @@ public static class InitHelper
         };
     }
 
-    private static void SaveProviderDraft(JsonObject globalNode, WorkspaceSetupProviderDraft draft)
+    private static void SaveProviderDraft(JsonObject globalNode, WorkspaceSetupProviderDraft draft, string globalConfigPath)
     {
         var providers = GetOrCreateObject(globalNode, "Providers");
         var providerNode = new JsonObject
@@ -202,6 +203,12 @@ public static class InitHelper
             providerNode["AuthMethod"] = draft.AuthMethod;
             // ChatGPT OAuth uses Responses API on the chatgpt.com backend.
             providerNode["Protocol"] = "openai-responses";
+            var status = new OpenAIAuthManager(new OpenAITokenStore(Path.GetDirectoryName(globalConfigPath))).GetStatus();
+            if (status.LoggedIn)
+            {
+                providerNode["ChatGptAccountId"] = status.AccountId;
+                providerNode["ChatGptPlanType"] = status.PlanType;
+            }
         }
 
         providers[draft.Id] = providerNode;
@@ -247,7 +254,7 @@ public static class InitHelper
         {
             var provider = request.Provider ?? throw new ArgumentException("Provider draft is required.");
             var normalizedProvider = NormalizeProviderDraft(provider);
-            SaveProviderDraft(globalNode, normalizedProvider);
+            SaveProviderDraft(globalNode, normalizedProvider, globalConfigPath);
             providerId = normalizedProvider.Id;
         }
         else if (request.ProviderMode == WorkspaceSetupProviderMode.Existing)

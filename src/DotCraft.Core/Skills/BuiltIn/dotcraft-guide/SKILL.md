@@ -1,6 +1,6 @@
 ---
 name: dotcraft-guide
-description: Answer questions about DotCraft itself, where "you", "this app", or "this agent" means DotCraft, and change this installation's settings: providers and models, .craft/config.json, channels, skills, plugins, MCP servers, hooks, automations, permissions, the dotcraft CLI, and the official docs on dotcraft.net.
+description: Answer questions about DotCraft when "you", "this app", or "this agent" means the harness, and configure an existing installation's providers, models, settings, skills, plugins, channels, automations, permissions, or CLI.
 ---
 
 # DotCraft Guide
@@ -11,7 +11,7 @@ DotCraft is the harness you are running inside. When the user says "you", "this 
 
 Stop at the first source that answers the question.
 
-1. `Exec("dotcraft config schema --json")` for any field name, type, default, sensitive flag, or reload tier. `Exec("dotcraft config show --json")` for the current merged config, with sensitive values masked. Compiled truth outranks every document.
+1. `Exec("dotcraft config schema --json")` for any `config.json` field name, type, default, sensitive flag, or reload tier. `Exec("dotcraft config show --json")` for the current merged config, with sensitive values masked. `models.json` is a separate model-capability catalog and is not part of that schema; read `references/config-map.md` for its format. Compiled truth outranks every document.
 2. If the workspace contains `docs/.vitepress/config.mts`, it is the dotcraft repository itself. Use `ReadFile` and `GrepFiles` under `docs/` and skip the network.
 3. `WebFetch("https://www.dotcraft.net/llms.txt", extractMode: "markdown")` to choose a page, then fetch that one page. Chinese is `/zh/` plus the same path.
 4. `https://github.com/DotHarness/dotcraft`, branch `main`, for what the site does not cover.
@@ -27,6 +27,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | A fact about the user or project to recall later | `.craft/memory/MEMORY.md` — `$memory` |
 | A setting for this project | `<workspace>/.craft/config.json` |
 | A personal default, credentials, or endpoints | `~/.craft/config.json` |
+| A custom model's context window or Fast capability | `<workspace>/.craft/models.json`, or `~/.craft/models.json` for every workspace |
 | A skill or tool turned off here | `Skills` or `EnabledTools` in the workspace config, or Desktop Settings > Skills to take effect at once |
 | A procedure worth repeating | A skill — `$skill-authoring` to write one, `$skill-installer` to install one |
 | A bundle of skills, tools, hooks, MCP servers, or UI | A plugin — `$plugin-creator` |
@@ -38,13 +39,14 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 
 Split a mixed request and place each part separately.
 
-## Editing configuration
+## Editing configuration and model capabilities
 
 1. Start with `dotcraft config show --json` to see the merged state. Do not `ReadFile` a config file merely to look; that pulls plaintext keys into the transcript. Workspace overrides personal, objects merge recursively, arrays and scalars replace wholesale, `ProviderPreferences` replaces per provider id, and keys match case-insensitively.
 2. Open only the file you are changing, edit only the keys the user asked about, and keep the JSON valid. Credentials and endpoints belong to the personal file's `Providers`; the project's model selection belongs to the workspace file. An unknown property under `McpServers` or `LspServers` fails the entire config load.
 3. Never write a literal secret. Write `"ApiKey": "${OPENAI_API_KEY}"` and tell the user which variable to set. `$VAR` and `${VAR}` expand when the config loads; an unset variable keeps the placeholder unchanged.
 4. **A file edit is not live.** The running host does not watch these files, and `AppConfig` is a snapshot taken at startup, so the change applies at the next AppServer restart and the Desktop settings pages will not show it before then. Say "restart to apply" every time. If the user wants it live now, point them at the matching Desktop Settings panel instead. The `hot` reload tier in the schema describes changes made through Desktop Settings or AppServer RPC, never a hand-edited file.
 5. For provider sign-in, prefer the product surface: Desktop Settings > Models, or `dotcraft auth openai login`. Do not hand-write OAuth credentials.
+6. Custom model context windows belong in the `models.json` beside the applicable `config.json`, not under `Compaction` or `Providers`. Read `references/config-map.md` before creating or changing that file. Use the exact model id already configured for the provider, preserve unrelated entries, and restart the AppServer or Desktop before relying on the new capability metadata.
 
 ## References
 

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
+using DotCraft.Hub;
 using DotCraft.Configuration;
 using DotCraft.AppServer;
 using DotCraft.Sessions.Wire;
@@ -24,16 +25,24 @@ public static class ModelCatalogCliRunner
         public int? NetworkTimeoutSeconds { get; set; }
     }
 
-    public static async Task<int> RunAsync(CommandLineArgs args, CancellationToken cancellationToken)
+    public static Task<int> RunAsync(CommandLineArgs args, CancellationToken cancellationToken) =>
+        RunAsync(args, cancellationToken, HubPaths.ForCurrentUser(), Console.In, WriteAsync);
+
+    internal static async Task<int> RunAsync(
+        CommandLineArgs args,
+        CancellationToken cancellationToken,
+        HubPaths paths,
+        TextReader input,
+        Func<object, Task> writeResult)
     {
         try
         {
-            var globalPath = InitHelper.GetGlobalConfigPath();
+            var globalPath = paths.GlobalConfigPath;
             var config = AppConfig.Load(globalPath);
             string? providerId = args.SetupProviderId;
             if (args.ModelCatalogReadStdin)
             {
-                var json = await Console.In.ReadToEndAsync(cancellationToken);
+                var json = await input.ReadToEndAsync(cancellationToken);
                 var draft = JsonSerializer.Deserialize<ProviderDraft>(json, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
@@ -50,12 +59,12 @@ public static class ModelCatalogCliRunner
                 };
             }
 
-            var auth = new OpenAIAuthManager();
+            var auth = new OpenAIAuthManager(new OpenAITokenStore(paths.CraftHomePath));
             if (config.Providers.TryGetValue(providerId ?? string.Empty, out var provider)
                 && string.Equals(provider.AuthMethod, ModelProviderAuthMethods.ChatGptOAuth, StringComparison.OrdinalIgnoreCase)
                 && !auth.IsAuthenticated)
             {
-                await WriteAsync(new { kind = "auth-required" });
+                await writeResult(new { kind = "auth-required" });
                 return 0;
             }
 
@@ -71,7 +80,7 @@ public static class ModelCatalogCliRunner
             {
                 await Console.Error.WriteLineAsync(result.ErrorMessage);
             }
-            await WriteAsync(result.Success
+            await writeResult(result.Success
                 ? new
                 {
                     kind = "success",
@@ -102,7 +111,7 @@ public static class ModelCatalogCliRunner
         catch (Exception ex)
         {
             await Console.Error.WriteLineAsync(ex.Message);
-            await WriteAsync(new { kind = "error", errorMessage = ex.Message });
+            await writeResult(new { kind = "error", errorMessage = ex.Message });
             return 0;
         }
     }

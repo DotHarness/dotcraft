@@ -1286,9 +1286,7 @@ export const MESSAGES_EN = {
   'setupWizard.authMethod.apiKeyDescription': 'Use a pay-as-you-go OpenAI API key (sk-...).',
   'setupWizard.authMethod.chatgpt': 'Sign in with ChatGPT',
   'setupWizard.authMethod.chatgptDescription':
-    'Reuse your ChatGPT Plus / Pro / Team / Business / Enterprise subscription. You will sign in after setup completes.',
-  'setupWizard.authMethod.chatgptHint':
-    'No API key is required. After setup, open Settings → Providers → Sign in with ChatGPT.',
+    'Use your ChatGPT subscription and sign in during setup.',
   'setupWizard.placeholder.apiKey': 'Enter your provider API key',
   'setupWizard.placeholder.displayName': 'Provider name',
   'setupWizard.placeholder.model': 'Enter model ID',

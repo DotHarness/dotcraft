@@ -43,13 +43,21 @@ model compatibility rules.
 Missing metadata means that the server has no known support for that option. Manual model entry
 remains available when upstream listing fails, but the client must not invent unsupported choices.
 
-The server's built-in model metadata is stored in `models.json`. Optional global and workspace
-`.craft/models.json` files override it in that order. Model entries may independently declare
-`contextWindow` and Fast routing selectors, and matching uses the most specific model prefix or
-namespaced suffix that declares the requested capability. Fast selectors constrain normalized
-protocols; `fast: null` explicitly disables an inherited Fast declaration. Invalid declarations are
-ignored. Provider request adapters and `model/list` must resolve capabilities through the same
-merged catalog.
+The server's built-in model metadata is stored in `models.json`. Its synchronized context-window
+entries use the provider-agnostic [models.dev](https://models.dev/) catalog and include models whose
+metadata declares tool calling, text output, and a context window of at least 1,000 tokens. The final
+segment of each canonical model id becomes a lowercase matching key, and a catalog update must reject
+duplicate keys before changing the built-in file. Provider-specific limits remain outside this
+provider-agnostic catalog.
+
+Optional global and workspace `.craft/models.json` files override the built-in catalog in that order.
+Model entries may independently declare `contextWindow` and Fast routing selectors, and matching uses
+the most specific model prefix or namespaced suffix that declares the requested capability. More
+specific model keys therefore override family prefixes without changing the matching schema. Fast
+selectors constrain normalized protocols; `fast: null` explicitly disables an inherited Fast
+declaration. Invalid declarations are ignored. Legacy conservative context entries may remain as
+compatibility tombstones for models outside the synchronized set. Provider request adapters and
+`model/list` must resolve capabilities through the same merged catalog.
 
 ### 2.2 Provider Preferences
 
@@ -268,12 +276,15 @@ Resolution is server-owned:
 1. Resolve the thread's effective provider and model.
 2. Resolve the raw context catalog entry and whether the match is explicit, prefix, suffix, or fallback.
 3. Keep an explicit `Compaction.ContextWindow`; otherwise infer it and apply `Compaction.MaxContextWindow`.
-4. For `max`, require an explicit match with `catalogWindow > configuredWindow`, then use
-   `catalogWindow` directly.
+4. Offer `max` only when the catalog produced a model-rule match and
+   `catalogWindow > configuredWindow`, then use `catalogWindow` directly. Prefix and namespaced-suffix
+   matches count as model-rule matches; the default fallback does not.
 
 MAX intentionally bypasses `Compaction.MaxContextWindow`; that cap remains the default-mode guardrail.
-The server returns JSON-RPC `InvalidParams` for MAX when the model has no explicit match, only a
-fallback match, or no larger catalog window.
+This preserves the existing summary reserve and safety buffer while changing their input window. The
+server returns JSON-RPC `InvalidParams` for MAX when the model only has the default fallback or when
+the catalog window is not larger than the configured Default window. Preference normalization repairs
+unsupported MAX to Default.
 
 ### 5.3 Persistence and Metadata
 

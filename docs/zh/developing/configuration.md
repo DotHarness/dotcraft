@@ -209,6 +209,15 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 `fast` 设为 `null` 可禁用继承的 Fast 能力。模型规则使用不区分大小写的最长前缀匹配，
 也会匹配 `provider/custom-fast-model` 这样的命名空间后缀。
 
+内置上下文窗口值从 provider-agnostic 的 [models.dev](https://models.dev/) 目录同步，范围仅限
+支持工具调用、输出包含文本且上下文窗口不少于 1,000 token 的模型。规范模型 ID 的最后一段
+会转换为小写 key。若某个 provider 实际提供不同限制，请在全局或 workspace 目录中覆盖。
+更具体的 key 优先于家族前缀，因此具体模型可以安全地使用不同于家族的窗口值。
+
+只有模型规则明确匹配，且目录窗口大于配置后的 Default 窗口时，MAX 才可用。未知模型以及
+不会扩大窗口的匹配不会提供 MAX。Default 模式继续受 `Compaction.MaxContextWindow` 限制；
+MAX 使用目录中的原始窗口，同时保留常规的摘要预留和安全 buffer。
+
 ## Reasoning 与 PromptCaching
 
 | 配置项 | 说明 | 默认值 |

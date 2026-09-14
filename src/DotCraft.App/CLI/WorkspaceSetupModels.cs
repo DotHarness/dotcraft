@@ -31,8 +31,7 @@ public sealed record WorkspaceSetupProviderDraft
 
     /// <summary>
     /// Authentication mechanism: "apiKey" (default) or "chatgptOAuth".
-    /// In chatgptOAuth mode the wizard records the preference; the user signs in via
-    /// Settings → Providers after the workspace launches.
+    /// OAuth credentials may be acquired before setup; provider configuration is saved on submission.
     /// </summary>
     public string AuthMethod { get; init; } = "apiKey";
 }

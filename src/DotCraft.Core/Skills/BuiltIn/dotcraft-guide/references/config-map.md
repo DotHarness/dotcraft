@@ -42,6 +42,35 @@ Three protocols exist. There are no others.
 
 An empty `EndPoint` uses the protocol default. `AuthMethod` is `apiKey` (default, reads `ApiKey`) or `chatgptOAuth`, which is only meaningful for the OpenAI protocols and is set up by `dotcraft auth openai login` or Desktop Settings > Models. Do not hand-write `chatgptOAuth` credentials; `ChatGptAccountId` and `ChatGptPlanType` are written by the login flow.
 
+## Model capability catalog
+
+Custom model context windows do not belong in `config.json` and do not appear in `dotcraft config schema`. Put them in a separate `models.json` beside the applicable config file:
+
+| File | Scope |
+|---|---|
+| `~/.craft/models.json` | Personal override available to every workspace |
+| `<workspace>/.craft/models.json` | Override for this workspace |
+
+The workspace catalog overrides the personal catalog, which overrides DotCraft's built-in catalog. Model fields merge independently, so overriding `contextWindow` does not remove an inherited Fast declaration.
+
+Use the exact model id from `ProviderPreferences` or Desktop Settings > Models; do not guess it. A minimal workspace override is:
+
+```json
+{
+  "models": {
+    "acme-large-v2": {
+      "contextWindow": 524288
+    }
+  }
+}
+```
+
+`contextWindow` is measured in tokens and must be an integer of at least `1000`. Model keys match case-insensitively by longest prefix and by namespaced suffix. Prefer a full concrete model id over a broad family prefix so a similarly named model does not inherit the wrong window. For example, `acme-large-v2` also matches `gateway/acme-large-v2`; a longer matching key wins.
+
+The catalog value is the model's raw window, not necessarily the Default-mode window. When context is inferred, Default mode still applies `Compaction.MaxContextWindow`. If the catalog value is larger than that configured Default window, the model becomes eligible for MAX, which uses the raw catalog value. The normal compaction summary reserve and safety buffer still apply.
+
+After editing `models.json`, keep the JSON valid and restart the AppServer or Desktop before relying on the new model metadata or starting work that needs the larger window. Do not edit DotCraft's embedded catalog to configure one installation.
+
 ## Never write a literal key
 
 Write an environment reference and tell the user which variable to set.
