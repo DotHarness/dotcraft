@@ -2,12 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.1 |
+| **Version** | 0.2.0 |
 | **Status** | Living |
 | **Date** | 2026-05-28 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
-Purpose: Define DotCraft's long-term memory consolidation flow. Memory consolidation is an independent persistence workflow for durable user and workspace knowledge. It is not a context compaction mechanism and does not depend on `CompactionPipeline`.
+Purpose: Define DotCraft's long-term memory consolidation flow. Memory consolidation is an independent persistence workflow for durable knowledge. It is not a context compaction mechanism and does not depend on `CompactionPipeline`.
 
 ## 1. Scope
 
@@ -15,6 +15,7 @@ Memory consolidation turns completed conversation history into durable workspace
 
 In scope:
 
+- Which store a Thread reads and consolidates into.
 - Updating `MEMORY.md` with structured long-term facts.
 - Appending `HISTORY.md` with timestamped, grep-searchable event summaries.
 - Defining when consolidation runs and what conversation history it may inspect.
@@ -33,6 +34,7 @@ Out of scope:
 |---------|------------|
 | **Short-term Compaction** | A context-window management workflow that reduces model-visible history so future model calls fit within token limits. |
 | **Long-term Memory Consolidation** | A persistence workflow that extracts durable facts and events from completed conversation history. |
+| **Memory scope** | The owner of a store. A Thread that names one reads and writes `<state>/scopes/<scope>/memory/`; a Thread that names none reads and writes the workspace's `<state>/memory/`. |
 | **`MEMORY.md`** | The structured long-term memory file. It should contain stable facts about the user, workspace, preferences, and recurring project context. |
 | **`HISTORY.md`** | The append-only event log. It should contain compact timestamped paragraphs useful for search and audit. |
 | **Consolidation Window** | The conversation history snapshot given to the consolidation model for one consolidation attempt. |
@@ -51,6 +53,24 @@ Consolidation runs after successful turns, using a simple per-thread counter:
 `CompactionPipeline` does not trigger consolidation. A compaction attempt, success, failure, or circuit-breaker state must not affect whether memory consolidation is eligible to run. Short-term compaction owns provider prompt-cache tradeoffs: hot auto-threshold compaction should prefer summary/fork over history-rewriting microcompact, while microcompact is limited to cold-cache old tool-result cleanup.
 
 Manual consolidation may also be triggered explicitly through AppServer `thread/memory/consolidate/start`. Manual attempts use the same input scope and persistence contract as automatic attempts, but bypass `Memory.AutoConsolidateEnabled` because the user requested the maintenance action directly.
+
+## 3a. Memory Scope
+
+Durable knowledge belongs to whoever accumulates it. A Thread names its scope in its configuration;
+the scope is a single safe path segment derived from configuration, never from a Thread identity, so
+the memory prompt section stays independent of which Thread is running.
+
+A store is split off when the execution line is an independent, recurring principal. An automation is
+such an owner and names itself. An ordinary Thread, including one running an Agent Profile, is not:
+several Profiles used by one person share the workspace store, because the knowledge is that person's.
+
+The read path and consolidation resolve the same scope. A Thread's scope is fixed for its lifetime, so
+memory never changes scope mid-Thread and the stable prompt prefix is not rewritten. A SubAgent
+resolves its root's scope rather than opening one of its own. A scope redirects memory and its history
+and nothing else: Dreams, Skills, bootstrap documents, the working directory and the path blacklist all
+stay where they are. Page invalidation names the scope that was consolidated.
+
+The memory section names the store's directory so the agent can open and maintain the files itself.
 
 ## 4. Input Scope
 

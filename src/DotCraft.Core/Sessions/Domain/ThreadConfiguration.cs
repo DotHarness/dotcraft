@@ -17,6 +17,12 @@ public sealed class ThreadConfiguration
     public string? AgentProfileId { get; set; }
 
     /// <summary>
+    /// Names this Thread's own durable memory instead of the workspace's. Set by an independent
+    /// recurring principal such as an automation; unset, the Thread reads and writes the workspace store.
+    /// </summary>
+    public string? MemoryScope { get; set; }
+
+    /// <summary>
     /// Optional source of the Agent Profile snapshot, such as <c>builtIn</c>, <c>user</c>, or <c>workspace</c>.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

@@ -20,6 +20,27 @@ public sealed class MemoryStoreTests : IDisposable
     }
 
     [Fact]
+    public void Resolve_GivesEachScopeItsOwnRootAndRefusesAnythingButOneSegment()
+    {
+        Assert.Null(MemoryScopes.Resolve(null, _tempDir));
+        Assert.Null(MemoryScopes.Resolve("", _tempDir));
+        Assert.Equal(Path.Combine(_tempDir, "scopes", "agent-a", "memory"),
+            MemoryScopes.Resolve("agent-a", _tempDir)!.MemoryDirectoryPath);
+        foreach (var refused in new[] { "..", "a/b", "a\\b" })
+            Assert.Throws<ArgumentException>(() => MemoryScopes.Resolve(refused, _tempDir));
+    }
+
+    [Fact]
+    public void GetMemoryContext_StopsAtTheBound_HoweverLargeTheFileGrew()
+    {
+        var store = new MemoryStore(_tempDir);
+        store.WriteLongTerm(new string('x', MemoryStore.MaxContextChars) + "must-not-reach-context");
+
+        Assert.DoesNotContain("must-not-reach-context", store.GetMemoryContext(), StringComparison.Ordinal);
+        Assert.Contains("must-not-reach-context", store.ReadLongTerm(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WriteLongTerm_ReplacesContentAndLeavesNoTempFiles()
     {
         var store = new MemoryStore(_tempDir);

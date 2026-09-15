@@ -267,10 +267,13 @@ public sealed class AgentFactory : IAsyncDisposable
         AppConfig config,
         string? providerIdOverride,
         string? modelOverride,
-        ContextWindowMode? contextWindowModeOverride = null)
+        ContextWindowMode? contextWindowModeOverride = null,
+        MemoryStore? memoryStore = null)
     {
         if (_memoryConsolidatorOverride != null)
             return _memoryConsolidatorOverride;
+
+        var store = memoryStore ?? _memoryStore;
 
         var mainRuntime = _chatClientRegistry.ResolveMainRuntime(config, providerIdOverride, modelOverride);
         var consolidationRuntime = _chatClientRegistry.ResolveConsolidationRuntime(
@@ -283,7 +286,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 config,
                 consolidationRuntime,
                 useDefaultReasoning: false),
-            _memoryStore,
+            store,
             _onConsolidatorStatus);
 
         return new MemoryForkConsolidator(
@@ -299,7 +302,7 @@ public sealed class AgentFactory : IAsyncDisposable
                     config.PromptCaching,
                     mainRuntime.Model)),
             fallback,
-            _memoryStore,
+            store,
             mainRuntime.Model,
             consolidationRuntime.Model,
             ModelCatalog.ResolveCompactionConfig(

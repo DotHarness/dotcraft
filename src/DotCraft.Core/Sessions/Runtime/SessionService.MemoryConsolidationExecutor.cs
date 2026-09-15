@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Memory;
 using DotCraft.Sessions.Wire;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -40,11 +41,13 @@ public sealed partial class SessionService
             try
             {
                 var currentConfig = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
+                var store = owner.ResolveMemoryStore(thread.Configuration);
                 var consolidator = owner.AgentFactory.CreateConsolidatorForRuntime(
                     currentConfig,
                     thread.Configuration?.ProviderId,
                     thread.Configuration?.Model,
-                    thread.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
+                    thread.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default,
+                    store);
                 if (consolidator is null)
                 {
                     const string message = "memory_consolidator_unavailable";
@@ -71,7 +74,7 @@ public sealed partial class SessionService
                             broker,
                             ct);
                         if (result.MemoryWritten)
-                            owner.MarkMemoryContextDirty();
+                            owner.MarkMemoryContextDirty(store);
                         owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MemoryConsolidated, null);
                         broker.PublishSystemEvent("consolidated");
                         return new ThreadMemoryConsolidationResult

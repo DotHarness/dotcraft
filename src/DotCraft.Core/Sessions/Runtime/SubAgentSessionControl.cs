@@ -2101,6 +2101,7 @@ $$"""
 
         return new ThreadConfiguration
         {
+            MemoryScope = source.MemoryScope,
             AgentProfileId = source.AgentProfileId,
             AgentProfileSource = source.AgentProfileSource,
             AgentProfileFingerprint = source.AgentProfileFingerprint,

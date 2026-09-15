@@ -1227,6 +1227,7 @@ public sealed partial class SessionService(
     private static ThreadConfiguration CloneThreadConfiguration(ThreadConfiguration source) => new()
     {
         AgentProfileId = source.AgentProfileId,
+        MemoryScope = source.MemoryScope,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
         AgentBuilderTargetId = source.AgentBuilderTargetId,
@@ -4427,8 +4428,16 @@ public sealed partial class SessionService(
         agentFactory.RuntimeContext.ContextPageManager.ForgetThread(threadId);
     }
 
-    private void MarkMemoryContextDirty() =>
-        agentFactory.RuntimeContext.ContextPageManager.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
+    /// <summary>The store a Thread reads and consolidates into; the prompt and consolidation must agree.</summary>
+    internal MemoryStore ResolveMemoryStore(ThreadConfiguration? config) =>
+        MemoryScopes.Resolve(config?.MemoryScope, DataPath)
+        ?? (string.IsNullOrEmpty(config?.WorkspaceOverride)
+            ? agentFactory.RuntimeContext.MemoryStore
+            : new MemoryStore(Path.Combine(config.WorkspaceOverride, Path.GetFileName(DataPath))));
+
+    private void MarkMemoryContextDirty(MemoryStore store) =>
+        agentFactory.RuntimeContext.ContextPageManager.MarkDirty(ContextPageKeys.MemoryLongTerm(
+            WorkspaceContextPromptSections.MemoryVariant(store, agentFactory.RuntimeContext.DreamStore)));
 
     private void EnsureHookRewakeHandler()
     {
@@ -5013,7 +5022,7 @@ public sealed partial class SessionService(
 
     private static bool HasAgentShapingConfiguration(ThreadConfiguration config)
     {
-        if (!string.IsNullOrWhiteSpace(config.AgentProfileId))
+        if (!string.IsNullOrWhiteSpace(config.AgentProfileId) || !string.IsNullOrWhiteSpace(config.MemoryScope))
             return true;
         if (!string.IsNullOrWhiteSpace(config.AgentProfileSource))
             return true;
@@ -5781,7 +5790,6 @@ public sealed partial class SessionService(
             var craftPath = Path.Combine(config.WorkspaceOverride, Path.GetFileName(DataPath));
             Directory.CreateDirectory(craftPath);
 
-            var scopedMemory = new MemoryStore(craftPath);
             var scopedDreamStore = new DreamStore(craftPath);
             var scopedSkills = new SkillsLoader(craftPath);
 
@@ -5797,7 +5805,6 @@ public sealed partial class SessionService(
                 WorkspacePath = config.WorkspaceOverride,
                 WorkspaceRoots = [config.WorkspaceOverride],
                 BotPath = craftPath,
-                MemoryStore = scopedMemory,
                 DreamStore = scopedDreamStore,
                 SkillsLoader = scopedSkills,
                 // Skill mutations follow the scoped loader, not the workspace-root one.
@@ -5820,6 +5827,11 @@ public sealed partial class SessionService(
                 DeveloperInstructions = config.DeveloperInstructions
             };
         }
+
+        scopedContext = new AgentRuntimeContext(scopedContext ?? threadBaseContext)
+        {
+            MemoryStore = ResolveMemoryStore(config)
+        };
 
         var toolContext = CloneContextWithWorkspace(
             scopedContext ?? threadBaseContext,

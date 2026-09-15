@@ -29,7 +29,7 @@ AutomationRun has id, automationId, definitionVersion, status
 completedAt, scheduledAt (null for manual runs), threadId, turnId, summary, error and worktree, plus deliveryStatus
 (pending/sent/skipped/failed) and nullable deliveryError. Worktrees belong to runs.
 
-Store definitions atomically at .craft/automations/<id>/automation.json, memory.md and
+Store definitions atomically at .craft/automations/<id>/automation.json and
 runs/<runId>.json. Only this namespace is loaded; other `.craft` data remains untouched.
 The prompt is the only execution content.
 
@@ -107,11 +107,11 @@ complete after the attempt and retain history. Failures are not automatically re
 periodic jobs continue at the next occurrence. Interrupted runs are recorded on restart.
 
 Follow-ups default to thread mode and continue the specified conversation. Independent
-runs create a new conversation each time and share automation memory. Record exact
-turn ids. Git workspaces default to a fresh worktree per run; non-Git use project mode.
-Reported summaries and replacement memory have hard size limits. Persisted memory is
-also bounded when it is read so legacy or externally modified files cannot inject an
-unbounded fragment into later model context.
+runs create a new conversation each time and name the automation as their memory scope,
+so successive runs share one long-term memory written by ordinary consolidation rather
+than by a reported field. Thread mode carries continuity in the target conversation and
+names no scope. Record exact turn ids. Git workspaces default to a fresh worktree per
+run; non-Git use project mode. Reported summaries have a hard size limit.
 Explicit worktree provisioning failure is an error, never a silent fallback. Missing or
 archived targets and missing profiles fail clearly. Bound threads inherit capabilities;
 independent runs resolve the selected profile and apply unattended workspace policy.

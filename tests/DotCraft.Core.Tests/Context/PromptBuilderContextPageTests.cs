@@ -21,6 +21,26 @@ public sealed class PromptBuilderContextPageTests : IDisposable
     }
 
     [Fact]
+    public void BuildSystemPrompt_NamesTheStoreItReadAndKeepsScopesApart()
+    {
+        var manager = new ContextPageManager();
+        var workspaceStore = new MemoryStore(_craft);
+        var scopedStore = MemoryScopes.Resolve("agent-a", _craft)!;
+        workspaceStore.WriteLongTerm("workspace-fact");
+        scopedStore.WriteLongTerm("scoped-fact");
+
+        var workspacePrompt = CreateBuilder(workspaceStore, manager).BuildSystemPrompt("thread-workspace");
+        var scopedPrompt = CreateBuilder(scopedStore, manager).BuildSystemPrompt("thread-scoped");
+
+        Assert.Contains("workspace-fact", workspacePrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("scoped-fact", workspacePrompt, StringComparison.Ordinal);
+        Assert.Contains("scoped-fact", scopedPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("workspace-fact", scopedPrompt, StringComparison.Ordinal);
+        Assert.Contains(Path.GetFullPath(scopedStore.MemoryDirectoryPath), scopedPrompt, StringComparison.Ordinal);
+        Assert.Contains(Path.GetFullPath(workspaceStore.MemoryDirectoryPath), workspacePrompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildSystemPrompt_KeepsMemoryStableUntilRelease()
     {
         var manager = new ContextPageManager();

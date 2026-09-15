@@ -175,7 +175,7 @@ public sealed class AutomationLifecycleTests : IDisposable
         service.DeliverAsync = (_, _, _) => { delivered++; return Task.CompletedTask; };
         client.DuringTurn = thread => {
             Assert.Equal("group:g", ChannelSessionScope.Current?.DefaultDeliveryTarget);
-            service.ReportOutcome(thread, "turn-1", "Unchanged", false, "Already checked revision A");
+            service.ReportOutcome(thread, "turn-1", "Unchanged", false);
         };
         await service.StartAsync();
         try
@@ -184,23 +184,21 @@ public sealed class AutomationLifecycleTests : IDisposable
                 new() { Channel = "qq", UserId = "u", GroupId = "g", DeliveryTarget = "group:g" });
             var run = await Finish(service, await service.RunAsync(definition.Id));
             Assert.Equal("succeeded", run.Status); Assert.Equal("skipped", run.DeliveryStatus); Assert.Equal(0, delivered);
-            Assert.Equal("Already checked revision A", await File.ReadAllTextAsync(Path.Combine(_root, ".craft", "automations", definition.Id, "memory.md")));
+            Assert.Equal("Unchanged", run.Summary);
         }
         finally { await service.StopAsync(); }
     }
     [Fact]
-    public async Task PersistedMemory_IsBoundedBeforeEnteringTheRunPrompt()
+    public async Task EveryRun_OfOneAutomation_CarriesThatAutomationsMemoryScope()
     {
         var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
-        var definition = await service.CreateAsync(Input() with { Status = "paused" });
-        var memoryPath = Path.Combine(_root, ".craft", "automations", definition.Id, "memory.md");
-        await File.WriteAllTextAsync(memoryPath, new string('x', AutomationService.MaxMemoryChars) + "must-not-reach-context");
+        var definition = await service.CreateAsync(Input() with { Status = "paused", ExecutionMode = "independent" });
         await service.StartAsync();
         try
         {
             await Finish(service, await service.RunAsync(definition.Id));
-            Assert.NotNull(client.LastMessage);
-            Assert.DoesNotContain("must-not-reach-context", client.LastMessage);
+            await Finish(service, await service.RunAsync(definition.Id));
+            Assert.Equal([definition.Id, definition.Id], client.MemoryScopes);
         }
         finally { await service.StopAsync(); }
     }
@@ -322,7 +320,12 @@ public sealed class AutomationLifecycleTests : IDisposable
         public bool Fail;
         public Action<string>? DuringTurn;
         public string? LastMessage;
-        public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null) => Task.FromResult(userId);
+        public List<string?> MemoryScopes { get; } = [];
+        public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null)
+        {
+            MemoryScopes.Add(config.MemoryScope);
+            return Task.FromResult(userId);
+        }
         public Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(string threadId, string taskId, CancellationToken ct) => throw new InvalidOperationException("worktree failed");
         public Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct) => Task.FromResult<SessionThread?>(new() { Id = threadId });
         public async IAsyncEnumerable<SessionEvent> SubmitTurnAsync(string threadId, string message, [EnumeratorCancellation] CancellationToken ct,

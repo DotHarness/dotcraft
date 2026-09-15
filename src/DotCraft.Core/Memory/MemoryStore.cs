@@ -9,6 +9,9 @@ namespace DotCraft.Memory;
 /// </summary>
 public sealed class MemoryStore
 {
+    /// <summary>Most of `MEMORY.md` that reaches a prompt, however large the file grew.</summary>
+    public const int MaxContextChars = 10000;
+
     private static readonly ConcurrentDictionary<string, object> StoreLocks = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _memoryDir;
@@ -197,7 +200,12 @@ public sealed class MemoryStore
     public string GetMemoryContext()
     {
         var longTerm = ReadLongTerm();
-        return !string.IsNullOrWhiteSpace(longTerm) ? "## Long-term Memory\n" + longTerm : string.Empty;
+        if (string.IsNullOrWhiteSpace(longTerm))
+            return string.Empty;
+        // An externally edited file cannot put an unbounded fragment into every later prompt.
+        if (longTerm.Length > MaxContextChars)
+            longTerm = longTerm[..MaxContextChars];
+        return "## Long-term Memory\n" + longTerm;
     }
 
     private void AppendHistoryCore(string entry)

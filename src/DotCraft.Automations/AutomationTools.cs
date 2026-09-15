@@ -28,15 +28,13 @@ public sealed class AutomationTools(AutomationService service, string? planningT
         [MaxLength(AutomationService.MaxOutcomeSummaryChars)]
         [Description("Optional report summary.")] string? summary = null,
         [Description("Whether a meaningful change occurred.")] bool? important = null,
-        [MaxLength(AutomationService.MaxMemoryChars)]
-        [Description("Replacement memory for later runs.")] string? memory = null,
         CancellationToken cancellationToken = default)
     {
         var context = ToolHostExecutionScope.Current;
         if (action == AutomationToolAction.Report)
         {
             if (context == null) throw new InvalidOperationException("automation.noActiveRun");
-            service.ReportOutcome(context.ThreadId, context.TurnId, summary, important, memory);
+            service.ReportOutcome(context.ThreadId, context.TurnId, summary, important);
             return JsonSerializer.Serialize(new { operation = ActionName(action), recorded = true }, AutomationStore.Json);
         }
         if (action == AutomationToolAction.List) return JsonSerializer.Serialize(new { operation = ActionName(action), automations = await service.ListAsync(cancellationToken) }, AutomationStore.Json);

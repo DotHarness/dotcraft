@@ -29,7 +29,7 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
         Assert.Equal(["project", "worktree"], schema["properties"]!["automation"]!["properties"]!["workspaceMode"]!["enum"]!.AsArray().Select(static item => item!.GetValue<string>()));
         Assert.Equal(23, schema["properties"]!["automation"]!["properties"]!["schedule"]!["properties"]!["hour"]!["maximum"]!.GetValue<int>());
         Assert.Null(schema["properties"]!["automation"]!["properties"]!["schedule"]!["properties"]!["days"]!["items"]!["minItems"]);
-        Assert.Equal(AutomationService.MaxMemoryChars, schema["properties"]!["memory"]!["maxLength"]!.GetValue<int>());
+        Assert.False(schema["properties"]!.AsObject().ContainsKey("memory"));
         var atSchema = schema["properties"]!["automation"]!["properties"]!["schedule"]!["properties"]!["at"]!;
         Assert.Equal(["string", "null"], atSchema["type"]!.AsArray().Select(static item => item!.GetValue<string>()));
         Assert.Equal("date-time", atSchema["format"]!.GetValue<string>());

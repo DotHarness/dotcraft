@@ -1,6 +1,8 @@
 using DotCraft.Commands.Core;
 using DotCraft.Commands.Custom;
 using DotCraft.Contributions;
+using DotCraft.Dreams;
+using DotCraft.Memory;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
@@ -35,7 +37,7 @@ internal static class WorkspaceContextPromptSections
         var sources = context.RequireSources();
         var memory = sources.GetContextPage(
             context.ThreadId,
-            ContextPageKeys.MemoryLongTerm(BuildMemoryVariant(sources)),
+            ContextPageKeys.MemoryLongTerm(MemoryVariant(sources.MemoryStore, sources.DreamStore)),
             () => BuildMemoryContext(sources));
         return string.IsNullOrWhiteSpace(memory) ? null : $"# Memory\n\n{memory}";
     }
@@ -83,15 +85,16 @@ internal static class WorkspaceContextPromptSections
         return parts.Count > 0 ? string.Join("\n\n", parts) : string.Empty;
     }
 
-    private static string BuildMemoryVariant(PromptSectionSources sources)
+    /// <summary>The cache variant naming which stores this page was built from, shared with invalidation.</summary>
+    internal static string MemoryVariant(MemoryStore memoryStore, DreamStore? dreamStore)
     {
         var sb = new StringBuilder();
         sb.Append("memory:");
-        sb.Append(Path.GetFullPath(sources.MemoryStore.MemoryDirectoryPath));
-        if (sources.DreamStore != null)
+        sb.Append(Path.GetFullPath(memoryStore.MemoryDirectoryPath));
+        if (dreamStore != null)
         {
             sb.Append("|dreams:");
-            sb.Append(Path.GetFullPath(sources.DreamStore.DreamsDirectoryPath));
+            sb.Append(Path.GetFullPath(dreamStore.DreamsDirectoryPath));
         }
 
         return sb.ToString();
@@ -99,7 +102,8 @@ internal static class WorkspaceContextPromptSections
 
     private static string BuildMemoryContext(PromptSectionSources sources)
     {
-        var parts = new List<string>();
+        // The agent maintains these files itself, so the section names where they are.
+        var parts = new List<string> { $"Memory files: {Path.GetFullPath(sources.MemoryStore.MemoryDirectoryPath)}" };
         var longTerm = sources.MemoryStore.GetMemoryContext();
         if (!string.IsNullOrWhiteSpace(longTerm))
             parts.Add(longTerm);

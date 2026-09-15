@@ -33,6 +33,24 @@ public sealed partial class SessionServiceMemoryConsolidationTests : IDisposable
     }
 
     [Fact]
+    public async Task Consolidation_WritesTheScopeThePromptRead()
+    {
+        const string Update = """{"history_entry":"[2026-01-01 00:00] scoped run","memory_update":"scoped-memory"}""";
+        var chatClient = new StaticChatClient(Update);
+        await using var agentFactory = CreateAgentFactory(chatClient, consolidator: null);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryScope = "agent-a" });
+        var subscription = CollectThreadEventsAsync(svc, thread.Id, events => events.Any(IsConsolidationTerminal));
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("remember the scope")]));
+        var events = await subscription;
+
+        Assert.Contains(events, item => IsSystemEvent(item, "consolidated"));
+        Assert.Contains("scoped-memory", MemoryScopes.Resolve("agent-a", _tempDir)!.ReadLongTerm());
+        Assert.DoesNotContain("scoped-memory", new MemoryStore(_tempDir).ReadLongTerm());
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_WhenConsolidationIsSkipped_EmitsSkippedWithoutConsolidated()
     {
         var consolidator = new FakeMemoryConsolidator(MemoryConsolidationResult.Skipped("save_memory_not_called"));
@@ -681,7 +699,7 @@ public sealed partial class SessionServiceMemoryConsolidationTests : IDisposable
 
     private AgentFactory CreateAgentFactory(
         IChatClient chatClient,
-        IMemoryConsolidator consolidator,
+        IMemoryConsolidator? consolidator,
         Action<AppConfig>? configureConfig = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();

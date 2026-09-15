@@ -1650,6 +1650,7 @@ public sealed partial class AgentProfileStore
     private static ThreadConfiguration CloneThreadConfiguration(ThreadConfiguration source) => new()
     {
         AgentProfileId = source.AgentProfileId,
+        MemoryScope = source.MemoryScope,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
         AgentBuilderTargetId = source.AgentBuilderTargetId,
