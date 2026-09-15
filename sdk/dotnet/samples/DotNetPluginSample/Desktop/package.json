@@ -10,7 +10,7 @@
     "build:consumer": "dotcraft-plugin build Consumer"
   },
   "devDependencies": {
-    "@dotcraft/plugin": "0.6.6",
+    "@dotcraft/plugin": "0.6.7",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",
