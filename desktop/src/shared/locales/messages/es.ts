@@ -1102,6 +1102,7 @@ export const MESSAGES_ES = {
   'composer.modelListError': 'No se pudo cargar la lista de modelos.',
   'composer.modelListRetry': 'Reintentar',
   'settings.group.application': 'Solicitud',
+  'settings.group.composer': 'Campo de mensaje',
   'settings.group.permissions': 'Permisos',
   'settings.group.localAppServer': 'Local AppServer',
   'settings.group.advanced': 'Avanzado',

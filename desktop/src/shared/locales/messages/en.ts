@@ -3021,6 +3021,7 @@ export const MESSAGES_EN = {
   // Settings groups
   'settings.group.general': 'General',
   'settings.group.application': 'Application',
+  'settings.group.composer': 'Composer',
   'settings.group.permissions': 'Permissions',
   'settings.group.personalization': 'Personalization',
   'settings.group.connection': 'Connection',

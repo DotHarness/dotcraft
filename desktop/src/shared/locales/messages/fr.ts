@@ -1102,6 +1102,7 @@ export const MESSAGES_FR = {
   'composer.modelListError': 'Échec du chargement de la liste des modèles.',
   'composer.modelListRetry': 'Réessayer',
   'settings.group.application': 'Application',
+  'settings.group.composer': 'Champ de message',
   'settings.group.permissions': 'Autorisations',
   'settings.group.localAppServer': 'Locale AppServer',
   'settings.group.advanced': 'Avancé',

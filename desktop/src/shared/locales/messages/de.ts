@@ -1102,6 +1102,7 @@ export const MESSAGES_DE = {
   'composer.modelListError': 'Modellliste konnte nicht geladen werden.',
   'composer.modelListRetry': 'Erneut versuchen',
   'settings.group.application': 'Anwendung',
+  'settings.group.composer': 'Eingabefeld',
   'settings.group.permissions': 'Berechtigungen',
   'settings.group.localAppServer': 'Lokal AppServer',
   'settings.group.advanced': 'Fortschrittlich',

@@ -1102,6 +1102,7 @@ export const MESSAGES_JA = {
   'composer.modelListError': 'モデルリストの読み込みに失敗しました。',
   'composer.modelListRetry': '再試行',
   'settings.group.application': '応用',
+  'settings.group.composer': '入力欄',
   'settings.group.permissions': '権限',
   'settings.group.localAppServer': 'ローカルAppServer',
   'settings.group.advanced': '高度な',

@@ -2935,6 +2935,7 @@ export const MESSAGES_ZH_HANS = {
   // Settings 分组标题
   'settings.group.general': '常规',
   'settings.group.application': '应用',
+  'settings.group.composer': '输入框',
   'settings.group.permissions': '权限',
   'settings.group.personalization': '个性化',
   'settings.group.connection': '连接',

@@ -3167,7 +3167,7 @@ export function SettingsView({
                   />
                 </SettingsGroup>
 
-                <SettingsGroup>
+                <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />
                 </SettingsGroup>
 

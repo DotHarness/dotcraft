@@ -1106,6 +1106,7 @@ export const MESSAGES_KO = {
   'composer.modelListError': '모델 목록을 로드하지 못했습니다.',
   'composer.modelListRetry': '다시 시도',
   'settings.group.application': '애플리케이션',
+  'settings.group.composer': '입력창',
   'settings.group.permissions': '권한',
   'settings.group.localAppServer': '지역 AppServer',
   'settings.group.advanced': '고급의',
