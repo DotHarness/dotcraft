@@ -14,6 +14,7 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
     private readonly TimeSpan? _heartbeatInterval;
     private readonly RemoteToolHostExecutionHost _handlers;
     private readonly Func<IScreenCaptureSource>? _screenCapture;
+    private readonly Action<RemoteToolHostDiagnostic>? _diagnostic;
     private readonly List<RemoteToolHostPeerConnector> _connectors = [];
     private IReadOnlyList<RemoteToolHubPeer> _pairings = [];
     private IDisposable? _serveLock;
@@ -24,11 +25,13 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
         RemoteToolHostActivityMonitor? activity = null,
         TimeSpan? heartbeatInterval = null,
         IRemoteToolApprovalPresenter? approvalPresenter = null,
-        Func<IScreenCaptureSource>? screenCapture = null)
+        Func<IScreenCaptureSource>? screenCapture = null,
+        Action<RemoteToolHostDiagnostic>? diagnostic = null)
     {
         _storage = storage;
         _heartbeatInterval = heartbeatInterval;
         _screenCapture = screenCapture is not null && HasCaptureBackend(screenCapture) ? screenCapture : null;
+        _diagnostic = diagnostic;
         Leases = new WorkspaceLeaseManager(onChanged: () => Changed?.Invoke());
         _handlers = new RemoteToolHostExecutionHost(storage, Leases, activity, approvalPresenter, () => _paused);
     }
@@ -101,7 +104,8 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
                     Leases,
                     () => _paused,
                     _heartbeatInterval,
-                    _screenCapture);
+                    _screenCapture,
+                    _diagnostic);
                 connector.StateChanged += _ => Changed?.Invoke();
                 _connectors.Add(connector);
             }

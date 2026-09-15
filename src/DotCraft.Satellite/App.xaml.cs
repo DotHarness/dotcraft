@@ -14,6 +14,7 @@ public sealed partial class App : Application, IDisposable
 {
     private readonly StartupOptions _options;
     private readonly SingleInstanceGate? _gate;
+    private readonly SatelliteLog _log;
     private SatelliteRuntimeConnection? _connection;
     private TrayIconHost? _tray;
     private ToastPresenter? _toasts;
@@ -25,8 +26,10 @@ public sealed partial class App : Application, IDisposable
     {
         _options = options;
         _gate = gate;
+        _log = SatelliteLog.CreateDefault();
         DispatcherShutdownMode = ShutdownModeFor(options);
         InitializeComponent();
+        UnhandledException += OnUnhandledException;
     }
 
     internal static DispatcherShutdownMode ShutdownModeFor(StartupOptions options) =>
@@ -36,6 +39,7 @@ public sealed partial class App : Application, IDisposable
 
     public void Dispose()
     {
+        _log.Information("application.stopping", "The satellite application is stopping.");
         _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _islandWindow?.Dispose();
         _island?.Dispose();
@@ -43,10 +47,12 @@ public sealed partial class App : Application, IDisposable
         _tray?.Dispose();
         GC.KeepAlive(_consentPreview);
         _consentPreview = null;
+        UnhandledException -= OnUnhandledException;
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        _log.Information("application.started", "The satellite application started.");
         var strings = SatelliteStrings.Current;
         if (_options.PreviewConsent is { Length: > 0 } consentScenario)
         {
@@ -54,10 +60,12 @@ public sealed partial class App : Application, IDisposable
             return;
         }
 
-        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        var guard = new SatelliteCallbackGuard(_log);
+        var dispatcher = new SatelliteDispatcher(dispatcherQueue, guard, _log);
         var approvals = new IslandApprovalQueue();
         _island = new IslandViewModel(strings, dispatcher, approvals);
-        _islandWindow = new IslandWindow(_island);
+        _islandWindow = new IslandWindow(_island, guard);
 
         if (_options.PreviewIsland is { Length: > 0 } scenario)
         {
@@ -65,10 +73,12 @@ public sealed partial class App : Application, IDisposable
             return;
         }
 
-        _connection = new SatelliteRuntimeConnection(RemoteToolHostRuntime.Create(new RemoteToolHostRuntimeOptions
-        {
-            ApprovalPresenter = new OwnerApprovalPresenter(dispatcher, approvals)
-        }));
+        _connection = new SatelliteRuntimeConnection(
+            RemoteToolHostRuntime.Create(new RemoteToolHostRuntimeOptions
+            {
+                ApprovalPresenter = new OwnerApprovalPresenter(dispatcherQueue, approvals)
+            }),
+            _log);
         var commands = new SatelliteCommands(_connection);
         _tray = new TrayIconHost(Path.Combine(AppContext.BaseDirectory, "Assets"));
         _toasts = new ToastPresenter(_tray);
@@ -91,8 +101,11 @@ public sealed partial class App : Application, IDisposable
         }
 
         if (_options.Url is { Length: > 0 } url)
-            _ = viewModel.ShowConsentAsync(url);
+            _ = dispatcher.ObserveAsync("tray.consent", () => viewModel.ShowConsentAsync(url));
         else if (!_options.Background)
             viewModel.HandleInstanceMessage(InstanceMessage.Show());
     }
+
+    private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs args) =>
+        _log.Error("application.unhandled", "WinUI reported an unhandled exception.", args.Exception);
 }

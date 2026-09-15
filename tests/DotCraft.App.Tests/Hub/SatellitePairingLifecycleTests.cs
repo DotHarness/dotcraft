@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using DotCraft.Hub;
 using DotCraft.RemoteTools;
+using DotCraft.Tools;
 using Xunit;
 
 namespace DotCraft.Tests.Hub;
@@ -63,14 +64,19 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task PeerConnector_ReconnectsAfterHubRestart()
+    public async Task PeerConnector_WithActiveToolSession_ReconnectsAfterHubRestart()
     {
         var satellitePort = SatelliteHubFixture.GetAvailablePort();
         await using var scenario = await SatelliteScenario.StartAsync(_userProfile, satellitePort);
+        await using var client = new RemoteToolHostClient(scenario.Directory);
+        await client.ConnectAsync("thread", scenario.PeerId, scenario.WorkspaceId);
 
         await scenario.Hub.DisposeAsync();
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(
             () => Task.FromResult(scenario.Runtime.Status == RemoteToolHostStatus.Offline));
+        await SatelliteBridgeEndToEndTests.WaitUntilAsync(() => Task.FromResult(
+            client.TryGetConnectionSnapshot("thread", out var state)
+            && state.Status == RemoteToolConnectionStatus.LeaseLost));
 
         await using var restarted = await SatelliteHubFixture.StartAsync(_userProfile, satellitePort);
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
@@ -79,6 +85,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         var peer = Assert.Single(await restarted.GetAsync<HubSatelliteResponse[]>("/v1/satellites"));
         Assert.Equal(scenario.PeerId, peer.PeerId);
         Assert.True(peer.Online);
+        Assert.Equal(RemoteToolHostStatus.Standby, scenario.Runtime.Status);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Satellite.ViewModels;
+using DotCraft.Satellite.Services;
 using DotCraft.Satellite.Web;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
@@ -50,6 +51,7 @@ internal sealed class IslandWindow : Window, IDisposable
     private static readonly TimeSpan PointerAway = TimeSpan.FromMilliseconds(96);
 
     private readonly IslandViewModel _viewModel;
+    private readonly SatelliteCallbackGuard _guard;
     private readonly Grid _root = new();
     private readonly DispatcherQueueTimer _pointer;
     private readonly DispatcherQueueTimer _exit;
@@ -76,9 +78,10 @@ internal sealed class IslandWindow : Window, IDisposable
     private bool _hovered;
     private bool _activatable;
     private bool _clickThrough;
-    public IslandWindow(IslandViewModel viewModel)
+    public IslandWindow(IslandViewModel viewModel, SatelliteCallbackGuard guard)
     {
         _viewModel = viewModel;
+        _guard = guard;
         _handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(_handle));
         _animate = new UISettings().AnimationsEnabled;
@@ -98,26 +101,27 @@ internal sealed class IslandWindow : Window, IDisposable
         IslandNativeMethods.MakeLayered(_handle);
         SystemBackdrop = new TransparentBackdrop();
 
-        _root.ActualThemeChanged += (_, _) => Push();
+        _root.ActualThemeChanged += (_, _) => Run("island.theme", Push);
         Content = _root;
-        Activated += OnActivated;
+        Activated += (sender, args) => Run("island.activated", () => OnActivated(sender, args));
 
         _pointer = DispatcherQueue.CreateTimer();
         _pointer.Interval = PointerNear;
-        _pointer.Tick += (_, _) => Tick();
+        _pointer.Tick += (_, _) => Run("island.pointer", Tick);
         _exit = DispatcherQueue.CreateTimer();
         _exit.Interval = ExitDuration;
         _exit.IsRepeating = false;
-        _exit.Tick += (_, _) => Hide();
+        _exit.Tick += (_, _) => Run("island.exit", Hide);
 
         // Activating once builds the XAML content, which a window that is never focused otherwise
         // never does. The no-activate style keeps this off the foreground.
         _appWindow.Move(new PointInt32(-4000, -4000));
         Activate();
         _appWindow.Hide();
-        _ = LoadPageAsync();
+        _ = _guard.RunAsync("island.load", LoadPageAsync, DisableSurface);
 
-        _viewModel.PropertyChanged += (_, _) => Apply();
+        _viewModel.PropertyChanged += (_, _) => Run("island.apply", Apply);
+        _viewModel.SurfaceFailed += DisableSurface;
         Apply();
     }
 
@@ -125,6 +129,7 @@ internal sealed class IslandWindow : Window, IDisposable
     {
         _pointer.Stop();
         _exit.Stop();
+        _viewModel.SurfaceFailed -= DisableSurface;
         _controller?.Close();
     }
 
@@ -162,7 +167,8 @@ internal sealed class IslandWindow : Window, IDisposable
         try
         {
             var controller = await SatellitePageHost.AttachAsync(
-                _handle, "DotCraft.Satellite.island.html", transparent: true, OnWebMessage);
+                _handle, "DotCraft.Satellite.island.html", transparent: true,
+                QueueWebMessage);
             controller.Bounds = ClientBounds();
             controller.IsVisible = _shown;
             _controller = controller;
@@ -176,6 +182,12 @@ internal sealed class IslandWindow : Window, IDisposable
 
     private Windows.Foundation.Rect ClientBounds() =>
         new(0, 0, WindowWidthDips * Scale, WindowHeightDips * Scale);
+
+    private void QueueWebMessage(JsonElement message)
+    {
+        var ownedMessage = message.Clone();
+        DispatcherQueue.TryEnqueue(() => Run("island.message", () => OnWebMessage(ownedMessage)));
+    }
 
     private void OnWebMessage(JsonElement message)
     {
@@ -543,6 +555,9 @@ internal sealed class IslandWindow : Window, IDisposable
         _viewModel.Approvals.Disable();
         Leave();
     }
+
+    private void Run(string operation, Action action) =>
+        _guard.Run(operation, action, DisableSurface);
 
     private void SetActivatable(bool activatable)
     {

@@ -3,7 +3,6 @@ using DotCraft.Satellite.Consent;
 using DotCraft.Satellite.Localization;
 using DotCraft.Satellite.Services;
 using DotCraft.Satellite.Tray;
-using Microsoft.UI.Dispatching;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace DotCraft.Satellite.ViewModels;
@@ -14,7 +13,7 @@ internal sealed class TrayViewModel(
     ITrayIcon tray,
     ToastPresenter toasts,
     SatelliteStrings strings,
-    DispatcherQueue dispatcher)
+    SatelliteDispatcher dispatcher)
 {
     private ConsentWindow? _consent;
 
@@ -100,12 +99,12 @@ internal sealed class TrayViewModel(
             strings);
         window = new ConsentWindow(viewModel);
         _consent = window;
-        window.Closed += (_, _) =>
+        window.Closed += (_, _) => Post(() =>
         {
             if (ReferenceEquals(_consent, window))
                 _consent = null;
             Refresh();
-        };
+        });
         window.Activate();
     }
 
@@ -209,7 +208,7 @@ internal sealed class TrayViewModel(
     private static string DescribeFolder(RemoteToolPeer peer) =>
         string.IsNullOrEmpty(peer.WorkspacePath) ? peer.WorkspaceId : peer.WorkspacePath;
 
-    private void Post(Action action) => dispatcher.TryEnqueue(() => action());
+    private void Post(Action action) => dispatcher.Post("tray.update", action);
 
-    private void PostAsync(Func<Task> action) => dispatcher.TryEnqueue(() => _ = action());
+    private void PostAsync(Func<Task> action) => dispatcher.PostAsync("tray.command", action);
 }

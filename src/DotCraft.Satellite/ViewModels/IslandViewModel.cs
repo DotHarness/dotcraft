@@ -17,7 +17,7 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     private static readonly TimeSpan SettleGrace = TimeSpan.FromSeconds(3);
 
     private readonly SatelliteStrings _strings;
-    private readonly DispatcherQueue _dispatcher;
+    private readonly SatelliteDispatcher _dispatcher;
     private SatelliteCommands? _commands;
     private readonly DispatcherQueueTimer _ticker;
     private readonly DispatcherQueueTimer _hoverExit;
@@ -33,39 +33,41 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
 
     public IslandViewModel(
         SatelliteStrings strings,
-        DispatcherQueue dispatcher,
+        SatelliteDispatcher dispatcher,
         IslandApprovalQueue approvals)
     {
         _strings = strings;
         _dispatcher = dispatcher;
         Approvals = approvals;
         State = new IslandStateModel();
-        Approvals.Changed += (_, _) => Update();
-        _ticker = dispatcher.CreateTimer();
+        Approvals.Changed += (_, _) => RunCallback("island.approvals", Update);
+        _ticker = dispatcher.Queue.CreateTimer();
         _ticker.Interval = TimeSpan.FromSeconds(1);
-        _ticker.Tick += (_, _) => Tick();
-        _hoverExit = dispatcher.CreateTimer();
+        _ticker.Tick += (_, _) => RunCallback("island.tick", Tick);
+        _hoverExit = dispatcher.Queue.CreateTimer();
         _hoverExit.Interval = HoverGrace;
         _hoverExit.IsRepeating = false;
-        _hoverExit.Tick += (_, _) =>
+        _hoverExit.Tick += (_, _) => RunCallback("island.hover", () =>
         {
             _pointerOver = false;
             Update();
-        };
-        _settle = dispatcher.CreateTimer();
+        });
+        _settle = dispatcher.Queue.CreateTimer();
         _settle.Interval = SettleGrace;
         _settle.IsRepeating = false;
-        _settle.Tick += (_, _) =>
+        _settle.Tick += (_, _) => RunCallback("island.settle", () =>
         {
             _settled = true;
             Update();
-        };
+        });
     }
 
     [ObservableProperty]
     public partial IslandStateModel State { get; set; }
 
     public IslandApprovalQueue Approvals { get; }
+
+    internal event Action? SurfaceFailed;
 
     public void Dispose()
     {
@@ -182,7 +184,7 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     {
         if (_commands is not { } commands)
             return;
-        _ = Complete(action(commands));
+        _ = _dispatcher.ObserveAsync("island.command", () => Complete(action(commands)), DisableSurface);
 
         async Task Complete(Task running)
         {
@@ -236,5 +238,10 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     });
 
     /// <summary>Runtime events arrive on the host's threads; every state change happens on the interface thread.</summary>
-    private void Post(Action action) => _dispatcher.TryEnqueue(() => action());
+    private void Post(Action action) => _dispatcher.Post("island.update", action, DisableSurface);
+
+    private void RunCallback(string operation, Action action) =>
+        _dispatcher.Post(operation, action, DisableSurface);
+
+    private void DisableSurface() => SurfaceFailed?.Invoke();
 }

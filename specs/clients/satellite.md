@@ -260,6 +260,14 @@ never runs two Remote Tool Host processes against the same state root.
 A second Satellite instance MUST hand any invitation it was started with to the running instance
 and exit without initializing its user interface.
 
+Satellite MUST keep and observe the Remote Tool Host run task. A control or data connection failure,
+or an unexpected completion of that task, MUST leave the tray process alive. Operational diagnostics
+MUST be written to `~/.craft/logs/dotcraft-satellite-*.log` for application startup and shutdown,
+control connection changes and retries, data-session closure, runtime task failures, and WinUI callback
+failures. These diagnostics MUST NOT contain credentials, RPC arguments, command output, or file
+contents. A tray callback failure is contained to that notification or refresh; an island callback
+failure disables the island and leaves the tray and Remote Tool Host running.
+
 ## Localization
 
 Simplified Chinese and English are required. A missing translation MUST fall back to English and
