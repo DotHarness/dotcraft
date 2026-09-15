@@ -20,6 +20,7 @@ import { SettingsDescriptionWithLearnMore } from '../settings/SettingsLearnMoreL
 import { SETTINGS_DOCS_BASE_URL } from '../settings/settingsDocs'
 import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
 import { IdentityMark } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
@@ -489,11 +490,7 @@ export function ModuleConfigForm({
     <div className={`${styles.form} ${SETTINGS_SURFACE_CLASS}`}>
       {!hideHeader && (
         <div style={formStyles.header}>
-          <IdentityMark
-            role="list"
-            src={logoPath}
-            fallback={moduleDisplayName.slice(0, 1).toUpperCase()}
-          />
+          <IdentityMark role="list" src={logoPath} fallback={<IdentityMarkFallback kind="channel" />} />
 
           <div style={{ minWidth: 0 }}>
             <div style={formStyles.headerTitle}>{moduleDisplayName}</div>

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.0 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
 | **Date** | 2026-09-14 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -3802,9 +3802,12 @@ These methods expose skill discovery and control to wire clients. Skills are mar
 | 1 (highest) | `workspace` | Workspace skills root, directories without a `.builtin` marker | User-owned workspace skill. |
 | 2 | `plugin` | Enabled plugin bundle `skills/` directory | Plugin-contributed skill. |
 | 3 | `builtin` | Workspace skills root, directories with a `.builtin` marker | Server-deployed built-in skill. |
-| 4 (lowest) | `user` | User data `skills/` directory | User-global skill. |
+| 4 | `user` | User data `skills/` directory | User-global skill. |
+| 5 (lowest) | `user` | Shared `~/.agents/skills` directory | User-global skill from the cross-tool shared root. |
 
-When the same skill name exists in multiple sources, the higher-priority source takes precedence. Only the `user` pass deduplicates by name; a `builtin` entry is suppressed only when a disabled plugin declares a skill of the same name.
+When the same skill name exists in multiple sources, the higher-priority source takes precedence; discovery deduplicates by case-insensitive name on every pass. A `builtin` entry is additionally suppressed when a disabled plugin declares a skill of the same name.
+
+Priorities 4 and 5 both report `source: "user"` and are distinguished only by `path`. The shared root is a cross-tool convention that other Agent products also read. It is discovered when `Skills.IncludeSharedSkills` is enabled, which is the default.
 
 Skills may declare requirements (executables, environment variables) in their frontmatter. A skill whose requirements are not met is reported as `available: false` with a diagnostic reason.
 
@@ -4045,7 +4048,7 @@ On success, the server clears any disabled-state record for the skill, deletes a
 | `-32602` | The resolved skill source is `builtin` or `plugin`, or the source path is outside the expected skill root. |
 | `-32040` | The specified skill name does not exist in any source. |
 
-**Behavior**: Only `workspace` and `user` skills are directly uninstallable. `builtin` skills are managed by DotCraft, and `plugin` skills are managed by their owning plugin lifecycle.
+**Behavior**: Only `workspace` and `user` skills are directly uninstallable, and a `user` skill only when it lives under the user data `skills/` directory. `builtin` skills are managed by DotCraft, and `plugin` skills are managed by their owning plugin lifecycle. A skill resolved from the shared `~/.agents/skills` root is rejected with `-32602`: the server does not own that directory, so clients offer `skills/setEnabled` instead.
 
 ### 18.9 Error Codes
 
@@ -6884,6 +6887,7 @@ Update workspace-level config values.
 | `providerPreferences` | object \| null | no | Complete provider-keyed MainAgent preferences. Each record contains `model`, `reasoning`, `speed`, and `contextWindow`; `null` or an empty object clears the map. |
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
+| `skillsIncludeSharedSkills` | boolean \| null | no | Workspace-level override for `Skills.IncludeSharedSkills`, which discovers user skills from the shared `~/.agents/skills` root. `true` enables discovery, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.IncludeSharedSkills` is a `ProcessRestart` field). |
 | `memoryAutoConsolidateEnabled` | boolean \| null | no | Workspace-level override for `Memory.AutoConsolidateEnabled`. `true` enables turn-count-based long-term memory consolidation, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect for future successful turns without restart. |
 | `dreamsEnabled` | boolean \| null | no | Workspace-level override for `Dreams.Enabled`. `true` enables scheduled Dreams, `false` disables scheduled Dreams, and `null` removes the explicit override so server defaults apply (`false` by default). |
 | `dreamsInterval` | string \| null | no | Workspace-level override for `Dreams.Interval` as a positive `TimeSpan` string. `null` removes the explicit override. |
@@ -6913,6 +6917,7 @@ Update workspace-level config values.
   },
   "welcomeSuggestionsEnabled": true,
   "skillsSelfLearningEnabled": true,
+  "skillsIncludeSharedSkills": true,
   "memoryAutoConsolidateEnabled": true,
   "dreamsEnabled": true,
   "dreamsInterval": "24:00:00",
@@ -6928,7 +6933,7 @@ Update workspace-level config values.
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
+- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
 - Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.

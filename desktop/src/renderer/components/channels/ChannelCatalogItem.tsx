@@ -5,6 +5,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import type { ChannelConnectionState } from './ChannelCard'
 import { IdentityMark } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 
 interface ChannelCatalogItemProps {
   logoPath?: string
@@ -46,7 +47,7 @@ export function ChannelCatalogItem({
       onClick={onOpen}
       onKeyDown={handleKeyDown}
     >
-      <ChannelIcon logoPath={logoPath} title={title} />
+      <ChannelIcon logoPath={logoPath} />
       <span className="dc-channel-catalog-item__copy">
         <span className="dc-channel-catalog-item__title-line">
           <strong className="dc-channel-catalog-item__title">{title}</strong>
@@ -83,12 +84,6 @@ export function ChannelCatalogItem({
   )
 }
 
-export function ChannelIcon({ logoPath, title }: { logoPath?: string; title: string }): JSX.Element {
-  return (
-    <IdentityMark
-      role="list"
-      src={logoPath}
-      fallback={title.slice(0, 1).toUpperCase()}
-    />
-  )
+export function ChannelIcon({ logoPath }: { logoPath?: string }): JSX.Element {
+  return <IdentityMark role="list" src={logoPath} fallback={<IdentityMarkFallback kind="channel" />} />
 }

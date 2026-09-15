@@ -740,7 +740,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.notifications.taskCompletion.never': '从不',
   'settings.personalization.description': '自定义当前工作区的建议、学习、记忆和响应显示。',
   'settings.personalization.group.conversation': '对话体验',
-  'settings.personalization.group.learning': '学习',
+  'settings.personalization.group.skills': '技能',
   'settings.personalization.group.memory': '记忆',
   'settings.personalization.group.dreams': '梦境',
   'settings.personalization.welcomeSuggestions': '启用建议',
@@ -751,10 +751,12 @@ export const MESSAGES_ZH_HANS = {
   'settings.personalization.selfLearningHint':
     '允许 DotCraft 从已完成的任务中学习技能，并保存到当前工作区。',
   'settings.personalization.selfLearningSaveFailed': '保存自我学习设置失败：{{error}}',
-  'settings.personalization.selfLearningRestartBanner': '自我学习设置已保存。重启 AppServer 后生效。',
-  'settings.personalization.selfLearningRestartBannerRemote':
-    '自我学习设置已保存。请重启远程 AppServer 使其生效。',
-  'settings.personalization.selfLearningRestartButton': '立即重启',
+  'settings.personalization.skillsRestartBannerRemote':
+    '技能设置已保存。请重启远程 AppServer 使其生效。',
+  'settings.personalization.sharedSkills': '使用共享技能',
+  'settings.personalization.sharedSkillsHint':
+    '同时从 ~/.agents/skills 读取个人技能，这个目录与其他 agent 工具共用。',
+  'settings.personalization.sharedSkillsSaveFailed': '保存共享技能设置失败：{{error}}',
   'settings.personalization.longTermMemory': '启用长期记忆',
   'settings.personalization.longTermMemoryHint': '将有用信息保存为工作区长期记忆。',
   'settings.personalization.longTermMemorySaveFailed': '保存长期记忆设置失败：{{error}}',
@@ -1652,6 +1654,11 @@ export const MESSAGES_ZH_HANS = {
   'plugins.detail.website': '网站',
   'plugins.detail.privacy': '隐私政策',
   'plugins.detail.terms': '服务条款',
+  'plugins.detail.version': '版本',
+  'plugins.detail.skills.showMore': '查看{{names}}',
+  'plugins.detail.skills.showMoreRest.one': '查看{{names}}，以及另外 1 个',
+  'plugins.detail.skills.showMoreRest.other': '查看{{names}}，以及另外 {{count}} 个',
+  'plugins.detail.skills.showLess': '收起',
   'interactiveTool.loading': '正在加载应用视图…',
   'interactiveTool.error': '无法加载应用视图。',
   'interactiveTool.unavailable': '应用视图不可用',

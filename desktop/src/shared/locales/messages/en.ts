@@ -631,7 +631,7 @@ export const MESSAGES_EN = {
   'settings.notifications.taskCompletion.never': 'Never',
   'settings.personalization.description': 'Customize workspace suggestions, learning, memory, and response display.',
   'settings.personalization.group.conversation': 'Conversation',
-  'settings.personalization.group.learning': 'Learning',
+  'settings.personalization.group.skills': 'Skills',
   'settings.personalization.group.memory': 'Memory',
   'settings.personalization.group.dreams': 'Dreams',
   'settings.personalization.welcomeSuggestions': 'Enable suggestions',
@@ -642,10 +642,12 @@ export const MESSAGES_EN = {
   'settings.personalization.selfLearningHint':
     'Allow DotCraft to learn skills from completed tasks and save them in this workspace.',
   'settings.personalization.selfLearningSaveFailed': 'Failed to save self-learning setting: {{error}}',
-  'settings.personalization.selfLearningRestartBanner': 'Self-learning changes are saved. Restart AppServer to apply them.',
-  'settings.personalization.selfLearningRestartBannerRemote':
-    'Self-learning changes are saved. Restart the remote AppServer to apply them.',
-  'settings.personalization.selfLearningRestartButton': 'Restart now',
+  'settings.personalization.skillsRestartBannerRemote':
+    'Skill settings are saved. Restart the remote AppServer to apply them.',
+  'settings.personalization.sharedSkills': 'Use shared skills',
+  'settings.personalization.sharedSkillsHint':
+    'Also load personal skills from ~/.agents/skills, the folder other agent tools share.',
+  'settings.personalization.sharedSkillsSaveFailed': 'Failed to save shared skills setting: {{error}}',
   'settings.personalization.longTermMemory': 'Enable long-term memory',
   'settings.personalization.longTermMemoryHint': 'Save useful facts as long-term workspace memory.',
   'settings.personalization.longTermMemorySaveFailed': 'Failed to save long-term memory setting: {{error}}',
@@ -1697,6 +1699,11 @@ export const MESSAGES_EN = {
   'plugins.detail.website': 'Website',
   'plugins.detail.privacy': 'Privacy policy',
   'plugins.detail.terms': 'Terms of service',
+  'plugins.detail.version': 'Version',
+  'plugins.detail.skills.showMore': 'See {{names}}',
+  'plugins.detail.skills.showMoreRest.one': 'See {{names}}, and 1 more',
+  'plugins.detail.skills.showMoreRest.other': 'See {{names}}, and {{count}} more',
+  'plugins.detail.skills.showLess': 'Show less',
   'interactiveTool.loading': 'Loading app view…',
   'interactiveTool.error': "Couldn't load the app view.",
   'interactiveTool.unavailable': 'App view unavailable',

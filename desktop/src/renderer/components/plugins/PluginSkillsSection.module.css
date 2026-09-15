@@ -61,3 +61,53 @@
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-prose-line-height);
 }
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% + 16px);
+  min-height: 48px;
+  box-sizing: border-box;
+  margin-inline: -8px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  text-align: start;
+  cursor: pointer;
+}
+
+.disclosure:hover {
+  color: var(--text-primary);
+}
+
+/* 3 marks of 16px overlapping by 8px measure exactly the 32px avatar column. */
+.stack {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+}
+
+/* The ring repeats the page colour so overlapping marks still read as three. */
+.stack > * {
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 1px var(--bg-primary);
+}
+
+.stack > * + * {
+  margin-inline-start: -8px;
+}
+
+.disclosureLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

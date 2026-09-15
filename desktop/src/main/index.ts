@@ -2591,6 +2591,26 @@ async function clearWorkspaceSelection(): Promise<void> {
   emitConnectionStatus(win, { status: 'disconnected' })
 }
 
+let prewarmedAppServer:
+  | { workspacePath: string; promise: ReturnType<DesktopHubClient['ensureAppServer']> }
+  | null = null
+
+function prewarmLocalAppServer(workspacePath: string): void {
+  const promise = createHubClient(sharedSettings).ensureAppServer(workspacePath, {
+    runtimeTools: resolveDotCraftRuntimeTools()
+  })
+  promise.catch(() => {})
+  prewarmedAppServer = { workspacePath, promise }
+}
+
+function takePrewarmedAppServer(
+  workspacePath: string
+): ReturnType<DesktopHubClient['ensureAppServer']> | null {
+  const prewarmed = prewarmedAppServer
+  prewarmedAppServer = null
+  return prewarmed?.workspacePath === workspacePath ? prewarmed.promise : null
+}
+
 async function connectToAppServer(workspacePath: string): Promise<boolean> {
   if (isAppQuitting) {
     return false
@@ -2774,9 +2794,8 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
   reregisterIpcForWorkspace(workspacePath)
   try {
     const hubClient = createHubClient(sharedSettings)
-    const ensured = await hubClient.ensureAppServer(workspacePath, {
-      runtimeTools: resolveDotCraftRuntimeTools()
-    })
+    const ensured = await (takePrewarmedAppServer(workspacePath)
+      ?? hubClient.ensureAppServer(workspacePath, { runtimeTools: resolveDotCraftRuntimeTools() }))
     if (currentWorkspacePath !== workspacePath || isAppQuitting) return false
 
     startHubEventSubscription(workspacePath, hubClient)
@@ -3103,6 +3122,14 @@ app.whenReady().then(async () => {
     ? buildServersRemoteProject(initialActiveStack.host, initialActiveStack.stack, undefined, workspacePath ?? '')
     : null)
   const initialWorkspaceStatus = getWorkspaceStatusForRenderer(workspacePath)
+  if (
+    workspacePath
+    && initialWorkspaceStatus.status === 'ready'
+    && resolveConnectionMode(sharedSettings) !== 'remote'
+    && !hasRemoteEndpointArg()
+  ) {
+    prewarmLocalAppServer(workspacePath)
+  }
   const win = createWindow(workspacePath, initialWorkspaceStatus)
   mainWindow = win
   currentWorkspacePath = workspacePath ?? ''

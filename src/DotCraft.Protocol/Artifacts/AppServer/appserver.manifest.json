@@ -24011,6 +24011,13 @@
           "const": null
         },
         {
+          "name": "skillsIncludeSharedSkills",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "skillsSelfLearningEnabled",
           "type": "boolean",
           "required": false,
@@ -24094,6 +24101,13 @@
         {
           "name": "providerPreferences",
           "type": "map<core.ModelPreference>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "skillsIncludeSharedSkills",
+          "type": "boolean",
           "required": false,
           "nullable": true,
           "const": null

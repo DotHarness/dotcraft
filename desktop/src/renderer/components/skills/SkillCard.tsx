@@ -47,12 +47,7 @@ export function SkillCard({ skill, onOpen, onToggleEnabled }: SkillCardProps): J
         ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--bg-secondary)'
       }}
     >
-      <SkillAvatar
-        name={skill.name}
-        displayName={skill.displayName || skill.name}
-        size={40}
-        iconDataUrl={skill.iconSmallDataUrl}
-      />
+      <SkillAvatar size={40} iconDataUrl={skill.iconSmallDataUrl} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>

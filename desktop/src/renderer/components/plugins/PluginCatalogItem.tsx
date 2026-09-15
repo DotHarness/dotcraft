@@ -5,6 +5,7 @@ import { styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 
 export function PluginCatalogItem({
   plugin,
@@ -101,18 +102,7 @@ export function PluginIcon({
   size?: number
 }): JSX.Element {
   const icon = plugin.interface?.composerIconDataUrl || plugin.interface?.logoDataUrl
-  return (
-    <IdentityMark
-      role={role}
-      size={size}
-      src={icon}
-      fallback={pluginTitle(plugin).slice(0, 1)}
-      style={{
-        '--identity-mark-fallback-background': '#0B63CE',
-        '--identity-mark-fallback-color': '#fff',
-      } as CSSProperties}
-    />
-  )
+  return <IdentityMark role={role} size={size} src={icon} fallback={<IdentityMarkFallback kind="plugin" />} />
 }
 
 export function pluginTitle(plugin: PluginEntry): string {

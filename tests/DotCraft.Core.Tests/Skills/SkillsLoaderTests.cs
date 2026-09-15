@@ -195,6 +195,38 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.Contains("Workspace instructions", loader.LoadSkill("unavailable-test-skill"));
     }
 
+    [Fact]
+    public void SharedRoot_SkillsAreDiscoveredAsUserSource()
+    {
+        var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
+        var loader = new SkillsLoader(_tempRoot, null, sharedSkills);
+        WriteSkill(sharedSkills, "shared-only-skill", "Shared instructions");
+
+        var info = loader.ResolveSkillInfo("shared-only-skill");
+
+        Assert.NotNull(info);
+        Assert.Equal("user", info.Source);
+        Assert.StartsWith(sharedSkills, info.Path);
+        Assert.Contains("Shared instructions", loader.LoadSkill("shared-only-skill"));
+    }
+
+    [Fact]
+    public void SharedRoot_UserRootWinsOnDuplicateName()
+    {
+        var userSkills = Path.Combine(_tempRoot, "user-skills");
+        var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
+        var loader = new SkillsLoader(_tempRoot, userSkills, sharedSkills);
+        WriteSkill(userSkills, "duplicate-skill", "User instructions");
+        WriteSkill(sharedSkills, "duplicate-skill", "Shared instructions");
+
+        var info = loader.ResolveSkillInfo("duplicate-skill");
+
+        Assert.Equal("user", info!.Source);
+        Assert.StartsWith(userSkills, info.Path);
+        Assert.Contains("User instructions", loader.LoadSkill("duplicate-skill"));
+        Assert.Single(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "duplicate-skill");
+    }
+
     public void Dispose()
     {
         try
@@ -206,6 +238,20 @@ public sealed class SkillsLoaderTests : IDisposable
         {
             // Best-effort cleanup for temp test directories.
         }
+    }
+
+    private static void WriteSkill(string skillsPath, string name, string body)
+    {
+        var skillDir = Path.Combine(skillsPath, name);
+        Directory.CreateDirectory(skillDir);
+        var content = string.Join(
+            Environment.NewLine,
+            "---",
+            $"name: {name}",
+            "description: Demo",
+            "---",
+            body);
+        File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), content);
     }
 
     private static string WriteSkill(string skillsPath, string name)

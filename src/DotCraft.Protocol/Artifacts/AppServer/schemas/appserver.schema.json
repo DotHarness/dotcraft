@@ -19661,6 +19661,16 @@
             }
           ]
         },
+        "skillsIncludeSharedSkills": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "skillsSelfLearningEnabled": {
           "anyOf": [
             {
@@ -19775,6 +19785,16 @@
               "additionalProperties": {
                 "$ref": "#/$defs/ModelPreference"
               }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "skillsIncludeSharedSkills": {
+          "anyOf": [
+            {
+              "type": "boolean"
             },
             {
               "type": "null"

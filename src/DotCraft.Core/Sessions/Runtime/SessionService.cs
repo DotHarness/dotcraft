@@ -5791,7 +5791,10 @@ public sealed partial class SessionService(
             Directory.CreateDirectory(craftPath);
 
             var scopedDreamStore = new DreamStore(craftPath);
-            var scopedSkills = new SkillsLoader(craftPath);
+            var scopedSkills = new SkillsLoader(
+                craftPath,
+                baseCtx.SkillsLoader.UserSkillsPath,
+                baseCtx.SkillsLoader.SharedSkillsPath);
 
             scopedContext = new AgentRuntimeContext(baseCtx)
             {

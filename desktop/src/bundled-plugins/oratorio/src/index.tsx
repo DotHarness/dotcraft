@@ -62,6 +62,9 @@ export const activate: DesktopPluginActivate = (host) => {
   void host.oratorio.getPendingHandoff().then((handoff) => {
     if (handoff) void presentHandoff(handoff)
   })
+  // Resolving the context is what asks Hub to start the Oratorio server; a missing executable
+  // is normal in a Desktop-only checkout.
+  void host.oratorio.getContext().catch(() => {})
 
   return {
     mainViews: [{ id: 'board', label: labels, icon: OratorioBatonIcon, order: 55, component: OratorioView }],

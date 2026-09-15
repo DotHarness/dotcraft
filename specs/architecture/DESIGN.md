@@ -1,5 +1,5 @@
 ---
-version: "0.17.0"
+version: "0.18.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -381,8 +381,21 @@ over decorative hand poses when both are requested.
 Use `object-fit: contain`; cropping belongs to thumbnails. Identity-mark shells
 are transparent. Each icon or logo asset owns its complete visual treatment,
 including any background required for reliable contrast. Artwork that remains
-legible in both themes may stay transparent. Generated letter or glyph fallbacks
-use the shared neutral fallback. Hero shells use only the near-invisible `1px`
+legible in both themes may stay transparent. An item that ships no artwork gets the
+shared neutral fallback mark, never a generated initial: one shape per kind — a cube
+for a Skill, a plug for a Plugin, a message bubble for a Channel, each echoing that
+destination's own icon — shaded from `--text-primary` over the neutral fallback
+ground, at 68% of the shell. Each mark is one connected silhouette; only the cube
+carries more than one tone, because its three faces tile without overlapping, and a
+second tone on an appendage reads as two shapes crossing instead of one object.
+One kind, one shape, at every size and weight: a Skill is a cube wherever it appears
+— the destination, the reference chip in a message or tool row, the included-content
+row, the fallback mark — filled at identity sizes and drawn as line art inline.
+`Puzzle` belongs to Plugins and Extensions and is not borrowed by another kind. A column of such items then
+reads as one family instead of as many unrelated colours, and the shape survives the
+`16px` sizes where an initial cannot. Overlapping marks separate with a ring in the
+page colour; the `1px` hairline alone is too quiet at that size. Hero shells use
+only the near-invisible `1px`
 `--identity-mark-hero-border` hairline (about 8% ink); compact and list shells
 remain unframed unless interaction requires a boundary. Reserve circles for
 people, presence/status, toggles, and circular actions.
@@ -1094,6 +1107,16 @@ counted section. Each row uses a Skill identity mark, a document-preview button,
 and an independent trailing switch backed by the same state as Skills management.
 Uninstalled Skills remain read-only previews; installed Skills under a disabled
 plugin show an off, disabled switch. Skill preview dialogs carry no switches.
+The section previews five Skills and hides the rest behind one disclosure row of the
+same height, which names the next two hidden Skills and counts the remainder ("See
+Page diff, Form fill, and 3 more") over a stack of their marks, so the row says what
+expanding reveals rather than only how much; the heading keeps the full count.
+Expanding shows every Skill and turns the row into Show less. Collapsed, the label
+starts at the Skill titles; expanded, it starts at the mark column. The row carries
+no hover fill — it is a label, not a list row — and lightens its text instead.
+The metadata section lists capabilities, developer, category, and version before the
+website, privacy, and terms links. Version appears only when the plugin declares one,
+and category names the category alone rather than repeating the developer.
 Plugin detail uses one task-oriented primary CTA slot rather
 than a standing management switch: Install and Enable show in-control progress,
 then the same slot becomes Try in chat when the plugin is ready.

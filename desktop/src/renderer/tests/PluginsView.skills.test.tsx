@@ -118,6 +118,33 @@ describe('Plugin detail Skills', () => {
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'skills/view' || method === 'skills/setEnabled')).toBe(false)
   })
 
+  it('previews five skills and names what the disclosure row reveals', async () => {
+    const many = {
+      ...plugin,
+      skills: [
+        ...plugin.skills,
+        ...['Explain', 'Refactor', 'Migrate', 'Benchmark', 'Release', 'Deploy', 'Audit', 'Trace'].map((displayName) => ({
+          name: displayName.toLowerCase(), displayName, description: `${displayName} a change.`, enabled: true
+        }))
+      ]
+    }
+    respondWith(many, many.skills.map((skill) => ({
+      ...skill, source: 'plugin', pluginId: many.id, available: true, path: `/plugins/review/skills/${skill.name}/SKILL.md`
+    })))
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('External Process Echo'))
+    const section = await screen.findByRole('region', { name: 'Skills 10' })
+    expect(within(section).queryByText('Benchmark')).not.toBeInTheDocument()
+    const disclosure = within(section).getByRole('button', { expanded: false })
+    expect(disclosure).toHaveAccessibleName('See Benchmark, Release, and 3 more')
+    fireEvent.click(disclosure)
+    expect(within(section).getByText('Trace')).toBeInTheDocument()
+    const collapse = within(section).getByRole('button', { expanded: true })
+    expect(collapse).toHaveAccessibleName('Show less')
+    fireEvent.click(collapse)
+    expect(within(section).queryByText('Trace')).not.toBeInTheDocument()
+  })
+
   it('shows icons and read-only previews without switches before installation', async () => {
     respondWith({ ...plugin, installed: false, enabled: false })
     await openDetails()

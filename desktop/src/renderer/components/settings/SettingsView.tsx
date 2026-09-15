@@ -167,6 +167,7 @@ interface WorkspaceCoreConfig {
   providerPreferences: ProviderPreferences
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
+  skillsIncludeSharedSkills: boolean | null
   memoryAutoConsolidateEnabled: boolean | null
   dreamsEnabled: boolean | null
   dreamsInterval: string | null
@@ -185,6 +186,7 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   providerPreferences: {},
   welcomeSuggestionsEnabled: null,
   skillsSelfLearningEnabled: null,
+  skillsIncludeSharedSkills: null,
   memoryAutoConsolidateEnabled: null,
   dreamsEnabled: null,
   dreamsInterval: null,
@@ -559,6 +561,10 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
     skillsSelfLearningEnabled:
       typeof source.skillsSelfLearningEnabled === 'boolean'
         ? source.skillsSelfLearningEnabled
+        : null,
+    skillsIncludeSharedSkills:
+      typeof source.skillsIncludeSharedSkills === 'boolean'
+        ? source.skillsIncludeSharedSkills
         : null,
     memoryAutoConsolidateEnabled:
       typeof source.memoryAutoConsolidateEnabled === 'boolean'
@@ -969,6 +975,7 @@ export function SettingsView({
     providerPreferences: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
+    skillsIncludeSharedSkills: null,
     memoryAutoConsolidateEnabled: null,
     dreamsEnabled: null,
     dreamsInterval: null,
@@ -1012,7 +1019,9 @@ export function SettingsView({
   const [applyingWelcomeSuggestions, setApplyingWelcomeSuggestions] = useState(false)
   const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
   const [applyingSelfLearning, setApplyingSelfLearning] = useState(false)
-  const [selfLearningRestartPending, setSelfLearningRestartPending] = useState(false)
+  const [includeSharedSkills, setIncludeSharedSkills] = useState(true)
+  const [applyingIncludeSharedSkills, setApplyingIncludeSharedSkills] = useState(false)
+  const [skillsRestartPending, setSkillsRestartPending] = useState(false)
   const [memoryAutoConsolidateEnabled, setMemoryAutoConsolidateEnabled] = useState(true)
   const [applyingMemoryAutoConsolidate, setApplyingMemoryAutoConsolidate] = useState(false)
   const [resettingMemory, setResettingMemory] = useState(false)
@@ -1133,6 +1142,11 @@ export function SettingsView({
       core.userDefaults.skillsSelfLearningEnabled ??
       true
     setSelfLearningEnabled(resolvedSelfLearningEnabled)
+    const resolvedIncludeSharedSkills =
+      core.workspace.skillsIncludeSharedSkills ??
+      core.userDefaults.skillsIncludeSharedSkills ??
+      true
+    setIncludeSharedSkills(resolvedIncludeSharedSkills)
     const resolvedMemoryAutoConsolidateEnabled =
       core.workspace.memoryAutoConsolidateEnabled ??
       core.userDefaults.memoryAutoConsolidateEnabled ??
@@ -1808,7 +1822,7 @@ export function SettingsView({
           ? result.skillsSelfLearningEnabled
           : checked
         setSelfLearningEnabled(persisted)
-        setSelfLearningRestartPending(true)
+        setSkillsRestartPending(true)
         await reloadWorkspaceCore()
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -1819,6 +1833,32 @@ export function SettingsView({
       }
     },
     [reloadWorkspaceCore, selfLearningEnabled, t]
+  )
+
+  const handleIncludeSharedSkillsToggle = useCallback(
+    async (checked: boolean): Promise<void> => {
+      const previous = includeSharedSkills
+      setIncludeSharedSkills(checked)
+      setApplyingIncludeSharedSkills(true)
+      try {
+        const result = await window.api.appServer.sendRequest('workspace/config/update', {
+          skillsIncludeSharedSkills: checked
+        }) as { skillsIncludeSharedSkills?: boolean | null }
+        const persisted = typeof result?.skillsIncludeSharedSkills === 'boolean'
+          ? result.skillsIncludeSharedSkills
+          : checked
+        setIncludeSharedSkills(persisted)
+        setSkillsRestartPending(true)
+        await reloadWorkspaceCore()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setIncludeSharedSkills(previous)
+        addToast(t('settings.personalization.sharedSkillsSaveFailed', { error: msg }), 'error')
+      } finally {
+        setApplyingIncludeSharedSkills(false)
+      }
+    },
+    [includeSharedSkills, reloadWorkspaceCore, t]
   )
 
   const handleMemoryAutoConsolidateToggle = useCallback(
@@ -2882,7 +2922,7 @@ export function SettingsView({
 
   async function handleApplyAndRestartAll(): Promise<void> {
     const targetIsRemote = connectionMode === 'remote'
-    let needsAppServerRestart = selfLearningRestartPending && !targetIsRemote
+    let needsAppServerRestart = skillsRestartPending && !targetIsRemote
     let appServerRestartAttempted = false
     let connectionApplied = false
     let latestCore: WorkspaceCoreConfigResult | null = null
@@ -2907,22 +2947,22 @@ export function SettingsView({
           latestCore = await readWorkspaceCoreStrict()
         }
         applyWorkspaceCoreBaseline(latestCore, false)
-        setSelfLearningRestartPending(false)
+        setSkillsRestartPending(false)
         addToast(t('settings.restartAppServerSuccess'), 'success')
       } else if (connectionApplied) {
-        if (targetIsRemote && selfLearningRestartPending) {
-          setSelfLearningRestartPending(false)
-          addToast(t('settings.personalization.selfLearningRestartBannerRemote'), 'warning')
+        if (targetIsRemote && skillsRestartPending) {
+          setSkillsRestartPending(false)
+          addToast(t('settings.personalization.skillsRestartBannerRemote'), 'warning')
         } else {
-          setSelfLearningRestartPending(false)
+          setSkillsRestartPending(false)
         }
         addToast(
           t(targetIsRemote ? 'settings.connection.applyConnectSuccess' : 'settings.restartAppServerSuccess'),
           'success'
         )
-      } else if (targetIsRemote && selfLearningRestartPending) {
-        setSelfLearningRestartPending(false)
-        addToast(t('settings.personalization.selfLearningRestartBannerRemote'), 'warning')
+      } else if (targetIsRemote && skillsRestartPending) {
+        setSkillsRestartPending(false)
+        addToast(t('settings.personalization.skillsRestartBannerRemote'), 'warning')
       }
       usePendingRestartStore.getState().clear()
     } catch (err) {
@@ -2955,8 +2995,9 @@ export function SettingsView({
         remoteToken.trim()
       ].join(':'))
     }
-    if (selfLearningRestartPending) {
+    if (skillsRestartPending) {
       parts.push(`selfLearning:${selfLearningEnabled}`)
+      parts.push(`sharedSkills:${includeSharedSkills}`)
     }
     return parts.join('|')
   }, [
@@ -2964,10 +3005,11 @@ export function SettingsView({
     binarySource,
     connectionDirty,
     connectionMode,
+    includeSharedSkills,
     remoteToken,
     remoteUrl,
     selfLearningEnabled,
-    selfLearningRestartPending,
+    skillsRestartPending,
     wsHost,
     wsPort
   ])
@@ -3861,7 +3903,7 @@ export function SettingsView({
                 </SettingsGroup>
                 {workspaceCoreApiAvailable && (
                   <SettingsGroup
-                    title={t('settings.personalization.group.learning')}
+                    title={t('settings.personalization.group.skills')}
                   >
                     <SettingsRow
                       label={t('settings.personalization.selfLearning')}
@@ -3873,6 +3915,20 @@ export function SettingsView({
                           aria-label={t('settings.personalization.selfLearning')}
                           onChange={(checked) => {
                             void handleSelfLearningToggle(checked)
+                          }}
+                        />
+                      }
+                    />
+                    <SettingsRow
+                      label={t('settings.personalization.sharedSkills')}
+                      description={t('settings.personalization.sharedSkillsHint')}
+                      control={
+                        <PillSwitch
+                          checked={includeSharedSkills}
+                          disabled={applyingIncludeSharedSkills}
+                          aria-label={t('settings.personalization.sharedSkills')}
+                          onChange={(checked) => {
+                            void handleIncludeSharedSkillsToggle(checked)
                           }}
                         />
                       }

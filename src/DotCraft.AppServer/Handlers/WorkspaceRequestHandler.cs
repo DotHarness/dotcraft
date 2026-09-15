@@ -122,7 +122,8 @@ internal sealed class WorkspaceRequestHandler(
     {
         const string requiredFieldMessage =
             "At least one of 'providerId', 'providerPreferences', 'welcomeSuggestionsEnabled', " +
-            "'skillsSelfLearningEnabled', 'memoryAutoConsolidateEnabled', 'dreamsEnabled', 'dreamsInterval', " +
+            "'skillsSelfLearningEnabled', 'skillsIncludeSharedSkills', 'memoryAutoConsolidateEnabled', " +
+            "'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
             "is required.";
 
@@ -145,6 +146,10 @@ internal sealed class WorkspaceRequestHandler(
             paramsElement,
             "skillsSelfLearningEnabled",
             out var skillsSelfLearningEnabledEl);
+        var hasSkillsIncludeSharedSkills = TryGetCaseInsensitiveProperty(
+            paramsElement,
+            "skillsIncludeSharedSkills",
+            out var skillsIncludeSharedSkillsEl);
         var hasMemoryAutoConsolidateEnabled = TryGetCaseInsensitiveProperty(
             paramsElement,
             "memoryAutoConsolidateEnabled",
@@ -177,6 +182,7 @@ internal sealed class WorkspaceRequestHandler(
             && !hasProviderPreferences
             && !hasWelcomeSuggestionsEnabled
             && !hasSkillsSelfLearningEnabled
+            && !hasSkillsIncludeSharedSkills
             && !hasMemoryAutoConsolidateEnabled
             && !hasDreamsEnabled
             && !hasDreamsInterval
@@ -198,6 +204,9 @@ internal sealed class WorkspaceRequestHandler(
             : null;
         var skillsSelfLearningEnabled = hasSkillsSelfLearningEnabled
             ? ParseNullableBoolean(skillsSelfLearningEnabledEl, "skillsSelfLearningEnabled")
+            : null;
+        var skillsIncludeSharedSkills = hasSkillsIncludeSharedSkills
+            ? ParseNullableBoolean(skillsIncludeSharedSkillsEl, "skillsIncludeSharedSkills")
             : null;
         var memoryAutoConsolidateEnabled = hasMemoryAutoConsolidateEnabled
             ? ParseNullableBoolean(memoryAutoConsolidateEnabledEl, "memoryAutoConsolidateEnabled")
@@ -233,6 +242,7 @@ internal sealed class WorkspaceRequestHandler(
             hasProviderPreferences ? providerPreferences : null,
             welcomeSuggestionsEnabled,
             skillsSelfLearningEnabled,
+            skillsIncludeSharedSkills,
             memoryAutoConsolidateEnabled,
             dreamsEnabled,
             dreamsInterval,
@@ -244,6 +254,7 @@ internal sealed class WorkspaceRequestHandler(
             hasProviderPreferences,
             hasWelcomeSuggestionsEnabled,
             hasSkillsSelfLearningEnabled,
+            hasSkillsIncludeSharedSkills,
             hasMemoryAutoConsolidateEnabled,
             hasDreamsEnabled,
             hasDreamsInterval,
@@ -265,7 +276,7 @@ internal sealed class WorkspaceRequestHandler(
         }
         if (saveResult.WelcomeSuggestionsChanged)
             changedRegions.Add(ConfigChangeRegions.WelcomeSuggestions);
-        if (saveResult.SkillsSelfLearningChanged)
+        if (saveResult.SkillsSelfLearningChanged || saveResult.SkillsIncludeSharedSkillsChanged)
         {
             changedRegions.Add(ConfigChangeRegions.Skills);
             AppServerContextInvalidation.MarkSkills(contextPageManager);
@@ -317,6 +328,7 @@ internal sealed class WorkspaceRequestHandler(
                         StringComparer.Ordinal)),
             WelcomeSuggestionsEnabled = saveResult.WelcomeSuggestionsEnabled,
             SkillsSelfLearningEnabled = saveResult.SkillsSelfLearningEnabled,
+            SkillsIncludeSharedSkills = saveResult.SkillsIncludeSharedSkills,
             MemoryAutoConsolidateEnabled = saveResult.MemoryAutoConsolidateEnabled,
             DreamsEnabled = saveResult.DreamsEnabled,
             DreamsInterval = saveResult.DreamsInterval,
@@ -563,6 +575,7 @@ internal sealed class WorkspaceRequestHandler(
         Dictionary<string, ModelPreference>? providerPreferences,
         bool? welcomeSuggestionsEnabled,
         bool? skillsSelfLearningEnabled,
+        bool? skillsIncludeSharedSkills,
         bool? memoryAutoConsolidateEnabled,
         bool? dreamsEnabled,
         TimeSpan? dreamsInterval,
@@ -574,6 +587,7 @@ internal sealed class WorkspaceRequestHandler(
         bool updateProviderPreferences,
         bool updateWelcomeSuggestionsEnabled,
         bool updateSkillsSelfLearningEnabled,
+        bool updateSkillsIncludeSharedSkills,
         bool updateMemoryAutoConsolidateEnabled,
         bool updateDreamsEnabled,
         bool updateDreamsInterval,
@@ -589,11 +603,15 @@ internal sealed class WorkspaceRequestHandler(
         var providerIdKey = FindCaseInsensitiveKey(root, "ProviderId");
         var welcomeSection = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: updateWelcomeSuggestionsEnabled);
         var welcomeEnabledKey = welcomeSection == null ? null : FindCaseInsensitiveKey(welcomeSection, "Enabled");
-        var skillsSection = GetOrCreateConfigSection(root, "Skills", createIfMissing: updateSkillsSelfLearningEnabled);
+        var skillsSection = GetOrCreateConfigSection(
+            root,
+            "Skills",
+            createIfMissing: updateSkillsSelfLearningEnabled || updateSkillsIncludeSharedSkills);
         var selfLearningSection = skillsSection == null
             ? null
             : GetOrCreateConfigSection(skillsSection, "SelfLearning", createIfMissing: updateSkillsSelfLearningEnabled);
         var selfLearningEnabledKey = selfLearningSection == null ? null : FindCaseInsensitiveKey(selfLearningSection, "Enabled");
+        var includeSharedSkillsKey = skillsSection == null ? null : FindCaseInsensitiveKey(skillsSection, "IncludeSharedSkills");
         var memorySection = GetOrCreateConfigSection(root, "Memory", createIfMissing: updateMemoryAutoConsolidateEnabled);
         var memoryAutoConsolidateEnabledKey = memorySection == null ? null : FindCaseInsensitiveKey(memorySection, "AutoConsolidateEnabled");
         var dreamsSection = GetOrCreateConfigSection(
@@ -615,6 +633,7 @@ internal sealed class WorkspaceRequestHandler(
         var existingProviderPreferences = ReadConfigProviderPreferences(root);
         var existingWelcomeSuggestionsEnabled = ReadConfigBooleanValue(welcomeSection, welcomeEnabledKey);
         var existingSkillsSelfLearningEnabled = ReadConfigBooleanValue(selfLearningSection, selfLearningEnabledKey);
+        var existingSkillsIncludeSharedSkills = ReadConfigBooleanValue(skillsSection, includeSharedSkillsKey);
         var existingMemoryAutoConsolidateEnabled = ReadConfigBooleanValue(memorySection, memoryAutoConsolidateEnabledKey);
         var existingDreamsEnabled = ReadConfigBooleanValue(dreamsSection, dreamsEnabledKey);
         var existingDreamsInterval = ReadConfigTimeSpanValue(dreamsSection, dreamsIntervalKey);
@@ -632,6 +651,8 @@ internal sealed class WorkspaceRequestHandler(
             && existingWelcomeSuggestionsEnabled != welcomeSuggestionsEnabled;
         var skillsSelfLearningChanged = updateSkillsSelfLearningEnabled
             && existingSkillsSelfLearningEnabled != skillsSelfLearningEnabled;
+        var skillsIncludeSharedSkillsChanged = updateSkillsIncludeSharedSkills
+            && existingSkillsIncludeSharedSkills != skillsIncludeSharedSkills;
         var memoryAutoConsolidateChanged = updateMemoryAutoConsolidateEnabled
             && existingMemoryAutoConsolidateEnabled != memoryAutoConsolidateEnabled;
         var dreamsEnabledChanged = updateDreamsEnabled
@@ -657,13 +678,23 @@ internal sealed class WorkspaceRequestHandler(
             UpsertOrRemoveConfigValue(section, sectionEnabledKey, "Enabled", welcomeSuggestionsEnabled);
             RemoveConfigSectionIfEmpty(root, "WelcomeSuggestions");
         }
-        if (updateSkillsSelfLearningEnabled)
+        if (updateSkillsSelfLearningEnabled || updateSkillsIncludeSharedSkills)
         {
             var skills = GetOrCreateConfigSection(root, "Skills", createIfMissing: true)!;
-            var selfLearning = GetOrCreateConfigSection(skills, "SelfLearning", createIfMissing: true)!;
-            var selfLearningEnabledExistingKey = FindCaseInsensitiveKey(selfLearning, "Enabled");
-            UpsertOrRemoveConfigValue(selfLearning, selfLearningEnabledExistingKey, "Enabled", skillsSelfLearningEnabled);
-            RemoveConfigSectionIfEmpty(skills, "SelfLearning");
+            if (updateSkillsSelfLearningEnabled)
+            {
+                var selfLearning = GetOrCreateConfigSection(skills, "SelfLearning", createIfMissing: true)!;
+                var selfLearningEnabledExistingKey = FindCaseInsensitiveKey(selfLearning, "Enabled");
+                UpsertOrRemoveConfigValue(selfLearning, selfLearningEnabledExistingKey, "Enabled", skillsSelfLearningEnabled);
+                RemoveConfigSectionIfEmpty(skills, "SelfLearning");
+            }
+
+            if (updateSkillsIncludeSharedSkills)
+            {
+                var includeSharedExistingKey = FindCaseInsensitiveKey(skills, "IncludeSharedSkills");
+                UpsertOrRemoveConfigValue(skills, includeSharedExistingKey, "IncludeSharedSkills", skillsIncludeSharedSkills);
+            }
+
             RemoveConfigSectionIfEmpty(root, "Skills");
         }
         if (updateMemoryAutoConsolidateEnabled)
@@ -718,6 +749,7 @@ internal sealed class WorkspaceRequestHandler(
             || providerPreferencesChanged
             || welcomeSuggestionsChanged
             || skillsSelfLearningChanged
+            || skillsIncludeSharedSkillsChanged
             || memoryAutoConsolidateChanged
             || dreamsEnabledChanged
             || dreamsIntervalChanged
@@ -744,6 +776,9 @@ internal sealed class WorkspaceRequestHandler(
             SkillsSelfLearningEnabled = updateSkillsSelfLearningEnabled
                 ? skillsSelfLearningEnabled
                 : existingSkillsSelfLearningEnabled,
+            SkillsIncludeSharedSkills = updateSkillsIncludeSharedSkills
+                ? skillsIncludeSharedSkills
+                : existingSkillsIncludeSharedSkills,
             MemoryAutoConsolidateEnabled = updateMemoryAutoConsolidateEnabled
                 ? memoryAutoConsolidateEnabled
                 : existingMemoryAutoConsolidateEnabled,
@@ -769,6 +804,7 @@ internal sealed class WorkspaceRequestHandler(
             ProviderPreferencesChanged = providerPreferencesChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
             SkillsSelfLearningChanged = skillsSelfLearningChanged,
+            SkillsIncludeSharedSkillsChanged = skillsIncludeSharedSkillsChanged,
             MemoryAutoConsolidateChanged = memoryAutoConsolidateChanged,
             DreamsChanged = dreamsEnabledChanged || dreamsIntervalChanged || dreamsThreadLookbackCountChanged || dreamsAutoApplyChanged,
             DefaultApprovalPolicyChanged = defaultApprovalPolicyChanged,
@@ -1005,6 +1041,8 @@ internal sealed class WorkspaceRequestHandler(
 
         public bool? SkillsSelfLearningEnabled { get; init; }
 
+        public bool? SkillsIncludeSharedSkills { get; init; }
+
         public bool? MemoryAutoConsolidateEnabled { get; init; }
 
         public bool? DreamsEnabled { get; init; }
@@ -1026,6 +1064,8 @@ internal sealed class WorkspaceRequestHandler(
         public bool WelcomeSuggestionsChanged { get; init; }
 
         public bool SkillsSelfLearningChanged { get; init; }
+
+        public bool SkillsIncludeSharedSkillsChanged { get; init; }
 
         public bool MemoryAutoConsolidateChanged { get; init; }
 

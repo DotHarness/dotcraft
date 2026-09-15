@@ -66,12 +66,7 @@ export function SkillDetailDialog({
             one rather than nesting inside it. See DESIGN.md Dialog Headers. */}
         <ModalHeader
           icon={
-            <SkillAvatar
-              name={skill.name}
-              displayName={displayName}
-              iconDataUrl={skill.iconSmallDataUrl ?? skill.iconLargeDataUrl}
-              size={36}
-            />
+            <SkillAvatar iconDataUrl={skill.iconSmallDataUrl ?? skill.iconLargeDataUrl} size={36} />
           }
           badgedIcon={false}
           title={displayName}

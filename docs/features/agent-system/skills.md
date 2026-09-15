@@ -14,7 +14,7 @@ A skill teaches the agent how to do something once, so the next time a similar j
 | **Plugin-bundled** | Skills distributed by a plugin, installed and removed with it |
 | **Market-installed** | Third-party skills pulled in from SkillHub or ClawHub |
 
-When you write a skill yourself, `~/.craft/skills/` makes it personal and the workspace's `.craft/skills/` makes it project-specific. Every source is switched on or off from the Skills page, and a skill you find in a marketplace has to be installed before it joins the local list.
+When you write a skill yourself, `~/.craft/skills/` makes it personal and the workspace's `.craft/skills/` makes it project-specific. Personal skills also come from `~/.agents/skills/`, the folder other agent tools share, so what you keep there works in DotCraft without being copied — turn that off under **Settings → Personalization → Skills**. Every source is switched on or off from the Skills page, and a skill you find in a marketplace has to be installed before it joins the local list.
 
 ### Let DotCraft explain and configure itself
 

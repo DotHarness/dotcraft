@@ -6920,6 +6920,10 @@ public sealed class WorkspaceConfigUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, ModelPreference>?> ProviderPreferences { get; init; }
 
+    [JsonPropertyName("skillsIncludeSharedSkills")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> SkillsIncludeSharedSkills { get; init; }
+
     [JsonPropertyName("skillsSelfLearningEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> SkillsSelfLearningEnabled { get; init; }
@@ -6968,6 +6972,10 @@ public sealed class WorkspaceConfigUpdateResult : ExtensibleJsonObject
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, ModelPreference>?> ProviderPreferences { get; init; }
+
+    [JsonPropertyName("skillsIncludeSharedSkills")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> SkillsIncludeSharedSkills { get; init; }
 
     [JsonPropertyName("skillsSelfLearningEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
