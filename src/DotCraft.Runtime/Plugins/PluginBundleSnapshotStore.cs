@@ -3,7 +3,7 @@
 namespace DotCraft.Runtime;
 
 /// <summary>Turns installed plugin bytes into the immutable snapshots the runtime loads from.</summary>
-internal sealed class PluginBundleSnapshotStore : IDisposable
+internal sealed partial class PluginBundleSnapshotStore : IDisposable
 {
     private const string OwnerFileName = ".owner";
     private readonly string _runtimeRoot;
@@ -11,12 +11,14 @@ internal sealed class PluginBundleSnapshotStore : IDisposable
     private readonly string _generationsRoot;
     private FileStream? _ownerLease;
 
-    public PluginBundleSnapshotStore(string runtimeRoot)
+    public PluginBundleSnapshotStore(string runtimeRoot, string? installedRoot = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runtimeRoot);
         _runtimeRoot = Path.GetFullPath(runtimeRoot);
         _acceptedRoot = Path.Combine(_runtimeRoot, "accepted");
         _generationsRoot = Path.Combine(_runtimeRoot, "generations");
+        _installedRoot = installedRoot is null ? null : Path.GetFullPath(installedRoot);
+        if (_installedRoot is not null) return;
 
         var parent = Path.GetDirectoryName(_runtimeRoot)
                      ?? throw new InvalidOperationException("The plugin runtime root needs a parent directory.");
@@ -83,6 +85,11 @@ internal sealed class PluginBundleSnapshotStore : IDisposable
 
     public string CreateGenerationCopy(PluginAcceptedSnapshot snapshot, string generationId)
     {
+        if (_installedRoot is not null)
+        {
+            lock (_installedGate) AddReference(snapshot.ContentRoot);
+            return snapshot.ContentRoot;
+        }
         var destination = Path.Combine(
             _generationsRoot,
             Sanitize(snapshot.Manifest.Id),
@@ -103,19 +110,40 @@ internal sealed class PluginBundleSnapshotStore : IDisposable
         }
     }
 
-    /// <summary>Removes one generation shadow copy.</summary>
+    /// <summary>Deletes unused generation files, preserving installed bundles that are still referenced.</summary>
     /// <returns><see langword="false"/> when the platform is still holding the copy.</returns>
-    public bool DeleteGeneration(string path) =>
-        IsDescendant(_generationsRoot, path) && TryDeleteDirectory(path);
+    public bool DeleteGeneration(string path)
+    {
+        if (_installedRoot is not null)
+        {
+            lock (_installedGate)
+                return _installedReferences.ContainsKey(path) || HasRetiredGeneration(path) || !IsDescendant(_installedRoot, path)
+                    || TryDeleteDirectory(path);
+        }
+        return IsDescendant(_generationsRoot, path) && TryDeleteDirectory(path);
+    }
+
+    public bool ReleaseGeneration(string path)
+    {
+        if (_installedRoot is not null)
+            lock (_installedGate) RemoveReference(path);
+        return DeleteGeneration(path);
+    }
 
     public void DeleteAccepted(string path)
     {
+        if (_installedRoot is not null)
+        {
+            lock (_installedGate) RemoveReference(path);
+            return;
+        }
         if (IsDescendant(_acceptedRoot, path))
             TryDeleteDirectory(path);
     }
 
     public void DeleteAll()
     {
+        if (_installedRoot is not null) return;
         ReleaseOwnerLease();
         TryDeleteDirectory(_runtimeRoot);
     }

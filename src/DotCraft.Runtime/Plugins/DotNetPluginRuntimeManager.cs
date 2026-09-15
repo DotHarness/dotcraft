@@ -64,7 +64,8 @@ internal sealed partial class DotNetPluginRuntimeManager :
             paths.Data.RootPath,
             "runtime",
             "plugins",
-            $"{Environment.ProcessId}-{Guid.NewGuid():N}"));
+            $"{Environment.ProcessId}-{Guid.NewGuid():N}"),
+            executionOnly ? Path.Combine(paths.Data.RootPath, "plugins") : null);
         _reclaim = new PluginReclaimPoller(_options, ReclaimAsync, _bundleStore.DeleteGeneration, logger);
         CallGates = new PluginCallGateRegistry();
         ToolSource = new DotNetPluginToolSource(contributions, CallGates, ExportAsync);
@@ -194,7 +195,6 @@ internal sealed partial class DotNetPluginRuntimeManager :
             await WaitForTrustChangeWorkerAsync().ConfigureAwait(false);
             await WaitForExportsAsync().ConfigureAwait(false);
 
-            // Retained assemblies are mapped from the shadow copies, so the store only goes once nothing is outstanding.
             if (!_reclaim.HasOutstanding
                 && _nodes.Values.All(static node =>
                     node.Generation == null

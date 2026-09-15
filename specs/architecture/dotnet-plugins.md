@@ -301,9 +301,25 @@ Rules:
 
 ### 7.1 Snapshot and preflight
 
-Admission copies the complete plugin into an immutable accepted snapshot. A content fingerprint
+Local admission copies the complete plugin into an immutable accepted snapshot. A content fingerprint
 verifies that copy, and each activation loads a separate shadow copy so install/remove can change
 the installed directory without mutating a live generation.
+
+The remote execution host instead installs verified bundles at
+`workspaces/<workspaceId>/plugins/<pluginId>/<contentFingerprint>/` and loads them directly.
+Admission retains metadata and the installed path; it does not copy bundle files. Upload staging
+is promoted before activation, under the workspace preparation lock and owner authorization.
+Binding publication still requires final lease, authorization, cancellation, and tool-contract checks.
+Installed content is never overwritten; writable plugin state belongs in `DataRoot`.
+Unchanged preparations and reconnects reuse the installation. Settings or source-generation
+changes may replace the runtime generation without duplicating its files.
+
+Remote installations remain cached on disconnect. Replaced content is removed only after its
+accepted references and collectible generations have released it; failed file deletion is retried
+by existing reclaim polling and subsequent successful preparations. A current installation must
+not be deleted by an older generation's delayed reclaim. Interrupted uploads are discarded;
+verified installations may remain after failed activation for a later retry. Local export snapshots
+and local shadow-copy lifecycle are unaffected.
 
 .NET trust uses a separate execution fingerprint. It includes the canonical plugin id, version,
 managed entry contract, exported API declarations, dependencies, and every non-Desktop bundle
@@ -348,7 +364,7 @@ generation may still call.
 
 Activation performs:
 
-1. create generation shadow copy and collectible ALC;
+1. select the immutable installed root for remote execution, or create a local generation shadow copy, then create a collectible ALC;
 2. load exported API assemblies and the entry type;
 3. create lifetime, exports, dependencies, and a staging contribution registrar;
 4. invoke `ActivateAsync` under the activation timeout;

@@ -384,6 +384,7 @@ internal sealed partial class DotNetPluginRuntimeManager
 
         if (remnant.LoadContext is { IsAlive: true })
         {
+            _bundleStore.RetainUnloadedGeneration(remnant);
             _reclaim.Track(remnant);
             return false;
         }
@@ -395,7 +396,7 @@ internal sealed partial class DotNetPluginRuntimeManager
     /// <summary>Deletes a collected generation's shadow copy, or hands it on to be retried.</summary>
     private void ReleaseGenerationCopy(string shadowCopyPath)
     {
-        if (!_bundleStore.DeleteGeneration(shadowCopyPath))
+        if (!_bundleStore.ReleaseGeneration(shadowCopyPath))
             _reclaim.TrackDeletion(shadowCopyPath);
     }
 

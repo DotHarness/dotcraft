@@ -68,11 +68,8 @@ internal static class RemotePluginFixture
             {
                 var id = new ToolDefinitionId(ToolSourceKind.PluginNative, "probe", new SourceToolId("run"));
                 var definition = new ToolDefinition(id, new ToolName("Probe", "Run"), "Run a stateful probe.",
-                    JsonSerializer.SerializeToElement(new
-                    {
-                        type = "object", properties = new { operation = new { type = "string" } },
-                        required = new[] { "operation" }, additionalProperties = false
-                    }), annotations: new Dictionary<string, JsonElement>
+                    JsonDocument.Parse("{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\"}},\"required\":[\"operation\"],\"additionalProperties\":false}").RootElement.Clone(),
+                    annotations: new Dictionary<string, JsonElement>
                     { [RemoteToolMetadata.RpcEligibleAnnotation] = JsonSerializer.SerializeToElement(true) });
                 var binding = new ToolRuntimeBinding(new("probe:" + context.Revision), id,
                     new Runtime(this, context.Mode), ToolBindingLeases.AlwaysAvailable, "probe", context.Revision,
@@ -100,15 +97,17 @@ internal static class RemotePluginFixture
                             File.AppendAllText(source.Log, "cancelled:" + context.ThreadId + "\n");
                         }
                     }
-                    var data = new
+                    var data = new JsonObject
                     {
-                        implementation = "IMPLEMENTATION", mode, thread = context.ThreadId,
-                        workspace = source._activation.WorkspaceRoot,
-                        settings = source._activation.Settings,
-                        resource = File.ReadAllText(Path.Combine(source._activation.ContentRoot, "resource.txt")),
-                        running = source._jobs.TryGetValue(context.ThreadId, out var job) && !job.Work.IsCompleted
+                        ["implementation"] = "IMPLEMENTATION", ["mode"] = mode, ["thread"] = context.ThreadId,
+                        ["workspace"] = source._activation.WorkspaceRoot,
+                        ["contentRoot"] = source._activation.ContentRoot,
+                        ["assemblyPath"] = typeof(Plugin).Assembly.Location,
+                        ["settings"] = JsonSerializer.SerializeToNode(source._activation.Settings),
+                        ["resource"] = File.ReadAllText(Path.Combine(source._activation.ContentRoot, "resource.txt")),
+                        ["running"] = source._jobs.TryGetValue(context.ThreadId, out var job) && !job.Work.IsCompleted
                     };
-                    return ToolExecutionResult.Succeeded(JsonSerializer.Serialize(data), JsonSerializer.SerializeToElement(data));
+                    return ToolExecutionResult.Succeeded(data.ToJsonString(), JsonSerializer.SerializeToElement(data));
                 }
             }
             public async ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default)
