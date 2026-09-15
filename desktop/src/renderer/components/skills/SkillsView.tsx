@@ -534,12 +534,7 @@ function SkillManageItem({
       onFocus={() => setActive(true)}
       onBlur={() => setActive(false)}
     >
-      <SkillAvatar
-        name={skill.name}
-        displayName={skillTitle(skill)}
-        size={38}
-        iconDataUrl={skill.iconSmallDataUrl}
-      />
+      <SkillAvatar size={38} iconDataUrl={skill.iconSmallDataUrl} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={rowTitleLine}>
           <div style={rowTitle}>{skillTitle(skill)}</div>
@@ -575,12 +570,7 @@ function LocalSkillItem({ skill, onOpen }: { skill: SkillEntry; onOpen: () => vo
       onBlur={() => setActive(false)}
       style={interactiveCompactItem(active)}
     >
-      <SkillAvatar
-        name={skill.name}
-        displayName={skillTitle(skill)}
-        size={40}
-        iconDataUrl={skill.iconSmallDataUrl}
-      />
+      <SkillAvatar size={40} iconDataUrl={skill.iconSmallDataUrl} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={rowTitleLine}>
           <div style={rowTitle}>{skillTitle(skill)}</div>
@@ -610,7 +600,7 @@ function MarketSkillItem({ skill, onOpen }: { skill: MarketSkillSummary; onOpen:
       onBlur={() => setActive(false)}
       style={interactiveCompactItem(active)}
     >
-      <SkillAvatar name={skill.name} size={40} />
+      <SkillAvatar size={40} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={rowTitle}>{skill.name}</div>
         <div style={rowDesc}>{skill.description || skill.slug}</div>

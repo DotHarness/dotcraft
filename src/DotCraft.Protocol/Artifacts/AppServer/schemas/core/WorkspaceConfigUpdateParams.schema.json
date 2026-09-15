@@ -87,6 +87,16 @@
         }
       ]
     },
+    "skillsIncludeSharedSkills": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "skillsSelfLearningEnabled": {
       "anyOf": [
         {

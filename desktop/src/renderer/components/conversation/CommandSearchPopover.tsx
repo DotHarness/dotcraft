@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Sparkle, Terminal } from 'lucide-react'
+import { Box, Terminal } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { CustomCommandInfo } from '../../hooks/useCustomCommandCatalog'
 import {
@@ -312,7 +312,7 @@ export function CommandSearchPopover({
                 style={mentionRowStyle(index === highlight)}
               >
                 <MentionRowIcon tint="var(--ref-skill)">
-                  <Sparkle size={15} strokeWidth={2} aria-hidden />
+                  <Box size={15} strokeWidth={2} aria-hidden />
                 </MentionRowIcon>
                 <span style={mentionRowNameStyle}>{highlightMatch(skill.name, query)}</span>
                 <span style={mentionRowDescStyle}>{description}</span>

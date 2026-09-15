@@ -8,6 +8,7 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Trash2 } from 'lucide-react'
 import { IdentityMark } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 
 interface WeComConfigFormProps {
   value: WeComChannelConfig
@@ -33,7 +34,7 @@ export function WeComConfigForm({
   return (
     <div>
       <div style={formStyles.header}>
-        <IdentityMark role="list" size={32} src={logoPath} fallback="W" />
+        <IdentityMark role="list" size={32} src={logoPath} fallback={<IdentityMarkFallback kind="channel" />} />
         <div>
           <div style={formStyles.headerTitle}>{t('channels.wecom.title')}</div>
           <StatusPill status={status} label={statusLabel} />

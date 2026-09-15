@@ -23,16 +23,17 @@ public sealed partial class SkillsLoader
     private readonly SkillVariantStore _variantStore;
 
     /// <summary>Creates a loader from the runtime path context.</summary>
-    public SkillsLoader(DotCraftPaths paths)
-        : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("skills"))
+    public SkillsLoader(DotCraftPaths paths, string? sharedSkillsPath = null)
+        : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("skills"), sharedSkillsPath)
     {
     }
 
     /// <summary>Creates a loader from already resolved skill roots.</summary>
-    public SkillsLoader(string workspaceRoot, string? userSkillsPath = null)
+    public SkillsLoader(string workspaceRoot, string? userSkillsPath = null, string? sharedSkillsPath = null)
     {
         WorkspaceSkillsPath = Path.Combine(workspaceRoot, "skills");
         UserSkillsPath = userSkillsPath;
+        SharedSkillsPath = sharedSkillsPath;
         _variantStore = new SkillVariantStore(workspaceRoot);
     }
 
@@ -45,6 +46,13 @@ public sealed partial class SkillsLoader
     /// Gets the user skills path.
     /// </summary>
     public string? UserSkillsPath { get; }
+
+    public string? SharedSkillsPath { get; }
+
+    public static string DefaultSharedSkillsPath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".agents",
+        "skills");
 
     /// <summary>
     /// Gets the workspace-local variant store.
@@ -159,29 +167,27 @@ public sealed partial class SkillsLoader
             }
         }
 
-        // User skills
-        if (UserSkillsPath is not null && Directory.Exists(UserSkillsPath))
-        {
-            foreach (var dir in EnumerateSkillDirectories(UserSkillsPath))
-            {
-                var skillFile = Path.Combine(dir, "SKILL.md");
-                if (File.Exists(skillFile))
-                {
-                    var name = Path.GetFileName(dir);
-                    // Skip if workspace has skill with same name
-                    if (skills.Any(s => s.Name == name))
-                        continue;
-
-                    AddSkillInfo(skills, name, skillFile, "user");
-                }
-            }
-        }
+        AddUserSkillsFromRoot(skills, UserSkillsPath);
+        AddUserSkillsFromRoot(skills, SharedSkillsPath);
 
         // Filter by requirements if requested
         if (filterUnavailable)
             return SortSkills(skills.Where(s => s.Available)).ToList();
 
         return SortSkills(skills).ToList();
+    }
+
+    private void AddUserSkillsFromRoot(List<SkillInfo> skills, string? root)
+    {
+        if (root is null || !Directory.Exists(root))
+            return;
+
+        foreach (var dir in EnumerateSkillDirectories(root))
+        {
+            var skillFile = Path.Combine(dir, "SKILL.md");
+            if (File.Exists(skillFile))
+                AddSkillInfo(skills, Path.GetFileName(dir), skillFile, "user");
+        }
     }
 
     private static IEnumerable<string> EnumerateSkillDirectories(string path) =>
@@ -554,14 +560,16 @@ public sealed partial class SkillsLoader
         if (File.Exists(workspaceSkill) && _availableBuiltInSkills.Contains(name) && !_disabledPluginSkillNames.Contains(name))
             return workspaceSkill;
 
-        if (UserSkillsPath is not null)
-        {
-            var userSkill = Path.Combine(UserSkillsPath, name, "SKILL.md");
-            if (File.Exists(userSkill))
-                return userSkill;
-        }
+        return ResolveFromRoot(UserSkillsPath, name) ?? ResolveFromRoot(SharedSkillsPath, name);
+    }
 
-        return null;
+    private static string? ResolveFromRoot(string? root, string name)
+    {
+        if (root is null)
+            return null;
+
+        var skillFile = Path.Combine(root, name, "SKILL.md");
+        return File.Exists(skillFile) ? skillFile : null;
     }
 
     /// <summary>

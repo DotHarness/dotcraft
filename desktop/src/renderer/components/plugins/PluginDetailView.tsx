@@ -160,9 +160,10 @@ export function PluginDetailView({
           <section style={detailSection}>
             <h2 style={detailSectionTitle}>{t('plugins.detail.info')}</h2>
             <div style={infoTable}>
-              <InfoRow label={t('plugins.detail.category')} value={[displayCategory(info?.category, t), info?.developerName].filter(Boolean).join(', ')} />
               <InfoRow label={t('plugins.detail.capabilities')} value={(info?.capabilities ?? []).join(', ')} />
               <InfoRow label={t('plugins.detail.developer')} value={info?.developerName || 'DotHarness'} />
+              <InfoRow label={t('plugins.detail.category')} value={displayCategory(info?.category, t)} />
+              {plugin.version && <InfoRow label={t('plugins.detail.version')} value={plugin.version} />}
               <InfoLinkRow label={t('plugins.detail.website')} href={info?.websiteUrl} />
               <InfoLinkRow label={t('plugins.detail.privacy')} href={info?.privacyPolicyUrl} />
               <InfoLinkRow label={t('plugins.detail.terms')} href={info?.termsOfServiceUrl} />

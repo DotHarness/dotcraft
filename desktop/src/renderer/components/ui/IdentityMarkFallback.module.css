@@ -1,0 +1,16 @@
+.art {
+  width: calc(var(--identity-mark-size) * 0.68);
+  height: calc(var(--identity-mark-size) * 0.68);
+}
+
+.lit {
+  fill: color-mix(in srgb, var(--text-primary) 42%, var(--bg-tertiary));
+}
+
+.mid {
+  fill: color-mix(in srgb, var(--text-primary) 26%, var(--bg-tertiary));
+}
+
+.shaded {
+  fill: color-mix(in srgb, var(--text-primary) 16%, var(--bg-tertiary));
+}

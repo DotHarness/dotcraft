@@ -4794,6 +4794,7 @@ export interface WorkspaceConfigUpdateParams {
   memoryAutoConsolidateEnabled?: boolean | null;
   providerId?: string | null;
   providerPreferences?: Record<string, ModelPreference> | null;
+  skillsIncludeSharedSkills?: boolean | null;
   skillsSelfLearningEnabled?: boolean | null;
   toolsLspEnabled?: boolean | null;
   welcomeSuggestionsEnabled?: boolean | null;
@@ -4809,6 +4810,7 @@ export interface WorkspaceConfigUpdateResult {
   memoryAutoConsolidateEnabled?: boolean | null;
   providerId?: string | null;
   providerPreferences?: Record<string, ModelPreference> | null;
+  skillsIncludeSharedSkills?: boolean | null;
   skillsSelfLearningEnabled?: boolean | null;
   toolsLspEnabled?: boolean | null;
   welcomeSuggestionsEnabled?: boolean | null;

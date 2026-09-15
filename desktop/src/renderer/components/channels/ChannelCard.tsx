@@ -1,4 +1,5 @@
 import { IdentityMark } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 
 export type ChannelConnectionState =
   | 'connected'
@@ -53,11 +54,7 @@ export function ChannelCard({
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-        <IdentityMark
-          role="compact"
-          src={logoPath}
-          fallback={label.slice(0, 1).toUpperCase()}
-        />
+        <IdentityMark role="compact" src={logoPath} fallback={<IdentityMarkFallback kind="channel" />} />
           <span
             style={{
               color: 'var(--text-primary)',

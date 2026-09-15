@@ -28,7 +28,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
-import { Bot, MessageSquare, Puzzle, SquarePen } from 'lucide-react'
+import { Bot, Box, MessageSquare, SquarePen } from 'lucide-react'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
@@ -189,7 +189,7 @@ function SidebarNavRow({
 }
 
 function SkillsIcon(): JSX.Element {
-  return <Puzzle size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+  return <Box size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
 function ChannelsIcon(): JSX.Element {

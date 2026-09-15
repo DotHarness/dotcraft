@@ -217,6 +217,24 @@ public sealed class AppServerSkillsManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task SkillsUninstall_RejectsSharedRootSkill()
+    {
+        var craftPath = Path.Combine(_tempRoot, ".craft");
+        var userSkillsPath = Path.Combine(_tempRoot, "user-skills");
+        var sharedSkillsPath = Path.Combine(_tempRoot, "shared-skills");
+        var loader = new SkillsLoader(craftPath, userSkillsPath, sharedSkillsPath);
+        WriteSkillAtRoot(sharedSkillsPath, "shared-skill", "Shared body.");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "shared-skill" }));
+        using var response = harness.Transport.TryReadSent()!;
+
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        Assert.True(Directory.Exists(Path.Combine(sharedSkillsPath, "shared-skill")));
+    }
+
+    [Fact]
     public async Task SkillsUninstall_RejectsBuiltinAndPluginSkills()
     {
         var craftPath = Path.Combine(_tempRoot, ".craft");

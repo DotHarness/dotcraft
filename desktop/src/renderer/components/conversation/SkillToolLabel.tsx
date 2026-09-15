@@ -1,4 +1,4 @@
-import { Sparkle } from 'lucide-react'
+import { Box } from 'lucide-react'
 import type { JSX, ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { usePluginStore } from '../../stores/pluginStore'
@@ -52,7 +52,7 @@ export function SkillRef({ name }: { name: string }): JSX.Element {
         void openSkill()
       }}
     >
-      <Sparkle size={12} strokeWidth={2.25} aria-hidden />
+      <Box size={12} strokeWidth={2.25} aria-hidden />
       <span>{name}</span>
     </button>
   )

@@ -144,6 +144,61 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceConfigUpdate_SkillsIncludeSharedSkillsOnly_WritesConfigAndEmitsSkillsRegion()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        {
+            skillsIncludeSharedSkills = false
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Skills);
+        var json = await File.ReadAllTextAsync(configPath);
+        using var doc = JsonDocument.Parse(json);
+        Assert.False(doc.RootElement.GetProperty("Skills").GetProperty("IncludeSharedSkills").GetBoolean());
+    }
+
+    [Fact]
+    public async Task WorkspaceConfigUpdate_SkillsIncludeSharedSkills_PreservesSelfLearningSection()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        await File.WriteAllTextAsync(
+            configPath,
+            """
+            {
+              "Skills": {
+                "SelfLearning": {
+                  "Enabled": false
+                }
+              }
+            }
+            """);
+
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        {
+            skillsIncludeSharedSkills = false
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        var json = await File.ReadAllTextAsync(configPath);
+        using var doc = JsonDocument.Parse(json);
+        var skills = doc.RootElement.GetProperty("Skills");
+        Assert.False(skills.GetProperty("IncludeSharedSkills").GetBoolean());
+        Assert.False(skills.GetProperty("SelfLearning").GetProperty("Enabled").GetBoolean());
+    }
+
+    [Fact]
     public async Task WorkspaceConfigUpdate_MemoryAutoConsolidateOnly_WritesConfigUpdatesMonitorAndEmitsMemoryRegion()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");

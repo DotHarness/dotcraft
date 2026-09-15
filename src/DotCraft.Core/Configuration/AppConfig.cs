@@ -1087,6 +1087,9 @@ public sealed class AppConfig
         [ConfigField(Hint = "JSON array of skill names to disable for this workspace", Reload = ReloadBehavior.Hot, HasReload = true)]
         public List<string> DisabledSkills { get; set; } = [];
 
+        [ConfigField(Hint = "Discover skills from the shared ~/.agents/skills directory", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
+        public bool IncludeSharedSkills { get; set; } = true;
+
         /// <summary>
         /// Optional agent self-learning behavior for creating and updating workspace skills.
         /// </summary>

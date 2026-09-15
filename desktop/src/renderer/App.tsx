@@ -1628,10 +1628,6 @@ export function App(): JSX.Element {
       if (caps?.providerManagement) {
         void useProvidersStore.getState().reload()
       }
-      if (caps?.pluginManagement) {
-        void usePluginStore.getState().fetchPlugins()
-      }
-
     }
     if (status === 'disconnected' || status === 'error') {
       threadListReloadGenerationRef.current += 1

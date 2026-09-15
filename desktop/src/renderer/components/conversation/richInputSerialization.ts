@@ -1,5 +1,5 @@
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from './richInputConstants'
-import { REMOVE_ICON_SVG, SPARKLE_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
+import { REMOVE_ICON_SVG, SKILL_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
 import { paintFileRefIcon } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 
@@ -71,7 +71,7 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
     span.className = `${SKILL_REF_CLASS} dc-ref dc-ref-skill`
     span.setAttribute('data-skill', value)
     label.textContent = value
-    icon.innerHTML = SPARKLE_ICON_SVG
+    icon.innerHTML = SKILL_ICON_SVG
     span.title = `$${value}`
   }
   iconSlot.append(icon, removeIcon)

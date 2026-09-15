@@ -40,11 +40,12 @@ describe('PluginIcon', () => {
     expect(mark.style.backgroundColor).toBe('')
   })
 
-  it('uses the default blue background for the generated fallback', () => {
+  it('uses the shared neutral mark, not an initial, for the generated fallback', () => {
     const mark = renderPluginIcon({ displayName: 'Example Plugin' })
 
     expect(mark.querySelector('img')).not.toBeInTheDocument()
-    expect(mark).toHaveTextContent('E')
-    expect(mark.style.getPropertyValue('--identity-mark-fallback-background')).toBe('#0B63CE')
+    expect(mark.textContent).toBe('')
+    expect(mark.querySelector('svg')).toBeInTheDocument()
+    expect(mark.style.getPropertyValue('--identity-mark-fallback-background')).toBe('')
   })
 })

@@ -1,45 +1,27 @@
-import type { CSSProperties, JSX } from 'react'
-import { IdentityMark } from '../ui/IdentityMark'
+import type { JSX } from 'react'
+import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 
 interface SkillAvatarProps {
-  name: string
-  displayName?: string
   size?: number
   iconDataUrl?: string | null
+  role?: IdentityMarkRole
+  framed?: boolean
 }
 
-/**
- * Keeps a subtle per-skill hue hint while letting theme surface tokens drive contrast
- * in both light and dark modes.
- */
-export function SkillAvatar({ name, displayName, size = 40, iconDataUrl }: SkillAvatarProps): JSX.Element {
-  const letter = getSkillLetter(displayName ?? name)
-  const hue = hashHue(name)
-  const accent = `hsl(${hue} 58% 52%)`
-  const accentStrong = `hsl(${hue} 52% 40%)`
-
+export function SkillAvatar({
+  size = 40,
+  iconDataUrl,
+  role = 'list',
+  framed,
+}: SkillAvatarProps): JSX.Element {
   return (
     <IdentityMark
-      role="list"
+      role={role}
       size={size}
       src={iconDataUrl}
-      fallback={letter}
-      framed={!iconDataUrl}
-      style={{
-        '--identity-mark-fallback-background': `color-mix(in srgb, var(--bg-tertiary) 68%, ${accent} 32%)`,
-        '--identity-mark-border': `color-mix(in srgb, var(--border-default) 58%, ${accent} 42%)`,
-        '--identity-mark-fallback-color': `color-mix(in srgb, var(--text-primary) 72%, ${accentStrong} 28%)`,
-      } as CSSProperties}
+      fallback={<IdentityMarkFallback kind="skill" />}
+      framed={framed}
     />
   )
-}
-
-function getSkillLetter(name: string): string {
-  return (name.trim()[0] ?? '?').toUpperCase()
-}
-
-function hashHue(s: string): number {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return h % 360
 }

@@ -1,7 +1,7 @@
 import { projectInputParts } from '../../utils/inputPresentation'
 import { SentContextAttachments } from './SentContextAttachments'
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import { Image as ImageIcon, Pencil, Sparkle, Terminal } from 'lucide-react'
+import { Box, Image as ImageIcon, Pencil, Terminal } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { Textarea } from '../ui/Input'
 import { useT } from '../../contexts/LocaleContext'
@@ -524,7 +524,7 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
-        <Sparkle size={12} strokeWidth={2.25} aria-hidden />
+        <Box size={12} strokeWidth={2.25} aria-hidden />
         <span>{skillName}</span>
       </span>
       </ActionTooltip>
