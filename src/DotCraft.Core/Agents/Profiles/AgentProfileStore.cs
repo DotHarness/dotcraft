@@ -533,6 +533,7 @@ public sealed partial class AgentProfileStore
         }
 
         var resolved = CloneThreadConfiguration(profile.CompiledConfiguration);
+        resolved.MemoryScope = requested.MemoryScope;
         if (profile.ProviderPreference != null)
             ApplyProviderPreference(resolved, profile.ProviderPreference, appConfig);
         var selectsRuntimeModel = HasConfigProperty(configElement, "providerId")
