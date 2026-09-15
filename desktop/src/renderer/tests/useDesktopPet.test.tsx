@@ -90,6 +90,28 @@ describe('desktop pet source handoff', () => {
     return { root, mascot, releasePointerCapture }
   }
 
+  it('leaves a tap on the character alone so its own click still reaches it', () => {
+    const view = render(<Welcome />)
+    const mascot = view.getByTestId('mascot')
+    const setPointerCapture = vi.fn()
+    Object.assign(view.getByTestId('root'), {
+      setPointerCapture, hasPointerCapture: vi.fn(() => false), releasePointerCapture: vi.fn()
+    })
+
+    fireEvent.pointerDown(mascot, { button: 0, pointerId: 7, clientX: 122, clientY: 122 })
+    fireEvent.pointerMove(mascot, { pointerId: 7, clientX: 124, clientY: 122 })
+    // Capturing retargets the click to the root, so a press that has not become a drag must not.
+    expect(setPointerCapture).not.toHaveBeenCalled()
+
+    fireEvent.pointerUp(mascot, { pointerId: 7, clientX: 124, clientY: 122 })
+    expect(mascot.style.translate).toBe('')
+    expect(fireEvent.click(mascot)).toBe(true)
+
+    fireEvent.pointerDown(mascot, { button: 0, pointerId: 8, clientX: 122, clientY: 122 })
+    fireEvent.pointerMove(mascot, { pointerId: 8, clientX: 160, clientY: 122 })
+    expect(setPointerCapture).toHaveBeenCalledWith(8)
+  })
+
   it('releases the source pointer and visual state when handoff recovery arrives', () => {
     const view = render(<Welcome />)
     const { root, mascot, releasePointerCapture } = detachFrom(view)

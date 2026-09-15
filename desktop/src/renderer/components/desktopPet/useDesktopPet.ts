@@ -82,7 +82,6 @@ export function useDesktopPet(
         id: event.pointerId, x: event.clientX, y: event.clientY, seat, mascot: target, distance: 0,
         stage: target.closest<HTMLElement>('.composer-mascot-stage')
       }
-      element.setPointerCapture(event.pointerId)
     }
     const detach = (event: PointerEvent, pointerHeld: boolean): void => {
       if (!drag || owns()) return
@@ -102,6 +101,7 @@ export function useDesktopPet(
       drag.distance = Math.hypot(x, y)
       if (drag.distance < 5) return
       suppressClick = true
+      if (!element.hasPointerCapture(event.pointerId)) element.setPointerCapture(event.pointerId)
       event.preventDefault()
       element.dataset.petDrag = drag.distance >= 112 ? 'armed' : 'dragging'
       if (!tether) {
@@ -134,6 +134,8 @@ export function useDesktopPet(
       if (!drag || drag.id !== event.pointerId) return
       if (drag.distance >= 112 && event.type === 'pointerup') {
         detach(event, false)
+      } else if (drag.distance < 5) {
+        reset()
       } else {
         const { mascot, stage } = drag
         if (!prefersReducedMotion()) {
