@@ -2255,7 +2255,7 @@ public sealed partial class SessionService(
             }
 
             var samplingBoundaryOrdinal = 0;
-            ChatOptions? lastSamplingOptions = null;
+            var reactiveCompaction = new ReactiveCompactionState();
 
             async Task<CompactionExecutionResult?> TryCompactBeforeSamplingAsync(
                 IReadOnlyList<ChatMessage> modelVisibleHistory,
@@ -2263,7 +2263,7 @@ public sealed partial class SessionService(
                 ChatOptions? requestOptions,
                 CancellationToken compactionCt)
             {
-                lastSamplingOptions = requestOptions?.Clone();
+                reactiveCompaction.Options = requestOptions?.Clone();
                 var phase = samplingBoundaryOrdinal++ == 0
                     ? CompactionPhase.PreTurn
                     : CompactionPhase.MidTurn;
@@ -2275,8 +2275,8 @@ public sealed partial class SessionService(
                     modelVisibleHistory,
                     tokenTracker.LastContextTokens,
                     requestSnapshot);
-                var compactHistory = WithoutAgentInstructions(preparedEstimate.History);
-                var compactSnapshot = WithoutAgentInstructions(preparedEstimate.RequestSnapshot);
+                var compactHistory = preparedEstimate.History;
+                var compactSnapshot = preparedEstimate.RequestSnapshot;
                 var usageEstimate = preparedEstimate.Estimate;
                 await SavePreparedContextEstimateAsync(
                     threadId,
@@ -2977,14 +2977,15 @@ public sealed partial class SessionService(
                         threadContextCarrier);
                 }
 
+                reactiveCompaction.ProviderContext = new ProviderRequestContext(
+                    providerIdentity,
+                    responsesProviderHistoryContext,
+                    responsesProviderHistoryContext as IProviderCompactionBridge,
+                    traceCollector,
+                    providerConversationState);
                 using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
                     ? null
-                    : ProviderRequestContextScope.Push(new ProviderRequestContext(
-                        providerIdentity,
-                        responsesProviderHistoryContext,
-                        responsesProviderHistoryContext as IProviderCompactionBridge,
-                        traceCollector,
-                        providerConversationState));
+                    : ProviderRequestContextScope.Push(reactiveCompaction.ProviderContext);
                 using var ephemeralHistorySnapshotScope = new ProviderHistorySnapshotScope(
                     thread.Ephemeral ? responsesProviderHistoryContext : null,
                     thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralHistoryRuntime)
@@ -3017,6 +3018,7 @@ public sealed partial class SessionService(
                                 : null,
                             CaptureSnapshotAsync = async (snapshot, _) =>
                             {
+                                reactiveCompaction.Snapshot = snapshot;
                                 var preparedEstimate = PrepareContextTokenEstimate(
                                     threadId,
                                     snapshot.Messages,
@@ -3730,6 +3732,12 @@ public sealed partial class SessionService(
                 {
                     try
                     {
+                        using var reactiveProviderScope = reactiveCompaction.RestoreProviderScope();
+                        using var reactiveHistorySnapshotScope = new ProviderHistorySnapshotScope(
+                            thread.Ephemeral ? reactiveCompaction.ProviderContext?.History : null,
+                            thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var reactiveRuntime)
+                                ? reactiveRuntime
+                                : null);
                         var reactiveCoordinator = GetCompactionCoordinatorForThread(thread);
                         var existingContextUsage = TryGetContextUsageSnapshot(threadId);
                         var preReactiveTokens = existingContextUsage?.Tokens ?? tokenTracker?.LastContextTokens ?? 0;
@@ -3770,11 +3778,12 @@ public sealed partial class SessionService(
                                 new CompactionExecutionRequest(
                                     CompactionTrigger.Reactive,
                                     CompactionPhase.Reactive,
-                                    WithoutAgentInstructions(session),
+                                    reactiveCompaction.GetHistory(session),
                                     threadId,
                                     preReactiveTokens,
                                     thread.LastActiveAt,
-                                    Options: lastSamplingOptions,
+                                    PromptSnapshot: reactiveCompaction.Snapshot,
+                                    Options: reactiveCompaction.Options,
                                     ProviderBridge: ProviderRequestContextScope.Current?.Compaction),
                                 CancellationToken.None);
                             var status = compactExecution.Status;
@@ -3817,7 +3826,7 @@ public sealed partial class SessionService(
                                     {
                                         await providerHistory.HistoryReplacedAsync(
                                             compactedHistory,
-                                            lastSamplingOptions,
+                                            reactiveCompaction.Options,
                                             "reactive_compaction",
                                             CancellationToken.None);
                                     }

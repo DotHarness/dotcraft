@@ -264,6 +264,16 @@ provider-native replacement. `CoveredThroughTurnId` describes the latest Turn bo
 by the replacement. They are coverage boundaries, not a claim that provider records can be
 converted back into neutral messages.
 
+The sampling list includes persisted AGENTS.md instruction messages and uses the same history
+sanitizer as ordinary sampling. All compaction callers preserve the complete list and request
+snapshot. Removing AGENTS.md is a local-summary backend policy applied after backend selection;
+the filtered snapshot's message fingerprint is recomputed. Native coverage must not be shortened
+by this policy. Manual context usage estimates include the complete provider-visible history.
+
+Reactive compaction retains the failed turn's provider context beyond sampling-scope disposal and
+uses the final captured sampling snapshot, including sanitizer repairs. The failed turn remains
+failed after compaction; the user can resubmit against the compacted history.
+
 `CoveredMessageCount` is the active runtime cursor. The durable replacement stores
 `CoveredThroughTurnId`; cold recovery derives the neutral cursor from that Turn boundary and later
 surviving provider-history appends.

@@ -118,23 +118,4 @@ public sealed partial class SessionService
             snapshot.Content,
             snapshot.Sources,
             snapshot.Fingerprint);
-
-    private static List<ChatMessage> WithoutAgentInstructions(IEnumerable<ChatMessage> history) =>
-        history
-            .Where(static message => !AgentInstructionsHistory.IsInstructions(message))
-            .Select(static message => message.Clone())
-            .ToList();
-
-    private static PromptRequestSnapshot? WithoutAgentInstructions(PromptRequestSnapshot? snapshot)
-    {
-        if (snapshot == null || !snapshot.Messages.Any(AgentInstructionsHistory.IsInstructions))
-            return snapshot;
-
-        var messages = WithoutAgentInstructions(snapshot.Messages);
-        return snapshot with
-        {
-            Messages = messages,
-            MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(messages, messages.Count)
-        };
-    }
 }

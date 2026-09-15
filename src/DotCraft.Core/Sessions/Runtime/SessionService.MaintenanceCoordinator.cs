@@ -69,8 +69,8 @@ public sealed partial class SessionService
                 var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
                 var coordinator = GetCompactionCoordinatorForThread(thread);
-                var historyForEstimate = WithoutAgentInstructions(PrepareProviderVisibleHistory(
-                    SnapshotSessionHistoryForConsolidation(session, thread)));
+                var historyForEstimate = PrepareProviderVisibleHistory(
+                    SnapshotSessionHistoryForConsolidation(session, thread)).ToList();
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
@@ -82,7 +82,7 @@ public sealed partial class SessionService
                     tokenTracker.LastContextTokens,
                     manualPromptSnapshot);
                 historyForEstimate = preparedEstimate.History.ToList();
-                manualPromptSnapshot = WithoutAgentInstructions(preparedEstimate.RequestSnapshot);
+                manualPromptSnapshot = preparedEstimate.RequestSnapshot;
                 var usageEstimate = preparedEstimate.Estimate;
                 var before = (int)Math.Min(int.MaxValue, usageEstimate.Tokens);
                 if (manualPromptSnapshot is not null)

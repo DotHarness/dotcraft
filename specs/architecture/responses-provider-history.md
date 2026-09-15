@@ -84,6 +84,10 @@ provider-history generation. A provider-native compact backend captures its inpu
 provider compaction bridge instead of the ordinary Responses sampling adapter.
 
 The turn runtime captures the MEAI baseline before the current user input enters the agent.
+Coverage includes persisted AGENTS.md messages. Native compaction and ordinary sampling must use
+the same complete projection; filtering instructions is confined to local summary requests and
+must not shorten the list used to capture or install native coverage.
+
 Coverage is an append-only message boundary measured against the sanitizer-normalized sampling
 projection used for provider requests, not against the raw MEAI collection shape. Raw baselines,
 replacement histories, and compaction inputs are normalized when they enter that projection. The
