@@ -20,11 +20,12 @@ internal static class SatellitePageHost
     }
 
     /// <summary>Throws when the WebView2 Runtime is missing; the caller owns what to show instead.</summary>
-    public static async Task<CoreWebView2Controller> AttachAsync(
+    public static async Task<SatellitePage> AttachAsync(
         nint hwnd,
         string logicalName,
         bool transparent,
-        Action<JsonElement> onMessage)
+        Action<JsonElement> onMessage,
+        Action? onProcessFailed = null)
     {
         var environment = await EnvironmentAsync();
         var controller = await environment.CreateCoreWebView2ControllerAsync(
@@ -45,22 +46,9 @@ internal static class SatellitePageHost
         settings.IsPasswordAutosaveEnabled = false;
         settings.IsWebMessageEnabled = true;
 
-        // The embedded page is the only document these surfaces ever hold, so every navigation
-        // after the one below would be a way out of it.
-        var landed = false;
-        core.NavigationStarting += (_, args) =>
-        {
-            args.Cancel = landed;
-            landed = true;
-        };
-        core.NewWindowRequested += (_, args) => args.Handled = true;
-        core.WebMessageReceived += (_, args) =>
-        {
-            using var document = JsonDocument.Parse(args.WebMessageAsJson);
-            onMessage(document.RootElement);
-        };
-        core.NavigateToString(Page(logicalName));
-        return controller;
+        var page = new SatellitePage(controller, onMessage, onProcessFailed);
+        page.Navigate(Page(logicalName));
+        return page;
     }
 
     public static void Post(CoreWebView2 core, object state) =>
@@ -102,4 +90,72 @@ internal static class SatellitePageHost
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
+}
+
+internal sealed class SatellitePage : IDisposable
+{
+    private readonly CoreWebView2Controller _controller;
+    private readonly CoreWebView2 _core;
+    private readonly Action<JsonElement> _onMessage;
+    private readonly Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NavigationStartingEventArgs>
+        _navigationStarting;
+    private readonly Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NewWindowRequestedEventArgs>
+        _newWindowRequested;
+    private readonly Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs>
+        _webMessageReceived;
+    private readonly Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2ProcessFailedEventArgs>?
+        _processFailed;
+    private bool _landed;
+    private bool _disposed;
+
+    public SatellitePage(
+        CoreWebView2Controller controller,
+        Action<JsonElement> onMessage,
+        Action? onProcessFailed)
+    {
+        _controller = controller;
+        _core = controller.CoreWebView2;
+        _onMessage = onMessage;
+        _navigationStarting = OnNavigationStarting;
+        _newWindowRequested = OnNewWindowRequested;
+        _webMessageReceived = OnWebMessageReceived;
+        _processFailed = onProcessFailed is null ? null : (_, _) => onProcessFailed();
+        _core.NavigationStarting += _navigationStarting;
+        _core.NewWindowRequested += _newWindowRequested;
+        _core.WebMessageReceived += _webMessageReceived;
+        if (_processFailed is not null)
+            _core.ProcessFailed += _processFailed;
+    }
+
+    public CoreWebView2Controller Controller => _controller;
+
+    public void Navigate(string html) => _core.NavigateToString(html);
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _core.NavigationStarting -= _navigationStarting;
+        _core.NewWindowRequested -= _newWindowRequested;
+        _core.WebMessageReceived -= _webMessageReceived;
+        if (_processFailed is not null)
+            _core.ProcessFailed -= _processFailed;
+        _controller.Close();
+    }
+
+    private void OnNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
+    {
+        args.Cancel = _landed;
+        _landed = true;
+    }
+
+    private static void OnNewWindowRequested(CoreWebView2 sender, CoreWebView2NewWindowRequestedEventArgs args) =>
+        args.Handled = true;
+
+    private void OnWebMessageReceived(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        using var document = JsonDocument.Parse(args.WebMessageAsJson);
+        _onMessage(document.RootElement);
+    }
 }

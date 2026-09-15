@@ -21,6 +21,7 @@ internal sealed class ConsentWindow : Window
     private readonly AppWindow _appWindow;
     private readonly nint _handle;
     private readonly bool _animate;
+    private SatellitePage? _page;
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
 
@@ -34,12 +35,44 @@ internal sealed class ConsentWindow : Window
         viewModel.Finished += (_, _) => Close();
         viewModel.PropertyChanged += (_, _) => Push();
 
-        _root.ActualThemeChanged += (_, _) => Push();
+        _root.ActualThemeChanged += (_, _) =>
+        {
+            ApplyTitleBarTheme();
+            Push();
+        };
         _root.Loaded += OnRootLoaded;
         Content = _root;
         Closed += (_, _) => Detach();
         _appWindow.Changed += OnWindowChanged;
         Resize();
+        ApplyTitleBarTheme();
+    }
+
+    private void ApplyTitleBarTheme()
+    {
+        var light = _root.ActualTheme == ElementTheme.Light;
+        var background = light ? Colors.White : Windows.UI.Color.FromArgb(255, 36, 36, 36);
+        var foreground = light
+            ? Windows.UI.Color.FromArgb(255, 26, 28, 31)
+            : Windows.UI.Color.FromArgb(255, 238, 238, 236);
+        var hover = light
+            ? Windows.UI.Color.FromArgb(255, 237, 237, 237)
+            : Windows.UI.Color.FromArgb(255, 52, 52, 52);
+        var titleBar = _appWindow.TitleBar;
+        titleBar.BackgroundColor = background;
+        titleBar.InactiveBackgroundColor = background;
+        titleBar.ForegroundColor = foreground;
+        titleBar.InactiveForegroundColor = light
+            ? Windows.UI.Color.FromArgb(255, 93, 94, 96)
+            : Windows.UI.Color.FromArgb(255, 164, 164, 163);
+        titleBar.ButtonBackgroundColor = background;
+        titleBar.ButtonInactiveBackgroundColor = background;
+        titleBar.ButtonForegroundColor = foreground;
+        titleBar.ButtonInactiveForegroundColor = titleBar.InactiveForegroundColor;
+        titleBar.ButtonHoverBackgroundColor = hover;
+        titleBar.ButtonHoverForegroundColor = foreground;
+        titleBar.ButtonPressedBackgroundColor = hover;
+        titleBar.ButtonPressedForegroundColor = foreground;
     }
 
     private void OnRootLoaded(object sender, RoutedEventArgs args)
@@ -52,8 +85,10 @@ internal sealed class ConsentWindow : Window
     {
         try
         {
-            var controller = await SatellitePageHost.AttachAsync(
+            var page = await SatellitePageHost.AttachAsync(
                 _handle, "DotCraft.Satellite.consent.html", transparent: false, OnWebMessage);
+            _page = page;
+            var controller = page.Controller;
             _controller = controller;
             Layout();
             controller.IsVisible = true;
@@ -157,7 +192,8 @@ internal sealed class ConsentWindow : Window
     {
         _appWindow.Changed -= OnWindowChanged;
         _core = null;
-        _controller?.Close();
+        _page?.Dispose();
+        _page = null;
         _controller = null;
     }
 

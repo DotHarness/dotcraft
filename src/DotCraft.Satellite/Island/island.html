@@ -91,7 +91,7 @@ button:focus-visible,
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 0 4px 0 8px;
+  padding: 0 10px;
   border: 1px solid transparent;
   background: var(--surface);
   box-shadow: var(--glint), var(--shadow);
@@ -376,7 +376,7 @@ html[data-reduce-motion="on"] .island {
 
 .summary .text-action {
   flex: none;
-  margin-right: -4px;
+  border-radius: 999px;
 }
 
 .approval {
@@ -565,7 +565,10 @@ html[data-reduce-motion="on"] .ring-value {
       <span class="badge" id="concurrency" hidden></span>
       <span class="timer" id="elapsed"></span>
     </span>
-    <button type="button" class="text-action" id="resume" data-action="resume" hidden></button>
+    <button type="button" class="text-action" id="resume" data-action="resume" hidden>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4Z"/></svg>
+      <span id="resumeLabel"></span>
+    </button>
   </div>
 
   <div class="panel" id="panel" hidden>
@@ -742,7 +745,7 @@ html[data-reduce-motion="on"] .ring-value {
     text('idleLabel', state.label);
     $('idleLabel').title = state.label;
     text('since', state.since);
-    text('resume', state.resume);
+    text('resumeLabel', state.resume);
     $('resume').hidden = !state.resume;
     if (running) {
       text('operation', running.operation);

@@ -17,8 +17,6 @@
   --border: rgb(238 238 236 / 0.1);
   --border-active: rgb(238 238 236 / 0.18);
   --accent: #4566cc;
-  --accent-hover: #5976d0;
-  --on-accent: #ffffff;
   --warning-text: #eab308;
   --warning-bg: rgb(234 179 8 / 0.18);
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
@@ -40,7 +38,6 @@ html[data-theme="light"] {
   --border: rgb(26 28 31 / 0.08);
   --border-active: rgb(26 28 31 / 0.12);
   --accent: #4f6cce;
-  --accent-hover: #4962b9;
   --warning-text: #8a6a10;
   --warning-bg: rgb(201 162 39 / 0.14);
 }
@@ -330,13 +327,14 @@ button {
   background: var(--fill-quiet-hover);
 }
 
-.button[data-accent="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
+.button[data-primary="true"] {
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  font-weight: 600;
 }
 
-.button[data-accent="true"]:hover:not(:disabled) {
-  background: var(--accent-hover);
+.button[data-primary="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 90%, var(--bg-elevated));
 }
 
 .button:disabled {
@@ -779,7 +777,7 @@ html[data-reduce-motion="on"] .spinner::after {
     </p>
     <div class="actions">
       <button type="button" class="button" id="decline"><span id="declineLabel"></span></button>
-      <button type="button" class="button" data-accent="true" id="allow" disabled>
+      <button type="button" class="button" data-primary="true" id="allow" disabled>
         <span id="allowLabel"></span>
         <span class="spinner" id="spinner" aria-hidden="true" hidden></span>
       </button>

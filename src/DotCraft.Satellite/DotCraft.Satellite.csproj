@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="1.8.260528001" PrivateAssets="buildTransitive" />
     <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>

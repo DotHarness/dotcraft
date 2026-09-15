@@ -58,6 +58,7 @@ internal sealed class IslandWindow : Window, IDisposable
     private readonly bool _animate;
     private readonly nint _handle;
     private readonly AppWindow _appWindow;
+    private SatellitePage? _page;
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
     private IslandStateModel _content = new();
@@ -130,7 +131,10 @@ internal sealed class IslandWindow : Window, IDisposable
         _pointer.Stop();
         _exit.Stop();
         _viewModel.SurfaceFailed -= DisableSurface;
-        _controller?.Close();
+        _page?.Dispose();
+        _page = null;
+        _controller = null;
+        _core = null;
     }
 
     private double Scale => Tray.TrayNativeMethods.GetDpiForWindow(_handle) is var dpi && dpi > 0
@@ -166,13 +170,14 @@ internal sealed class IslandWindow : Window, IDisposable
     {
         try
         {
-            var controller = await SatellitePageHost.AttachAsync(
+            var page = await SatellitePageHost.AttachAsync(
                 _handle, "DotCraft.Satellite.island.html", transparent: true,
-                QueueWebMessage);
+                QueueWebMessage, DisableSurface);
+            _page = page;
+            var controller = page.Controller;
             controller.Bounds = ClientBounds();
             controller.IsVisible = _shown;
             _controller = controller;
-            controller.CoreWebView2.ProcessFailed += (_, _) => DisableSurface();
         }
         catch (Exception)
         {
