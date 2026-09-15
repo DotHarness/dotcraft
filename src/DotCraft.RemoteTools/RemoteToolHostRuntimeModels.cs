@@ -65,6 +65,19 @@ public sealed class RemoteToolHostRuntimeOptions
     public string? DisplayName { get; set; }
 }
 
+internal enum RemoteToolHostDiagnosticLevel
+{
+    Information,
+    Warning,
+    Error
+}
+
+internal sealed record RemoteToolHostDiagnostic(
+    RemoteToolHostDiagnosticLevel Level,
+    string EventName,
+    string Message,
+    Exception? Exception = null);
+
 internal sealed class RemoteToolHostActivityMonitor
 {
     private readonly object _gate = new();

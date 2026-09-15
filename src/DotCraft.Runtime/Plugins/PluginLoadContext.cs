@@ -86,7 +86,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
     private string Confine(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        var relative = Path.GetRelativePath(_root, fullPath);
+        var relative = Path.GetRelativePath(NormalizeForComparison(_root), NormalizeForComparison(fullPath));
         if (Path.IsPathRooted(relative)
             || relative.Equals("..", StringComparison.Ordinal)
             || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
@@ -95,6 +95,16 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         }
 
         return fullPath;
+    }
+
+    private static string NormalizeForComparison(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!OperatingSystem.IsWindows() || !fullPath.StartsWith(@"\\?\", StringComparison.Ordinal))
+            return fullPath;
+        return fullPath.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)
+            ? @"\\" + fullPath[8..]
+            : fullPath[4..];
     }
 
     private static bool HasExactIdentity(AssemblyName requested, AssemblyName expected) =>

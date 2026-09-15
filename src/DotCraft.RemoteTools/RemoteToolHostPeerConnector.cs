@@ -17,7 +17,8 @@ internal sealed class RemoteToolHostPeerConnector(
     WorkspaceLeaseManager leases,
     Func<bool> isPaused,
     TimeSpan? heartbeatInterval = null,
-    Func<IScreenCaptureSource>? screenCapture = null)
+    Func<IScreenCaptureSource>? screenCapture = null,
+    Action<RemoteToolHostDiagnostic>? diagnostic = null)
 {
     private readonly TimeSpan _heartbeatInterval = heartbeatInterval ?? SatelliteWire.HeartbeatInterval;
     private readonly SemaphoreSlim _drainGate = new(1, 1);
@@ -84,6 +85,7 @@ internal sealed class RemoteToolHostPeerConnector(
             }
             catch (PairingRevokedException)
             {
+                Report(RemoteToolHostDiagnosticLevel.Warning, "control.revoked", "The Hub refused the stored pairing.");
                 storage.RemovePeer(peer.PeerId);
                 WasRevoked = true;
                 _stopped = true;
@@ -94,9 +96,10 @@ internal sealed class RemoteToolHostPeerConnector(
             {
                 return;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // Every transport failure is retried with the shared backoff schedule.
+                Report(RemoteToolHostDiagnosticLevel.Warning, "control.retry",
+                    "The control connection ended and will be retried.", exception);
             }
 
             if (cancellationToken.IsCancellationRequested || _stopped)
@@ -123,6 +126,7 @@ internal sealed class RemoteToolHostPeerConnector(
         socket.Options.SetRequestHeader("Authorization", "Bearer " + credential);
         try
         {
+            Report(RemoteToolHostDiagnosticLevel.Information, "control.connecting", "Connecting to the paired Hub.");
             await socket.ConnectAsync(peer.ControlUri, cancellationToken).ConfigureAwait(false);
         }
         catch (WebSocketException)
@@ -140,6 +144,7 @@ internal sealed class RemoteToolHostPeerConnector(
         IsConnected = true;
         _control = socket;
         ConnectedSince = DateTimeOffset.UtcNow;
+        Report(RemoteToolHostDiagnosticLevel.Information, "control.connected", "The paired Hub accepted the control connection.");
         StateChanged?.Invoke(this);
 
         using var session = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -159,6 +164,7 @@ internal sealed class RemoteToolHostPeerConnector(
             _control = null;
             IsConnected = false;
             ConnectedSince = null;
+            Report(RemoteToolHostDiagnosticLevel.Information, "control.disconnected", "The control connection ended.");
             StateChanged?.Invoke(this);
         }
     }
@@ -206,6 +212,7 @@ internal sealed class RemoteToolHostPeerConnector(
     {
         try
         {
+            Report(RemoteToolHostDiagnosticLevel.Information, "data.opening", "Opening a remote tool data session.");
             if (isPaused() || !RemoteToolAuthorization.IsValid(peer.AuthorizationMode))
                 throw new InvalidOperationException("Sharing is paused on this machine.");
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _dataCancellation.Token);
@@ -221,8 +228,13 @@ internal sealed class RemoteToolHostPeerConnector(
         }
         catch (Exception ex)
         {
+            Report(RemoteToolHostDiagnosticLevel.Warning, "data.failed", "A remote tool data session failed.", ex);
             await FailSessionAsync(control, sessionId, SatelliteWire.SessionFailedClose, ex.Message, cancellationToken)
                 .ConfigureAwait(false);
+        }
+        finally
+        {
+            Report(RemoteToolHostDiagnosticLevel.Information, "data.closed", "The remote tool data session ended.");
         }
     }
 
@@ -370,6 +382,13 @@ internal sealed class RemoteToolHostPeerConnector(
             _sendGate.Release();
         }
     }
+
+    private void Report(
+        RemoteToolHostDiagnosticLevel level,
+        string eventName,
+        string message,
+        Exception? exception = null) =>
+        diagnostic?.Invoke(new RemoteToolHostDiagnostic(level, eventName, message, exception));
 
     private sealed class PairingRevokedException : Exception;
 }

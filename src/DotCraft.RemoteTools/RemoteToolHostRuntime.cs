@@ -90,6 +90,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
 
     public event EventHandler<RemoteToolActivity?>? ActivityChanged;
 
+    internal event Action<RemoteToolHostDiagnostic>? Diagnostic;
+
     /// <summary>
     /// Takes the machine-wide serve lock and connects every pairing, raising setup and pairing
     /// problems before the returned task starts and completing that task only when the host stops.
@@ -105,7 +107,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
                 _activity,
                 _heartbeatInterval,
                 _approvalPresenter,
-                _screenCapture);
+                _screenCapture,
+                ReportDiagnostic);
             host.Prepare();
             host.Changed += Refresh;
             _host = host;
@@ -401,6 +404,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             }
         }
     }
+
+    private void ReportDiagnostic(RemoteToolHostDiagnostic diagnostic) => Diagnostic?.Invoke(diagnostic);
 
     private IReadOnlyList<RemoteToolPeer> ReadPeers(
         IReadOnlyDictionary<string, RemoteToolHostPeerConnector>? connected = null)
