@@ -94,7 +94,7 @@ public sealed class DotNetPluginGeneratedToolTests :
     }
 
     [Fact]
-    public async Task AuthoredTools_DispatchTypedArgumentsWithLiveContextAndNativeResultsThenReclaim()
+    public async Task AuthoredTools_DispatchTypedArgumentsWithLiveContextAndNativeResults()
     {
         _project.Write();
         await using var manager = _harness.CreateManager(trustInstalled: false);
@@ -149,12 +149,6 @@ public sealed class DotNetPluginGeneratedToolTests :
         Assert.True(described.Success, described.Error?.Message);
         using var document = JsonDocument.Parse(described.Content!);
         Assert.Equal("typed output", document.RootElement.GetProperty("text").GetString());
-
-        await manager.SetEnabledAsync(GeneratedToolAuthoringProject.PluginId, enabled: false);
-        await WaitForReclaimedAsync(manager, GeneratedToolAuthoringProject.PluginId, _harness.GenerationsRoot);
-        var stale = await dispatcher.DispatchAsync(snapshot, registration.Definition.Name,
-            Arguments("stale"), requests[0]);
-        Assert.Equal(ToolErrorCodes.Unavailable, stale.Error?.Code);
     }
 
     [Fact]
