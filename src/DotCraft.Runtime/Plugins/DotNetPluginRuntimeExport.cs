@@ -47,7 +47,7 @@ internal sealed partial class DotNetPluginRuntimeManager
 
         void Release()
         {
-            foreach (var file in files) _bundleStore.DeleteGeneration(file.RootPath);
+            foreach (var file in files) _bundleStore.ReleaseGeneration(file.RootPath);
             lock (_exportGate)
                 if (pinned && --_exportCount == 0) _exportsDrained!.TrySetResult();
         }
@@ -70,12 +70,10 @@ internal sealed partial class DotNetPluginRuntimeManager
             foreach (var files in bundles)
             {
                 var bundle = files.Bundle;
-                var parsed = PluginManifestParser.Load(files.RootPath);
-                if (parsed.Manifest?.Id != bundle.PluginId || parsed.Manifest.Dotnet is null)
-                    throw new InvalidOperationException("The prepared bundle identity is invalid.");
-                var snapshot = _bundleStore.Accept(new(parsed.Manifest, PluginDiscoverySourceKind.Explicit, files.RootPath, true));
+                var snapshot = _bundleStore.AcceptInstalled(files.RootPath);
                 accepted.Add((bundle, snapshot));
-                if (snapshot.ContentFingerprint != bundle.ContentFingerprint || snapshot.DotnetFingerprint != bundle.DotnetFingerprint
+                if (snapshot.Manifest.Id != bundle.PluginId
+                    || snapshot.ContentFingerprint != bundle.ContentFingerprint || snapshot.DotnetFingerprint != bundle.DotnetFingerprint
                     || PreflightBlockers(snapshot).Length != 0)
                     throw new InvalidOperationException("The prepared bundle failed fingerprint or ABI validation.");
             }
@@ -108,6 +106,7 @@ internal sealed partial class DotNetPluginRuntimeManager
                 if (_nodes[bundle.PluginId].State != PluginDotnetRuntimeState.Active)
                     throw new InvalidOperationException($"Plugin '{bundle.PluginId}' could not activate in the execution host. "
                         + string.Join(" ", _nodes[bundle.PluginId].Blockers.Select(blocker => $"{blocker.Code}: {blocker.Message}")));
+            foreach (var path in _bundleStore.PruneInstalled(_nodes.Keys)) _reclaim.TrackDeletion(path);
         }
         catch (OperationCanceledException)
         {

@@ -43,9 +43,10 @@ internal sealed partial class RemoteToolHostMcpHandlers
                 var bundle = item.Bundle;
                 if (PluginIds.Canonicalize(bundle.PluginId) != bundle.PluginId
                     || bundle.Settings.ValueKind != JsonValueKind.Object || bundle.SourceRevision < 1
-                    || string.IsNullOrWhiteSpace(bundle.SourceGeneration))
+                    || string.IsNullOrWhiteSpace(bundle.SourceGeneration)
+                    || bundle.ContentFingerprint.Length != 64 || !bundle.ContentFingerprint.All(char.IsAsciiHexDigit))
                     throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "Invalid plugin bundle identity or settings.");
-                var destination = TransferFileTree.ResolveEntry(root, bundle.PluginId);
+                var destination = TransferFileTree.ResolveEntry(root, bundle.PluginId + "/" + bundle.ContentFingerprint);
                 TransferFileTree.RejectLinks(destination);
                 if (Directory.Exists(destination) && PluginExecutionHost.MatchesBundle(destination, bundle))
                 {
@@ -125,12 +126,20 @@ internal sealed partial class RemoteToolHostMcpHandlers
             var runtime = await GetRuntimeAsync(pending.Input.LeaseId, pending.Input.WorkspaceId, workspace, RequireState(), ct).ConfigureAwait(false);
             using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, pending.Input.ThreadId);
             var result = await runtime.Plugins.PrepareAsync(pending.Input, pending.Files, ct,
-                () => CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
+                () =>
                 {
-                    if (RequirePeer(RequireState(), peerId, pending.Input.WorkspaceId).AuthorizationRevision != peer.AuthorizationRevision)
-                        throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
-                    StorePreparedBundles(pending);
-                })).ConfigureAwait(false);
+                    IReadOnlyList<RemotePluginBundleFiles> installed = [];
+                    Commit(() => installed = StorePreparedBundles(pending));
+                    return installed;
+                }, Commit).ConfigureAwait(false);
+
+            void Commit(Action action) => CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
+            {
+                ct.ThrowIfCancellationRequested();
+                if (RequirePeer(RequireState(), peerId, pending.Input.WorkspaceId).AuthorizationRevision != peer.AuthorizationRevision)
+                    throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
+                action();
+            });
             CommitArtifact(pending.Input.LeaseId, pending.Input.WorkspaceId, () =>
             {
                 lock (_gate)
@@ -156,23 +165,27 @@ internal sealed partial class RemoteToolHostMcpHandlers
 
     private static string ApprovalKey(RemotePluginBundle bundle) => bundle.PluginId + ":" + bundle.ContentFingerprint;
 
-    private static void StorePreparedBundles(PluginPreparation preparation)
+    private static IReadOnlyList<RemotePluginBundleFiles> StorePreparedBundles(PluginPreparation preparation)
     {
-        Directory.CreateDirectory(preparation.InstallRoot);
-        foreach (var upload in preparation.Uploads.Where(upload => upload.TransferId is not null))
+        var installed = new List<RemotePluginBundleFiles>();
+        foreach (var file in preparation.Files)
         {
-            var source = preparation.Files.Single(file => file.Bundle.PluginId == upload.PluginId).RootPath;
-            var destination = TransferFileTree.ResolveEntry(preparation.InstallRoot, upload.PluginId);
+            var destination = TransferFileTree.ResolveEntry(preparation.InstallRoot,
+                file.Bundle.PluginId + "/" + file.Bundle.ContentFingerprint);
             TransferFileTree.RejectLinks(destination);
-            var backup = Path.Combine(preparation.StagedRoot, Guid.NewGuid().ToString("N"));
-            if (Directory.Exists(destination)) Directory.Move(destination, backup);
-            try { Directory.Move(source, destination); }
-            catch
+            if (Directory.Exists(destination))
             {
-                if (Directory.Exists(backup)) Directory.Move(backup, destination);
-                throw;
+                if (!PluginExecutionHost.MatchesBundle(destination, file.Bundle))
+                    throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "Installed plugin bundle fingerprint mismatch.");
             }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                Directory.Move(file.RootPath, destination);
+            }
+            installed.Add(new(file.Bundle, destination));
         }
+        return installed;
     }
 
     private async Task CleanupPreparationAsync(PluginPreparation preparation)

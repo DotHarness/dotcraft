@@ -29,7 +29,8 @@ internal sealed class PluginExecutionWorkspace : IAsyncDisposable
     }
 
     internal async Task<PluginActivateResponse> PrepareAsync(PluginPrepareRequest request,
-        IReadOnlyList<RemotePluginBundleFiles> files, CancellationToken ct, Action? store = null)
+        IReadOnlyList<RemotePluginBundleFiles> files, CancellationToken ct,
+        Func<IReadOnlyList<RemotePluginBundleFiles>> install, Action<Action> commit)
     {
         await _preparing.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -52,6 +53,7 @@ internal sealed class PluginExecutionWorkspace : IAsyncDisposable
                 foreach (var file in files) _sources[file.Bundle.PluginId] = file.Bundle;
                 _catalogs.Remove(request.ThreadId);
             }
+            files = install();
             try { await _host.PrepareAsync(files, ct).ConfigureAwait(false); }
             catch (InvalidOperationException exception) { throw Unavailable(exception.Message); }
             var registrations = await _host.GetRegistrationsAsync(new ToolPlanningContext(request.ThreadId, null,
@@ -73,11 +75,11 @@ internal sealed class PluginExecutionWorkspace : IAsyncDisposable
                 tools.Add(expected.DefinitionId, new(registration, source.SourceGeneration,
                     new(expected.DefinitionId, hash, "binding_" + Guid.NewGuid().ToString("N"))));
             }
-            store?.Invoke();
-            lock (_gate)
+            commit(() =>
             {
-                _catalogs[request.ThreadId] = new(request.SnapshotRevision, tools);
-            }
+                ct.ThrowIfCancellationRequested();
+                lock (_gate) _catalogs[request.ThreadId] = new(request.SnapshotRevision, tools);
+            });
             return new(tools.Values.Select(tool => tool.Binding).ToArray());
         }
         finally { _preparing.Release(); }

@@ -1,9 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.RemoteTools;
+using DotCraft.Runtime;
 using DotCraft.Security;
 using DotCraft.Tests.Runtime.Plugins;
 using DotCraft.Tools;
+using DotCraft.Workspaces;
 using ModelContextProtocol.Client;
 using Xunit;
 
@@ -11,6 +13,59 @@ namespace DotCraft.Tests.Tools;
 
 public sealed class RemotePluginPreparationTests
 {
+    [Fact]
+    public async Task ExecutionHostExportPinsReplacedBundle_UntilExportIsReleased()
+    {
+        using var harness = new PluginRuntimeHarness();
+        using var data = new TemporaryDirectory();
+        RemotePluginFixture.Write(harness);
+        await using var host = new PluginExecutionHost(
+            DotCraftPaths.CreateForExecutionHost(harness.Workspace, data.Path, data.Path), harness.Services);
+        await host.PrepareAsync(Install(1));
+        var planning = PluginRuntimeHarness.PlanningContext(1);
+        var registration = Assert.Single(await host.GetRegistrationsAsync(planning));
+        using var export = await RemoteToolMetadata.SourceBinding(registration)!.ExportAsync();
+        var oldRoot = export.Bundles.Single(file => file.Bundle.PluginId == "probe").RootPath;
+
+        RemotePluginFixture.Write(harness, "second");
+        var replacement = Install(2);
+        await host.PrepareAsync(replacement);
+        Assert.Contains("dispose:first", PluginLogFile.ReadLines(Path.Combine(harness.Workspace, "plugin-lifecycle.log")));
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await host.PrepareAsync(replacement);
+            await Task.Delay(100);
+        }
+        Assert.Equal("bundle-resource", await File.ReadAllTextAsync(Path.Combine(oldRoot, "resource.txt")));
+
+        export.Dispose();
+        for (var attempt = 0; attempt < 100 && Directory.Exists(oldRoot); attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await host.PrepareAsync(replacement);
+            await Task.Delay(50);
+        }
+        Assert.False(Directory.Exists(oldRoot));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(await host.GetRegistrationsAsync(planning), 2);
+        var result = await new ToolDispatcher().DispatchAsync(snapshot, new("Probe", "Run"),
+            new JsonObject { ["operation"] = "read" }, new("thread", "turn", "call", ToolInvocationAudience.Model));
+        Assert.True(result.Success, result.Error?.Message);
+        Assert.Contains("\"implementation\":\"second\"", result.Content);
+
+        RemotePluginBundleFiles[] Install(long revision) => new[] { "dependency", "probe" }.Select(id =>
+        {
+            var source = harness.PluginRoot(id);
+            var fingerprint = PluginBundleFingerprint.Compute(source);
+            var destination = Path.Combine(data.Path, "plugins", id, fingerprint);
+            if (!Directory.Exists(destination)) PluginBundleTree.CopyAndFingerprint(source, destination);
+            return new RemotePluginBundleFiles(new(id, $"source-{revision}", revision, fingerprint,
+                PluginDotnetFingerprint.Compute(source), JsonSerializer.Deserialize<JsonElement>("{}")), destination);
+        }).ToArray();
+    }
+
     [Fact]
     public async Task AcceptedExportPinsImmutableBytes_UntilTransferReleasesThem()
     {
