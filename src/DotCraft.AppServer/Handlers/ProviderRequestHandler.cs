@@ -246,6 +246,7 @@ internal sealed class ProviderRequestHandler(
             config,
             RequireProviderRegistry(),
             NormalizeOptionalString(ValueOrDefault(p.ProviderId)),
+            ModelCatalogRefreshStrategy.OnlineIfUncached,
             ct);
 
         return new Contract.ModelListResult
@@ -277,7 +278,12 @@ internal sealed class ProviderRequestHandler(
         ModelCatalogResult result;
         if (!string.IsNullOrWhiteSpace(providerId))
         {
-            result = await ModelProviderCatalog.FetchAsync(config, RequireProviderRegistry(), providerId, ct);
+            result = await ModelProviderCatalog.FetchAsync(
+                config,
+                RequireProviderRegistry(),
+                providerId,
+                ModelCatalogRefreshStrategy.Online,
+                ct);
         }
         else
         {
@@ -309,7 +315,12 @@ internal sealed class ProviderRequestHandler(
                     }
                 }
             };
-            result = await ModelProviderCatalog.FetchAsync(draftConfig, RequireProviderRegistry(), draftProviderId, ct);
+            result = await ModelProviderCatalog.FetchAsync(
+                draftConfig,
+                RequireProviderRegistry(),
+                draftProviderId,
+                ModelCatalogRefreshStrategy.Online,
+                ct);
             result.ProviderId = null;
         }
 

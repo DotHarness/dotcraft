@@ -21,7 +21,7 @@ internal static class SubAgentModelCatalogSnapshots
                 config,
                 providerRegistry,
                 providerId,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
