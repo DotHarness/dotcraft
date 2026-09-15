@@ -1009,14 +1009,14 @@ export const RichInputArea = forwardRef(function RichInputArea(
         if (!editor.contains(range.startContainer)) return
 
         const frag = buildEditorFragmentFromSegments(segments, { addSpacers: true })
-        const marker = document.createTextNode('')
-        frag.appendChild(marker)
+        const tail = frag.lastChild
+        if (!(tail instanceof Text)) return
 
         range.deleteContents()
         range.insertNode(frag)
-        range.setStartAfter(marker)
+        // Keep the caret inside text so the first IME punctuation commit is not duplicated.
+        range.setStart(tail, tail.length)
         range.collapse(true)
-        marker.remove()
         sel.removeAllRanges()
         sel.addRange(range)
       },
