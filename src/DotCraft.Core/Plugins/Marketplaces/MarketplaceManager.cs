@@ -45,12 +45,14 @@ public sealed class MarketplaceManager
     private readonly string _configPath;
     private readonly IMarketplaceGitFetcher _fetcher;
     private readonly ILogger? _logger;
+    private readonly PluginRegistrySyncService _archiveSync;
 
     public MarketplaceManager(
         string craftHome,
         string? configPath = null,
         IMarketplaceGitFetcher? fetcher = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        PluginRegistrySyncService? archiveSync = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(craftHome);
         _craftHome = Path.GetFullPath(craftHome);
@@ -59,6 +61,7 @@ public sealed class MarketplaceManager
             : Path.GetFullPath(configPath);
         _fetcher = fetcher ?? new MarketplaceGitFetcher(logger);
         _logger = logger;
+        _archiveSync = archiveSync ?? new PluginRegistrySyncService(_craftHome);
     }
 
     /// <summary>Lists configured marketplaces, newest configuration order preserved.</summary>
@@ -217,6 +220,19 @@ public sealed class MarketplaceManager
         if (IsArchiveSource(source))
         {
             PluginSourceRegistryCatalog.InvalidateArchiveCache(source.Value, marketplacePath, _craftHome);
+            if (File.Exists(source.Value) || Directory.Exists(source.Value))
+                return Record(configured, index, entryName, null, source with { Kind = MarketplaceSourceKind.Archive }, marketplacePath, revision: null);
+
+            var synced = await _archiveSync
+                .SyncAsync(source.Value, marketplacePath, entryName, force: true, ct)
+                .ConfigureAwait(false);
+            if (synced == PluginRegistrySyncResult.Failed)
+            {
+                throw new MarketplaceException(
+                    MarketplaceErrorCodes.FetchFailed,
+                    $"Marketplace '{entryName}' could not be downloaded.");
+            }
+
             return Record(configured, index, entryName, null, source with { Kind = MarketplaceSourceKind.Archive }, marketplacePath, revision: null);
         }
 

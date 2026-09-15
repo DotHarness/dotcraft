@@ -80,7 +80,11 @@ internal sealed class AppServerThreadWireProjector(
             summary.WorkspacePath,
             summary.OriginChannel,
             summary.ChannelContext);
-        if (appBindingService == null)
+        if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
+            return;
+
+        var bindings = appBindingService.ListThreadBindings(workspaceDataPath, summary.Id);
+        if (bindings.Count == 0 && string.IsNullOrWhiteSpace(summary.OriginChannel))
             return;
 
         if (!catalogByWorkspace.TryGetValue(summary.WorkspacePath, out var catalog))
@@ -89,12 +93,10 @@ internal sealed class AppServerThreadWireProjector(
             catalogByWorkspace[summary.WorkspacePath] = catalog;
         }
 
-        if (catalog is null || string.IsNullOrWhiteSpace(workspaceDataPath))
+        if (catalog is null)
             return;
 
-        var appBindings = MapBindingSummaries(
-            catalog,
-            appBindingService.ListThreadBindings(workspaceDataPath, summary.Id));
+        var appBindings = MapBindingSummaries(catalog, bindings);
         if (appBindings.Count > 0)
             summary.AppBindings = appBindings;
         summary.OriginApp = ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
@@ -234,12 +236,18 @@ internal sealed class AppServerThreadWireProjector(
     {
         if (appBindingService is null || string.IsNullOrWhiteSpace(threadId))
             return wire;
-        var catalog = TryGetAppCatalog(workspacePath);
-        if (catalog is null || string.IsNullOrWhiteSpace(workspaceDataPath))
+        if (string.IsNullOrWhiteSpace(workspaceDataPath))
             return wire;
-        var appBindings = MapBindingSummaries(
-            catalog,
-            appBindingService.ListThreadBindings(workspaceDataPath, threadId));
+
+        // Building the catalog runs full plugin discovery, so read the cheap store first.
+        var bindings = appBindingService.ListThreadBindings(workspaceDataPath, threadId);
+        if (bindings.Count == 0 && string.IsNullOrWhiteSpace(wire.OriginChannel))
+            return wire;
+
+        var catalog = TryGetAppCatalog(workspacePath);
+        if (catalog is null)
+            return wire;
+        var appBindings = MapBindingSummaries(catalog, bindings);
         var originApp = ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
         if (appBindings.Count == 0 && originApp is null)
             return wire;

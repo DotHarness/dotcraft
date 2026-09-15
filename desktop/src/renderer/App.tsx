@@ -3272,6 +3272,8 @@ export function App(): JSX.Element {
     const refreshActiveThreadMetadata = async (): Promise<void> => {
       if (refreshInFlight) return
       if (isConversationRenderPaused()) return
+      // Nobody is reading a blurred window; the interval keeps ticking and resumes on focus.
+      if (!windowVisibilityStateRef.current.focused) return
       refreshInFlight = true
       const requestedId = activeThreadId
       try {

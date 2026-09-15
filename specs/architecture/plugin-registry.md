@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.5.0 |
 | **Status** | Draft |
-| **Date** | 2026-08-02 |
+| **Date** | 2026-09-15 |
 | **Related Specs** | [Plugin Architecture](plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
@@ -164,13 +164,17 @@ Adding a marketplace never installs a plugin.
 
 Refresh re-fetches one marketplace or every configured marketplace. Git marketplaces are re-fetched at their configured reference, local marketplaces are re-validated in place, and archive marketplaces re-download their snapshot. A failure for one marketplace is reported for that marketplace and does not fail the others.
 
+Refresh also covers the host-provided default registry, which is supplied by the environment rather than by configuration. A refresh that names no marketplace includes it; a refresh may also name it explicitly.
+
 ### 7.4 Remove
 
 Removing a marketplace deletes its configuration entry and, for materialized kinds, deletes its installed root. Removal does not uninstall plugins that were already installed into a workspace: those are workspace-owned copies under `.craft/plugins/<id>` and remain until removed through the ordinary plugin removal flow.
 
 ### 7.5 Discovery never fetches
 
-Plugin discovery runs on every plugin listing and every plugin mutation. Discovery reads only materialized roots, local source directories, and cached archive snapshots that already exist on disk. Discovery must never start a version control fetch. Archive sources retain their existing bounded, non-fatal cached refresh; every other fetch happens only through an explicit add or refresh operation.
+Plugin discovery runs on every plugin listing and every plugin mutation, and plugin listing is reachable from request paths that a client may call repeatedly. Discovery therefore reads only materialized roots, local source directories, local archive files, and cached archive snapshots that already exist on disk. Discovery must never start a network fetch of any kind. Every fetch happens through an explicit add or refresh operation, or through the startup sync described in §7.7.
+
+Extracting a local archive file into its snapshot cache is not a fetch, but discovery repeats it only when the archive file changed since the cached snapshot was activated.
 
 ### 7.6 Archive cache lifecycle
 
@@ -181,6 +185,14 @@ An archive refresh must extract into a temporary directory, validate the marketp
 Each activated snapshot stores internal cache metadata containing a schema version, marketplace identity, source key, marketplace path, and update time. Existing snapshots without metadata remain readable: DotCraft derives their identity from the marketplace document, writes metadata when possible, and applies the same single-version pruning rule. Cache operations also remove interrupted archive staging directories older than ten minutes while leaving newer staging directories and unrelated files untouched.
 
 The cache root must be derived from the effective Craft home supplied to the runtime or development resolver. Tests and alternate Craft homes must not write into the default user's cache. These cache mechanics do not apply to Git marketplace roots, local marketplaces, or plugins already installed into a workspace.
+
+### 7.7 Archive download and retry
+
+An archive download is bounded by a timeout sized for a repository archive rather than for a small document, and by a maximum download size enforced while the response is read. A download that exceeds either bound fails that marketplace and leaves the previous snapshot available.
+
+Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval. The attempt record is what makes a source whose snapshot has never been activated stop re-downloading on every pass.
+
+The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again whenever a refresh operation runs. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
 
 ---
 

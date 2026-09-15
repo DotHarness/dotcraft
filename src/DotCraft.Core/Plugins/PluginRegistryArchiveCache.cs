@@ -16,7 +16,9 @@ internal sealed class PluginRegistryArchiveCache
     internal const string MetadataFileName = "metadata.json";
     internal const string SnapshotDirectoryName = "snapshot";
     internal const string UpdatedAtFileName = "updatedAt.txt";
+    internal const string AttemptFileName = "attempt.json";
     internal static readonly TimeSpan StaleTemporaryDirectoryAge = TimeSpan.FromMinutes(10);
+    internal static readonly TimeSpan MinimumRetryBackoff = TimeSpan.FromMinutes(1);
 
     private const int MetadataSchemaVersion = 1;
     private readonly string _cacheBaseRoot;
@@ -54,10 +56,58 @@ internal sealed class PluginRegistryArchiveCache
         return DateTimeOffset.UtcNow - updatedAt > refreshInterval;
     }
 
+    /// <summary>Gets whether the activated snapshot predates <paramref name="sourceWriteTimeUtc"/>.</summary>
+    public bool IsOlderThan(string sourceUrl, string marketplacePath, DateTime sourceWriteTimeUtc)
+    {
+        var updatedAt = ReadUpdatedAt(CacheRootFor(sourceUrl, marketplacePath));
+        return updatedAt == null || updatedAt < new DateTimeOffset(sourceWriteTimeUtc, TimeSpan.Zero);
+    }
+
+    /// <summary>
+    /// Gets whether a download may be attempted, given how long ago the last attempt failed.
+    /// </summary>
+    public bool ShouldAttempt(
+        string sourceUrl,
+        string marketplacePath,
+        TimeSpan maximumBackoff,
+        DateTimeOffset? now = null)
+    {
+        var attempt = TryReadAttempt(CacheRootFor(sourceUrl, marketplacePath));
+        if (attempt == null)
+            return true;
+
+        // A record from the future means the clock moved; trusting it could defer retries forever.
+        var age = (now ?? DateTimeOffset.UtcNow) - attempt.AttemptedAt;
+        return age < TimeSpan.Zero || age >= BackoffFor(attempt.ConsecutiveFailures, maximumBackoff);
+    }
+
+    public void RecordFailedAttempt(string sourceUrl, string marketplacePath, DateTimeOffset? now = null)
+    {
+        var cacheRoot = CacheRootFor(sourceUrl, marketplacePath);
+        var failures = (TryReadAttempt(cacheRoot)?.ConsecutiveFailures ?? 0) + 1;
+        try
+        {
+            Directory.CreateDirectory(cacheRoot);
+            File.WriteAllText(
+                Path.Combine(cacheRoot, AttemptFileName),
+                JsonSerializer.Serialize(
+                    new ArchiveAttemptRecord(MetadataSchemaVersion, now ?? DateTimeOffset.UtcNow, failures),
+                    JsonOptions));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _cleanupDiagnostic?.Invoke(
+                cacheRoot,
+                $"Failed to record plugin registry download attempt: {ex.Message}");
+        }
+    }
+
     public void Invalidate(string sourceUrl, string marketplacePath)
     {
         CleanStaleTemporaryDirectories();
-        TryDeleteFile(Path.Combine(CacheRootFor(sourceUrl, marketplacePath), UpdatedAtFileName));
+        var cacheRoot = CacheRootFor(sourceUrl, marketplacePath);
+        TryDeleteFile(Path.Combine(cacheRoot, UpdatedAtFileName));
+        TryDeleteFile(Path.Combine(cacheRoot, AttemptFileName));
     }
 
     public string Activate(
@@ -341,6 +391,35 @@ internal sealed class PluginRegistryArchiveCache
         }
     }
 
+    private ArchiveAttemptRecord? TryReadAttempt(string cacheRoot)
+    {
+        var attemptPath = Path.Combine(cacheRoot, AttemptFileName);
+        try
+        {
+            if (!File.Exists(attemptPath))
+                return null;
+
+            var record = JsonSerializer.Deserialize<ArchiveAttemptRecord>(
+                File.ReadAllText(attemptPath),
+                JsonOptions);
+            if (record is { SchemaVersion: MetadataSchemaVersion, ConsecutiveFailures: > 0 })
+                return record;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+
+        TryDeleteFile(attemptPath);
+        return null;
+    }
+
+    private static TimeSpan BackoffFor(int consecutiveFailures, TimeSpan maximum)
+    {
+        var scaled = MinimumRetryBackoff * Math.Pow(2, Math.Min(consecutiveFailures - 1, 20));
+        return scaled >= maximum ? maximum : scaled;
+    }
+
     private static string SourceKeyFor(string sourceUrl, string marketplacePath) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             sourceUrl + "\n" + marketplacePath))).ToLowerInvariant();
@@ -395,4 +474,10 @@ internal sealed class PluginRegistryArchiveCache
         string SourceKey,
         string MarketplacePath,
         DateTimeOffset UpdatedAt);
+
+    /// <summary>A failed download, kept outside the snapshot so a successful activation clears it.</summary>
+    private sealed record ArchiveAttemptRecord(
+        int SchemaVersion,
+        DateTimeOffset AttemptedAt,
+        int ConsecutiveFailures);
 }

@@ -12,8 +12,8 @@ internal sealed record PluginRegistrySource(
 
 /// <summary>
 /// Discovers installable plugins from configured marketplaces.
-/// Reads materialized roots and cached snapshots only; a repository fetch happens exclusively
-/// through the explicit marketplace add and refresh operations.
+/// Reads materialized roots and cached snapshots only; every network fetch happens through
+/// <see cref="PluginRegistrySyncService"/> or the explicit marketplace add and refresh operations.
 /// </summary>
 internal static class PluginSourceRegistryCatalog
 {
@@ -21,8 +21,7 @@ internal static class PluginSourceRegistryCatalog
     public const string AdditionalRegistriesEnvironmentVariableName = "DOTCRAFT_PLUGIN_REGISTRIES";
     public const string DefaultMarketplacePath = MarketplaceDocumentLoader.DefaultMarketplacePath;
 
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(6);
-    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan ArchiveRefreshInterval = TimeSpan.FromHours(6);
 
     public static IReadOnlyList<BuiltInPluginSource> Discover(
         AppConfig.PluginsConfig? pluginsConfig,
@@ -93,7 +92,7 @@ internal static class PluginSourceRegistryCatalog
     }
 
     /// <summary>
-    /// Drops the freshness marker for an archive source so the next discovery pass re-downloads it.
+    /// Drops the freshness and attempt markers for an archive source so the next sync re-downloads it.
     /// </summary>
     public static void InvalidateArchiveCache(string url, string marketplacePath, string craftHome)
     {
@@ -101,6 +100,14 @@ internal static class PluginSourceRegistryCatalog
         var resolvedCraftHome = Path.GetFullPath(craftHome);
         new PluginRegistryArchiveCache(resolvedCraftHome).Invalidate(url, marketplacePath);
     }
+
+    /// <summary>Lists the HTTPS archive sources a sync may download, including the host default.</summary>
+    public static IReadOnlyList<PluginRegistrySource> ArchiveSourcesFor(AppConfig.PluginsConfig? pluginsConfig) =>
+        ResolveSources(pluginsConfig, [])
+            .Where(static source => source.Kind == MarketplaceSourceKind.Archive
+                                    && !Directory.Exists(source.Url)
+                                    && !File.Exists(source.Url))
+            .ToArray();
 
     private static IReadOnlyList<PluginRegistrySource> ResolveSources(
         AppConfig.PluginsConfig? pluginsConfig,
@@ -303,8 +310,14 @@ internal static class PluginSourceRegistryCatalog
 
             if (archiveCache == null)
                 return UserDataDisabled(source, diagnostics);
+
+            var cachedRoot = archiveCache.SnapshotRootFor(source.Url, source.MarketplacePath);
+            if (Directory.Exists(cachedRoot)
+                && !archiveCache.IsOlderThan(source.Url, source.MarketplacePath, File.GetLastWriteTimeUtc(source.Url)))
+                return cachedRoot;
+
             return ExtractArchiveToCache(source, File.ReadAllBytes(source.Url), diagnostics, archiveCache)
-                   ?? ResolveCachedSnapshot(source, archiveCache);
+                   ?? (Directory.Exists(cachedRoot) ? cachedRoot : null);
         }
 
         return ResolveArchiveSnapshotRoot(source, diagnostics, archiveCache);
@@ -368,44 +381,14 @@ internal static class PluginSourceRegistryCatalog
             return UserDataDisabled(source, diagnostics);
 
         var snapshotRoot = archiveCache.SnapshotRootFor(source.Url, source.MarketplacePath);
-        if (Directory.Exists(snapshotRoot)
-            && !archiveCache.ShouldRefresh(source.Url, source.MarketplacePath, RefreshInterval))
+        if (Directory.Exists(snapshotRoot))
             return snapshotRoot;
 
-        try
-        {
-            using var client = new HttpClient { Timeout = DownloadTimeout };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("DotCraft");
-            using var response = client.GetAsync(uri).GetAwaiter().GetResult();
-            if (!response.IsSuccessStatusCode)
-            {
-                diagnostics.Add(PluginDiagnostic.Warning(
-                    "PluginRegistryDownloadFailed",
-                    $"Plugin marketplace '{source.Name}' download failed with HTTP {(int)response.StatusCode}.",
-                    path: source.Url));
-                return ResolveCachedSnapshot(source, archiveCache);
-            }
-
-            var bytes = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            return ExtractArchiveToCache(source, bytes, diagnostics, archiveCache)
-                   ?? ResolveCachedSnapshot(source, archiveCache);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
-        {
-            diagnostics.Add(PluginDiagnostic.Warning(
-                "PluginRegistryDownloadFailed",
-                $"Plugin marketplace '{source.Name}' download failed: {ex.Message}",
-                path: source.Url));
-            return ResolveCachedSnapshot(source, archiveCache);
-        }
-    }
-
-    private static string? ResolveCachedSnapshot(
-        PluginRegistrySource source,
-        PluginRegistryArchiveCache archiveCache)
-    {
-        var snapshotRoot = archiveCache.SnapshotRootFor(source.Url, source.MarketplacePath);
-        return Directory.Exists(snapshotRoot) ? snapshotRoot : null;
+        diagnostics.Add(PluginDiagnostic.Warning(
+            "PluginRegistrySnapshotMissing",
+            $"Plugin marketplace '{source.Name}' has not been downloaded yet; refresh it to install its plugins.",
+            path: source.Url));
+        return null;
     }
 
     private static string? ExtractArchiveToCache(

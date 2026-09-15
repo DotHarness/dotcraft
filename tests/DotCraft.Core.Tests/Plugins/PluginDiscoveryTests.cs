@@ -1026,7 +1026,7 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void BuiltInPluginCatalog_AcceptsHttpsRegistryArchiveUrlAsRemoteSource()
+    public void BuiltInPluginCatalog_AcceptsHttpsRegistryArchiveUrlWithoutDownloading()
     {
         var root = NewTempDir();
         var config = new AppConfig();
@@ -1039,7 +1039,8 @@ public sealed class PluginDiscoveryTests
 
         Assert.Empty(result.Plugins);
         Assert.DoesNotContain(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
-        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
+        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistrySnapshotMissing");
     }
 
     [Fact]
