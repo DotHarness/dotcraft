@@ -135,6 +135,7 @@ public sealed class AppServerHost(
 
                 runtimeEventsCleanupRequired = true;
                 SubscribeRuntimeEvents();
+                StartPluginRegistrySync(cancellationToken);
 
                 switch (appServerConfig.Mode)
                 {
@@ -891,6 +892,45 @@ public sealed class AppServerHost(
 
     private void BroadcastPluginSnapshotUpdated(Contract.PluginSnapshotUpdatedNotification parameters)
         => BroadcastPluginSnapshotUpdated(sourceTransport: null, parameters, Task.CompletedTask);
+
+    private void StartPluginRegistrySync(CancellationToken cancellationToken)
+    {
+        var craftHome = runtime.Paths.UserData.RootPath;
+        if (string.IsNullOrWhiteSpace(craftHome))
+            return;
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    var sync = new PluginRegistrySyncService(
+                        craftHome,
+                        diagnostic => _logger.LogWarning(
+                            "Plugin registry sync: {Code}: {Message}",
+                            diagnostic.Code,
+                            diagnostic.Message));
+                    if (!await sync.SyncDueAsync(runtime.Config.Plugins, force: false, cancellationToken)
+                            .ConfigureAwait(false))
+                        return;
+
+                    var management = _services.GetRequiredService<AppServerPluginManagementState>();
+                    BroadcastPluginSnapshotUpdated(new Contract.PluginSnapshotUpdatedNotification
+                    {
+                        SnapshotRevision = management.AdvanceSnapshotRevision(0),
+                        PluginIds = Array.Empty<string>()
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Plugin registry sync failed");
+                }
+            },
+            cancellationToken);
+    }
 
     private void BroadcastPluginSnapshotUpdated(
         IAppServerTransport? sourceTransport,

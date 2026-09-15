@@ -143,6 +143,81 @@ public sealed class PluginRegistryArchiveCacheTests
             StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ShouldAttempt_IsTrueUntilAnAttemptFails()
+    {
+        var cache = new PluginRegistryArchiveCache(NewTempDir());
+        const string url = "https://example.test/marketplace.zip";
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
+
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        Assert.False(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
+    }
+
+    [Fact]
+    public void ShouldAttempt_AllowsRetryOnceTheBackoffElapsed()
+    {
+        var cache = new PluginRegistryArchiveCache(NewTempDir());
+        const string url = "https://example.test/marketplace.zip";
+        var now = DateTimeOffset.UtcNow;
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        var refreshInterval = TimeSpan.FromHours(6);
+        Assert.False(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + TimeSpan.FromSeconds(30)));
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + TimeSpan.FromMinutes(1)));
+    }
+
+    [Fact]
+    public void ShouldAttempt_BackoffGrowsWithConsecutiveFailuresUpToTheRefreshInterval()
+    {
+        var cache = new PluginRegistryArchiveCache(NewTempDir());
+        const string url = "https://example.test/marketplace.zip";
+        var now = DateTimeOffset.UtcNow;
+        var refreshInterval = TimeSpan.FromHours(6);
+
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        Assert.False(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + TimeSpan.FromMinutes(1)));
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + TimeSpan.FromMinutes(2)));
+
+        for (var i = 0; i < 30; i++)
+            cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        Assert.False(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + refreshInterval.Subtract(TimeSpan.FromMinutes(1))));
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + refreshInterval));
+    }
+
+    [Fact]
+    public void Activate_ClearsTheFailedAttemptRecord()
+    {
+        var craftHome = NewTempDir();
+        var cache = new PluginRegistryArchiveCache(craftHome);
+        const string url = "https://example.test/marketplace.zip";
+        var now = DateTimeOffset.UtcNow;
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        cache.Activate(url, MarketplacePath, CreateArchive("example-marketplace", "current"));
+
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
+    }
+
+    [Fact]
+    public void Invalidate_ClearsTheFailedAttemptRecord()
+    {
+        var cache = new PluginRegistryArchiveCache(NewTempDir());
+        const string url = "https://example.test/marketplace.zip";
+        var now = DateTimeOffset.UtcNow;
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        cache.Invalidate(url, MarketplacePath);
+
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
+    }
+
     private static byte[] CreateArchive(string marketplaceName, string version)
     {
         using var stream = new MemoryStream();
