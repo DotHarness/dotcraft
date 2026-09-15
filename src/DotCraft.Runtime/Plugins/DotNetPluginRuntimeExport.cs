@@ -47,7 +47,7 @@ internal sealed partial class DotNetPluginRuntimeManager
 
         void Release()
         {
-            foreach (var file in files) _bundleStore.DeleteGeneration(file.RootPath);
+            foreach (var file in files) _bundleStore.ReleaseGeneration(file.RootPath);
             lock (_exportGate)
                 if (pinned && --_exportCount == 0) _exportsDrained!.TrySetResult();
         }
