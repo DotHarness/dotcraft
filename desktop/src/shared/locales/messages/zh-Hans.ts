@@ -1325,7 +1325,7 @@ export const MESSAGES_ZH_HANS = {
   'sidebar.dashboardOpenTitle': '在浏览器中打开 Dashboard',
   'sidebar.channels': '渠道',
   'sidebar.team': '团队',
-  'sidebar.agents': 'Agents',
+  'sidebar.agents': '智能体',
   'sidebar.skills': '插件',
   'sidebar.automationsDisabled': "请在宿主启用 Automations 模块。",
   'sidebar.expand': '展开侧栏 (Ctrl+B)',
@@ -2310,7 +2310,7 @@ export const MESSAGES_ZH_HANS = {
   'projectsRail.notRunning': '未运行',
   'projectsRail.expand': '展开项目',
   'projectsRail.collapse': '折叠项目',
-  'projectsRail.title': 'Projects',
+  'projectsRail.title': '项目',
   'projectsRail.addProject': '添加项目',
   'projectsRail.noChats': '暂无对话',
   'projectsRail.noProjects': '暂无项目',
@@ -3144,7 +3144,7 @@ export const MESSAGES_ZH_HANS = {
 
   // Sub Agents
   'settings.subAgents.title': '子智能体',
-  'settings.subAgents.description': '选择可供 DotCraft 委派任务的助手，或接入你自己的 CLI。',
+  'settings.subAgents.description': '选择可供 DotCraft 委派任务的智能体，或接入你自己的 CLI。',
   'settings.subAgents.unsupported': '当前 AppServer 不支持子智能体管理。',
   'settings.subAgents.loading': '正在加载子智能体…',
   'settings.subAgents.empty': '当前还没有可用的子智能体。',
@@ -3165,19 +3165,17 @@ export const MESSAGES_ZH_HANS = {
     '开启后，支持 resume 的外部 CLI profile 在复用相同 label 时，会继续当前工作区之前保存的外部会话。',
 
   // List surface
-  'settings.subAgents.list.presetSection': '内置助手',
-  'settings.subAgents.list.customSection': '自定义助手',
-  'settings.subAgents.list.customEmpty': '还没有自定义助手。如果你想接入其它 CLI，点击下方按钮添加。',
-  'settings.subAgents.list.addCustomAgent': '添加自定义助手',
+  'settings.subAgents.list.presetSection': '内置智能体',
+  'settings.subAgents.list.customSection': '自定义智能体',
+  'settings.subAgents.list.customEmpty': '还没有自定义智能体。如果你想接入其它 CLI，点击下方按钮添加。',
+  'settings.subAgents.list.addCustomAgent': '添加自定义智能体',
   'settings.subAgents.list.addCustomAgentHint': '描述 DotCraft 应如何调用你的 CLI。',
   'settings.subAgents.card.customizedBadge': '已自定义',
-  'settings.subAgents.card.defaultBadge': '默认',
-  'settings.subAgents.card.customBadge': '自定义',
   'settings.subAgents.card.nativeSubtitle': '在 DotCraft 内部运行。',
   'settings.subAgents.card.codexSubtitle': '通过 codex 命令行把任务交给 Codex。',
   'settings.subAgents.card.cursorSubtitle': '通过 cursor-agent 命令行把任务交给 Cursor。',
   'settings.subAgents.card.customSubtitle': '调用 {{binary}}',
-  'settings.subAgents.card.customSubtitleFallback': '自定义 CLI 助手',
+  'settings.subAgents.card.customSubtitleFallback': '自定义 CLI 智能体',
   'settings.subAgents.card.binaryMissing': '未在 PATH 中找到可执行文件',
   'settings.subAgents.card.disabled': '已禁用',
 
@@ -3191,7 +3189,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.preset.native.title': '原生 (Native)',
   'settings.subAgents.preset.native.description':
     '原生子智能体运行在 DotCraft 内部，共享主智能体的审批流程，因此无法禁用。',
-  'settings.subAgents.preset.enableTitle': '启用该助手',
+  'settings.subAgents.preset.enableTitle': '启用该智能体',
   'settings.subAgents.preset.enableDescription': '开启后，主智能体可把任务委派给此 CLI。',
   'settings.subAgents.preset.nativeLockedHint': 'Native 是默认的子智能体运行时，始终可用。',
   'settings.subAgents.preset.nativeModelTitle': 'Native 模型',
@@ -3200,9 +3198,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.preset.nativeModelInherit': '使用当前主模型',
   'settings.subAgents.preset.nativeModelPlaceholder': '继承主模型',
   'settings.subAgents.preset.modelListLoading': '正在加载模型…',
-  'settings.subAgents.preset.statusTitle': '状态',
-  'settings.subAgents.preset.binaryResolved': '已找到可执行文件',
-  'settings.subAgents.preset.binaryNotResolved': 'PATH 中未找到可执行文件',
+  'settings.subAgents.preset.binaryMissingNotice':
+    'DotCraft 在 PATH 中找不到 {{binary}}。请先安装该 CLI，或在「覆盖设置」中填写绝对路径。',
   'settings.subAgents.preset.hiddenNotice': '不会进入 Agent Prompt：{{reason}}',
   'settings.subAgents.preset.warnings': '警告',
   'settings.subAgents.preset.runtimeInfoTitle': 'DotCraft 如何调用',
@@ -3232,8 +3229,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.preset.overrideTimeoutHint': '达到该时间仍未完成则取消任务。',
 
   // Custom editor surface
-  'settings.subAgents.custom.newTitle': '新建自定义助手',
-  'settings.subAgents.custom.editTitle': '自定义助手',
+  'settings.subAgents.custom.newTitle': '新建自定义智能体',
+  'settings.subAgents.custom.editTitle': '自定义智能体',
   'settings.subAgents.custom.description':
     '告诉 DotCraft 如何调用你的 CLI，以及如何从它的输出中读取回复。',
   'settings.subAgents.custom.identityTitle': '身份信息',
@@ -3413,7 +3410,7 @@ export const MESSAGES_ZH_HANS = {
   'agentBuilder.chat.createDocs': "文档编写",
   'agentBuilder.chat.createDocsPrompt': "创建一个文档编写助手，保持文档与既定风格一致。",
   'agentBuilder.chat.createTriage': "缺陷分诊",
-  'agentBuilder.chat.createTriagePrompt': "创建一个助手，审查新缺陷、确定优先级并记录它们。",
+  'agentBuilder.chat.createTriagePrompt': "创建一个智能体，审查新缺陷、确定优先级并记录它们。",
   'agentBuilder.chat.emptyTitle': '要如何改进这个 Agent？',
   'agentBuilder.chat.quick.test': '测试这个 Agent',
   'agentBuilder.chat.quick.advanced': '添加高级逻辑',

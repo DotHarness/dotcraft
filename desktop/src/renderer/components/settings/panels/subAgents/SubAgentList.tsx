@@ -3,12 +3,16 @@ import { Plus } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup } from '../../SettingsGroup'
-import { settingsHintStyle, settingsLabelStyle, settingsPlaceholderStyle } from '../../settingsTypography'
+import {
+  settingsHintStyle,
+  settingsLabelStyle,
+  settingsMetaTextStyle,
+  settingsPlaceholderStyle
+} from '../../settingsTypography'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import { Skeleton } from '../../../ui/Skeleton'
 import { AgentIcon } from './AgentIcon'
 import { PRESET_PROFILE_NAMES, type SubAgentProfileEntryWire } from './wire'
-import { pillBadgeStyle } from './styles'
 import { Button } from '../../../ui/Button'
 
 interface SubAgentListProps {
@@ -157,23 +161,17 @@ function ProfileCard({ profile, togglingName, onOpen, onToggleEnabled }: Profile
     >
       <AgentIcon name={profile.name} isBuiltIn={profile.isBuiltIn} size={32} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
           <span style={titleStyle()}>{resolveTitle(profile, t)}</span>
-          {profile.isDefault && (
-            <span style={pillBadgeStyle('neutral')}>{t('settings.subAgents.card.defaultBadge')}</span>
-          )}
           {profile.hasWorkspaceOverride && profile.isBuiltIn && (
-            <span style={pillBadgeStyle('accent')}>
+            <span style={settingsMetaTextStyle()}>
               {t('settings.subAgents.card.customizedBadge')}
             </span>
-          )}
-          {!profile.isBuiltIn && (
-            <span style={pillBadgeStyle('accent')}>{t('settings.subAgents.card.customBadge')}</span>
           )}
         </div>
         <div style={subtitleStyle()}>{subtitle}</div>
         {!profile.diagnostic.binaryResolved && profile.definition.runtime !== 'native' && (
-          <div style={{ ...subtitleStyle(), color: 'var(--warning, #ff9500)' }}>
+          <div style={{ ...subtitleStyle(), color: 'var(--warning-text)' }}>
             {t('settings.subAgents.card.binaryMissing')}
           </div>
         )}

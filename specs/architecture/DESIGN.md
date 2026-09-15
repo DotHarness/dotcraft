@@ -1,5 +1,5 @@
 ---
-version: "0.18.0"
+version: "0.19.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -656,6 +656,21 @@ When the state is the whole content rather than an attribute of a row, use a
 badge instead: the tinted surface tokens (`--success-bg`, `--warning-bg`,
 `--error-bg`) with the hue as the foreground, and no indicator inside it. A
 badge and an indicator never appear together for the same fact.
+
+A settings surface says nothing when everything is fine. A green badge
+confirming that a binary was found, a section headed Status that only ever
+reports health, an all-clear a reader never acts on — none of them earn their
+room, and a page that announces its own success has no weight left for the one
+row that actually needs attention. Show the trouble instead: a notice at the
+top of the page, in the reader's path before the settings it explains, naming
+what is wrong and the way out of it. States that are merely quiet stay in the
+row they describe, as an indicator or as plain secondary text.
+
+Words that classify rather than report — default, custom, customized, the name
+of a tier — are labels, not status, so they carry no pill, border, or fill on a
+settings row any more than they do above a transcript block. Set them in the
+hint size on `--text-dimmed` beside the title they qualify, and drop the ones a
+section heading already says.
 
 ### Status Menu Buttons
 

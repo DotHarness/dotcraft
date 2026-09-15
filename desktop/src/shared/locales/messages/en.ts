@@ -3268,8 +3268,6 @@ export const MESSAGES_EN = {
   'settings.subAgents.list.addCustomAgentHint':
     'Describe how DotCraft should invoke your own CLI.',
   'settings.subAgents.card.customizedBadge': 'Customized',
-  'settings.subAgents.card.defaultBadge': 'Default',
-  'settings.subAgents.card.customBadge': 'Custom',
   'settings.subAgents.card.nativeSubtitle': 'Runs inside DotCraft.',
   'settings.subAgents.card.codexSubtitle': 'Delegates tasks to the official codex CLI.',
   'settings.subAgents.card.cursorSubtitle': 'Delegates tasks to the cursor-agent CLI.',
@@ -3299,9 +3297,8 @@ export const MESSAGES_EN = {
   'settings.subAgents.preset.nativeModelInherit': 'Use current main model',
   'settings.subAgents.preset.nativeModelPlaceholder': 'Inherit main model',
   'settings.subAgents.preset.modelListLoading': 'Loading models…',
-  'settings.subAgents.preset.statusTitle': 'Status',
-  'settings.subAgents.preset.binaryResolved': 'Binary found',
-  'settings.subAgents.preset.binaryNotResolved': 'Binary not found on PATH',
+  'settings.subAgents.preset.binaryMissingNotice':
+    'DotCraft cannot find {{binary}} on PATH. Install the CLI, or set an absolute path under Overrides.',
   'settings.subAgents.preset.hiddenNotice': 'Hidden from the agent prompt: {{reason}}',
   'settings.subAgents.preset.warnings': 'Warnings',
   'settings.subAgents.preset.runtimeInfoTitle': 'How DotCraft uses it',

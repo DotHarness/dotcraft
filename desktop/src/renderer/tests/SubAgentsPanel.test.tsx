@@ -262,8 +262,8 @@ describe('SubAgentsPanel', () => {
 
     // The title appears twice: the breadcrumb current segment and the hero heading.
     expect((await screen.findAllByText('Codex CLI')).length).toBeGreaterThan(0)
-    expect(screen.getByText('Binary found')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Customize' })).toBeInTheDocument()
+    expect(screen.queryByText(/on PATH/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to Subagents' }))
     expect(
@@ -300,6 +300,18 @@ describe('SubAgentsPanel', () => {
         })
       )
     })
+  })
+
+  it('warns on the detail view when the preset binary is missing', async () => {
+    renderPanel()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open subagent profile cursor-cli' })
+    )
+
+    expect(
+      await screen.findByText(/DotCraft cannot find cursor-agent on PATH/)
+    ).toBeInTheDocument()
   })
 
   it('opens the native detail view with a locked switch', async () => {

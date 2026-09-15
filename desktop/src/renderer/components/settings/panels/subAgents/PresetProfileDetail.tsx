@@ -3,6 +3,8 @@ import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { PillSwitch } from '../../../ui/PillSwitch'
+import { StatusIndicator } from '../../../ui/StatusIndicator'
+import { settingsMetaTextStyle } from '../../settingsTypography'
 import {
   EditableValueList,
   normalizeValueRows,
@@ -16,8 +18,7 @@ import {
   noticeStyle,
   pageDescriptionStyle,
   pageHeadingStyle,
-  pageStyle,
-  pillBadgeStyle
+  pageStyle
 } from './styles'
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
@@ -109,20 +110,44 @@ export function PresetProfileDetail({
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <AgentIcon name={profile.name} isBuiltIn={profile.isBuiltIn} size={44} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
             <span style={pageHeadingStyle()}>{title}</span>
             {profile.hasWorkspaceOverride && (
-              <span style={pillBadgeStyle('accent')}>
+              <span style={settingsMetaTextStyle()}>
                 {t('settings.subAgents.card.customizedBadge')}
               </span>
-            )}
-            {profile.isDefault && (
-              <span style={pillBadgeStyle('neutral')}>{t('settings.subAgents.card.defaultBadge')}</span>
             )}
           </div>
           {description && <div style={pageDescriptionStyle()}>{description}</div>}
         </div>
       </div>
+
+      {binaryLooksMissing && (
+        <div style={noticeStyle('warning')}>
+          {t('settings.subAgents.preset.binaryMissingNotice', {
+            binary: profile.definition.bin ?? builtIn.bin ?? ''
+          })}
+        </div>
+      )}
+      {profile.diagnostic.hiddenFromPrompt && profile.diagnostic.hiddenReason && (
+        <div style={noticeStyle('warning')}>
+          {t('settings.subAgents.preset.hiddenNotice', {
+            reason: profile.diagnostic.hiddenReason
+          })}
+        </div>
+      )}
+      {profile.diagnostic.warnings.length > 0 && (
+        <div style={noticeStyle('warning')}>
+          <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+            {t('settings.subAgents.preset.warnings')}
+          </div>
+          <ul style={warningListStyle()}>
+            {profile.diagnostic.warnings.map((warning, index) => (
+              <li key={index}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <SettingsGroup>
         <SettingsRow
@@ -137,41 +162,6 @@ export function PresetProfileDetail({
             />
           }
         />
-      </SettingsGroup>
-
-      <SettingsGroup title={t('settings.subAgents.preset.statusTitle')} flush>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div>
-            <span
-              style={pillBadgeStyle(
-                binaryLooksMissing ? 'warning' : 'success'
-              )}
-            >
-              {binaryLooksMissing
-                ? t('settings.subAgents.preset.binaryNotResolved')
-                : t('settings.subAgents.preset.binaryResolved')}
-            </span>
-          </div>
-          {profile.diagnostic.hiddenFromPrompt && profile.diagnostic.hiddenReason && (
-            <div style={noticeStyle('warning')}>
-              {t('settings.subAgents.preset.hiddenNotice', {
-                reason: profile.diagnostic.hiddenReason
-              })}
-            </div>
-          )}
-          {profile.diagnostic.warnings.length > 0 && (
-            <div style={noticeStyle('warning')}>
-              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                {t('settings.subAgents.preset.warnings')}
-              </div>
-              <ul style={{ margin: 0, paddingInlineStart: '20px' }}>
-                {profile.diagnostic.warnings.map((warning, index) => (
-                  <li key={index}>{warning}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
       </SettingsGroup>
 
       <SettingsGroup title={t('settings.subAgents.preset.runtimeInfoTitle')}>
@@ -220,15 +210,14 @@ export function PresetProfileDetail({
             label={t('settings.subAgents.preset.resumeTitle')}
             description={t('settings.subAgents.preset.resumeDescription')}
             control={
-              <span
-                style={pillBadgeStyle(
-                  profile.definition.supportsResume && externalCliSessionResumeEnabled
-                    ? 'success'
-                    : profile.definition.supportsResume
-                      ? 'warning'
+              <span style={resumeStateStyle()}>
+                <StatusIndicator
+                  tone={
+                    profile.definition.supportsResume && externalCliSessionResumeEnabled
+                      ? 'success'
                       : 'neutral'
-                )}
-              >
+                  }
+                />
                 {profile.definition.supportsResume
                   ? externalCliSessionResumeEnabled
                     ? t('settings.subAgents.preset.resumeEnabled')
@@ -359,6 +348,25 @@ function presetDescriptionFor(
   if (name === 'codex-cli') return t('settings.subAgents.preset.codex.description')
   if (name === 'cursor-cli') return t('settings.subAgents.preset.cursor.description')
   return t('settings.subAgents.preset.native.description')
+}
+
+function warningListStyle(): CSSProperties {
+  return {
+    display: 'grid',
+    gap: '2px',
+    margin: 0,
+    paddingInlineStart: 0
+  }
+}
+
+function resumeStateStyle(): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: 'var(--type-secondary-size)',
+    color: 'var(--text-secondary)'
+  }
 }
 
 function inlineCodeStyle(): CSSProperties {
