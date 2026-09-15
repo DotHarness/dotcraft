@@ -1,13 +1,18 @@
+using System.Runtime.CompilerServices;
 using DotCraft.Agents;
 
 namespace DotCraft.Configuration;
 
 public static class ModelProviderCatalog
 {
+    // A catalog belongs to the provider stack that fetched it, not to the process.
+    private static readonly ConditionalWeakTable<ModelProviderRegistry, ModelProviderCatalogCache> Caches = new();
+
     public static async Task<ModelCatalogResult> FetchAsync(
         AppConfig config,
         ModelProviderRegistry providerRegistry,
         string? providerId = null,
+        ModelCatalogRefreshStrategy refreshStrategy = ModelCatalogRefreshStrategy.OnlineIfUncached,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -27,11 +32,28 @@ public static class ModelProviderCatalog
             return Failure(ModelCatalogErrorCode.Unknown, ex.Message);
         }
 
-        ModelCatalogResult result;
+        var cache = Caches.GetValue(providerRegistry, static _ => new ModelProviderCatalogCache());
+        var result = await cache.GetOrFetchAsync(
+            ModelProviderCatalogCache.BuildIdentity(runtime),
+            refreshStrategy,
+            ct => FetchFromProviderAsync(providerRegistry, runtime, ct),
+            cancellationToken).ConfigureAwait(false);
+
+        result.ProviderId = runtime.ProviderId;
+        result.Protocol = runtime.Protocol;
+        result.EndPoint = runtime.EndPoint;
+        return result;
+    }
+
+    private static async Task<ModelCatalogResult> FetchFromProviderAsync(
+        ModelProviderRegistry providerRegistry,
+        EffectiveModelRuntime runtime,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var catalog = providerRegistry.GetService<IModelCatalogProvider>(runtime.Protocol);
-            result = catalog == null
+            return catalog == null
                 ? Failure(
                     ModelCatalogErrorCode.UnsupportedProtocol,
                     $"Protocol '{runtime.Protocol}' does not support model listing.")
@@ -39,13 +61,8 @@ public static class ModelProviderCatalog
         }
         catch (ModelProviderNotRegisteredException ex)
         {
-            result = Failure(ModelCatalogErrorCode.UnsupportedProtocol, ex.Message);
+            return Failure(ModelCatalogErrorCode.UnsupportedProtocol, ex.Message);
         }
-
-        result.ProviderId = runtime.ProviderId;
-        result.Protocol = runtime.Protocol;
-        result.EndPoint = runtime.EndPoint;
-        return result;
     }
 
     private static ModelCatalogResult Failure(ModelCatalogErrorCode code, string message) => new()

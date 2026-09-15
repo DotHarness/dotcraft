@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.2 |
+| **Version** | 0.4.3 |
 | **Status** | Living |
-| **Date** | 2026-09-14 |
+| **Date** | 2026-09-15 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -59,12 +59,19 @@ declaration. Invalid declarations are ignored. Legacy conservative context entri
 compatibility tombstones for models outside the synchronized set. Provider request adapters and
 `model/list` must resolve capabilities through the same merged catalog.
 
+Catalog freshness is server-owned. AppServer serves `model/list` from a provider-identity cache and
+keeps returning the last catalog fetched with the same credentials when a refresh fails, so a client
+may request a catalog whenever it needs one without re-querying the upstream endpoint.
+
 Desktop caches successful model catalogs by provider for the current connection and workspace.
 Reasoning, speed, context-mode, and model preference changes reuse those catalogs. Concurrent loads
 for the same provider share a request; switching providers reuses their cached results. Manual refresh
 reloads the selected provider. Provider registry or authentication changes invalidate catalogs;
 connection and workspace changes discard them and prevent old responses from repopulating the cache.
 Changing the workspace-selected provider invalidates only the default-provider alias.
+
+A thread composer resolves its options from thread configuration values. Receiving an unchanged thread
+snapshot must not reload the catalog or re-read workspace configuration.
 
 ### 2.2 Provider Preferences
 

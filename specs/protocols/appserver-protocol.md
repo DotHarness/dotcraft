@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Living |
-| **Date** | 2026-09-14 |
+| **Date** | 2026-09-15 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -5578,6 +5578,13 @@ On provider/config errors, the method still returns a successful JSON-RPC respon
 ```
 
 If a provider cannot list models, the server returns `success: false` with a provider-neutral `errorCode`; clients must continue to allow manual model entry.
+
+The server answers `model/list` from a catalog cache keyed by the resolved provider identity: provider
+id, protocol, endpoint, and credentials. A cached catalog is reused for five minutes, so repeated calls
+do not re-query the upstream endpoint. A failed refresh returns the last catalog fetched under the same
+identity when one exists, and an endpoint without a cached catalog is re-queried at most once every
+thirty seconds while it keeps failing. Editing provider credentials or the endpoint selects a new
+identity, which refreshes on the next call. `provider/test` always queries the endpoint.
 
 ### 21.6 Capability Advertisement
 

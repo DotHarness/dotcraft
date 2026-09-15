@@ -203,20 +203,25 @@ export function useComposerModelControls({
     []
   )
 
-  // Read from the thread's captured configuration only: new threads already capture
-  // the workspace default at creation (see spec §4).
   const resolveEffectiveContextMode = useCallback((
     thread: Thread | null,
     workspaceCfg: Record<string, unknown>,
     effectiveProviderId: string
   ): ContextWindowMode => {
-    const raw = thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow
-    if (!raw || typeof raw !== 'object') {
-      return readWorkspacePreference(workspaceCfg, effectiveProviderId)?.contextWindow.mode ?? 'default'
-    }
-    const modeRaw = (raw as { mode?: unknown; Mode?: unknown }).mode ?? (raw as { Mode?: unknown }).Mode
-    return modeRaw === 'max' ? 'max' : 'default'
+    return readThreadContextMode(thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow)
+      ?? readWorkspacePreference(workspaceCfg, effectiveProviderId)?.contextWindow.mode
+      ?? 'default'
   }, [])
+
+  const threadConfiguration = activeThread?.configuration ?? null
+  // Thread snapshots arrive on a timer with new objects, so the resolve effect compares values.
+  const threadConfigurationKey = useMemo(() => JSON.stringify([
+    threadConfiguration?.providerId ?? threadConfiguration?.ProviderId ?? null,
+    threadConfiguration?.model ?? threadConfiguration?.Model ?? null,
+    readReasoningObject(threadConfiguration?.reasoning ?? threadConfiguration?.Reasoning),
+    threadConfiguration?.speed ?? threadConfiguration?.Speed ?? null,
+    readThreadContextMode(threadConfiguration?.contextWindow ?? threadConfiguration?.ContextWindow)
+  ]), [threadConfiguration])
 
   useEffect(() => {
     if (!modelApiAvailable) return
@@ -274,16 +279,7 @@ export function useComposerModelControls({
     }
   }, [
     activeThreadId,
-    activeThread?.configuration?.Model,
-    activeThread?.configuration?.model,
-    activeThread?.configuration?.ProviderId,
-    activeThread?.configuration?.providerId,
-    activeThread?.configuration?.Reasoning,
-    activeThread?.configuration?.reasoning,
-    activeThread?.configuration?.speed,
-    activeThread?.configuration?.Speed,
-    activeThread?.configuration?.contextWindow,
-    activeThread?.configuration?.ContextWindow,
+    threadConfigurationKey,
     detached,
     detachedModelTouched,
     detachedReasoningTouched,
@@ -790,8 +786,11 @@ function resolveReasoningFromConfiguration(config: Record<string, unknown>): Res
 
 function resolveContextFromConfiguration(config: Record<string, unknown>): ContextWindowMode {
   const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'contextwindow')
-  const raw = key ? config[key] : null
-  if (!raw || typeof raw !== 'object') return 'default'
+  return readThreadContextMode(key ? config[key] : null) ?? 'default'
+}
+
+function readThreadContextMode(raw: unknown): ContextWindowMode | null {
+  if (!raw || typeof raw !== 'object') return null
   const record = raw as Record<string, unknown>
   return (record.mode ?? record.Mode) === 'max' ? 'max' : 'default'
 }

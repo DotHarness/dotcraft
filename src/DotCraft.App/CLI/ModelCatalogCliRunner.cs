@@ -75,7 +75,7 @@ public static class ModelCatalogCliRunner
                     new AnthropicClientProvider()
                 ]),
                 providerId,
-                cancellationToken);
+                cancellationToken: cancellationToken);
             if (!result.Success && !string.IsNullOrWhiteSpace(result.ErrorMessage))
             {
                 await Console.Error.WriteLineAsync(result.ErrorMessage);
