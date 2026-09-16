@@ -70,7 +70,7 @@ resolves its root's scope rather than opening one of its own. A scope redirects 
 and nothing else: Dreams, Skills, bootstrap documents, the working directory and the path blacklist all
 stay where they are. Page invalidation names the scope that was consolidated.
 
-The memory section names the store's directory so the agent can open and maintain the files itself.
+The memory section names the store's directory so the agent can open and maintain the files itself, and what that section contributes to a prompt is bounded however large the file has grown. The file itself is never truncated.
 
 ## 4. Input Scope
 
