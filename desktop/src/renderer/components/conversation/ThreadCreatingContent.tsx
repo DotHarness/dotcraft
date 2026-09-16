@@ -10,28 +10,15 @@ export function ThreadCreatingContent({ text }: { text: string }): JSX.Element {
   const t = useT()
   const label = t('conversation.creatingThread')
   return (
-    <div style={streamStyle}>
-      <ConversationColumn style={columnStyle}>
-        <UserMessageBlock text={text} />
-        <NoticeDivider ariaLabel={label} title={label} icon={<MessageSquarePlus size={12} aria-hidden />} active />
-      </ConversationColumn>
+    <div style={frameStyle}>
+      <div className="dc-conversation-message-stream">
+        <ConversationColumn className="dc-conversation-column-stack">
+          <UserMessageBlock text={text} />
+          <NoticeDivider ariaLabel={label} title={label} icon={<MessageSquarePlus size={12} aria-hidden />} active />
+        </ConversationColumn>
+      </div>
     </div>
   )
 }
 
-// Matches the message stream so the created conversation replaces this without moving anything.
-const streamStyle: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflow: 'hidden',
-  padding: '32px clamp(20px, 4vw, 40px)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'var(--conversation-block-gap)'
-}
-
-const columnStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'var(--conversation-block-gap)'
-}
+const frameStyle: CSSProperties = { position: 'relative', flex: 1, overflow: 'hidden' }
