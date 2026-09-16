@@ -63,6 +63,17 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
                     Read<int?>(properties, "requestIndex"),
                     Read<bool>(properties, "metadataExtractionFailed"));
                 break;
+            case "prompt_cache.points":
+                RecordPromptCachePoints(
+                    sessionKey,
+                    Read<string>(properties, "model") ?? string.Empty,
+                    Read<IReadOnlyList<PromptCachePointTraceEntry>>(properties, "points") ?? [],
+                    Read<int?>(properties, "llmCallIndex"));
+                break;
+            case "prompt_cache.request":
+                if (Read<PromptCacheRequestDiagnosticSnapshot>(properties, "request") is { } request)
+                    RecordPromptCacheRequestSnapshot(sessionKey, request);
+                break;
             case "prompt_cache.request_shape":
                 if (Read<PromptCacheRequestShapeSnapshot>(properties, "snapshot") is { } snapshot)
                 {
@@ -541,7 +552,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
         });
     }
 
-    public void RecordPromptCachePoints(
+    private void RecordPromptCachePoints(
         string sessionKey,
         string model,
         IReadOnlyList<PromptCachePointTraceEntry> points,

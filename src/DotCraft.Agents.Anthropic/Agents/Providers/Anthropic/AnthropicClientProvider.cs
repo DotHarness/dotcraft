@@ -51,11 +51,12 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
             runtime.Model,
             runtime.MaxOutputTokens);
         return new ProviderServiceChatClient(
-            new AnthropicFastModeChatClient(new AnthropicProviderContentChatClient(client), runtime),
+            new AnthropicPromptCachingChatClient(
+                new AnthropicFastModeChatClient(new AnthropicProviderContentChatClient(client), runtime),
+                runtime.Model),
             new Dictionary<Type, object>
             {
                 [typeof(IToolCallArgumentsDeltaExtractor)] = AnthropicToolCallArgumentsDeltaExtractor.Instance,
-                [typeof(IPromptCacheDialect)] = AnthropicPromptCacheDialect.Instance,
                 [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance
             });
     }
@@ -145,8 +146,6 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
     {
         if (serviceKey != null)
             return null;
-        if (serviceType == typeof(IPromptCacheDialect))
-            return AnthropicPromptCacheDialect.Instance;
         if (serviceType == typeof(IProviderManagedContinuationPolicy))
             return AnthropicManagedContinuationPolicy.Instance;
         return serviceType.IsInstanceOfType(this) ? this : null;

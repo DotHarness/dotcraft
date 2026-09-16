@@ -13,8 +13,12 @@ using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class AnthropicDeferredToolLoadingChatClientTests
+public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
 {
+    private readonly IDisposable _promptCachePolicy = PromptCachePolicyScope.Use();
+
+    public void Dispose() => _promptCachePolicy.Dispose();
+
     [Fact]
     public void CreateDeferredTool_PreservesProviderToolName()
     {
@@ -599,12 +603,9 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
             ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(config, "http://localhost", model),
             model,
             defaultMaxOutputTokens: 1024);
-        inner = new PromptCachingChatClient(
+        inner = new AnthropicPromptCachingChatClient(
             inner,
-            config.PromptCaching,
             model,
-            AnthropicPromptCacheDialect.Instance,
-            traceCollector: null,
             sessionKeyAccessor: () => Guid.NewGuid().ToString("N"));
         return new AnthropicProviderContentChatClient(
             new AnthropicDeferredToolLoadingChatClient(inner, model, defaultMaxOutputTokens: 1024));

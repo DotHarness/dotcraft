@@ -155,7 +155,6 @@ internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient
             return TryGetCacheTtl(result.AdditionalProperties, out var ttl)
                 ? AnthropicPromptCacheDialect.Instance.MarkFunctionResult(
                     rewritten,
-                    rewrittenResult?.ToString() ?? string.Empty,
                     AnthropicPromptCacheDialect.Instance.CreateMarker(ttl))
                 : rewritten;
         }

@@ -69,8 +69,7 @@ public sealed partial class OpenAIClientProvider :
             new OpenAIFastModeChatClient(new DeepThinkingChatClient(client, runtime)),
             new Dictionary<Type, object>
             {
-                [typeof(IToolCallArgumentsDeltaExtractor)] = OpenAIToolCallArgumentsDeltaExtractor.Instance,
-                [typeof(IPromptCacheDialect)] = OpenAIPromptCacheDialect.Instance
+                [typeof(IToolCallArgumentsDeltaExtractor)] = OpenAIToolCallArgumentsDeltaExtractor.Instance
             });
     }
 
@@ -79,8 +78,6 @@ public sealed partial class OpenAIClientProvider :
     {
         if (serviceKey != null)
             return null;
-        if (serviceType == typeof(IPromptCacheDialect))
-            return OpenAIPromptCacheDialect.Instance;
         return serviceType.IsInstanceOfType(this) ? this : null;
     }
 
@@ -493,7 +490,6 @@ public sealed partial class OpenAIClientProvider :
             NetworkTimeout = TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(networkTimeoutSeconds)),
             RetryPolicy = new ClientRetryPolicy(0)
         };
-        options.AddPolicy(new PromptCacheControlPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.PerCall);
@@ -511,7 +507,6 @@ public sealed partial class OpenAIClientProvider :
             NetworkTimeout = TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(networkTimeoutSeconds)),
             RetryPolicy = new ClientRetryPolicy(0)
         };
-        options.AddPolicy(new PromptCacheControlPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesLiteHeadersPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesRequestCompressionPipelinePolicy(), PipelinePosition.PerCall);

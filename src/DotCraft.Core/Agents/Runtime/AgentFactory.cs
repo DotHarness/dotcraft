@@ -684,8 +684,7 @@ public sealed class AgentFactory : IAsyncDisposable
             runtime,
             ctx.EffectiveReasoning,
             ctx.EffectiveSpeed,
-            ctx.Config.PromptCaching,
-            _traceCollector);
+            ctx.Config.PromptCaching);
         IChatClient requestAdaptedChatClient = chatClientBuilder.Build();
         if (deferredRegistry is { Mode: DeferredToolLoadingMode.Native }
             && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))

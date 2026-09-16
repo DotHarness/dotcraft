@@ -162,34 +162,6 @@ public sealed class TraceEvent
     public long? TotalTokens { get; init; }
 }
 
-public sealed record PromptCachePointTraceEntry(
-    string Model,
-    string Role,
-    int MessageIndex,
-    int ContentIndex,
-    int Sequence,
-    string HashPrefix,
-    bool Remembered,
-    bool Latest,
-    string ContentKind);
-
-internal sealed record PromptCacheRequestDiagnosticSnapshot(
-    string Model,
-    string MarkerStrategy,
-    string? Ttl,
-    int LlmCallIndex,
-    int BreakpointCount,
-    int CandidateCount,
-    int NewSelectedCount,
-    int RememberedSelectedCount,
-    bool LatestSelectedPointIsNew,
-    string? SystemHash,
-    string? ToolSchemaHash,
-    string? ReasoningHash,
-    int ToolCount,
-    IReadOnlyList<PromptCacheSelectedPointDiagnostic> SelectedPoints,
-    IReadOnlyList<PromptCacheCandidateCountDiagnostic> CandidateCounts);
-
 /// <summary>
 /// Describes a trace session's persisted relationship to its parent session.
 /// </summary>
@@ -200,21 +172,6 @@ public sealed record TraceSessionRelationshipDescriptor(
     string SessionKey,
     string? ParentSessionKey,
     string BindingKind);
-
-internal sealed record PromptCacheSelectedPointDiagnostic(
-    string Role,
-    string ContentKind,
-    int MessageIndex,
-    int ContentIndex,
-    int Sequence,
-    string HashPrefix,
-    bool Remembered,
-    bool Latest);
-
-internal sealed record PromptCacheCandidateCountDiagnostic(
-    string Role,
-    string ContentKind,
-    int Count);
 
 public sealed class TraceSession
 {
