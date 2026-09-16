@@ -9,9 +9,11 @@ export interface TokenHudStrings {
   readonly hudLabel: string
   readonly total: string
   readonly cache: string
+  readonly latency: string
   readonly speedLabel: string
   readonly totalLabel: string
   readonly cacheLabel: string
+  readonly latencyLabel: string
   readonly speedPending: string
   readonly speedUnavailable: string
   readonly visibleLabel: string
@@ -32,9 +34,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: 'Token HUD',
     total: 'total',
     cache: 'cache',
+    latency: 'TTFT',
     speedLabel: 'Generation speed',
     totalLabel: 'Workspace total tokens',
     cacheLabel: 'Cache hit rate',
+    latencyLabel: 'Time to first token',
     speedPending: 'Generation speed is being measured',
     speedUnavailable: 'Generation speed is unavailable',
     visibleLabel: 'Show Token HUD',
@@ -53,9 +57,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: 'Token 状态条',
     total: '累计',
     cache: '缓存',
+    latency: '首 token',
     speedLabel: '生成速度',
     totalLabel: '工作区累计 token',
     cacheLabel: '缓存命中率',
+    latencyLabel: '首 token 延迟',
     speedPending: '正在测量生成速度',
     speedUnavailable: '暂无生成速度',
     visibleLabel: '显示 Token 状态条',
@@ -74,9 +80,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: 'トークン HUD',
     total: '合計',
     cache: 'キャッシュ',
+    latency: 'TTFT',
     speedLabel: '生成速度',
     totalLabel: 'ワークスペースの合計トークン',
     cacheLabel: 'キャッシュヒット率',
+    latencyLabel: '最初のトークンまでの時間',
     speedPending: '生成速度を測定中',
     speedUnavailable: '生成速度を利用できません',
     visibleLabel: 'トークン HUD を表示',
@@ -95,9 +103,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: '토큰 HUD',
     total: '누적',
     cache: '캐시',
+    latency: 'TTFT',
     speedLabel: '생성 속도',
     totalLabel: '작업 공간 누적 토큰',
     cacheLabel: '캐시 적중률',
+    latencyLabel: '첫 토큰까지 걸린 시간',
     speedPending: '생성 속도를 측정하는 중',
     speedUnavailable: '생성 속도를 사용할 수 없음',
     visibleLabel: '토큰 HUD 표시',
@@ -116,9 +126,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: 'HUD de tokens',
     total: 'total',
     cache: 'caché',
+    latency: 'TTFT',
     speedLabel: 'Velocidad de generación',
     totalLabel: 'Tokens totales del espacio de trabajo',
     cacheLabel: 'Tasa de aciertos de caché',
+    latencyLabel: 'Tiempo hasta el primer token',
     speedPending: 'Midiendo la velocidad de generación',
     speedUnavailable: 'Velocidad de generación no disponible',
     visibleLabel: 'Mostrar HUD de tokens',
@@ -137,9 +149,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: 'HUD des jetons',
     total: 'total',
     cache: 'cache',
+    latency: 'TTFT',
     speedLabel: 'Vitesse de génération',
     totalLabel: 'Total des jetons de l’espace de travail',
     cacheLabel: 'Taux de réussite du cache',
+    latencyLabel: 'Temps jusqu’au premier jeton',
     speedPending: 'Mesure de la vitesse de génération',
     speedUnavailable: 'Vitesse de génération indisponible',
     visibleLabel: 'Afficher le HUD des jetons',
@@ -158,9 +172,11 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     hudLabel: 'Token-HUD',
     total: 'gesamt',
     cache: 'Cache',
+    latency: 'TTFT',
     speedLabel: 'Generierungstempo',
     totalLabel: 'Token-Gesamtnutzung des Arbeitsbereichs',
     cacheLabel: 'Cache-Trefferquote',
+    latencyLabel: 'Zeit bis zum ersten Token',
     speedPending: 'Generierungstempo wird gemessen',
     speedUnavailable: 'Generierungstempo nicht verfügbar',
     visibleLabel: 'Token-HUD anzeigen',

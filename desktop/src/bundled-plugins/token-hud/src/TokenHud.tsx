@@ -41,6 +41,11 @@ export function formatTokensPerSecond(value: number): string {
   return value >= 10 ? String(Math.round(value)) : String(Math.round(value * 10) / 10)
 }
 
+export function formatLatency(ms: number): string {
+  const seconds = Math.max(0, ms) / 1000
+  return `${seconds < 10 ? Math.round(seconds * 10) / 10 : Math.round(seconds)}s`
+}
+
 export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX.Element | null {
   const settings = useSettings()
   const usage = useUsage()
@@ -57,6 +62,9 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
       ? `${strings.speedLabel} ${speedValue} tok/s`
       : usage.waitingForSample || session.busy ? strings.speedPending : strings.speedUnavailable
   ]
+  if (usage.firstTokenLatencyMs !== null) {
+    ariaParts.push(`${strings.latencyLabel} ${formatLatency(usage.firstTokenLatencyMs)}`)
+  }
   if (usage.totalTokens !== null) ariaParts.push(`${strings.totalLabel} ${formatTokens(usage.totalTokens)}`)
   if (usage.cacheHitRate !== null) ariaParts.push(`${strings.cacheLabel} ${Math.round(usage.cacheHitRate * 100)}%`)
 
@@ -73,6 +81,12 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
         <span className="token-hud-value">{speedValue}</span>
         <span>tok/s</span>
       </span>
+      {usage.firstTokenLatencyMs !== null ? (
+        <span className="token-hud-cell" data-metric="latency">
+          <span className="token-hud-value">{formatLatency(usage.firstTokenLatencyMs)}</span>
+          <span>{strings.latency}</span>
+        </span>
+      ) : null}
       {usage.totalTokens !== null ? (
         <span className="token-hud-cell" data-metric="total">
           <span className="token-hud-value">{formatTokens(usage.totalTokens)}</span>
