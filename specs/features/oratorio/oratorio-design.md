@@ -974,9 +974,14 @@ Required AppServer interactions:
 - reconstruct an empty Status drawer from one bounded page of the newest
   persisted Items; the drawer is a recent-activity surface and must not page
   back through complete thread history;
-- when an Oratorio AppServer run timeout fires after a turn has started, request
-  a DotCraft turn interrupt and wait for a terminal notification or a short
-  bounded acknowledgement window before closing the run;
+- when an Oratorio AppServer run timeout or stalled-run timeout fires after a
+  turn has started, request a DotCraft turn interrupt and wait for a terminal
+  notification or a short bounded acknowledgement window before closing the
+  run;
+- schedule an automatic retry for a timed-out or stalled run only after the old
+  turn is confirmed terminal. If Oratorio cannot issue the interrupt or confirm
+  termination within that window, close the run with
+  `appServerTerminationUnconfirmed` and require an operator to retry;
 - keep Oratorio's timeout budget authoritative: a DotCraft completion that
   arrives after Oratorio has timed out is recorded as a late terminal signal and
   must not convert the Oratorio run back to success;
@@ -1106,9 +1111,10 @@ Managed worktree and concurrency contract:
   cleanup pending, cleaned, or failed.
 - AppServer scheduling uses explicit leases and configurable capacity limits at
   global, repository, and source levels.
-- AppServer runs interrupted by backend restart are reconciled as failed or
-  retried according to the retry policy. Stale heartbeats trigger stalled-run
-  handling.
+- AppServer runs interrupted by backend restart reconnect to the persisted
+  endpoint and interrupt the persisted turn before applying the retry policy.
+  If termination cannot be confirmed, Oratorio closes the run without an
+  automatic retry. Stale heartbeats use the same interrupt-and-confirm path.
 - Transient preparation, AppServer, timeout, disconnection, and stalled-run
   failures may schedule bounded retries with exponential backoff capped at five
   minutes.

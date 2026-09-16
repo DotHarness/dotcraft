@@ -2301,7 +2301,7 @@ public sealed class OratorioApiTests
             },
             new Dictionary<string, string?>
             {
-                ["Oratorio:DotCraft:MaxRunAttempts"] = "1"
+                ["Oratorio:DotCraft:MaxRunAttempts"] = "2"
             });
         var client = app.CreateClient();
 
@@ -2314,9 +2314,10 @@ public sealed class OratorioApiTests
         var timedOut = await WaitForItemAsync(client, "task:test-appserver-timeout-no-terminal", x => x.Item.State == ItemState.Failed);
         var run = Assert.Single(timedOut.Runs, x => x.RunnerKind == "appServer");
         Assert.Equal(RunStatus.TimedOut, run.Status);
-        Assert.Equal("appServerTimedOut", run.ErrorCode);
+        Assert.Equal("appServerTerminationUnconfirmed", run.ErrorCode);
         Assert.Contains("no terminal notification", run.ErrorMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(fakeAppServer.InterruptedTurns, x => x.ThreadId == "thread-test-1" && x.TurnId == "turn-test-1");
+        Assert.Single(fakeAppServer.TurnPrompts);
     }
 
     [Fact]
@@ -5414,14 +5415,16 @@ public sealed class OratorioApiTests
 
 internal sealed class TestOratorioApp : WebApplicationFactory<Program>
 {
-    private readonly string _databasePath = Path.Combine(Path.GetTempPath(), "oratorio-tests", $"{Guid.NewGuid():n}.db");
+    private readonly string _databasePath;
     private readonly Action<IServiceCollection>? _configureServices;
     private readonly IReadOnlyDictionary<string, string?> _settings;
 
     public TestOratorioApp(
         Action<IServiceCollection>? configureServices = null,
-        IReadOnlyDictionary<string, string?>? settings = null)
+        IReadOnlyDictionary<string, string?>? settings = null,
+        string? databasePath = null)
     {
+        _databasePath = databasePath ?? Path.Combine(Path.GetTempPath(), "oratorio-tests", $"{Guid.NewGuid():n}.db");
         _configureServices = configureServices;
         _settings = settings ?? new Dictionary<string, string?>();
     }
@@ -6058,6 +6061,7 @@ public enum FakeAppServerOutcome
     DrawerItemPublishFailure,
     Fail,
     Hold,
+    HoldInterruptWithoutTerminal,
     TimeoutAfterTurnStarted,
     TimeoutAfterTurnStartedWithoutTerminal,
     SubmitReviewDraft,
@@ -6298,6 +6302,7 @@ internal sealed class FakeAppServerClient(
     private readonly Channel<DotCraftRunEvent> _notifications = Channel.CreateUnbounded<DotCraftRunEvent>();
     private Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>? _dynamicToolHandler;
     private FakeAppServerThreadResumeRequest? _lastResumeRequest;
+    private bool _interrupted;
 
     public bool SupportsDynamicToolRebind => supportsDynamicToolRebind();
     public bool SupportsRuntimeAdditionalContext => supportsRuntimeAdditionalContext();
@@ -6747,7 +6752,8 @@ internal sealed class FakeAppServerClient(
     public Task InterruptTurnAsync(string threadId, string turnId, CancellationToken ct)
     {
         interruptTurn(threadId, turnId);
-        if (outcome != FakeAppServerOutcome.TimeoutAfterTurnStartedWithoutTerminal)
+        _interrupted = true;
+        if (outcome is not (FakeAppServerOutcome.TimeoutAfterTurnStartedWithoutTerminal or FakeAppServerOutcome.HoldInterruptWithoutTerminal))
         {
             _notifications.Writer.TryWrite(Notification("turn/cancelled", new { threadId, turnId }));
         }
@@ -6762,19 +6768,13 @@ internal sealed class FakeAppServerClient(
         Task.FromResult<IReadOnlyList<ModelInfoDto>>([new("fake-model", "Fake Model", "test")]);
 
     public IAsyncEnumerable<DotCraftRunEvent> ReadEventsAsync(CancellationToken ct) =>
-        outcome is FakeAppServerOutcome.TimeoutAfterTurnStarted or FakeAppServerOutcome.TimeoutAfterTurnStartedWithoutTerminal
+        outcome is FakeAppServerOutcome.TimeoutAfterTurnStarted or FakeAppServerOutcome.TimeoutAfterTurnStartedWithoutTerminal ||
+        outcome == FakeAppServerOutcome.HoldInterruptWithoutTerminal && _interrupted
             ? ReadEventsThenCancelAsync(ct)
             : _notifications.Reader.ReadAllAsync(ct);
 
     public ValueTask DisposeAsync()
-    {
-        if (outcome == FakeAppServerOutcome.Hold)
-        {
-            _notifications.Writer.TryComplete();
-        }
-
-        return ValueTask.CompletedTask;
-    }
+        => ValueTask.CompletedTask;
 
     private static DotCraftRunEvent Notification(string method, object parameters)
     {
