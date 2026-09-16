@@ -192,7 +192,7 @@ export function UserMessageBlock({
         )}
         <div
           style={{
-            width: '100%',
+            width: editing ? '100%' : undefined,
             backgroundColor: 'var(--user-message-bg)',
             borderRadius: '12px',
             padding: '9px 13px',
