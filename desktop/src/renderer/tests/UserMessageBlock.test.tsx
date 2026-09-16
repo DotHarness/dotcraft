@@ -348,7 +348,6 @@ describe('UserMessageBlock trigger source pills', () => {
           name: 'memory',
           description: '',
           source: 'user',
-          available: true,
           enabled: true,
           path: 'C:\\Users\\tester\\.craft\\skills\\memory\\SKILL.md'
         }
@@ -368,7 +367,7 @@ describe('UserMessageBlock trigger source pills', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy path' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
+      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', {})
       expect(clipboardWriteText).toHaveBeenCalledWith('C:\\Users\\tester\\.craft\\skills\\memory\\SKILL.md')
     })
   })

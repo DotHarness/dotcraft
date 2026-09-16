@@ -94,7 +94,7 @@ public sealed partial class SkillInstallService(SkillsLoader skillsLoader)
         }
 
         var skillName = verification.SkillName;
-        var existing = skillsLoader.ListSkills(filterUnavailable: false)
+        var existing = skillsLoader.ListSkills()
             .FirstOrDefault(skill => string.Equals(skill.Name, skillName, StringComparison.OrdinalIgnoreCase));
         if (existing != null && !request.Overwrite)
         {

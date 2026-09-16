@@ -8,8 +8,6 @@ export interface SkillEntry {
   source: 'builtin' | 'workspace' | 'user' | 'plugin'
   pluginId?: string | null
   pluginDisplayName?: string | null
-  available: boolean
-  unavailableReason?: string | null
   enabled: boolean
   path: string
   hasVariant?: boolean
@@ -47,9 +45,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   async fetchSkills() {
     set({ loading: true, error: null })
     try {
-      const result = (await window.api.appServer.sendRequest('skills/list', {
-        includeUnavailable: true
-      })) as { skills?: SkillEntry[] }
+      const result = (await window.api.appServer.sendRequest('skills/list', {})) as { skills?: SkillEntry[] }
       set({ skills: result.skills ?? [], loading: false })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)

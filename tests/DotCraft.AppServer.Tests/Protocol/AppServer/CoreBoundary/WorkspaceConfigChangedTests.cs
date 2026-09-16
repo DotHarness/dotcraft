@@ -572,7 +572,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     {
         var loader = new SkillsLoader(_workspaceCraftPath);
         loader.DeployBuiltInSkills();
-        var skillName = loader.ListSkills(filterUnavailable: false).First().Name;
+        var skillName = loader.ListSkills().First().Name;
 
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
@@ -810,7 +810,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var skillsList = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true });
+        var skillsList = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { });
         await harness.ExecuteRequestAsync(skillsList);
         var skillsSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AssertNoConfigChanged(skillsSent);

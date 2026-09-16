@@ -30,13 +30,12 @@ Newly created or updated skills may not affect the current prompt immediately; t
     internal static string? ActiveSkills(SystemPromptSectionContext context)
     {
         var sources = context.RequireSources();
-        var toolNames = context.AvailableToolNames;
         var content = sources.GetContextPage(
             context.ThreadId,
-            ContextPageKeys.SkillsAlways(BuildSkillsVariant(sources, toolNames)),
+            ContextPageKeys.SkillsAlways(BuildSkillsVariant(sources)),
             () =>
             {
-                var alwaysSkills = sources.SkillsLoader.GetAlwaysSkills(toolNames);
+                var alwaysSkills = sources.SkillsLoader.GetAlwaysSkills();
                 return alwaysSkills.Count == 0
                     ? string.Empty
                     : sources.SkillsLoader.LoadSkillsForContext(
@@ -52,12 +51,10 @@ Newly created or updated skills may not affect the current prompt immediately; t
     internal static string? SkillsSummary(SystemPromptSectionContext context)
     {
         var sources = context.RequireSources();
-        var toolNames = context.AvailableToolNames;
         var summary = sources.GetContextPage(
             context.ThreadId,
-            ContextPageKeys.SkillsSummary(BuildSkillsVariant(sources, toolNames)),
+            ContextPageKeys.SkillsSummary(BuildSkillsVariant(sources)),
             () => sources.SkillsLoader.BuildSkillsSummary(
-                toolNames,
                 sources.SkillVariantModeEnabled,
                 sources.SkillVariantTarget));
 
@@ -82,10 +79,8 @@ Active skills shown above are already loaded; follow their instructions directly
 """;
     }
 
-    /// <summary>Builds the cache variant key pinning both skill pages to the workspace, skill root, variant selection, and exposed tool set.</summary>
-    private static string BuildSkillsVariant(
-        PromptSectionSources sources,
-        IReadOnlyList<string>? availableToolNames)
+    /// <summary>Builds the cache variant key pinning both skill pages to the workspace, skill root, and variant selection.</summary>
+    private static string BuildSkillsVariant(PromptSectionSources sources)
     {
         var sb = new StringBuilder();
         sb.Append("workspace:");
@@ -96,9 +91,6 @@ Active skills shown above are already loaded; follow their instructions directly
         sb.Append(sources.SkillVariantModeEnabled.ToString().ToLowerInvariant());
         sb.Append("|target:");
         AppendSkillVariantTarget(sb, sources.SkillVariantTarget);
-        sb.Append("|tools:");
-        if (availableToolNames is { Count: > 0 })
-            sb.Append(string.Join(",", availableToolNames.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)));
         return sb.ToString();
     }
 

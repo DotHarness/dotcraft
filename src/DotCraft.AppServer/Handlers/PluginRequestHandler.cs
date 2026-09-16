@@ -68,9 +68,10 @@ internal sealed partial class PluginRequestHandler(
         var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
+        var skillIndex = BuildSkillIndex();
         var plugins = discovery.Plugins
             .Where(plugin => Read(p.IncludeDisabled) != false || plugin.Enabled)
-            .Select(plugin => MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries))
+            .Select(plugin => MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries, skillIndex))
             .OrderBy(plugin => Read(plugin.DisplayName), StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -103,6 +104,7 @@ internal sealed partial class PluginRequestHandler(
         var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
+        var skillIndex = BuildSkillIndex();
         var plugin = discovery.Plugins.FirstOrDefault(
             candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, id));
         if (plugin == null)
@@ -111,7 +113,7 @@ internal sealed partial class PluginRequestHandler(
         return Task.FromResult(AppServerTypedResult<Contract.PluginViewResult>.FromResult(
             new Contract.PluginViewResult
             {
-                Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries),
+                Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries, skillIndex),
                 SnapshotRevision = CurrentPluginSnapshotRevision
             }));
     }

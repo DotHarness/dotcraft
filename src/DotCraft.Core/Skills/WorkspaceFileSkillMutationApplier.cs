@@ -204,7 +204,7 @@ public sealed class WorkspaceFileSkillMutationApplier(SkillsLoader skillsLoader)
     }
 
     private SkillsLoader.SkillInfo? FindSkill(string name) =>
-        skillsLoader.ListSkills(filterUnavailable: false)
+        skillsLoader.ListSkills()
             .FirstOrDefault(skill => string.Equals(skill.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private SkillMutationResult FindMutableWorkspaceSkill(string name)

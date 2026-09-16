@@ -16,7 +16,8 @@ internal sealed partial class PluginRequestHandler
         IReadOnlyList<PluginDiagnostic> diagnostics,
         IReadOnlyDictionary<string, IReadOnlyList<PluginHookDeclaration>> hookSummaries,
         IReadOnlyDictionary<string, IReadOnlyList<PluginMcpServerSummary>> mcpSummaries,
-        IReadOnlyDictionary<string, IReadOnlyList<PluginLspServerSummary>> lspSummaries)
+        IReadOnlyDictionary<string, IReadOnlyList<PluginLspServerSummary>> lspSummaries,
+        IReadOnlyDictionary<string, SkillsLoader.SkillInfo> skillIndex)
     {
         var manifest = plugin.Manifest;
         var runtime = dotnetRuntime?.Snapshot.Plugins.FirstOrDefault(candidate =>
@@ -73,7 +74,7 @@ internal sealed partial class PluginRequestHandler
                 Name = tool.Name,
                 Description = tool.Description
             }).ToArray() ?? [],
-            Skills = MapPluginSkillsToWire(plugin),
+            Skills = MapPluginSkillsToWire(plugin, skillIndex),
             Apps = apps,
             Desktop = manifest.Desktop is { } desktop
                 ? Protocol.Optional<Contract.PluginDesktopInfo?>.FromValue(new Contract.PluginDesktopInfo
@@ -118,6 +119,7 @@ internal sealed partial class PluginRequestHandler
         var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
+        var skillIndex = BuildSkillIndex();
         var selected = discovery.Plugins.FirstOrDefault(plugin =>
             PluginIds.EqualsCanonical(plugin.Manifest.Id, selectedPluginId));
         var runtimeSnapshot = dotnetRuntime?.Snapshot;
@@ -148,7 +150,7 @@ internal sealed partial class PluginRequestHandler
             Outcome = outcome,
             Plugin = Protocol.Optional<Contract.PluginInfo?>.FromValue(selected == null
                 ? null
-                : MapPluginToWire(selected, diagnostics, hookSummaries, mcpSummaries, lspSummaries)),
+                : MapPluginToWire(selected, diagnostics, hookSummaries, mcpSummaries, lspSummaries, skillIndex)),
             AffectedPlugins = affected,
             Diagnostics = operationDiagnostics.Select(MapPluginDiagnosticToWire).ToArray(),
             SnapshotRevision = CurrentPluginSnapshotRevision
@@ -258,21 +260,25 @@ internal sealed partial class PluginRequestHandler
         };
     }
 
-    private List<Contract.PluginSkillInfo> MapPluginSkillsToWire(DiscoveredPlugin plugin)
+    private IReadOnlyDictionary<string, SkillsLoader.SkillInfo> BuildSkillIndex() =>
+        skillsLoader?.ListSkills().ToDictionary(skill => skill.Name, StringComparer.OrdinalIgnoreCase)
+        ?? new Dictionary<string, SkillsLoader.SkillInfo>(StringComparer.OrdinalIgnoreCase);
+
+    private List<Contract.PluginSkillInfo> MapPluginSkillsToWire(
+        DiscoveredPlugin plugin,
+        IReadOnlyDictionary<string, SkillsLoader.SkillInfo> skillIndex)
     {
         var manifest = plugin.Manifest;
         if (string.IsNullOrWhiteSpace(manifest.SkillsPath) || !Directory.Exists(manifest.SkillsPath))
             return [];
 
-        var allSkills = skillsLoader?.ListSkills(filterUnavailable: false) ?? new List<SkillsLoader.SkillInfo>();
         return Directory.GetDirectories(manifest.SkillsPath)
             .Where(dir => File.Exists(Path.Combine(dir, "SKILL.md")))
             .Select(dir =>
             {
                 var name = Path.GetFileName(dir);
                 var skillFile = Path.Combine(dir, "SKILL.md");
-                var skill = allSkills.FirstOrDefault(candidate =>
-                    string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
+                skillIndex.TryGetValue(name, out var skill);
                 var interfaceInfo = SkillsLoader.GetPluginSkillInterfaceFromFile(skillFile, manifest.RootPath);
                 return new Contract.PluginSkillInfo
                 {

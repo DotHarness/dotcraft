@@ -391,7 +391,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     void rpc<{ tools?: ToolInfo[] }>('tool/list', {})
       .then((res) => setToolCatalog(Array.isArray(res.tools) ? res.tools : []))
       .catch(() => setToolCatalog([]))
-    void rpc<{ skills?: SkillInfo[] }>('skills/list', { includeUnavailable: true })
+    void rpc<{ skills?: SkillInfo[] }>('skills/list', {})
       .then((res) => setSkillCatalog(Array.isArray(res.skills) ? res.skills : []))
       .catch(() => setSkillCatalog([]))
     void rpc<{ servers?: { name: string }[] }>('mcp/list', {})

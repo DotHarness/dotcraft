@@ -380,7 +380,6 @@ describe('ConversationWelcome composer', () => {
               name: 'memory',
               description: 'Recall project context',
               source: 'builtin',
-              available: true,
               enabled: true,
               path: '/skills/memory/SKILL.md'
             }

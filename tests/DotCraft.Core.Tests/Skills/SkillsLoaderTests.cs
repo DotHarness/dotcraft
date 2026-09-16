@@ -163,7 +163,7 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.Null(loader.LoadSkill(name));
         loader.DeployBuiltInSkills();
 
-        Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == name);
+        Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == name);
         Assert.Null(loader.ResolveSkillInfo(name));
         Assert.Null(loader.LoadSkill(name));
         Assert.Null(loader.LoadEffectiveSkill(name, variantModeEnabled: false, target: null));
@@ -224,7 +224,42 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.Equal("user", info!.Source);
         Assert.StartsWith(userSkills, info.Path);
         Assert.Contains("User instructions", loader.LoadSkill("duplicate-skill"));
-        Assert.Single(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "duplicate-skill");
+        Assert.Single(loader.ListSkills(), skill => skill.Name == "duplicate-skill");
+    }
+
+    [Fact]
+    public void DeclaredRequirements_DoNotFilterDiscoveryOrSummary()
+    {
+        var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
+        var loader = new SkillsLoader(_tempRoot, null, sharedSkills);
+        var skillDir = Path.Combine(sharedSkills, "declarative-requirements");
+        Directory.CreateDirectory(skillDir);
+        File.WriteAllText(
+            Path.Combine(skillDir, "SKILL.md"),
+            "---\nname: declarative-requirements\ndescription: Declarative requirements\nbins: command-that-does-not-exist-dotcraft\nenv: DOTCRAFT_TEST_ENV_THAT_DOES_NOT_EXIST\ntools: ToolThatDoesNotExist\n---\nInstructions");
+
+        var skill = Assert.Single(loader.ListSkills(), candidate => candidate.Name == "declarative-requirements");
+        var metadata = loader.GetSkillMetadata(skill.Name);
+        var summary = loader.BuildSkillsSummary();
+
+        Assert.Equal("command-that-does-not-exist-dotcraft", metadata!["bins"]);
+        Assert.Contains("<name>declarative-requirements</name>", summary);
+        Assert.DoesNotContain("available=", summary);
+        Assert.DoesNotContain("<requires>", summary);
+    }
+
+    [Fact]
+    public void AlwaysSkill_WithMissingDeclaredRequirements_IsLoaded()
+    {
+        var loader = new SkillsLoader(_tempRoot);
+        var skillDir = Path.Combine(loader.WorkspaceSkillsPath, "always-declarative");
+        Directory.CreateDirectory(skillDir);
+        File.WriteAllText(
+            Path.Combine(skillDir, "SKILL.md"),
+            "---\nname: always-declarative\ndescription: Always loaded\nalways: true\nbins: command-that-does-not-exist-dotcraft\ntools: ToolThatDoesNotExist\n---\nAlways instructions");
+
+        Assert.Contains("always-declarative", loader.GetAlwaysSkills());
+        Assert.Contains("Always instructions", loader.LoadSkillsForContext(loader.GetAlwaysSkills()));
     }
 
     public void Dispose()

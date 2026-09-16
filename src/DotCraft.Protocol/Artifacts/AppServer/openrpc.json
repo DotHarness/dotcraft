@@ -4088,7 +4088,7 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/SkillsListParams.schema.json"
+            "$ref": "./schemas/core/RpcEmpty.schema.json"
           }
         }
       ],

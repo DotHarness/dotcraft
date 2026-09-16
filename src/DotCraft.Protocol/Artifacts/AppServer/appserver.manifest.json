@@ -14691,13 +14691,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "available",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "defaultPrompt",
           "type": "string",
           "required": false,
@@ -14794,13 +14787,6 @@
           "required": false,
           "nullable": false,
           "const": null
-        },
-        {
-          "name": "unavailableReason",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
         }
       ],
       "variants": []
@@ -14839,24 +14825,6 @@
         {
           "name": "pluginId",
           "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.SkillsListParams",
-      "name": "SkillsListParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/SkillsListParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "includeUnavailable",
-          "type": "boolean",
           "required": false,
           "nullable": true,
           "const": null
@@ -27364,7 +27332,7 @@
       "descriptorMember": "SkillsList",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.SkillsListParams",
+      "paramsType": "core.RpcEmpty",
       "resultType": "core.SkillsListResult",
       "module": "core",
       "capability": "skillsManagement",

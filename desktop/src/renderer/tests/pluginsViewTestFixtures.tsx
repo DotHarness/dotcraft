@@ -262,7 +262,6 @@ export const memorySkill: SkillEntry = {
   shortDescription: 'Remember project facts',
   description: 'Remember project facts',
   source: 'builtin',
-  available: true,
   enabled: true,
   path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
 }
@@ -273,7 +272,6 @@ export const gitSkill: SkillEntry = {
   shortDescription: 'Local git workflows',
   description: 'Local git workflows',
   source: 'workspace',
-  available: true,
   enabled: true,
   path: 'X:\\fixtures\\workspace\\.craft\\skills\\git-local\\SKILL.md'
 }

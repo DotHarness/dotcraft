@@ -446,6 +446,27 @@ interface:
 """);
     }
 
+    private static void WriteSkillPlugin(string pluginRoot, string pluginId, string skillName)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", skillName));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "skills", skillName, "SKILL.md"),
+            $"---\nname: {skillName}\ndescription: {skillName}\nbins: command-that-does-not-exist-dotcraft\n---\nPlugin instructions");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            $$"""
+{
+  "schemaVersion": 1,
+  "id": "{{pluginId}}",
+  "version": "1.0.0",
+  "displayName": "{{pluginId}}",
+  "capabilities": ["skill"],
+  "skills": "./skills/"
+}
+""");
+    }
+
     private static void WriteMcpPlugin(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));

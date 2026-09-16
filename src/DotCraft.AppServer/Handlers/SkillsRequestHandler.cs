@@ -29,15 +29,14 @@ internal sealed class SkillsRequestHandler(
     }
 
     private Task<AppServerTypedResult<Contract.SkillsListResult>> HandleSkillsListAsync(
-        AppServerTypedRequest<Contract.SkillsListParams> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         if (skillsLoader == null)
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.SkillsList);
         _ = ct;
-        var p = request.Params;
-        var includeUnavailable = p.IncludeUnavailable.IsSet ? p.IncludeUnavailable.Value ?? true : true;
-        var list = skillsLoader.ListSkills(filterUnavailable: !includeUnavailable);
+        _ = request;
+        var list = skillsLoader.ListSkills();
         var wires = list.Select(MapSkillToWire).ToList();
         return Task.FromResult(AppServerTypedResult<Contract.SkillsListResult>.FromResult(
             new Contract.SkillsListResult { Skills = wires }));
@@ -121,7 +120,7 @@ internal sealed class SkillsRequestHandler(
         var name = RequireName(p.Name);
         var enabled = p.Enabled.IsSet && p.Enabled.Value;
 
-        var all = skillsLoader.ListSkills(filterUnavailable: false);
+        var all = skillsLoader.ListSkills();
         if (all.All(s => !string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)))
             throw AppServerErrors.SkillNotFound(name);
 
@@ -138,7 +137,7 @@ internal sealed class SkillsRequestHandler(
             Protocol.AppServer.AppServerMethodNames.SkillsSetEnabled,
             [ConfigChangeRegions.Skills]);
 
-        var updated = skillsLoader.ListSkills(filterUnavailable: false)
+        var updated = skillsLoader.ListSkills()
             .First(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
         return Task.FromResult(AppServerTypedResult<Contract.SkillsSetEnabledResult>.FromResult(
             new Contract.SkillsSetEnabledResult { Skill = MapSkillToWire(updated) }));
@@ -183,7 +182,7 @@ internal sealed class SkillsRequestHandler(
         if (!IsStrictChildPathOf(skillDir, allowedRoot))
             throw AppServerErrors.InvalidParams($"Skill '{source.Name}' is outside the allowed {source.Source} skill root.");
 
-        var disabled = skillsLoader.ListSkills(filterUnavailable: false)
+        var disabled = skillsLoader.ListSkills()
             .Where(s => !s.Enabled)
             .Select(s => s.Name)
             .ToList();
@@ -223,8 +222,6 @@ internal sealed class SkillsRequestHandler(
             Source = s.Source,
             PluginId = OmitIfNull(s.PluginId),
             PluginDisplayName = OmitIfNull(s.PluginDisplayName),
-            Available = s.Available,
-            UnavailableReason = OmitIfNull(s.UnavailableReason),
             Enabled = s.Enabled,
             Path = s.Path,
             HasVariant = HasCurrentSkillVariant(s),

@@ -90,7 +90,6 @@ describe('InputComposer custom command expansion', () => {
               name: 'memory',
               description: 'Recall project context',
               source: 'builtin',
-              available: true,
               enabled: true,
               path: '/skills/memory/SKILL.md'
             }
@@ -294,7 +293,7 @@ describe('InputComposer custom command expansion', () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
+      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', {})
     })
 
     const textbox = screen.getByRole('textbox')
@@ -370,7 +369,7 @@ describe('InputComposer custom command expansion', () => {
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
-      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
+      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', {})
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
@@ -1155,7 +1154,7 @@ describe('InputComposer custom command expansion', () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
+      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', {})
     })
 
     const textbox = screen.getByRole('textbox')

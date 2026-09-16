@@ -13,7 +13,6 @@ export interface RefCatalogCommand {
 
 export interface RefCatalogSkill {
   name: string
-  available?: boolean
 }
 
 export interface ComposerRefCatalog {
@@ -232,7 +231,6 @@ function commandCatalogSet(commands: RefCatalogCommand[] | undefined): Set<strin
 function skillCatalogSet(skills: RefCatalogSkill[] | undefined): Set<string> {
   const set = new Set<string>()
   for (const skill of skills ?? []) {
-    if (skill.available === false) continue
     const name = normalizeSkillToken(skill.name)
     if (name) set.add(name)
   }

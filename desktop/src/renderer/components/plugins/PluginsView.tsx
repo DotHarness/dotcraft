@@ -503,7 +503,6 @@ export function PluginsView(): JSX.Element {
               iconLargeDataUrl: pluginSkillPreview.skill.iconLargeDataUrl,
               source: 'plugin',
               pluginId: pluginSkillPreview.pluginId,
-              available: false,
               enabled: false,
               path: ''
             }}
