@@ -1,5 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
@@ -32,13 +31,10 @@ internal static class ProviderChatClientAdapters
         AppConfig.ReasoningConfig? reasoningConfig,
         InferenceSpeed speed,
         AppConfig.PromptCachingConfig promptCaching,
-        TraceCollector? traceCollector,
-        bool includePromptCaching = true,
         bool useDefaultReasoning = true)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        if (includePromptCaching)
-            UsePromptCaching(builder, runtime.Protocol, runtime.Model, promptCaching, traceCollector);
+        UseFlatToolIdentity(builder, runtime.Protocol);
 
         _ = useDefaultReasoning;
         builder.Use(innerClient => new ProviderPipelineOptionsChatClient(
@@ -62,8 +58,6 @@ internal static class ProviderChatClientAdapters
         AppConfig.ReasoningConfig? reasoningConfig,
         InferenceSpeed speed,
         AppConfig.PromptCachingConfig promptCaching,
-        TraceCollector? traceCollector,
-        bool includePromptCaching = true,
         bool useDefaultReasoning = true,
         bool removesUnsupportedOAuthResponsesFields = false)
     {
@@ -89,33 +83,14 @@ internal static class ProviderChatClientAdapters
             reasoningConfig,
             speed,
             promptCaching,
-            traceCollector,
-            includePromptCaching,
             useDefaultReasoning);
     }
 
-    private static void UsePromptCaching(
-        ChatClientBuilder builder,
-        string protocol,
-        string model,
-        AppConfig.PromptCachingConfig promptCaching,
-        TraceCollector? traceCollector)
+    private static void UseFlatToolIdentity(ChatClientBuilder builder, string protocol)
     {
         var normalized = NormalizeProtocolOrNull(protocol);
-        if (normalized == null)
-            return;
-        if (!ModelProviderProtocols.IsOpenAIResponses(normalized))
+        if (normalized != null && !ModelProviderProtocols.IsOpenAIResponses(normalized))
             builder.Use(innerClient => new FlatToolIdentityChatClient(innerClient));
-
-        builder.Use(innerClient => new PromptCachingChatClient(
-            innerClient,
-            promptCaching,
-            model,
-            traceCollector,
-            dialect: innerClient.GetService(typeof(IPromptCacheDialect)) as IPromptCacheDialect
-                     ?? (string.Equals(normalized, ModelProviderProtocols.Anthropic, StringComparison.Ordinal)
-                         ? AdditionalPropertiesPromptCacheDialect.Anthropic
-                         : AdditionalPropertiesPromptCacheDialect.Instance)));
     }
 
     private static ProviderPipelineOptions CreatePipelineOptions(
@@ -129,7 +104,7 @@ internal static class ProviderChatClientAdapters
             reasoning.Output.ToString(),
             reasoning.Enabled,
             speed.ToString(),
-            promptCaching.Enabled,
+            promptCaching.ShouldApply(runtime.Model),
             promptCaching.Ttl);
 
     private static string? NormalizeProtocolOrNull(string? protocol)

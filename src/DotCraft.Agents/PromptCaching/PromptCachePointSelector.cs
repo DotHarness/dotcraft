@@ -28,7 +28,6 @@ internal static class PromptCachePointSelector
     public static IReadOnlyList<SelectedCachePoint> Select(
         IReadOnlyList<CachePointCandidate> candidates,
         HashSet<string> remembered,
-        bool openAiCompatible,
         PromptCacheMaintenanceSelection? maintenance = null)
     {
         if (candidates.Count == 0)
@@ -36,9 +35,7 @@ internal static class PromptCachePointSelector
 
         var selected = maintenance is not null
             ? SelectMaintenance(candidates, remembered, maintenance)
-            : openAiCompatible
-                ? SelectOpenAiCompatible(candidates, remembered)
-                : SelectStablePrefix(candidates, remembered);
+            : SelectStablePrefix(candidates, remembered);
         return selected.Values.OrderBy(static point => point.Candidate.Sequence).ToArray();
     }
 
@@ -53,19 +50,6 @@ internal static class PromptCachePointSelector
         if (maintenance.ReadOnlyPrefix)
             return selected;
 
-        var latestTail = FindLatestConversationTail(candidates);
-        AddNearestRememberedBefore(selected, candidates, remembered, latestTail?.Sequence ?? int.MaxValue);
-        if (latestTail is not null)
-            AddSelected(selected, latestTail, remembered.Contains(latestTail.Hash), latest: true);
-        return selected;
-    }
-
-    private static Dictionary<string, SelectedCachePoint> SelectOpenAiCompatible(
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered)
-    {
-        var selected = NewSelection();
-        AddLatest(selected, candidates, remembered, ChatRole.System);
         var latestTail = FindLatestConversationTail(candidates);
         AddNearestRememberedBefore(selected, candidates, remembered, latestTail?.Sequence ?? int.MaxValue);
         if (latestTail is not null)

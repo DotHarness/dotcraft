@@ -7,8 +7,12 @@ using Xunit;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class AnthropicDeferredToolCatalogChatClientTests
+public sealed class AnthropicDeferredToolCatalogChatClientTests : IDisposable
 {
+    private readonly IDisposable _promptCachePolicy = PromptCachePolicyScope.Use();
+
+    public void Dispose() => _promptCachePolicy.Dispose();
+
     [Fact]
     public async Task RequestsContainStableSortedInventoryWithoutChangingHistory()
     {
@@ -40,9 +44,8 @@ public sealed class AnthropicDeferredToolCatalogChatClientTests
     {
         var registry = CreateRegistry();
         var capture = new CaptureChatClient();
-        var promptCache = new PromptCachingChatClient(
+        var promptCache = new AnthropicPromptCachingChatClient(
             capture,
-            new AppConfig.PromptCachingConfig(),
             "claude-opus-4-7",
             sessionKeyAccessor: () => "anthropic-catalog-cache-test");
         using var client = new AnthropicDeferredToolCatalogChatClient(promptCache, registry);

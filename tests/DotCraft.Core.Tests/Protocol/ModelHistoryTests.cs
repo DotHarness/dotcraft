@@ -503,6 +503,16 @@ public sealed class ModelHistoryTests : IDisposable
         }
     }
 
+    [Fact]
+    public void ModelHistoryJson_RoundTripsEveryDurableContentKindThroughRealJson()
+    {
+        var restored = ModelHistoryJson.Decode(ModelHistoryJson.Encode(CreateComprehensiveMessage()));
+
+        Assert.Equal(13, restored.Contents.Count);
+        Assert.Equal("protected", restored.Contents.OfType<TextReasoningContent>().Single().ProtectedData);
+        Assert.Equal("AQID", Assert.IsType<DataContent>(restored.Contents[2]).Base64Data.ToString());
+    }
+
     private static ChatMessage CreateComprehensiveMessage()
     {
         var nestedProperties = JsonSerializer.Deserialize<JsonElement>("""{"array":[1,true,null,{"name":"value"}]}""");

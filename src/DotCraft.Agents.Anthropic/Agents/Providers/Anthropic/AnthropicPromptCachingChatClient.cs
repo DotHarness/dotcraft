@@ -3,64 +3,46 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Tracing;
+using Anthropic.Models.Messages;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
-/// <summary>
-/// Adds provider-specific prompt-cache markers to Claude requests.
-/// </summary>
-public sealed class PromptCachingChatClient : DelegatingChatClient
+
+internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
 {
-    internal const string CacheControlKey = "cache_control";
+    internal const string PromptCachePointsDiagnostic = "prompt_cache.points";
+    internal const string PromptCacheRequestDiagnostic = "prompt_cache.request";
     private const int MaxCacheBreakpoints = 4;
     private const string DefaultSessionKey = "__default__";
-    private static readonly AsyncLocal<PromptCacheStateOverride?> CacheStateOverrideLocal = new();
 
-    private readonly AppConfig.PromptCachingConfig _config;
     private readonly string _model;
-    private readonly TraceCollector? _traceCollector;
-    private readonly PromptCacheMarkerStrategy _markerStrategy;
-    private readonly IPromptCacheDialect _dialect;
+    private readonly AnthropicPromptCacheDialect _dialect = AnthropicPromptCacheDialect.Instance;
     private readonly ConcurrentDictionary<string, CachePointState> _cachePointStates = new();
     private readonly Func<string?> _sessionKeyAccessor;
 
-    public PromptCachingChatClient(
+    internal AnthropicPromptCachingChatClient(
         IChatClient innerClient,
-        AppConfig.PromptCachingConfig config,
         string model,
-        TraceCollector? traceCollector = null,
-        Func<string?>? sessionKeyAccessor = null,
-        IPromptCacheDialect? dialect = null)
-        : this(
-            innerClient,
-            config,
-            model,
-            dialect ?? AdditionalPropertiesPromptCacheDialect.Instance,
-            traceCollector,
-            sessionKeyAccessor)
-    {
-    }
-
-    internal PromptCachingChatClient(
-        IChatClient innerClient,
-        AppConfig.PromptCachingConfig config,
-        string model,
-        IPromptCacheDialect dialect,
-        TraceCollector? traceCollector = null,
         Func<string?>? sessionKeyAccessor = null)
         : base(innerClient)
     {
-        _config = config;
         _model = model;
-        _dialect = dialect ?? throw new ArgumentNullException(nameof(dialect));
-        _markerStrategy = dialect.GroupToolResults
-            ? PromptCacheMarkerStrategy.AnthropicNative
-            : PromptCacheMarkerStrategy.OpenAICompatible;
-        _traceCollector = traceCollector;
-        _sessionKeyAccessor = sessionKeyAccessor ?? TracingChatClient.GetActiveSessionKey;
+        _sessionKeyAccessor = sessionKeyAccessor ?? ActiveThreadId;
+    }
+
+    private static string? ActiveThreadId() =>
+        ProviderRequestContextScope.Current?.CurrentIdentity.CurrentThreadId;
+
+    private static (bool Enabled, string? Ttl) Policy()
+    {
+        var options = ProviderPipelineOptionsScope.Current;
+        if (options is null)
+            return (false, null);
+        return (
+            options.PromptCachingEnabled,
+            string.IsNullOrWhiteSpace(options.PromptCacheTtl) ? null : options.PromptCacheTtl.Trim());
     }
 
     public override async Task<ChatResponse> GetResponseAsync(
@@ -90,22 +72,6 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         CommitCachePoints(prepared);
     }
 
-    internal static IDisposable UseCacheStateKey(
-        string cacheStateKey,
-        string? traceSessionKey = null,
-        PromptCacheMaintenanceScope? maintenanceScope = null)
-    {
-        if (string.IsNullOrWhiteSpace(cacheStateKey))
-            throw new ArgumentException("Prompt cache state key must not be empty.", nameof(cacheStateKey));
-
-        var previous = CacheStateOverrideLocal.Value;
-        CacheStateOverrideLocal.Value = new PromptCacheStateOverride(
-            cacheStateKey.Trim(),
-            string.IsNullOrWhiteSpace(traceSessionKey) ? null : traceSessionKey.Trim(),
-            maintenanceScope);
-        return new RestorePromptCacheStateOverrideScope(previous);
-    }
-
     internal (
         IReadOnlyList<ChatMessage> Messages,
         ChatOptions? Options,
@@ -118,7 +84,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         ChatOptions? options)
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
-        if (!_config.ShouldApply(_model))
+        if (!Policy().Enabled)
             return (messages, options, [], null, null, null, null);
 
         var preparedMessages = new List<ChatMessage>(messages.Count + 1);
@@ -143,7 +109,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
         var candidates = BuildCachePointCandidates(preparedMessages);
         var selected = SelectCachePoints(state, candidates, keys.MaintenanceScope, insertedSystemMessage);
-        ApplyCacheControl(preparedMessages, selected, cacheControl, _markerStrategy);
+        ApplyCacheControl(preparedMessages, selected, cacheControl);
         var commitCachePoints = keys.MaintenanceScope?.CacheWriteMode != PromptCacheMaintenanceWriteMode.ReadOnlyPrefix;
         var llmCallIndex = selected.Count == 0
             ? (int?)null
@@ -171,13 +137,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
                 point.Candidate.ContentKind))).ToArray(), keys.TraceSessionKey, commitCachePoints ? keys.CacheStateKey : null, llmCallIndex, promptCacheDiagnostic);
     }
 
-    private object CreateCacheControl()
-    {
-        var ttl = string.IsNullOrWhiteSpace(_config.Ttl)
-            ? null
-            : _config.Ttl.Trim();
-        return _dialect.CreateMarker(ttl);
-    }
+    private CacheControlEphemeral CreateCacheControl() => _dialect.CreateMarker(Policy().Ttl);
 
     private (string TraceSessionKey, string CacheStateKey, PromptCacheMaintenanceScope? MaintenanceScope) ResolveCacheKeys()
     {
@@ -185,7 +145,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         var fallback = string.IsNullOrWhiteSpace(sessionKey)
             ? DefaultSessionKey
             : sessionKey.Trim();
-        var promptCacheOverride = CacheStateOverrideLocal.Value;
+        var promptCacheOverride = PromptCacheStateScope.Current;
         if (promptCacheOverride == null)
             return (fallback, fallback, null);
 
@@ -210,11 +170,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
                 maintenanceScope.SnapshotMessageCount,
                 maintenanceScope.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
                 insertedSystemMessage);
-        return PromptCachePointSelector.Select(
-                candidates,
-                remembered,
-                _markerStrategy == PromptCacheMarkerStrategy.OpenAICompatible,
-                maintenance)
+        return PromptCachePointSelector.Select(candidates, remembered, maintenance)
             .ToList();
     }
 
@@ -227,21 +183,32 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             int? LlmCallIndex,
             PromptCacheRequestDiagnosticSnapshot? PromptCacheDiagnostic) prepared)
     {
-        if (_traceCollector == null ||
+        var diagnostics = ProviderRequestContextScope.Current?.Diagnostics;
+        if (diagnostics == null ||
             prepared.TraceSessionKey == null ||
             prepared.PendingCachePoints.Count == 0)
         {
             return;
         }
 
-        _traceCollector.RecordPromptCachePoints(
-            prepared.TraceSessionKey,
-            _model,
-            prepared.PendingCachePoints.Select(static point => point.Trace).ToArray(),
-            prepared.LlmCallIndex);
+        diagnostics.Record(new ModelRuntimeDiagnostic(
+            PromptCachePointsDiagnostic,
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["sessionKey"] = prepared.TraceSessionKey,
+                ["model"] = _model,
+                ["points"] = prepared.PendingCachePoints.Select(static point => point.Trace).ToArray(),
+                ["llmCallIndex"] = prepared.LlmCallIndex
+            }));
 
         if (prepared.PromptCacheDiagnostic != null)
-            _traceCollector.RecordPromptCacheRequestSnapshot(prepared.TraceSessionKey, prepared.PromptCacheDiagnostic);
+            diagnostics.Record(new ModelRuntimeDiagnostic(
+                PromptCacheRequestDiagnostic,
+                new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["sessionKey"] = prepared.TraceSessionKey,
+                    ["request"] = prepared.PromptCacheDiagnostic
+                }));
     }
 
     private void CommitCachePoints(
@@ -267,9 +234,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         IReadOnlyList<SelectedCachePoint> selected,
         int llmCallIndex)
     {
-        var ttl = string.IsNullOrWhiteSpace(_config.Ttl)
-            ? null
-            : _config.Ttl.Trim();
+        var ttl = Policy().Ttl;
         var selectedPoints = selected
             .OrderBy(static point => point.Candidate.Sequence)
             .Select(static point => new PromptCacheSelectedPointDiagnostic(
@@ -294,7 +259,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
         return new PromptCacheRequestDiagnosticSnapshot(
             _model,
-            _markerStrategy.ToString(),
+            _dialect.Name,
             ttl,
             llmCallIndex,
             selected.Count,
@@ -352,8 +317,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     private void ApplyCacheControl(
         List<ChatMessage> messages,
         IReadOnlyList<SelectedCachePoint> cachePoints,
-        object cacheControl,
-        PromptCacheMarkerStrategy markerStrategy)
+        CacheControlEphemeral cacheControl)
     {
         var replacements = new Dictionary<int, IReadOnlyList<ChatMessage>>();
         foreach (var group in cachePoints.GroupBy(static point => point.Candidate.MessageIndex))
@@ -361,15 +325,9 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             var message = messages[group.Key];
             var targetIndexes = group.Select(static point => point.Candidate.ContentIndex).ToHashSet();
             if (message.Role == ChatRole.Tool &&
-                markerStrategy == PromptCacheMarkerStrategy.AnthropicNative &&
                 TryCreateCachedGroupedToolMessage(message, targetIndexes, cacheControl, out var groupedToolMessage))
             {
                 replacements[group.Key] = [groupedToolMessage];
-            }
-            else if (message.Role == ChatRole.Tool &&
-                TryCreateCachedToolMessages(message, targetIndexes, cacheControl, out var toolMessages))
-            {
-                replacements[group.Key] = toolMessages;
             }
             else if (TryCreateCachedTextMessage(message, targetIndexes, cacheControl, out var cachedMessage))
             {
@@ -544,7 +502,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     private bool TryCreateCachedTextMessage(
         ChatMessage message,
         HashSet<int> targetIndexes,
-        object cacheControl,
+        CacheControlEphemeral cacheControl,
         out ChatMessage cachedMessage)
     {
         cachedMessage = message;
@@ -577,61 +535,13 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             RawRepresentation = message.RawRepresentation
         };
 
-        cachedMessage.RawRepresentation = _dialect.CreateMessageRawRepresentation(
-            message,
-            cachedMessage,
-            targetIndexes,
-            cacheControl) ?? cachedMessage.RawRepresentation;
-
-        return true;
-    }
-
-    private bool TryCreateCachedToolMessages(
-        ChatMessage message,
-        HashSet<int> targetIndexes,
-        object cacheControl,
-        out IReadOnlyList<ChatMessage> cachedMessages)
-    {
-        cachedMessages = [];
-        var messages = new List<ChatMessage>(message.Contents.Count);
-        var markedAny = false;
-
-        for (var i = 0; i < message.Contents.Count; i++)
-        {
-            if (message.Contents[i] is not FunctionResultContent result)
-                return false;
-
-            AIContent toolContent = result;
-            if (targetIndexes.Contains(i))
-            {
-                if (!TryCreateCachedFunctionResultContent(result, cacheControl, out var cachedResult))
-                    return false;
-
-                toolContent = cachedResult;
-                markedAny = true;
-            }
-
-            messages.Add(new ChatMessage(ChatRole.Tool, (IList<AIContent>)[toolContent])
-            {
-                AdditionalProperties = message.AdditionalProperties,
-                AuthorName = message.AuthorName,
-                CreatedAt = message.CreatedAt,
-                MessageId = message.MessageId,
-                RawRepresentation = toolContent.RawRepresentation
-            });
-        }
-
-        if (!markedAny)
-            return false;
-
-        cachedMessages = messages;
         return true;
     }
 
     private bool TryCreateCachedGroupedToolMessage(
         ChatMessage message,
         HashSet<int> targetIndexes,
-        object cacheControl,
+        CacheControlEphemeral cacheControl,
         out ChatMessage cachedMessage)
     {
         cachedMessage = message;
@@ -671,14 +581,14 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
     private bool TryCreateCachedFunctionResultContent(
         FunctionResultContent result,
-        object cacheControl,
+        CacheControlEphemeral cacheControl,
         out FunctionResultContent cachedResult)
     {
         cachedResult = result;
-        if (!TryGetToolResultWireText(result, out var text))
+        if (!TryGetToolResultWireText(result, out _))
             return false;
 
-        cachedResult = _dialect.MarkFunctionResult(result, text, cacheControl);
+        cachedResult = _dialect.MarkFunctionResult(result, cacheControl);
 
         return true;
     }
@@ -758,19 +668,6 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     }
 
     internal sealed record PendingCachePoint(string Hash, PromptCachePointTraceEntry Trace);
-
-    private sealed record PromptCacheStateOverride(
-        string CacheStateKey,
-        string? TraceSessionKey,
-        PromptCacheMaintenanceScope? MaintenanceScope);
-
-    private sealed class RestorePromptCacheStateOverrideScope(PromptCacheStateOverride? previous) : IDisposable
-    {
-        public void Dispose()
-        {
-            CacheStateOverrideLocal.Value = previous;
-        }
-    }
 
     private sealed class CachePointState
     {

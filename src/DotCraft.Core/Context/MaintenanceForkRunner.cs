@@ -117,9 +117,6 @@ public sealed record MaintenanceForkCacheDiagnostics(
 internal sealed record MaintenanceForkPromptCacheState(
     string StateKey,
     string StateKeyHash,
-    AppConfig.PromptCachingConfig PromptCaching,
-    string Model,
-    PromptCacheMarkerStrategy MarkerStrategy,
     string CacheShapeKind,
     string CacheMarkerSource,
     PromptCacheMaintenanceWriteMode CacheWriteMode);
@@ -187,7 +184,7 @@ public sealed class MaintenanceForkRunner(
         {
             RequestKind = requestKind,
             TurnId = snapshot.TurnId ?? identity.TurnId
-        }, parentContext?.Diagnostics);
+        }, parentContext?.Diagnostics ?? traceCollector);
         using var retryScope = ModelStreamRetryRuntimeScope.Suppress();
         var messages = BuildMessages(snapshot, task, messagesBeforeTask).ToList();
         var options = BuildOptions(snapshot, task);
@@ -258,7 +255,7 @@ public sealed class MaintenanceForkRunner(
                 maintenancePathKey,
                 promptCacheState,
                 toolExecution);
-            var responseClient = CreateResponseClient(toolExecution, promptCacheState);
+            var responseClient = CreateResponseClient(toolExecution);
             var response = await GetResponseAsync(
                 responseClient,
                 messages,
@@ -310,15 +307,12 @@ public sealed class MaintenanceForkRunner(
         }
     }
 
-    private IChatClient CreateResponseClient(
-        MaintenanceForkToolExecutionOptions? toolExecution,
-        MaintenanceForkPromptCacheState? promptCacheState)
+    private IChatClient CreateResponseClient(MaintenanceForkToolExecutionOptions? toolExecution)
     {
-        var baseClient = CreatePromptCachingClient(promptCacheState);
         if (toolExecution == null)
-            return baseClient;
+            return chatClient;
 
-        var invokingClient = new StreamingFunctionInvokingChatClient(baseClient)
+        var invokingClient = new StreamingFunctionInvokingChatClient(chatClient)
         {
             AllowConcurrentInvocation = toolExecution.AllowConcurrentInvocation,
             IncludeDetailedErrors = toolExecution.IncludeDetailedErrors,
@@ -330,25 +324,6 @@ public sealed class MaintenanceForkRunner(
         return traceCollector == null
             ? invokingClient
             : new TracingChatClient(invokingClient, traceCollector);
-    }
-
-    private IChatClient CreatePromptCachingClient(MaintenanceForkPromptCacheState? promptCacheState)
-    {
-        if (promptCacheState == null)
-            return chatClient;
-
-        return promptCacheState.MarkerStrategy == PromptCacheMarkerStrategy.AnthropicNative
-            ? new PromptCachingChatClient(
-                chatClient,
-                promptCacheState.PromptCaching,
-                promptCacheState.Model,
-                traceCollector,
-                dialect: AdditionalPropertiesPromptCacheDialect.Anthropic)
-            : new PromptCachingChatClient(
-                chatClient,
-                promptCacheState.PromptCaching,
-                promptCacheState.Model,
-                traceCollector);
     }
 
     private async Task<ChatResponse> GetResponseAsync(
@@ -384,7 +359,7 @@ public sealed class MaintenanceForkRunner(
         var callStateScope = callStateKey == null ? null : TracingChatClient.UseCallStateKey(callStateKey);
         var promptCacheScope = promptCacheState == null
             ? null
-            : PromptCachingChatClient.UseCacheStateKey(
+            : PromptCacheStateScope.Use(
                 promptCacheState.StateKey,
                 sessionKey,
                 new PromptCacheMaintenanceScope(snapshot.Messages.Count, promptCacheState.CacheWriteMode));
@@ -505,27 +480,14 @@ Task: {FormatKind(task.Kind)}
             return null;
 
         var protocol = MaintenanceForkCacheShaper.NormalizeProtocol(cacheOptions.ProviderProtocol);
-        var markerStrategy = protocol switch
-        {
-            ModelProviderProtocols.Anthropic => PromptCacheMarkerStrategy.AnthropicNative,
-            ModelProviderProtocols.OpenAIChatCompletions => PromptCacheMarkerStrategy.OpenAICompatible,
-            _ => (PromptCacheMarkerStrategy?)null
-        };
-        if (!markerStrategy.HasValue)
+        if (protocol != ModelProviderProtocols.Anthropic)
             return null;
 
         return new MaintenanceForkPromptCacheState(
             maintenancePathKey,
             ComputeCacheStateKeyHash(maintenancePathKey),
-            cacheOptions.PromptCaching,
-            model,
-            markerStrategy.Value,
-            markerStrategy.Value == PromptCacheMarkerStrategy.AnthropicNative
-                ? "anthropic-cache-control"
-                : "openai-compatible-cache-control",
-            markerStrategy.Value == PromptCacheMarkerStrategy.AnthropicNative
-                ? CacheMarkerSourceForAnthropic(cacheWriteMode)
-                : CacheMarkerSourceForOpenAICompatible(cacheWriteMode),
+            "anthropic-cache-control",
+            CacheMarkerSourceForAnthropic(cacheWriteMode),
             cacheWriteMode);
     }
 
@@ -603,7 +565,6 @@ internal static class MaintenanceForkCacheShaper
         {
             ModelProviderProtocols.Anthropic => ApplyAnthropic(promptCacheState),
             ModelProviderProtocols.OpenAIResponses => ApplyOpenAIResponses(snapshot, options, cacheWriteMode),
-            ModelProviderProtocols.OpenAIChatCompletions => ApplyOpenAICompatible(promptCacheState),
             _ => MaintenanceForkCacheDiagnostics.None
         };
     }

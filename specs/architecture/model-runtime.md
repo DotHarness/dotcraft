@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.0 |
+| Version | 0.8.1 |
 | Status | Living |
 | Date | 2026-08-06 |
 | Parent Spec | [Session Core](session-core.md) |
@@ -381,7 +381,7 @@ The model runtime is split across four compile-time layers:
 - `DotCraft.Core` owns product configuration, Session lifecycle, durable history, tool policy,
   compaction, observability, and the provider-neutral projection of native history as opaque JSON.
 - `DotCraft.Agents.OpenAI` and `DotCraft.Agents.Anthropic` own their SDK clients, wire mappings,
-  protocol-specific request adapters, and optional capabilities.
+  protocol-specific request adapters, prompt-cache placement and marking, and optional capabilities.
 - Executable hosts are composition roots. The built-in DotCraft application references Core and
   both provider integrations and registers them explicitly.
 
@@ -395,8 +395,8 @@ Core owns append, replacement, abort persistence, replay filtering, and Thread l
 
 - Responses preserves native response items, reasoning identity, encrypted content, hosted items,
   and prompt-cache identity.
-- Chat Completions preserves role/message grouping, reasoning fields used by compatible providers,
-  and its existing cache-control behavior.
+- Chat Completions preserves role/message grouping and reasoning fields used by compatible
+  providers. It emits no cache-control markers; its prefix cache is automatic.
 - Anthropic preserves content-block order, thinking signatures, native cache-control markers,
   deferred tool loading, and eager tool-input streaming.
 

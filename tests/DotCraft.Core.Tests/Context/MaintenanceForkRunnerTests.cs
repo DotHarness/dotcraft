@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Anthropic;
 using DotCraft.Agents;
+using DotCraft.Tests.Agents;
 using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
@@ -13,8 +14,12 @@ using Xunit;
 
 namespace DotCraft.Tests.Context;
 
-public sealed class MaintenanceForkRunnerTests
+public sealed class MaintenanceForkRunnerTests : IDisposable
 {
+    private readonly IDisposable _promptCachePolicy = PromptCachePolicyScope.Use();
+
+    public void Dispose() => _promptCachePolicy.Dispose();
+
     [Fact]
     public async Task RunAsync_ReusesSnapshotPrefixAndAppendsMaintenanceTask()
     {
@@ -478,7 +483,7 @@ public sealed class MaintenanceForkRunnerTests
         var collector = new TraceCollector(store);
         var chatClient = new RecordingChatClient("<summary>important bits</summary>");
         var runner = new MaintenanceForkRunner(
-            chatClient,
+            new AnthropicPromptCachingChatClient(chatClient, "claude-haiku-4-5"),
             collector,
             cacheOptions: new MaintenanceForkCacheOptions(
                 ModelProviderProtocols.Anthropic,
@@ -623,7 +628,7 @@ public sealed class MaintenanceForkRunnerTests
             callId: "call-1",
             arguments: new Dictionary<string, object?> { ["path"] = "memory/MEMORY.md" });
         var runner = new MaintenanceForkRunner(
-            chatClient,
+            new AnthropicPromptCachingChatClient(chatClient, "claude-haiku-4-5"),
             collector,
             cacheOptions: new MaintenanceForkCacheOptions(
                 ModelProviderProtocols.Anthropic,
@@ -814,13 +819,12 @@ public sealed class MaintenanceForkRunnerTests
     private static void AssertAnthropicCacheControl(AIContent content)
     {
         Assert.NotNull(content.AdditionalProperties);
-        Assert.True(content.AdditionalProperties!.ContainsKey("cache_control"));
+        Assert.True(content.AdditionalProperties!.ContainsKey("anthropic:cache_control"));
     }
 
     private static void AssertNoAnthropicCacheControl(AIContent content)
     {
         Assert.False(content.AdditionalProperties?.ContainsKey("anthropic:cache_control") ?? false);
-        Assert.False(content.AdditionalProperties?.ContainsKey("cache_control") ?? false);
     }
 
     private sealed class RecordingChatClient : IChatClient

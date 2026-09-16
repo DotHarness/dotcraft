@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Tests.Agents;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -7,8 +8,12 @@ using Xunit;
 
 namespace DotCraft.Tests.Tracing;
 
-public sealed class PromptCacheDiagnosticsTests
+public sealed class PromptCacheDiagnosticsTests : IDisposable
 {
+    private readonly IDisposable _promptCachePolicy = PromptCachePolicyScope.Use();
+
+    public void Dispose() => _promptCachePolicy.Dispose();
+
     [Fact]
     public void SubAgentPrefixDiagnostic_ParentPrefixWithChildTailMatchesOnce()
     {
@@ -401,11 +406,10 @@ public sealed class PromptCacheDiagnosticsTests
         var usageClient = new UsageChatClient(
             new TokenUsageSnapshot(12_000, 1, 8_000, 0),
             new TokenUsageSnapshot(13_000, 1, 0, 0, CacheWriteInputTokens: 12_900));
-        var promptCaching = new PromptCachingChatClient(
+        using var promptCacheDiagnostics = PromptCachePolicyScope.UseDiagnostics(collector);
+        var promptCaching = new AnthropicPromptCachingChatClient(
             usageClient,
-            new AppConfig.PromptCachingConfig(),
             "claude-opus-4-1",
-            collector,
             () => sessionKey);
         var client = new TracingChatClient(promptCaching, collector);
 

@@ -3,19 +3,17 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-internal sealed class AnthropicPromptCacheDialect : IPromptCacheDialect
+internal sealed class AnthropicPromptCacheDialect
 {
     public static AnthropicPromptCacheDialect Instance { get; } = new();
     public string Name => "AnthropicNative";
-    public bool GroupToolResults => true;
 
-    public object CreateMarker(string? ttl) => string.IsNullOrWhiteSpace(ttl)
+    public CacheControlEphemeral CreateMarker(string? ttl) => string.IsNullOrWhiteSpace(ttl)
         ? new CacheControlEphemeral()
         : new CacheControlEphemeral { Ttl = ttl.Trim() };
 
-    public TextContent MarkText(TextContent content, object marker)
+    public TextContent MarkText(TextContent content, CacheControlEphemeral cacheControl)
     {
-        var cacheControl = RequireMarker(marker);
         var rewritten = new TextContent(content.Text)
         {
             AdditionalProperties = content.AdditionalProperties == null
@@ -29,10 +27,7 @@ internal sealed class AnthropicPromptCacheDialect : IPromptCacheDialect
         return rewritten;
     }
 
-    public FunctionResultContent MarkFunctionResult(
-        FunctionResultContent content,
-        string wireText,
-        object marker)
+    public FunctionResultContent MarkFunctionResult(FunctionResultContent content, CacheControlEphemeral cacheControl)
     {
         var rewritten = new FunctionResultContent(content.CallId, content.Result)
         {
@@ -41,7 +36,7 @@ internal sealed class AnthropicPromptCacheDialect : IPromptCacheDialect
                 : new AdditionalPropertiesDictionary(content.AdditionalProperties),
             Exception = content.Exception
         };
-        rewritten.WithCacheControl(RequireMarker(marker));
+        rewritten.WithCacheControl(cacheControl);
         return rewritten;
     }
 

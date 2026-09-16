@@ -2,16 +2,19 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.4 |
+| **Version** | 0.2.0 |
 | **Status** | Living |
-| **Date** | 2026-08-11 |
+| **Date** | 2026-09-16 |
 | **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 
-The stable-prefix/cache-point selection algorithm and `IPromptCacheDialect` contract live in
-`DotCraft.Agents`. Session Core supplies policy and diagnostics; OpenAI and Anthropic integrations
-own their native marker and raw wire representations.
+The stable-prefix/cache-point selection algorithm lives in `DotCraft.Agents`. Session Core supplies
+policy and diagnostics. Placement and marking belong to the provider integration that builds the
+request: the integration composes the caching middleware inside its own client chain and writes its
+native marker directly, so no provider-neutral marker representation crosses the boundary. A provider
+that forwards inference elsewhere therefore carries only the policy, and placement happens wherever
+the provider request is finalized.
 
 ---
 
@@ -43,7 +46,9 @@ DotCraft must build a byte-stable prefix for the first model and place the right
 | Threshold | Backend-side ≥ 1024 prefix tokens (provider default; gateway-dependent) |
 | Required client work | None beyond a byte-stable prefix |
 
-DotCraft does not set any cache-control field on this protocol. Cache works as long as the message array, tools array, and system prompt are byte-identical between requests.
+DotCraft does not set any cache-control field on this protocol. This holds for every model reached
+through it, including Claude models served by an OpenAI-compatible gateway. Cache works as long as the
+message array, tools array, and system prompt are byte-identical between requests.
 
 **Empirical envelope:** ~80% aggregate hit rate on the `prompt-cache-baseline` workload.
 
