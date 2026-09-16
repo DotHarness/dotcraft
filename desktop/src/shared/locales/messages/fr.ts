@@ -661,7 +661,6 @@ export const MESSAGES_FR = {
   'welcome.suggestion.docs': 'Générer la documentation',
   'welcome.sendTitle': 'Envoyer (Entrée)',
   'welcome.sendAria': 'Envoyer le message',
-  'welcome.startingAria': 'Démarrage de la conversation',
 
   'setupWizard.title': 'Configuration de l’espace',
   'setupWizard.done': 'Terminé',
@@ -2417,6 +2416,9 @@ export const MESSAGES_FR = {
   'toast.imageMessage': 'Message illustré',
   'toast.fileReferenceMessage': 'Message de référence de fichier',
   'toast.attachmentMessage': 'Message en pièce jointe',
+  'conversation.creatingThread': 'Création de la conversation',
+  'conversation.loadingThread': 'Chargement de la conversation',
+  'conversation.startingBuilder': 'Démarrage du générateur',
   'conversation.thinking.streaming': 'En pensant',
   'conversation.thinking.completed': 'J\'ai pensé à {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Cliquez pour développer le raisonnement',

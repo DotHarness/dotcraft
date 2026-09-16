@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
+import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -11,6 +12,7 @@ import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { ConversationWelcome } from '../conversation/ConversationWelcome'
+import { ThreadCreatingView } from '../conversation/ThreadCreatingView'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
 import { AgentBuilderChatEmptyState } from '../agents/AgentBuilderChatEmptyState'
@@ -56,11 +58,11 @@ export function ConversationPanel({
   variant = 'default',
   onBeforeSend
 }: ConversationPanelProps): JSX.Element {
+  const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  const loading = useThreadStore((s) => s.loading)
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const threadMode = useConversationStore((s) => s.threadMode)
@@ -78,6 +80,8 @@ export function ConversationPanel({
   const connectionErrorMessage = useConnectionStore((s) => s.errorMessage)
   const planApprovalDismissed = useUIStore((s) => s.planApprovalDismissed)
   const resetPlanApprovalDismissed = useUIStore((s) => s.resetPlanApprovalDismissed)
+  const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
+  const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const threadStateWorkspacePath = activeThread?.workspacePath || protocolWorkspacePath
   const activeEffectiveWorkspacePath =
@@ -110,22 +114,27 @@ export function ConversationPanel({
     resetPlanApprovalDismissed()
   }, [activeThreadId, resetPlanApprovalDismissed])
 
-  if (activeThreadId && !activeThread && (loading || isAgentBuilder)) {
+  // The created thread takes over once it is loaded, so the echoed message never blinks out.
+  useEffect(() => {
+    if (pendingThreadCreation && activeThread) setPendingThreadCreation(null)
+  }, [activeThread, pendingThreadCreation, setPendingThreadCreation])
+
+  if (pendingThreadCreation && !activeThread && !isAgentBuilder) {
+    return <ThreadCreatingView text={pendingThreadCreation.text} />
+  }
+
+  // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
+  if (activeThreadId && !activeThread) {
     return (
       <div style={centeredStyle}>
-        <span style={{ color: 'var(--text-dimmed)', fontSize: '13px' }}>Loading thread...</span>
+        <span style={conversationPlaceholderStyle}>
+          {t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}
+        </span>
       </div>
     )
   }
 
   if (!activeThread) {
-    if (isAgentBuilder) {
-      return (
-        <div style={centeredStyle}>
-          <span style={{ color: 'var(--text-dimmed)', fontSize: '13px' }}>Starting builder...</span>
-        </div>
-      )
-    }
     return (
       <ConversationWelcome
         workspacePath={workspacePath}
@@ -306,6 +315,8 @@ export function ConversationPanel({
     </div>
   )
 }
+
+const conversationPlaceholderStyle: CSSProperties = { color: 'var(--text-dimmed)', fontSize: '13px' }
 
 const centeredStyle: CSSProperties = {
   display: 'flex',

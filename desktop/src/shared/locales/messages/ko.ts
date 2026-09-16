@@ -661,7 +661,6 @@ export const MESSAGES_KO = {
   'welcome.suggestion.docs': '문서 생성하기',
   'welcome.sendTitle': '보내기 (Enter)',
   'welcome.sendAria': '메시지 보내기',
-  'welcome.startingAria': '대화 시작 중',
 
   'setupWizard.title': '워크스페이스 설정',
   'setupWizard.done': '완료',
@@ -2413,6 +2412,9 @@ export const MESSAGES_KO = {
   'toast.imageMessage': '이미지 메시지',
   'toast.fileReferenceMessage': '파일 참조 메시지',
   'toast.attachmentMessage': '첨부파일 메시지',
+  'conversation.creatingThread': '대화를 시작하는 중',
+  'conversation.loadingThread': '스레드 여는 중',
+  'conversation.startingBuilder': '빌더 시작 중',
   'conversation.thinking.streaming': '생각하다',
   'conversation.thinking.completed': '{{seconds}}s 생각',
   'conversation.thinking.expandTooltip': '추론을 확장하려면 클릭하세요.',

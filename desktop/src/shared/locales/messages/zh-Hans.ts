@@ -1209,7 +1209,6 @@ export const MESSAGES_ZH_HANS = {
   'welcome.suggestion.docs': '生成文档',
   'welcome.sendTitle': '发送 (Enter)',
   'welcome.sendAria': '发送消息',
-  'welcome.startingAria': '正在开始对话',
 
   'setupInterstitial.title': '该工作区还没有完成 DotCraft 设置',
   'setupInterstitial.description':
@@ -1352,6 +1351,9 @@ export const MESSAGES_ZH_HANS = {
   'toast.imageMessage': '图片消息',
   'toast.fileReferenceMessage': '文件引用消息',
   'toast.attachmentMessage': '附件消息',
+  'conversation.creatingThread': '正在创建会话',
+  'conversation.loadingThread': '正在打开会话',
+  'conversation.startingBuilder': '正在启动构建器',
   'conversation.thinking.streaming': '正在思考',
   'conversation.thinking.completed': '思考 {{seconds}} 秒',
   'conversation.thinking.expandTooltip': '点击展开思考内容',

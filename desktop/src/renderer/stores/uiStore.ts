@@ -109,6 +109,17 @@ export interface PendingWelcomeTurnInput {
   sentAsGoal?: boolean
 }
 
+/**
+ * A welcome submission whose thread does not exist yet. `requestId` is client-only and never
+ * becomes a thread id; `threadId` fills in once creation answers.
+ */
+export interface PendingThreadCreation {
+  requestId: string
+  workspacePath: string
+  text: string
+  threadId?: string
+}
+
 export interface UIState {
   activeMainView: ActiveMainView
   pluginCatalogSurface: PluginCatalogSurface
@@ -176,6 +187,7 @@ export interface UIState {
     file: ComposerFileAttachment
   } | null
   pendingWelcomeTurn: (PendingWelcomeTurnInput & { createdAt: number }) | null
+  pendingThreadCreation: PendingThreadCreation | null
   /** Background project thread click waiting for the target workspace's foreground thread list. */
   pendingProjectThreadOpen: PendingProjectThreadOpen | null
   /** Unsent draft on ConversationWelcome, preserved across thread navigation. */
@@ -257,6 +269,8 @@ interface UIStore extends UIState {
   /** Read and clear the pending file attachment atomically. */
   consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
   setPendingWelcomeTurn(payload: PendingWelcomeTurnInput | null): void
+  setPendingThreadCreation(payload: PendingThreadCreation | null): void
+  resolvePendingThreadCreation(requestId: string, threadId: string): void
   /** If pending matches threadId, return payload and clear; otherwise return null. */
   consumePendingWelcomeTurnIfMatch(threadId: string): Omit<PendingWelcomeTurnInput, 'threadId'> | null
   cancelPendingWelcomeTurnForThread(threadId: string): void
@@ -366,6 +380,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   composerPrefill: null,
   composerFileAttachmentRequest: null,
   pendingWelcomeTurn: null,
+  pendingThreadCreation: null,
   pendingProjectThreadOpen: null,
   welcomeDraft: null,
   welcomeDraftsByWorkspace: {},
@@ -788,6 +803,16 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     const request = get().composerFileAttachmentRequest
     set({ composerFileAttachmentRequest: null })
     return request?.file ?? null
+  },
+
+  setPendingThreadCreation(payload) {
+    set({ pendingThreadCreation: payload })
+  },
+
+  resolvePendingThreadCreation(requestId, threadId) {
+    set((state) => state.pendingThreadCreation?.requestId === requestId
+      ? { pendingThreadCreation: { ...state.pendingThreadCreation, threadId } }
+      : {})
   },
 
   setPendingWelcomeTurn(payload) {

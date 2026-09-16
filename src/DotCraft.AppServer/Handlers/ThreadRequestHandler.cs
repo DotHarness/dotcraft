@@ -104,15 +104,29 @@ internal sealed class ThreadRequestHandler(
             ? ThreadSource.SpawnedFromThread(p.SpawnedFromThreadId.Trim())
             : null;
 
-        var thread = await sessionService.CreateThreadAsync(
-            identity,
-            config,
-            historyMode,
-            displayName: p.DisplayName,
-            ct: ct,
-            source: spawnSource);
+        // Binding before creation lets the thread's agent be built once with this connection's
+        // tool surface, instead of being built and then rebuilt by a refresh.
+        var threadId = SessionIdGenerator.NewThreadId();
+        threadBinder.BindThreadRuntimeInputs(threadId, dynamicTools, additionalContext);
+        SessionThread thread;
+        try
+        {
+            thread = await sessionService.CreateThreadAsync(
+                identity,
+                config,
+                historyMode,
+                threadId: threadId,
+                displayName: p.DisplayName,
+                ct: ct,
+                source: spawnSource);
+        }
+        catch
+        {
+            threadBinder.UnbindThreadRuntimeInputs(threadId);
+            throw;
+        }
 
-        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
+        threadBinder.BindThreadAssets(thread);
 
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         var startedWire = await threadProjector.ProjectAsync(thread, false, false, ct);

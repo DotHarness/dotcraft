@@ -1865,6 +1865,72 @@ describe('ConversationWelcome composer', () => {
     expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'worktree/createAndStart')).toBe(false)
   })
 
+  it('opens the conversation and clears the composer before thread/start answers', async () => {
+    const threadStart = createDeferred<{ thread: Record<string, unknown> }>()
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'thread/start') return threadStart.promise
+      return {}
+    })
+
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Summarize the renderer contracts'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().pendingThreadCreation).toMatchObject({
+        text: 'Summarize the renderer contracts'
+      })
+    })
+    expect(useUIStore.getState().pendingThreadCreation?.threadId).toBeUndefined()
+    expect(useUIStore.getState().activeMainView).toBe('conversation')
+    expect(textbox.textContent).toBe('')
+    expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
+
+    await act(async () => {
+      threadStart.resolve({
+        thread: {
+          id: 'thread-welcome',
+          displayName: null,
+          status: 'active',
+          originChannel: 'dotcraft-desktop',
+          createdAt: '2026-04-16T08:00:00.000Z',
+          lastActiveAt: '2026-04-16T08:00:00.000Z'
+        }
+      })
+    })
+
+    await waitFor(() => expect(useThreadStore.getState().activeThreadId).toBe('thread-welcome'))
+    expect(useUIStore.getState().pendingThreadCreation?.threadId).toBe('thread-welcome')
+  })
+
+  it('returns the submission to the welcome composer when thread creation fails', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'thread/start') throw new Error('workspace is offline')
+      return {}
+    })
+
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Keep this after creation fails'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBe(1))
+    expect(useUIStore.getState().pendingThreadCreation).toBeNull()
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(useUIStore.getState().getWelcomeDraftForWorkspace('X:\\fixtures\\workspace')?.text)
+      .toBe('Keep this after creation fails')
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/delete', expect.anything())
+  })
+
   it('stages selected welcome apps on the pending turn instead of waiting on the welcome screen', async () => {
     useConnectionStore.setState({
       status: 'connected',

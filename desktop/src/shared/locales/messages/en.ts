@@ -1239,7 +1239,6 @@ export const MESSAGES_EN = {
   'welcome.suggestion.docs': 'Generate documentation',
   'welcome.sendTitle': 'Send (Enter)',
   'welcome.sendAria': 'Send message',
-  'welcome.startingAria': 'Starting conversation',
 
   // Workspace setup
   'setupInterstitial.title': "This workspace hasn't finished DotCraft setup",
@@ -1391,6 +1390,9 @@ export const MESSAGES_EN = {
   'toast.imageMessage': 'Image message',
   'toast.fileReferenceMessage': 'File reference message',
   'toast.attachmentMessage': 'Attachment message',
+  'conversation.creatingThread': 'Starting the conversation',
+  'conversation.loadingThread': 'Loading thread',
+  'conversation.startingBuilder': 'Starting builder',
   'conversation.thinking.streaming': 'Thinking',
   'conversation.thinking.completed': 'Thought {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Click to expand reasoning',

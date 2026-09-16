@@ -7,7 +7,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerNodeReplTests
 {
     [Fact]
-    public async Task ThreadStart_WithNodeReplAndBrowserUseCapabilities_BindsThreadAndRefreshesAgent()
+    public async Task ThreadStart_WithNodeReplAndBrowserUseCapabilities_BindsThreadWithoutRebuildingAgent()
     {
         var proxy = new WireNodeReplProxy();
         using var harness = new AppServerTestHarness(wireNodeReplProxy: proxy);
@@ -22,7 +22,8 @@ public sealed class AppServerNodeReplTests
         var response = await harness.Transport.ReadNextSentAsync();
         var threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
-        Assert.Contains(threadId, harness.Service.RefreshedThreadAgents);
+        // The binding lands before creation, so the thread's first agent build already sees it.
+        Assert.DoesNotContain(threadId, harness.Service.RefreshedThreadAgents);
         AssertThreadNodeReplAvailable(proxy, threadId);
     }
 

@@ -31,6 +31,37 @@ internal sealed class AppServerThreadBinder(
             throw AppServerErrors.InvalidParams("additionalContext is not supported by this AppServer host.");
     }
 
+    /// <summary>
+    /// Binds the connection affordances that only need a thread id, so a thread created next
+    /// builds its agent once with the resulting tool surface already in place.
+    /// </summary>
+    public void BindThreadRuntimeInputs(
+        string threadId,
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext)
+    {
+        if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
+            wireAcpExtensionProxy.BindThread(threadId, transport, connection);
+        if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
+            wireNodeReplProxy.BindThread(threadId, transport, connection);
+        if (dynamicTools != null)
+            wireDynamicToolProxy?.BindThread(threadId, transport, connection, dynamicTools);
+        wireRuntimeAdditionalContextProvider?.BindThread(threadId, transport, connection, additionalContext);
+    }
+
+    public void UnbindThreadRuntimeInputs(string threadId)
+    {
+        wireNodeReplProxy?.UnbindThread(threadId);
+        wireDynamicToolProxy?.UnbindThread(threadId);
+        wireRuntimeAdditionalContextProvider?.BindThread(threadId, transport, connection, EmptyAdditionalContext);
+    }
+
+    /// <summary>Binds what needs the created thread. Never changes the tool surface.</summary>
+    public void BindThreadAssets(SessionThread thread)
+        => inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection);
+
+    private static readonly Dictionary<string, RuntimeAdditionalContextValue> EmptyAdditionalContext = [];
+
     public async Task BindThreadRuntimeAsync(
         SessionThread thread,
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
@@ -40,11 +71,10 @@ internal sealed class AppServerThreadBinder(
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
             wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);
 
+        // Only a binding that changes the tool surface needs a rebuilt agent: client-bound context
+        // reaches the model as a thread context item reconciled on each Turn.
         var shouldRefreshAgent = false;
-        // Client-bound context reaches the model as an appended thread context item, so a binding
-        // change must not invalidate the thread's cached instruction prefix.
-        if (inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection) == true)
-            shouldRefreshAgent = true;
+        inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection);
         if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
         {
             wireNodeReplProxy.BindThread(thread.Id, transport, connection);
@@ -57,8 +87,7 @@ internal sealed class AppServerThreadBinder(
             shouldRefreshAgent = true;
         }
 
-        if (wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, additionalContext) == true)
-            shouldRefreshAgent = true;
+        wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, additionalContext);
 
         if (shouldRefreshAgent && sessionService is IThreadAgentRefreshService refreshService)
             await refreshService.RefreshThreadAgentAsync(thread.Id, ct);

@@ -661,7 +661,6 @@ export const MESSAGES_ES = {
   'welcome.suggestion.docs': 'Generar documentación',
   'welcome.sendTitle': 'Enviar (Enter)',
   'welcome.sendAria': 'Enviar mensaje',
-  'welcome.startingAria': 'Iniciando conversación',
 
   'setupWizard.title': 'Configuración del espacio',
   'setupWizard.done': 'Listo',
@@ -2416,6 +2415,9 @@ export const MESSAGES_ES = {
   'toast.imageMessage': 'Mensaje de imagen',
   'toast.fileReferenceMessage': 'Mensaje de referencia de archivo',
   'toast.attachmentMessage': 'mensaje adjunto',
+  'conversation.creatingThread': 'Creando la conversación',
+  'conversation.loadingThread': 'Cargando conversación',
+  'conversation.startingBuilder': 'Iniciando el generador',
   'conversation.thinking.streaming': 'Pensando',
   'conversation.thinking.completed': 'Pensamiento {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Haga clic para ampliar el razonamiento',

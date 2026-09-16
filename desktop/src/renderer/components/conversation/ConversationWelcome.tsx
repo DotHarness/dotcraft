@@ -1,5 +1,6 @@
 import type { WelcomeDraft } from '../../stores/uiStore'
 import { useComposerContextStore } from '../../stores/composerContextStore'
+import type { ComposerContextRecord } from '../../../shared/composerContext'
 import { hasPendingPastedText, usePastedText } from './usePastedText'
 import { readPlainComposerDraft, savePlainComposerDraft } from '../../utils/plainComposerDraft'
 import {
@@ -111,8 +112,6 @@ interface ConversationWelcomeProps {
 
 interface ConversationWelcomeCoreProps extends ConversationWelcomeProps {
   desktopPluginSurfaceContext: DesktopPluginSurfaceContext<'composer'>
-  starting: boolean
-  setStarting: Dispatch<SetStateAction<boolean>>
   welcomeMode: ThreadMode
   setWelcomeMode: Dispatch<SetStateAction<ThreadMode>>
   selectedProfileId: string | null
@@ -197,7 +196,6 @@ export function ConversationWelcome({
   ...props
 }: ConversationWelcomeProps): JSX.Element {
   const draftProjectKey = props.projectKey || props.workspacePath
-  const [starting, setStarting] = useState(false)
   const [welcomeMode, setWelcomeMode] = useState<ThreadMode>(() =>
     useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey)?.mode ?? 'agent'
   )
@@ -207,7 +205,7 @@ export function ConversationWelcome({
     workspacePath: props.workspacePath || null,
     threadId: null,
     mode: selectedProfileId ? 'agent' : welcomeMode,
-    busy: starting || connectionStatus !== 'connected',
+    busy: connectionStatus !== 'connected',
     awaitingApproval: false,
     variant: 'default',
     minimalChrome: false
@@ -218,8 +216,6 @@ export function ConversationWelcome({
       <ConversationWelcomeCore
         {...props}
         desktopPluginSurfaceContext={desktopPluginSurfaceContext}
-        starting={starting}
-        setStarting={setStarting}
         welcomeMode={welcomeMode}
         setWelcomeMode={setWelcomeMode}
         selectedProfileId={selectedProfileId}
@@ -238,8 +234,6 @@ function ConversationWelcomeCore({
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
   desktopPluginSurfaceContext,
-  starting,
-  setStarting,
   welcomeMode,
   setWelcomeMode,
   selectedProfileId,
@@ -346,7 +340,7 @@ function ConversationWelcomeCore({
 
   const isConnected = connectionStatus === 'connected'
   const openingWorkspace = connectionStatus === 'connecting'
-  const busy = starting || !isConnected
+  const busy = !isConnected
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
@@ -1000,12 +994,10 @@ function ConversationWelcomeCore({
   const contexts = useComposerContextStore((state) => state.getContexts(contextKey))
   const pastedText = usePastedText(contextKey, workspacePath, remoteWorkspace)
 
-  const flushWelcomeDraft = useCallback((): void => {
-    if (skipDraftPersistRef.current) return
+  const buildWelcomeDraftSnapshot = useCallback((): Omit<WelcomeDraft, 'updatedAt'> | null => {
     const text = richRef.current?.getText() ?? latestDraftTextRef.current
     const segments = richRef.current?.getSegments() ?? latestDraftSegmentsRef.current
     const selection = latestDraftSelectionRef.current ?? richRef.current?.getSelectionRange()
-    savePlainComposerDraft(contextKey, text)
     const hasText = text.trim().length > 0
     const hasImages = images.length > 0
     const hasFiles = files.length > 0 || useComposerContextStore.getState().getContexts(contextKey).length > 0
@@ -1021,12 +1013,9 @@ function ConversationWelcomeCore({
       || welcomeAppSelectionTouched
     const fallbackCaret = text.length
 
-    if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) {
-      clearWelcomeDraft(draftProjectKey)
-      return
-    }
+    if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) return null
 
-    setWelcomeDraft({
+    return {
       text,
       segments: [...segments],
       selectionStart: selection?.start ?? fallbackCaret,
@@ -1041,8 +1030,41 @@ function ConversationWelcomeCore({
       contextWindow: buildWelcomeContextWindowConfig(),
       approvalPolicy: welcomeApprovalPolicyDirty ? welcomeApprovalPolicy : undefined,
       appIds: welcomeAppSelectionTouched ? [...welcomeAppIds] : undefined
-    }, draftProjectKey)
-  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, providerId, reasoningConfig, setWelcomeDraft, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
+    }
+  }, [buildWelcomeContextWindowConfig, files, images, modelName, providerId, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
+
+  const flushWelcomeDraft = useCallback((): void => {
+    if (skipDraftPersistRef.current) return
+    const snapshot = buildWelcomeDraftSnapshot()
+    savePlainComposerDraft(contextKey, snapshot?.text ?? '')
+    if (snapshot) setWelcomeDraft(snapshot, draftProjectKey)
+    else clearWelcomeDraft(draftProjectKey)
+  }, [buildWelcomeDraftSnapshot, clearWelcomeDraft, contextKey, draftProjectKey, setWelcomeDraft])
+
+  const clearWelcomeComposer = useCallback((): void => {
+    skipDraftPersistRef.current = true
+    latestDraftTextRef.current = ''
+    latestDraftSegmentsRef.current = []
+    latestDraftSelectionRef.current = null
+    savePlainComposerDraft(contextKey, '')
+    clearWelcomeDraft(draftProjectKey)
+    useComposerContextStore.getState().clearContexts(contextKey)
+    richRef.current?.clear()
+    setImages([])
+    setFiles([])
+  }, [clearWelcomeDraft, contextKey, draftProjectKey])
+
+  /** The welcome composer remounts on failure and rehydrates from the draft written here. */
+  const restoreWelcomeComposer = useCallback((
+    snapshot: Omit<WelcomeDraft, 'updatedAt'> | null,
+    contexts: ComposerContextRecord[]
+  ): void => {
+    skipDraftPersistRef.current = false
+    if (!snapshot) return
+    setWelcomeDraft(snapshot, draftProjectKey)
+    savePlainComposerDraft(contextKey, snapshot.text)
+    if (contexts.length > 0) useComposerContextStore.getState().setContexts(contextKey, contexts)
+  }, [contextKey, draftProjectKey, setWelcomeDraft])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -1350,12 +1372,20 @@ function ConversationWelcomeCore({
     }
 
     sendInFlightRef.current = true
-    setStarting(true)
     setMascotBounce((n) => n + 1)
+    const submittedDraft = buildWelcomeDraftSnapshot()
+    const submittedContexts = useComposerContextStore.getState().getContexts(contextKey)
+    const requestId = crypto.randomUUID()
+
+    useUIStore.getState().setPendingThreadCreation({ requestId, workspacePath: identityPath, text: trimmedObjective })
+    useUIStore.getState().setActiveMainView('conversation')
+    clearWelcomeComposer()
+
     let createdThreadId: string | null = null
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
+      useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
 
       const goalResult = await window.api.appServer.sendRequest('thread/goal/set', {
         threadId: thread.id,
@@ -1363,16 +1393,6 @@ function ConversationWelcomeCore({
       })
       const goal = extractGoal(goalResult)
       const { inputParts } = buildComposerInputParts({ text: trimmedObjective })
-
-      skipDraftPersistRef.current = true
-      latestDraftTextRef.current = ''
-      savePlainComposerDraft(contextKey, '')
-      latestDraftSegmentsRef.current = []
-      latestDraftSelectionRef.current = null
-      clearWelcomeDraft(draftProjectKey)
-      richRef.current?.clear()
-      setImages([])
-      setFiles([])
 
       addThread(goal ? { ...thread, goal } : thread)
       if (goal) {
@@ -1386,15 +1406,15 @@ function ConversationWelcomeCore({
         sentAsGoal: true
       })
       setActiveThreadId(thread.id)
-      useUIStore.getState().setActiveMainView('conversation')
       return true
     } catch (err) {
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
+      useUIStore.getState().setPendingThreadCreation(null)
+      restoreWelcomeComposer(submittedDraft, submittedContexts)
       addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
       return false
     } finally {
       sendInFlightRef.current = false
-      setStarting(false)
     }
   }, [
     addThread,
@@ -1478,31 +1498,31 @@ function ConversationWelcomeCore({
     }
 
     sendInFlightRef.current = true
-    setStarting(true)
     setMascotBounce((n) => n + 1)
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
+    const capturedSegments = [...segments]
+    const submittedDraft = buildWelcomeDraftSnapshot()
+    const requestId = crypto.randomUUID()
+
+    useUIStore.getState().setPendingThreadCreation({ requestId, workspacePath: identityPath, text: trimmed })
+    useUIStore.getState().setActiveMainView('conversation')
+    clearWelcomeComposer()
+
     let createdThreadId: string | null = null
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
+      useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
       const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
-
-      skipDraftPersistRef.current = true
-      latestDraftTextRef.current = ''
-      savePlainComposerDraft(contextKey, '')
-      latestDraftSegmentsRef.current = []
-      latestDraftSelectionRef.current = null
-      clearWelcomeDraft(draftProjectKey)
       const { inputParts } = buildComposerInputParts({
         text: turnText,
-        segments: isInitCommand ? [] : segments,
+        segments: isInitCommand ? [] : capturedSegments,
         contexts: inputContexts,
         files: capturedFiles,
         images: capturedImages
       })
       useComposerContextStore.getState().setContexts(thread.id, inputContexts)
-      useComposerContextStore.getState().clearContexts(contextKey)
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
         text: turnText,
@@ -1513,17 +1533,14 @@ function ConversationWelcomeCore({
       })
       addThread(thread)
       setActiveThreadId(thread.id)
-      useUIStore.getState().setActiveMainView('conversation')
-      richRef.current?.clear()
-      setImages([])
-      setFiles([])
     } catch (err) {
       console.error('Failed to start thread from welcome composer:', err)
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
+      useUIStore.getState().setPendingThreadCreation(null)
+      restoreWelcomeComposer(submittedDraft, inputContexts)
       addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false
-      setStarting(false)
     }
   }, [
     files,
@@ -1674,8 +1691,8 @@ function ConversationWelcomeCore({
 
   const canSend = useMemo(() => {
     const textLen = (richRef.current?.getText() ?? '').trim().length
-    return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && isConnected && !starting && !modelLoading
-  }, [contentRevision, contexts.length, pastedText.pending, files.length, images.length, isConnected, starting, modelLoading])
+    return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && isConnected && !modelLoading
+  }, [contentRevision, contexts.length, pastedText.pending, files.length, images.length, isConnected, modelLoading])
   const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording) {
@@ -1708,7 +1725,6 @@ function ConversationWelcomeCore({
           <WelcomeAppBindingsButton
             apps={welcomeApps}
             selectedAppIds={welcomeAppIds}
-            disabled={starting}
             loading={appBindingAppsLoading}
             error={appBindingAppsError}
             onRetry={retryWelcomeApps}
@@ -1783,7 +1799,6 @@ function ConversationWelcomeCore({
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
-              opacity={starting ? 0.65 : 1}
               focused={editorFocused}
               showMascot
               mascotBounceSignal={mascotBounce}
@@ -1933,7 +1948,6 @@ function ConversationWelcomeCore({
                     <ApprovalPolicyPicker
                       value={welcomeApprovalPolicy}
                       onChange={setWelcomeApprovalPolicyFromUser}
-                      disabled={starting}
                     />
                   ) : null}
                   mode={!compactVoiceFooter ? (
@@ -1993,7 +2007,7 @@ function ConversationWelcomeCore({
                             )
                           : null
                       }
-                      disabled={modelApplying || starting}
+                      disabled={modelApplying}
                       onChange={(nextModel) => {
                         void handleModelChange(nextModel)
                       }}
@@ -2016,17 +2030,17 @@ function ConversationWelcomeCore({
                       }}
                       shortcut={ACTION_SHORTCUTS.selectModel}
                       triggerStyle={composerModelPillStyle(
-                        modelApplying || starting || modelLoading
+                        modelApplying || modelLoading
                           ? 'var(--composer-footer-muted)'
                           : 'var(--composer-footer-highlight)',
-                        modelApplying || starting || modelLoading
+                        modelApplying || modelLoading
                       )}
                     />
                   ) : null}
                   voice={<VoiceInputControl threadId={voiceThreadId} />}
                   submit={(
                     <ActionTooltip
-                      label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
+                      label={t('welcome.sendAria')}
                       shortcut={canSendWithVoice ? ACTION_SHORTCUTS.send : undefined}
                       placement="top"
                     >
@@ -2034,10 +2048,9 @@ function ConversationWelcomeCore({
                         tone={canSendWithVoice ? 'enabled' : 'disabled'}
                         onClick={submitOrStopVoice}
                         disabled={!canSendWithVoice}
-                        aria-label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
-                        aria-busy={starting ? 'true' : undefined}
+                        aria-label={t('welcome.sendAria')}
                       >
-                        <ComposerSubmitGlyphs glyph={starting ? 'stopping' : 'send'} />
+                        <ComposerSubmitGlyphs glyph="send" />
                       </ComposerSendButton>
                     </ActionTooltip>
                   )}
@@ -2208,7 +2221,6 @@ function WelcomeSuggestionSkeletonList(): JSX.Element {
 function WelcomeAppBindingsButton({
   apps,
   selectedAppIds,
-  disabled,
   loading,
   error,
   onRetry,
@@ -2216,7 +2228,6 @@ function WelcomeAppBindingsButton({
 }: {
   apps: AppInfo[]
   selectedAppIds: string[]
-  disabled: boolean
   loading: boolean
   error: string | null
   onRetry: () => Promise<void>
@@ -2229,7 +2240,6 @@ function WelcomeAppBindingsButton({
     <AppBindingsPicker
       open={open}
       onOpenChange={setOpen}
-      disabled={disabled}
       loading={loading}
       error={error}
       empty={apps.length === 0}
@@ -2248,7 +2258,6 @@ function WelcomeAppBindingsButton({
                 checked={selected}
                 onChange={(checked) => onToggleApp(app.appId, checked)}
                 size="sm"
-                disabled={disabled}
                 aria-label={t('appBinding.welcomeUseApp', { name: app.displayName })}
               />
             )}
