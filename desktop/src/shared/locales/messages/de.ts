@@ -2831,6 +2831,7 @@ export const MESSAGES_DE = {
   'contextRing.tooltip.left': '{{percent}}% verbleibend',
   'contextRing.tooltip.autoCompact': 'Automatische Komprimierung löst bei {{percent}} % aus',
   'conversation.streamRetry.reconnecting': 'Verbindung wird wiederhergestellt... {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': 'Apps werden verbunden',
   'systemStatus.compacting': 'Kontext automatisch komprimieren',
   'systemStatus.compacting.manual': 'Kontext verdichten',
   'systemStatus.consolidating': 'Gedächtnis festigen',

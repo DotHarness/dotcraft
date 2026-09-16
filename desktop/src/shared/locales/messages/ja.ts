@@ -2822,6 +2822,7 @@ export const MESSAGES_JA = {
   'contextRing.tooltip.left': '残り {{percent}}%',
   'contextRing.tooltip.autoCompact': '{{percent}}% で自動圧縮トリガー',
   'conversation.streamRetry.reconnecting': '再接続中... {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': 'アプリに接続中',
   'systemStatus.compacting': '自動圧縮コンテキスト',
   'systemStatus.compacting.manual': 'コンテキストの圧縮',
   'systemStatus.consolidating': '記憶の統合',

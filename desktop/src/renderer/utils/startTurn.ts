@@ -1,6 +1,6 @@
 import { createOptimisticUserMessage } from './inputPresentation'
 import type { ComposerContextRecord } from '../../shared/composerContext'
-import type { ComposerFileAttachment, ImageAttachment } from '../types/conversation'
+import type { ComposerFileAttachment, ImageAttachment, InputPart } from '../types/conversation'
 import type { ConversationTurn } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import { useConversationStore } from '../stores/conversationStore'
@@ -15,6 +15,8 @@ interface StartTurnParams {
   workspacePath: string
   identityWorkspacePath?: string
   text: string
+  /** Replaces the parts otherwise built from text, segments, contexts and attachments. */
+  inputParts?: InputPart[]
   contexts?: ComposerContextRecord[]
   segments?: ComposerDraftSegment[]
   images?: ImageAttachment[]
@@ -28,16 +30,18 @@ interface StartTurnParams {
   sentAsGoal?: boolean
 }
 
-/**
- * Start a turn with optimistic UI and promote local turn ID when server responds.
- * Returns true when the turn/start RPC is issued, false when there is no input.
- */
-export async function startTurnWithOptimisticUI({
+export interface OptimisticTurn {
+  optimisticTurnId: string
+  clientUserMessageId: string
+  inputParts: InputPart[]
+}
+
+/** Echoes the submission; callers gating the RPC pass the result to `submitOptimisticTurn` later. */
+export function echoOptimisticTurn({
   clientUserMessageId = crypto.randomUUID(),
   threadId,
-  workspacePath,
-  identityWorkspacePath,
   text,
+  inputParts: providedInputParts,
   segments,
   contexts,
   images = [],
@@ -46,42 +50,49 @@ export async function startTurnWithOptimisticUI({
   fileFallbackThreadName,
   attachmentFallbackThreadName,
   renameThreadFromText = true,
-  throwOnStartError = false,
   sentAsGoal = false
-}: StartTurnParams): Promise<boolean> {
-  const { inputParts, visibleText } = buildComposerInputParts({ text, segments, files, images, contexts })
-  if (inputParts.length === 0) {
-    return false
-  }
+}: StartTurnParams): OptimisticTurn | null {
+  const built = providedInputParts ? null : buildComposerInputParts({ text, segments, files, images, contexts })
+  const inputParts = providedInputParts ?? built!.inputParts
+  const visibleText = built?.visibleText ?? text
+  if (inputParts.length === 0) return null
 
   if (renameThreadFromText) {
     const threadEntry = useThreadStore.getState().threadList.find((t) => t.id === threadId)
     if (!threadEntry?.displayName) {
-      const autoName = getFallbackThreadName({
+      useThreadStore.getState().renameThread(threadId, getFallbackThreadName({
         visibleText,
         imagesCount: images.length,
         filesCount: files.length,
         fallbackThreadName,
         fileFallbackThreadName,
         attachmentFallbackThreadName
-      })
-      useThreadStore.getState().renameThread(threadId, autoName)
+      }))
     }
   }
 
   const optimisticTurnId = `local-turn-${clientUserMessageId}`
-  const optimisticNow = new Date().toISOString()
-  const optimisticItems = [createOptimisticUserMessage(inputParts, visibleText, clientUserMessageId, sentAsGoal)]
-
   const optimisticTurn: ConversationTurn = {
     id: optimisticTurnId,
     threadId,
     status: 'running',
-    items: optimisticItems,
-    startedAt: optimisticNow
+    items: [createOptimisticUserMessage(inputParts, visibleText, clientUserMessageId, sentAsGoal)],
+    startedAt: new Date().toISOString()
   }
   useConversationStore.getState().addOptimisticTurn(optimisticTurn)
+  return { optimisticTurnId, clientUserMessageId, inputParts }
+}
 
+export async function submitOptimisticTurn(
+  echo: OptimisticTurn,
+  {
+    threadId,
+    workspacePath,
+    identityWorkspacePath,
+    sentAsGoal = false,
+    throwOnStartError = false
+  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'throwOnStartError'>
+): Promise<void> {
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
     // Keep the multi-folder project's runtime roots in sync (sticky). Sending only
@@ -90,8 +101,8 @@ export async function startTurnWithOptimisticUI({
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const result = await window.api.appServer.sendRequest('turn/start', {
       threadId,
-      input: inputParts,
-      clientUserMessageId,
+      input: echo.inputParts,
+      clientUserMessageId: echo.clientUserMessageId,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
       ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
       identity: {
@@ -103,15 +114,18 @@ export async function startTurnWithOptimisticUI({
     })
     const res = result as { turn?: { id?: string } }
     if (res.turn?.id) {
-      useConversationStore.getState().promoteOptimisticTurn(optimisticTurnId, res.turn.id)
+      useConversationStore.getState().promoteOptimisticTurn(echo.optimisticTurnId, res.turn.id)
     }
   } catch (err) {
     console.error('turn/start failed:', err)
-    useConversationStore.getState().removeOptimisticTurn(optimisticTurnId)
+    useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
     if (throwOnStartError) {
       throw err
     }
   }
+}
 
-  return true
+export async function startTurnWithOptimisticUI(params: StartTurnParams): Promise<void> {
+  const echo = echoOptimisticTurn(params)
+  if (echo) await submitOptimisticTurn(echo, params)
 }

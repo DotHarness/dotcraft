@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { ExternalLink, Link2, RotateCw, Unlink } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { useAppBindingStore, type AppHandoff, type AppInfo } from '../../stores/appBindingStore'
+import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { addToast } from '../../stores/toastStore'
+import { openAppHandoff } from '../../utils/threadAppBindings'
 import { Button } from '../ui/Button'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { Skeleton } from '../ui/Skeleton'
@@ -60,7 +61,7 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
   async function connect(app: AppInfo): Promise<void> {
     await runAction(`${app.appId}:connect`, async () => {
       const result = await startConnection(app.appId)
-      await openAppHandoff(result.handoff, t)
+      await openAppHandoff(result.handoff)
       addToast(t('appBinding.connectStarted'), 'info')
       await waitForConnection(app.appId)
       addToast(t('appBinding.connection.connected'), 'success')
@@ -181,14 +182,6 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
       )}
     </section>
   )
-}
-
-export async function openAppHandoff(
-  handoff: AppHandoff,
-  _t: ReturnType<typeof useT>
-): Promise<void> {
-  if (!handoff.uri) return
-  await (window.api.shell.openAppHandoff ?? window.api.shell.openExternal)(handoff.uri)
 }
 
 const section: CSSProperties = { marginTop: 28 }

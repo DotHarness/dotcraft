@@ -2093,6 +2093,7 @@ export const MESSAGES_ZH_HANS = {
   'contextRing.tooltip.left': '剩余 {{percent}}%',
   'contextRing.tooltip.autoCompact': '达到 {{percent}}% 时自动压缩',
   'conversation.streamRetry.reconnecting': '正在重新连接… {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': '正在连接应用',
   'systemStatus.compacting': '正在自动压缩上下文',
   'systemStatus.compacting.manual': '正在压缩上下文',
   'systemStatus.consolidating': '正在整理记忆',

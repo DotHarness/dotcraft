@@ -1,7 +1,11 @@
-import type { ConversationItem, ConversationTurn } from '../types/conversation'
+import type { ConversationItem, ConversationTurn, QueuedTurnInput } from '../types/conversation'
 
 export function isOptimisticTurn(turn: ConversationTurn): boolean {
   return turn.id.startsWith('local-turn-')
+}
+
+export function isOptimisticQueuedInput(input: QueuedTurnInput): boolean {
+  return input.id.startsWith('local-')
 }
 
 export function isOptimisticUserMessage(item: ConversationItem): boolean {

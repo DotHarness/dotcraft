@@ -158,7 +158,7 @@ interface AppBindingStore {
     threadId: string
     appId: string
     bindingRequestId?: string | null
-  }, options?: AppBindingWaitOptions): Promise<ThreadAppBinding>
+  }, options?: AppBindingWaitOptions & { signal?: AbortSignal }): Promise<ThreadAppBinding>
   handleNotification(method: string, params: Record<string, unknown>): void
   reset(): void
 }
@@ -166,6 +166,13 @@ interface AppBindingStore {
 export interface AppBindingWaitOptions {
   timeoutMs?: number
   intervalMs?: number
+}
+
+export class AppBindingWaitAbortedError extends Error {
+  constructor(public readonly appId: string) {
+    super(`Waiting for app binding '${appId}' was abandoned.`)
+    this.name = 'AppBindingWaitAbortedError'
+  }
 }
 
 export class AppBindingActivationError extends Error {
@@ -181,6 +188,7 @@ export class AppBindingActivationError extends Error {
 
 const DEFAULT_WAIT_TIMEOUT_MS = 120_000
 const DEFAULT_WAIT_INTERVAL_MS = 800
+const DEFAULT_WAIT_POLL_INTERVAL_MS = 5_000
 
 const initialState = {
   apps: [] as AppInfo[],
@@ -326,27 +334,66 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     throw new Error(`Timed out waiting for app connection '${appId}' to become connected. Last state: ${lastState}.`)
   },
 
+  // `thread/appBindings/changed` settles this wait; the interval only covers a lost notification.
   async waitForThreadBinding(params, options = {}) {
-    const { maxAttempts, intervalMs } = waitSettings(options)
+    const timeoutMs = options.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS
+    const intervalMs = options.intervalMs ?? DEFAULT_WAIT_POLL_INTERVAL_MS
     let lastState = 'connecting'
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      await get().fetchThreadBindings(params.threadId)
-      const bindings = get().bindingsByThread[params.threadId] ?? []
-      const binding = findMatchingBinding(bindings, params.appId, params.bindingRequestId)
-      if (binding != null) {
-        lastState = binding.state
-        if (binding.state === 'active') return binding
-        if (
-          binding.state === 'cancelled'
-          || binding.state === 'revoked'
-          || binding.state === 'failed'
-        ) {
-          throw new AppBindingActivationError(params.appId, binding.state, binding.failureReason)
-        }
+
+    const settled = (): ThreadAppBinding | AppBindingActivationError | null => {
+      const binding = findMatchingBinding(
+        get().bindingsByThread[params.threadId] ?? [],
+        params.appId,
+        params.bindingRequestId
+      )
+      if (binding == null) return null
+      lastState = binding.state
+      if (binding.state === 'active') return binding
+      if (binding.state === 'cancelled' || binding.state === 'revoked' || binding.state === 'failed') {
+        return new AppBindingActivationError(params.appId, binding.state, binding.failureReason)
       }
-      if (attempt < maxAttempts - 1) await delay(intervalMs)
+      return null
     }
-    throw new Error(`Timed out waiting for app binding '${params.appId}' to become active. Last state: ${lastState}.`)
+
+    await get().fetchThreadBindings(params.threadId)
+
+    return await new Promise<ThreadAppBinding>((resolve, reject) => {
+      let unsubscribe = (): void => {}
+      let poll: number | undefined
+      let timeout: number | undefined
+      const stop = (): void => {
+        unsubscribe()
+        if (poll != null) window.clearInterval(poll)
+        if (timeout != null) window.clearTimeout(timeout)
+        options.signal?.removeEventListener('abort', onAbort)
+      }
+      const check = (): boolean => {
+        const outcome = settled()
+        if (outcome == null) return false
+        stop()
+        if (outcome instanceof AppBindingActivationError) reject(outcome)
+        else resolve(outcome)
+        return true
+      }
+      function onAbort(): void {
+        stop()
+        reject(new AppBindingWaitAbortedError(params.appId))
+      }
+
+      if (options.signal?.aborted) {
+        reject(new AppBindingWaitAbortedError(params.appId))
+        return
+      }
+      if (check()) return
+
+      options.signal?.addEventListener('abort', onAbort)
+      unsubscribe = useAppBindingStore.subscribe(() => { check() })
+      poll = window.setInterval(() => { void get().fetchThreadBindings(params.threadId) }, intervalMs)
+      timeout = window.setTimeout(() => {
+        stop()
+        reject(new Error(`Timed out waiting for app binding '${params.appId}' to become active. Last state: ${lastState}.`))
+      }, timeoutMs)
+    })
   },
 
   handleNotification(method, params) {

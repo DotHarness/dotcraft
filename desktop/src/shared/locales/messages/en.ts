@@ -2149,6 +2149,7 @@ export const MESSAGES_EN = {
   'contextRing.tooltip.left': '{{percent}}% remaining',
   'contextRing.tooltip.autoCompact': 'Auto-compact triggers at {{percent}}%',
   'conversation.streamRetry.reconnecting': 'Reconnecting... {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': 'Connecting apps',
   'systemStatus.compacting': 'Auto-compacting context',
   'systemStatus.compacting.manual': 'Compacting context',
   'systemStatus.consolidating': 'Consolidating memory',

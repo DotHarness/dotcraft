@@ -6,7 +6,7 @@ import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
 import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
-import { openAppHandoff } from './AppBindingPanel'
+import { openAppHandoff } from '../../utils/threadAppBindings'
 import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
@@ -179,7 +179,7 @@ export function PluginInstallDialog({
     setBusyKey(`${app.appId}:connect`)
     try {
       const result = await startConnection(app.appId)
-      await openAppHandoff(result.handoff, t)
+      await openAppHandoff(result.handoff)
       setHandoffOpenedAppIds((current) => ({ ...current, [app.appId]: true }))
       addToast(t('appBinding.connectStarted'), 'info')
       void waitForConnection(app.appId)

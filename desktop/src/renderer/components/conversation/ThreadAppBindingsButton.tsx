@@ -14,7 +14,7 @@ import { Button } from '../ui/Button'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { PillSwitch } from '../ui/PillSwitch'
 import { IdentityMark } from '../ui/IdentityMark'
-import { openAppHandoff } from '../plugins/AppBindingPanel'
+import { openAppHandoff } from '../../utils/threadAppBindings'
 import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
 
 interface ThreadAppBindingsButtonProps {
@@ -160,7 +160,7 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
         : {})
     })
     try {
-      if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
+      if (result.handoff?.uri) await openAppHandoff(result.handoff)
       if (result.handoff?.bindCode) {
         await fetchThreadBindings(threadId)
         await fetchApps(threadId, true, 'threadBinding')

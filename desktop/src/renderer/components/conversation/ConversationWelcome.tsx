@@ -24,7 +24,7 @@ import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore
 import { useUIStore } from '../../stores/uiStore'
 import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { AppBindingActivationError, useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
+import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
@@ -78,7 +78,6 @@ import {
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
-import { openAppHandoff } from '../plugins/AppBindingPanel'
 import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
 import {
   configObjectFromWorkspaceCore,
@@ -342,9 +341,6 @@ function ConversationWelcomeCore({
   const appBindingAppsLoading = useAppBindingStore((s) => s.appsSurface === 'welcome' && s.appsLoading)
   const appBindingAppsError = useAppBindingStore((s) => s.appsSurface === 'welcome' ? s.appsError : null)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
-  const createAppBindingRequest = useAppBindingStore((s) => s.createBindingRequest)
-  const cancelAppBindingRequest = useAppBindingStore((s) => s.cancelBindingRequest)
-  const waitForThreadAppBinding = useAppBindingStore((s) => s.waitForThreadBinding)
   const [welcomeAppIds, setWelcomeAppIds] = useState<string[]>([])
   const [welcomeAppSelectionTouched, setWelcomeAppSelectionTouched] = useState(false)
 
@@ -503,57 +499,6 @@ function ConversationWelcomeCore({
   const retryWelcomeApps = useCallback(async (): Promise<void> => {
     await fetchAppBindings(null, true, 'welcome')
   }, [fetchAppBindings])
-
-  const startWelcomeAppBindings = useCallback(async (threadId: string): Promise<void> => {
-    if (welcomeAppIds.length === 0) return
-    for (const appId of welcomeAppIds) {
-      const selectedApp = useAppBindingStore.getState().apps.find((app) => app.appId === appId)
-        ?? welcomeApps.find((app) => app.appId === appId)
-      if (!selectedApp) {
-        throw new Error(t('appBinding.welcomeAppNotConnected', { name: appId }))
-      }
-      if (selectedApp.requiresExternalConnection !== false && selectedApp.connectionState !== 'connected') {
-        throw new Error(t('appBinding.welcomeAppNotConnected', { name: selectedApp.displayName || appId }))
-      }
-
-      let result: Awaited<ReturnType<typeof createAppBindingRequest>> | null = null
-      try {
-        result = await createAppBindingRequest({
-          threadId,
-          appId: selectedApp.appId,
-          source: 'welcome'
-        })
-        if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
-        if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
-        await waitForThreadAppBinding({
-          threadId,
-          appId: selectedApp.appId,
-          bindingRequestId: result.bindingRequestId
-        })
-      } catch (err) {
-        if (result) {
-          try {
-            await cancelAppBindingRequest(
-              threadId,
-              result.bindingRequestId,
-              'activation_failed',
-              result.bindingId
-            )
-          } catch {
-            // Preserve the activation failure; thread deletion provides a second cleanup boundary.
-          }
-        }
-        if (err instanceof AppBindingActivationError) {
-          throw new Error(t('appBinding.bindingFailed', {
-            name: selectedApp.displayName || selectedApp.appId,
-            state: err.state,
-            reason: err.failureReason || '—'
-          }))
-        }
-        throw err
-      }
-    }
-  }, [cancelAppBindingRequest, createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
     if (remoteWorkspace) {
@@ -1417,7 +1362,6 @@ function ConversationWelcomeCore({
         objective: trimmedObjective
       })
       const goal = extractGoal(goalResult)
-      await startWelcomeAppBindings(thread.id)
       const { inputParts } = buildComposerInputParts({ text: trimmedObjective })
 
       skipDraftPersistRef.current = true
@@ -1438,6 +1382,7 @@ function ConversationWelcomeCore({
         threadId: thread.id,
         text: trimmedObjective,
         inputParts,
+        ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         sentAsGoal: true
       })
       setActiveThreadId(thread.id)
@@ -1460,8 +1405,8 @@ function ConversationWelcomeCore({
     modelLoading,
     setActiveThreadId,
     showGoalUnavailable,
-    startWelcomeAppBindings,
     startWelcomeThread,
+    welcomeAppIds,
     t
   ])
 
@@ -1541,7 +1486,6 @@ function ConversationWelcomeCore({
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
-      await startWelcomeAppBindings(thread.id)
       const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
 
       skipDraftPersistRef.current = true
@@ -1564,7 +1508,8 @@ function ConversationWelcomeCore({
         text: turnText,
         inputParts,
         images: capturedImages.length > 0 ? capturedImages : undefined,
-        files: capturedFiles.length > 0 ? capturedFiles : undefined
+        files: capturedFiles.length > 0 ? capturedFiles : undefined,
+        ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {})
       })
       addThread(thread)
       setActiveThreadId(thread.id)
@@ -1586,8 +1531,8 @@ function ConversationWelcomeCore({
     connectionStatus,
     addThread,
     setActiveThreadId,
-    startWelcomeAppBindings,
     startWelcomeThread,
+    welcomeAppIds,
     modelLoading,
     clearWelcomeDraft,
     draftProjectKey,

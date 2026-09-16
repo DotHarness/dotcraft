@@ -31,6 +31,8 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
+import { createOptimisticUserMessage } from '../../utils/inputPresentation'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
@@ -98,9 +100,6 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MANUAL_COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
 const MANUAL_MEMORY_CONSOLIDATION_TIMEOUT_MS = 5 * 60 * 1000
 
-function emptyComposerDraftSnapshot(): ComposerDraftSnapshot {
-  return { text: '', segments: [], files: [], images: [] }
-}
 
 /** AppServer maps a running turn and active maintenance alike onto this code. */
 const TURN_IN_PROGRESS_RPC_CODE = -32012
@@ -557,18 +556,27 @@ function InputComposerCore({
     useComposerDraftStore.getState().clearDraft(threadId)
   }, [threadId])
 
-  const acceptComposerInput = (text: string, acceptedContexts: typeof contexts, acceptedFiles: ComposerFileAttachment[], acceptedImages: ImageAttachment[]): void => {
-    restoredSubmissionId.current = undefined
-    latestDraftRef.current = { ...latestDraftRef.current, clientUserMessageId: undefined }
-    const currentText = richRef.current?.getText() ?? ''
-    if (currentText.trim() === text.trim()) richRef.current?.clear()
-    setFiles((current) => current.filter((file) => !acceptedFiles.some((accepted) => accepted.path === file.path)))
-    setImages((current) => current.filter((image) => !acceptedImages.some((accepted) => accepted.tempPath === image.tempPath)))
-    const contextStore = useComposerContextStore.getState()
-    contextStore.setContexts(threadId, contextStore.getContexts(threadId).filter((context) => !acceptedContexts.some((accepted) => accepted.id === context.id)))
-    useComposerDraftStore.getState().clearDraft(threadId)
-    savePlainComposerDraft(threadId, richRef.current?.getText() ?? '')
-  }
+  const clearComposerForSubmission = useCallback((): void => {
+    resetComposerInput()
+    savePlainComposerDraft(threadId, '')
+  }, [resetComposerInput, threadId])
+
+  const restoreComposerSubmission = useCallback((submission: ComposerDraftSnapshot): void => {
+    const restored = mergeRestoredComposerDraft(submission, {
+      ...latestDraftRef.current,
+      segments: richRef.current?.getSegments() ?? [],
+      contexts: useComposerContextStore.getState().getContexts(threadId)
+    })
+    applyComposerSnapshot(restored, restored.files, restored.images)
+    latestDraftRef.current = {
+      ...restored,
+      segments: [...restored.segments],
+      files: [...restored.files],
+      images: [...restored.images]
+    }
+    useComposerDraftStore.getState().saveDraft(threadId, latestDraftRef.current)
+    savePlainComposerDraft(threadId, restored.text)
+  }, [applyComposerSnapshot, threadId])
 
   useEffect(() => {
     const id = threadId
@@ -905,8 +913,6 @@ function InputComposerCore({
   const sendGoalFromComposer = useCallback(async (): Promise<void> => {
     const text = richRef.current?.getText() ?? ''
     const segments = richRef.current?.getSegments() ?? []
-    const capturedFiles = [...files]
-    const capturedImages = [...images]
     const objective = buildGoalObjective({ text, segments, files, images })
     if (!objective.trim()) {
       addToast(t('goal.toast.emptyObjective'), 'warning')
@@ -918,9 +924,14 @@ function InputComposerCore({
     }
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
+    const submission = captureComposerDraft()
+    clearComposerForSubmission()
     try {
       const ok = await setGoalObjective(objective)
-      if (!ok) return
+      if (!ok) {
+        restoreComposerSubmission(submission)
+        return
+      }
       if (isBusyForInput) {
         const { inputParts } = buildComposerInputParts({ text: objective })
         await window.api.appServer.sendRequest('turn/enqueue', {
@@ -948,16 +959,13 @@ function InputComposerCore({
       }
       setGoalComposeMode(false)
       setMascotBounce((n) => n + 1)
-      resetComposerInput()
     } catch (err) {
-      richRef.current?.setContent({ text, segments })
-      setFiles(capturedFiles)
-      setImages(capturedImages)
+      restoreComposerSubmission(submission)
       addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
-  }, [files, images, remoteWorkspace, setGoalObjective, resetComposerInput, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, t])
+  }, [files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, t])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1081,13 +1089,55 @@ function InputComposerCore({
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
       return
     }
+    // Snapshots the submission itself, which a voice override may hold instead of the composer.
+    const submissionSnapshot = (): ComposerDraftSnapshot => ({
+      clientUserMessageId: restoredSubmissionId.current,
+      text,
+      segments: [...segments],
+      contexts: [...inputContexts],
+      files: [...inputFiles],
+      images: [...inputImages]
+    })
+
+    const steerWithEcho = async (messageId: string, parts: InputPart[], displayText: string): Promise<void> => {
+      const echo = createOptimisticUserMessage(parts, displayText, messageId)
+      if (activeTurnId) useConversationStore.getState().addOptimisticUserMessage(activeTurnId, echo)
+      try {
+        await sendComposerFollowUp({ clientUserMessageId: messageId, mode: 'steer', threadId, activeTurnId, input: parts })
+      } catch (err) {
+        useConversationStore.getState().removeOptimisticUserMessage(echo.id)
+        throw err
+      }
+    }
+
+    const enqueueWithEcho = async (messageId: string, parts: InputPart[], displayText: string): Promise<void> => {
+      const echo: QueuedTurnInput = {
+        id: `local-${messageId}`,
+        clientUserMessageId: messageId,
+        threadId,
+        nativeInputParts: parts,
+        displayText,
+        status: 'queued',
+        createdAt: new Date().toISOString()
+      }
+      const conversation = useConversationStore.getState()
+      conversation.setQueuedInputs([...conversation.queuedInputs, echo])
+      try {
+        await sendComposerFollowUp({ clientUserMessageId: messageId, mode: 'queue', threadId, activeTurnId, input: parts })
+      } catch (err) {
+        const latest = useConversationStore.getState()
+        latest.setQueuedInputs(latest.queuedInputs.filter((item) => item.id !== echo.id))
+        throw err
+      }
+    }
 
     if (!isAgentBuilder && trimmed.toLowerCase() === '/init') {
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
+      const submission = submissionSnapshot()
+      clearComposerForSubmission()
       try {
         const expandedPrompt = await expandInitCommand(threadId)
-        resetComposerInput()
         await startTurnWithOptimisticUI({
           threadId,
           workspacePath: effectiveFileWorkspacePath,
@@ -1097,6 +1147,7 @@ function InputComposerCore({
           throwOnStartError: true
         })
       } catch (err) {
+        restoreComposerSubmission(submission)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
         sendInFlightRef.current = false
@@ -1152,6 +1203,8 @@ function InputComposerCore({
         files: capturedFiles,
         images: capturedImages
       })
+      const submission = submissionSnapshot()
+      clearComposerForSubmission()
       try {
         await submitOverride({
           text: trimmed,
@@ -1162,9 +1215,9 @@ function InputComposerCore({
           visibleText,
           bodyText
         })
-        acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
       } catch (err) {
         console.error('composer submit override failed:', err)
+        restoreComposerSubmission(submission)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
         sendInFlightRef.current = false
@@ -1175,20 +1228,22 @@ function InputComposerCore({
     if (isBusyForInput) {
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
+      const submission = submissionSnapshot()
+      const clientUserMessageId = submission.clientUserMessageId ?? crypto.randomUUID()
+      const { inputParts, visibleText } = buildComposerInputParts({
+        text: trimmed,
+        segments,
+        contexts: inputContexts,
+        files: inputFiles,
+        images: inputImages
+      })
+      clearComposerForSubmission()
       try {
-        if (trimmed || inputFiles.length > 0 || inputImages.length > 0 || inputContexts.length > 0) {
-          const { inputParts } = buildComposerInputParts({
-            text: trimmed,
-            segments,
-            contexts: inputContexts,
-            files: inputFiles,
-            images: inputImages
-          })
-          await sendComposerFollowUp({ clientUserMessageId: restoredSubmissionId.current, mode: followUpMode, threadId, activeTurnId, input: inputParts })
-        }
-        acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
+        if (followUpMode === 'steer') await steerWithEcho(clientUserMessageId, inputParts, visibleText)
+        else await enqueueWithEcho(clientUserMessageId, inputParts, visibleText)
       } catch (err) {
         console.error(`turn/${followUpMode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
+        restoreComposerSubmission(submission)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
         sendInFlightRef.current = false
@@ -1201,16 +1256,18 @@ function InputComposerCore({
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
-    const { inputParts } = buildComposerInputParts({
+    const { inputParts, visibleText } = buildComposerInputParts({
       text: trimmed,
       segments: capturedSegments,
       contexts: inputContexts,
       files: capturedFiles,
       images: capturedImages
     })
+    const submission = submissionSnapshot()
+    clearComposerForSubmission()
     try {
       await startTurnWithOptimisticUI({
-        clientUserMessageId: restoredSubmissionId.current,
+        clientUserMessageId: submission.clientUserMessageId,
         threadId,
         workspacePath: effectiveFileWorkspacePath,
         identityWorkspacePath: workspacePath,
@@ -1224,32 +1281,27 @@ function InputComposerCore({
         attachmentFallbackThreadName: t('toast.attachmentMessage'),
         throwOnStartError: true
       })
-      acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
     } catch (err) {
       console.error('turn/start failed:', err)
       const currentMaintenanceKind = useConversationStore.getState().maintenanceKind
       if (isTurnBusyError(err)
         && (currentMaintenanceKind === 'compacting' || currentMaintenanceKind === 'consolidating')) {
         try {
-          await window.api.appServer.sendRequest('turn/enqueue', {
-            clientUserMessageId: crypto.randomUUID(),
-            threadId,
-            input: inputParts,
-            sender: undefined
-          })
-          acceptComposerInput(trimmed, inputContexts, inputFiles, inputImages)
+          await enqueueWithEcho(crypto.randomUUID(), inputParts, visibleText)
           return
         } catch (enqueueErr) {
           console.error('turn/enqueue fallback failed:', enqueueErr)
+          restoreComposerSubmission(submission)
           addToast(enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr), 'error')
           return
         }
       }
+      restoreComposerSubmission(submission)
       addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,

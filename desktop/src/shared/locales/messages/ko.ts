@@ -2824,6 +2824,7 @@ export const MESSAGES_KO = {
   'contextRing.tooltip.left': '{{percent}}% 남음',
   'contextRing.tooltip.autoCompact': '{{percent}}%에서 자동 압축 트리거',
   'conversation.streamRetry.reconnecting': '다시 연결하는 중... {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': '앱 연결 중',
   'systemStatus.compacting': '자동 압축 컨텍스트',
   'systemStatus.compacting.manual': '컨텍스트 압축',
   'systemStatus.consolidating': '메모리 통합',

@@ -20,6 +20,7 @@ import { Button } from '../ui/Button'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { useT } from '../../contexts/LocaleContext'
 import type { QueuedTurnInput } from '../../types/conversation'
+import { isOptimisticQueuedInput } from '../../stores/optimisticMessages'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { projectInputParts } from '../../utils/inputPresentation'
@@ -172,7 +173,8 @@ function QueuedInputDockRow({
 }): JSX.Element {
   const t = useT()
   const isGuidancePending = item.status === 'guidancePending'
-  const canEdit = (item.status === 'queued' || isGuidancePending) && !item.triggerKind && item.sentAsGoal !== true && Boolean(onEdit)
+  const isLocalEcho = isOptimisticQueuedInput(item)
+  const canEdit = (item.status === 'queued' || isGuidancePending) && !item.triggerKind && item.sentAsGoal !== true && Boolean(onEdit) && !isLocalEcho
   const {
     attributes,
     listeners,
@@ -181,7 +183,7 @@ function QueuedInputDockRow({
     transform,
     transition,
     isDragging
-  } = useSortable({ id: item.id, disabled: isGuidancePending })
+  } = useSortable({ id: item.id, disabled: isGuidancePending || isLocalEcho })
   const rowDragStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -195,7 +197,7 @@ function QueuedInputDockRow({
         <button
           type="button"
           ref={setActivatorNodeRef}
-          disabled={isGuidancePending}
+          disabled={isGuidancePending || isLocalEcho}
           aria-label={t('composer.queueReorderAria')}
           style={queueDragHandleStyle(isGuidancePending, isDragging)}
           {...attributes}
@@ -227,7 +229,7 @@ function QueuedInputDockRow({
           size="sm"
           iconLeft={<CornerDownRight size={13} strokeWidth={1.9} />}
           onClick={() => onSteer?.(item.id)}
-          disabled={!onSteer}
+          disabled={!onSteer || isLocalEcho}
           aria-pressed={isGuidancePending}
           aria-label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
         >
@@ -247,7 +249,7 @@ function QueuedInputDockRow({
         size={24}
         radius={5}
         onClick={() => onRemove?.(item.id)}
-        disabled={!onRemove}
+        disabled={!onRemove || isLocalEcho}
       />
       <IconButton
         icon={editing

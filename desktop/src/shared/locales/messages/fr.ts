@@ -2828,6 +2828,7 @@ export const MESSAGES_FR = {
   'contextRing.tooltip.left': '{{percent}}% restant',
   'contextRing.tooltip.autoCompact': 'Déclencheurs de compactage automatique à {{percent}} %',
   'conversation.streamRetry.reconnecting': 'Reconnexion... {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': 'Connexion des applications',
   'systemStatus.compacting': 'Contexte de compactage automatique',
   'systemStatus.compacting.manual': 'Contexte de compactage',
   'systemStatus.consolidating': 'Consolider la mémoire',

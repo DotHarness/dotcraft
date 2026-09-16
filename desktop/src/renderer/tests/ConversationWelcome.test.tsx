@@ -1865,7 +1865,7 @@ describe('ConversationWelcome composer', () => {
     expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'worktree/createAndStart')).toBe(false)
   })
 
-  it('waits for selected welcome app bindings before storing the first pending turn', async () => {
+  it('stages selected welcome apps on the pending turn instead of waiting on the welcome screen', async () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
@@ -1879,9 +1879,6 @@ describe('ConversationWelcome composer', () => {
         }
       }
     })
-    const bindingList = createDeferred<{
-      bindings: Array<Record<string, unknown>>
-    }>()
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') return { commands: [] }
       if (method === 'skills/list') return { skills: [] }
@@ -1934,7 +1931,6 @@ describe('ConversationWelcome composer', () => {
           handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=request-1' }
         }
       }
-      if (method === 'thread/appBindings/list') return bindingList.promise
       return {}
     })
 
@@ -1949,147 +1945,13 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/appBindings/enable', expect.objectContaining({
-        threadId: 'thread-welcome',
-        appId: 'com.example.workflow'
-      }))
-    })
-    const startingButton = screen.getByRole('button', { name: 'Starting conversation' })
-    expect(startingButton).toBeDisabled()
-    expect(startingButton).toHaveAttribute('aria-busy', 'true')
-    expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
-
-    bindingList.resolve({
-      bindings: [
-        {
-          bindingRequestId: 'request-1',
-          bindingId: 'binding-1',
-          threadId: 'thread-welcome',
-          appId: 'com.example.workflow',
-          displayName: 'Workflow App',
-          state: 'active',
-          connectionState: 'connected',
-          grantedScopes: ['board.read'],
-          attachedToolCount: 1,
-          lastChangedAt: '2026-05-16T00:00:00Z'
-        }
-      ]
-    })
-
-    await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'List my Workflow App board items'
+        text: 'List my Workflow App board items',
+        appIds: ['com.example.workflow']
       })
     })
-  })
-
-  it('preserves the Welcome draft and deletes the unused thread when app activation fails', async () => {
-    useConnectionStore.setState({
-      status: 'connected',
-      capabilities: {
-        appBindingVersion: 1,
-        commandManagement: true,
-        skillsManagement: true,
-        modelCatalogManagement: true,
-        workspaceConfigManagement: true,
-        extensions: { welcomeSuggestions: true }
-      }
-    })
-    let bindingFailed = false
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'command/list') return { commands: [] }
-      if (method === 'skills/list') return { skills: [] }
-      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
-      if (method === 'app/list') {
-        return {
-          apps: [{
-            appId: 'com.dotharness.oratorio',
-            displayName: 'Oratorio',
-            developerName: 'DotHarness',
-            description: 'Task orchestration',
-            pluginId: 'oratorio',
-            installed: true,
-            enabled: true,
-            catalogVisible: true,
-            managed: true,
-            requiresExternalConnection: false,
-            connectionState: 'connected',
-            handoffModes: []
-          }]
-        }
-      }
-      if (method === 'thread/start') {
-        return {
-          thread: {
-            id: 'thread-welcome',
-            displayName: 'Welcome thread',
-            status: 'active',
-            originChannel: 'dotcraft-desktop',
-            createdAt: '2026-04-16T08:00:00.000Z',
-            lastActiveAt: '2026-04-16T08:00:00.000Z'
-          }
-        }
-      }
-      if (method === 'thread/appBindings/enable') {
-        bindingFailed = true
-        return {
-          bindingRequestId: 'request-1',
-          bindingId: 'binding-1',
-          state: 'connecting',
-          expiresAt: '2026-05-16T00:01:00Z',
-          handoff: { mode: 'desktopService', uri: 'dotcraft-service://oratorio/bind?request=request-1' }
-        }
-      }
-      if (method === 'thread/appBindings/list') {
-        return {
-          bindings: bindingFailed
-            ? [{
-                bindingRequestId: 'request-1',
-                bindingId: 'binding-1',
-                threadId: 'thread-welcome',
-                appId: 'com.dotharness.oratorio',
-                state: 'failed',
-                failureReason: 'mcpStartupFailed',
-                authorityRevision: 1,
-                approvedCapabilityRevision: 1
-              }]
-            : []
-        }
-      }
-      if (method === 'thread/appBindings/revoke') {
-        bindingFailed = false
-        return { bindingId: 'binding-1', state: 'cancelled' }
-      }
-      if (method === 'thread/delete') return {}
-      return {}
-    })
-
-    renderWelcome()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    const appSwitch = await screen.findByRole('switch', { name: 'Use Oratorio for the first turn' })
-    expect(appSwitch).toHaveAttribute('aria-checked', 'false')
-    fireEvent.click(appSwitch)
-    expect(appSwitch).toHaveAttribute('aria-checked', 'true')
-    const textbox = await screen.findByRole('textbox')
-    textbox.textContent = 'Keep this draft after activation fails'
-    fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
-        threadId: 'thread-welcome',
-        bindingId: 'binding-1',
-        reason: 'activation_failed'
-      })
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'thread-welcome' })
-    })
-    expect(textbox).toHaveTextContent('Keep this draft after activation fails')
-    expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
-    expect(useThreadStore.getState().threadList).toHaveLength(0)
-    expect(useToastStore.getState().toasts.some((toast) =>
-      toast.message === 'Oratorio binding failed (state: failed, reason: mcpStartupFailed).')).toBe(true)
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/appBindings/enable', expect.anything())
   })
 
   it('hydrates from welcomeDraft and persists latest draft on unmount', async () => {

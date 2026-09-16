@@ -11,7 +11,9 @@ import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
+import { addToast } from '../../stores/toastStore'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
@@ -98,20 +100,34 @@ export function PlanApprovalComposer({
       return
     }
     sendInFlightRef.current = true
-    const started = await startTurnWithOptimisticUI({
-      threadId,
-      workspacePath,
-      text: trimmed,
-      fallbackThreadName: t('toast.imageMessage'),
-      fileFallbackThreadName: t('toast.fileReferenceMessage'),
-      attachmentFallbackThreadName: t('toast.attachmentMessage')
-    })
-    if (started) {
+    const submitted = {
+      ...emptyComposerDraftSnapshot(),
+      text,
+      segments: richRef.current?.getSegments() ?? []
+    }
+    richRef.current?.clear()
+    try {
+      await startTurnWithOptimisticUI({
+        threadId,
+        workspacePath,
+        text: trimmed,
+        fallbackThreadName: t('toast.imageMessage'),
+        fileFallbackThreadName: t('toast.fileReferenceMessage'),
+        attachmentFallbackThreadName: t('toast.attachmentMessage'),
+        throwOnStartError: true
+      })
       dismissPlanApproval(turnId)
-      richRef.current?.clear()
+    } catch (err) {
+      const restored = mergeRestoredComposerDraft(submitted, {
+        ...emptyComposerDraftSnapshot(),
+        text: richRef.current?.getText() ?? '',
+        segments: richRef.current?.getSegments() ?? []
+      })
+      richRef.current?.setContent({ text: restored.text, segments: restored.segments })
+      addToast(err instanceof Error ? err.message : String(err), 'error')
     }
     sendInFlightRef.current = false
-  }, [dismissPlanApproval, handleAcceptPlan, submitAsNo, t, threadId, trimmed, turnId, workspacePath])
+  }, [dismissPlanApproval, handleAcceptPlan, submitAsNo, t, text, threadId, trimmed, turnId, workspacePath])
 
   const selectAdjustmentRow = useCallback((): void => {
     setSelectedIndex(1)
