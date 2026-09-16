@@ -2582,6 +2582,18 @@ export function App(): JSX.Element {
     pendingWelcomeTurnRef.current = { threadId, controller }
     return controller.signal
   }, [])
+  // Leaving the thread mid-restore must not drop its first message: start it where nobody is
+  // looking, without a signal the next navigation would abort.
+  const startPendingWelcomeTurnUnseen = useCallback((threadId: string): void => {
+    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch(threadId)
+    if (!pending) return
+    void startPendingWelcomeTurn({
+      threadId,
+      pending,
+      workspacePath: protocolWorkspacePathRef.current,
+      translate: (key, vars) => translate(localeRef.current, key, vars)
+    })
+  }, [])
   const browserVisibilitySentRef = useRef<Map<string, boolean>>(new Map())
   const activeBrowserTabSentRef = useRef<string | null>(null)
   /**
@@ -2960,7 +2972,7 @@ export function App(): JSX.Element {
           // Stale guard: user may have switched threads while we were loading
           if (useThreadStore.getState().activeThreadId !== requestedId) {
             clearThreadRestoreGate(requestedId, restoreGateToken)
-            useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
+            startPendingWelcomeTurnUnseen(requestedId)
             return
           }
           const res = result as unknown as { thread: Thread; turnCursor: string | null }
@@ -3016,7 +3028,7 @@ export function App(): JSX.Element {
           }
           if (useThreadStore.getState().activeThreadId !== requestedId) {
             clearThreadRestoreGate(requestedId, restoreGateToken)
-            useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
+            startPendingWelcomeTurnUnseen(requestedId)
             return
           }
           clearThreadRestoreGate(requestedId, restoreGateToken)
