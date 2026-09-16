@@ -1405,7 +1405,9 @@ function ConversationWelcomeCore({
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         sentAsGoal: true
       })
-      setActiveThreadId(thread.id)
+      if (useUIStore.getState().pendingThreadCreation?.requestId === requestId) {
+        setActiveThreadId(thread.id)
+      }
       return true
     } catch (err) {
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
@@ -1532,7 +1534,11 @@ function ConversationWelcomeCore({
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {})
       })
       addThread(thread)
-      setActiveThreadId(thread.id)
+      // Only take over the view when this submission is still the one on screen; the user may
+      // have opened another thread while creation was in flight.
+      if (useUIStore.getState().pendingThreadCreation?.requestId === requestId) {
+        setActiveThreadId(thread.id)
+      }
     } catch (err) {
       console.error('Failed to start thread from welcome composer:', err)
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)

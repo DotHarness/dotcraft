@@ -1908,6 +1908,44 @@ describe('ConversationWelcome composer', () => {
     expect(useUIStore.getState().pendingThreadCreation?.threadId).toBe('thread-welcome')
   })
 
+  it('does not take over the view when the user opened another thread while creating', async () => {
+    const threadStart = createDeferred<{ thread: Record<string, unknown> }>()
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'thread/start') return threadStart.promise
+      return {}
+    })
+
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Create while I look elsewhere'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(useUIStore.getState().pendingThreadCreation).not.toBeNull())
+    // The user opens a different thread; ConversationPanel drops the creating state.
+    act(() => useUIStore.getState().setPendingThreadCreation(null))
+    act(() => useThreadStore.getState().setActiveThreadId('thread-other'))
+
+    await act(async () => {
+      threadStart.resolve({
+        thread: {
+          id: 'thread-welcome',
+          displayName: null,
+          status: 'active',
+          originChannel: 'dotcraft-desktop',
+          createdAt: '2026-04-16T08:00:00.000Z',
+          lastActiveAt: '2026-04-16T08:00:00.000Z'
+        }
+      })
+    })
+
+    expect(useThreadStore.getState().activeThreadId).toBe('thread-other')
+    expect(useThreadStore.getState().threadList.some((t) => t.id === 'thread-welcome')).toBe(true)
+  })
+
   it('returns the submission to the welcome composer when thread creation fails', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') return { commands: [] }
