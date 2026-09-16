@@ -219,7 +219,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadStart_WithRuntimeAdditionalContext_BindsContextAndRefreshesAgent()
+    public async Task ThreadStart_WithRuntimeAdditionalContext_BindsContextWithoutRebuildingAgent()
     {
         var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
         using var h = new CoreAppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
@@ -243,7 +243,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
-        Assert.Contains(threadId, h.Service.RefreshedThreadAgents);
+        Assert.DoesNotContain(threadId, h.Service.RefreshedThreadAgents);
         var section = runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(threadId, h.Identity.WorkspacePath));
         Assert.NotNull(section);
         Assert.Contains("# Runtime Additional Context", section, StringComparison.Ordinal);
@@ -1210,6 +1210,40 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadStart_WithDynamicTools_BindsBeforeCreationWithoutRebuildingAgent()
+    {
+        var dynamicToolProxy = new WireDynamicToolProxy();
+        using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            dynamicTools = new RuntimeDynamicToolDeclarationSpec[] { CreateReviewToolSpec() }
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        var response = await harness.Transport.ReadNextSentAsync();
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        var threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+
+        // The tools are bound before the thread exists, so its single agent build already has them.
+        Assert.DoesNotContain(threadId, harness.Service.RefreshedThreadAgents);
+        var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
+            new ToolPlanningContext(
+                threadId,
+                null,
+                harness.Identity.WorkspacePath,
+                Path.Combine(harness.Identity.WorkspacePath, ".craft"),
+                "default",
+                null,
+                [],
+                1)));
+        Assert.Equal("workflow", registration.Definition.Name.Namespace);
+        Assert.Equal("SubmitReviewDraft", registration.Definition.Name.Name);
+    }
+
+    [Fact]
     public async Task ThreadResume_WithDynamicTools_BindsRefreshesAndRoundTripsNamespacedCall()
     {
         var dynamicToolProxy = new WireDynamicToolProxy();
@@ -1349,7 +1383,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         var response = await harness.Transport.ReadNextSentAsync();
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
+        Assert.DoesNotContain(thread.Id, harness.Service.RefreshedThreadAgents);
         Assert.Null(runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath)));
     }
 

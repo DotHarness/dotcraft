@@ -441,10 +441,14 @@ interface ConversationActions {
   setMaintenanceKind(kind: MaintenanceKind | string | null | undefined): void
   setPendingMessage(msg: PendingComposerMessage | null): void
   setQueuedInputs(inputs: QueuedTurnInput[]): void
+  setSystemLabel(label: string | null): void
   setThreadMode(mode: ThreadMode): void
   setInterruptingTurnId(turnId: string | null): void
   addOptimisticTurn(turn: ConversationTurn): void
   removeOptimisticTurn(turnId: string): void
+  /** The server item reconciles this echo through its `clientUserMessageId`. */
+  addOptimisticUserMessage(turnId: string, item: ConversationItem): void
+  removeOptimisticUserMessage(itemId: string): void
   /**
    * Replace the optimistic client-only turn ID with the real server turn ID.
    * Called as soon as turn/start returns its response (before turn/started arrives).
@@ -2950,6 +2954,25 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   setQueuedInputs(inputs) {
     set({ queuedInputs: inputs })
+  },
+
+  setSystemLabel(label) {
+    set({ systemLabel: label })
+  },
+
+  addOptimisticUserMessage(turnId, item) {
+    set((state) => ({
+      turns: state.turns.map((turn) =>
+        turn.id === turnId ? { ...turn, items: upsertItemById(turn.items, item) } : turn)
+    }))
+  },
+
+  removeOptimisticUserMessage(itemId) {
+    set((state) => ({
+      turns: state.turns.map((turn) => turn.items.some((item) => item.id === itemId)
+        ? { ...turn, items: turn.items.filter((item) => item.id !== itemId) }
+        : turn)
+    }))
   },
 
   setThreadMode(mode) {

@@ -106,12 +106,12 @@ describe('InputComposer follow-up routing', () => {
     renderComposer(true)
     const textbox = draft()
     expect(screen.getByRole('button', { name: 'Send to current turn' })).toBeInTheDocument()
-    const queuedInputs = useConversationStore.getState().queuedInputs
+    const existing = useConversationStore.getState().queuedInputs[0]
     fireEvent.click(screen.getByRole('button', { name: 'Queue', exact: true }))
     await screen.findByRole('button', { name: 'Queue message' })
     fireEvent.keyDown(textbox, { key: 'Enter' })
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.anything()))
-    expect(useConversationStore.getState().queuedInputs).toBe(queuedInputs)
+    expect(useConversationStore.getState().queuedInputs[0]).toEqual(existing)
     expect(sendRequest).not.toHaveBeenCalledWith('turn/queue/update', expect.anything())
   })
 
@@ -177,6 +177,75 @@ describe('InputComposer follow-up routing', () => {
     const args = sendRequest.mock.calls.find(([name]) => name === method)![1]
     expect(projectInputParts(args.input).contexts).toEqual([context])
     await waitFor(() => expect(useComposerContextStore.getState().getContexts('thread-1')).toEqual([]))
+  })
+
+  it.each(['start', 'steer'] as const)('clears the composer before %s resolves', async (mode) => {
+    const method = mode === 'start' ? 'turn/start' : 'turn/steer'
+    let settle!: (value: unknown) => void
+    sendRequest.mockImplementation((name: string) => name === method
+      ? new Promise((resolve) => { settle = resolve })
+      : Promise.resolve({}))
+    if (mode === 'start') useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null })
+    renderComposer()
+    const textbox = draft('ship it')
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(settle).toBeDefined())
+    expect(textbox.textContent).toBe('')
+    await act(async () => settle({ turn: { id: 'turn-9' } }))
+  })
+
+  it('restores a failed submission above text typed while it was in flight', async () => {
+    let fail!: (reason: unknown) => void
+    sendRequest.mockImplementation((name: string) => name === 'turn/start'
+      ? new Promise((_resolve, reject) => { fail = reject })
+      : Promise.resolve({}))
+    useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null })
+    renderComposer()
+    const textbox = draft('first request')
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(fail).toBeDefined())
+    await waitFor(() => expect(textbox.textContent).toBe(''))
+    draft('second request')
+    await act(async () => fail(new Error('offline')))
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBe(1))
+    const restored = screen.getByRole('textbox').textContent ?? ''
+    expect(restored).toContain('first request')
+    expect(restored.indexOf('second request')).toBeGreaterThan(restored.indexOf('first request'))
+  })
+
+  it('echoes an enqueued message and drops the echo when turn/enqueue fails', async () => {
+    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: 'queue' })
+    let fail!: (reason: unknown) => void
+    sendRequest.mockImplementation((name: string) => name === 'turn/enqueue'
+      ? new Promise((_resolve, reject) => { fail = reject })
+      : Promise.resolve({}))
+    renderComposer()
+    fireEvent.keyDown(draft('queued request'), { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(fail).toBeDefined())
+    const echoed = useConversationStore.getState().queuedInputs
+    expect(echoed).toHaveLength(1)
+    expect(echoed[0]).toMatchObject({ displayText: 'queued request', threadId: 'thread-1', status: 'queued' })
+    expect(echoed[0].id).toBe(`local-${echoed[0].clientUserMessageId}`)
+    await act(async () => fail(new Error('offline')))
+    await waitFor(() => expect(useConversationStore.getState().queuedInputs).toEqual([]))
+  })
+
+  it('echoes a steered message into the running turn and drops the echo when turn/steer fails', async () => {
+    useConversationStore.setState({ turns: [{
+      id: 'turn-123', threadId: 'thread-1', status: 'running', items: [], startedAt: '2025-01-01T00:00:00Z'
+    }] })
+    let fail!: (reason: unknown) => void
+    sendRequest.mockImplementation((name: string) => name === 'turn/steer'
+      ? new Promise((_resolve, reject) => { fail = reject })
+      : Promise.resolve({}))
+    renderComposer()
+    fireEvent.keyDown(draft('steered request'), { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(fail).toBeDefined())
+    const echoed = useConversationStore.getState().turns[0].items
+    expect(echoed).toHaveLength(1)
+    expect(echoed[0]).toMatchObject({ type: 'userMessage', text: 'steered request' })
+    await act(async () => fail(new Error('turn changed')))
+    await waitFor(() => expect(useConversationStore.getState().turns[0].items).toEqual([]))
   })
 
   it('keeps feedback added while the accepted message is in flight', async () => {

@@ -93,6 +93,34 @@ export interface PendingProjectThreadOpen {
   threadId: string
 }
 
+/**
+ * First message to send after thread/read completes for a thread created from the
+ * welcome screen (avoids optimistic UI being cleared by conversation reset).
+ */
+export interface PendingWelcomeTurnInput {
+  threadId: string
+  text: string
+  inputParts: InputPart[]
+  images?: ImageAttachment[]
+  files?: ComposerFileAttachment[]
+  /** Staged apps that must be active before this turn starts. */
+  appIds?: string[]
+  /** True when this first turn establishes the thread goal (durable "sent as goal"). */
+  sentAsGoal?: boolean
+}
+
+/**
+ * A welcome submission whose thread does not exist yet. `requestId` is client-only and never
+ * becomes a thread id; `threadId` fills in once creation answers.
+ */
+export interface PendingThreadCreation {
+  requestId: string
+  createdAt: number
+  workspacePath: string
+  text: string
+  threadId?: string
+}
+
 export interface UIState {
   activeMainView: ActiveMainView
   pluginCatalogSurface: PluginCatalogSurface
@@ -159,20 +187,8 @@ export interface UIState {
     id: number
     file: ComposerFileAttachment
   } | null
-  /**
-   * First message to send after thread/read completes for a thread created from the
-   * welcome screen (avoids optimistic UI being cleared by conversation reset).
-   */
-  pendingWelcomeTurn: {
-    threadId: string
-    text: string
-    inputParts?: InputPart[]
-    images?: ImageAttachment[]
-    files?: ComposerFileAttachment[]
-    /** True when this first turn establishes the thread goal (durable "sent as goal"). */
-    sentAsGoal?: boolean
-    createdAt: number
-  } | null
+  pendingWelcomeTurn: (PendingWelcomeTurnInput & { createdAt: number }) | null
+  pendingThreadCreation: PendingThreadCreation | null
   /** Background project thread click waiting for the target workspace's foreground thread list. */
   pendingProjectThreadOpen: PendingProjectThreadOpen | null
   /** Unsent draft on ConversationWelcome, preserved across thread navigation. */
@@ -253,26 +269,11 @@ interface UIStore extends UIState {
   requestComposerFileAttachment(file: ComposerFileAttachment): void
   /** Read and clear the pending file attachment atomically. */
   consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
-  setPendingWelcomeTurn(
-    payload: {
-      threadId: string
-      text: string
-      inputParts?: InputPart[]
-      images?: ImageAttachment[]
-      files?: ComposerFileAttachment[]
-      sentAsGoal?: boolean
-    } | null
-  ): void
+  setPendingWelcomeTurn(payload: PendingWelcomeTurnInput | null): void
+  setPendingThreadCreation(payload: PendingThreadCreation | null): void
+  resolvePendingThreadCreation(requestId: string, threadId: string): void
   /** If pending matches threadId, return payload and clear; otherwise return null. */
-  consumePendingWelcomeTurnIfMatch(
-    threadId: string
-  ): {
-    text: string
-    inputParts?: InputPart[]
-    images?: ImageAttachment[]
-    files?: ComposerFileAttachment[]
-    sentAsGoal?: boolean
-  } | null
+  consumePendingWelcomeTurnIfMatch(threadId: string): Omit<PendingWelcomeTurnInput, 'threadId'> | null
   cancelPendingWelcomeTurnForThread(threadId: string): void
   setPendingProjectThreadOpen(payload: PendingProjectThreadOpen | null): void
   consumePendingProjectThreadOpen(projectKey: string, threadIds: Iterable<string>): PendingProjectThreadOpen | null
@@ -380,6 +381,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   composerPrefill: null,
   composerFileAttachmentRequest: null,
   pendingWelcomeTurn: null,
+  pendingThreadCreation: null,
   pendingProjectThreadOpen: null,
   welcomeDraft: null,
   welcomeDraftsByWorkspace: {},
@@ -804,6 +806,16 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     return request?.file ?? null
   },
 
+  setPendingThreadCreation(payload) {
+    set({ pendingThreadCreation: payload })
+  },
+
+  resolvePendingThreadCreation(requestId, threadId) {
+    set((state) => state.pendingThreadCreation?.requestId === requestId
+      ? { pendingThreadCreation: { ...state.pendingThreadCreation, threadId } }
+      : {})
+  },
+
   setPendingWelcomeTurn(payload) {
     const existing = get()._pendingWelcomeTimer
     if (existing != null) {
@@ -840,12 +852,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, sentAsGoal } = p
+      const { text, inputParts, images, files, appIds, sentAsGoal } = p
       return {
         text,
-        ...(inputParts !== undefined ? { inputParts } : {}),
+        inputParts,
         ...(images !== undefined ? { images } : {}),
         ...(files !== undefined ? { files } : {}),
+        ...(appIds !== undefined ? { appIds } : {}),
         ...(sentAsGoal !== undefined ? { sentAsGoal } : {})
       }
     }

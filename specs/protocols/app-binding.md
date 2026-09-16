@@ -93,7 +93,7 @@ The principal reads the request with `app/binding/request/get` and calls `app/bi
 
 The binding becomes `active` only after the approved snapshot and live runtime are atomically available.
 
-A client that needs the app for an immediately submitted operation MUST wait for `active`. If delivery or activation fails, it MUST surface the failure instead of silently continuing to poll. A Welcome submission that explicitly selected the app does not start its first Turn without that app: it retains the draft and cancels or revokes the unfinished binding request.
+A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. Waiting bounds the operation, not the surface the user is on: a client MUST NOT hold the user on the surface that started the request. A Welcome submission that explicitly selected the app does not start its first Turn without that app, but it opens the created thread immediately, shows the pending activation there, and keeps the submission recoverable in that thread. Activation for several apps is independent and MAY run concurrently.
 
 ### 4.2 Rebind
 
@@ -235,7 +235,7 @@ Security invariants:
 - One enable action activates and approves the initial binding MCP snapshot.
 - A Desktop-managed bind handoff is delivered to the already connected app as technical activation without a second consent prompt; initial app connection still requires explicit consent.
 - A flow that needs the app waits for the binding to become active before continuing.
-- Welcome activation failure preserves the draft, deletes its unused thread, and cancels the unfinished binding; existing-thread failure restores a disabled, retryable binding state.
+- Welcome activation failure cancels the unfinished binding and returns the submission to the opened thread's composer without starting a Turn; existing-thread failure restores a disabled, retryable binding state.
 - Restart creates offline stubs and authenticated rebind rotates the bearer.
 - Capability expansion is semantic, confirmed by the thread owner, and unenforceable before acceptance; rejection leaves the binding offline until a compatible authenticated rebind.
 - App principal, binding bearer, and binding grant have independent revoke scopes.

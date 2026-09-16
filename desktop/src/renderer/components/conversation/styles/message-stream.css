@@ -1,5 +1,20 @@
+/* Owned by MessageStream and by the message area of a conversation that is still being created,
+   so both keep the same measure. `both-edges` keeps the reading column centred whether or not a
+   scrollbar is present; plain `stable` reserves only the end edge and shifts the column left. */
 .dc-conversation-message-stream {
-  scrollbar-gutter: stable;
+  height: 100%;
+  overflow-y: auto;
+  padding: 32px clamp(20px, 4vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--conversation-block-gap);
+  scrollbar-gutter: stable both-edges;
+}
+
+.dc-conversation-column-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--conversation-block-gap);
 }
 
 .dc-conversation-turn-shell:not([data-active="true"]) {

@@ -7,9 +7,9 @@ in the invocation context. Native bindings receive the original arguments and co
 
 | Field | Value |
 |---|---|
-| Version | 0.2.3 |
+| Version | 0.2.4 |
 | Status | Living |
-| Date | 2026-07-18 |
+| Date | 2026-09-16 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 | Related | [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |
 
@@ -220,6 +220,8 @@ Provider projection follows the provider's native identity shape:
 - a flat-only protocol uses the snapshot's `ProviderFlatName`, which is `name` for a top-level tool and `namespace + "__" + name` for a namespaced tool after the normalization above;
 - the snapshot owns both `ToolName -> ProviderFlatName` and `ProviderFlatName -> ToolName` indexes; if distinct canonical tuples produce the same flat alias, every conflicting alias is truncated as needed and suffixed from SHA-1 over the UTF-8 bytes of `namespace-or-empty + NUL + name`;
 - dispatch MUST NOT parse a flat alias to recover a namespace, and namespace-capable protocols MUST NOT flatten a composite identity before dispatch.
+
+A provider that forwards a call elsewhere projects nothing itself, so the composite identity has to travel as data. The declaration it sends carries `ToolName(namespace, name)` and `ProviderFlatName`, and whatever rebuilds it at the far end presents the same identity to the real provider. A rebuilt declaration is never invoked where it was rebuilt; the tool runs where it was declared.
 
 Provider/model call identifiers, canonical `ToolName`, `ProviderFlatName`, source-routing identities, and Session item identifiers are different identities. They MUST be stored and projected separately and MUST survive resume, fork, compaction, and history reconstruction without being substituted for, parsed from, or regenerated from one another.
 

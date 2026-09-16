@@ -1239,7 +1239,6 @@ export const MESSAGES_EN = {
   'welcome.suggestion.docs': 'Generate documentation',
   'welcome.sendTitle': 'Send (Enter)',
   'welcome.sendAria': 'Send message',
-  'welcome.startingAria': 'Starting conversation',
 
   // Workspace setup
   'setupInterstitial.title': "This workspace hasn't finished DotCraft setup",
@@ -1391,6 +1390,9 @@ export const MESSAGES_EN = {
   'toast.imageMessage': 'Image message',
   'toast.fileReferenceMessage': 'File reference message',
   'toast.attachmentMessage': 'Attachment message',
+  'conversation.creatingThread': 'Starting the conversation',
+  'conversation.loadingThread': 'Loading thread',
+  'conversation.startingBuilder': 'Starting builder',
   'conversation.thinking.streaming': 'Thinking',
   'conversation.thinking.completed': 'Thought {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Click to expand reasoning',
@@ -2149,6 +2151,7 @@ export const MESSAGES_EN = {
   'contextRing.tooltip.left': '{{percent}}% remaining',
   'contextRing.tooltip.autoCompact': 'Auto-compact triggers at {{percent}}%',
   'conversation.streamRetry.reconnecting': 'Reconnecting... {{attempt}}/{{max}}',
+  'systemStatus.connectingApps': 'Connecting apps',
   'systemStatus.compacting': 'Auto-compacting context',
   'systemStatus.compacting.manual': 'Compacting context',
   'systemStatus.consolidating': 'Consolidating memory',

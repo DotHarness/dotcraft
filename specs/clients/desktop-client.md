@@ -393,9 +393,9 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 
 1. User chooses to create a thread.
 2. Client calls `thread/start` or `worktree/createAndStart` with the complete initial thread configuration. The request includes the selected mode and model snapshot. It includes `approvalPolicy` only when the user selected an explicit per-thread override; omission preserves `default` workspace inheritance.
-3. The new thread becomes active immediately after success.
-4. Desktop submits the staged first message after the new thread is restored. It must not patch the thread configuration between creation and the first turn.
-5. If thread creation fails, the user remains in the prior safe state with a retry path.
+3. Desktop clears the composer and opens the conversation surface as soon as the request is issued, without waiting for the response. Until the thread exists, the conversation shows the submitted message and a creating state. That placeholder is client-only: it never becomes a thread id, never appears in the thread list, and is not subject to the restore pipeline in [5.3.1](#531-desktop-thread-restore-pipeline).
+4. The created thread becomes active when the request succeeds, and the creating state hands over to it once the thread is restored. Desktop submits the staged first message after the new thread is restored. It must not patch the thread configuration between creation and the first turn. If the user opened another thread before the first message was submitted — while the thread was still being created, or while it was being restored — Desktop leaves them there and still starts that message on the created thread, without the local echo and status label that belong to the conversation on screen. Anything submitted into the creating state's composer is carried to the created thread as a draft, never to a thread the user opened instead.
+5. If thread creation fails, Desktop returns the user to the surface that started it with the submitted content restored to that composer, and reports the failure. A submission that never produced a thread leaves no thread behind.
 
 When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` during creation. It may include only the model-related overlays allowed by the Agent Profile start contract. It does not apply the Profile through `agent/profiles/refreshThread`, and it does not override Profile-owned approval, tool, skill, plugin, MCP, or instruction policy.
 
@@ -419,6 +419,8 @@ When the user selects a thread, Desktop opens a new restore generation for it an
 10. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
 
 This pipeline is a Desktop client responsibility. `thread/read` is the current header, the two list methods are the persisted display history, and `thread/subscribe` is the live notification channel.
+
+The pipeline applies to threads the server has already created. A conversation still showing the creating state of [5.2](#52-start-a-new-conversation) has no thread to subscribe to or read, so it enters this pipeline only once its thread id exists.
 
 ### 5.3.2 Interactive Request Restore
 
@@ -666,7 +668,9 @@ The slash reference surface includes Desktop-owned system actions above custom C
 - Manual memory consolidation is shown as "Consolidate" / "整理" with the hint "Consolidate long-term memory" only when `capabilities.manualMemoryConsolidation = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/memory/consolidate/start` with the active `threadId` and the same maintenance wait.
 - Settings → General exposes a Desktop-local, application-wide `followUpQueueMode` preference (`queue` or `steer`). Missing or invalid values default to `steer`. Startup restores the saved preference; a successful settings save applies to subsequent submissions without converting existing queued inputs. A failed save preserves the previous choice and reports an error.
 - While a regular Turn is active, the composer sends a non-empty draft through `turn/steer` with the observed active Turn id when the preference is `steer`, or through `turn/enqueue` when it is `queue`. Enter and the send button share this decision, and the button announces the selected action. Queue entries retain their explicit Steer/cancel Steering controls. When the thread is idle it uses `turn/start`. When `system/event` or `thread/runtimeChanged` reports active maintenance (`maintenanceKind = "compacting"` or `"consolidating"`), it uses `turn/enqueue`; the empty-draft stop control calls `thread/maintenance/interrupt`.
-- If `turn/steer` fails because the active Turn changed or ended, Desktop preserves the draft and reports the failure. It must not silently retry through `turn/start`, `turn/enqueue`, or a different Turn. If a normal `turn/start` races with a maintenance transition and is rejected as busy, Desktop preserves the draft and retries through `turn/enqueue`.
+- Submission is optimistic. Desktop clears the composer and echoes the submitted content locally before it issues `turn/start`, `turn/steer`, or `turn/enqueue`, and must not wait for the response to do either. The welcome composer follows the same rule against `thread/start` and `worktree/createAndStart`, echoing into the creating state of [5.2](#52-start-a-new-conversation). `turn/start` and `turn/steer` echo a user message into the conversation; `turn/enqueue` echoes a queue entry. A local echo carries the submission's `clientUserMessageId` and is reconciled with the server item of the same id rather than rendered a second time.
+- A failed submission removes its local echo and returns the submitted content to the composer. When the composer is empty at that moment, Desktop restores the whole submission, including its segments, contexts, files, and images. When the user has typed since submitting, Desktop restores the submitted text above the current text, separated by a blank line, so neither is lost. Desktop reports the failure and must not resend automatically; `clientUserMessageId` is provenance only and carries no server-side de-duplication.
+- If `turn/steer` fails because the active Turn changed or ended, Desktop restores the submission and reports the failure. It must not silently retry through `turn/start`, `turn/enqueue`, or a different Turn. If a normal `turn/start` races with a maintenance transition and is rejected as busy, Desktop retries once through `turn/enqueue` before treating the submission as failed.
 - If the manual compaction request times out while `thread/runtimeChanged` or `system/event` still reports `maintenanceKind = "compacting"`, Desktop keeps the busy compacting state, preserves the stop control, and waits for the terminal `system/event`. If manual compaction returns `outcome = "skipped"` or `outcome = "failed"`, or a terminal `compactFailed` / `compactCancelled` event arrives, Desktop shows the returned or event message using the same compact status surface. Short histories should normally compact through the server's full-history fallback.
 - If manual memory consolidation returns `outcome = "skipped"` or `outcome = "failed"`, Desktop shows the returned message using the same transient status surface.
 - Selecting a system action from slash search clears the slash query from the composer instead of leaving `/` behind.
@@ -799,8 +803,10 @@ user workflows even though both are backed by App Binding version 2:
   exists, the switch only stages the selection in the welcome draft; it never
   creates an empty thread or invokes connection or revoke methods. The staged
   list, including an explicitly empty selection, is restored with the workspace
-  welcome draft. After the first message creates the thread, Desktop enables
-  and awaits each staged binding before submitting that message.
+  welcome draft. The first message creates the thread and opens it right away;
+  Desktop then enables and awaits each staged binding inside that thread and
+  starts the Turn once they are active. A staged binding that fails leaves the
+  thread open with the submission restored to its composer.
 - In an existing conversation, switching on starts the existing binding
   request. Switching off directly cancels a pending request or revokes the
   current thread binding without changing workspace-level connection. Failed

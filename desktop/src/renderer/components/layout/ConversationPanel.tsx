@@ -1,16 +1,22 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
+import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
 import { MessageStream } from '../conversation/MessageStream'
-import { InputComposer } from '../conversation/InputComposer'
+import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { ConversationWelcome } from '../conversation/ConversationWelcome'
+import { ThreadCreatingContent } from '../conversation/ThreadCreatingContent'
+import { useComposerDraftStore } from '../../stores/composerDraftStore'
+import type { ComposerDraftSnapshot } from '../../utils/composerHistory'
+import { mergeRestoredComposerDraft } from '../../utils/composerSubmission'
+import type { Thread } from '../../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
 import { AgentBuilderChatEmptyState } from '../agents/AgentBuilderChatEmptyState'
@@ -56,11 +62,11 @@ export function ConversationPanel({
   variant = 'default',
   onBeforeSend
 }: ConversationPanelProps): JSX.Element {
+  const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  const loading = useThreadStore((s) => s.loading)
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const threadMode = useConversationStore((s) => s.threadMode)
@@ -78,6 +84,8 @@ export function ConversationPanel({
   const connectionErrorMessage = useConnectionStore((s) => s.errorMessage)
   const planApprovalDismissed = useUIStore((s) => s.planApprovalDismissed)
   const resetPlanApprovalDismissed = useUIStore((s) => s.resetPlanApprovalDismissed)
+  const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
+  const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const threadStateWorkspacePath = activeThread?.workspacePath || protocolWorkspacePath
   const activeEffectiveWorkspacePath =
@@ -110,22 +118,60 @@ export function ConversationPanel({
     resetPlanApprovalDismissed()
   }, [activeThreadId, resetPlanApprovalDismissed])
 
-  if (activeThreadId && !activeThread && (loading || isAgentBuilder)) {
+  const parkedWhileCreatingRef = useRef<ComposerDraftSnapshot | null>(null)
+  const parkWhileCreating = useCallback((payload: InputComposerSubmitPayload): void => {
+    const submitted: ComposerDraftSnapshot = {
+      text: payload.text,
+      segments: payload.segments,
+      contexts: [],
+      files: payload.files,
+      images: payload.images
+    }
+    const parked = parkedWhileCreatingRef.current
+    parkedWhileCreatingRef.current = parked ? mergeRestoredComposerDraft(parked, submitted) : submitted
+  }, [])
+
+  // The thread the user ends up on may not be the created one, but the draft belongs to it either way.
+  useEffect(() => {
+    const createdThreadId = pendingThreadCreation?.threadId
+    if (!createdThreadId || !activeThread) return
+    const parked = parkedWhileCreatingRef.current
+    if (parked) {
+      parkedWhileCreatingRef.current = null
+      useComposerDraftStore.getState().saveDraft(createdThreadId, parked)
+    }
+    setPendingThreadCreation(null)
+  }, [activeThread, pendingThreadCreation, setPendingThreadCreation])
+
+  const creating = !activeThread && !isAgentBuilder ? pendingThreadCreation : null
+  const creatingThread: Thread | null = creating
+    ? {
+        id: creating.requestId,
+        displayName: null,
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        createdAt: new Date(creating.createdAt).toISOString(),
+        lastActiveAt: new Date(creating.createdAt).toISOString(),
+        workspacePath: creating.workspacePath,
+        userId: 'local',
+        metadata: {},
+        turns: []
+      }
+    : null
+  const thread = activeThread ?? creatingThread
+
+  // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
+  if (!creating && activeThreadId && !activeThread) {
     return (
       <div style={centeredStyle}>
-        <span style={{ color: 'var(--text-dimmed)', fontSize: '13px' }}>Loading thread...</span>
+        <span style={conversationPlaceholderStyle}>
+          {t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}
+        </span>
       </div>
     )
   }
 
-  if (!activeThread) {
-    if (isAgentBuilder) {
-      return (
-        <div style={centeredStyle}>
-          <span style={{ color: 'var(--text-dimmed)', fontSize: '13px' }}>Starting builder...</span>
-        </div>
-      )
-    }
+  if (!thread) {
     return (
       <ConversationWelcome
         workspacePath={workspacePath}
@@ -138,14 +184,14 @@ export function ConversationPanel({
     )
   }
 
-  const threadName = activeThread.displayName ?? 'New conversation'
+  const threadName = thread.displayName ?? 'New conversation'
   const hasContent = turns.length > 0 || turnStatus === 'running'
   const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
     ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null
     : null
   const desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext = {
     workspacePath: threadStateWorkspacePath || null,
-    threadId: activeThread.id,
+    threadId: thread.id,
     mode: threadMode,
     busy: turnStatus === 'running' || turnStatus === 'waitingInput',
     awaitingApproval: composerApproval != null || showPlanApproval,
@@ -168,7 +214,7 @@ export function ConversationPanel({
       {!isAgentBuilder && (
         <ThreadHeader
           threadName={threadName}
-          threadId={activeThread.id}
+          threadId={thread.id}
           workspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
         />
@@ -196,7 +242,7 @@ export function ConversationPanel({
         </div>
       )}
 
-      {activeThread.status === 'archived' && (
+      {thread.status === 'archived' && (
         <div
           role="status"
           style={{
@@ -216,13 +262,15 @@ export function ConversationPanel({
         </div>
       )}
 
-      {!isAgentBuilder && <DesktopPluginConversationTabs threadId={activeThread.id} />}
+      {!isAgentBuilder && <DesktopPluginConversationTabs threadId={thread.id} />}
 
       {selectedConversationView ? (
         <DesktopPluginConversationViewOutlet
           contribution={selectedConversationView}
-          threadId={activeThread.id}
+          threadId={thread.id}
         />
+      ) : creating ? (
+        <ThreadCreatingContent text={creating.text} />
       ) : hasContent ? (
         <MessageStream />
       ) : isAgentBuilder ? (
@@ -261,7 +309,7 @@ export function ConversationPanel({
       ) : showPlanApproval && latestCreatePlanTurnId ? (
         <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
           <PlanApprovalComposer
-            threadId={activeThread.id}
+            threadId={thread.id}
             workspacePath={protocolWorkspacePath}
             turnId={latestCreatePlanTurnId}
             mascotEffectState={mascotEffectState}
@@ -270,7 +318,8 @@ export function ConversationPanel({
         </DesktopPluginSurface>
       ) : (
         <InputComposer
-          threadId={activeThread.id}
+          threadId={thread.id}
+          submitOverride={creating ? parkWhileCreating : undefined}
           workspacePath={threadStateWorkspacePath}
           fileWorkspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
@@ -306,6 +355,8 @@ export function ConversationPanel({
     </div>
   )
 }
+
+const conversationPlaceholderStyle: CSSProperties = { color: 'var(--text-dimmed)', fontSize: '13px' }
 
 const centeredStyle: CSSProperties = {
   display: 'flex',

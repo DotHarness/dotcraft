@@ -1341,7 +1341,8 @@ describe('InputComposer custom command expansion', () => {
           { type: 'text', text: '\n\n' },
           { type: 'text', text: '/code-review' }
         ],
-        sender: undefined
+        sender: undefined,
+        clientUserMessageId: expect.any(String)
       })
     })
   })
@@ -1381,7 +1382,8 @@ describe('InputComposer custom command expansion', () => {
         input: [
           { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' }
         ],
-        sender: undefined
+        sender: undefined,
+        clientUserMessageId: expect.any(String)
       })
     })
     expect(screen.queryByText(/\[\[Attached File:/)).not.toBeInTheDocument()
@@ -1447,7 +1449,8 @@ describe('InputComposer custom command expansion', () => {
             fileName: 'diagram.png'
           }
         ],
-        sender: undefined
+        sender: undefined,
+        clientUserMessageId: expect.any(String)
       })
     })
   })

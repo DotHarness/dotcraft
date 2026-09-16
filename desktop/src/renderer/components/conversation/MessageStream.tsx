@@ -290,27 +290,14 @@ export function MessageStream(): JSX.Element {
         aria-atomic="false"
         aria-label="Conversation messages"
         role="log"
-        style={{
-          height: '100%',
-          overflowY: 'auto',
-          padding: `32px clamp(20px, 4vw, 40px) ${bottomClearancePx}px`,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--conversation-block-gap)'
-        }}
+        style={{ paddingBottom: bottomClearancePx }}
       >
         <ConversationFindSurface
           threadId={activeThreadId}
           getContainer={() => scrollRef.current}
           contentKey={contentLength}
         />
-        <ConversationColumn
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--conversation-block-gap)'
-          }}
-        >
+        <ConversationColumn className="dc-conversation-column-stack">
           {turns.map((turn, idx) => {
             const isActiveTurn = turn.id === activeTurnId
             return (

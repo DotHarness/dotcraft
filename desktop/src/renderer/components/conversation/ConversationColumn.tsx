@@ -2,12 +2,13 @@ import type { CSSProperties, JSX, ReactNode } from 'react'
 
 interface ConversationColumnProps {
   children: ReactNode
+  className?: string
   style?: CSSProperties
 }
 
-export function ConversationColumn({ children, style }: ConversationColumnProps): JSX.Element {
+export function ConversationColumn({ children, className, style }: ConversationColumnProps): JSX.Element {
   return (
-    <div style={{ ...conversationColumnStyle(), ...style }}>
+    <div className={className} style={{ ...conversationColumnStyle(), ...style }}>
       {children}
     </div>
   )

@@ -1,5 +1,4 @@
-import { createOptimisticUserMessage } from './utils/inputPresentation'
-import { acceptWelcomeInput, restoreRejectedWelcomeInput } from './utils/welcomeSubmissionRecovery'
+import { startPendingWelcomeTurn } from './utils/startPendingWelcomeTurn'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
@@ -33,7 +32,7 @@ import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
-import { showThreadRouteFailureToast, useThreadRouteStore } from './stores/threadRouteStore'
+import { useThreadRouteStore } from './stores/threadRouteStore'
 import { bootstrapSatellites } from './stores/satellitesStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
@@ -75,12 +74,10 @@ import {
 import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
-import type { ApprovalDecision, ConversationTurn, QueuedTurnInput } from './types/conversation'
+import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
-import { buildComposerInputParts } from './utils/composeInputParts'
-import { getFallbackThreadName } from './utils/threadFallbackName'
 import { handleBrowserEvent } from './utils/browserEventHandler'
 import { conversationRenderPaused } from './utils/conversationRenderPause'
 import { onDesktopPetPresentationChange } from './components/desktopPet/petPresentation'
@@ -2578,6 +2575,25 @@ export function App(): JSX.Element {
   }, [])
 
   const prevThreadIdRef = useRef<string | null>(null)
+  const pendingWelcomeTurnRef = useRef<{ threadId: string; controller: AbortController } | null>(null)
+  const beginPendingWelcomeTurn = useCallback((threadId: string): AbortSignal => {
+    pendingWelcomeTurnRef.current?.controller.abort()
+    const controller = new AbortController()
+    pendingWelcomeTurnRef.current = { threadId, controller }
+    return controller.signal
+  }, [])
+  // Leaving the thread mid-restore must not drop its first message: start it where nobody is
+  // looking, without a signal the next navigation would abort.
+  const startPendingWelcomeTurnUnseen = useCallback((threadId: string): void => {
+    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch(threadId)
+    if (!pending) return
+    void startPendingWelcomeTurn({
+      threadId,
+      pending,
+      workspacePath: protocolWorkspacePathRef.current,
+      translate: (key, vars) => translate(localeRef.current, key, vars)
+    })
+  }, [])
   const browserVisibilitySentRef = useRef<Map<string, boolean>>(new Map())
   const activeBrowserTabSentRef = useRef<string | null>(null)
   /**
@@ -2839,6 +2855,10 @@ export function App(): JSX.Element {
   useEffect(() => {
     const prev = prevThreadIdRef.current
     const curr = activeThreadId
+    if (pendingWelcomeTurnRef.current && pendingWelcomeTurnRef.current.threadId !== curr) {
+      pendingWelcomeTurnRef.current.controller.abort()
+      pendingWelcomeTurnRef.current = null
+    }
     const convBeforeReset = useConversationStore.getState()
     const latestCreatePlanTurnId = selectLatestCreatePlanTurnId(convBeforeReset)
     const planApprovalDismissed = useUIStore.getState().planApprovalDismissed
@@ -2952,7 +2972,7 @@ export function App(): JSX.Element {
           // Stale guard: user may have switched threads while we were loading
           if (useThreadStore.getState().activeThreadId !== requestedId) {
             clearThreadRestoreGate(requestedId, restoreGateToken)
-            useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
+            startPendingWelcomeTurnUnseen(requestedId)
             return
           }
           const res = result as unknown as { thread: Thread; turnCursor: string | null }
@@ -3008,7 +3028,7 @@ export function App(): JSX.Element {
           }
           if (useThreadStore.getState().activeThreadId !== requestedId) {
             clearThreadRestoreGate(requestedId, restoreGateToken)
-            useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
+            startPendingWelcomeTurnUnseen(requestedId)
             return
           }
           clearThreadRestoreGate(requestedId, restoreGateToken)
@@ -3017,78 +3037,13 @@ export function App(): JSX.Element {
           // Welcome composer: send first turn after historical turns are loaded so reset/setTurns do not drop optimistic UI.
           const pendingWelcome = useUIStore.getState().consumePendingWelcomeTurnIfMatch(requestedId)
           if (pendingWelcome != null) {
-            const threadId = requestedId
-            const path = protocolWorkspacePathRef.current
-            const pendingText = pendingWelcome.text.trim()
-            const pendingInputParts = pendingWelcome.inputParts
-              ?? buildComposerInputParts({
-                text: pendingText,
-                files: pendingWelcome.files ?? [],
-                images: pendingWelcome.images ?? []
-              }).inputParts
-            const pendingImages = pendingWelcome.images
-            const pendingFiles = pendingWelcome.files ?? []
-            const threadEntry = useThreadStore.getState().threadList.find((t) => t.id === threadId)
-            if (!threadEntry?.displayName) {
-              const autoName = getFallbackThreadName({
-                visibleText: pendingText,
-                imagesCount: pendingImages?.length ?? 0,
-                filesCount: pendingFiles.length,
-                fallbackThreadName: translate(localeRef.current, 'toast.imageMessage'),
-                fileFallbackThreadName: translate(localeRef.current, 'toast.fileReferenceMessage'),
-                attachmentFallbackThreadName: translate(localeRef.current, 'toast.attachmentMessage')
-              })
-              useThreadStore.getState().renameThread(threadId, autoName)
-            }
-            const clientUserMessageId = crypto.randomUUID()
-            const optimisticTurnId = `local-turn-${clientUserMessageId}`
-            const optimisticNow = new Date().toISOString()
-            const userItem = createOptimisticUserMessage(pendingInputParts, pendingText, clientUserMessageId, pendingWelcome.sentAsGoal)
-            const optimisticTurn: ConversationTurn = {
-              id: optimisticTurnId,
-              threadId,
-              status: 'running',
-              items: [userItem],
-              startedAt: optimisticNow
-            }
-            useConversationStore.getState().addOptimisticTurn(optimisticTurn)
-
-            if (pendingInputParts.length === 0) {
-              useConversationStore.getState().removeOptimisticTurn(optimisticTurnId)
-            } else {
-              // Must land before `turn/start`: the thread now exists but has no turn yet.
-              const routeFailure = await useThreadRouteStore.getState().applyPendingRoute(threadId)
-              if (routeFailure) {
-                showThreadRouteFailureToast(routeFailure.hostName, routeFailure.error, (key, vars) =>
-                  translate(localeRef.current, key, vars)
-                )
-              }
-              void window.api.appServer
-                .sendRequest('turn/start', {
-                  threadId,
-                  input: pendingInputParts,
-                  clientUserMessageId,
-                  ...(pendingWelcome.sentAsGoal ? { sentAsGoal: true } : {}),
-                  identity: {
-                    channelName: 'dotcraft-desktop',
-                    userId: 'local',
-                    channelContext: `workspace:${path}`,
-                    workspacePath: path
-                  }
-                })
-              .then((result) => {
-                acceptWelcomeInput(threadId, pendingInputParts)
-                const res = result as { turn?: { id?: string } }
-                if (res.turn?.id) {
-                  useConversationStore.getState().promoteOptimisticTurn(optimisticTurnId, res.turn.id)
-                }
-              })
-              .catch((turnErr: unknown) => {
-                void restoreRejectedWelcomeInput(threadId, pendingInputParts).catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
-                console.error('Welcome screen turn/start failed:', turnErr)
-                useConversationStore.getState().removeOptimisticTurn(optimisticTurnId)
-              })
-            }
+            void startPendingWelcomeTurn({
+              threadId: requestedId,
+              pending: pendingWelcome,
+              workspacePath: protocolWorkspacePathRef.current,
+              translate: (key, vars) => translate(localeRef.current, key, vars),
+              signal: beginPendingWelcomeTurn(requestedId)
+            })
           }
         })
         .catch((err: unknown) => {
