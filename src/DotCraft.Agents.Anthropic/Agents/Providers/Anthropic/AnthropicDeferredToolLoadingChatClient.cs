@@ -144,7 +144,7 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
     }
 
     private static JsonElement GetJsonSchema(AITool tool) =>
-        tool is AIFunction function && function.JsonSchema.ValueKind != JsonValueKind.Undefined
-            ? function.JsonSchema
+        tool is AIFunctionDeclaration function && function.JsonSchema.ValueKind != JsonValueKind.Undefined
+            ? AnthropicToolSchema.Narrow(function)
             : JsonSerializer.SerializeToElement(new { type = "object" });
 }
