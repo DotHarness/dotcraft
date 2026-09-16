@@ -318,6 +318,7 @@ describe('ConversationWelcome composer', () => {
       autoShowPlanForItem: null,
       composerPrefill: null,
       pendingWelcomeTurn: null,
+      pendingThreadCreation: null,
       welcomeDraft: null,
       welcomeDraftsByWorkspace: {},
       _pendingWelcomeTimer: null
@@ -1919,7 +1920,7 @@ describe('ConversationWelcome composer', () => {
     expect(useUIStore.getState().pendingThreadCreation?.threadId).toBe('thread-welcome')
   })
 
-  it('does not take over the view when the user opened another thread while creating', async () => {
+  it('starts the first turn without taking over the view when the user opened another thread', async () => {
     const threadStart = createDeferred<{ thread: Record<string, unknown> }>()
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') return { commands: [] }
@@ -1936,8 +1937,6 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => expect(useUIStore.getState().pendingThreadCreation).not.toBeNull())
-    // The user opens a different thread; ConversationPanel drops the creating state.
-    act(() => useUIStore.getState().setPendingThreadCreation(null))
     act(() => useThreadStore.getState().setActiveThreadId('thread-other'))
 
     await act(async () => {
@@ -1955,6 +1954,11 @@ describe('ConversationWelcome composer', () => {
 
     expect(useThreadStore.getState().activeThreadId).toBe('thread-other')
     expect(useThreadStore.getState().threadList.some((t) => t.id === 'thread-welcome')).toBe(true)
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'turn/start')).toBe(true)
+    })
+    expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
+    expect(useConversationStore.getState().turns).toEqual([])
   })
 
   it('keeps a composer while the thread is being created', async () => {

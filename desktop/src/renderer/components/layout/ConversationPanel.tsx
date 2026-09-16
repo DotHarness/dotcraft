@@ -13,7 +13,9 @@ import { RequestUserInputComposer } from '../conversation/RequestUserInputCompos
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { ConversationWelcome } from '../conversation/ConversationWelcome'
 import { ThreadCreatingContent } from '../conversation/ThreadCreatingContent'
-import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
+import { useComposerDraftStore } from '../../stores/composerDraftStore'
+import type { ComposerDraftSnapshot } from '../../utils/composerHistory'
+import { mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import type { Thread } from '../../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
@@ -116,24 +118,27 @@ export function ConversationPanel({
     resetPlanApprovalDismissed()
   }, [activeThreadId, resetPlanApprovalDismissed])
 
-  // Anything typed while the thread was being created follows it into the real composer.
-  const parkedWhileCreatingRef = useRef<ThreadComposerDraftInput | null>(null)
+  const parkedWhileCreatingRef = useRef<ComposerDraftSnapshot | null>(null)
   const parkWhileCreating = useCallback((payload: InputComposerSubmitPayload): void => {
-    parkedWhileCreatingRef.current = {
+    const submitted: ComposerDraftSnapshot = {
       text: payload.text,
       segments: payload.segments,
+      contexts: [],
       files: payload.files,
       images: payload.images
     }
+    const parked = parkedWhileCreatingRef.current
+    parkedWhileCreatingRef.current = parked ? mergeRestoredComposerDraft(parked, submitted) : submitted
   }, [])
 
-  // The created thread takes over once it is loaded, so the echoed message never blinks out.
+  // The thread the user ends up on may not be the created one, but the draft belongs to it either way.
   useEffect(() => {
-    if (!pendingThreadCreation || !activeThread) return
+    const createdThreadId = pendingThreadCreation?.threadId
+    if (!createdThreadId || !activeThread) return
     const parked = parkedWhileCreatingRef.current
     if (parked) {
       parkedWhileCreatingRef.current = null
-      useComposerDraftStore.getState().saveDraft(activeThread.id, parked)
+      useComposerDraftStore.getState().saveDraft(createdThreadId, parked)
     }
     setPendingThreadCreation(null)
   }, [activeThread, pendingThreadCreation, setPendingThreadCreation])

@@ -26,6 +26,8 @@ interface StartTurnParams {
   attachmentFallbackThreadName?: string
   renameThreadFromText?: boolean
   throwOnStartError?: boolean
+  /** False when the turn belongs to a thread the user is no longer looking at. */
+  onScreen?: boolean
   /** Marks this submission as the one that established the thread goal (durable "sent as goal"). */
   sentAsGoal?: boolean
 }
@@ -34,6 +36,7 @@ export interface OptimisticTurn {
   optimisticTurnId: string
   clientUserMessageId: string
   inputParts: InputPart[]
+  onScreen: boolean
 }
 
 /** Echoes the submission; callers gating the RPC pass the result to `submitOptimisticTurn` later. */
@@ -50,7 +53,8 @@ export function echoOptimisticTurn({
   fileFallbackThreadName,
   attachmentFallbackThreadName,
   renameThreadFromText = true,
-  sentAsGoal = false
+  sentAsGoal = false,
+  onScreen = true
 }: StartTurnParams): OptimisticTurn | null {
   const built = providedInputParts ? null : buildComposerInputParts({ text, segments, files, images, contexts })
   const inputParts = providedInputParts ?? built!.inputParts
@@ -79,8 +83,8 @@ export function echoOptimisticTurn({
     items: [createOptimisticUserMessage(inputParts, visibleText, clientUserMessageId, sentAsGoal)],
     startedAt: new Date().toISOString()
   }
-  useConversationStore.getState().addOptimisticTurn(optimisticTurn)
-  return { optimisticTurnId, clientUserMessageId, inputParts }
+  if (onScreen) useConversationStore.getState().addOptimisticTurn(optimisticTurn)
+  return { optimisticTurnId, clientUserMessageId, inputParts, onScreen }
 }
 
 export async function submitOptimisticTurn(
@@ -113,12 +117,12 @@ export async function submitOptimisticTurn(
       }
     })
     const res = result as { turn?: { id?: string } }
-    if (res.turn?.id) {
+    if (res.turn?.id && echo.onScreen) {
       useConversationStore.getState().promoteOptimisticTurn(echo.optimisticTurnId, res.turn.id)
     }
   } catch (err) {
     console.error('turn/start failed:', err)
-    useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
+    if (echo.onScreen) useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
     if (throwOnStartError) {
       throw err
     }

@@ -23,6 +23,7 @@ export async function startPendingWelcomeTurn({
   translate: TranslateFn
   signal?: AbortSignal
 }): Promise<void> {
+  const onScreen = useThreadStore.getState().activeThreadId === threadId
   const echo = echoOptimisticTurn({
     threadId,
     workspacePath,
@@ -33,7 +34,8 @@ export async function startPendingWelcomeTurn({
     fallbackThreadName: translate('toast.imageMessage'),
     fileFallbackThreadName: translate('toast.fileReferenceMessage'),
     attachmentFallbackThreadName: translate('toast.attachmentMessage'),
-    sentAsGoal: pending.sentAsGoal
+    sentAsGoal: pending.sentAsGoal,
+    onScreen
   })
   if (!echo) return
 
@@ -73,9 +75,10 @@ async function activateStagedApps({
   translate: TranslateFn
   signal?: AbortSignal
 }): Promise<boolean> {
-  // Activation can outlive the user's stay, so conversation state rolls back only while this thread is on screen.
+  // Activation can outlive the user's stay, so conversation state moves only while this thread is on screen.
+  const onScreen = (): boolean => useThreadStore.getState().activeThreadId === threadId
   const abandon = async (): Promise<void> => {
-    if (useThreadStore.getState().activeThreadId === threadId) {
+    if (onScreen()) {
       useConversationStore.getState().setSystemLabel(null)
       useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
     }
@@ -83,7 +86,7 @@ async function activateStagedApps({
       .catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
   }
 
-  useConversationStore.getState().setSystemLabel('systemStatus.connectingApps')
+  if (onScreen()) useConversationStore.getState().setSystemLabel('systemStatus.connectingApps')
   try {
     await activateThreadAppBindings({ threadId, appIds, translate, signal })
   } catch (err) {
@@ -98,6 +101,6 @@ async function activateStagedApps({
     await abandon()
     return false
   }
-  useConversationStore.getState().setSystemLabel(null)
+  if (onScreen()) useConversationStore.getState().setSystemLabel(null)
   return true
 }

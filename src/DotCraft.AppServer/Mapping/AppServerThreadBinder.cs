@@ -51,6 +51,7 @@ internal sealed class AppServerThreadBinder(
 
     public void UnbindThreadRuntimeInputs(string threadId)
     {
+        wireAcpExtensionProxy?.UnbindThread(threadId);
         wireNodeReplProxy?.UnbindThread(threadId);
         wireDynamicToolProxy?.UnbindThread(threadId);
         wireRuntimeAdditionalContextProvider?.BindThread(threadId, transport, connection, EmptyAdditionalContext);

@@ -123,6 +123,17 @@ describe('startPendingWelcomeTurn', () => {
     expect(useToastStore.getState().toasts.filter((toast) => toast.type === 'error')).toEqual([])
   })
 
+  it('starts the turn without an on-screen echo when the user is on another thread', async () => {
+    mockAppServer([])
+    useThreadStore.setState({ activeThreadId: 'thread-2' })
+
+    await startPendingWelcomeTurn(pending([]))
+
+    expect(sendRequest.mock.calls.map(([method]) => method)).toContain('turn/start')
+    expect(useConversationStore.getState().turns).toEqual([])
+    expect(useConversationStore.getState().systemLabel).toBeNull()
+  })
+
   it('starts the turn directly when no app is staged', async () => {
     mockAppServer([])
 

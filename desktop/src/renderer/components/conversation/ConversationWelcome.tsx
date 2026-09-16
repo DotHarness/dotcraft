@@ -42,6 +42,7 @@ import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfiguration'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
+import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
 import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
@@ -1357,6 +1358,19 @@ function ConversationWelcomeCore({
     welcomeWorktreeBranchName
   ])
 
+  // If the user opened another thread while creation was in flight, leave them there and start the
+  // first turn unseen rather than dropping it.
+  const openOrDetachCreatedThread = useCallback((threadId: string): void => {
+    if (useThreadStore.getState().activeThreadId == null) {
+      setActiveThreadId(threadId)
+      return
+    }
+    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch(threadId)
+    if (pending) {
+      void startPendingWelcomeTurn({ threadId, pending, workspacePath: identityPath, translate: t })
+    }
+  }, [identityPath, setActiveThreadId, t])
+
   const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
@@ -1405,9 +1419,7 @@ function ConversationWelcomeCore({
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         sentAsGoal: true
       })
-      if (useUIStore.getState().pendingThreadCreation?.requestId === requestId) {
-        setActiveThreadId(thread.id)
-      }
+      openOrDetachCreatedThread(thread.id)
       return true
     } catch (err) {
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
@@ -1425,7 +1437,7 @@ function ConversationWelcomeCore({
     connectionStatus,
     draftProjectKey,
     modelLoading,
-    setActiveThreadId,
+    openOrDetachCreatedThread,
     showGoalUnavailable,
     startWelcomeThread,
     welcomeAppIds,
@@ -1534,11 +1546,7 @@ function ConversationWelcomeCore({
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {})
       })
       addThread(thread)
-      // Only take over the view when this submission is still the one on screen; the user may
-      // have opened another thread while creation was in flight.
-      if (useUIStore.getState().pendingThreadCreation?.requestId === requestId) {
-        setActiveThreadId(thread.id)
-      }
+      openOrDetachCreatedThread(thread.id)
     } catch (err) {
       console.error('Failed to start thread from welcome composer:', err)
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
@@ -1553,7 +1561,7 @@ function ConversationWelcomeCore({
     images,
     connectionStatus,
     addThread,
-    setActiveThreadId,
+    openOrDetachCreatedThread,
     startWelcomeThread,
     welcomeAppIds,
     modelLoading,
