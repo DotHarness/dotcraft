@@ -5,13 +5,16 @@ export interface UsageState {
   readonly waitingForSample: boolean
   readonly totalTokens: number | null
   readonly cacheHitRate: number | null
+  /** Mean first-token latency over the current turn's model requests. */
+  readonly firstTokenLatencyMs: number | null
 }
 
 export const EMPTY_USAGE: UsageState = {
   tokensPerSecond: null,
   waitingForSample: false,
   totalTokens: null,
-  cacheHitRate: null
+  cacheHitRate: null,
+  firstTokenLatencyMs: null
 }
 
 const SUMMARY_REFRESH_MS = 60_000
@@ -47,6 +50,9 @@ export function startUsageFeed(
   let observedTokens = 0
   let observedDurationMs = 0
   let sampleStartedAtMs: number | null = null
+  let latencySamples = 0
+  let latencyTotalMs = 0
+  let waitStartedAtMs: number | null = null
   let activeTurnId: string | null = null
 
   const refreshSummary = async (): Promise<void> => {
@@ -90,6 +96,9 @@ export function startUsageFeed(
     observedTokens = 0
     observedDurationMs = 0
     sampleStartedAtMs = null
+    latencySamples = 0
+    latencyTotalMs = 0
+    waitStartedAtMs = null
     update({ waitingForSample })
   }
 
@@ -116,6 +125,7 @@ export function startUsageFeed(
     if (params.turn.threadId !== threadId) return
     activeTurnId = params.turn.id
     resetTurn(true)
+    waitStartedAtMs = now()
   })
 
   const observeModelOutput = (params: {
@@ -125,10 +135,24 @@ export function startUsageFeed(
     if (params.threadId !== threadId) return
     if (activeTurnId !== null && params.turnId != null && params.turnId !== activeTurnId) return
     sampleStartedAtMs ??= now()
+    if (waitStartedAtMs === null) return
+    latencyTotalMs += Math.max(0, now() - waitStartedAtMs)
+    latencySamples += 1
+    waitStartedAtMs = null
+    update({ firstTokenLatencyMs: latencyTotalMs / latencySamples })
   }
   const stopAgentMessage = host.appServer.onNotification('item/agentMessage/delta', observeModelOutput)
   const stopReasoning = host.appServer.onNotification('item/reasoning/delta', observeModelOutput)
   const stopToolArguments = host.appServer.onNotification('item/toolCall/argumentsDelta', observeModelOutput)
+
+  // Anything finishing while a request is pending is local work, not provider
+  // latency, so the wait restarts at the last one.
+  const stopItemCompleted = host.appServer.onNotification('item/completed', (params) => {
+    if (waitStartedAtMs === null) return
+    if (params.threadId !== threadId) return
+    if (activeTurnId !== null && params.turnId != null && params.turnId !== activeTurnId) return
+    waitStartedAtMs = now()
+  })
 
   const stopDelta = host.appServer.onNotification('item/usage/delta', (params) => {
     if (params.threadId !== threadId) return
@@ -136,6 +160,8 @@ export function startUsageFeed(
     const outputTokens = positiveNumber(params.outputTokens)
     const durationMs = sampleStartedAtMs === null ? null : positiveNumber(now() - sampleStartedAtMs)
     sampleStartedAtMs = null
+    // One notification per LLM iteration, so the turn's next request waits from here.
+    waitStartedAtMs = now()
     if (outputTokens !== null && durationMs !== null) {
       observedTokens += outputTokens
       observedDurationMs += durationMs
@@ -152,6 +178,7 @@ export function startUsageFeed(
     if (activeTurnId !== null && params.turn.id !== activeTurnId) return
     activeTurnId = null
     sampleStartedAtMs = null
+    waitStartedAtMs = null
     update({ waitingForSample: false })
     scheduleSummary(0)
   }
@@ -168,6 +195,7 @@ export function startUsageFeed(
     stopAgentMessage()
     stopReasoning()
     stopToolArguments()
+    stopItemCompleted()
     stopDelta()
     stopCompleted()
     stopFailed()
