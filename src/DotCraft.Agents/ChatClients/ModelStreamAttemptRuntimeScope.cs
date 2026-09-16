@@ -1,6 +1,6 @@
 namespace DotCraft.Agents;
 
-internal sealed class ModelStreamAttemptRuntimeContext(int attemptNumber)
+public sealed class ModelStreamAttemptRuntimeContext(int attemptNumber)
 {
     public int AttemptNumber { get; } = attemptNumber;
 
@@ -48,7 +48,8 @@ internal sealed class ModelStreamAttemptRuntimeContext(int attemptNumber)
     }
 }
 
-internal static class ModelStreamAttemptRuntimeScope
+/// <summary>The retry attempt a request belongs to; a provider records its transport result on it.</summary>
+public static class ModelStreamAttemptRuntimeScope
 {
     private static readonly AsyncLocal<ModelStreamAttemptRuntimeContext?> CurrentContext = new();
 
@@ -61,7 +62,7 @@ internal static class ModelStreamAttemptRuntimeScope
         return new Scope(previous);
     }
 
-    public static IDisposable Begin(int attemptNumber)
+    internal static IDisposable Begin(int attemptNumber)
     {
         var previous = CurrentContext.Value;
         CurrentContext.Value = new ModelStreamAttemptRuntimeContext(attemptNumber);
