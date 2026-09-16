@@ -1,11 +1,7 @@
 /**
- * Mock preload bridge for the browser demo.
- *
- * The Desktop renderer talks to the Electron main process exclusively through
- * `window.api` (see desktop/src/preload/api.d.ts). The demo installs an inert
- * implementation before any renderer module evaluates: methods that feed
- * render-critical data return canned values; everything else resolves to a
- * benign default via a proxy fallback, so no reused component can throw.
+ * Mock `window.api` preload bridge, installed before any renderer module
+ * evaluates. Methods that feed render-critical data return canned values;
+ * everything else falls back to an inert default.
  */
 import { normalizeLocale } from '../../../desktop/src/shared/locales'
 import type { AppLocale } from '../../../desktop/src/shared/locales'
@@ -125,7 +121,6 @@ const workspaceCoreConfigSide = {
   defaultApprovalPolicy: 'default' as const
 }
 
-/** Routes `appServer.sendRequest` JSON-RPC methods to canned, benign results. */
 function handleAppServerRequest(method: string): unknown {
   switch (method) {
     case 'model/list':
@@ -358,6 +353,16 @@ const explicitApi = {
     downloadAndInstall: async () => ({ status: 'idle' }),
     onStateChanged: unsubscribe
   },
+  satellites: {
+    // The demo has no paired machines, so the Run on chip stays hidden.
+    list: async () => ({ supported: false, satellites: [] }),
+    createInvite: async () => null,
+    revoke: async () => ({ ok: true }),
+    activity: async () => [],
+    shareStatus: async () => ({ installed: false, peers: [] }),
+    onEvent: unsubscribe,
+    onJoinLink: unsubscribe
+  },
   remoteServers: {
     list: async () => [],
     sshConfig: async () => ({}),
@@ -377,9 +382,9 @@ const explicitApi = {
 }
 
 /**
- * Safety net for API surface the demo does not model: unknown members resolve
- * to a callable that returns a thenable (works as `await`ed promise) which is
- * itself callable (works as an unsubscribe function).
+ * Fallback for API the demo does not model: a callable that doubles as a
+ * thenable (an `await`ed result), an unsubscribe function, and a namespace at
+ * any depth.
  */
 function inertResult(): unknown {
   const fn = (..._args: unknown[]): unknown => inertResult()
@@ -390,7 +395,13 @@ function inertResult(): unknown {
     onFinally?.()
     return fn
   }
-  return fn
+  return new Proxy(fn, {
+    get(target, prop, receiver) {
+      if (prop in target) return Reflect.get(target, prop, receiver)
+      if (typeof prop === 'symbol') return undefined
+      return inertResult()
+    }
+  })
 }
 
 function withInertFallback<T extends object>(target: T): T {
