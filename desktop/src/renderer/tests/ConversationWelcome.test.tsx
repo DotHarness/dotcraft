@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationWelcome } from '../components/conversation/ConversationWelcome'
+import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../components/conversation/richInputConstants'
 import { useConnectionStore } from '../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
@@ -156,6 +157,15 @@ function renderWelcome({
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
+    </LocaleProvider>
+  )
+}
+
+/** The panel is what decides between welcome, creating and a loaded thread. */
+function renderConversationPanel() {
+  return render(
+    <LocaleProvider>
+      <ConversationPanel workspacePath={'X:\fixtures\workspace'} />
     </LocaleProvider>
   )
 }
@@ -437,7 +447,8 @@ describe('ConversationWelcome composer', () => {
         shell: {
           openExternal: shellOpenExternal,
           openAppHandoff: shellOpenAppHandoff,
-          getProtocolHandlerName: shellGetProtocolHandlerName
+          getProtocolHandlerName: shellGetProtocolHandlerName,
+          listEditors: async () => []
         },
         voice: undefined
       })
@@ -1944,6 +1955,42 @@ describe('ConversationWelcome composer', () => {
 
     expect(useThreadStore.getState().activeThreadId).toBe('thread-other')
     expect(useThreadStore.getState().threadList.some((t) => t.id === 'thread-welcome')).toBe(true)
+  })
+
+  it('keeps a composer while the thread is being created', async () => {
+    const threadStart = createDeferred<{ thread: Record<string, unknown> }>()
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'thread/start') return threadStart.promise
+      return {}
+    })
+
+    renderConversationPanel()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Keep the composer in place'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(useUIStore.getState().pendingThreadCreation).not.toBeNull())
+    // The creating conversation is the same shell: a header and a composer, not a bare page.
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+    expect(screen.getByText('Keep the composer in place')).toBeInTheDocument()
+
+    await act(async () => {
+      threadStart.resolve({
+        thread: {
+          id: 'thread-welcome',
+          displayName: null,
+          status: 'active',
+          originChannel: 'dotcraft-desktop',
+          createdAt: '2026-04-16T08:00:00.000Z',
+          lastActiveAt: '2026-04-16T08:00:00.000Z'
+        }
+      })
+    })
+    await waitFor(() => expect(useThreadStore.getState().activeThreadId).toBe('thread-welcome'))
   })
 
   it('returns the submission to the welcome composer when thread creation fails', async () => {

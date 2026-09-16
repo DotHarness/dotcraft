@@ -115,6 +115,7 @@ export interface PendingWelcomeTurnInput {
  */
 export interface PendingThreadCreation {
   requestId: string
+  createdAt: number
   workspacePath: string
   text: string
   threadId?: string

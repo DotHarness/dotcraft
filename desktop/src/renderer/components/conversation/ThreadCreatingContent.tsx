@@ -5,8 +5,8 @@ import { ConversationColumn } from './ConversationColumn'
 import { NoticeDivider } from './NoticeDivider'
 import { UserMessageBlock } from './UserMessageBlock'
 
-/** The conversation before its thread exists: the submitted message, already on screen. */
-export function ThreadCreatingView({ text }: { text: string }): JSX.Element {
+/** The message area while the thread is being created: the submitted message, already on screen. */
+export function ThreadCreatingContent({ text }: { text: string }): JSX.Element {
   const t = useT()
   const label = t('conversation.creatingThread')
   return (

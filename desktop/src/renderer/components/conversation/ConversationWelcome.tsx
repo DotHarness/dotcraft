@@ -1377,7 +1377,7 @@ function ConversationWelcomeCore({
     const submittedContexts = useComposerContextStore.getState().getContexts(contextKey)
     const requestId = crypto.randomUUID()
 
-    useUIStore.getState().setPendingThreadCreation({ requestId, workspacePath: identityPath, text: trimmedObjective })
+    useUIStore.getState().setPendingThreadCreation({ requestId, createdAt: Date.now(), workspacePath: identityPath, text: trimmedObjective })
     useUIStore.getState().setActiveMainView('conversation')
     clearWelcomeComposer()
 
@@ -1507,7 +1507,7 @@ function ConversationWelcomeCore({
     const submittedDraft = buildWelcomeDraftSnapshot()
     const requestId = crypto.randomUUID()
 
-    useUIStore.getState().setPendingThreadCreation({ requestId, workspacePath: identityPath, text: trimmed })
+    useUIStore.getState().setPendingThreadCreation({ requestId, createdAt: Date.now(), workspacePath: identityPath, text: trimmed })
     useUIStore.getState().setActiveMainView('conversation')
     clearWelcomeComposer()
 
