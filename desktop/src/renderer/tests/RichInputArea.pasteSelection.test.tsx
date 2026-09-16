@@ -35,7 +35,7 @@ describe('RichInputArea paste selection', () => {
     }
   ])('leaves an editable text caret after pasting $name over a selection', ({ text, rich }) => {
     const ref = createRef<RichInputAreaHandle>()
-    render(<RichInputArea ref={ref} onSubmit={vi.fn()} refCatalog={{ skills: [{ name: 'memory', available: true }] }} />)
+    render(<RichInputArea ref={ref} onSubmit={vi.fn()} refCatalog={{ skills: [{ name: 'memory' }] }} />)
     act(() => {
       ref.current!.setPlainText('before REPLACE after')
       ref.current!.setSelectionRange({ start: 7, end: 14 })

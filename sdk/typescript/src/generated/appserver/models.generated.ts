@@ -2935,7 +2935,6 @@ export interface SessionTurn {
 }
 
 export interface SkillInfo {
-  available?: boolean;
   defaultPrompt?: string | null;
   description?: string;
   displayName?: string | null;
@@ -2950,7 +2949,6 @@ export interface SkillInfo {
   pluginId?: string | null;
   shortDescription?: string | null;
   source?: string;
-  unavailableReason?: string | null;
   [key: string]: unknown;
 }
 
@@ -2959,11 +2957,6 @@ export interface SkillUsage {
   name?: string;
   pluginDisplayName?: string | null;
   pluginId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface SkillsListParams {
-  includeUnavailable?: boolean | null;
   [key: string]: unknown;
 }
 

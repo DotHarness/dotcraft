@@ -3279,7 +3279,6 @@ export const MESSAGES_DE = {
   'skillCard.openFolder': 'Ordner öffnen',
   'skillCard.enable': 'Aktivieren',
   'skillCard.disable': 'Deaktivieren',
-  'skillCard.unavailable': 'Nicht verfügbar',
   'skillCard.builtin': 'Eingebaut',
   'skillCard.disabledBadge': 'Deaktiviert',
   'skillCard.on': 'Auf',

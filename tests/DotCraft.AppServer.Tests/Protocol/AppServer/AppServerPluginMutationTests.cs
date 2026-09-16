@@ -134,7 +134,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
         Assert.True(plugin.GetProperty("removable").GetBoolean());
         Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "browser", ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
+        Assert.Contains(loader.ListSkills(), skill => skill.Name == "browser");
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.True(File.Exists(Path.Combine(installed, ".craft-plugin", "plugin.json")));
         // Local installs are user-owned: no .builtin marker is written, yet the plugin is removable.
         Assert.False(File.Exists(Path.Combine(installed, ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "demo-skill");
+        Assert.Contains(loader.ListSkills(), skill => skill.Name == "demo-skill");
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.True(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
         Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "registry-app");
+        Assert.Contains(loader.ListSkills(), skill => skill.Name == "registry-app");
 
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
         Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
@@ -324,7 +324,7 @@ public sealed partial class AppServerPluginManagementTests
         var configJson = await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"));
         Assert.Contains("browser", configJson, StringComparison.Ordinal);
         Assert.DoesNotContain("node-repl", configJson, StringComparison.Ordinal);
-        Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
+        Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == "browser");
     }
 
     [Fact]
@@ -413,7 +413,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.False(plugin.GetProperty("enabled").GetBoolean());
         Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins", "browser")));
-        Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
+        Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == "browser");
     }
 
     [Fact]
@@ -495,6 +495,6 @@ public sealed partial class AppServerPluginManagementTests
         var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
         Assert.Equal("browser", plugin.GetProperty("id").GetString());
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
+        Assert.Contains(loader.ListSkills(), skill => skill.Name == "browser");
     }
 }

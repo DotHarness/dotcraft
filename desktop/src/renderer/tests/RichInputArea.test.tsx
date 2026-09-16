@@ -317,7 +317,7 @@ describe('RichInputArea catalog-aware paste parsing', () => {
         onSubmit={vi.fn()}
         refCatalog={{
           commands: [{ name: '/code-review', aliases: ['/cr'] }],
-          skills: [{ name: 'memory', available: true }]
+          skills: [{ name: 'memory' }]
         }}
       />
     )
@@ -349,7 +349,7 @@ describe('RichInputArea catalog-aware paste parsing', () => {
         onSubmit={vi.fn()}
         refCatalog={{
           commands: [{ name: '/code-review', aliases: ['/cr'] }],
-          skills: [{ name: 'memory', available: true }]
+          skills: [{ name: 'memory' }]
         }}
       />
     )

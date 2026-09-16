@@ -379,7 +379,6 @@ function ConversationWelcomeCore({
   const availableSkills = useMemo(
     () =>
       skills
-        .filter((skill) => skill.available)
         .map((skill) => ({
           name: skill.name.replace(/^\/+/, ''),
           description: skill.description

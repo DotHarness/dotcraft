@@ -216,7 +216,7 @@ describe('truncateEditorDomToSerializedLength', () => {
 
   it('parses only catalog-matched skill markers into skill segments', () => {
     expect(parseComposerTextWithCatalog('$memory $unknown', {
-      skills: [{ name: 'memory', available: true }]
+      skills: [{ name: 'memory' }]
     })).toEqual([
       { type: 'skill', skillName: 'memory' },
       { type: 'text', value: ' $unknown' }
@@ -225,7 +225,7 @@ describe('truncateEditorDomToSerializedLength', () => {
 
   it('picks the earliest matching ref when $skill precedes @file', () => {
     expect(parseComposerTextWithCatalog('$memory @src/foo.ts', {
-      skills: [{ name: 'memory', available: true }]
+      skills: [{ name: 'memory' }]
     })).toEqual([
       { type: 'skill', skillName: 'memory' },
       { type: 'text', value: ' ' },
@@ -236,7 +236,7 @@ describe('truncateEditorDomToSerializedLength', () => {
   it('parses slash commands before slash skills when both catalogs are present', () => {
     expect(parseComposerTextWithCatalog('/code-review /memory /unknown', {
       commands: [{ name: '/code-review', aliases: ['/cr'] }],
-      skills: [{ name: 'memory', available: true }]
+      skills: [{ name: 'memory' }]
     })).toEqual([
       { type: 'command', command: '/code-review' },
       { type: 'text', value: ' ' },

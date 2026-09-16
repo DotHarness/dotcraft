@@ -2,7 +2,6 @@ import { useT } from '../../contexts/LocaleContext'
 import type { SkillEntry } from '../../stores/skillsStore'
 import { SkillAvatar } from './SkillAvatar'
 import { PillSwitch } from '../ui/PillSwitch'
-import { ActionTooltip } from '../ui/ActionTooltip'
 
 interface SkillCardProps {
   skill: SkillEntry
@@ -54,34 +53,6 @@ export function SkillCard({ skill, onOpen, onToggleEnabled }: SkillCardProps): J
             {skill.displayName || skill.name}
           </span>
           <SourceBadge source={skill.source} t={t} />
-          {!skill.available &&
-            (skill.unavailableReason ? (
-              <ActionTooltip label={skill.unavailableReason}>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    backgroundColor: 'var(--bg-tertiary)',
-                    color: 'var(--warning)'
-                  }}
-                >
-                  {t('skillCard.unavailable')}
-                </span>
-              </ActionTooltip>
-            ) : (
-              <span
-                style={{
-                  fontSize: '11px',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  color: 'var(--warning)'
-                }}
-              >
-                {t('skillCard.unavailable')}
-              </span>
-            ))}
           {!skill.enabled && (
             <span
               style={{

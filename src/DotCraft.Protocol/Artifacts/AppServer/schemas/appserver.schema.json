@@ -11787,9 +11787,6 @@
       "title": "SkillInfo",
       "type": "object",
       "properties": {
-        "available": {
-          "type": "boolean"
-        },
         "defaultPrompt": {
           "anyOf": [
             {
@@ -11890,16 +11887,6 @@
         },
         "source": {
           "type": "string"
-        },
-        "unavailableReason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true
@@ -11930,23 +11917,6 @@
           "anyOf": [
             {
               "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "SkillsListParams": {
-      "title": "SkillsListParams",
-      "type": "object",
-      "properties": {
-        "includeUnavailable": {
-          "anyOf": [
-            {
-              "type": "boolean"
             },
             {
               "type": "null"

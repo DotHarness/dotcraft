@@ -90,7 +90,6 @@ describe('SkillsView marketplace browse and manage modes', () => {
             shortDescription: 'Remember project facts',
             description: 'Remember project facts',
             source: 'builtin',
-            available: true,
             enabled: true,
             hasVariant: true,
             path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
@@ -103,7 +102,6 @@ describe('SkillsView marketplace browse and manage modes', () => {
             shortDescription: 'Local git workflows',
             description: 'Local git workflows',
             source: 'workspace',
-            available: true,
             enabled: true,
             hasVariant: gitLocalHasVariant,
             path: 'X:\\fixtures\\workspace\\.craft\\skills\\git-local\\SKILL.md'
@@ -119,7 +117,6 @@ describe('SkillsView marketplace browse and manage modes', () => {
             name: 'memory',
             description: 'Remember project facts',
             source: 'builtin',
-            available: true,
             enabled: false,
             path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
           }
@@ -368,7 +365,6 @@ describe('SkillsView marketplace browse and manage modes', () => {
               shortDescription: 'Remember project facts',
               description: 'Remember project facts',
               source: 'builtin',
-              available: true,
               enabled: true,
               path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
             },
@@ -380,7 +376,6 @@ describe('SkillsView marketplace browse and manage modes', () => {
               source: 'plugin',
               pluginId: 'browser',
               pluginDisplayName: 'Browser',
-              available: true,
               enabled: true,
               path: 'X:\\fixtures\\workspace\\.craft\\plugins\\browser\\skills\\browser\\SKILL.md'
             }
@@ -424,7 +419,6 @@ describe('SkillsView marketplace browse and manage modes', () => {
               shortDescription: 'Remember project facts',
               description: 'Remember project facts',
               source: 'builtin',
-              available: true,
               enabled: true,
               path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
             }
@@ -523,7 +517,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
         overwrite: false
       })
     })
-    expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
+    expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', {})
   })
 
   it('keeps marketplace summary metadata after detail loads without those fields', async () => {

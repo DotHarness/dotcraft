@@ -349,7 +349,7 @@ internal sealed class AgentProfileBuilderToolMethods(
         if (skillsLoader is null)
             return (CleanList(names), []); // No catalog available — accept as-is.
         var known = new HashSet<string>(
-            skillsLoader.ListSkills(filterUnavailable: false).Select(s => s.Name),
+            skillsLoader.ListSkills().Select(s => s.Name),
             StringComparer.OrdinalIgnoreCase);
         await Task.CompletedTask;
         return Partition(names, known, StringComparer.OrdinalIgnoreCase);

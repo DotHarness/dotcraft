@@ -2857,7 +2857,6 @@ export const MESSAGES_ZH_HANS = {
   'skillCard.openFolder': '打开文件夹',
   'skillCard.enable': '启用',
   'skillCard.disable': '禁用',
-  'skillCard.unavailable': '不可用',
   'skillCard.builtin': '内置',
   'skillCard.disabledBadge': '已禁用',
   'skillCard.on': '开',

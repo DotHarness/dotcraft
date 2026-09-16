@@ -3809,7 +3809,7 @@ When the same skill name exists in multiple sources, the higher-priority source 
 
 Priorities 4 and 5 both report `source: "user"` and are distinguished only by `path`. The shared root is a cross-tool convention that other Agent products also read. It is discovered when `Skills.IncludeSharedSkills` is enabled, which is the default.
 
-Skills may declare requirements (executables, environment variables) in their frontmatter. A skill whose requirements are not met is reported as `available: false` with a diagnostic reason.
+Skills may declare requirements (executables, environment variables, or Agent tools) in their frontmatter. Requirements are returned as declarative metadata and are not probed during discovery, listing, or Agent context construction.
 
 Clients must check `capabilities.skillsManagement` in the `initialize` response before calling any `skills/*` method. If the flag is absent or `false`, the server returns `-32601` (method not found).
 
@@ -3824,8 +3824,6 @@ All skills methods that return skill data use the following `SkillInfo` wire obj
   "displayName": "Browser",
   "shortDescription": "Automate browser-based workflows",
   "source": "builtin",
-  "available": true,
-  "unavailableReason": null,
   "enabled": true,
   "path": "/home/user/project/skills/browser/SKILL.md",
   "hasVariant": true,
@@ -3846,8 +3844,6 @@ All skills methods that return skill data use the following `SkillInfo` wire obj
 | `displayName` | string? | Optional UI display name from `agents/openai.yaml` `interface.display_name`. |
 | `shortDescription` | string? | Optional compact UI description from `agents/openai.yaml` `interface.short_description`. |
 | `source` | string | One of `"workspace"`, `"plugin"`, `"builtin"`, or `"user"`. Indicates where the skill is installed. |
-| `available` | boolean | `true` if all declared requirements (bins, env) are met on the server. |
-| `unavailableReason` | string? | Diagnostic message listing missing requirements. `null` when `available` is `true`. |
 | `enabled` | boolean | `true` if the skill is active and will be included in agent context. `false` if the user has disabled it via `skills/setEnabled`. |
 | `path` | string | Absolute filesystem path to the source `SKILL.md` file. |
 | `hasVariant` | boolean? | Present and `true` when the current runtime resolves this skill through a current workspace variant. Omitted or `false` means the effective skill currently falls back to source. |
@@ -3875,11 +3871,7 @@ List all installed skills across all sources.
 
 **Direction**: client → server (request)
 
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `includeUnavailable` | boolean | no | Default `true`. When `false`, skills with unmet requirements are excluded. |
+**Params**: `{}`
 
 **Result**: `{ "skills": SkillInfo[] }`
 
@@ -4005,7 +3997,7 @@ On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-
 
 **Behavior**: Toggles a skill's enabled state in the server's persisted skill-preference store.
 
-When disabling, the skill is marked unavailable for future agent context resolution. When enabling, that exclusion is removed. If the skill is already in the requested state, the operation is a no-op and returns the current `SkillInfo`.
+When disabling, the skill is excluded from future agent context resolution. When enabling, that exclusion is removed. If the skill is already in the requested state, the operation is a no-op and returns the current `SkillInfo`.
 
 ### 18.8 `skills/uninstall`
 

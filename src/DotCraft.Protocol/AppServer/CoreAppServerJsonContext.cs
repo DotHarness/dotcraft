@@ -208,7 +208,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.RemoteToolRouteInfo))]
 [JsonSerializable(typeof(AppServer.SkillInfo))]
 [JsonSerializable(typeof(AppServer.SkillUsage))]
-[JsonSerializable(typeof(AppServer.SkillsListParams))]
 [JsonSerializable(typeof(AppServer.SkillsListResult))]
 [JsonSerializable(typeof(AppServer.SkillsReadParams))]
 [JsonSerializable(typeof(AppServer.SkillsReadResult))]

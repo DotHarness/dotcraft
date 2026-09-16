@@ -718,7 +718,6 @@ Required behavior:
 - Users can uninstall user-managed `workspace` and `user` skills from the skill detail dialog. Uninstalling a skill also removes its workspace-local variants.
 - Skills with source `plugin` show plugin attribution.
 - Skills with source `plugin` are managed through the owning plugin lifecycle and do not expose a standalone skill uninstall action.
-- If a skill is unavailable because server-side requirements are unmet, the client explains that the skill exists but is currently unusable.
 - If plugin or skills capability is absent, the corresponding tab or action is hidden or disabled with a clear reason.
 
 #### 6.1.1 Plugin creation and marketplace sources
@@ -737,8 +736,8 @@ Required behavior:
 
 - The principal segment stages a welcome draft that mentions the plugin
   authoring skill together with a localized starting prompt, then navigates to a
-  new conversation. When that skill is unavailable, the draft degrades to plain
-  text rather than staging a mention that cannot resolve.
+  new conversation. When that skill is absent from the effective catalog, the
+  draft degrades to plain text rather than staging a mention that cannot resolve.
 - Adding a marketplace collects a source, an optional reference, and optional
   sparse paths, and may instead point at a local directory. Fetch failures are
   reported inline in the dialog so the user can correct the input, not as a

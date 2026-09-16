@@ -3946,10 +3946,6 @@ public sealed class ReasoningConfig : ExtensibleJsonObject
 /// <summary>Executable wire contract for SkillInfo.</summary>
 public sealed class SkillInfo : ExtensibleJsonObject
 {
-    [JsonPropertyName("available")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Available { get; init; }
-
     [JsonPropertyName("defaultPrompt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> DefaultPrompt { get; init; }
@@ -4006,10 +4002,6 @@ public sealed class SkillInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Source { get; init; }
 
-    [JsonPropertyName("unavailableReason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> UnavailableReason { get; init; }
-
 }
 
 /// <summary>Executable wire contract for SkillUsage.</summary>
@@ -4031,15 +4023,6 @@ public sealed class SkillUsage : ExtensibleJsonObject
     [JsonPropertyName("pluginId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> PluginId { get; init; }
-
-}
-
-/// <summary>Executable wire contract for SkillsListParams.</summary>
-public sealed class SkillsListParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("includeUnavailable")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> IncludeUnavailable { get; init; }
 
 }
 

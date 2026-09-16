@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Lsp;
@@ -49,6 +50,43 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Contains(
             plugin.GetProperty("skills").EnumerateArray(),
             item => item.GetProperty("name").GetString() == "browser");
+    }
+
+    [Fact]
+    public async Task PluginList_WithManyDeclarativeRequirements_CompletesWithinFiveSeconds()
+    {
+        var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
+        for (var index = 0; index < 31; index++)
+        {
+            var skillDir = Path.Combine(sharedSkills, $"shared-{index:D2}");
+            Directory.CreateDirectory(skillDir);
+            File.WriteAllText(
+                Path.Combine(skillDir, "SKILL.md"),
+                $"---\nname: shared-{index:D2}\ndescription: Shared skill {index}\nbins: command-that-does-not-exist-dotcraft\n---\nShared instructions");
+        }
+
+        for (var index = 0; index < 17; index++)
+        {
+            WriteSkillPlugin(
+                Path.Combine(_workspaceCraftPath, "plugins", $"plugin-{index:D2}"),
+                $"plugin-{index:D2}",
+                $"plugin-skill-{index:D2}");
+        }
+
+        var loader = new SkillsLoader(_workspaceCraftPath, sharedSkillsPath: sharedSkills);
+        using var harness = CreateHarness(loader: loader, includeBundledRoots: false);
+        await harness.InitializeAsync();
+        var stopwatch = Stopwatch.StartNew();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList,
+            new { includeDisabled = true }));
+
+        stopwatch.Stop();
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"plugin/list took {stopwatch.Elapsed}.");
+        Assert.Equal(17, response.RootElement.GetProperty("result").GetProperty("plugins").GetArrayLength());
     }
 
     [Fact]
@@ -250,7 +288,7 @@ public sealed partial class AppServerPluginManagementTests
 
         var msg = harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList,
-            new { includeUnavailable = true });
+            new { });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();

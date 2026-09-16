@@ -16,7 +16,7 @@ const plugin: PluginEntry = {
   ]
 }
 const runtimeSkills: SkillEntry[] = plugin.skills.map((skill) => ({
-  ...skill, source: 'plugin', pluginId: plugin.id, available: true, path: `/plugins/review/skills/${skill.name}/SKILL.md`
+  ...skill, source: 'plugin', pluginId: plugin.id, path: `/plugins/review/skills/${skill.name}/SKILL.md`
 }))
 
 function respondWith(currentPlugin = plugin, skills = runtimeSkills): void {
@@ -129,7 +129,7 @@ describe('Plugin detail Skills', () => {
       ]
     }
     respondWith(many, many.skills.map((skill) => ({
-      ...skill, source: 'plugin', pluginId: many.id, available: true, path: `/plugins/review/skills/${skill.name}/SKILL.md`
+      ...skill, source: 'plugin', pluginId: many.id, path: `/plugins/review/skills/${skill.name}/SKILL.md`
     })))
     renderPluginsView()
     fireEvent.click(await screen.findByText('External Process Echo'))

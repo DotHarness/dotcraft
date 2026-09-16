@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using DotCraft.Plugins;
@@ -109,10 +108,9 @@ public sealed partial class SkillsLoader
     }
 
     /// <summary>
-    /// List all available skills (workspace and builtin).
+    /// List all discovered skills.
     /// </summary>
-    /// <param name="filterUnavailable">If true, filter out skills with unmet requirements.</param>
-    public List<SkillInfo> ListSkills(bool filterUnavailable = true)
+    public List<SkillInfo> ListSkills()
     {
         var skills = new List<SkillInfo>();
 
@@ -170,10 +168,6 @@ public sealed partial class SkillsLoader
         AddUserSkillsFromRoot(skills, UserSkillsPath);
         AddUserSkillsFromRoot(skills, SharedSkillsPath);
 
-        // Filter by requirements if requested
-        if (filterUnavailable)
-            return SortSkills(skills.Where(s => s.Available)).ToList();
-
         return SortSkills(skills).ToList();
     }
 
@@ -208,22 +202,15 @@ public sealed partial class SkillsLoader
         if (skills.Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)))
             return;
 
-        var metadata = GetSkillMetadataFromFile(skillFile);
-        var requirements = GetSkillRequirements(metadata);
-
         var skillInfo = new SkillInfo
         {
             Name = name,
             Path = skillFile,
             Source = source,
             PluginId = pluginId,
-            PluginDisplayName = pluginDisplayName,
-            Requirements = requirements
+            PluginDisplayName = pluginDisplayName
         };
 
-        CheckRequirements(requirements, out var unavailableReason);
-        skillInfo.Available = string.IsNullOrEmpty(unavailableReason);
-        skillInfo.UnavailableReason = unavailableReason;
         skillInfo.Enabled = !_disabledSkills.Contains(name);
 
         skills.Add(skillInfo);
@@ -399,28 +386,23 @@ public sealed partial class SkillsLoader
     /// <summary>
     /// Build a summary of all skills (for progressive loading).
     /// The agent can read the full skill content using ReadFile when needed.
-    /// Shows availability status and missing requirements for unavailable skills.
     /// </summary>
-    public string BuildSkillsSummary(IReadOnlyCollection<string>? availableToolNames = null)
+    public string BuildSkillsSummary()
     {
-        return BuildSkillsSummary(availableToolNames, variantModeEnabled: false, target: null);
+        return BuildSkillsSummary(variantModeEnabled: false, target: null);
     }
 
     /// <summary>
     /// Build a summary of all skills with effective locations when variants are enabled.
     /// </summary>
     public string BuildSkillsSummary(
-        IReadOnlyCollection<string>? availableToolNames,
         bool variantModeEnabled,
         SkillVariantTarget? target)
     {
-        var allSkills = ListSkills(filterUnavailable: false);
+        var allSkills = ListSkills();
         if (allSkills.Count == 0)
             return string.Empty;
 
-        var toolSet = availableToolNames == null
-            ? null
-            : new HashSet<string>(availableToolNames, StringComparer.OrdinalIgnoreCase);
         var sb = new StringBuilder();
         sb.AppendLine("<skills>");
 
@@ -432,31 +414,11 @@ public sealed partial class SkillsLoader
             var description = GetSkillDescription(skill.Name);
             var metadata = GetSkillMetadata(skill.Name);
             var alwaysLoad = metadata?.GetValueOrDefault("always", "false").ToLowerInvariant() == "true";
-            var available = skill.Available;
-            var unavailableReason = skill.UnavailableReason;
-            if (toolSet != null && skill.Requirements?.Tools.Count > 0)
-            {
-                var missingTools = skill.Requirements.Tools
-                    .Where(t => !toolSet.Contains(t))
-                    .ToArray();
-                if (missingTools.Length > 0)
-                {
-                    available = false;
-                    unavailableReason = "Missing tools: " + string.Join(", ", missingTools);
-                }
-            }
-
             sb.AppendLine(
-                $"  <skill available=\"{available.ToString().ToLower()}\" always=\"{alwaysLoad.ToString().ToLower()}\">");
+                $"  <skill always=\"{alwaysLoad.ToString().ToLower()}\">");
             sb.AppendLine($"    <name>{EscapeXml(skill.Name)}</name>");
             sb.AppendLine($"    <description>{EscapeXml(description)}</description>");
             sb.AppendLine($"    <location>{EscapeXml(ResolveEffectiveSkillFile(skill, variantModeEnabled, target) ?? skill.Path)}</location>");
-
-            // Show missing requirements for unavailable skills
-            if (!available && unavailableReason != null)
-            {
-                sb.AppendLine($"    <requires>{EscapeXml(unavailableReason)}</requires>");
-            }
 
             sb.AppendLine("  </skill>");
         }
@@ -468,24 +430,14 @@ public sealed partial class SkillsLoader
     /// <summary>
     /// Get skills marked as always=true.
     /// </summary>
-    public List<string> GetAlwaysSkills(IReadOnlyCollection<string>? availableToolNames = null)
+    public List<string> GetAlwaysSkills()
     {
         var result = new List<string>();
-        var toolSet = availableToolNames == null
-            ? null
-            : new HashSet<string>(availableToolNames, StringComparer.OrdinalIgnoreCase);
 
         foreach (var skill in ListSkills())
         {
             if (!skill.Enabled)
                 continue;
-
-            if (toolSet != null && skill.Requirements?.Tools.Count > 0)
-            {
-                var missingTool = skill.Requirements.Tools.Any(t => !toolSet.Contains(t));
-                if (missingTool)
-                    continue;
-            }
 
             var metadata = GetSkillMetadata(skill.Name);
             if (metadata != null && metadata.GetValueOrDefault("always", "false").ToLowerInvariant() == "true")
@@ -576,7 +528,7 @@ public sealed partial class SkillsLoader
     /// Resolves a source skill descriptor by name.
     /// </summary>
     public SkillInfo? ResolveSkillInfo(string name) =>
-        ListSkills(filterUnavailable: false)
+        ListSkills()
             .FirstOrDefault(skill => string.Equals(skill.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private static Dictionary<string, string> ParseOpenAiInterfaceManifest(string content)
@@ -748,21 +700,6 @@ public sealed partial class SkillsLoader
         public string? PluginDisplayName { get; set; }
 
         /// <summary>
-        /// Whether the skill is available (all requirements met).
-        /// </summary>
-        public bool Available { get; set; } = true;
-
-        /// <summary>
-        /// Reason why the skill is unavailable (if applicable).
-        /// </summary>
-        public string? UnavailableReason { get; set; }
-
-        /// <summary>
-        /// Skill requirements (bins, env vars).
-        /// </summary>
-        public SkillRequirements? Requirements { get; set; }
-
-        /// <summary>
         /// When false, the skill is disabled via workspace config and omitted from agent context.
         /// </summary>
         public bool Enabled { get; set; } = true;
@@ -792,154 +729,4 @@ public sealed partial class SkillsLoader
         public string? DefaultPrompt { get; set; }
     }
 
-    /// <summary>
-    /// Represents skill requirements.
-    /// </summary>
-    public sealed class SkillRequirements
-    {
-        /// <summary>
-        /// Required executables/bins.
-        /// </summary>
-        public List<string> Bins { get; set; } = [];
-
-        /// <summary>
-        /// Required environment variables.
-        /// </summary>
-        public List<string> Env { get; set; } = [];
-
-        /// <summary>
-        /// Required agent tools.
-        /// </summary>
-        public List<string> Tools { get; set; } = [];
-    }
-
-    /// <summary>
-    /// Check if skill requirements are met (bins, env vars).
-    /// </summary>
-    /// <param name="requires">Requirements to check.</param>
-    /// <param name="reason">Output parameter for missing requirements description.</param>
-    /// <returns>True if all requirements are met, false otherwise.</returns>
-    private static bool CheckRequirements(SkillRequirements? requires, out string? reason)
-    {
-        reason = null;
-        if (requires == null || (requires.Bins.Count == 0 && requires.Env.Count == 0))
-            return true;
-
-        var missing = new List<string>();
-
-        // Check required executables
-        foreach (var bin in requires.Bins)
-        {
-            if (!IsCommandAvailable(bin))
-                missing.Add($"Executable: {bin}");
-        }
-
-        // Check required environment variables
-        foreach (var env in requires.Env)
-        {
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(env)))
-                missing.Add($"Environment variable: {env}");
-        }
-
-        if (missing.Count > 0)
-        {
-            reason = "Missing requirements: " + string.Join(", ", missing);
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Check if a command is available in PATH.
-    /// </summary>
-    /// <param name="command">The command to check.</param>
-    /// <returns>True if command is available, false otherwise.</returns>
-    private static bool IsCommandAvailable(string command)
-    {
-        try
-        {
-            var isWindows = OperatingSystem.IsWindows();
-            var checkCommand = isWindows ? $"where {command}" : $"which {command}";
-            var shell = isWindows ? "cmd.exe" : "/bin/bash";
-            var shellArg = isWindows ? "/c" : "-c";
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = shell,
-                Arguments = $"{shellArg} \"{checkCommand}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null)
-                return false;
-
-            process.WaitForExit();
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Parse skill requirements from metadata.
-    /// </summary>
-    /// <param name="metadata">Skill metadata dictionary.</param>
-    /// <returns>SkillRequirements object, or null if no requirements.</returns>
-    private static SkillRequirements? GetSkillRequirements(Dictionary<string, string>? metadata)
-    {
-        if (metadata == null)
-            return null;
-
-        // Check for 'requires' field with bins and env
-        var hasRequirements = metadata.ContainsKey("bins") || metadata.ContainsKey("env") || metadata.ContainsKey("tools") || metadata.ContainsKey("allowed-tools");
-
-        if (!hasRequirements)
-            return null;
-
-        var requirements = new SkillRequirements();
-
-        // Parse bins (comma-separated)
-        if (metadata.TryGetValue("bins", out var binsStr))
-        {
-            requirements.Bins.AddRange(binsStr.Split(',')
-                .Select(b => b.Trim())
-                .Where(b => !string.IsNullOrEmpty(b)));
-        }
-
-        // Parse env (comma-separated)
-        if (metadata.TryGetValue("env", out var envStr))
-        {
-            requirements.Env.AddRange(envStr.Split(',')
-                .Select(e => e.Trim())
-                .Where(e => !string.IsNullOrEmpty(e)));
-        }
-
-        // Parse tools (comma-separated). Tool requirements are evaluated against
-        // the per-agent tool list when building the prompt.
-        if (metadata.TryGetValue("allowed-tools", out var allowedToolsStr))
-        {
-            requirements.Tools.AddRange(allowedToolsStr.Split(',')
-                .Select(t => t.Trim())
-                .Where(t => !string.IsNullOrEmpty(t)));
-        }
-        else if (metadata.TryGetValue("tools", out var toolsStr))
-        {
-            requirements.Tools.AddRange(toolsStr.Split(',')
-                .Select(t => t.Trim())
-                .Where(t => !string.IsNullOrEmpty(t)));
-        }
-
-        return requirements.Bins.Count == 0 && requirements.Env.Count == 0 && requirements.Tools.Count == 0
-            ? null
-            : requirements;
-    }
 }

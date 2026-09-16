@@ -20,7 +20,7 @@ alternative Agent runtime.
 The Skill system has five responsibilities:
 
 1. Discover one source Skill for each name from configured roots.
-2. Describe enabled Skills and their availability in Agent context.
+2. Describe enabled Skills in Agent context.
 3. Resolve the effective source or workspace adaptation for the current runtime.
 4. Load and mutate Skills through the `SkillView` and `SkillManage` tools.
 5. Project Skill discovery and management through AppServer and Desktop.
@@ -60,8 +60,8 @@ Optional metadata includes:
 - `agents/openai.yaml` interface metadata for display name, short description, default prompt,
   and icons.
 
-Requirements affect availability. A disabled Skill remains installed but is omitted from Agent
-context. An unavailable Skill may remain visible to management clients with its reason.
+Requirements are declarative metadata for consumers and do not affect discovery or Agent context.
+A disabled Skill remains installed but is omitted from Agent context.
 
 ## 3. Sources and discovery
 
@@ -74,8 +74,8 @@ DotCraft resolves duplicate Skill names by source priority:
 5. shared Skills under `~/.agents/skills`.
 
 The first source for a case-insensitive name wins. Discovery scans direct child directories for a
-`SKILL.md` file and returns descriptors sorted by name. Disabled plugin Skills and unavailable
-built-ins do not enter the effective catalog.
+`SKILL.md` file and returns descriptors sorted by name. Skills owned by disabled plugins and
+suppressed built-ins do not enter the effective catalog.
 
 `~/.agents/skills` is a cross-tool convention that other Agent products also read. DotCraft
 discovers it as a second user-level root, so those Skills report the `user` source and differ only
@@ -92,9 +92,9 @@ invocation; prompt text is not the enforcement boundary.
 
 [Prompt Composition](prompt-composition.md) owns placement and caching. The Skill subsystem provides:
 
-- active instructions for enabled, available Skills marked `always: true`;
+- active instructions for enabled Skills marked `always: true`;
 - a compact catalog of other enabled Skills, including name, description, effective location,
-  availability, and unmet requirements;
+  and declared metadata;
 - self-learning guidance only when `SkillManage` is exposed.
 
 The catalog instructs the Agent to call `SkillView` when a task matches a Skill. `ReadFile` is a
@@ -213,7 +213,7 @@ have these responsibilities:
 
 | Method | Responsibility |
 |--------|----------------|
-| `skills/list` | List descriptors, availability, source metadata, enabled state, and `hasVariant`. |
+| `skills/list` | List descriptors, source metadata, enabled state, and `hasVariant`. |
 | `skills/read` | Read the source `SKILL.md` and metadata. |
 | `skills/view` | Read the effective source-or-variant instruction body. |
 | `skills/restoreOriginal` | Restore source behavior for the current runtime target. |

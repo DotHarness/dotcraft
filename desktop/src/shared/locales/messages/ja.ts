@@ -3269,7 +3269,6 @@ export const MESSAGES_JA = {
   'skillCard.openFolder': 'フォルダーを開く',
   'skillCard.enable': '有効にする',
   'skillCard.disable': '無効にする',
-  'skillCard.unavailable': '利用不可',
   'skillCard.builtin': '内蔵',
   'skillCard.disabledBadge': '障害者',
   'skillCard.on': 'オン',

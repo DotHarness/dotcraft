@@ -3271,7 +3271,6 @@ export const MESSAGES_KO = {
   'skillCard.openFolder': '폴더 열기',
   'skillCard.enable': '활성화',
   'skillCard.disable': '비활성화',
-  'skillCard.unavailable': '이용 불가',
   'skillCard.builtin': '내장',
   'skillCard.disabledBadge': '장애인',
   'skillCard.on': '켜짐',

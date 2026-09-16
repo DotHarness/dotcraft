@@ -171,7 +171,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<RemoteToolHostRouteChangedNotification> RemoteToolHostRouteChanged = new("remoteToolHost/route/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "remoteToolHost", notificationOptOut: true);
 
-    public static readonly RpcRequest<SkillsListParams, SkillsListResult> SkillsList = new("skills/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
+    public static readonly RpcRequest<RpcEmpty, SkillsListResult> SkillsList = new("skills/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<SkillsReadParams, SkillsReadResult> SkillsRead = new("skills/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
 
