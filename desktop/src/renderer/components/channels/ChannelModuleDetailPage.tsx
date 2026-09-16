@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { Settings } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { CatalogBreadcrumb, CatalogTopBar } from '../catalog/CatalogSurface'
@@ -26,7 +26,8 @@ interface ChannelModuleDetailPageProps {
   active: boolean
   busy: boolean
   controlsAvailable: boolean
-  initialMode?: ChannelModuleDetailMode
+  mode: ChannelModuleDetailMode
+  onModeChange: (mode: ChannelModuleDetailMode) => void
   onBack: () => void
   onToggleConnection: () => void
   renderManage: (actions: { onCancel: () => void; onSaved: () => void }) => ReactNode
@@ -42,16 +43,16 @@ export function ChannelModuleDetailPage({
   active,
   busy,
   controlsAvailable,
-  initialMode = 'preview',
+  mode,
+  onModeChange,
   onBack,
   onToggleConnection,
   renderManage,
 }: ChannelModuleDetailPageProps): JSX.Element {
   const t = useT()
-  const [mode, setMode] = useState<ChannelModuleDetailMode>(initialMode)
 
   if (mode === 'manage') {
-    const showPreview = (): void => setMode('preview')
+    const showPreview = (): void => onModeChange('preview')
     return (
       <ChannelFormPage
         trail={[{ label: title, onClick: showPreview }]}
@@ -92,7 +93,7 @@ export function ChannelModuleDetailPage({
                   icon={<Settings size={16} aria-hidden />}
                   label={t('plugins.manage')}
                   tooltipLabel={t('plugins.manage')}
-                  onClick={() => setMode('manage')}
+                  onClick={() => onModeChange('manage')}
                 />
                 <MorphingActionPill
                   label={t(active ? 'appBinding.disconnect' : 'appBinding.connect')}

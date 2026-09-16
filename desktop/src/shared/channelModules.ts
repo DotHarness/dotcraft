@@ -78,3 +78,11 @@ export interface QrUpdatePayload {
   qrDataUrl: string | null
   timestamp: number
 }
+
+export interface ModuleConfigStatus {
+  exists: boolean
+  /** Display labels, not config keys. */
+  missingRequired: string[]
+}
+
+export type ModuleConfigStatusMap = Record<string, ModuleConfigStatus>

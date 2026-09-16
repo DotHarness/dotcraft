@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ChannelsView } from '../components/channels/ChannelsView'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useUIStore } from '../stores/uiStore'
+import { useToastStore } from '../stores/toastStore'
 import type { DiscoveredModule } from '../../preload/api'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -11,7 +12,9 @@ const settingsGet = vi.fn()
 const modulesList = vi.fn()
 const modulesRescan = vi.fn()
 const modulesReadConfig = vi.fn()
+const modulesConfigStatus = vi.fn()
 const modulesRunning = vi.fn()
+const modulesStart = vi.fn()
 const modulesQrStatus = vi.fn()
 const appServerSendRequest = vi.fn()
 
@@ -79,6 +82,7 @@ describe('ChannelsView module channel display', () => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
     useUIStore.getState().setSelectedChannelKey(null)
+    useToastStore.setState({ toasts: [] })
     settingsGet.mockResolvedValue({
       locale: 'zh-Hans',
       connectionMode: 'websocket',
@@ -87,6 +91,10 @@ describe('ChannelsView module channel display', () => {
     modulesList.mockResolvedValue([createWeComModule()])
     modulesRescan.mockResolvedValue([createWeComModule()])
     modulesReadConfig.mockResolvedValue({ config: {} })
+    modulesConfigStatus.mockResolvedValue({
+      'wecom-standard': { exists: false, missingRequired: ['Callback URL'] }
+    })
+    modulesStart.mockResolvedValue({ ok: true })
     modulesRunning.mockResolvedValue({})
     modulesQrStatus.mockResolvedValue({ active: false, qrDataUrl: null })
     appServerSendRequest.mockResolvedValue({ channels: [] })
@@ -102,9 +110,10 @@ describe('ChannelsView module channel display', () => {
           list: modulesList,
           rescan: modulesRescan,
           readConfig: modulesReadConfig,
+          configStatus: modulesConfigStatus,
           writeConfig: vi.fn().mockResolvedValue(undefined),
           running: modulesRunning,
-          start: vi.fn().mockResolvedValue({ ok: true }),
+          start: modulesStart,
           stop: vi.fn().mockResolvedValue({ ok: true }),
           setActiveVariant: vi.fn().mockResolvedValue({ ok: true }),
           getLogs: vi.fn().mockResolvedValue({ lines: [] }),
@@ -117,7 +126,7 @@ describe('ChannelsView module channel display', () => {
       })
   })
 
-  it('opens module detail from the install action', async () => {
+  it('opens the configuration form from the install action', async () => {
     render(
       <LocaleProvider>
         <ChannelsView />
@@ -126,8 +135,51 @@ describe('ChannelsView module channel display', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '安装' }))
 
+    expect(await screen.findByRole('heading', { name: '管理 企业微信' })).toBeInTheDocument()
     await waitFor(() => {
       expect(modulesReadConfig).toHaveBeenCalledWith({ configFileName: 'wecom.json' })
+    })
+  })
+
+  it('offers the module status instead of install once configuration is complete', async () => {
+    modulesConfigStatus.mockResolvedValue({
+      'wecom-standard': { exists: true, missingRequired: [] }
+    })
+
+    render(
+      <LocaleProvider>
+        <ChannelsView />
+      </LocaleProvider>
+    )
+
+    expect(await screen.findByRole('img', { name: '已停止' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '安装' })).not.toBeInTheDocument()
+  })
+
+  it('opens the configuration form when connecting without required fields', async () => {
+    modulesConfigStatus.mockResolvedValue({
+      'wecom-standard': { exists: true, missingRequired: [] }
+    })
+    modulesStart.mockResolvedValue({
+      ok: false,
+      error: 'Required fields missing: Callback URL',
+      missingFields: ['Callback URL']
+    })
+
+    render(
+      <LocaleProvider>
+        <ChannelsView />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: /企业微信/ }))
+    fireEvent.click(await screen.findByRole('button', { name: '连接' }))
+
+    expect(await screen.findByRole('heading', { name: '管理 企业微信' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        useToastStore.getState().toasts.some((toast) => toast.message.includes('Callback URL'))
+      ).toBe(true)
     })
   })
 

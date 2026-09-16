@@ -967,6 +967,8 @@ This section defines the user-visible workflow for TypeScript channel modules co
 - Desktop must allow users to view and update module configuration values required for runtime startup.
 - Configuration key semantics and descriptor contracts remain defined by [plugin-architecture.md](../architecture/plugin-architecture.md).
 - Fields intended for interactive setup only are not treated as ordinary manual-entry fields in the default config workflow.
+- A module is treated as configured once its workspace config file is readable and no required field is still empty.
+- The browse surface offers a setup action only for modules that are not yet configured, and that action opens the module's configuration workflow directly rather than an overview. A configured module presents its runtime status instead.
 
 #### 6.8.3 Enable, Disable, and Runtime Expectations
 
@@ -1008,7 +1010,7 @@ This section defines the user-visible workflow for TypeScript channel modules co
 #### 6.8.8 Diagnostics and Preconditions
 
 - Desktop must expose clear prerequisite failures for module execution (for example, missing runtime dependencies).
-- Before enabling a module, Desktop validates required configuration fields and surfaces actionable guidance when data is incomplete.
+- Before enabling a module, Desktop validates required configuration fields and surfaces actionable guidance when data is incomplete. Validation treats an absent config file as incomplete configuration rather than a file-level failure, and enabling a module whose configuration is incomplete opens its configuration workflow alongside the message naming the missing fields.
 - When module runtime startup or operation fails, users must receive an understandable failure signal and a next-step action (retry, reconfigure, or inspect logs).
 - Diagnostics should help users distinguish setup failures, connectivity failures, and runtime crashes.
 

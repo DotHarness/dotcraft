@@ -91,6 +91,9 @@ import type { WorkspaceSetupResult } from './workspaceSetup'
 import { normalizeRemoteHosts, type RemoteHost, type RemoteStack } from '../shared/remoteServers'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { parseJsonObjectConfig } from '../shared/jsonConfig'
+import { findMissingRequiredConfigFields } from '../shared/channelModuleConfig'
+import type { ModuleConfigStatusMap } from '../shared/channelModules'
+import { readModuleConfigStatusMap } from './channelModuleConfigStatus'
 import { detectEditors, launchEditor, type EditorId } from './externalEditors'
 import {
   bindDotCraftSkillInstall,
@@ -1000,37 +1003,6 @@ const terminalCleanupHookedWindows = new Set<number>()
 
 function normalizeChannelName(channelName: string): string {
   return channelName.trim().toLowerCase()
-}
-
-function getNestedValue(config: Record<string, unknown>, dottedKey: string): unknown {
-  const parts = dottedKey.split('.').filter(Boolean)
-  if (parts.length === 0) return undefined
-  let current: unknown = config
-  for (const part of parts) {
-    if (current == null || typeof current !== 'object' || Array.isArray(current)) return undefined
-    current = (current as Record<string, unknown>)[part]
-  }
-  return current
-}
-
-function findMissingRequiredFields(
-  config: Record<string, unknown>,
-  module: DiscoveredModule
-): string[] {
-  const missing: string[] = []
-  for (const descriptor of module.configDescriptors) {
-    if (!descriptor.required) continue
-    if (descriptor.key.startsWith('dotcraft.')) continue
-    const value = getNestedValue(config, descriptor.key)
-    const isMissing =
-      value == null ||
-      (typeof value === 'string' && value.trim() === '') ||
-      (Array.isArray(value) && value.length === 0)
-    if (isMissing) {
-      missing.push(descriptor.displayLabel || descriptor.key)
-    }
-  }
-  return missing
 }
 
 function isRunningProcessState(state: ModuleStatusMap[string]['processState'] | undefined): boolean {
@@ -2233,6 +2205,11 @@ export function registerIpcHandlers(
 
   handleSafe('modules:rescan', async () => scanAndCacheModules({ emitSummary: true }))
 
+  handleSafe('modules:config-status', async (): Promise<ModuleConfigStatusMap> => {
+    const modules = cachedModules ?? (await scanAndCacheModules())
+    return readModuleConfigStatusMap(workspacePath, modules)
+  })
+
   handleSafe(
     'modules:set-active-variant',
     async (
@@ -2354,27 +2331,33 @@ export function registerIpcHandlers(
       if (!module) {
         return { ok: false, error: `Module '${params.moduleId}' not found` }
       }
+      const configPath = path.join(workspacePath, '.craft', module.configFileName)
+      let stored: Record<string, unknown> | null = null
       try {
-        const configPath = path.join(workspacePath, '.craft', module.configFileName)
-        const raw = await fs.readFile(configPath, 'utf-8')
-        const parsed = parseJsonObjectConfig(raw)
-        const settings = callbacks?.getSettings() ?? {}
-        const wsConfig = resolveModuleWsConfig(settings, callbacks?.getAppServerWsConfig?.())
-        const merged = injectModuleDotcraftConfig(parsed, wsConfig)
-        const missingFields = findMissingRequiredFields(merged, module)
-        if (missingFields.length > 0) {
-          return {
-            ok: false,
-            error: `Required fields missing: ${missingFields.join(', ')}`,
-            missingFields
-          }
-        }
-        if (JSON.stringify(merged) !== JSON.stringify(parsed)) {
-          await fs.writeFile(configPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf-8')
-        }
+        stored = parseJsonObjectConfig(await fs.readFile(configPath, 'utf-8'))
       } catch (error) {
         const code = (error as NodeJS.ErrnoException | null)?.code
         if (code !== 'ENOENT') {
+          return { ok: false, error: error instanceof Error ? error.message : String(error) }
+        }
+      }
+      const settings = callbacks?.getSettings() ?? {}
+      const wsConfig = resolveModuleWsConfig(settings, callbacks?.getAppServerWsConfig?.())
+      const merged = injectModuleDotcraftConfig(stored ?? {}, wsConfig)
+      const missingFields = findMissingRequiredConfigFields(merged, module.configDescriptors)
+      if (missingFields.length > 0) {
+        return {
+          ok: false,
+          error: `Required fields missing: ${missingFields.join(', ')}`,
+          missingFields
+        }
+      }
+      // A module with nothing left to fill in still needs the file on disk to start.
+      if (stored === null || JSON.stringify(merged) !== JSON.stringify(stored)) {
+        try {
+          await fs.mkdir(path.dirname(configPath), { recursive: true })
+          await fs.writeFile(configPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf-8')
+        } catch (error) {
           return { ok: false, error: error instanceof Error ? error.message : String(error) }
         }
       }
@@ -2688,6 +2671,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('modules:list')
   ipcMain.removeHandler('modules:pick-directory')
   ipcMain.removeHandler('modules:rescan')
+  ipcMain.removeHandler('modules:config-status')
   ipcMain.removeHandler('modules:set-active-variant')
   ipcMain.removeHandler('modules:read-config')
   ipcMain.removeHandler('modules:write-config')

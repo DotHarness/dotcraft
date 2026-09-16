@@ -4,7 +4,7 @@ import { addToast } from '../../stores/toastStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { AppLocale, LocalizedTextMap } from '../../../shared/locales'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useUIStore } from '../../stores/uiStore'
+import { useUIStore, type SelectedChannelKey } from '../../stores/uiStore'
 import {
   replaceCurrentAppNavigationLocation,
   runWithoutAppNavigationRecording
@@ -30,9 +30,11 @@ import {
 import { SkeletonCatalogGrid } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
 import { isPersistedEmbeddedModuleChannelEnabled } from '../../../shared/channelModulePersistence'
+import { isModuleConfigured } from '../../../shared/channelModuleConfig'
 import type {
   ConnectionMode,
   DiscoveredModule,
+  ModuleConfigStatusMap,
   ModulesRescanSummaryPayload,
   ModuleStatusEntry,
   ModuleStatusMap,
@@ -170,16 +172,18 @@ function moduleStatusLabelKey(status: ChannelConnectionState): string {
 function deriveModuleStatus(
   moduleId: string,
   statusMap: ModuleStatusMap,
-  persistedEnabled: boolean
+  persistedEnabled: boolean,
+  configured: boolean
 ): ChannelConnectionState {
+  const idle: ChannelConnectionState =
+    persistedEnabled || configured ? 'stopped' : 'notConfigured'
   const entry = statusMap[moduleId]
-  if (!entry) return persistedEnabled ? 'stopped' : 'notConfigured'
+  if (!entry) return idle
   if (entry.processState === 'crashed') return 'error'
   if (entry.connected) return 'connected'
   if (entry.processState === 'starting') return 'connecting'
   if (entry.processState === 'running') return 'enabledNotConnected'
-  if (entry.processState === 'stopped') return persistedEnabled ? 'stopped' : 'notConfigured'
-  return 'notConfigured'
+  return idle
 }
 
 function moduleStatusEntryFromChannelStatus(
@@ -360,11 +364,7 @@ function modulePreviewPrompt(module: DiscoveredModule, locale: AppLocale): strin
   )
 }
 
-export function ChannelsView({
-  initialModuleDetailMode = 'preview',
-}: {
-  initialModuleDetailMode?: ChannelModuleDetailMode
-} = {}): JSX.Element {
+export function ChannelsView(): JSX.Element {
   const locale = useLocale()
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -385,6 +385,7 @@ export function ChannelsView({
   const [modulesLoaded, setModulesLoaded] = useState(false)
   const [modulesError, setModulesError] = useState<string | null>(null)
   const [moduleConfig, setModuleConfig] = useState<Record<string, unknown>>({})
+  const [moduleConfigStatus, setModuleConfigStatus] = useState<ModuleConfigStatusMap>({})
   const [savingModule, setSavingModule] = useState(false)
   const [moduleStatusMap, setModuleStatusMap] = useState<ModuleStatusMap>({})
   const [moduleQrState, setModuleQrState] = useState<Record<string, ModuleQrState>>({})
@@ -395,6 +396,11 @@ export function ChannelsView({
   const [moduleLogsById, setModuleLogsById] = useState<Record<string, string[]>>({})
   const [loadingLogsModuleId, setLoadingLogsModuleId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  // Keyed by channel so opening another detail page always starts on the preview.
+  const [detailModeByKey, setDetailModeByKey] = useState<{
+    key: SelectedChannelKey
+    mode: ChannelModuleDetailMode
+  }>({ key: selectedChannelKey, mode: 'preview' })
   const moduleConnectedSnapshotRef = useRef<Record<string, boolean>>({})
   const selectedModuleId = selectedChannelKey?.startsWith('module:')
     ? selectedChannelKey.slice('module:'.length)
@@ -402,6 +408,12 @@ export function ChannelsView({
   const selectedExternalName = selectedChannelKey?.startsWith('external:')
     ? selectedChannelKey.slice('external:'.length)
     : null
+  const detailMode: ChannelModuleDetailMode =
+    detailModeByKey.key === selectedChannelKey ? detailModeByKey.mode : 'preview'
+
+  function setDetailMode(channelKey: SelectedChannelKey, mode: ChannelModuleDetailMode): void {
+    setDetailModeByKey({ key: channelKey, mode })
+  }
 
   const externalManagementEnabled = capabilities?.externalChannelManagement === true
 
@@ -500,6 +512,15 @@ export function ChannelsView({
     } finally {
       setModulesLoading(false)
       setModulesLoaded(true)
+    }
+    await refreshModuleConfigStatus()
+  }
+
+  async function refreshModuleConfigStatus(): Promise<void> {
+    try {
+      setModuleConfigStatus(await window.api.modules.configStatus())
+    } catch {
+      // Configuration readiness only refines the catalog; stale state is harmless.
     }
   }
 
@@ -775,6 +796,7 @@ export function ChannelsView({
         configFileName: selectedModule.configFileName,
         config: moduleConfig
       })
+      await refreshModuleConfigStatus()
       const processState = moduleStatusMap[selectedModule.moduleId]?.processState
       const running = processState === 'starting' || processState === 'running'
       addToast(t(running ? 'channels.modules.configSavedRestart' : 'channels.savedRestart'), 'success')
@@ -810,6 +832,7 @@ export function ChannelsView({
       const result = await window.api.modules.start({ moduleId })
       if (!result.ok) {
         if (result.missingFields && result.missingFields.length > 0) {
+          setDetailMode(`module:${moduleId}`, 'manage')
           addToast(
             t('channels.modules.missingRequired', {
               fields: result.missingFields.join(', ')
@@ -823,6 +846,7 @@ export function ChannelsView({
           'error'
         )
       }
+      await refreshModuleConfigStatus()
     } catch (err) {
       addToast(
         t('channels.saveFailed', { error: err instanceof Error ? err.message : String(err) }),
@@ -1066,6 +1090,7 @@ export function ChannelsView({
 
   function openNewExternalChannel(): void {
     setExternalDraft(createEmptyExternalChannel())
+    setDetailMode('external:__new__', 'preview')
     setSelectedChannelKey('external:__new__')
   }
 
@@ -1083,7 +1108,13 @@ export function ChannelsView({
         (remoteConnection &&
           (channelStatusMap?.get(module.channelName.toLowerCase())?.enabled === true ||
             fallbackConnected?.has(module.channelName.toLowerCase()) === true))
-      const status = deriveModuleStatus(module.moduleId, effectiveModuleStatusMap, persistedEnabled)
+      const configured = isModuleConfigured(moduleConfigStatus[module.moduleId])
+      const status = deriveModuleStatus(
+        module.moduleId,
+        effectiveModuleStatusMap,
+        persistedEnabled,
+        configured
+      )
       const title = resolveModuleDisplayName(module, locale)
       const subtitle = moduleShortDescription(module, locale)
       const longDescription = moduleLongDescription(module, locale)
@@ -1091,8 +1122,10 @@ export function ChannelsView({
       const searchable =
         `${title} ${subtitle} ${longDescription} ${previewPrompt} ${module.channelName} ${module.packageName} ${module.variant}`.toLowerCase()
       if (normalizedQuery && !searchable.includes(normalizedQuery)) return null
-      const openModule = (): void => {
-        setSelectedChannelKey(`module:${module.moduleId}`)
+      const openModule = (mode: ChannelModuleDetailMode): void => {
+        const channelKey: SelectedChannelKey = `module:${module.moduleId}`
+        setDetailMode(channelKey, mode)
+        setSelectedChannelKey(channelKey)
         void loadModuleConfig(module)
       }
       return {
@@ -1104,8 +1137,8 @@ export function ChannelsView({
         status,
         statusLabel: t(moduleStatusLabelKey(status)),
         active: selectedChannelKey === `module:${module.moduleId}`,
-        onOpen: openModule,
-        onInstall: openModule
+        onOpen: () => openModule('preview'),
+        onInstall: configured ? undefined : () => openModule('manage')
       }
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -1125,6 +1158,7 @@ export function ChannelsView({
         active: selectedChannelKey === `external:${channel.name}`,
         onOpen: () => {
           setExternalDraft(cloneExternalChannel(channel.draft))
+          setDetailMode(`external:${channel.name}`, 'preview')
           setSelectedChannelKey(`external:${channel.name}`)
         }
       }
@@ -1176,7 +1210,8 @@ export function ChannelsView({
         active={moduleActive}
         busy={togglingModuleId === selectedModule.moduleId}
         controlsAvailable={!remoteConnection}
-        initialMode={initialModuleDetailMode}
+        mode={detailMode}
+        onModeChange={(mode) => setDetailMode(`module:${selectedModule.moduleId}`, mode)}
         onBack={closeDetail}
         onToggleConnection={() => {
           if (moduleActive) {
@@ -1234,7 +1269,8 @@ export function ChannelsView({
         saving={savingExternal}
         deleting={deletingExternal}
         available={externalManagementEnabled}
-        initialMode={initialModuleDetailMode}
+        mode={detailMode}
+        onModeChange={(mode) => setDetailMode(`external:${selectedExternalName}`, mode)}
         onChange={setExternalDraft}
         onSave={() => handleSaveExternal()}
         onToggleEnabled={() => {

@@ -16,7 +16,8 @@ interface ExternalChannelDetailPageProps {
   deleting: boolean
   /** Some servers do not offer external channel management. */
   available: boolean
-  initialMode?: ChannelModuleDetailMode
+  mode: ChannelModuleDetailMode
+  onModeChange: (mode: ChannelModuleDetailMode) => void
   onChange: (next: ExternalChannelConfigWire) => void
   /** Resolves false when the upsert failed, so manage mode stays open. */
   onSave: () => Promise<boolean>
@@ -41,7 +42,8 @@ export function ExternalChannelDetailPage({
   saving,
   deleting,
   available,
-  initialMode,
+  mode,
+  onModeChange,
   onChange,
   onSave,
   onToggleEnabled,
@@ -102,7 +104,8 @@ export function ExternalChannelDetailPage({
       active={value.enabled}
       busy={saving}
       controlsAvailable
-      initialMode={initialMode}
+      mode={mode}
+      onModeChange={onModeChange}
       onBack={onBack}
       onToggleConnection={onToggleEnabled}
       renderManage={({ onCancel, onSaved }) => (

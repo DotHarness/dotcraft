@@ -1714,6 +1714,103 @@ describe('registerIpcHandlers', () => {
     expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
   })
 
+  it('reports the missing required fields when modules:start finds no config file', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
+      handlers.set(channel, handler as (...args: unknown[]) => unknown)
+    })
+    scanModulesMock.mockResolvedValue([
+      {
+        moduleId: 'demo-module',
+        channelName: 'demo',
+        displayName: 'Demo',
+        packageName: 'demo-module',
+        configFileName: 'module.json',
+        supportedTransports: ['stdio'],
+        requiresInteractiveSetup: false,
+        variant: 'default',
+        source: 'user',
+        absolutePath: '/workspace/modules/demo',
+        configDescriptors: [
+          {
+            key: 'demo.botToken',
+            displayLabel: 'Bot Token',
+            description: '',
+            required: true,
+            dataKind: 'string',
+            masked: true,
+            interactiveSetupOnly: false
+          }
+        ]
+      }
+    ])
+    const missingFile = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    vi.mocked(fs.readFile).mockRejectedValue(missingFile)
+
+    registerIpcHandlers(null, () => null, '/workspace', {
+      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
+      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
+      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
+      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
+      onOpenNewWindow: vi.fn(),
+      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
+      getSettings: vi.fn(() => ({})),
+      updateSettings: vi.fn(),
+      getRecentWorkspaces: vi.fn(() => []),
+      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
+      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
+    })
+
+    await expect(
+      handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
+    ).resolves.toMatchObject({ ok: false, missingFields: ['Bot Token'] })
+    expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
+  })
+
+  it('creates the config file when modules:start has nothing left to fill in', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
+      handlers.set(channel, handler as (...args: unknown[]) => unknown)
+    })
+    scanModulesMock.mockResolvedValue([
+      {
+        moduleId: 'demo-module',
+        channelName: 'demo',
+        displayName: 'Demo',
+        packageName: 'demo-module',
+        configFileName: 'module.json',
+        supportedTransports: ['stdio'],
+        requiresInteractiveSetup: false,
+        variant: 'default',
+        source: 'user',
+        absolutePath: '/workspace/modules/demo',
+        configDescriptors: []
+      }
+    ])
+    const missingFile = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    vi.mocked(fs.readFile).mockRejectedValue(missingFile)
+
+    registerIpcHandlers(null, () => null, '/workspace', {
+      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
+      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
+      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
+      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
+      onOpenNewWindow: vi.fn(),
+      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
+      getSettings: vi.fn(() => ({})),
+      updateSettings: vi.fn(),
+      getRecentWorkspaces: vi.fn(() => []),
+      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
+      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
+    })
+
+    await expect(
+      handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
+    ).resolves.toMatchObject({ ok: true })
+    expect(vi.mocked(fs.writeFile)).toHaveBeenCalled()
+    expect(channelModuleManagerStartMock).toHaveBeenCalledWith('demo-module')
+  })
+
   it('awaits async updateSettings in settings:set handler', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {

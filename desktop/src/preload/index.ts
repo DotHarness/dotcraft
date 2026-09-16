@@ -112,6 +112,7 @@ export type {
 } from '../shared/desktopSettings'
 import type {
   DiscoveredModule,
+  ModuleConfigStatusMap,
   ModuleStatusMap,
   QrUpdatePayload
 } from '../shared/channelModules'
@@ -120,6 +121,8 @@ export type {
   ConfigFieldOptionWire,
   ConfigGroupDescriptorWire,
   DiscoveredModule,
+  ModuleConfigStatus,
+  ModuleConfigStatusMap,
   ModuleInterfaceWire,
   ModuleStatusEntry,
   ModuleStatusMap,
@@ -1310,6 +1313,9 @@ const api = {
     },
     rescan(): Promise<DiscoveredModule[]> {
       return ipcRenderer.invoke('modules:rescan')
+    },
+    configStatus(): Promise<ModuleConfigStatusMap> {
+      return ipcRenderer.invoke('modules:config-status')
     },
     setActiveVariant(params: {
       channelName: string
