@@ -49,20 +49,7 @@ WeCom must reach the callback from the public internet. For local Desktop use, p
 - File and image delivery are available through channel delivery tools.
 - Messages from users or chats outside the allowlist are ignored.
 
-## Standalone adapter
-
-Run the WeCom adapter yourself only when Desktop is not managing the channel process.
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-wecom
-npx dotcraft-channel-wecom --workspace /path/to/workspace
-```
-
-The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
-
 ## Related docs
 
 - [Channel configuration reference](./reference) — every field, default, and registration shape for the WeCom config file.
-- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
 - [Weixin channel](./weixin) — personal WeChat takes a different route, through a Tencent iLink QR login.

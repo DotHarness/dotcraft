@@ -53,22 +53,6 @@ NapCat 连上 DotCraft 监听地址后，Desktop 中的 QQ 渠道应显示为 co
 - 语音、视频和文件投递可通过渠道投递工具使用。
 - NapCat 运行在 Docker 中时，不需要访问 workspace 里的文件。
 
-## 独立适配器
-
-只有在不由 Desktop 管理渠道进程时，才需要自己运行 QQ 适配器。
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace /path/to/workspace
-```
-
-当适配器配置不在 `.craft/qq.json` 时，使用 `--config /custom/qq.json`。
-
-独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
-
 ## 相关文档
 
 - [渠道配置参考](./reference)——QQ 配置文件的全部字段、默认值与注册形态。
-- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
-- [渠道模块集成](../../developing/integrations/typescript-module)——把 TypeScript 渠道模块嵌入自己的宿主进程。

@@ -181,4 +181,4 @@ Hub errors preserve `code`, `message`, and `details`. Do not log Hub tokens or f
 
 - [AppServer Protocol](../protocols/appserver-protocol) — the wire contract behind every method on this page.
 - [Hub lifecycle](../lifecycle/hub) — the Hub process model behind local connections.
-- [Channel adapters](./channels) — connect an external messaging platform on top of this SDK.
+- [Channel adapters](./channels) — connect an external messaging platform on top of the SDK.

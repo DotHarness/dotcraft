@@ -1,217 +1,122 @@
-# 渠道模块集成
+# 渠道模块
 
-本文面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/channel` 模块契约。Channel authoring packages 仅在仓库内使用。请先构建 `sdk/typescript`，再安装所需的本地包目录。已发布的客户端包见 [TypeScript SDK 设置](../sdks/typescript)。
+渠道模块把[渠道适配器](../sdks/channels)封装为 Desktop 等 DotCraft 宿主可以发现、配置、启动和停止的单元。适配器仍然负责消息路由和平台投递。模块只在适配器外补充宿主需要的元数据与生命周期边界。
 
-![宿主可观察的八个生命周期状态：starting 到 ready 再到 stopped 是主干路径，configMissing、configInvalid、authRequired、authExpired、degraded 是从主干分出的旁路](/typescript-module-lifecycle.svg)
+![渠道模块在宿主中的生命周期：从 starting 进入 ready，最后到 stopped。配置、认证和 degraded 状态从主路径分出](/typescript-module-lifecycle.svg)
 
-## 概览
+## 适配器与模块层级
 
-模块契约为宿主提供稳定的集成边界：
+两个层级共同组成一个 Channel 实现：
 
-- 从 `manifest` 读取模块元数据
-- 通过 `createModule(context)` 创建可运行实例
-- 以机器可读方式观察生命周期状态与错误
-- 基于 `configGroups` 与 `configDescriptors` 渲染分组配置界面
-- 通过 `moduleId` 切换变体，同时保持 `channelName` 作为运行时逻辑身份
+| 层级 | 职责 |
+| --- | --- |
+| **渠道适配器** | 连接 AppServer、解析 thread、运行 turn、处理审批并投递平台消息。 |
+| **渠道模块** | 描述具体实现、提供配置元数据、创建适配器实例，并向宿主报告生命周期状态。 |
 
-只从包根导入，不要依赖包内私有路径，也不要通过源码目录结构推断行为。
+适配器需要模块级配置与生命周期支持时，继承 `ModuleChannelAdapter`。可由宿主加载的包还需要从根入口导出模块契约，并提供用于发现的 `manifest.json`。
 
-## 加载模块
+## 导出模块契约
 
-宿主从包根读取 manifest 与工厂函数：
+从包根入口导出以下内容：
 
-```typescript
-import { configDescriptors, configGroups, createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleFactory, ModuleManifest } from "@dotcraft/channel";
+- `manifest`：稳定身份、传输方式、launcher 和能力元数据
+- `createModule(context)`：返回运行模块边界的工厂函数
+- `configDescriptors`：供宿主校验和渲染配置的字段
+- `configGroups`：可选的字段分组及顺序
 
-const moduleManifest: ModuleManifest = manifest;
-const moduleFactory: ModuleFactory = createModule;
+工厂函数包装适配器，无需实现第二套 Channel Runtime：
 
-console.log(moduleManifest.moduleId);
-console.log(configGroups.length);
-console.log(configDescriptors.length);
+```ts
+import type { ModuleFactory } from "@dotcraft/channel";
+import { MyChannelAdapter } from "./my-channel-adapter.js";
+
+export const createModule: ModuleFactory = (context) => {
+  const adapter = new MyChannelAdapter();
+
+  return {
+    start: () => adapter.startWithContext(context),
+    stop: () => adapter.stop(),
+    onStatusChange: (handler) => adapter.onStatusChange(handler),
+    getStatus: () => adapter.getStatus(),
+    getError: () => adapter.getError(),
+  };
+};
 ```
 
-## 模块发现
+`WorkspaceContext` 提供 `workspaceRoot`、`craftPath`、`channelName` 和 `moduleId`。使用这些值定位运行环境，不要依赖当前工作目录。这样同一个模块才能由不同宿主运行。
 
-宿主可以基于允许接入的包根列表或 `moduleId` 映射维护模块注册表。
+## 描述模块
 
-推荐流程：
+使用公共 `ModuleManifest` 类型定义 manifest。`moduleId` 用于选择具体实现，`channelName` 则保留兼容变体共享的逻辑 Channel 身份。
 
-1. 加载允许接入的包根。
-2. 读取每个包导出的 `manifest`。
-3. 按 `moduleId` 建立索引。
-4. 可选按 `channelName` 做分组展示。
+```ts
+import type { ModuleManifest } from "@dotcraft/channel";
+import { CHANNEL_CONTRACT_VERSION } from "@dotcraft/channel/meta";
 
-选择键是 `moduleId`，运行时逻辑身份保持为 `channelName`。
-
-## 创建并启动模块实例
-
-显式构造 `WorkspaceContext` 并传给模块工厂。
-
-```typescript
-import { createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleInstance, WorkspaceContext } from "@dotcraft/channel";
-
-const context: WorkspaceContext = {
-  workspaceRoot: "F:/workspace/demo",
-  craftPath: "F:/workspace/demo/.craft",
-  channelName: manifest.channelName,
-  moduleId: manifest.moduleId,
+export const manifest: ModuleManifest = {
+  moduleId: "acme-chat-standard",
+  channelName: "acme-chat",
+  displayName: "Acme Chat",
+  packageName: "@acme/dotcraft-channel",
+  configFileName: "acme-chat.json",
+  supportedTransports: ["websocket"],
+  requiresInteractiveSetup: false,
+  capabilitySummary: {
+    hasChannelTools: false,
+    hasStructuredDelivery: false,
+    requiresInteractiveSetup: false,
+    capabilitySetMayVaryByEnvironment: false,
+  },
+  channelContractVersion: CHANNEL_CONTRACT_VERSION,
+  supportedChannelProtocolVersions: ["0.2"],
+  variant: "standard",
+  launcher: {
+    bin: "dotcraft-channel-acme",
+    supportsWorkspaceFlag: true,
+    supportsConfigOverrideFlag: true,
+  },
 };
+```
 
-const instance: ModuleInstance = createModule(context);
+只从文档列出的包入口导入。不要导入包内私有文件，也不要从宿主源码结构推断契约字段。
+
+## 提供配置元数据
+
+宿主使用 `configGroups` 和 `configDescriptors` 构建配置界面，无需理解平台特有设置。Group id 必须非空且唯一。带有 `group` 的 descriptor 必须引用已声明的 Group。
+
+各字段按以下规则使用：
+
+- `required` 控制校验。
+- `masked` 与 `dataKind: "secret"` 保护敏感输入。
+- `displayLabel`、`description` 及其本地化形式提供界面文案。
+- `options` 描述本地化枚举选项，`allowCustomValue` 允许额外的自定义值。
+- 未保存值时，`defaultValue` 提供界面使用的有效显示值。
+
+显示默认值时不要自动保存。只有用户编辑字段后才持久化。
+
+## 报告生命周期状态
+
+在调用 `start()` 前注册状态 handler，确保宿主能观察到早期状态变化。模块报告 `LifecycleStatus` 定义的结构化状态，其中包括需要宿主介入的配置和认证状态。
+
+```ts
+const instance = createModule(context);
+
+instance.onStatusChange((status, error) => {
+  console.log(manifest.moduleId, status, error);
+});
+
 await instance.start();
 ```
 
-启动输入由宿主明确传入，模块不依赖当前工作目录来定位工作区。
+调用 `stop()` 结束实例。`stopped` 是该实例的终止状态。再次启动前应创建新实例。
 
-## 生命周期观察
+## 供宿主发现
 
-在调用 `start()` 之前注册状态回调，以免漏掉早期状态切换。
+已安装模块目录包含包文件和 `manifest.json`。该文件承载发现元数据与配置 descriptor。Desktop 扫描配置的模块目录，按 `channelName` 对兼容实现分组，再通过 `moduleId` 选择具体变体。
 
-```typescript
-import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/channel";
-
-function mapStatusToHostAction(status: LifecycleStatus, error?: ModuleError): string {
-  switch (status) {
-    case "configMissing":
-      return "提示用户创建模块配置";
-    case "configInvalid":
-      return `展示配置错误：${error?.message ?? "配置无效"}`;
-    case "starting":
-      return "展示连接中状态";
-    case "ready":
-      return "标记模块已就绪";
-    case "authRequired":
-      return "启动交互式认证流程";
-    case "authExpired":
-      return "提示认证过期并引导重新认证";
-    case "degraded":
-      return "展示降级告警";
-    case "stopped":
-      return "标记模块已停止";
-  }
-}
-
-function observeLifecycle(instance: ModuleInstance): void {
-  instance.onStatusChange((status, error) => {
-    const action = mapStatusToHostAction(status, error);
-    console.log(`[module-status] ${status} -> ${action}`);
-  });
-}
-```
-
-宿主可随时通过 `instance.getStatus()` 获取当前状态，通过 `instance.getError()` 获取最近的结构化错误。
-
-## 渲染配置界面
-
-若包导出了 `configGroups` 与 `configDescriptors`，宿主可据此构建配置表单，无需解析包内私有 schema。按导出顺序渲染非空分组，并保持展开。
-
-```typescript
-import { configDescriptors, configGroups } from "@dotcraft/channel-feishu";
-import type { ConfigDescriptor, ConfigGroupDescriptor } from "@dotcraft/channel";
-
-type FormGroup = {
-  group: ConfigGroupDescriptor;
-  fields: ConfigDescriptor[];
-};
-
-const groups: FormGroup[] = configGroups
-  .map((group) => ({
-    group,
-    fields: configDescriptors.filter((descriptor) => descriptor.group === group.id),
-  }))
-  .filter(({ fields }) => fields.length > 0);
-```
-
-让宿主 UI 遵循：
-
-- Group id 必须非空且唯一，`ConfigDescriptor.group` 必须引用已声明的 Group
-- `required`：必填校验
-- `masked` 与 `dataKind: "secret"`：敏感字段掩码展示
-- `displayLabel` 与 `description`：作为用户可读提示
-- 使用结构化 `options` 提供本地化枚举名称与预览，其优先级高于 `enumValues`
-- 使用 `allowCustomValue` 渲染“预设 + 自定义”枚举控件
-- 已存配置缺少字段时，将 `defaultValue` 作为界面显示的有效值
-
-显示 `defaultValue` 时不得初始化或保存该字段。只有用户明确编辑控件后才写入配置。
-
-没有 `group` 的字段进入隐式 `Configuration` Group。只有 `advanced: true` 且没有 `group` 的字段进入隐式 `Advanced` Group。新模块应显式声明所有 Group 及字段归属。
-
-## 交互式初始化
-
-交互式初始化需求通过生命周期状态表达，而不是绑定某个固定 UI。
-
-```typescript
-import type { ModuleInstance } from "@dotcraft/channel";
-
-function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
-  instance.onStatusChange((status, error) => {
-    if (status === "authRequired") {
-      console.log("展示二维码路径或初始化引导");
-      return;
-    }
-    if (status === "authExpired") {
-      console.log("提示会话过期并触发重新认证流程");
-      return;
-    }
-    if (status === "configMissing" || status === "configInvalid") {
-      console.log(`需要处理配置问题：${error?.message ?? status}`);
-    }
-  });
-}
-```
-
-具体交互方式（Desktop 面板、CLI 提示、Dashboard 通知）由宿主决定。契约只要求状态是结构化、可识别的。
-
-## 停止模块
-
-通过 `await instance.stop()` 停止模块，并将 `stopped` 视为该实例的终止状态。
-
-推荐宿主行为：
-
-1. 禁用该实例的发送与工具调用入口。
-2. 将连接状态标记为离线。
-3. 保留最近的结构化错误用于排障。
-
-## 变体替换
-
-变体替换允许宿主切换同一渠道族的实现，同时保持逻辑渠道身份不变。
-
-选择模型：
-
-- 通过 `moduleId` 选择具体实现
-- 通过 `channelName` 保持运行时身份
-- 默认配置命名仍按渠道约定，除非 manifest 明确声明不同
-
-示例：
-
-- 标准版：`moduleId = "feishu-standard"`，`channelName = "feishu"`
-- 企业版：`moduleId = "feishu-enterprise"`，`channelName = "feishu"`
-
-因此宿主只需切换 `moduleId`，无需重写集成模型。
-
-## 模块接入要求
-
-第三方包满足以下导出即可被同一宿主模型加载：
-
-- `manifest`
-- `createModule`
-- 可选 `configGroups`
-- 可选 `configDescriptors`
-
-建议接入清单：
-
-1. 实现 `@dotcraft/channel` 模块契约类型。
-2. 保持宿主只依赖包根导出。
-3. 提供机器可读的生命周期与错误信号。
-4. 在模块边界内完成配置验证。
-5. 提供包级测试与一致性测试。
-
-这样一方、企业版与第三方模块可以在同一宿主边界下互换。
+模块包提供 manifest 所描述的 launcher。宿主发现与适配器的平台逻辑保持分工，宿主选择、启动和消息投递仍属于同一条生命周期。
 
 ## 相关文档
 
-- [渠道适配器](../sdks/channels)——模块所基于的适配器基类。
-- [将 DotCraft 接入飞书](../../features/channels/feishu)——实现本契约的完整模块示例。
+- [渠道适配器](../sdks/channels)——实现消息路由、AppServer 交互和平台投递。
+- [渠道配置](../../features/channels/reference)——在 DotCraft 中配置已安装的 Channel。

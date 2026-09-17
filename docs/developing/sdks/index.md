@@ -12,7 +12,7 @@ Use a DotCraft SDK to connect an application to AppServer. Start with the high-l
 - [MCP runtime](./mcp-runtime) — inspect configured servers, resources, tools, and authentication.
 - [Channel adapters](./channels) — connect an external messaging platform.
 
-Inside a DotCraft conversation, `$dotcraft-api` picks the right shape for your integration (client, in-process host, or extension) and checks names against the generated protocol contract.
+Inside a DotCraft conversation, `$dotcraft-api` routes SDK questions to the latest official documentation and checks code against installed public types.
 
 ## Choose an API layer
 
@@ -22,7 +22,7 @@ Inside a DotCraft conversation, `$dotcraft-api` picks the right shape for your i
 | **Wire** | Typed JSON-RPC, connection state, timeouts, and explicit raw extension calls. |
 | **Contracts** | Generated DTOs, method maps, registries, and protocol metadata without transport I/O. |
 
-Host adapters and Channel runtimes build on these layers and add environment-specific integration: workspace routing, heartbeat, platform delivery, and UI interaction.
+Channel adapters build on these layers. A [Channel module](../integrations/typescript-module) packages an adapter with discovery, configuration, and lifecycle metadata so DotCraft hosts such as Desktop can load it.
 
 ## Packages
 

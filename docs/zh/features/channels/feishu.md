@@ -75,20 +75,6 @@ Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected�
 
 然后私聊机器人发送 `/feishu-auth`，打开它回复的链接同意授权。也可以直接让 agent 去做需要个人资源的事，由它给出链接。两种方式链接都只会私聊送达——谁打开谁就成为被授权的账号。你用哪个账号同意，agent 之后就以哪个账号读取，且对渠道里所有人生效。发送 `/feishu-auth status` 查看当前绑定的账号，`/feishu-auth revoke` 解除绑定。
 
-## 独立适配器
-
-只有在不由 Desktop 管理渠道进程时，才需要自己运行飞书适配器。
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-feishu
-npx dotcraft-channel-feishu --workspace /path/to/workspace
-```
-
-独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
-
 ## 相关文档
 
 - [渠道配置参考](./reference)——飞书配置文件的全部字段、默认值与注册形态。
-- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
-- [渠道模块集成](../../developing/integrations/typescript-module)——飞书模块就是这份契约的完整实现示例。

@@ -12,7 +12,7 @@
 - [MCP 运行时](./mcp-runtime)——检查已配置 server、resource、tool 和认证。
 - [渠道适配器](./channels)——连接外部消息平台。
 
-在 DotCraft 对话里可以直接调用 `$dotcraft-api`。它会先判断你要做 client、进程内托管还是扩展，再对照生成的协议契约核对名称。
+在 DotCraft 对话里可以直接调用 `$dotcraft-api`。它会把 SDK 问题路由到最新官方文档，并根据已安装的公共类型核对代码。
 
 ## 选择 API 层级
 
@@ -22,7 +22,7 @@
 | **Wire** | 强类型 JSON-RPC、连接状态、超时和显式 raw 扩展调用。 |
 | **Contracts** | 不含传输 I/O 的生成 DTO、方法映射、注册表和协议元数据。 |
 
-Host adapter 和 Channel runtime 建立在这些层级之上，补上特定运行环境的集成：工作区路由、heartbeat、平台投递和 UI 交互。
+渠道适配器建立在这些层级之上。[渠道模块](../integrations/typescript-module)再为适配器补充发现、配置和生命周期元数据，使 Desktop 等 DotCraft 宿主可以加载它。
 
 ## 包
 

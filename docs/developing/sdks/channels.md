@@ -2,6 +2,8 @@
 
 A channel adapter brings an external messaging platform into DotCraft as a first-class channel. It resolves a thread per user, runs turns on it, and delivers replies back to the platform.
 
+The adapter is the runtime abstraction. To make the same adapter discoverable and manageable by DotCraft hosts such as Desktop, package it as a [Channel module](../integrations/typescript-module). A module adds host metadata and lifecycle packaging; it does not replace the adapter.
+
 > [!NOTE]
 > The channel adapter is a language-specific profile, available in **TypeScript** only. The .NET SDK does not ship a channel adapter.
 
@@ -59,13 +61,14 @@ The adapter also handles user-input requests through `onUserInputRequest`; its d
 
 For progressive delivery, return `false` from `onSegmentCompleted` when a segment was not delivered. Any other return marks it delivered, and the default `onTurnCompleted` then skips the full reply.
 
-## Packages
+## Package
 
-TypeScript Channel authoring is provided by the private `@dotcraft/channel` package. Import adapter and module authoring APIs from its root, queues and routing from `/runtime`, media helpers from `/media`, conformance helpers from `/testing`, and Channel contract metadata from `/meta`. To load a finished module into Desktop or your own host process, see [Channel Module integration](../integrations/typescript-module).
+TypeScript Channel authoring uses `@dotcraft/channel`. Import adapter authoring APIs from its root, queues and routing from `/runtime`, media helpers from `/media`, conformance helpers from `/testing`, and Channel contract metadata from `/meta`.
 
-DotCraft also ships hosted TypeScript modules for the built-in channels on this same base; each depends on `@dotcraft/channel`, which in turn depends on `@dotcraft/sdk`. Their setup and configuration are documented in the [channel configuration reference](../../features/channels/reference).
+DotCraft uses the same base for its built-in hosted channels. Their setup and configuration are documented in the [channel configuration reference](../../features/channels/reference).
 
 ## Related docs
 
+- [Channel modules](../integrations/typescript-module) — package an adapter for host discovery and lifecycle management.
 - [AppServer Protocol](../protocols/appserver-protocol) — the JSON-RPC contract beneath the adapter.
-- [TypeScript reference](./typescript) — full adapter signatures.
+- [TypeScript reference](./typescript) — the SDK surface used by the adapter.

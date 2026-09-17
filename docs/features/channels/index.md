@@ -54,10 +54,6 @@ Before putting a bot in a group or public chat:
 
 The exact field names are in the [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
 
-## Connect your own platform
-
-When the built-in channels don't cover the platform you need, write an adapter. [Channel adapters](../../developing/sdks/channels) covers the base class and message flow, and [Channel Module integration](../../developing/integrations/typescript-module) covers wiring the finished module into DotCraft. The underlying message format is in the [AppServer Protocol](../../developing/protocols/appserver-protocol).
-
 ## Related docs
 
 - [Security & Sandbox](../self-hosted/security) — tighten tool permissions and sandboxing before a bot faces a group chat

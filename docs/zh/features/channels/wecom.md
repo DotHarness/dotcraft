@@ -49,20 +49,7 @@
 - 文件和图片投递可通过渠道投递工具使用。
 - 白名单之外的用户或会话消息会被忽略。
 
-## 独立适配器
-
-只有在不由 Desktop 管理渠道进程时，才需要自己运行企业微信适配器。
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-wecom
-npx dotcraft-channel-wecom --workspace /path/to/workspace
-```
-
-独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
-
 ## 相关文档
 
 - [渠道配置参考](./reference)——企业微信配置文件的全部字段、默认值与注册形态。
-- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
 - [微信渠道](./weixin)——个人微信走另一条链路，通过腾讯 iLink 扫码接入。

@@ -54,10 +54,6 @@
 
 对应的准确字段名见[配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
 
-## 接入自己的平台
-
-内置渠道覆盖不了你要接的平台时，可以自己写一个适配器。[渠道适配器](../../developing/sdks/channels)讲基类和消息流转，[渠道模块集成](../../developing/integrations/typescript-module)讲怎么把写好的模块挂进 DotCraft。底层的消息格式见 [AppServer 协议](../../developing/protocols/appserver-protocol)。
-
 ## 相关文档
 
 - [安全与沙箱](../self-hosted/security) — Bot 面向群聊之前，先把工具权限和沙箱收紧

@@ -248,5 +248,3 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
 ## Related docs
 
 - [DotCraft Full Configuration Reference](../../developing/configuration) — the workspace config file that holds `ExternalChannels`, plus every other setting.
-- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
-- [Channel Module integration](../../developing/integrations/typescript-module) — embed a TypeScript channel module in your own host process.

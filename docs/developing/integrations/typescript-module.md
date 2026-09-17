@@ -1,217 +1,122 @@
-# Channel Module integration
+# Channel modules
 
-This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/channel` module contract. Channel authoring packages are repository-local. Build `sdk/typescript` first, then install the required local package directories. See the [TypeScript SDK setup](../sdks/typescript) for the published client package.
+A Channel module packages a [Channel adapter](../sdks/channels) so DotCraft hosts such as Desktop can discover, configure, start, and stop it. The adapter still owns message routing and platform delivery. The module adds the host-facing metadata and lifecycle boundary around that adapter.
 
-![The eight lifecycle statuses a host observes: starting leads to ready and then to stopped, while configMissing, configInvalid, authRequired, authExpired, and degraded branch off that path](/typescript-module-lifecycle.svg)
+![The host-visible lifecycle of a Channel module, from starting through ready and stopped, with configuration, authentication, and degraded states branching from the main path](/typescript-module-lifecycle.svg)
 
-## Overview
+## Adapter and module layers
 
-The module contract gives hosts a stable boundary:
+The two layers serve one Channel implementation:
 
-- Load metadata from `manifest`
-- Create a runnable instance through `createModule(context)`
-- Observe machine-readable lifecycle and errors
-- Render grouped config UX from `configGroups` and `configDescriptors`
-- Substitute module variants by `moduleId` while keeping runtime channel identity by `channelName`
+| Layer | Responsibility |
+| --- | --- |
+| **Channel adapter** | Connect to AppServer, resolve threads, run turns, handle approvals, and deliver platform messages. |
+| **Channel module** | Describe the implementation, expose configuration metadata, create the adapter instance, and report lifecycle state to the host. |
 
-Import only from the package root. Don't import package-internal files or infer behavior from the source layout.
+Use `ModuleChannelAdapter` when an adapter needs module-aware configuration and lifecycle support. A host-loadable package then exposes the module contract from its root and includes a `manifest.json` for discovery.
 
-## Loading a module
+## Export the module contract
 
-A host reads the manifest and factory from the package root:
+Export these values from the package root:
 
-```typescript
-import { configDescriptors, configGroups, createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleFactory, ModuleManifest } from "@dotcraft/channel";
+- `manifest`: stable identity, transport, launcher, and capability metadata
+- `createModule(context)`: a factory that returns the running module boundary
+- `configDescriptors`: fields the host uses to validate and render configuration
+- `configGroups`: optional ordered groups for those fields
 
-const moduleManifest: ModuleManifest = manifest;
-const moduleFactory: ModuleFactory = createModule;
+The factory wraps the adapter rather than implementing a second Channel runtime:
 
-console.log(moduleManifest.moduleId);
-console.log(configGroups.length);
-console.log(configDescriptors.length);
+```ts
+import type { ModuleFactory } from "@dotcraft/channel";
+import { MyChannelAdapter } from "./my-channel-adapter.js";
+
+export const createModule: ModuleFactory = (context) => {
+  const adapter = new MyChannelAdapter();
+
+  return {
+    start: () => adapter.startWithContext(context),
+    stop: () => adapter.stop(),
+    onStatusChange: (handler) => adapter.onStatusChange(handler),
+    getStatus: () => adapter.getStatus(),
+    getError: () => adapter.getError(),
+  };
+};
 ```
 
-## Discovering modules
+`WorkspaceContext` supplies `workspaceRoot`, `craftPath`, `channelName`, and `moduleId`. Use those values instead of the current working directory so the same module can run under different hosts.
 
-A host can maintain a registry from an allowlist of package roots or `moduleId` mappings.
+## Describe the module
 
-Recommended model:
+Define the manifest with the public `ModuleManifest` type. `moduleId` selects one implementation, while `channelName` preserves the logical Channel identity shared by compatible variants.
 
-1. Load known package roots.
-2. Read each `manifest`.
-3. Index by `moduleId`.
-4. Maintain optional channel grouping by `channelName`.
+```ts
+import type { ModuleManifest } from "@dotcraft/channel";
+import { CHANNEL_CONTRACT_VERSION } from "@dotcraft/channel/meta";
 
-The selection key is `moduleId`. Runtime channel identity remains `channelName`.
-
-## Creating and starting a module instance
-
-Create `WorkspaceContext` explicitly and pass it to the module factory.
-
-```typescript
-import { createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleInstance, WorkspaceContext } from "@dotcraft/channel";
-
-const context: WorkspaceContext = {
-  workspaceRoot: "F:/workspace/demo",
-  craftPath: "F:/workspace/demo/.craft",
-  channelName: manifest.channelName,
-  moduleId: manifest.moduleId,
+export const manifest: ModuleManifest = {
+  moduleId: "acme-chat-standard",
+  channelName: "acme-chat",
+  displayName: "Acme Chat",
+  packageName: "@acme/dotcraft-channel",
+  configFileName: "acme-chat.json",
+  supportedTransports: ["websocket"],
+  requiresInteractiveSetup: false,
+  capabilitySummary: {
+    hasChannelTools: false,
+    hasStructuredDelivery: false,
+    requiresInteractiveSetup: false,
+    capabilitySetMayVaryByEnvironment: false,
+  },
+  channelContractVersion: CHANNEL_CONTRACT_VERSION,
+  supportedChannelProtocolVersions: ["0.2"],
+  variant: "standard",
+  launcher: {
+    bin: "dotcraft-channel-acme",
+    supportsWorkspaceFlag: true,
+    supportsConfigOverrideFlag: true,
+  },
 };
+```
 
-const instance: ModuleInstance = createModule(context);
+Keep package imports on documented entry points. Do not import package-internal files or infer contract fields from a host's source layout.
+
+## Expose configuration
+
+Hosts use `configGroups` and `configDescriptors` to build configuration UI without knowing platform-specific settings. Group ids must be non-empty and unique, and every descriptor with a `group` must reference a declared group.
+
+Use descriptor fields consistently:
+
+- `required` controls validation.
+- `masked` and `dataKind: "secret"` protect sensitive input.
+- `displayLabel`, `description`, and their localized forms provide user-facing text.
+- `options` describes localized enum choices; `allowCustomValue` permits an additional custom value.
+- `defaultValue` supplies an effective display value when no value is stored.
+
+Displaying a default must not persist it. Save the field only after the user edits it.
+
+## Report lifecycle state
+
+Register status handlers before calling `start()` so the host observes early transitions. A module reports one of the structured states defined by `LifecycleStatus`, including configuration and authentication states that require host interaction.
+
+```ts
+const instance = createModule(context);
+
+instance.onStatusChange((status, error) => {
+  console.log(manifest.moduleId, status, error);
+});
+
 await instance.start();
 ```
 
-The host controls startup inputs. Pass the workspace context explicitly — a module does not rely on the current working directory to locate the workspace.
+Call `stop()` to end the instance. Treat `stopped` as terminal for that instance and create a new instance before restarting it.
 
-## Observing lifecycle
+## Package for host discovery
 
-Register status handlers before calling `start()` so no early transition is missed.
+The installed module directory contains its package files and a `manifest.json` carrying the discovery metadata and configuration descriptors. Desktop scans its configured modules directory, groups compatible implementations by `channelName`, and selects a concrete variant by `moduleId`.
 
-```typescript
-import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/channel";
-
-function mapStatusToHostAction(status: LifecycleStatus, error?: ModuleError): string {
-  switch (status) {
-    case "configMissing":
-      return "Prompt user to create module config";
-    case "configInvalid":
-      return `Show config error: ${error?.message ?? "Invalid config"}`;
-    case "starting":
-      return "Show connecting state";
-    case "ready":
-      return "Mark module active";
-    case "authRequired":
-      return "Start interactive setup flow";
-    case "authExpired":
-      return "Prompt re-authentication";
-    case "degraded":
-      return "Show degraded warning";
-    case "stopped":
-      return "Mark module stopped";
-  }
-}
-
-function observeLifecycle(instance: ModuleInstance): void {
-  instance.onStatusChange((status, error) => {
-    const action = mapStatusToHostAction(status, error);
-    console.log(`[module-status] ${status} -> ${action}`);
-  });
-}
-```
-
-The host can query immediate state through `instance.getStatus()` and the last structured error through `instance.getError()`.
-
-## Rendering config UI
-
-If exported, `configGroups` and `configDescriptors` drive host config forms without package-internal schema parsing. Render non-empty groups in exported order and keep them expanded.
-
-```typescript
-import { configDescriptors, configGroups } from "@dotcraft/channel-feishu";
-import type { ConfigDescriptor, ConfigGroupDescriptor } from "@dotcraft/channel";
-
-type FormGroup = {
-  group: ConfigGroupDescriptor;
-  fields: ConfigDescriptor[];
-};
-
-const groups: FormGroup[] = configGroups
-  .map((group) => ({
-    group,
-    fields: configDescriptors.filter((descriptor) => descriptor.group === group.id),
-  }))
-  .filter(({ fields }) => fields.length > 0);
-```
-
-Have the host UI respect:
-
-- unique, non-empty group ids and valid `ConfigDescriptor.group` references
-- `required` for validation
-- `masked` and `dataKind: "secret"` for protected input display
-- `displayLabel` and `description` as user-facing guidance
-- structured `options` for localized enum labels and previews; prefer them over `enumValues`
-- `allowCustomValue` for a preset-plus-custom enum control
-- `defaultValue` as the effective display value when the stored field is absent
-
-Showing `defaultValue` must not initialize or save the field. Persist it only after the user edits the control.
-
-Fields without `group` appear in an implicit `Configuration` group. A field with `advanced: true` and no `group` appears in an implicit `Advanced` group. New modules should declare every group and field assignment explicitly.
-
-## Interactive setup
-
-Interactive setup is signaled by lifecycle status, not host-specific UI assumptions.
-
-```typescript
-import type { ModuleInstance } from "@dotcraft/channel";
-
-function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
-  instance.onStatusChange((status, error) => {
-    if (status === "authRequired") {
-      console.log("Display QR path or setup prompt to user");
-      return;
-    }
-    if (status === "authExpired") {
-      console.log("Notify session expired and start re-auth flow");
-      return;
-    }
-    if (status === "configMissing" || status === "configInvalid") {
-      console.log(`Config action needed: ${error?.message ?? status}`);
-    }
-  });
-}
-```
-
-The host decides the UI (Desktop panel, CLI prompt, dashboard notification). The contract only requires structured state signaling.
-
-## Stopping a module
-
-Stop with `await instance.stop()` and treat `stopped` as terminal for that runtime instance.
-
-Recommended host behavior:
-
-1. Disable send and tool actions for this module instance.
-2. Mark connection as offline.
-3. Keep the last structured error for diagnostics.
-
-## Variant substitution
-
-Variant substitution lets hosts swap module implementations while preserving logical channel identity.
-
-Selection model:
-
-- choose implementation by `moduleId`
-- keep runtime identity by `channelName`
-- keep default config naming by channel conventions unless manifest explicitly differs
-
-Example:
-
-- Standard: `moduleId = "feishu-standard"`, `channelName = "feishu"`
-- Enterprise: `moduleId = "feishu-enterprise"`, `channelName = "feishu"`
-
-A host can switch variants by changing the selected `moduleId` without changing the host-facing integration model.
-
-## Adding new modules
-
-A third-party package is loadable by the same model when it exports from package root:
-
-- `manifest`
-- `createModule`
-- optional `configGroups`
-- optional `configDescriptors`
-
-Checklist for new module packages:
-
-1. Implement the `@dotcraft/channel` module contract types.
-2. Keep host integration on package-root exports only.
-3. Provide machine-readable lifecycle and error transitions.
-4. Validate config in module boundary code.
-5. Include package tests and conformance tests.
-
-This keeps first-party, enterprise, and partner modules interchangeable at the host boundary.
+The package provides the launcher described by its manifest. Host discovery stays separate from the adapter's platform logic, while host selection, startup, and message delivery remain one lifecycle.
 
 ## Related docs
 
-- [Channel adapters](../sdks/channels) — the adapter base class the modules build on.
-- [Connect DotCraft to Feishu](../../features/channels/feishu) — a complete module that implements this contract.
+- [Channel adapters](../sdks/channels) — implement message routing, AppServer interaction, and platform delivery.
+- [Channel configuration](../../features/channels/reference) — configure installed Channels in DotCraft.

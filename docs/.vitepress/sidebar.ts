@@ -167,7 +167,7 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('dashboard', 'Desktop Plugins'), link: '/developing/integrations/desktop-plugins' },
           { text: withIcon('code', 'Desktop Plugin API'), link: '/developing/integrations/desktop-plugin-api' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/developing/integrations/oratorio' },
-          { text: withIcon('blocks', 'Channel Module'), link: '/developing/integrations/typescript-module' }
+          { text: withIcon('blocks', 'Channel Modules'), link: '/developing/integrations/typescript-module' }
         ]
       }
     ]

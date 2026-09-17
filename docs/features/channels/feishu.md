@@ -75,20 +75,6 @@ Also enable **持续访问已授权的数据** (`offline_access`) on the app. Do
 
 Then send `/feishu-auth` to the bot in a direct message and approve the link it replies with. You can also just ask the agent for something personal and let it offer the link; either way the link arrives privately, because whoever opens it becomes the authorized account. That account is the one the agent reads as, for everyone in the channel. Send `/feishu-auth status` to see which account is bound, or `/feishu-auth revoke` to remove it.
 
-## Standalone adapter
-
-Run the Feishu adapter yourself only when Desktop is not managing the channel process.
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-feishu
-npx dotcraft-channel-feishu --workspace /path/to/workspace
-```
-
-The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
-
 ## Related docs
 
 - [Channel configuration reference](./reference) — every field, default, and registration shape for the Feishu config file.
-- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
-- [Channel Module integration](../../developing/integrations/typescript-module) — the Feishu module is the worked example of that contract.

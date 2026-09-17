@@ -47,22 +47,7 @@ Desktop 托管的微信渠道不需要公网回调 URL。
 - 文件和图片投递可通过渠道投递工具使用。
 - 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny` 等纯聊天关键词。回复 `同意全部` 或 `approve all` 会在本会话内放行同类操作。
 
-## 独立适配器
-
-只有在不由 Desktop 管理渠道进程时，才需要自己运行微信适配器。
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-weixin
-npx dotcraft-channel-weixin --workspace /path/to/workspace
-```
-
-当适配器配置不在 `.craft/weixin.json` 时，使用 `--config /custom/weixin.json`。终端模式会在终端中渲染二维码。
-
-独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
-
 ## 相关文档
 
 - [渠道配置参考](./reference)——微信配置文件的全部字段、默认值与注册形态。
-- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
 - [企业微信渠道](./wecom)——企业内部会话走另一条链路，通过回调 URL 接入。

@@ -248,5 +248,3 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 ## 相关文档
 
 - [DotCraft 完整配置参考](../../developing/configuration)——`ExternalChannels` 所在的 workspace 配置文件，以及其余配置项。
-- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。
-- [渠道模块集成](../../developing/integrations/typescript-module)——把 TypeScript 渠道模块嵌入自己的宿主进程。

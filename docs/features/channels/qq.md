@@ -53,22 +53,6 @@ If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an addr
 - Voice, video, and file delivery are available through channel delivery tools.
 - NapCat in Docker does not need access to the workspace files.
 
-## Standalone adapter
-
-Run the QQ adapter yourself only when Desktop is not managing the channel process.
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace /path/to/workspace
-```
-
-Use `--config /custom/qq.json` when the adapter config is not stored at `.craft/qq.json`.
-
-The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
-
 ## Related docs
 
 - [Channel configuration reference](./reference) — every field, default, and registration shape for the QQ config file.
-- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
-- [Channel Module integration](../../developing/integrations/typescript-module) — embed a TypeScript channel module in your own host process.

@@ -2,6 +2,8 @@
 
 渠道适配器把外部消息平台作为一等渠道接入 DotCraft。它为每个用户解析出 thread，在上面跑 turn，再把回复投递回平台。
 
+适配器是运行时抽象。要让 Desktop 等 DotCraft 宿主发现并管理同一个适配器，可将其封装为[渠道模块](../integrations/typescript-module)。模块补充宿主所需的元数据和生命周期包装，并不会取代适配器。
+
 > [!NOTE]
 > 渠道适配器是语言特定的 profile，只有 **TypeScript** 提供。.NET SDK 没有渠道适配器。
 
@@ -61,11 +63,12 @@ class MyChannel extends ChannelAdapter {
 
 ## 包
 
-TypeScript Channel authoring API 由 private `@dotcraft/channel` 包提供。Adapter 和 module authoring API 从根入口导入，队列与路由从 `/runtime` 导入，媒体 helper 从 `/media` 导入，conformance helper 从 `/testing` 导入，Channel contract 元数据从 `/meta` 导入。把写好的模块挂进 Desktop 或自己的宿主进程，见[渠道模块集成](../integrations/typescript-module)。
+TypeScript Channel authoring 使用 `@dotcraft/channel`。Adapter authoring API 从根入口导入，队列与路由从 `/runtime` 导入，媒体 helper 从 `/media` 导入，conformance helper 从 `/testing` 导入，Channel contract 元数据从 `/meta` 导入。
 
-DotCraft 还基于同一套基类为各内置渠道提供托管 TypeScript 模块。它们都依赖 `@dotcraft/channel`，后者再依赖 `@dotcraft/sdk`。安装与配置见[渠道配置参考](../../features/channels/reference)。
+DotCraft 的内置托管渠道也使用这套基类。安装与配置见[渠道配置参考](../../features/channels/reference)。
 
 ## 相关文档
 
+- [渠道模块](../integrations/typescript-module)——封装适配器，供宿主发现并管理生命周期。
 - [AppServer 协议](../protocols/appserver-protocol)——适配器之下的 JSON-RPC 契约。
-- [TypeScript 参考](./typescript)——适配器的完整签名。
+- [TypeScript 参考](./typescript)——适配器使用的 SDK 接口。

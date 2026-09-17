@@ -47,22 +47,7 @@ No public callback URL is required for the Desktop-managed Weixin channel.
 - File and image delivery are available through channel delivery tools.
 - Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 
-## Standalone adapter
-
-Run the Weixin adapter yourself only when Desktop is not managing the channel process.
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-weixin
-npx dotcraft-channel-weixin --workspace /path/to/workspace
-```
-
-Use `--config /custom/weixin.json` when the adapter config is not stored at `.craft/weixin.json`. In terminal mode, the QR code is rendered in the terminal.
-
-The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
-
 ## Related docs
 
 - [Channel configuration reference](./reference) — every field, default, and registration shape for the Weixin config file.
-- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
 - [WeCom channel](./wecom) — enterprise chats take a different route, through a callback URL.

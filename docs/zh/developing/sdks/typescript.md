@@ -181,4 +181,4 @@ Hub 错误会保留 `code`、`message` 和 `details`。不要记录 Hub token �
 
 - [AppServer 协议](../protocols/appserver-protocol)——本页各方法对应的线路契约。
 - [Hub 生命周期](../lifecycle/hub)——本地连接背后的 Hub 进程模型。
-- [渠道适配器](./channels)——基于本 SDK 接入外部消息平台。
+- [渠道适配器](./channels)——基于 SDK 接入外部消息平台。

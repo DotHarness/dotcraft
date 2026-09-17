@@ -47,19 +47,6 @@ Telegram 的平台设置主要在 BotFather 中完成：
 - 文件和图片投递可通过渠道投递工具使用。
 - 同一个 bot token 同一时间只能给一个 DotCraft 实例使用。
 
-## 独立适配器
-
-只有在不由 Desktop 管理渠道进程时，才需要自己运行 Telegram 适配器。
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-telegram
-npx dotcraft-channel-telegram --workspace /path/to/workspace
-```
-
-独立适配器的 `ExternalChannels` 注册形态见[渠道配置参考](./reference)。
-
 ## 相关文档
 
 - [渠道配置参考](./reference)——Telegram 配置文件的全部字段、默认值与注册形态。
-- [渠道适配器](../../developing/sdks/channels)——适配器基类的消息流转与 handler 契约。

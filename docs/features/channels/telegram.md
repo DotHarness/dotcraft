@@ -47,19 +47,6 @@ With Telegram privacy mode enabled, the bot may only receive commands, replies, 
 - File and image delivery are available through channel delivery tools.
 - Only one DotCraft instance can use the same bot token at a time.
 
-## Standalone adapter
-
-Run the Telegram adapter yourself only when Desktop is not managing the channel process.
-
-```bash
-cd sdk/typescript
-npm run build --workspace @dotcraft/channel-telegram
-npx dotcraft-channel-telegram --workspace /path/to/workspace
-```
-
-The standalone `ExternalChannels` registration is in the [channel configuration reference](./reference).
-
 ## Related docs
 
 - [Channel configuration reference](./reference) — every field, default, and registration shape for the Telegram config file.
-- [Channel adapters](../../developing/sdks/channels) — the adapter base class, its message flow, and the handler contract.
