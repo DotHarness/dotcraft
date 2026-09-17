@@ -59,8 +59,7 @@ export function ChartLegend({
 }: {
   series: ChartSeries[]
   labelFor: (key: string) => string
-}): JSX.Element | null {
-  if (series.length < 2) return null
+}): JSX.Element {
   return (
     <div className={styles.legend}>
       {series.map((entry) => (
