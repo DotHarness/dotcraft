@@ -15,7 +15,6 @@ export interface TokenHudStrings {
   readonly cacheLabel: string
   readonly latencyLabel: string
   readonly speedPending: string
-  readonly speedUnavailable: string
   readonly visibleLabel: string
   readonly visibleDescription: string
   readonly generalGroup: string
@@ -40,7 +39,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Cache hit rate',
     latencyLabel: 'Time to first token',
     speedPending: 'Generation speed is being measured',
-    speedUnavailable: 'Generation speed is unavailable',
     visibleLabel: 'Show Token HUD',
     visibleDescription: 'The status readout stays click-through.',
     generalGroup: 'General',
@@ -63,7 +61,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: '缓存命中率',
     latencyLabel: '首 token 延迟',
     speedPending: '正在测量生成速度',
-    speedUnavailable: '暂无生成速度',
     visibleLabel: '显示 Token 状态条',
     visibleDescription: '状态条不会挡住点击。',
     generalGroup: '通用',
@@ -86,7 +83,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'キャッシュヒット率',
     latencyLabel: '最初のトークンまでの時間',
     speedPending: '生成速度を測定中',
-    speedUnavailable: '生成速度を利用できません',
     visibleLabel: 'トークン HUD を表示',
     visibleDescription: 'ステータス表示はクリックを妨げません。',
     generalGroup: '一般',
@@ -109,7 +105,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: '캐시 적중률',
     latencyLabel: '첫 토큰까지 걸린 시간',
     speedPending: '생성 속도를 측정하는 중',
-    speedUnavailable: '생성 속도를 사용할 수 없음',
     visibleLabel: '토큰 HUD 표시',
     visibleDescription: '상태 표시는 클릭을 가로채지 않습니다.',
     generalGroup: '일반',
@@ -132,7 +127,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Tasa de aciertos de caché',
     latencyLabel: 'Tiempo hasta el primer token',
     speedPending: 'Midiendo la velocidad de generación',
-    speedUnavailable: 'Velocidad de generación no disponible',
     visibleLabel: 'Mostrar HUD de tokens',
     visibleDescription: 'El indicador no intercepta los clics.',
     generalGroup: 'General',
@@ -155,7 +149,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Taux de réussite du cache',
     latencyLabel: 'Temps jusqu’au premier jeton',
     speedPending: 'Mesure de la vitesse de génération',
-    speedUnavailable: 'Vitesse de génération indisponible',
     visibleLabel: 'Afficher le HUD des jetons',
     visibleDescription: 'Le relevé n’intercepte pas les clics.',
     generalGroup: 'Général',
@@ -178,7 +171,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Cache-Trefferquote',
     latencyLabel: 'Zeit bis zum ersten Token',
     speedPending: 'Generierungstempo wird gemessen',
-    speedUnavailable: 'Generierungstempo nicht verfügbar',
     visibleLabel: 'Token-HUD anzeigen',
     visibleDescription: 'Die Statusanzeige fängt keine Klicks ab.',
     generalGroup: 'Allgemein',

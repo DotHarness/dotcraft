@@ -56,17 +56,19 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
 
   const speedValue = usage.tokensPerSecond !== null
     ? formatTokensPerSecond(usage.tokensPerSecond)
-    : usage.waitingForSample || session.busy ? '…' : '—'
-  const ariaParts = [
-    usage.tokensPerSecond !== null
-      ? `${strings.speedLabel} ${speedValue} tok/s`
-      : usage.waitingForSample || session.busy ? strings.speedPending : strings.speedUnavailable
-  ]
+    : usage.waitingForSample || session.busy ? '…' : null
+  const ariaParts: string[] = []
+  if (speedValue !== null) {
+    ariaParts.push(
+      usage.tokensPerSecond !== null ? `${strings.speedLabel} ${speedValue} tok/s` : strings.speedPending
+    )
+  }
   if (usage.firstTokenLatencyMs !== null) {
     ariaParts.push(`${strings.latencyLabel} ${formatLatency(usage.firstTokenLatencyMs)}`)
   }
   if (usage.totalTokens !== null) ariaParts.push(`${strings.totalLabel} ${formatTokens(usage.totalTokens)}`)
   if (usage.cacheHitRate !== null) ariaParts.push(`${strings.cacheLabel} ${Math.round(usage.cacheHitRate * 100)}%`)
+  if (ariaParts.length === 0) return null
 
   return (
     <div
@@ -77,10 +79,12 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
       aria-live="off"
       aria-label={`${strings.hudLabel}: ${ariaParts.join(', ')}`}
     >
-      <span className="token-hud-cell" data-metric="speed">
-        <span className="token-hud-value">{speedValue}</span>
-        <span>tok/s</span>
-      </span>
+      {speedValue !== null ? (
+        <span className="token-hud-cell" data-metric="speed">
+          <span className="token-hud-value">{speedValue}</span>
+          <span>tok/s</span>
+        </span>
+      ) : null}
       {usage.firstTokenLatencyMs !== null ? (
         <span className="token-hud-cell" data-metric="latency">
           <span className="token-hud-value">{formatLatency(usage.firstTokenLatencyMs)}</span>

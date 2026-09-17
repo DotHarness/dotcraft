@@ -21,9 +21,8 @@ function TokenHudIcon({ size = 16, style, ...rest }: DesktopPluginIconProps): JS
       style={style}
       {...rest}
     >
-      <rect x="3" y="4" width="18" height="16" rx="3" />
-      <rect x="12" y="7" width="6" height="4" rx="2" fill="currentColor" stroke="none" />
-      <path d="m5 17 3-4 2.5 3L13 11l2.5 4L19 12" />
+      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+      <path d="m12 14 4-4" />
     </svg>
   )
 }

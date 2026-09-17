@@ -1,6 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect x="6" y="8" width="52" height="48" rx="10" fill="#132420" stroke="#4f9d8c" stroke-width="3"/>
-  <rect x="30" y="16" width="22" height="12" rx="6" fill="#4f9d8c"/>
-  <circle cx="36" cy="22" r="3" fill="#132420"/>
-  <path d="M12 46l8-12 7 8 6-14 7 12 8-6" fill="none" stroke="#8fe3d0" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="title">
+  <title id="title">Token HUD</title>
+  <defs>
+    <linearGradient id="hud-ground" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1c2247"/>
+      <stop offset="1" stop-color="#2a2f6b"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#hud-ground)"/>
+  <path d="M15.55 44.5a19 19 0 1 1 32.9 0" fill="none" stroke="#f5f8fc" stroke-opacity=".22" stroke-width="5" stroke-linecap="round"/>
+  <path d="M15.55 44.5a19 19 0 0 1 29.88-22.93" fill="none" stroke="#f5f8fc" stroke-width="5" stroke-linecap="round"/>
+  <path d="M32 35l7.6-7.6" stroke="#ffcf11" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="32" cy="35" r="3.6" fill="#ffcf11"/>
 </svg>
