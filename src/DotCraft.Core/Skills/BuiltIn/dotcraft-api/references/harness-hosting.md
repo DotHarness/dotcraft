@@ -66,4 +66,4 @@ In every shape the application renders streaming events, collects approvals, and
 - Pages under `/developing/harness/`: `nuget-package`, `hosting-lifecycle`, `configuration-paths`, `threads-turns`, `tools-approvals`, `model-providers`.
 - `src/DotCraft.Harness/DotCraftHarnessServiceCollectionExtensions.cs` and `DotCraftHarnessOptions.cs` — the two files that define the whole public surface.
 - `specs/sdk/harness.md` — design rationale.
-- `tests/DotCraft.Harness.Consumer/` — a minimal consumer project; `src/DotCraft.TraceViewer/` is a WinUI 3 integration sample, not a supported product.
+- `tests/DotCraft.Harness.Consumer/` — a minimal consumer project.

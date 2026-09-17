@@ -60,16 +60,6 @@ await host.StopAsync();
 
 `$dotcraft-api` covers the in-process hosting path as well. Ask it in a DotCraft conversation when you embed Harness.
 
-## See a desktop integration sample
-
-The repository includes **DotCraft Trace Viewer**, a WinUI 3 sample that embeds `DotCraft.Harness` to review persisted Agent traces. It presents execution as a chronological Timeline, links evidence through Findings, and keeps the inspected workspace read-only.
-
-Trace Viewer is an integration sample, not a supported DotCraft client product. Run it from source:
-
-```bash
-dotnet run --project src/DotCraft.TraceViewer/DotCraft.TraceViewer.csproj
-```
-
 ## Related docs
 
 - [Runtime architecture](../architecture/overview) — the assembly layering and boundaries Harness embeds.

@@ -60,16 +60,6 @@ await host.StopAsync();
 
 `$dotcraft-api` 同样覆盖进程内托管这条路线。嵌入 Harness 时，可以在 DotCraft 对话里直接问它。
 
-## 查看桌面集成示例
-
-仓库包含 **DotCraft Trace Viewer**。这是一个把 `DotCraft.Harness` 嵌入 WinUI 3 应用的示例，用于审查持久化的 Agent Trace。它用 Timeline 呈现执行过程，用 Finding 关联证据，并保持被检查的 workspace 只读。
-
-Trace Viewer 是集成示例，不是受支持的 DotCraft 客户端产品。从源码运行：
-
-```bash
-dotnet run --project src/DotCraft.TraceViewer/DotCraft.TraceViewer.csproj
-```
-
 ## 相关文档
 
 - [Runtime 架构](../architecture/overview)——Harness 所嵌入的程序集分层与边界。
