@@ -45,7 +45,6 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
                 catalogPath),
             runtime.Model,
             runtime.MaxOutputTokens);
-        client = new AnthropicEagerToolInputStreamingChatClient(client);
         client = new AnthropicDeferredToolLoadingChatClient(
             client,
             runtime.Model,

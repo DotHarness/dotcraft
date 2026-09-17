@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.1 |
+| Version | 0.8.2 |
 | Status | Living |
-| Date | 2026-08-06 |
+| Date | 2026-09-17 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -397,8 +397,11 @@ Core owns append, replacement, abort persistence, replay filtering, and Thread l
   and prompt-cache identity.
 - Chat Completions preserves role/message grouping and reasoning fields used by compatible
   providers. It emits no cache-control markers; its prefix cache is automatic.
-- Anthropic preserves content-block order, thinking signatures, native cache-control markers,
-  deferred tool loading, and eager tool-input streaming.
+- Anthropic preserves content-block order, thinking signatures, native cache-control markers, and
+  deferred tool loading. It does not ask for fine-grained tool-input streaming: that is a per-tool
+  field only the first-party surfaces accept, an Anthropic-compatible endpoint has no way to say
+  whether it does, and omitting it yields the same `input_json_delta` events with the vendor's own
+  buffering and validation.
 
 A capability or optimization belonging to one transport cannot alter another transport's
 history, tool schema, retry timing, or wire request.
