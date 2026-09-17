@@ -250,7 +250,9 @@ public sealed partial class SkillsLoader
             source.Name,
             content,
             effectivePath,
-            string.Equals(effectivePath, source.Path, StringComparison.OrdinalIgnoreCase) ? "source" : "variant");
+            string.Equals(effectivePath, source.Path, StringComparison.OrdinalIgnoreCase) ? "source" : "variant",
+            source.Source,
+            source.PluginId);
     }
 
     /// <summary>

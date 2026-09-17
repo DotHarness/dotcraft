@@ -1,20 +1,21 @@
 import { create } from 'zustand'
+import { addLocalDays, localDayKey, localTzOffsetMinutes } from '../utils/localDay'
 
-/** One day of token usage. Matches AppServer UsageTimeseriesDay wire DTO (spec §27A.3). */
+/** One local day of token usage, projected from a `usage/history` day (spec §27A.3). */
 export interface UsageDayWire {
   date: string
-  inputTokens: number
-  outputTokens: number
   totalTokens: number
-  sessionCount: number
 }
 
-/** Matches AppServer UsageTimeseriesResult wire DTO (spec §27A.3). */
-interface UsageTimeseriesWire {
-  tzOffsetMinutes: number
-  longestTaskMs: number
-  days: UsageDayWire[]
+/** Matches AppServer UsageHistoryResult wire DTO (spec §27A.3). */
+interface UsageHistoryWire {
+  unit: string
+  groupBy: string
+  days: Array<{ date: string; total: number }>
 }
+
+/** The contribution grid spans 53 weeks, so the history request is bounded to that window. */
+const HEATMAP_LOOKBACK_DAYS = 371
 
 /** A leading value with its count out of a total, for share% display. Matches RankedMetric. */
 export interface RankedMetricWire {
@@ -38,6 +39,8 @@ export interface ProfileInsightsWire {
   skillsExplored: number
   totalSkillsUsed: number
   totalThreads: number
+  /** Longest single task (turn) duration across the workspace, in milliseconds. */
+  longestTaskMs: number
   skills: SkillUsageWire[]
 }
 
@@ -51,8 +54,6 @@ export interface GitHubProfile {
 
 interface ProfileStoreState {
   days: UsageDayWire[]
-  /** Longest single task (turn) duration across the workspace, in milliseconds. */
-  longestTaskMs: number
   loading: boolean
   /** True after at least one successful fetch; avoids skeleton flash on tab revisit. */
   loadedOnce: boolean
@@ -68,16 +69,11 @@ interface ProfileStoreState {
   githubProfile: GitHubProfile | null
   identityLoaded: boolean
 
-  fetchTimeseries(options?: { silent?: boolean }): Promise<void>
+  fetchHistory(options?: { silent?: boolean }): Promise<void>
   fetchInsights(options?: { silent?: boolean }): Promise<void>
   loadIdentity(): Promise<void>
   setGithubUsername(username: string | null): Promise<void>
   reset(): void
-}
-
-/** Minutes to add to UTC to obtain local time, i.e. -getTimezoneOffset(). */
-function localTzOffsetMinutes(): number {
-  return -new Date().getTimezoneOffset()
 }
 
 /**
@@ -98,7 +94,6 @@ async function fetchGithubProfile(login: string): Promise<GitHubProfile | null> 
 
 export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   days: [],
-  longestTaskMs: 0,
   loading: false,
   loadedOnce: false,
   error: null,
@@ -112,17 +107,21 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   githubProfile: null,
   identityLoaded: false,
 
-  async fetchTimeseries(options?: { silent?: boolean }) {
+  async fetchHistory(options?: { silent?: boolean }) {
     const silent = options?.silent === true
     if (!silent && !get().loadedOnce) set({ loading: true, error: null })
     else set({ error: null })
     try {
-      const result = (await window.api.appServer.sendRequest('usage/timeseries', {
+      const from = addLocalDays(new Date(), -HEATMAP_LOOKBACK_DAYS)
+      const result = (await window.api.appServer.sendRequest('usage/history', {
+        metric: 'tokens',
+        from: localDayKey(from),
         tzOffsetMinutes: localTzOffsetMinutes()
-      })) as UsageTimeseriesWire
-      const days = Array.isArray(result?.days) ? result.days : []
-      const longestTaskMs = typeof result?.longestTaskMs === 'number' ? result.longestTaskMs : 0
-      set({ days, longestTaskMs, loading: false, loadedOnce: true })
+      })) as UsageHistoryWire
+      const days: UsageDayWire[] = Array.isArray(result?.days)
+        ? result.days.map((day) => ({ date: day.date, totalTokens: day.total }))
+        : []
+      set({ days, loading: false, loadedOnce: true })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       if (!silent) set({ error: msg, loading: false })
@@ -145,6 +144,7 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
           skillsExplored: typeof result?.skillsExplored === 'number' ? result.skillsExplored : 0,
           totalSkillsUsed: typeof result?.totalSkillsUsed === 'number' ? result.totalSkillsUsed : 0,
           totalThreads: typeof result?.totalThreads === 'number' ? result.totalThreads : 0,
+          longestTaskMs: typeof result?.longestTaskMs === 'number' ? result.longestTaskMs : 0,
           skills: Array.isArray(result?.skills) ? result.skills : []
         },
         insightsLoading: false,
@@ -187,7 +187,6 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   reset() {
     set({
       days: [],
-      longestTaskMs: 0,
       loading: false,
       loadedOnce: false,
       error: null,

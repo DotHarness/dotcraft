@@ -12326,6 +12326,15 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "longestTaskMs",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
           "name": "skills",
           "type": "array<core.SkillUsage>",
           "required": false,
@@ -22386,6 +22395,218 @@
       "variants": []
     },
     {
+      "id": "core.UsageHistoryDay",
+      "name": "UsageHistoryDay",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageHistoryDay.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "date",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "total",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "values",
+          "type": "array<core.UsageHistoryValue>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageHistoryParams",
+      "name": "UsageHistoryParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageHistoryParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "from",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "groupBy",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "metric",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "topLimit",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "tzOffsetMinutes",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageHistoryResult",
+      "name": "UsageHistoryResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageHistoryResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "days",
+          "type": "array<core.UsageHistoryDay>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "groupBy",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "series",
+          "type": "array<core.UsageHistorySeries>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "unit",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageHistorySeries",
+      "name": "UsageHistorySeries",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageHistorySeries.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "total",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageHistoryValue",
+      "name": "UsageHistoryValue",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageHistoryValue.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "value",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageSummaryParams",
+      "name": "UsageSummaryParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageSummaryParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "from",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "tzOffsetMinutes",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.UsageSummaryResult",
       "name": "UsageSummaryResult",
       "module": "core",
@@ -22543,16 +22764,125 @@
       "variants": []
     },
     {
-      "id": "core.UsageTimeseriesDay",
-      "name": "UsageTimeseriesDay",
+      "id": "core.UsageThreadGroup",
+      "name": "UsageThreadGroup",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/UsageTimeseriesDay.schema.json",
+      "schema": "schemas/core/UsageThreadGroup.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "date",
+          "name": "cachedInputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "inputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "model",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "outputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "reasoningEffort",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "speed",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "totalTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "turns",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageThreadParams",
+      "name": "UsageThreadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageThreadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageThreadResult",
+      "name": "UsageThreadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageThreadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cacheHitRate",
+          "type": "number",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "cachedInputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "groups",
+          "type": "array<core.UsageThreadGroup>",
           "required": false,
           "nullable": false,
           "const": null
@@ -22576,8 +22906,8 @@
           "maximum": 9007199254740991
         },
         {
-          "name": "sessionCount",
-          "type": "integer",
+          "name": "threadId",
+          "type": "string",
           "required": false,
           "nullable": false,
           "const": null
@@ -22590,21 +22920,131 @@
           "const": null,
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        {
+          "name": "turns",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
     },
     {
-      "id": "core.UsageTimeseriesParams",
-      "name": "UsageTimeseriesParams",
+      "id": "core.UsageThreadRow",
+      "name": "UsageThreadRow",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/UsageTimeseriesParams.schema.json",
+      "schema": "schemas/core/UsageThreadRow.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "archived",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "cacheHitRate",
+          "type": "number",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "cachedInputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "inputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "lastActiveAt",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "originChannel",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "totalTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "turns",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.UsageThreadsParams",
+      "name": "UsageThreadsParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/UsageThreadsParams.schema.json",
       "additionalProperties": true,
       "fields": [
         {
           "name": "from",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
           "required": false,
           "nullable": true,
           "const": null
@@ -22627,32 +23067,16 @@
       "variants": []
     },
     {
-      "id": "core.UsageTimeseriesResult",
-      "name": "UsageTimeseriesResult",
+      "id": "core.UsageThreadsResult",
+      "name": "UsageThreadsResult",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/UsageTimeseriesResult.schema.json",
+      "schema": "schemas/core/UsageThreadsResult.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "days",
-          "type": "array<core.UsageTimeseriesDay>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "longestTaskMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "tzOffsetMinutes",
-          "type": "integer",
+          "name": "threads",
+          "type": "array<core.UsageThreadRow>",
           "required": false,
           "nullable": false,
           "const": null
@@ -29064,11 +29488,31 @@
       "stability": "stable"
     },
     {
+      "name": "usage/history",
+      "descriptorMember": "UsageHistory",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.UsageHistoryParams",
+      "resultType": "core.UsageHistoryResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "usage/summary",
       "descriptorMember": "UsageSummary",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.RpcEmpty",
+      "paramsType": "core.UsageSummaryParams",
       "resultType": "core.UsageSummaryResult",
       "module": "core",
       "capability": null,
@@ -29084,12 +29528,32 @@
       "stability": "stable"
     },
     {
-      "name": "usage/timeseries",
-      "descriptorMember": "UsageTimeseries",
+      "name": "usage/thread",
+      "descriptorMember": "UsageThread",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.UsageTimeseriesParams",
-      "resultType": "core.UsageTimeseriesResult",
+      "paramsType": "core.UsageThreadParams",
+      "resultType": "core.UsageThreadResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "usage/threads",
+      "descriptorMember": "UsageThreads",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.UsageThreadsParams",
+      "resultType": "core.UsageThreadsResult",
       "module": "core",
       "capability": null,
       "scope": "connection",

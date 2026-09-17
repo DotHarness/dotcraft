@@ -35,7 +35,10 @@ public sealed class SkillViewTool(
         // alongside user-typed `$name` references. Keyed by the trace session (the active thread).
         var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
         if (!string.IsNullOrEmpty(sessionKey))
-            traceCollector?.RecordSkillReferenced(sessionKey!, effective.Name);
+            traceCollector?.RecordSkillReferenced(
+                sessionKey!,
+                effective.Name,
+                ToolUsageSource.FromSkill(effective.Source, effective.PluginId));
 
         return effective.Content;
     }

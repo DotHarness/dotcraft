@@ -80,4 +80,10 @@ public sealed class SkillVariantProvenance
 /// <summary>
 /// Resolved source-or-variant skill file.
 /// </summary>
-public sealed record EffectiveSkill(string Name, string Content, string Path, string Origin);
+public sealed record EffectiveSkill(
+    string Name,
+    string Content,
+    string Path,
+    string Origin,
+    string Source,
+    string? PluginId);

@@ -7485,25 +7485,48 @@ Review semantics:
 
 ### 27A.1 Scope
 
-These methods expose the workspace's trace/usage telemetry over the JSON-RPC surface,
-so clients such as Desktop can render usage overviews without opening the
-hosted HTML Dashboard. `usage/summary` returns the workspace aggregate (the same number
-the Dashboard serves at `GET /dashboard/api/summary`); `usage/timeseries` returns a
-per-day breakdown for activity charts. Both are independent of whether the HTML
-Dashboard endpoint is enabled.
+These methods expose the workspace's usage analytics over the JSON-RPC surface, so
+clients such as Desktop can render usage overviews, history charts, tool activity, and
+top-thread rankings without opening the hosted HTML Dashboard.
 
-Clients must check `capabilities.usageTelemetry` before calling `usage/summary` or
-`usage/timeseries`. If the capability is absent or `false`, the server returns `-32601`
-(Method not found). The capability is `false` when tracing is disabled, because no trace
-store exists.
+Usage facts are recorded once per completed Turn in the workspace state database:
+the Turn's timestamp, origin channel, root thread, model, reasoning effort, LLM call
+count, and token breakdown. Tool calls, skill references, and errors are aggregated
+from persisted trace events. Every aggregate buckets facts by the fact's own timestamp,
+so a Turn contributes to the day it completed and a tool call to the day it finished.
+
+Clients must check `capabilities.usageTelemetry` before calling any method in this
+section. If the capability is absent or `false`, the server returns `-32601` (Method not
+found). The capability is `false` when tracing is disabled, because neither the usage
+fact table nor the trace store is written.
+
+#### Date ranges
+
+`usage/summary`, `usage/history`, and `usage/threads` share one range convention:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | string? | Inclusive lower bound, `YYYY-MM-DD` in the client's local frame. Omit for no lower bound. |
+| `to` | string? | Inclusive upper bound, `YYYY-MM-DD` in the client's local frame. Omit for no upper bound. |
+| `tzOffsetMinutes` | int? | Minutes to add to UTC to obtain the client's local time, i.e. `-new Date().getTimezoneOffset()` in JS. Defaults to `0` (UTC). Clamped to `[-840, 840]`. |
+
+A malformed (non-empty) `from`/`to` that is not a valid `YYYY-MM-DD` date yields `-32602`
+(Invalid params). A range with `from` after `to` matches nothing.
+
+#### Surface attribution
+
+The `surface` dimension is the origin channel of the **root** thread. A subagent thread's
+facts are attributed to the thread that spawned it, so a Desktop conversation and the
+subagents it launched roll up under `dotcraft-desktop`. Facts whose root thread no longer
+exists fall back to the fact's own origin channel.
 
 ### 27A.2 `usage/summary`
 
-Return the aggregate usage summary across all traced sessions in the workspace.
+Return the aggregate usage summary for the workspace, optionally scoped to a date range.
 
 **Direction**: client → server (request)
 
-**Params**: `{}` (empty object, no parameters required)
+**Params**: the shared date-range fields. `{}` returns the lifetime aggregate.
 
 **Result**:
 
@@ -7532,18 +7555,18 @@ Return the aggregate usage summary across all traced sessions in the workspace.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `sessionCount` | int | Number of traced sessions. |
-| `totalRequests` | int | LLM requests issued across all sessions. |
-| `totalResponses` | int | LLM responses received across all sessions. |
-| `totalToolCalls` | int | Tool calls executed across all sessions. |
-| `totalErrors` | int | Errors recorded across all sessions. |
-| `totalContextCompactions` | int | Context compaction events across all sessions. |
+| `sessionCount` | int | Distinct root threads with at least one completed Turn in range. |
+| `totalRequests` | int | LLM calls summed over completed Turns in range. |
+| `totalResponses` | int | LLM `Response` trace events in range. |
+| `totalToolCalls` | int | Completed tool calls in range. |
+| `totalErrors` | int | `Error` and `ProviderError` trace events in range. |
+| `totalContextCompactions` | int | Context compaction events in range. |
 | `totalInputTokens` | long | Total prompt (input) tokens. |
 | `totalOutputTokens` | long | Total completion (output) tokens. |
 | `totalCachedInputTokens` | long | Input tokens served from the provider prompt cache. |
 | `totalCacheWriteInputTokens` | long | Input tokens written into the prompt cache. |
-| `totalFreshInputTokens` | long | Input tokens neither cached nor cache-write (`max(0, input − cached − cacheWrite)`). |
-| `totalNonCachedInputTokens` | long | Input tokens not served from cache (`max(0, input − cached)`). |
+| `totalFreshInputTokens` | long | `max(0, input − cached − cacheWrite)`. |
+| `totalNonCachedInputTokens` | long | `max(0, input − cached)`. |
 | `totalReasoningOutputTokens` | long | Reasoning tokens (subset of output tokens). |
 | `totalToolDurationMs` | long | Summed tool execution time in milliseconds. |
 | `avgToolDurationMs` | double | Mean tool execution time in milliseconds. |
@@ -7551,88 +7574,222 @@ Return the aggregate usage summary across all traced sessions in the workspace.
 | `cacheHitRate` | double | `totalCachedInputTokens / totalInputTokens`, in `[0, 1]`; `0` when there are no input tokens. |
 | `totalTokens` | long | `totalInputTokens + totalOutputTokens`. |
 
-When there are no traced sessions yet, every numeric field is `0`.
+When nothing matches, every numeric field is `0`. Period-over-period comparison is a
+client concern: call the method once per period.
 
 **Errors**:
 
 | Code | When |
 |------|------|
-| `-32601` | Tracing is disabled on this server (no trace store available). |
+| `-32601` | Tracing is disabled on this server. |
+| `-32602` | `from` or `to` is present but not a valid `YYYY-MM-DD` date. |
 
-### 27A.3 `usage/timeseries`
+### 27A.3 `usage/history`
 
-Return per-day token usage across all traced sessions in the workspace, for rendering
-activity charts (e.g. a contribution-style heatmap). Each traced session contributes its
-token totals to the calendar day of its `StartedAt`, evaluated in the client's local time
-frame (see `tzOffsetMinutes`). Only days with at least one session are returned (the
-series is sparse); clients fill the gaps when laying out a calendar.
+Return one metric per local day, optionally broken down by one dimension, for rendering
+history charts. The result shape is the same for every metric and dimension so clients
+render it with one chart component.
 
 **Direction**: client → server (request)
 
 **Params**:
 
 ```json
-{ "from": "2025-07-01", "to": "2026-05-31", "tzOffsetMinutes": -480 }
+{ "metric": "tokens", "groupBy": "model", "from": "2026-09-11", "to": "2026-09-17", "tzOffsetMinutes": 480, "topLimit": 10 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `from` | string? | Inclusive lower bound, `YYYY-MM-DD` in the client's local frame. Omit for no lower bound. |
-| `to` | string? | Inclusive upper bound, `YYYY-MM-DD` in the client's local frame. Omit for no upper bound. |
-| `tzOffsetMinutes` | int? | Minutes to add to UTC to obtain the client's local time, i.e. `-new Date().getTimezoneOffset()` in JS. Used to bucket sessions by local calendar day. Defaults to `0` (UTC). Clamped to `[-840, 840]`. |
+| `metric` | string | `tokens`, `turns`, `requests`, `toolCalls`, `skillUses`, or `errors`. Required. |
+| `groupBy` | string? | `none` (default), `tokenType`, `surface`, `model`, `reasoning`, `speed`, `toolSource`, `tool`, or `skill`. |
+| `from` / `to` / `tzOffsetMinutes` | | The shared date-range fields. |
+| `topLimit` | int? | Number of leading groups kept before the remainder folds into `other`. Defaults to `10`, clamped to `[1, 20]`. Ignored for `none` and `tokenType`. |
 
-A malformed (non-empty) `from`/`to` that is not a valid `YYYY-MM-DD` date yields
-`-32602` (Invalid params).
+Valid `metric` × `groupBy` combinations:
+
+| Metric | Source | Value | Dimensions |
+|--------|--------|-------|------------|
+| `tokens` | completed Turns | input + output tokens | `none`, `tokenType`, `surface`, `model`, `reasoning`, `speed` |
+| `turns` | completed Turns | 1 per Turn | `none`, `surface`, `model`, `reasoning`, `speed` |
+| `requests` | completed Turns | LLM calls | `none`, `surface`, `model`, `reasoning`, `speed` |
+| `toolCalls` | `ToolCallCompleted` trace events | 1 per call | `none`, `toolSource`, `tool` |
+| `skillUses` | `SkillReferenced` trace events | 1 per reference | `none`, `skill` |
+| `errors` | `Error` and `ProviderError` trace events | 1 per event | `none`, `surface` |
+
+Any other combination, an unknown `metric`, or an unknown `groupBy` yields `-32602`.
 
 **Result**:
 
 ```json
 {
-  "tzOffsetMinutes": -480,
-  "longestTaskMs": 7830000,
+  "unit": "tokens",
+  "groupBy": "model",
   "days": [
-    { "date": "2026-05-29", "inputTokens": 100, "outputTokens": 23, "totalTokens": 123, "sessionCount": 2 },
-    { "date": "2026-05-30", "inputTokens": 40, "outputTokens": 8, "totalTokens": 48, "sessionCount": 1 }
+    { "date": "2026-09-16", "total": 12345, "values": [ { "key": "example-model", "value": 9000 }, { "key": "other", "value": 3345 } ] }
+  ],
+  "series": [ { "key": "example-model", "total": 90000 }, { "key": "other", "total": 12000 } ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `unit` | string | `tokens` for the `tokens` metric, otherwise `count`. |
+| `groupBy` | string | The effective dimension (`none` when omitted). |
+| `days` | array | Days with at least one fact in range, ascending by `date`. Empty when nothing matches; clients fill gaps. |
+| `days[].date` | string | `YYYY-MM-DD` in the client's local frame. |
+| `days[].total` | long | The full daily value across every group, the denominator for share display. |
+| `days[].values` | array | Per-group values for that day, descending by `value`. Empty for `groupBy: none`. |
+| `days[].values[].key` | string | Group key (see below). |
+| `days[].values[].value` | long | The metric value for that group on that day. |
+| `series` | array | Every group present in the result with its total over the range, descending by `total`. Empty for `groupBy: none`. |
+
+Group keys are returned raw; label mapping belongs to the client:
+
+| Dimension | Key |
+|-----------|-----|
+| `tokenType` | `uncached`, `cached`, `cacheWrite`, `output`. Never folded. |
+| `surface` | The root thread's origin channel, for example `dotcraft-desktop`, `cli`, `automations`, or a channel name. |
+| `model` | The model id recorded on the Turn; `unknown` when the Turn has no recorded model. |
+| `reasoning` | The reasoning effort recorded on the Turn (`low`, `medium`, `high`, `extrahigh`); `unknown` when reasoning was off or unrecorded. |
+| `speed` | The inference speed the Turn ran at (`standard` or `fast`); `unknown` when the Turn has no recorded speed. |
+| `toolSource` | `builtin`, `mcp:<server>`, `plugin:<pluginId>`, `client`, or `binding`; `unknown` when the call has no recorded source. |
+| `tool` | The tool name as invoked. |
+| `skill` | The skill name without the `$` prefix. |
+
+Groups are ranked by their total over the whole range. The leading `topLimit` groups keep
+their keys on every day; all remaining groups fold into a single `other` key, so a group's
+key never changes from one day to the next.
+
+**Errors**:
+
+| Code | When |
+|------|------|
+| `-32601` | Tracing is disabled on this server. |
+| `-32602` | Invalid `metric`, `groupBy`, combination, or date. |
+
+### 27A.4 `usage/threads`
+
+Return the threads that were active in a date range, ranked by lifetime token usage.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+```json
+{ "from": "2026-08-18", "to": "2026-09-17", "tzOffsetMinutes": 480, "limit": 5 }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` / `to` / `tzOffsetMinutes` | | The shared date-range fields. A thread is active in range when its most recent completed Turn falls inside it. |
+| `limit` | int? | Maximum rows. Defaults to `5`, clamped to `[1, 50]`. |
+
+**Result**:
+
+```json
+{
+  "threads": [
+    {
+      "threadId": "thr_1",
+      "title": "Fix the release pipeline",
+      "originChannel": "dotcraft-desktop",
+      "lastActiveAt": "2026-09-17T06:14:00.0000000Z",
+      "turns": 42,
+      "totalTokens": 1936761,
+      "inputTokens": 1840221,
+      "outputTokens": 96540,
+      "cachedInputTokens": 1502118,
+      "cacheHitRate": 0.8162,
+      "archived": false
+    }
   ]
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `tzOffsetMinutes` | int | The (clamped) offset the server used for bucketing. |
-| `longestTaskMs` | long | Longest single Turn (one unit of agent work, `completedAt − startedAt`) across the workspace, in milliseconds. Lifetime maximum, independent of `from`/`to`. `0` when none recorded. |
-| `days` | array | Days with activity, ascending by `date`. Empty when no sessions match. |
-| `days[].date` | string | `YYYY-MM-DD` in the client's local frame. |
-| `days[].inputTokens` | long | Summed prompt (input) tokens for sessions started that day. |
-| `days[].outputTokens` | long | Summed completion (output) tokens for sessions started that day. |
-| `days[].totalTokens` | long | `inputTokens + outputTokens`. |
-| `days[].sessionCount` | int | Number of sessions started that day. |
-
-When there are no traced sessions in range, `days` is `[]`.
+| `threads` | array | Root threads active in range, descending by `totalTokens`, then by `lastActiveAt`. Subagent threads roll up into their root. |
+| `threads[].threadId` | string | Root thread id. |
+| `threads[].title` | string? | Display name, else the first user message; omitted when neither exists. |
+| `threads[].originChannel` | string | The root thread's origin channel. |
+| `threads[].lastActiveAt` | string | ISO-8601 UTC timestamp of the most recent completed Turn. |
+| `threads[].turns` | int | Completed Turns over the thread's lifetime, including its subagent threads. |
+| `threads[].totalTokens` | long | Lifetime `inputTokens + outputTokens`. |
+| `threads[].inputTokens` / `outputTokens` / `cachedInputTokens` | long | Lifetime token totals. |
+| `threads[].cacheHitRate` | double | `cachedInputTokens / inputTokens`; `0` when there is no input. |
+| `threads[].archived` | bool | Whether the root thread is archived. |
 
 **Errors**:
 
 | Code | When |
 |------|------|
-| `-32601` | Tracing is disabled on this server (no trace store available). |
+| `-32601` | Tracing is disabled on this server. |
 | `-32602` | `from` or `to` is present but not a valid `YYYY-MM-DD` date. |
 
-### 27A.4 `profile/insights`
+### 27A.5 `usage/thread`
+
+Return one thread's lifetime usage broken down by the model, reasoning effort, and inference
+speed its Turns ran with, for an in-conversation "usage in this chat" readout.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+```json
+{ "threadId": "thr_1" }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Root thread id. Subagent threads spawned from it roll up into the result. Required. |
+
+**Result**:
+
+```json
+{
+  "threadId": "thr_1",
+  "turns": 42,
+  "totalTokens": 1936761,
+  "inputTokens": 1840221,
+  "outputTokens": 96540,
+  "cachedInputTokens": 1502118,
+  "cacheHitRate": 0.8162,
+  "groups": [
+    { "model": "example-model", "reasoningEffort": "high", "speed": "standard", "turns": 30, "totalTokens": 1500000, "inputTokens": 1430000, "outputTokens": 70000, "cachedInputTokens": 1200000 },
+    { "model": "example-model", "speed": "fast", "turns": 12, "totalTokens": 436761, "inputTokens": 410221, "outputTokens": 26540, "cachedInputTokens": 302118 }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | The requested root thread id. |
+| `turns` | int | Completed Turns across the thread and its subagent threads. |
+| `totalTokens` / `inputTokens` / `outputTokens` / `cachedInputTokens` | long | Lifetime token totals. |
+| `cacheHitRate` | double | `cachedInputTokens / inputTokens`; `0` when there is no input. |
+| `groups` | array | One entry per distinct model × reasoning × speed combination, descending by `totalTokens`. Empty when the thread has no completed Turns. |
+| `groups[].model` / `reasoningEffort` / `speed` | string? | Omitted when the Turns carry no value for that dimension. |
+| `groups[].turns` | int | Completed Turns in the group. |
+| `groups[].totalTokens` / `inputTokens` / `outputTokens` / `cachedInputTokens` | long | Token totals for the group. |
+
+**Errors**:
+
+| Code | When |
+|------|------|
+| `-32601` | Tracing is disabled on this server. |
+| `-32602` | `threadId` is missing or blank. |
+
+### 27A.6 `profile/insights`
 
 Return aggregate "activity insights" for the workspace, used by the Desktop Profile page:
 the most-used model and reasoning effort, how many skills the user has explored / used, the
-total thread count, and a ranked list of the most-used skills.
+total thread count, the longest single task, and a ranked list of the most-used skills.
 
-Two semantics apply because the underlying data has different availability:
-
-- **Model usage** is derived from the model id already recorded on every LLM `Response`
-  trace event, so it reflects the full persisted history. Models are keyed by **model id
-  only** (provider is not distinguished).
-- **Reasoning effort and skill references** are **forward-only**: they are recorded from the
-  point this feature shipped. They may be empty/zero until new activity accrues, even on a
-  workspace with prior history. A skill "use" is counted when a skill is exercised either way:
-  a `$name` skill tag in turn input, or an agent loading the skill via the SkillView tool.
-  Skills injected by other means (e.g. `always: true`) are not counted.
+Model usage is derived from the model id recorded on every LLM `Response` trace event.
+Models are keyed by **model id only** (provider is not distinguished). Reasoning effort and
+skill references come from trace events that carry them, so they are empty on a workspace
+with no such events. A skill "use" is counted when the agent loads the skill through the
+SkillView tool. Skills injected by other means (e.g. `always: true`) are not counted.
 
 **Direction**: client → server (request)
 
@@ -7655,6 +7812,7 @@ Two semantics apply because the underlying data has different availability:
   "skillsExplored": 6,
   "totalSkillsUsed": 42,
   "totalThreads": 137,
+  "longestTaskMs": 7830000,
   "skills": [
     { "name": "code-review", "count": 12, "pluginId": "example-plugin", "pluginDisplayName": "Example Plugin" },
     { "name": "workspace-summary", "count": 5 }
@@ -7672,25 +7830,23 @@ Two semantics apply because the underlying data has different availability:
 | `skillsExplored` | int | Distinct skills referenced at least once. |
 | `totalSkillsUsed` | long | Total skill references across all turns. |
 | `totalThreads` | int | Non-internal threads in this workspace (active + archived). |
+| `longestTaskMs` | long | Longest single Turn (`completedAt − startedAt`) across the workspace, in milliseconds. `0` when none recorded. |
 | `skills` | array | Most-referenced skills, descending by `count`, then by `name`. |
 | `skills[].name` | string | Skill name (without the `$` prefix). |
 | `skills[].count` | long | Times this skill was referenced. |
-| `skills[].pluginId` | string? | Owning plugin id, present only when the skill currently resolves to a plugin source. |
-| `skills[].pluginDisplayName` | string? | Human-readable plugin name for a badge, when from a plugin. |
-
-Plugin attribution is resolved live at read time against the current skill registry, so a
-skill whose plugin was later uninstalled simply returns without plugin fields.
+| `skills[].pluginId` | string? | Owning plugin id recorded when the skill was referenced; present only for plugin skills. |
+| `skills[].pluginDisplayName` | string? | Human-readable plugin name for a badge, when the plugin is still installed. |
 
 **Errors**:
 
 | Code | When |
 |------|------|
-| `-32601` | Tracing is disabled on this server (no trace store available). |
+| `-32601` | Tracing is disabled on this server. |
 
-### 27A.5 Capability Advertisement
+### 27A.7 Capability Advertisement
 
 Clients must check `capabilities.usageTelemetry` before calling `usage/summary`,
-`usage/timeseries`, or `profile/insights`.
+`usage/history`, `usage/threads`, `usage/thread`, or `profile/insights`.
 
 ---
 

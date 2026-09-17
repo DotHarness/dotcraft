@@ -47,6 +47,15 @@ public sealed class TokenUsageRecord
 
     public string? SessionKey { get; init; }
 
+    /// <summary>Root thread this turn rolls up into; equals <see cref="ThreadId"/> for top-level threads.</summary>
+    public string? RootThreadId { get; init; }
+
+    public string? Model { get; init; }
+
+    public string? ReasoningEffort { get; init; }
+
+    public string? Speed { get; init; }
+
     public int LlmCallCount { get; init; } = 1;
 
     public long InputTokens { get; init; }
@@ -439,6 +448,10 @@ public sealed class TokenUsageStore
                     context_label,
                     thread_id,
                     session_key,
+                    root_thread_id,
+                    model,
+                    reasoning_effort,
+                    speed,
                     llm_call_count,
                     input_tokens,
                     output_tokens,
@@ -457,6 +470,10 @@ public sealed class TokenUsageStore
                     $context_label,
                     $thread_id,
                     $session_key,
+                    $root_thread_id,
+                    $model,
+                    $reasoning_effort,
+                    $speed,
                     $llm_call_count,
                     $input_tokens,
                     $output_tokens,
@@ -465,6 +482,10 @@ public sealed class TokenUsageStore
                     $reasoning_output_tokens
                 )
                 """;
+            command.Parameters.AddWithValue("$root_thread_id", (object?)record.RootThreadId ?? DBNull.Value);
+            command.Parameters.AddWithValue("$model", (object?)record.Model ?? DBNull.Value);
+            command.Parameters.AddWithValue("$reasoning_effort", (object?)record.ReasoningEffort ?? DBNull.Value);
+            command.Parameters.AddWithValue("$speed", (object?)record.Speed ?? DBNull.Value);
             command.Parameters.AddWithValue("$timestamp", record.Timestamp.UtcDateTime.ToString("O"));
             command.Parameters.AddWithValue("$source_id", record.SourceId);
             command.Parameters.AddWithValue("$source_mode", record.SourceMode);

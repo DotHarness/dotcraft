@@ -97,6 +97,7 @@ public sealed record AppServerConnectionServices
     public IReadOnlyList<IThreadOriginPresentationProvider>? ThreadOriginPresentationProviders { get; init; }
     public PlanStore? PlanStore { get; init; }
     public TraceStore? TraceStore { get; init; }
+    public UsageAnalyticsService? UsageAnalytics { get; init; }
     public IReadOnlyList<string>? BuiltInPluginSourceRoots { get; init; }
     public WireRuntimeAdditionalContextProvider? WireRuntimeAdditionalContextProvider { get; init; }
     public Func<SessionThread, SubAgentCoordinator?>? SubAgentCoordinatorFactory { get; init; }

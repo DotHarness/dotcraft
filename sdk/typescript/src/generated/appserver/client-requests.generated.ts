@@ -176,8 +176,10 @@ export interface ClientRequestMethods {
   "turn/queue/update": { params: Models.TurnQueueUpdateParams; result: Models.TurnQueueUpdateResult };
   "turn/start": { params: Models.TurnStartParams; result: Models.TurnStartResult };
   "turn/steer": { params: Models.TurnSteerParams; result: Models.TurnSteerResult };
-  "usage/summary": { params: Models.RpcEmpty; result: Models.UsageSummaryResult };
-  "usage/timeseries": { params: Models.UsageTimeseriesParams; result: Models.UsageTimeseriesResult };
+  "usage/history": { params: Models.UsageHistoryParams; result: Models.UsageHistoryResult };
+  "usage/summary": { params: Models.UsageSummaryParams; result: Models.UsageSummaryResult };
+  "usage/thread": { params: Models.UsageThreadParams; result: Models.UsageThreadResult };
+  "usage/threads": { params: Models.UsageThreadsParams; result: Models.UsageThreadsResult };
   "visualization/view/close": { params: Models.InlineVisualizationViewCloseParams; result: Models.InlineVisualizationViewCloseResult };
   "visualization/view/message": { params: Models.InlineVisualizationViewMessageParams; result: Models.InlineVisualizationViewMessageResult };
   "visualization/view/open": { params: Models.InlineVisualizationViewOpenParams; result: Models.InlineVisualizationViewOpenResult };

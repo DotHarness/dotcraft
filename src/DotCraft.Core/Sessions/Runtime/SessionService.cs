@@ -4893,6 +4893,8 @@ public sealed partial class SessionService(
             ? initiator!.UserName ?? initiator.UserId!
             : thread.DisplayName ?? thread.Id;
         var hasGroupContext = !string.IsNullOrWhiteSpace(initiator?.GroupId);
+        var lastResponse = traceCollector?.GetLastResponseModel(thread.Id);
+        var rootThreadId = thread.Source?.SubAgent?.RootThreadId;
 
         tokenUsageStore.Record(new TokenUsageRecord
         {
@@ -4907,6 +4909,10 @@ public sealed partial class SessionService(
             ContextLabel = hasGroupContext ? initiator!.GroupId : null,
             ThreadId = thread.Id,
             SessionKey = thread.Id,
+            RootThreadId = string.IsNullOrWhiteSpace(rootThreadId) ? thread.Id : rootThreadId,
+            Model = lastResponse?.ModelId,
+            ReasoningEffort = lastResponse?.ReasoningEffort,
+            Speed = (thread.Configuration?.Speed ?? InferenceSpeed.Standard).ToString().ToLowerInvariant(),
             InputTokens = turn.TokenUsage.InputTokens,
             OutputTokens = turn.TokenUsage.OutputTokens,
             CachedInputTokens = turn.TokenUsage.CachedInputTokens,
@@ -4918,7 +4924,7 @@ public sealed partial class SessionService(
 
     /// <summary>
     /// Records the wall-clock duration of a completed Turn into the trace store, feeding
-    /// the workspace "longest task" aggregate (spec §27A.3). Keyed by the thread's main
+    /// the workspace "longest task" aggregate (spec §27A.5). Keyed by the thread's main
     /// trace session (threadId), matching how token-usage trace events are recorded.
     /// </summary>
     private void RecordTurnDurationTrace(string threadId, SessionTurn turn)

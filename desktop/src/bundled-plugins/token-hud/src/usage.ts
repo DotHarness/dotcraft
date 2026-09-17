@@ -7,6 +7,22 @@ export interface UsageState {
   readonly cacheHitRate: number | null
   /** Mean first-token latency over the current turn's model requests. */
   readonly firstTokenLatencyMs: number | null
+  readonly threadUsage: ThreadUsageSnapshot | null
+}
+
+export interface ThreadUsageGroup {
+  readonly model: string | null
+  readonly reasoningEffort: string | null
+  readonly speed: string | null
+  readonly turns: number
+  readonly totalTokens: number
+}
+
+export interface ThreadUsageSnapshot {
+  readonly threadId: string
+  readonly turns: number
+  readonly totalTokens: number
+  readonly groups: readonly ThreadUsageGroup[]
 }
 
 export const EMPTY_USAGE: UsageState = {
@@ -14,7 +30,8 @@ export const EMPTY_USAGE: UsageState = {
   waitingForSample: false,
   totalTokens: null,
   cacheHitRate: null,
-  firstTokenLatencyMs: null
+  firstTokenLatencyMs: null,
+  threadUsage: null
 }
 
 const SUMMARY_REFRESH_MS = 60_000
@@ -89,6 +106,7 @@ export function startUsageFeed(
     summaryTimer = globalThis.setTimeout(() => {
       summaryTimer = null
       void refreshSummary()
+      void refreshThreadUsage()
     }, delay)
   }
 
@@ -104,10 +122,28 @@ export function startUsageFeed(
 
   update({ ...EMPTY_USAGE, waitingForSample: host.session.busy })
   void refreshSummary()
-  const reconciliationTimer = globalThis.setInterval(() => void refreshSummary(), SUMMARY_REFRESH_MS)
+  const reconciliationTimer = globalThis.setInterval(() => {
+    void refreshSummary()
+    void refreshThreadUsage()
+  }, SUMMARY_REFRESH_MS)
 
   let workspacePath = host.session.workspacePath
   let threadId = host.session.threadId
+
+  async function refreshThreadUsage(): Promise<void> {
+    const requestedThreadId = threadId
+    if (disposed || !requestedThreadId) return
+    try {
+      const result = await host.appServer.request('usage/thread', { threadId: requestedThreadId })
+      if (disposed || threadId !== requestedThreadId) return
+      update({ threadUsage: toThreadUsage(result) })
+    } catch {
+      return
+    }
+  }
+
+  void refreshThreadUsage()
+
   const stopSession = host.session.onChange((session) => {
     if (session.workspacePath !== workspacePath) {
       workspacePath = session.workspacePath
@@ -118,6 +154,8 @@ export function startUsageFeed(
       threadId = session.threadId
       activeTurnId = null
       resetTurn(session.busy)
+      update({ threadUsage: null })
+      void refreshThreadUsage()
     }
   })
 
@@ -215,4 +253,26 @@ function ratioOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(1, Math.max(0, value))
     : null
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null
+}
+
+function toThreadUsage(result: unknown): ThreadUsageSnapshot | null {
+  const value = result as { threadId?: unknown; turns?: unknown; totalTokens?: unknown; groups?: unknown } | null
+  if (!value || typeof value.threadId !== 'string') return null
+  const groups = Array.isArray(value.groups) ? value.groups : []
+  return {
+    threadId: value.threadId,
+    turns: numberOrNull(value.turns) ?? 0,
+    totalTokens: numberOrNull(value.totalTokens) ?? 0,
+    groups: groups.map((group: Record<string, unknown>) => ({
+      model: textOrNull(group?.model),
+      reasoningEffort: textOrNull(group?.reasoningEffort),
+      speed: textOrNull(group?.speed),
+      turns: numberOrNull(group?.turns) ?? 0,
+      totalTokens: numberOrNull(group?.totalTokens) ?? 0
+    }))
+  }
 }

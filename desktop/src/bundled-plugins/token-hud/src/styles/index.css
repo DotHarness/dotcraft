@@ -14,6 +14,7 @@
   opacity: var(--token-hud-opacity, 0.8);
   white-space: nowrap;
   transition: opacity 0.2s ease;
+  pointer-events: auto;
 }
 
 .token-hud-cell {
@@ -34,6 +35,80 @@
 
 .token-hud[data-busy='true'] {
   opacity: 1;
+}
+
+.token-hud-popover {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  width: 280px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-inverse);
+  color: var(--text-on-inverse);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.token-hud-popover-title {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.token-hud-popover-empty,
+.token-hud-popover-footer {
+  color: var(--text-on-inverse-muted);
+}
+
+.token-hud-popover-bar {
+  display: flex;
+  height: 8px;
+  gap: 2px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--fill-on-inverse);
+}
+
+.token-hud-popover-bar > span {
+  min-width: 2px;
+}
+
+.token-hud-popover-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.token-hud-popover-rows li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.token-hud-popover-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.token-hud-popover-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-hud-popover-value {
+  color: var(--text-on-inverse-muted);
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

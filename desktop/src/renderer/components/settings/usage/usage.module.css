@@ -1,0 +1,231 @@
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.frame {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 14px 16px 12px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.cardTitle {
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line-height);
+  font-weight: var(--type-heading-weight);
+  color: var(--text-primary);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroLabel {
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  color: var(--text-primary);
+}
+
+.heroValue {
+  font-size: calc(var(--type-page-title-size) * 1.5);
+  line-height: 1.2;
+  font-weight: var(--type-page-title-weight);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart {
+  height: 144px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tooltip {
+  min-width: 160px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-inverse);
+  color: var(--text-on-inverse);
+  box-shadow: var(--shadow-md);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.tooltipTitle {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tooltipRowLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-on-inverse-muted);
+}
+
+.tooltipRowTotal {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-on-inverse);
+}
+
+.tooltipValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  display: grid;
+  height: 144px;
+  place-items: center;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  text-align: center;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  color: var(--error-text);
+  font-size: var(--type-secondary-size);
+}
+
+.tableLoading {
+  padding: 14px 16px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 12px 16px;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.table tr:first-child td {
+  border-top: none;
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.threadCell {
+  max-width: 0;
+  width: 44%;
+}
+
+.threadButton {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threadButton:hover {
+  text-decoration: underline;
+}
+
+.threadMeta {
+  color: var(--text-dimmed);
+}
+
+.tableFooter {
+  display: flex;
+  justify-content: center;
+  padding: 6px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}

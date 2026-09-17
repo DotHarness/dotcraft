@@ -84,6 +84,14 @@
      yellow. Used only on the composer approval pill + small option icons to flag risk. */
   --permission-full-access: #e8924f;
 
+  /* Data-visualization series in fixed order, validated for color-vision deficiency on
+     this surface; the neutral takes the folded remainder. Charts only. */
+  --chart-series-1: #3987e5;
+  --chart-series-2: #d95926;
+  --chart-series-3: #199e70;
+  --chart-series-4: #c98500;
+  --chart-series-other: color-mix(in srgb, var(--text-primary) 30%, var(--bg-secondary));
+
   /* Running-tool shimmer: dim resting base + a white core tinted with brand accent.
      Defined per theme so the highlight stays white-anchored (never inverts to a dark
      streak in light mode); see html[data-theme="light"] for the light values. */

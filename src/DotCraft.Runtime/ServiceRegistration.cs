@@ -189,6 +189,8 @@ public static class ServiceRegistration
 
             services.AddSingleton(sp => new TokenUsageStore(
                 sp.GetRequiredService<WorkspaceStateDatabase>()));
+            services.AddSingleton(sp => new UsageAnalyticsService(
+                sp.GetRequiredService<WorkspaceStateDatabase>()));
         }
 
         services.AddSingleton(sp => new SessionPersistenceService(

@@ -83,7 +83,7 @@ import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
-import { UsageOverview } from './UsageOverview'
+import { UsageView } from './usage/UsageView'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
 import { ProviderModelSummary } from './ProviderModelSummary'
@@ -4512,32 +4512,7 @@ export function SettingsView({
 
             {activeSettingsTab === 'usage' && (
               <UsagePanel>
-              <SettingsPanelShell
-                title={t('settings.tab.usage')}
-                description={t('settings.usage.description')}
-              >
-                <UsageOverview />
-                <SettingsGroup
-                  title={t('settings.usage.dashboardTitle')}
-                  description={t('settings.usage.dashboardHint')}
-                  headerAction={
-                    <IconButton
-                      icon={<OpenInBrowserIcon size={15} />}
-                      label={t('settings.openDashboard')}
-                      onClick={() => {
-                        if (dashboardUrl) void window.api.shell.openExternal(dashboardUrl)
-                      }}
-                      disabled={!dashboardUrl}
-                    />
-                  }
-                >
-                  <SettingsRow>
-                    <div style={settingsPlaceholderStyle()}>
-                      {dashboardUrl ? dashboardUrl : t('settings.usage.dashboardUnavailable')}
-                    </div>
-                  </SettingsRow>
-                </SettingsGroup>
-              </SettingsPanelShell>
+                <UsageView dashboardUrl={dashboardUrl} />
               </UsagePanel>
             )}
 

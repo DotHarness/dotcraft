@@ -30,12 +30,11 @@ export function ProfileView(): JSX.Element {
   const capable = useConnectionStore((s) => s.capabilities?.usageTelemetry === true)
 
   const days = useProfileStore((s) => s.days)
-  const longestTaskMs = useProfileStore((s) => s.longestTaskMs)
   const loading = useProfileStore((s) => s.loading)
   const loadedOnce = useProfileStore((s) => s.loadedOnce)
   const error = useProfileStore((s) => s.error)
   const githubUsername = useProfileStore((s) => s.githubUsername)
-  const fetchTimeseries = useProfileStore((s) => s.fetchTimeseries)
+  const fetchHistory = useProfileStore((s) => s.fetchHistory)
   const loadIdentity = useProfileStore((s) => s.loadIdentity)
 
   const insights = useProfileStore((s) => s.insights)
@@ -51,10 +50,10 @@ export function ProfileView(): JSX.Element {
 
   useEffect(() => {
     if (capable) {
-      void fetchTimeseries()
+      void fetchHistory()
       void fetchInsights()
     }
-  }, [capable, fetchTimeseries, fetchInsights])
+  }, [capable, fetchHistory, fetchInsights])
 
   const editAction = editing ? undefined : (
     <Button variant="ghost" iconLeft={<Pencil size={14} />} onClick={() => setEditing(true)}>
@@ -73,7 +72,9 @@ export function ProfileView(): JSX.Element {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', marginTop: '48px' }}>
         <ProfileHeader editing={editing} onClose={() => setEditing(false)} t={t} />
 
-        {capable && loadedOnce && <StatStrip days={days} longestTaskMs={longestTaskMs} t={t} />}
+        {capable && loadedOnce && (
+          <StatStrip days={days} longestTaskMs={insights?.longestTaskMs ?? 0} t={t} />
+        )}
         {capable && !loadedOnce && loading && <StatStripSkeleton />}
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -91,7 +92,7 @@ export function ProfileView(): JSX.Element {
             error={error}
             days={days}
             mode={mode}
-            onRetry={() => void fetchTimeseries()}
+            onRetry={() => void fetchHistory()}
             t={t}
           />
         </section>
