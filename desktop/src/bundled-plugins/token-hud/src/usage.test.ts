@@ -73,7 +73,56 @@ describe('Token HUD usage', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(getUsage().totalTokens).toBe(3_500_000)
     expect(getUsage().cacheHitRate).toBeCloseTo(0.8162)
-    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls.map(([method]) => method)).toEqual([
+      'usage/summary', 'usage/thread', 'usage/summary', 'usage/thread'
+    ])
+    stop()
+  })
+
+  it('tracks the active thread breakdown and clears it when the thread changes', async () => {
+    vi.useFakeTimers()
+    let sessionListener: ((session: {
+      workspacePath: string
+      threadId: string | null
+      mode: string
+      busy: boolean
+    }) => void) | null = null
+    const request = vi.fn(async (method: string, params: { threadId?: string }) => method === 'usage/thread'
+      ? {
+          threadId: params.threadId,
+          turns: 3,
+          totalTokens: 120,
+          groups: [{ model: 'atlas-4', reasoningEffort: 'high', speed: 'standard', turns: 3, totalTokens: 120 }]
+        }
+      : { totalTokens: 10, totalInputTokens: 8, cacheHitRate: 0.5 })
+    const host = {
+      session: {
+        workspacePath: '/workspace/example',
+        threadId: 'thread-1',
+        mode: 'agent',
+        busy: false,
+        onChange: (listener: typeof sessionListener) => {
+          sessionListener = listener
+          return () => { sessionListener = null }
+        }
+      },
+      appServer: {
+        request,
+        onNotification: () => () => undefined
+      }
+    } as unknown as DesktopPluginHost
+
+    const stop = startUsageFeed(host)
+    await vi.runAllTicks()
+    expect(getUsage().threadUsage).toEqual({
+      threadId: 'thread-1',
+      turns: 3,
+      totalTokens: 120,
+      groups: [{ model: 'atlas-4', reasoningEffort: 'high', speed: 'standard', turns: 3, totalTokens: 120 }]
+    })
+
+    sessionListener?.({ workspacePath: '/workspace/example', threadId: null, mode: 'agent', busy: false })
+    expect(getUsage().threadUsage).toBeNull()
     stop()
   })
 

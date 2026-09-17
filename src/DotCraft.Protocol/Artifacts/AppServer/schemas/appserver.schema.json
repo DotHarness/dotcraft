@@ -9875,6 +9875,11 @@
       "title": "ProfileInsightsResult",
       "type": "object",
       "properties": {
+        "longestTaskMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
         "skills": {
           "type": "array",
           "items": {
@@ -18444,6 +18449,179 @@
       },
       "additionalProperties": true
     },
+    "UsageHistoryDay": {
+      "title": "UsageHistoryDay",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageHistoryValue"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageHistoryParams": {
+      "title": "UsageHistoryParams",
+      "type": "object",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "groupBy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metric": {
+          "type": "string"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "topLimit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tzOffsetMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageHistoryResult": {
+      "title": "UsageHistoryResult",
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageHistoryDay"
+          }
+        },
+        "groupBy": {
+          "type": "string"
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageHistorySeries"
+          }
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageHistorySeries": {
+      "title": "UsageHistorySeries",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageHistoryValue": {
+      "title": "UsageHistoryValue",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageSummaryParams": {
+      "title": "UsageSummaryParams",
+      "type": "object",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tzOffsetMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "UsageSummaryResult": {
       "title": "UsageSummaryResult",
       "type": "object",
@@ -18525,12 +18703,93 @@
       },
       "additionalProperties": true
     },
-    "UsageTimeseriesDay": {
-      "title": "UsageTimeseriesDay",
+    "UsageThreadGroup": {
+      "title": "UsageThreadGroup",
       "type": "object",
       "properties": {
-        "date": {
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "reasoningEffort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "turns": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageThreadParams": {
+      "title": "UsageThreadParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
           "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageThreadResult": {
+      "title": "UsageThreadResult",
+      "type": "object",
+      "properties": {
+        "cacheHitRate": {
+          "type": "number"
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageThreadGroup"
+          }
         },
         "inputTokens": {
           "type": "integer",
@@ -18542,25 +18801,93 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
         },
-        "sessionCount": {
-          "type": "integer"
+        "threadId": {
+          "type": "string"
         },
         "totalTokens": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "turns": {
+          "type": "integer"
         }
       },
       "additionalProperties": true
     },
-    "UsageTimeseriesParams": {
-      "title": "UsageTimeseriesParams",
+    "UsageThreadRow": {
+      "title": "UsageThreadRow",
+      "type": "object",
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "cacheHitRate": {
+          "type": "number"
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "lastActiveAt": {
+          "type": "string"
+        },
+        "originChannel": {
+          "type": "string"
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "turns": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "UsageThreadsParams": {
+      "title": "UsageThreadsParams",
       "type": "object",
       "properties": {
         "from": {
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
             },
             {
               "type": "null"
@@ -18590,23 +18917,15 @@
       },
       "additionalProperties": true
     },
-    "UsageTimeseriesResult": {
-      "title": "UsageTimeseriesResult",
+    "UsageThreadsResult": {
+      "title": "UsageThreadsResult",
       "type": "object",
       "properties": {
-        "days": {
+        "threads": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/UsageTimeseriesDay"
+            "$ref": "#/$defs/UsageThreadRow"
           }
-        },
-        "longestTaskMs": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "tzOffsetMinutes": {
-          "type": "integer"
         }
       },
       "additionalProperties": true

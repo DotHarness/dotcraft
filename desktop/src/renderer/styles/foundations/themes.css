@@ -37,6 +37,12 @@ html[data-theme="light"] {
   /* Deeper orange for legibility on the light surface (see dark-theme note). */
   --permission-full-access: #c2601f;
 
+  --chart-series-1: #2a78d6;
+  --chart-series-2: #eb6834;
+  --chart-series-3: #1baf7a;
+  --chart-series-4: #eda100;
+  --chart-series-other: color-mix(in srgb, var(--text-primary) 24%, var(--bg-secondary));
+
   /* Light theme: base stays dark ink so the white-anchored core reads as a highlight
      sweeping over readable text, not a dark streak. */
   --shimmer-base: color-mix(in srgb, var(--text-primary) 84%, var(--bg-primary));

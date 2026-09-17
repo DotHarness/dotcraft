@@ -90,6 +90,12 @@ public sealed class TraceEvent
 
     public string? ToolIcon { get; init; }
 
+    /// <summary>
+    /// Usage attribution of the tool or skill (<see cref="ToolUsageSource"/>), recorded on
+    /// <see cref="TraceEventType.ToolCallCompleted"/> and <see cref="TraceEventType.SkillReferenced"/>.
+    /// </summary>
+    public string? ToolSource { get; init; }
+
     public string? ToolArguments { get; init; }
 
     public string? ToolResult { get; init; }
@@ -306,6 +312,12 @@ public sealed class TraceSession
     public string? FirstUserRequest { get; set; }
 
     public string? LastFinishReason { get; set; }
+
+    /// <summary>Model id of the most recent LLM response, used to attribute the completing Turn.</summary>
+    public string? LastModelId { get; set; }
+
+    /// <summary>Reasoning effort of the most recent LLM response, or null when reasoning was off.</summary>
+    public string? LastReasoningEffort { get; set; }
 
     public DateTimeOffset? SessionMetadataCapturedAt { get; set; }
 

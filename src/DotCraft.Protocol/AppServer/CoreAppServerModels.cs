@@ -3560,6 +3560,11 @@ public sealed class ProfileInsightsParams : ExtensibleJsonObject
 /// <summary>Executable wire contract for ProfileInsightsResult.</summary>
 public sealed class ProfileInsightsResult : ExtensibleJsonObject
 {
+    [JsonPropertyName("longestTaskMs")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> LongestTaskMs { get; init; }
+
     [JsonPropertyName("skills")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<SkillUsage>> Skills { get; init; }
@@ -6606,6 +6611,119 @@ public sealed class UsageDeltaNotification : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for UsageHistoryDay.</summary>
+public sealed class UsageHistoryDay : ExtensibleJsonObject
+{
+    [JsonPropertyName("date")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Date { get; init; }
+
+    [JsonPropertyName("total")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> Total { get; init; }
+
+    [JsonPropertyName("values")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<UsageHistoryValue>> Values { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageHistoryParams.</summary>
+public sealed class UsageHistoryParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("from")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> From { get; init; }
+
+    [JsonPropertyName("groupBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> GroupBy { get; init; }
+
+    [JsonPropertyName("metric")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Metric { get; init; }
+
+    [JsonPropertyName("to")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> To { get; init; }
+
+    [JsonPropertyName("topLimit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> TopLimit { get; init; }
+
+    [JsonPropertyName("tzOffsetMinutes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> TzOffsetMinutes { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageHistoryResult.</summary>
+public sealed class UsageHistoryResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("days")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<UsageHistoryDay>> Days { get; init; }
+
+    [JsonPropertyName("groupBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> GroupBy { get; init; }
+
+    [JsonPropertyName("series")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<UsageHistorySeries>> Series { get; init; }
+
+    [JsonPropertyName("unit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Unit { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageHistorySeries.</summary>
+public sealed class UsageHistorySeries : ExtensibleJsonObject
+{
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+
+    [JsonPropertyName("total")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> Total { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageHistoryValue.</summary>
+public sealed class UsageHistoryValue : ExtensibleJsonObject
+{
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+
+    [JsonPropertyName("value")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> Value { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageSummaryParams.</summary>
+public sealed class UsageSummaryParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("from")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> From { get; init; }
+
+    [JsonPropertyName("to")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> To { get; init; }
+
+    [JsonPropertyName("tzOffsetMinutes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> TzOffsetMinutes { get; init; }
+
+}
+
 /// <summary>Executable wire contract for UsageSummaryResult.</summary>
 public sealed class UsageSummaryResult : ExtensibleJsonObject
 {
@@ -6693,12 +6811,71 @@ public sealed class UsageSummaryResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageTimeseriesDay.</summary>
-public sealed class UsageTimeseriesDay : ExtensibleJsonObject
+/// <summary>Executable wire contract for UsageThreadGroup.</summary>
+public sealed class UsageThreadGroup : ExtensibleJsonObject
 {
-    [JsonPropertyName("date")]
+    [JsonPropertyName("cachedInputTokens")]
+    [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Date { get; init; }
+    public Optional<long> CachedInputTokens { get; init; }
+
+    [JsonPropertyName("inputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> InputTokens { get; init; }
+
+    [JsonPropertyName("model")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Model { get; init; }
+
+    [JsonPropertyName("outputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> OutputTokens { get; init; }
+
+    [JsonPropertyName("reasoningEffort")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ReasoningEffort { get; init; }
+
+    [JsonPropertyName("speed")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Speed { get; init; }
+
+    [JsonPropertyName("totalTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> TotalTokens { get; init; }
+
+    [JsonPropertyName("turns")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> Turns { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageThreadParams.</summary>
+public sealed class UsageThreadParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageThreadResult.</summary>
+public sealed class UsageThreadResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("cacheHitRate")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double> CacheHitRate { get; init; }
+
+    [JsonPropertyName("cachedInputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> CachedInputTokens { get; init; }
+
+    [JsonPropertyName("groups")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<UsageThreadGroup>> Groups { get; init; }
 
     [JsonPropertyName("inputTokens")]
     [JsonSafeInteger]
@@ -6710,23 +6887,84 @@ public sealed class UsageTimeseriesDay : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> OutputTokens { get; init; }
 
-    [JsonPropertyName("sessionCount")]
+    [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> SessionCount { get; init; }
+    public Optional<string> ThreadId { get; init; }
 
     [JsonPropertyName("totalTokens")]
     [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> TotalTokens { get; init; }
 
+    [JsonPropertyName("turns")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> Turns { get; init; }
+
 }
 
-/// <summary>Executable wire contract for UsageTimeseriesParams.</summary>
-public sealed class UsageTimeseriesParams : ExtensibleJsonObject
+/// <summary>Executable wire contract for UsageThreadRow.</summary>
+public sealed class UsageThreadRow : ExtensibleJsonObject
+{
+    [JsonPropertyName("archived")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Archived { get; init; }
+
+    [JsonPropertyName("cacheHitRate")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double> CacheHitRate { get; init; }
+
+    [JsonPropertyName("cachedInputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> CachedInputTokens { get; init; }
+
+    [JsonPropertyName("inputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> InputTokens { get; init; }
+
+    [JsonPropertyName("lastActiveAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> LastActiveAt { get; init; }
+
+    [JsonPropertyName("originChannel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> OriginChannel { get; init; }
+
+    [JsonPropertyName("outputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> OutputTokens { get; init; }
+
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Title { get; init; }
+
+    [JsonPropertyName("totalTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> TotalTokens { get; init; }
+
+    [JsonPropertyName("turns")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> Turns { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageThreadsParams.</summary>
+public sealed class UsageThreadsParams : ExtensibleJsonObject
 {
     [JsonPropertyName("from")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> From { get; init; }
+
+    [JsonPropertyName("limit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> Limit { get; init; }
 
     [JsonPropertyName("to")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6738,21 +6976,12 @@ public sealed class UsageTimeseriesParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageTimeseriesResult.</summary>
-public sealed class UsageTimeseriesResult : ExtensibleJsonObject
+/// <summary>Executable wire contract for UsageThreadsResult.</summary>
+public sealed class UsageThreadsResult : ExtensibleJsonObject
 {
-    [JsonPropertyName("days")]
+    [JsonPropertyName("threads")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<UsageTimeseriesDay>> Days { get; init; }
-
-    [JsonPropertyName("longestTaskMs")]
-    [JsonSafeInteger]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<long> LongestTaskMs { get; init; }
-
-    [JsonPropertyName("tzOffsetMinutes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> TzOffsetMinutes { get; init; }
+    public Optional<IReadOnlyList<UsageThreadRow>> Threads { get; init; }
 
 }
 

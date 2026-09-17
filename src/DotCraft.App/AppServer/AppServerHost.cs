@@ -365,6 +365,7 @@ public sealed class AppServerHost(
                 ThreadOriginPresentationProviders = _services.GetServices<IThreadOriginPresentationProvider>().ToArray(),
                 PlanStore = runtime.PlanStore,
                 TraceStore = _services.GetService<TraceStore>(),
+                UsageAnalytics = _services.GetService<UsageAnalyticsService>(),
                 WireRuntimeAdditionalContextProvider = _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 HookRunner = _services.GetService<HookRunner>(),
                 Contributions = runtime.Services.GetService<DotCraft.Contributions.IContributionView>(),

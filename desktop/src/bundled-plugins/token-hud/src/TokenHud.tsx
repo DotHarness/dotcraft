@@ -1,7 +1,9 @@
 import type { DesktopPluginSessionSnapshot, DesktopPluginSurfaceProps } from '@dotcraft/plugin'
-import { useEffect, useState, useSyncExternalStore, type CSSProperties, type JSX } from 'react'
+import { useEffect, useState, useSyncExternalStore, type CSSProperties, type JSX, type MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { stringsFor } from './i18n'
 import { getSettings, subscribeSettings } from './settings'
+import { ThreadUsagePopover } from './ThreadUsagePopover'
 import { getUsage, subscribeUsage } from './usage'
 
 function useSettings(): ReturnType<typeof getSettings> {
@@ -51,6 +53,11 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
   const usage = useUsage()
   const session = useSession(host)
   const strings = stringsFor(host.environment.locale)
+  const [popover, setPopover] = useState<{ right: number; bottom: number } | null>(null)
+  const showPopover = (event: MouseEvent<HTMLDivElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setPopover({ right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 8 })
+  }
 
   if (!settings?.visible) return null
 
@@ -71,6 +78,7 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
   if (ariaParts.length === 0) return null
 
   return (
+    <>
     <div
       className="token-hud"
       data-busy={session.busy ? 'true' : 'false'}
@@ -78,6 +86,8 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
       role="status"
       aria-live="off"
       aria-label={`${strings.hudLabel}: ${ariaParts.join(', ')}`}
+      onMouseEnter={showPopover}
+      onMouseLeave={() => setPopover(null)}
     >
       {speedValue !== null ? (
         <span className="token-hud-cell" data-metric="speed">
@@ -104,5 +114,17 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX
         </span>
       ) : null}
     </div>
+    {popover && session.threadId
+      ? createPortal(
+          <ThreadUsagePopover
+            usage={usage.threadUsage ?? null}
+            strings={strings}
+            formatTokens={formatTokens}
+            style={{ right: popover.right, bottom: popover.bottom }}
+          />,
+          document.body
+        )
+      : null}
+    </>
   )
 }

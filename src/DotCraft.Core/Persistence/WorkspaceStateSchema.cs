@@ -281,23 +281,7 @@ internal static class WorkspaceStateSchema
                 CREATE INDEX IF NOT EXISTS idx_trace_bindings_kind
                     ON trace_session_bindings(binding_kind, session_key);
 
-                CREATE TABLE IF NOT EXISTS token_usage_records (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT NOT NULL,
-                    channel TEXT NOT NULL,
-                    user_id TEXT NOT NULL,
-                    display_name TEXT NOT NULL,
-                    group_id INTEGER,
-                    group_name TEXT,
-                    input_tokens INTEGER NOT NULL,
-                    output_tokens INTEGER NOT NULL,
-                    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
-                    cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
-                    reasoning_output_tokens INTEGER NOT NULL DEFAULT 0
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_token_usage_channel_ts
-                    ON token_usage_records(channel, timestamp DESC, id DESC);
+                DROP TABLE IF EXISTS token_usage_records;
 
                 CREATE TABLE IF NOT EXISTS dashboard_usage_records (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -339,6 +323,20 @@ internal static class WorkspaceStateSchema
             "message_type",
             "TEXT NOT NULL DEFAULT 'MESSAGE'");
         EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
+        EnsureColumn(connection, "dashboard_usage_records", "model", "TEXT");
+        EnsureColumn(connection, "dashboard_usage_records", "reasoning_effort", "TEXT");
+        EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
+        EnsureColumn(connection, "dashboard_usage_records", "speed", "TEXT");
+        EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
+
+        using var usageIndexes = connection.CreateCommand();
+        usageIndexes.CommandText = """
+                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_root_thread
+                    ON dashboard_usage_records(root_thread_id, timestamp DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_trace_events_type_ts
+                    ON trace_events(type, timestamp, id);
+                """;
+        usageIndexes.ExecuteNonQuery();
     }
 
     private static void EnsureColumn(

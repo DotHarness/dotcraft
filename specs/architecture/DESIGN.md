@@ -196,6 +196,13 @@ Feature, channel, and provider colors are allowed only as small identity accents
 inside icons, avatars, badges, media previews, or charts. They must not become a
 view theme.
 
+`--chart-series-1` through `--chart-series-4` and `--chart-series-other` are the
+data-visualization palette: four hues in a fixed order, each theme stepped for its
+own surface and validated for color-vision deficiency, plus a neutral for the
+folded remainder. Assign them in order, fold everything past the kept series into
+the neutral, and keep chart text, axes, and legends on `--text-*` and `--border-*`
+tokens.
+
 ### Code token colors
 
 Syntax highlighting is the one place where color does not come from product

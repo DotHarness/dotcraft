@@ -301,9 +301,13 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<TurnQueueUpdateParams, TurnQueueUpdateResult> TurnQueueUpdate = new("turn/queue/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
 
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, UsageSummaryResult> UsageSummary = new("usage/summary", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+    public static readonly RpcRequest<UsageHistoryParams, UsageHistoryResult> UsageHistory = new("usage/history", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcRequest<UsageTimeseriesParams, UsageTimeseriesResult> UsageTimeseries = new("usage/timeseries", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+    public static readonly RpcRequest<UsageSummaryParams, UsageSummaryResult> UsageSummary = new("usage/summary", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+
+    public static readonly RpcRequest<UsageThreadParams, UsageThreadResult> UsageThread = new("usage/thread", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+
+    public static readonly RpcRequest<UsageThreadsParams, UsageThreadsResult> UsageThreads = new("usage/threads", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<InlineVisualizationViewCloseParams, InlineVisualizationViewCloseResult> InlineVisualizationViewClose = new("visualization/view/close", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "inlineVisualizations", errors: CommonErrors);
 

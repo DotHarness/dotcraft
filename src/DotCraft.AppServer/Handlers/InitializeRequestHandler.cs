@@ -80,7 +80,7 @@ internal sealed class InitializeRequestHandler(
             SubAgentSessions = true,
             McpStatus = services.McpClientManager != null,
             HooksManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            UsageTelemetry = services.TraceStore != null,
+            UsageTelemetry = services.TraceStore != null && services.UsageAnalytics != null,
             RemoteToolHost = services.RemoteToolHostClient != null
         };
 

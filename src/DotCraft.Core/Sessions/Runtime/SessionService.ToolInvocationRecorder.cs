@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Tools;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -16,6 +17,10 @@ public sealed partial class SessionService
         JsonObject arguments,
         CancellationToken cancellationToken = default)
     {
+        traceCollector?.NoteToolCallSource(
+            context.CallId,
+            ToolUsageSource.FromProvenance(registration.Definition.Provenance));
+
         if (!TryResolveInvocationTurn(context, out var runtime, out var turnRuntime, out var turn))
             return;
 

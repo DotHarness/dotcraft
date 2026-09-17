@@ -24,6 +24,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 
     private readonly ConcurrentDictionary<string, PromptCacheDiagnosticSessionState> _promptCacheDiagnosticStates = new();
     private readonly SubAgentPrefixDiagnosticTracker _subAgentPrefixDiagnostics = new(store);
+    private readonly ConcurrentDictionary<string, string> _pendingToolSources = new(StringComparer.Ordinal);
 
     void IModelRuntimeDiagnostics.Record(ModelRuntimeDiagnostic diagnostic)
     {
@@ -399,7 +400,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
     /// metrics (spec §27A.5). One event per use; the canonical skill name is stored in
     /// <see cref="TraceEvent.ToolName"/> for `GROUP BY` aggregation.
     /// </summary>
-    public void RecordSkillReferenced(string sessionKey, string skillName)
+    public void RecordSkillReferenced(string sessionKey, string skillName, string? toolSource = null)
     {
         if (string.IsNullOrWhiteSpace(sessionKey) || string.IsNullOrWhiteSpace(skillName))
             return;
@@ -408,7 +409,8 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
         {
             Type = TraceEventType.SkillReferenced,
             SessionKey = sessionKey,
-            ToolName = skillName.Trim()
+            ToolName = skillName.Trim(),
+            ToolSource = toolSource
         });
     }
 
@@ -449,6 +451,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
             SessionKey = sessionKey,
             ToolName = toolName ?? "unknown",
             ToolIcon = ToolRegistry.GetToolIcon(toolName ?? ""),
+            ToolSource = TakeToolSource(fr.CallId),
             ToolResult = result,
             DurationMs = durationMs,
             Content = fr.CallId,
@@ -459,7 +462,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 
     /// <summary>
     /// Records the completion of one Turn (one unit of agent work) with its wall-clock
-    /// duration, feeding the session's longest-turn aggregate (spec §27A.3 longestTaskMs).
+    /// duration, feeding the session's longest-turn aggregate (spec §27A.5 longestTaskMs).
     /// </summary>
     public void RecordTurnCompleted(string sessionKey, double durationMs)
     {
@@ -1139,6 +1142,23 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 
     public int GetTokenUsageCount(string sessionKey)
         => store.GetSession(sessionKey)?.TokenUsageCount ?? 0;
+
+    /// <summary>Remembers the usage source of a dispatched call until its completion event is recorded.</summary>
+    public void NoteToolCallSource(string? callId, string toolSource)
+    {
+        if (!string.IsNullOrEmpty(callId))
+            _pendingToolSources[callId] = toolSource;
+    }
+
+    private string? TakeToolSource(string? callId)
+        => !string.IsNullOrEmpty(callId) && _pendingToolSources.TryRemove(callId, out var source) ? source : null;
+
+    /// <summary>Model id and reasoning effort of the session's most recent LLM response, or null before any response.</summary>
+    public (string ModelId, string? ReasoningEffort)? GetLastResponseModel(string sessionKey)
+    {
+        var session = store.GetSession(sessionKey);
+        return session?.LastModelId is { } modelId ? (modelId, session.LastReasoningEffort) : null;
+    }
 
     public ToolCallTimer StartToolTimer()
     {

@@ -2494,6 +2494,7 @@ export interface ProfileInsightsParams {
 }
 
 export interface ProfileInsightsResult {
+  longestTaskMs?: number;
   skills?: SkillUsage[];
   skillsExplored?: number;
   topModel?: RankedMetric | null;
@@ -4482,6 +4483,50 @@ export interface UsageDeltaNotification {
   [key: string]: unknown;
 }
 
+export interface UsageHistoryDay {
+  date?: string;
+  total?: number;
+  values?: UsageHistoryValue[];
+  [key: string]: unknown;
+}
+
+export interface UsageHistoryParams {
+  from?: string | null;
+  groupBy?: string | null;
+  metric?: string;
+  to?: string | null;
+  topLimit?: number | null;
+  tzOffsetMinutes?: number | null;
+  [key: string]: unknown;
+}
+
+export interface UsageHistoryResult {
+  days?: UsageHistoryDay[];
+  groupBy?: string;
+  series?: UsageHistorySeries[];
+  unit?: string;
+  [key: string]: unknown;
+}
+
+export interface UsageHistorySeries {
+  key?: string;
+  total?: number;
+  [key: string]: unknown;
+}
+
+export interface UsageHistoryValue {
+  key?: string;
+  value?: number;
+  [key: string]: unknown;
+}
+
+export interface UsageSummaryParams {
+  from?: string | null;
+  to?: string | null;
+  tzOffsetMinutes?: number | null;
+  [key: string]: unknown;
+}
+
 export interface UsageSummaryResult {
   avgToolDurationMs?: number;
   cacheHitRate?: number;
@@ -4504,26 +4549,60 @@ export interface UsageSummaryResult {
   [key: string]: unknown;
 }
 
-export interface UsageTimeseriesDay {
-  date?: string;
+export interface UsageThreadGroup {
+  cachedInputTokens?: number;
   inputTokens?: number;
+  model?: string | null;
   outputTokens?: number;
-  sessionCount?: number;
+  reasoningEffort?: string | null;
+  speed?: string | null;
   totalTokens?: number;
+  turns?: number;
   [key: string]: unknown;
 }
 
-export interface UsageTimeseriesParams {
+export interface UsageThreadParams {
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface UsageThreadResult {
+  cacheHitRate?: number;
+  cachedInputTokens?: number;
+  groups?: UsageThreadGroup[];
+  inputTokens?: number;
+  outputTokens?: number;
+  threadId?: string;
+  totalTokens?: number;
+  turns?: number;
+  [key: string]: unknown;
+}
+
+export interface UsageThreadRow {
+  archived?: boolean;
+  cacheHitRate?: number;
+  cachedInputTokens?: number;
+  inputTokens?: number;
+  lastActiveAt?: string;
+  originChannel?: string;
+  outputTokens?: number;
+  threadId?: string;
+  title?: string | null;
+  totalTokens?: number;
+  turns?: number;
+  [key: string]: unknown;
+}
+
+export interface UsageThreadsParams {
   from?: string | null;
+  limit?: number | null;
   to?: string | null;
   tzOffsetMinutes?: number | null;
   [key: string]: unknown;
 }
 
-export interface UsageTimeseriesResult {
-  days?: UsageTimeseriesDay[];
-  longestTaskMs?: number;
-  tzOffsetMinutes?: number;
+export interface UsageThreadsResult {
+  threads?: UsageThreadRow[];
   [key: string]: unknown;
 }
 

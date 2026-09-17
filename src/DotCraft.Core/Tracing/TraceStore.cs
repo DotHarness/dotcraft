@@ -572,54 +572,8 @@ public sealed class TraceStore
     }
 
     /// <summary>
-    /// Aggregates per-day token usage across all sessions for activity charts (spec Section 27A.3).
-    /// Each session contributes its token totals to the local calendar day of its
-    /// <see cref="TraceSession.StartedAt"/>, where local day is derived by shifting the UTC
-    /// timestamp by <paramref name="tzOffsetMinutes"/>. The result is sparse (only days with
-    /// at least one session) and ascending by date.
-    /// </summary>
-    /// <param name="from">Inclusive lower bound on the local day, or null for no lower bound.</param>
-    /// <param name="to">Inclusive upper bound on the local day, or null for no upper bound.</param>
-    /// <param name="tzOffsetMinutes">Minutes to add to UTC to obtain the client's local time.</param>
-    public IReadOnlyList<DailyUsageBucket> GetDailyUsage(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
-    {
-        if (_stateRuntime != null)
-            return GetDailyUsageFromDb(from, to, tzOffsetMinutes);
-
-        var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
-        var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
-
-        foreach (var session in _sessions.Values)
-        {
-            var localWallClock = session.StartedAt.ToUniversalTime().Add(offset).DateTime;
-            var date = DateOnly.FromDateTime(localWallClock);
-            if (from.HasValue && date < from.Value)
-                continue;
-            if (to.HasValue && date > to.Value)
-                continue;
-
-            var current = buckets.GetValueOrDefault(date);
-            buckets[date] = (
-                current.Input + session.TotalInputTokens,
-                current.Output + session.TotalOutputTokens,
-                current.Sessions + 1);
-        }
-
-        return buckets
-            .OrderBy(kv => kv.Key)
-            .Select(kv => new DailyUsageBucket
-            {
-                Date = kv.Key,
-                InputTokens = kv.Value.Input,
-                OutputTokens = kv.Value.Output,
-                SessionCount = kv.Value.Sessions
-            })
-            .ToList();
-    }
-
-    /// <summary>
     /// Longest single Turn duration (ms) across all sessions — the workspace "longest task"
-    /// (spec §27A.3). Returns 0 when no turn durations have been recorded.
+    /// (spec §27A.5). Returns 0 when no turn durations have been recorded.
     /// </summary>
     public long GetLongestTurnDurationMs()
     {
@@ -680,11 +634,16 @@ public sealed class TraceStore
         var skills = new List<SkillUsageBucket>();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT tool_name, COUNT(*) FROM trace_events WHERE type = 'SkillReferenced' AND tool_name IS NOT NULL AND tool_name <> '' GROUP BY tool_name ORDER BY COUNT(*) DESC, tool_name ASC LIMIT $limit";
+            command.CommandText = "SELECT tool_name, COUNT(*), MAX(tool_source) FROM trace_events WHERE type = 'SkillReferenced' AND tool_name IS NOT NULL AND tool_name <> '' GROUP BY tool_name ORDER BY COUNT(*) DESC, tool_name ASC LIMIT $limit";
             command.Parameters.AddWithValue("$limit", topSkills);
             using var reader = command.ExecuteReader();
             while (reader.Read())
-                skills.Add(new SkillUsageBucket(reader.GetString(0), reader.GetInt64(1)));
+            {
+                skills.Add(new SkillUsageBucket(
+                    reader.GetString(0),
+                    reader.GetInt64(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
         }
 
         return new ProfileInsights(topModel, topReasoning, (int)distinctSkills, totalSkills, skills);
@@ -729,14 +688,16 @@ public sealed class TraceStore
             .Where(e => e.Type == TraceEventType.Response && !string.IsNullOrWhiteSpace(e.ReasoningEffort))
             .Select(e => e.ReasoningEffort!));
 
-        var skillNames = events
+        var skillEvents = events
             .Where(e => e.Type == TraceEventType.SkillReferenced && !string.IsNullOrWhiteSpace(e.ToolName))
-            .Select(e => e.ToolName!)
             .ToList();
 
-        var grouped = skillNames
-            .GroupBy(name => name, StringComparer.Ordinal)
-            .Select(g => new SkillUsageBucket(g.Key, g.LongCount()))
+        var grouped = skillEvents
+            .GroupBy(e => e.ToolName!, StringComparer.Ordinal)
+            .Select(g => new SkillUsageBucket(
+                g.Key,
+                g.LongCount(),
+                g.Select(e => e.ToolSource).LastOrDefault(source => !string.IsNullOrEmpty(source))))
             .OrderByDescending(b => b.Count)
             .ThenBy(b => b.Name, StringComparer.Ordinal)
             .ToList();
@@ -745,7 +706,7 @@ public sealed class TraceStore
             topModel,
             topReasoning,
             grouped.Count,
-            skillNames.Count,
+            skillEvents.Count,
             grouped.Take(topSkills).ToList());
     }
 
@@ -815,10 +776,17 @@ public sealed class TraceStore
                 session.ResponseCount++;
                 if (!string.IsNullOrEmpty(evt.FinishReason))
                     session.LastFinishReason = evt.FinishReason;
+                if (!string.IsNullOrEmpty(evt.ModelId))
+                {
+                    session.LastModelId = evt.ModelId;
+                    session.LastReasoningEffort = evt.ReasoningEffort;
+                }
                 break;
             case TraceEventType.ResponseTerminal:
                 if (!string.IsNullOrEmpty(evt.FinishReason))
                     session.LastFinishReason = evt.FinishReason;
+                if (!string.IsNullOrEmpty(evt.ModelId))
+                    session.LastModelId = evt.ModelId;
                 break;
             case TraceEventType.MaintenanceForkResponse:
                 session.MaintenanceForkResponseCount++;
@@ -941,6 +909,7 @@ public sealed class TraceStore
                     timestamp,
                     type,
                     tool_name,
+                    tool_source,
                     call_id,
                     response_id,
                     message_id,
@@ -955,6 +924,7 @@ public sealed class TraceStore
                     $timestamp,
                     $type,
                     $tool_name,
+                    $tool_source,
                     $call_id,
                     $response_id,
                     $message_id,
@@ -970,6 +940,7 @@ public sealed class TraceStore
             insert.Parameters.AddWithValue("$timestamp", evt.Timestamp.UtcDateTime.ToString("O"));
             insert.Parameters.AddWithValue("$type", evt.Type.ToString());
             insert.Parameters.AddWithValue("$tool_name", (object?)evt.ToolName ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$tool_source", (object?)evt.ToolSource ?? DBNull.Value);
             insert.Parameters.AddWithValue("$call_id", (object?)evt.CallId ?? DBNull.Value);
             insert.Parameters.AddWithValue("$response_id", (object?)evt.ResponseId ?? DBNull.Value);
             insert.Parameters.AddWithValue("$message_id", (object?)evt.MessageId ?? DBNull.Value);
@@ -1339,48 +1310,6 @@ public sealed class TraceStore
             TotalReasoningOutputTokens = ReadInt64(reader, 15),
             TotalTokens = totalInput + totalOutput
         };
-    }
-
-    private IReadOnlyList<DailyUsageBucket> GetDailyUsageFromDb(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
-    {
-        WaitForPendingPersistence();
-
-        var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
-        var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
-        using var connection = _stateRuntime!.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT started_at, total_input_tokens, total_output_tokens
-            FROM trace_sessions
-            """;
-
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-        {
-            var localWallClock = ParseTimestamp(reader.GetString(0)).ToUniversalTime().Add(offset).DateTime;
-            var date = DateOnly.FromDateTime(localWallClock);
-            if (from.HasValue && date < from.Value)
-                continue;
-            if (to.HasValue && date > to.Value)
-                continue;
-
-            var current = buckets.GetValueOrDefault(date);
-            buckets[date] = (
-                current.Input + ReadInt64(reader, 1),
-                current.Output + ReadInt64(reader, 2),
-                current.Sessions + 1);
-        }
-
-        return buckets
-            .OrderBy(kv => kv.Key)
-            .Select(kv => new DailyUsageBucket
-            {
-                Date = kv.Key,
-                InputTokens = kv.Value.Input,
-                OutputTokens = kv.Value.Output,
-                SessionCount = kv.Value.Sessions
-            })
-            .ToList();
     }
 
     private long GetLongestTurnDurationMsFromDb()
@@ -1881,23 +1810,6 @@ public sealed class TraceSummary
 }
 
 /// <summary>
-/// One day of aggregated token usage produced by <see cref="TraceStore.GetDailyUsage"/>.
-/// <see cref="Date"/> is a local calendar day (see the caller's timezone offset).
-/// </summary>
-public sealed class DailyUsageBucket
-{
-    public DateOnly Date { get; init; }
-
-    public long InputTokens { get; init; }
-
-    public long OutputTokens { get; init; }
-
-    public int SessionCount { get; init; }
-
-    public long TotalTokens => InputTokens + OutputTokens;
-}
-
-/// <summary>
 /// Profile "activity insights" aggregate produced by <see cref="TraceStore.GetProfileInsights"/>
 /// (spec §27A.5). <see cref="TopModel"/>/<see cref="TopReasoning"/> are null when no data exists.
 /// </summary>
@@ -1911,5 +1823,5 @@ public sealed record ProfileInsights(
 /// <summary>A leading value and its count out of <see cref="Total"/> observations (for share%).</summary>
 public sealed record RankedUsage(string Key, long Count, long Total);
 
-/// <summary>One referenced skill and how many times it was invoked.</summary>
-public sealed record SkillUsageBucket(string Name, long Count);
+/// <summary>One referenced skill, how many times it was invoked, and its recorded <see cref="ToolUsageSource"/> key.</summary>
+public sealed record SkillUsageBucket(string Name, long Count, string? ToolSource = null);

@@ -6304,6 +6304,39 @@
       ]
     },
     {
+      "name": "usage/history",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/UsageHistoryParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/UsageHistoryResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": null,
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "usage/summary",
       "paramStructure": "by-name",
       "params": [
@@ -6311,7 +6344,7 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/RpcEmpty.schema.json"
+            "$ref": "./schemas/core/UsageSummaryParams.schema.json"
           }
         }
       ],
@@ -6337,21 +6370,54 @@
       ]
     },
     {
-      "name": "usage/timeseries",
+      "name": "usage/thread",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/UsageTimeseriesParams.schema.json"
+            "$ref": "./schemas/core/UsageThreadParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/UsageTimeseriesResult.schema.json"
+          "$ref": "./schemas/core/UsageThreadResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": null,
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "usage/threads",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/UsageThreadsParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/UsageThreadsResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
