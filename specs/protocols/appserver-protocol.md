@@ -7517,9 +7517,8 @@ A malformed (non-empty) `from`/`to` that is not a valid `YYYY-MM-DD` date yields
 
 The `surface` dimension is the origin channel of the **root** thread. A subagent thread's
 facts are attributed to the thread that spawned it, so a Desktop conversation and the
-subagents it launched roll up under `dotcraft-desktop`. Facts recorded before a root
-thread was tracked, and facts whose thread no longer exists, fall back to the fact's own
-origin channel.
+subagents it launched roll up under `dotcraft-desktop`. Facts whose root thread no longer
+exists fall back to the fact's own origin channel.
 
 ### 27A.2 `usage/summary`
 

@@ -31,7 +31,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         {
             var sql = new StringBuilder("""
                 SELECT
-                    COUNT(DISTINCT COALESCE(root_thread_id, thread_id)),
+                    COUNT(DISTINCT root_thread_id),
                     COALESCE(SUM(llm_call_count), 0),
                     COALESCE(SUM(input_tokens), 0),
                     COALESCE(SUM(output_tokens), 0),
@@ -123,16 +123,16 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         {
             var sql = new StringBuilder("""
                 SELECT
-                    COALESCE(root_thread_id, thread_id) AS root,
+                    root_thread_id AS root,
                     COUNT(*),
                     COALESCE(SUM(input_tokens), 0),
                     COALESCE(SUM(output_tokens), 0),
                     COALESCE(SUM(cached_input_tokens), 0),
                     MAX(timestamp),
-                    COALESCE(MAX(CASE WHEN thread_id = COALESCE(root_thread_id, thread_id) THEN source_id END), MIN(source_id))
+                    COALESCE(MAX(CASE WHEN thread_id = root_thread_id THEN source_id END), MIN(source_id))
                 FROM dashboard_usage_records
-                WHERE COALESCE(root_thread_id, thread_id) IS NOT NULL
-                GROUP BY COALESCE(root_thread_id, thread_id)
+                WHERE root_thread_id IS NOT NULL
+                GROUP BY root_thread_id
                 """);
             AppendRange(sql, command, range, "MAX(timestamp)", hasWhere: false, keyword: "HAVING");
             sql.Append(" ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC, MAX(timestamp) DESC LIMIT $limit");
@@ -187,7 +187,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                 COALESCE(SUM(output_tokens), 0),
                 COALESCE(SUM(cached_input_tokens), 0)
             FROM dashboard_usage_records
-            WHERE COALESCE(root_thread_id, thread_id) = $thread_id
+            WHERE root_thread_id = $thread_id
             GROUP BY model, reasoning_effort, speed
             ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC, model, reasoning_effort, speed
             """;
@@ -233,7 +233,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                 d.reasoning_effort,
                 d.speed
             FROM dashboard_usage_records d
-            LEFT JOIN threads t ON t.thread_id = COALESCE(d.root_thread_id, d.thread_id)
+            LEFT JOIN threads t ON t.thread_id = d.root_thread_id
             """);
         AppendRange(sql, command, query.Range, "d.timestamp", hasWhere: false);
         command.CommandText = sql.ToString();
