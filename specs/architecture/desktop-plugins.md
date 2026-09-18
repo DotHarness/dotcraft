@@ -246,6 +246,7 @@ The formal Core surfaces are:
 | `composer.status` | The status row below the Composer card. Core supplies the workspace row when applicable. |
 | `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. The row is Core content; its individual chips are not surfaces. |
 | `composer.status.subscription` | The ChatGPT subscription indicator when applicable. |
+| `composer.status.trailing` | The trailing end of the status row, opposite the context row. Core contributes nothing; it is reserved for compact, persistent readouts. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay mounts after the application, so its content paints over the shell without a plugin having to consume the single `app` wrapper. The seat sets `pointer-events: none`, and the property inherits, so a floating readout stays click-through by default and a plugin that wants clicks opts back in with `pointer-events: auto` on its own element. That default keeps a decorative overlay from swallowing the interface underneath it, which is the failure a plugin cannot recover from once shipped.
 

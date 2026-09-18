@@ -107,6 +107,9 @@ export function ComposerStatusContent({
           {subscription}
         </DesktopPluginSurface>
       </div>
+      <div className={styles.trailing}>
+        <DesktopPluginSurface name="composer.status.trailing" context={context} />
+      </div>
     </div>
   )
 }

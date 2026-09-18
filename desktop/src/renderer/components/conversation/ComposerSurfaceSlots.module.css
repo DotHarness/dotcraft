@@ -16,3 +16,11 @@
   align-items: center;
   min-width: 0;
 }
+
+.trailing {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  min-width: 0;
+}

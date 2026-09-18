@@ -126,7 +126,7 @@ Target these Core controls when a region is too broad:
 | **Input** | `composer.input.attachments`, `composer.input.editor` |
 | **Leading toolbar** | `composer.toolbar.commands`, `composer.toolbar.permissions`, `composer.toolbar.mode`, `composer.toolbar.goal` |
 | **Trailing toolbar** | `composer.toolbar.context-usage`, `composer.toolbar.model`, `composer.toolbar.voice`, `composer.toolbar.submit` |
-| **Status** | `composer.status.workspace`, `composer.status.subscription` |
+| **Status** | `composer.status.workspace`, `composer.status.subscription`, `composer.status.trailing` |
 
 ![Composer public surface hierarchy](/desktop-plugin-composer-surfaces.svg)
 

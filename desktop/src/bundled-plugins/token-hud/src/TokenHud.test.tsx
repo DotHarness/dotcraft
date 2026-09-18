@@ -33,7 +33,7 @@ function renderHud(usage: Partial<UsageState>, busy = false): HTMLElement {
     session: { workspacePath: '/workspace', threadId: 'thread-1', mode: 'agent', busy, onChange: () => () => undefined },
     environment: { locale: 'en' }
   }
-  return render(<TokenHud host={host as unknown as DesktopPluginSurfaceProps<'app.status'>['host']} />).container
+  return render(<TokenHud host={host as unknown as DesktopPluginSurfaceProps<'composer.status.trailing'>['host']} />).container
 }
 
 const metric = (container: HTMLElement, name: string): string | null =>

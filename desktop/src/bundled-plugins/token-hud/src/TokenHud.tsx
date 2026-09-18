@@ -14,7 +14,7 @@ function useUsage(): ReturnType<typeof getUsage> {
   return useSyncExternalStore(subscribeUsage, getUsage, getUsage)
 }
 
-type TokenHudHost = DesktopPluginSurfaceProps<'app.status'>['host']
+type TokenHudHost = DesktopPluginSurfaceProps<'composer.status.trailing'>['host']
 
 function snapshotOf({ session }: TokenHudHost): DesktopPluginSessionSnapshot {
   const { workspacePath, threadId, mode, busy } = session
@@ -48,7 +48,7 @@ export function formatLatency(ms: number): string {
   return `${seconds < 10 ? Math.round(seconds * 10) / 10 : Math.round(seconds)}s`
 }
 
-export function TokenHud({ host }: DesktopPluginSurfaceProps<'app.status'>): JSX.Element | null {
+export function TokenHud({ host }: DesktopPluginSurfaceProps<'composer.status.trailing'>): JSX.Element | null {
   const settings = useSettings()
   const usage = useUsage()
   const session = useSession(host)

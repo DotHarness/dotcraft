@@ -14,7 +14,6 @@
   opacity: var(--token-hud-opacity, 0.8);
   white-space: nowrap;
   transition: opacity 0.2s ease;
-  pointer-events: auto;
 }
 
 .token-hud-cell {

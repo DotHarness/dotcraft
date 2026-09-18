@@ -31,7 +31,7 @@ export const activate: DesktopPluginActivate = async (host) => {
   await initializeSettings(host.settings)
   host.effect(() => startUsageFeed(host))
 
-  host.ui.add('app.status', TokenHud)
+  host.ui.add('composer.status.trailing', TokenHud)
 
   return {
     settingsPages: [

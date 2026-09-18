@@ -133,6 +133,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "composer.status": DesktopPluginComposerSurfaceContext;
   readonly "composer.status.workspace": DesktopPluginComposerSurfaceContext;
   readonly "composer.status.subscription": DesktopPluginComposerSurfaceContext;
+  readonly "composer.status.trailing": DesktopPluginComposerSurfaceContext;
 }
 
 export type DesktopPluginSurfaceContext<Surface extends string> =
