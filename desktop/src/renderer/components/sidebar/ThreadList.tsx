@@ -34,7 +34,7 @@ import { getSubAgentDepth, getSubAgentParentThreadId, isSubAgentThread } from '.
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { isInternalThread } from '../../utils/internalThreads'
 import { Skeleton } from '../ui/Skeleton'
-import { RunningSpinner } from '../ui/RunningSpinner'
+import { Spinner } from '../ui/Spinner'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
@@ -1347,11 +1347,15 @@ function ProjectHeader({
           <ProjectErrorIndicator label={errorLabel} />
         ) : collapsed && activity === 'running' ? (
           <span style={projectStatusIndicatorSlotStyle}>
-            <RunningSpinner label={t('threadEntry.turnRunning')} />
+            <span className="dc-status-indicator">
+              <Spinner label={t('threadEntry.turnRunning')} />
+            </span>
           </span>
         ) : collapsed && activity === 'waiting' ? (
           <span style={projectStatusIndicatorSlotStyle}>
-            <span style={projectWaitingDotStyle} aria-label={t('projectsRail.awaitingResponse')} />
+            <span className="dc-status-indicator" role="img" aria-label={t('projectsRail.awaitingResponse')}>
+              <span className="dc-status-indicator__dot" data-tone="warning" />
+            </span>
           </span>
         ) : null}
       </div>
@@ -1784,12 +1788,16 @@ function ReadonlyThreadRow({
       }}
     >
       {running ? (
-        <RunningSpinner
-          label={t('threadEntry.turnRunning')}
-          testId={`project-thread-running-indicator-${rowProjectKey}-${thread.id}`}
-        />
+        <span className="dc-status-indicator">
+          <Spinner
+            label={t('threadEntry.turnRunning')}
+            testId={`project-thread-running-indicator-${rowProjectKey}-${thread.id}`}
+          />
+        </span>
       ) : waiting ? (
-        <span style={readonlyWaitingBadgeStyle}>{t('projectsRail.awaitingResponse')}</span>
+        <span className="dc-status-badge" data-size="compact" data-tone="warning">
+          <span className="dc-status-badge__label">{t('projectsRail.awaitingResponse')}</span>
+        </span>
       ) : (
         relativeTime
       )}
@@ -2140,32 +2148,6 @@ const projectMenuStyle: CSSProperties = {
   backdropFilter: 'var(--glass-blur)',
   WebkitBackdropFilter: 'var(--glass-blur)',
   color: 'var(--text-primary)'
-}
-
-const projectWaitingDotStyle: CSSProperties = {
-  width: '8px',
-  height: '8px',
-  borderRadius: '999px',
-  backgroundColor: 'var(--warning)',
-  display: 'inline-block'
-}
-
-const readonlyWaitingBadgeStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  maxWidth: '140px',
-  minWidth: 0,
-  height: '18px',
-  padding: '2px 8px',
-  borderRadius: '999px',
-  backgroundColor: 'color-mix(in srgb, var(--success) 20%, transparent)',
-  color: 'var(--success)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis'
 }
 
 const emptyStyle: CSSProperties = {

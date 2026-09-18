@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, CheckCircle2, Circle, Loader2, X } from 'lucide-react'
+import { ArrowRightLeft, Check, CheckCircle2, Circle, X } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
@@ -417,7 +418,7 @@ function ProgressStep({
       {status === 'complete' ? (
         <CheckCircle2 size={20} strokeWidth={1.8} aria-hidden />
       ) : status === 'active' ? (
-        <Loader2 size={20} strokeWidth={1.9} className="animate-spin-custom" aria-hidden />
+        <Spinner size={20} />
       ) : (
         <Circle size={20} strokeWidth={1.7} aria-hidden />
       )}

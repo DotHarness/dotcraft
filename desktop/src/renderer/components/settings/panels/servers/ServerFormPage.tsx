@@ -1,5 +1,6 @@
 import { useEffect, useState, type JSX } from 'react'
-import { KeyRound, Loader2, RefreshCw, Server } from 'lucide-react'
+import { KeyRound, RefreshCw, Server } from 'lucide-react'
+import { Spinner } from '../../../ui/Spinner'
 
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
@@ -229,7 +230,7 @@ export function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.
         <Button
           onClick={handleTest}
           disabled={!sshTarget.trim() || testing}
-          iconLeft={testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+          iconLeft={testing ? <Spinner size={15} /> : <RefreshCw size={15} />}
         >
           {t('settings.servers.test.button')}
         </Button>

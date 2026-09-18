@@ -104,7 +104,3 @@ kbd {
     transform: rotate(360deg);
   }
 }
-
-.animate-spin-custom {
-  animation: spin var(--animate-spinner) linear infinite;
-}

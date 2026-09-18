@@ -9,7 +9,7 @@ import { Input } from '../ui/Input'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { RunningSpinner } from '../ui/RunningSpinner'
+import { Spinner } from '../ui/Spinner'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { Archive, ArrowRightLeft, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
@@ -473,6 +473,10 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
             >
               {showPendingInStatus ? (
                 <span
+                  className="dc-status-badge"
+                  data-size="compact"
+                  data-tone={showPendingApprovalBadge || showPendingUserInputBadge ? 'warning' : 'info'}
+                  data-quiet={isActive || hovered ? 'true' : undefined}
                   data-testid={
                     showPendingApprovalBadge
                       ? `thread-pending-approval-${thread.id}`
@@ -480,55 +484,32 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                         ? `thread-pending-input-${thread.id}`
                         : `thread-pending-confirmation-${thread.id}`
                   }
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    maxWidth: '150px',
-                    minWidth: 0,
-                    height: '18px',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                    border: showPendingApprovalBadge || showPendingUserInputBadge
-                      ? '1px solid color-mix(in srgb, #d4a33b 45%, transparent)'
-                      : '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
-                    backgroundColor: showPendingApprovalBadge || showPendingUserInputBadge
-                      ? 'color-mix(in srgb, #d4a33b 18%, transparent)'
-                      : 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                    color: showPendingApprovalBadge || showPendingUserInputBadge ? '#d4a33b' : 'var(--accent)',
-                    fontSize: 'var(--type-secondary-size)',
-                    lineHeight: 'var(--type-secondary-line-height)',
-                    fontWeight: 'var(--type-ui-emphasis-weight)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    flexShrink: 1
-                  }}
                 >
-                  {showPendingApprovalBadge
-                    ? t('threadEntry.pendingApproval')
-                    : showPendingUserInputBadge
-                      ? t('threadEntry.pendingUserInput')
-                      : t('threadEntry.pendingPlanConfirmation')}
+                  <span className="dc-status-badge__label">
+                    {showPendingApprovalBadge
+                      ? t('threadEntry.pendingApproval')
+                      : showPendingUserInputBadge
+                        ? t('threadEntry.pendingUserInput')
+                        : t('threadEntry.pendingPlanConfirmation')}
+                  </span>
                 </span>
               ) : hasRunningTurn ? (
-                <RunningSpinner
-                  label={t('threadEntry.turnRunning')}
-                  testId={`thread-running-indicator-${thread.id}`}
-                />
+                <span className="dc-status-indicator">
+                  <Spinner
+                    label={t('threadEntry.turnRunning')}
+                    testId={`thread-running-indicator-${thread.id}`}
+                  />
+                </span>
               ) : showUnreadCompletedDot ? (
                 <ActionTooltip label={t('threadEntry.unreadCompleted')}>
                   <span
+                    className="dc-status-indicator"
+                    role="img"
                     aria-label={t('threadEntry.unreadCompleted')}
                     data-testid={`thread-unread-completed-${thread.id}`}
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '999px',
-                      backgroundColor: 'var(--success)',
-                      display: 'inline-block'
-                    }}
-                  />
+                  >
+                    <span className="dc-status-indicator__dot" data-tone="success" />
+                  </span>
                 </ActionTooltip>
               ) : showStatusIcon ? (
                 <ActionTooltip label={thread.status}>

@@ -103,11 +103,13 @@
   --success-bg: color-mix(in srgb, var(--success) 18%, transparent);
   --warning-bg: color-mix(in srgb, var(--warning) 18%, transparent);
   --error-bg: color-mix(in srgb, var(--error) 18%, transparent);
+  --info-bg: color-mix(in srgb, var(--info) 18%, transparent);
 
   /* Only --error has to move on this theme. */
   --success-text: var(--success);
   --warning-text: var(--warning);
   --error-text: #f87171;
+  --info-text: #7ba7f8;
 
   --diff-add-bg: color-mix(in srgb, var(--success) 15%, transparent);
   --diff-remove-bg: color-mix(in srgb, var(--error) 15%, transparent);

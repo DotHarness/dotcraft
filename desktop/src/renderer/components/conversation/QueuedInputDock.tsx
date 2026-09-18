@@ -17,7 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { CornerDownRight, GripVertical, ListChecks, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
-import { RunningSpinner } from '../ui/RunningSpinner'
+import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import type { QueuedTurnInput } from '../../types/conversation'
 import { isOptimisticQueuedInput } from '../../stores/optimisticMessages'
@@ -253,7 +253,7 @@ function QueuedInputDockRow({
       />
       <IconButton
         icon={editing
-          ? <RunningSpinner size={12} borderWidth={1.8} testId={`queued-editing-${item.id}`} />
+          ? <Spinner size={14} testId={`queued-editing-${item.id}`} />
           : <Pencil size={14} strokeWidth={1.8} aria-hidden />}
         label={t('composer.queueEdit')}
         tooltipLabel={t('composer.queueEdit')}

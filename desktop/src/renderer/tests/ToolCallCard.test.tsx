@@ -205,7 +205,7 @@ describe('ToolCallCard shell rendering', () => {
     const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('pre')).toBeNull()
-    expect(document.querySelector('.animate-spin-custom')).toBeNull()
+    expect(document.querySelector('.dc-spinner')).toBeNull()
     expectDisclosureInsideTitleGroup(container)
     expect(screen.getByTestId('tool-row')).toHaveTextContent('Running: npm test')
 

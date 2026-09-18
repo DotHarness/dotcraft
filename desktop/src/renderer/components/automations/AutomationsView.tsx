@@ -3,13 +3,13 @@ import {
   CalendarClock,
   CircleDot,
   FileSearch,
-  LoaderCircle,
   MessageSquareText,
   NotebookText,
   Pencil,
   Plus,
   type LucideIcon
 } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { useT, useLocale } from '../../contexts/LocaleContext'
 import { useAutomationsStore, type AutomationDefinition, type AutomationInput, type AutomationPreset } from '../../stores/automationsStore'
@@ -266,7 +266,7 @@ function AutomationSuggestion({ preset, locale, creating, disabled, onClick }: {
   const Icon = presentation.icon
   return (
     <button type="button" className="dc-automation-suggestion" data-tone={presentation.tone} data-creating={creating || undefined} disabled={disabled} onClick={onClick}>
-      <span className="dc-automation-suggestion-icon">{creating ? <LoaderCircle size={17} className="animate-spin-custom" aria-hidden /> : <>
+      <span className="dc-automation-suggestion-icon">{creating ? <Spinner size={17} /> : <>
         <Icon className="dc-automation-suggestion-original-icon" size={17} strokeWidth={1.7} aria-hidden />
         <Plus className="dc-automation-suggestion-add-icon" size={18} strokeWidth={1.7} aria-hidden />
       </>}</span>

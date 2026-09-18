@@ -1,4 +1,5 @@
-import { Archive, LoaderCircle, MoreHorizontal } from 'lucide-react'
+import { Archive, MoreHorizontal } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import type { AppLocale } from '../../../shared/locales/types'
 import type { AutomationRun } from '../../types/automation'
@@ -29,7 +30,7 @@ export function AutomationRunRow({ run, thread, automationName, locale, pending,
       event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onMenu({ x: rect.right, y: rect.bottom })
     } }}>
     <ActionTooltip label={detail}><span className="dc-automation-run-status" aria-label={detail}>
-      {running ? <LoaderCircle size={14} className="animate-spin-custom" aria-hidden /> : archived && !unread ? <Archive size={14} aria-hidden /> : null}
+      {running ? <Spinner size={14} /> : archived && !unread ? <Archive size={14} aria-hidden /> : null}
     </span></ActionTooltip>
     <button type="button" className="dc-automation-run-main" aria-disabled={!canOpen} aria-label={`${title}, ${detail}`}
       onClick={() => { if (canOpen) openAutomationRun(run) }}>

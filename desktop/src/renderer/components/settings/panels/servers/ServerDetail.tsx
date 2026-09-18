@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { AlertTriangle, Loader2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { AlertTriangle, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Spinner } from '../../../ui/Spinner'
 
 import { SettingsPageHeader } from '../../SettingsPageHeader'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
@@ -100,7 +101,7 @@ export function ServerDetail({
             <Button
               disabled={testing}
               onClick={handleTestSsh}
-              iconLeft={testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+              iconLeft={testing ? <Spinner size={15} /> : <RefreshCw size={15} />}
             >
               {t('settings.servers.test.button')}
             </Button>

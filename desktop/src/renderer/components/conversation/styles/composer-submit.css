@@ -22,7 +22,7 @@
   transition: opacity 150ms ease 70ms;
 }
 
-.composer-submit-glyphs:not([data-glyph='stopping']) .composer-submit-glyph--stopping .animate-spin-custom {
+.composer-submit-glyphs:not([data-glyph='stopping']) .composer-submit-glyph--stopping .dc-spinner {
   animation-play-state: paused;
 }
 

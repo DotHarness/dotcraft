@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react'
-import { Loader2, Search, Server } from 'lucide-react'
+import { Search, Server } from 'lucide-react'
+import { Spinner } from '../../../ui/Spinner'
 
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
@@ -125,7 +126,7 @@ export function StackFormPage({
             <Button
               disabled={discovering}
               onClick={handleDiscover}
-              iconLeft={discovering ? <Loader2 size={15} className="animate-spin-custom" /> : <Search size={15} />}
+              iconLeft={discovering ? <Spinner size={15} /> : <Search size={15} />}
             >
               {t('settings.servers.stack.discover')}
             </Button>

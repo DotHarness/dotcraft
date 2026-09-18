@@ -8,7 +8,8 @@ import {
   type JSX,
   type ReactNode
 } from 'react'
-import { Bot, ListChecks, Loader2, Square, X } from 'lucide-react'
+import { Bot, ListChecks, Square, X } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 import type {
   DesktopPluginComposerSurfaceContext,
 } from '@dotcraft/plugin'
@@ -562,7 +563,7 @@ export function SendIcon(): JSX.Element {
 }
 
 export function SendProcessingIcon(): JSX.Element {
-  return <Loader2 size={16} strokeWidth={2.2} className="animate-spin-custom" aria-hidden="true" />
+  return <Spinner size={16} />
 }
 
 export function StopIcon(): JSX.Element {

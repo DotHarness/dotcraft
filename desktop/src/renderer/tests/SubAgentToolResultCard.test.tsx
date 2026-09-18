@@ -123,7 +123,7 @@ describe('ToolCallCard subagent result rendering', () => {
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
-    expect(document.querySelector('.animate-spin-custom')).toBeNull()
+    expect(document.querySelector('.dc-spinner')).toBeNull()
   })
 
   it('keeps WaitAgent running after toolCall completion until the tool result arrives', () => {

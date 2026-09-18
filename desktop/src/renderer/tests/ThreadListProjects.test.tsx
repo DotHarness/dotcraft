@@ -520,7 +520,7 @@ describe('ThreadList project-first layout', () => {
     expect(leading.parentElement).toBe(row)
     expect(layout.parentElement).toBe(row)
     expect(status.parentElement).toBe(layout)
-    expect(spinner.parentElement?.parentElement?.parentElement).toBe(status)
+    expect(status.contains(spinner)).toBe(true)
     expect(screen.queryByTestId('project-thread-pinned-/workspace/b-thread-b')).not.toBeInTheDocument()
   })
 

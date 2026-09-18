@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { Copy, Download, LoaderCircle, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from 'lucide-react'
+import { Copy, Download, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 
 import { TITLE_BAR_OVERLAY_HEIGHT } from '../../../shared/titleBarOverlay'
 import { TOP_LEVEL_MENU_IDS, type TopLevelMenuId } from '../../../shared/locales'
@@ -132,7 +133,7 @@ export function CustomMenuBar(): JSX.Element {
             style={updateButtonStyle(updateState.status)}
           >
             {updateState.status === 'downloading'
-              ? <LoaderCircle size={16} strokeWidth={2} aria-hidden="true" style={spinStyle} />
+              ? <Spinner size={16} />
               : <Download size={16} strokeWidth={2} aria-hidden="true" />}
             {(updateState.status === 'available' || updateState.status === 'error') && (
               <span style={updateBadgeStyle} aria-hidden="true" />
@@ -287,10 +288,6 @@ const updateBadgeStyle: CSSProperties = {
   borderRadius: 999,
   background: 'var(--accent)',
   boxShadow: '0 0 0 2px color-mix(in srgb, var(--text-primary) 8%, transparent)'
-}
-
-const spinStyle: CSSProperties = {
-  animation: 'spin 1s linear infinite'
 }
 
 const menuButtonStyle: CSSProperties = {

@@ -1,0 +1,12 @@
+.dc-spinner {
+  flex-shrink: 0;
+  animation: spin var(--animate-spinner) linear infinite;
+}
+
+.dc-spinner__track {
+  opacity: 0.3;
+}
+
+.dc-status-indicator > .dc-spinner {
+  color: var(--text-secondary);
+}

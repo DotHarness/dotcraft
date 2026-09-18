@@ -2,7 +2,7 @@ import type { KeyboardEvent } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { RunningSpinner } from '../ui/RunningSpinner'
+import { Spinner } from '../ui/Spinner'
 import type { ChannelConnectionState } from './ChannelCard'
 import { IdentityMark } from '../ui/IdentityMark'
 import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
@@ -66,7 +66,7 @@ export function ChannelCatalogItem({
             {t('plugins.install')}
           </Button>
         ) : status === 'connecting' ? (
-          <RunningSpinner size={12} borderWidth={1.5} label={statusLabel} />
+          <Spinner size={14} label={statusLabel} />
         ) : (
           <ActionTooltip label={statusLabel}>
             <span

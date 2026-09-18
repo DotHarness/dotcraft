@@ -1,4 +1,5 @@
-import { Circle, CircleCheck, CirclePause, CirclePlay, LoaderCircle } from 'lucide-react'
+import { Circle, CircleCheck, CirclePause, CirclePlay } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import type { AutomationDefinition } from '../../types/automation'
 import { useAutomationsStore } from '../../stores/automationsStore'
@@ -13,7 +14,7 @@ export function AutomationStatusControl({ automation, running, disabled, disable
   const paused = automation.status === 'paused'
   const label = t(paused ? 'automation.resume' : 'automation.pause')
   if (running || automation.status === 'completed') return <span className="dc-automation-row-status" aria-label={t(running ? 'automation.run.running' : 'automation.status.completed')}>
-    {running ? <LoaderCircle size={17} className="animate-spin-custom" /> : <CircleCheck size={17} />}
+    {running ? <Spinner size={17} /> : <CircleCheck size={17} />}
   </span>
   return <ActionTooltip label={label} disabledReason={disabled ? disabledReason : undefined}>
     <Button className="dc-automation-row-status" variant="ghost" size="iconSm" disabled={disabled || pending} aria-label={label}

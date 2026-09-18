@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, Loader2, Monitor, SatelliteDish } from 'lucide-react'
+import { Check, ChevronDown, Monitor, SatelliteDish } from 'lucide-react'
+import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { bootstrapSatellites, useSatellitesStore } from '../../stores/satellitesStore'
@@ -250,7 +251,7 @@ export function RunOnPicker({
           onClick={() => setOpenState(!open)}
         >
           {connecting ? (
-            <Loader2 size={15} className="animate-spin-custom" aria-hidden />
+            <Spinner size={15} />
           ) : selectedId !== LOCAL_OPTION_ID ? (
             <SatelliteDish size={15} strokeWidth={1.8} aria-hidden data-testid="run-on-routed-glyph" />
           ) : (

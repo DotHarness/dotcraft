@@ -1,5 +1,5 @@
 ---
-version: "0.19.0"
+version: "0.20.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -24,9 +24,11 @@ colors:
   success-bg: "var(--success-bg)"
   warning-bg: "var(--warning-bg)"
   error-bg: "var(--error-bg)"
+  info-bg: "var(--info-bg)"
   success-text: "var(--success-text)"
   warning-text: "var(--warning-text)"
   error-text: "var(--error-text)"
+  info-text: "var(--info-text)"
   ref-skill: "var(--ref-skill)"
   permission-full-access: "var(--permission-full-access)"
   glass-surface-strong: "var(--glass-surface-strong)"
@@ -642,27 +644,42 @@ a title or name beside it. Colour lives in the indicator alone: the label stays
 `--text-secondary`, and a failure reason follows it as ordinary neutral text.
 Colouring the words as well doubles the signal and makes a healthy row shout.
 
-Four fills carry every state:
+Five fills carry every state:
 
 - `--success` for the state worth noticing — running, in use, connected where
   being connected is the point;
-- `--warning` for degraded but recoverable;
+- `--warning` for degraded but recoverable, and for work waiting on a decision
+  the reader has to make;
 - `--error` for failed or blocked;
+- `--info` for a step the reader confirms rather than judges;
 - `--text-dimmed` for every quiet state — ready, idle, offline, unknown — which
   the label distinguishes in words.
 
 There is no hollow, dashed, or translucent variant: a ring reads as a different
 component, and a dimmed circle already says "nothing is happening here". A
-transitional state — connecting, testing, restarting — shows a spinner in the
-indicator's box rather than a colour, because a colour would claim a result the
-system does not have yet. When the label does not already name the state, the
-indicator carries an accessible name of its own, since colour alone is not
-readable.
+transitional state — connecting, testing, restarting, a turn still running — shows
+the shared `Spinner` in the indicator's box rather than a colour, because a colour
+would claim a result the system does not have yet. It reads one step above the quiet
+dots it replaces, on `--text-secondary`, since it is the live thing in that box. When
+the label does not already name the state, the indicator carries an accessible name of
+its own, since colour alone is not readable.
 
 When the state is the whole content rather than an attribute of a row, use a
 badge instead: the tinted surface tokens (`--success-bg`, `--warning-bg`,
-`--error-bg`) with the hue as the foreground, and no indicator inside it. A
-badge and an indicator never appear together for the same fact.
+`--error-bg`, `--info-bg`) with the reading ink (`--success-text`,
+`--warning-text`, `--error-text`, `--info-text`) as the foreground, and no
+indicator inside it. A badge and an
+indicator never appear together for the same fact.
+
+The tint is the whole badge. A badge carries no border, because a frame turns a
+state into a chip that looks pressable, and a column of framed states reads as a
+column of controls. In a dense list the badge takes the compact size — the row's own
+secondary type at ordinary weight inside an `18px` pill — so it sits inside the row's
+height instead of setting it, and it truncates rather than pushing the title. While
+the row is hovered or selected the badge drops its hue and goes neutral: the
+highlight is already the stronger signal, and two of them competing is what makes a
+list of waiting work look loud. A state keeps its own hue, and that hue comes from the
+fixed status tokens rather than `--accent`, which the reader is free to change.
 
 A settings surface says nothing when everything is fine. A green badge
 confirming that a binary was found, a section headed Status that only ever
@@ -1220,9 +1237,15 @@ block is the shared `Skeleton` family (`Skeleton`, `SkeletonRow`,
 
 - Known-shape content → skeleton, not a centered spinner. When the layout of
   what is loading is known (a plan, a list, a card grid), render a shape-matched
-  skeleton. Reserve the spinner (`animate-spin-custom`) for genuinely shapeless,
-  indeterminate waits inside a control — a busy button, an inline refresh, a
-  connection check.
+  skeleton. Reserve the spinner for genuinely shapeless, indeterminate waits inside
+  a control — a busy button, an inline refresh, a connection check, a running turn
+  in a list row.
+- There is one spinner: the shared `Spinner`. It is a track ring carrying a
+  three-quarter arc, both drawn in `currentColor` at a twelfth of its own diameter,
+  turning once per `--animate-spinner`. It has no colour of its own — it borrows the
+  ink of whatever it sits in, so a button, a row, and a dialog all wait in their own
+  voice and no wait ever claims the accent. Size it to the box it occupies; never
+  give it a hue, a thicker ring, or a second animation.
 - Partial content renders as it arrives. Once part of a streamed payload has
   parsed, render those parts as real content and keep pulsing skeleton rows only
   for what is still streaming. Do not hold arrived content behind a spinner.

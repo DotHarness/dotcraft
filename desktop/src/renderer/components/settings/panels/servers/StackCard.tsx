@@ -2,7 +2,6 @@ import { useEffect, useState, type JSX } from 'react'
 import {
   Download,
   ExternalLink,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Play,
@@ -11,6 +10,7 @@ import {
   Terminal,
   Trash2
 } from 'lucide-react'
+import { Spinner } from '../../../ui/Spinner'
 
 import { Button } from '../../../ui/Button'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
@@ -261,7 +261,7 @@ export function StackCard({
             variant="primary"
             disabled={operationBusy}
             onClick={() => store.openInDesktop(host.id, stack.id)}
-            iconLeft={connectBusy ? <Loader2 size={14} className="animate-spin-custom" /> : undefined}
+            iconLeft={connectBusy ? <Spinner size={14} /> : undefined}
           >
             {t('settings.servers.stack.openInDesktop')}
           </Button>

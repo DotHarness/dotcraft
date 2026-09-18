@@ -53,12 +53,14 @@ html[data-theme="light"] {
   --success-bg: color-mix(in srgb, var(--success) 14%, transparent);
   --warning-bg: color-mix(in srgb, var(--warning) 14%, transparent);
   --error-bg: color-mix(in srgb, var(--error) 14%, transparent);
+  --info-bg: color-mix(in srgb, var(--info) 14%, transparent);
 
-  /* All three darken on the light surface; the status yellow in particular reads at
+  /* All four darken on the light surface; the status yellow in particular reads at
      2.3:1 as text on a yellow tint of itself. */
   --success-text: #15803d;
   --warning-text: #8a6a10;
   --error-text: #b91c1c;
+  --info-text: #1d4ed8;
 
   --diff-add-bg: color-mix(in srgb, var(--success) 12%, transparent);
   --diff-remove-bg: color-mix(in srgb, var(--error) 10%, transparent);

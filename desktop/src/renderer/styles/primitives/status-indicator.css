@@ -22,6 +22,7 @@
 .dc-status-indicator__dot[data-tone="success"] { background: var(--success); }
 .dc-status-indicator__dot[data-tone="warning"] { background: var(--warning); }
 .dc-status-indicator__dot[data-tone="error"] { background: var(--error); }
+.dc-status-indicator__dot[data-tone="info"] { background: var(--info); }
 
 /* The state as the whole content: a tinted badge, never with an indicator inside. */
 .dc-status-badge {
@@ -38,6 +39,28 @@
   line-height: 1;
 }
 
-.dc-status-badge[data-tone="success"] { background: var(--success-bg); color: var(--success); }
-.dc-status-badge[data-tone="warning"] { background: var(--warning-bg); color: var(--warning); }
-.dc-status-badge[data-tone="error"] { background: var(--error-bg); color: var(--error); }
+.dc-status-badge[data-tone="success"] { background: var(--success-bg); color: var(--success-text); }
+.dc-status-badge[data-tone="warning"] { background: var(--warning-bg); color: var(--warning-text); }
+.dc-status-badge[data-tone="error"] { background: var(--error-bg); color: var(--error-text); }
+.dc-status-badge[data-tone="info"] { background: var(--info-bg); color: var(--info-text); }
+
+.dc-status-badge[data-size="compact"] {
+  min-height: 18px;
+  max-width: 150px;
+  padding: 0 8px;
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-ui-weight);
+  line-height: var(--type-secondary-line-height);
+}
+
+.dc-status-badge__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dc-status-badge[data-quiet="true"] {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-secondary);
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, CircleAlert, Copy, Loader2, RotateCw, Settings } from 'lucide-react'
+import { Check, CircleAlert, Copy, RotateCw, Settings } from 'lucide-react'
+import { Spinner } from './ui/Spinner'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useT } from '../contexts/LocaleContext'
 import { Avatar } from '@dotcraft/avatar/react'
@@ -182,7 +183,7 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           }}
         >
           {retryPending
-            ? <Loader2 size={16} strokeWidth={2.2} className="animate-spin-custom" aria-hidden="true" />
+            ? <Spinner size={16} />
             : <ActionIcon size={16} strokeWidth={1.8} aria-hidden="true" />}
           {displayedActionLabel}
         </button>

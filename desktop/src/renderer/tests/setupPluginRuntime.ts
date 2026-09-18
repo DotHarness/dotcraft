@@ -12,7 +12,7 @@ import { IconButton } from '../components/ui/IconButton'
 import { Input, Textarea } from '../components/ui/Input'
 import { ModalHeader } from '../components/ui/ModalHeader'
 import { PillSwitch } from '../components/ui/PillSwitch'
-import { RunningSpinner } from '../components/ui/RunningSpinner'
+import { Spinner } from '../components/ui/Spinner'
 import { Select } from '../components/ui/Select'
 import { Skeleton } from '../components/ui/Skeleton'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
@@ -31,7 +31,7 @@ installDesktopPluginRuntime({
     IconButton,
     Input,
     Textarea,
-    Spinner: RunningSpinner,
+    Spinner,
     Select,
     SegmentedControl: DesktopPluginSegmentedControl,
     Skeleton,

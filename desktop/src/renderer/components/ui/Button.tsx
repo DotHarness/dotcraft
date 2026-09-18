@@ -1,5 +1,5 @@
 import { Children, forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Spinner } from './Spinner'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
 
@@ -31,7 +31,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const isIcon = size === 'icon' || size === 'iconSm'
   const spinner = (
     <span className="dc-button__spinner" aria-hidden="true">
-      <Loader2 size={isIcon ? 15 : 14} className="animate-spin-custom" />
+      <Spinner size={isIcon ? 15 : 14} />
     </span>
   )
   return (

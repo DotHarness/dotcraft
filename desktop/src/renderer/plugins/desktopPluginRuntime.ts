@@ -31,7 +31,7 @@ import { IconButton } from '../components/ui/IconButton'
 import { Input, Textarea } from '../components/ui/Input'
 import { ModalHeader } from '../components/ui/ModalHeader'
 import { PillSwitch } from '../components/ui/PillSwitch'
-import { RunningSpinner } from '../components/ui/RunningSpinner'
+import { Spinner } from '../components/ui/Spinner'
 import { Select } from '../components/ui/Select'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Slider } from '../components/ui/Slider'
@@ -335,7 +335,7 @@ export function startDesktopPluginRuntime(): () => void {
       Select,
       SegmentedControl: DesktopPluginSegmentedControl,
       Checkbox,
-      Spinner: RunningSpinner,
+      Spinner,
       Skeleton,
       Slider,
       ActionTooltip,
