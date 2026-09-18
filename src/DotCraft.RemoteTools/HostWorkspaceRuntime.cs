@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Workspaces;
@@ -192,6 +193,8 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             int yieldTimeMs = 1000,
             int? maxOutputChars = null,
             CancellationToken ct = default) => throw Unsupported();
+
+        public ShellStdinSession? GetStdinSession(string sessionId) => null;
 
         public Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(
             string? threadId = null,

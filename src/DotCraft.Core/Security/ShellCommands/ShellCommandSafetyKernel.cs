@@ -13,13 +13,6 @@ public sealed class ShellCommandSafetyKernel
     private static readonly Regex ClimbPattern =
         new(@"(?<![^\s""'/\\=:])\.\.(?![^\s""'/\\;&|)])", RegexOptions.Compiled);
 
-    private static readonly Regex PosixDirectoryChangePattern =
-        new(@"(?<![\w./\\-])(cd|pushd|popd)(?![\w./\\-])", RegexOptions.Compiled);
-
-    private static readonly Regex WindowsDirectoryChangePattern = new(
-        @"(?<![\w./\\-])(cd|chdir|sl|pushd|popd|Set-Location|Push-Location|Pop-Location)(?![\w./\\-])",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     private static readonly HashSet<string> PosixDirectoryChangeCommands =
         new(StringComparer.Ordinal) { "cd", "pushd", "popd" };
 
@@ -61,7 +54,8 @@ public sealed class ShellCommandSafetyKernel
 
     public ShellAssessment Evaluate(ShellSafetyRequest request)
     {
-        if (!_resolver.TryResolve(request.ShellSelector, out var shell, out var shellReason))
+        var shell = request.ResolvedShell;
+        if (shell is null && !_resolver.TryResolve(request.ShellSelector, out shell, out var shellReason))
         {
             return new ShellAssessment
             {
@@ -77,8 +71,8 @@ public sealed class ShellCommandSafetyKernel
         var matches = new List<ShellRuleMatch>();
         var reasons = new List<string>();
         var risk = ShellRiskLevel.None;
-        string? cwd = request.WorkingDirectory;
-        var opaqueDirectoryChange = !lowering.IsPlain && DirectoryChangePattern(shell.Family).IsMatch(request.Command);
+        var cwd = request.WorkingDirectoryIsKnown ? request.WorkingDirectory : null;
+        var opaqueDirectoryChange = !lowering.IsPlain && ChangesDirectory(lowering.LiteralCommands, shell.Family);
 
         foreach (var command in commands)
         {
@@ -116,21 +110,27 @@ public sealed class ShellCommandSafetyKernel
             Matches = matches,
             ApprovalKey = approvalKey,
             Risk = overall == ShellDecision.Allow ? ShellRiskLevel.None : risk,
+            WorkingDirectoryAfter = opaqueDirectoryChange ? null : cwd,
             Remember = BuildRememberProposal(matches, lowering)
         };
     }
 
     private sealed record DirectoryChange(string? Target, string? Destination);
 
-    private static Regex DirectoryChangePattern(ShellFamily family) =>
-        family == ShellFamily.Posix ? PosixDirectoryChangePattern : WindowsDirectoryChangePattern;
+    private static HashSet<string> DirectoryChangeNames(ShellFamily family) =>
+        family == ShellFamily.Posix ? PosixDirectoryChangeCommands : PowerShellDirectoryChangeCommands;
+
+    private static bool ChangesDirectory(IReadOnlyList<IReadOnlyList<string>> commands, ShellFamily family)
+    {
+        var names = DirectoryChangeNames(family);
+        return commands.Any(command => command.Count > 0 && names.Contains(command[0]));
+    }
 
     private static DirectoryChange? DirectoryChangeOf(IReadOnlyList<string> command, ShellFamily family, string? cwd)
     {
         if (command.Count == 0)
             return null;
-        var names = family == ShellFamily.PowerShell ? PowerShellDirectoryChangeCommands : PosixDirectoryChangeCommands;
-        if (!names.Contains(command[0]))
+        if (!DirectoryChangeNames(family).Contains(command[0]))
             return null;
         if (command[0].Equals("popd", StringComparison.OrdinalIgnoreCase)
             || command[0].Equals("Pop-Location", StringComparison.OrdinalIgnoreCase))

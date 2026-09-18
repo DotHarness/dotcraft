@@ -82,6 +82,8 @@ public sealed class ShellTools
             return gate.Error!;
         }
 
+        var stdinSession = new ShellStdinSession(gate.Shell!, cwd);
+        stdinSession.TrackWorkingDirectory(gate.Assessment.WorkingDirectoryAfter);
         return await ExecWithBackgroundTerminalServiceAsync(
             command,
             cwd,
@@ -89,7 +91,7 @@ public sealed class ShellTools
             yieldTimeMs,
             maxOutputChars,
             interactive,
-            gate.Shell!,
+            stdinSession,
             commandExecution,
             cancellationToken);
     }
@@ -106,6 +108,15 @@ public sealed class ShellTools
     {
         try
         {
+            var session = _backgroundTerminals.GetStdinSession(sessionId);
+            using var interaction = session is null ? null : await session.EnterAsync(cancellationToken);
+            if (session is not null && RequiresStdinAuthorization(input))
+            {
+                var stdinGate = await _gate.AuthorizeStdinAsync(session, input, cancellationToken);
+                if (!stdinGate.IsAllowed)
+                    return stdinGate.Error!;
+            }
+
             var snapshot = await _backgroundTerminals.WriteStdinAsync(
                 sessionId,
                 input,
@@ -124,6 +135,12 @@ public sealed class ShellTools
         }
     }
 
+    private const char EndOfText = '\u0003';
+
+    // Empty input polls for output and a lone end-of-text is an interrupt; neither is a command.
+    private static bool RequiresStdinAuthorization(string input) =>
+        input.Trim('\r', '\n', EndOfText).Length > 0;
+
     private async Task<string> ExecWithBackgroundTerminalServiceAsync(
         string command,
         string cwd,
@@ -131,7 +148,7 @@ public sealed class ShellTools
         int? yieldTimeMs,
         int? maxOutputChars,
         bool interactive,
-        ShellIdentity shell,
+        ShellStdinSession stdinSession,
         CommandExecutionTracker? commandExecution,
         CancellationToken cancellationToken)
     {
@@ -176,7 +193,8 @@ public sealed class ShellTools
                     Source = shellExecution?.Source ?? "host",
                     RunInBackground = runInBackground,
                     Interactive = interactive,
-                    Shell = shell,
+                    Shell = stdinSession.Shell,
+                    StdinSession = stdinSession,
                     TimeoutSeconds = _timeoutSeconds,
                     YieldTimeMs = yieldTimeMs ?? 1000,
                     MaxOutputChars = maxOutputChars ?? _maxOutputLength

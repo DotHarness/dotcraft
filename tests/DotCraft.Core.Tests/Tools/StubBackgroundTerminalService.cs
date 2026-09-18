@@ -1,8 +1,9 @@
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.Tests.Tools;
 
-internal sealed class StubBackgroundTerminalService : IBackgroundTerminalService
+internal class StubBackgroundTerminalService : IBackgroundTerminalService
 {
     public event Action<BackgroundTerminalEvent>? TerminalEvent;
 
@@ -33,8 +34,10 @@ internal sealed class StubBackgroundTerminalService : IBackgroundTerminalService
     public Task<BackgroundTerminalSnapshot> ReadAsync(string sessionId, int waitMs = 0, int? maxOutputChars = null, CancellationToken ct = default) =>
         throw new NotSupportedException();
 
-    public Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default) =>
+    public virtual Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default) =>
         throw new NotSupportedException();
+
+    public virtual ShellStdinSession? GetStdinSession(string sessionId) => null;
 
     public Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(string? threadId = null, CancellationToken ct = default) =>
         throw new NotSupportedException();

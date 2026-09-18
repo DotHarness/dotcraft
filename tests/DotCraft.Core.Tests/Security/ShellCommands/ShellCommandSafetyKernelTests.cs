@@ -334,6 +334,53 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         Assert.Contains("cannot be determined", assessment.ReasonText);
     }
 
+    [Theory]
+    [InlineData("Select-String -Path a.txt -Pattern \"cd\" -Context 2,6 | Out-String")]
+    [InlineData("Get-Content a.txt | ForEach-Object { $_.Replace(\"CD\", \"\") }")]
+    [InlineData("Get-ChildItem | ForEach-Object { $_.Name -replace \"sl\", \"x\" }")]
+    public void Evaluate_OpaqueScriptNamingADirectoryChangeOnlyAsAnArgument_IsAllowed(string command)
+    {
+        var assessment = Windows().Evaluate(Request(command));
+
+        Assert.False(assessment.Lowering!.IsPlain);
+        Assert.Equal(ShellDecision.Allow, assessment.Decision);
+        Assert.Equal(_root, assessment.WorkingDirectoryAfter);
+    }
+
+    [Fact]
+    public void Evaluate_PlainDirectoryChange_ReportsTheDirectoryItEndedIn()
+    {
+        var nested = Path.Combine(_root, "sub");
+        Directory.CreateDirectory(nested);
+
+        var assessment = Posix().Evaluate(Request("cd sub && git status"));
+
+        Assert.Equal(ShellDecision.Allow, assessment.Decision);
+        Assert.Equal(nested, assessment.WorkingDirectoryAfter);
+    }
+
+    [Fact]
+    public void Evaluate_UndeterminableWorkingDirectory_PromptsAndStaysUndeterminable()
+    {
+        var assessment = Posix().Evaluate(Request("cat notes.txt", workingDirectoryIsKnown: false));
+
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
+        Assert.Contains("cannot be determined", assessment.ReasonText);
+        Assert.Null(assessment.WorkingDirectoryAfter);
+    }
+
+    [Fact]
+    public void Evaluate_ResolvedShell_IsUsedInsteadOfResolvingTheSelector()
+    {
+        var shell = new ShellIdentity(ShellKind.Zsh, "/opt/zsh");
+
+        var assessment = Posix().Evaluate(Request("git status", shell: "fish", resolvedShell: shell));
+
+        Assert.Equal(ShellDecision.Allow, assessment.Decision);
+        Assert.Same(shell, assessment.Shell);
+    }
+
     [Fact]
     public void Evaluate_PowerShellChangingToTheParentThenReadingARelativeFile_Prompts()
     {
@@ -365,11 +412,15 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         ShellPolicy? policy = null,
         PathBlacklist? blacklist = null,
         bool requireApprovalOutsideWorkspace = true,
-        bool autoApprovesPrompts = false) => new()
+        bool autoApprovesPrompts = false,
+        bool workingDirectoryIsKnown = true,
+        ShellIdentity? resolvedShell = null) => new()
         {
             Command = command,
             ShellSelector = shell,
+            ResolvedShell = resolvedShell,
             WorkingDirectory = workingDirectory ?? _root,
+            WorkingDirectoryIsKnown = workingDirectoryIsKnown,
             Workspace = _workspace,
             Policy = policy ?? ShellPolicy.Empty,
             Blacklist = blacklist,
