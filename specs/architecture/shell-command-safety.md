@@ -1,6 +1,6 @@
 # Shell Command Safety
 
-Version: 1.0
+Version: 1.1
 Status: Normative
 Owner: DotCraft.Core (`DotCraft.Security.ShellCommands`, `DotCraft.Tools.ShellTools`)
 
@@ -153,7 +153,9 @@ Some prefixes are too broad to remember as `allow` rules: shells and interpreter
 
 Path evidence comes from `PathEvidenceScanner`: for plain commands it inspects each word; for opaque scripts it scans the script text. It recognizes absolute paths, `~`, `$HOME`, drive letters, `%VAR%`, `$env:VAR`, and UNC paths, resolves them, and only ever raises the decision. A word that climbs with `..` is resolved against the working directory; in an opaque script such a climb counts as the parent of the working directory. The device names `/dev/null`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/zero`, `/dev/random`, `/dev/urandom`, `/dev/tty`, `NUL`, `CON`, `PRN`, and `AUX` are not evidence.
 
-Directory changes move the working directory for the commands that follow. In a plain script the changes are `cd`, `pushd`, and `popd` (Posix) and `cd`, `chdir`, `sl`, `Set-Location`, `pushd`, `Push-Location`, `popd`, and `Pop-Location` (PowerShell). A literal target is resolved against the current directory, counts as path evidence for that command, and becomes the directory every later command is checked in. A change without a resolvable target (no argument, `-`, or a stack pop) leaves the directory unknown, so that command and every later one are treated as outside the workspace. An opaque script that contains a directory-changing word is treated the same way.
+Directory changes move the working directory for the commands that follow. In a plain script the changes are `cd`, `pushd`, and `popd` (Posix) and `cd`, `chdir`, `sl`, `Set-Location`, `pushd`, `Push-Location`, `popd`, and `Pop-Location` (PowerShell). A literal target is resolved against the current directory, counts as path evidence for that command, and becomes the directory every later command is checked in. A change without a resolvable target (no argument, `-`, or a stack pop) leaves the directory unknown, so that command and every later one are treated as outside the workspace.
+
+An opaque script is treated the same way when literal extraction puts a directory-changing word in a command position. This is a heuristic over extracted literals and not a proof in either direction: a change the extraction cannot see, such as an invoked variable or `eval`, is missed, and a directory-changing word that appears only as an argument or inside a string does not count. A caller that already knows the directory is undeterminable says so on the request, and every command in that script is then evaluated as running in an undeterminable directory. The assessment reports the directory it tracked through the last command, or nothing when it ended undeterminable.
 
 Workspace containment is decided by `WorkspaceBoundary`, the single implementation shared with file tools; it resolves symbolic links before comparing.
 
@@ -226,6 +228,16 @@ The terminal service accepts only a `ShellIdentity` and launches `ExecutablePath
 
 The dispatcher's approval stage declares no approval for `Exec`; the gate owns it. The dispatcher's policy stage still enforces read-only classification (Section 11) and role or mode restrictions before the runtime stage.
 
+### 10.1 Standard input
+
+An admitted command can be an interpreter that keeps reading its standard input, so `ShellTools.WriteStdin` is a second way into a process the gate already started. Because this specification does not confine what an approved process may touch, that input is the only remaining place to decide, and the gate assesses it with the same kernel before it is written.
+
+A running terminal carries a stdin session: the `ShellIdentity` it was launched with, the working directory the kernel last knew it to be in, and whether that directory is still known. The assessment uses that identity rather than resolving a selector, because the process is already running and no selector can change it. After an admitted write the session takes the directory the assessment tracked; when the assessment ended undeterminable, the session's directory becomes unknown and every later write to it is evaluated as running in an undeterminable directory. A session never regains a known directory.
+
+Empty input polls for output and is not assessed. Input that is exactly the end-of-text character is an interrupt rather than a command and is not assessed. Terminal input a client sends on the person's behalf does not pass the gate; the person typing it is the authority.
+
+An approval raised for standard input carries the input as its command and the session's directory as its working directory, and states that the text is being written to a running terminal whose own directory and state may since have moved.
+
 ## 11. Read-only classification
 
 `ReadOnlyCommandClassifier.IsReadOnly(command, shellSelector)` decides whether a command is a non-mutating observation. It is used by Plan mode and by SubAgent roles with `readOnly` shell access. Read-only is a property of the command text under every supported shell, so the classifier does not depend on the host shell:
@@ -260,6 +272,7 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 - Plain lowering accepts a closed set of constructs; a new construct is opaque until this specification lists it.
 - Wrapper inspection is depth-bounded and reports overflow as dangerous.
 - A directory change the kernel cannot follow makes the rest of the script outside the workspace.
+- Input written to a running terminal is assessed against the shell that terminal is running, and a directory change the kernel cannot follow there makes every later write to that terminal outside the workspace.
 - Approval keys carry the shell executable, so an approval for one shell never applies to another.
 - Banned prefixes are never persisted as `allow` rules.
 - The approval decision and the launched executable derive from one `ShellIdentity` instance.
@@ -267,4 +280,4 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 
 ## 14. Conformance
 
-Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.
+Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands and across successive writes to one terminal, the directory-changing word appearing only as an argument in an opaque script, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.

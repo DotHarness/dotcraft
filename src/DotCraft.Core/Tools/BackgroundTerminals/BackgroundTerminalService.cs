@@ -117,6 +117,12 @@ public interface IBackgroundTerminalService
 
     Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Returns the shell and tracked directory a running terminal's standard input is authorized against,
+    /// or null when no such terminal is running.
+    /// </summary>
+    ShellStdinSession? GetStdinSession(string sessionId);
+
     Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(string? threadId = null, CancellationToken ct = default);
 
     Task<BackgroundTerminalSnapshot> StopAsync(string sessionId, CancellationToken ct = default);
@@ -205,8 +211,8 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         var outputPath = Path.Combine(sessionDir, sessionId + OutputExtension);
         var metadataPath = Path.Combine(sessionDir, sessionId + MetadataExtension);
 
-        var psi = CreateStartInfo(request);
-        var process = Process.Start(psi)
+        var shell = request.Shell ?? ResolveHostDefaultShell();
+        var process = Process.Start(CreateStartInfo(request, shell))
             ?? throw new InvalidOperationException("Failed to start process.");
 
         // Materialize the output artifact even when the command produces no bytes. This keeps
@@ -223,6 +229,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             request,
             process,
             DateTimeOffset.UtcNow,
+            new ShellStdinSession(shell, request.WorkingDirectory),
             this);
 
         _active[sessionId] = terminal;
@@ -316,6 +323,9 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         await Task.Delay(NormalizeYield(yieldTimeMs), ct).ConfigureAwait(false);
         return active.CreateSnapshot(maxOutputChars: maxOutputChars ?? _config.DefaultReadMaxOutputChars);
     }
+
+    public ShellStdinSession? GetStdinSession(string sessionId) =>
+        _active.TryGetValue(sessionId, out var active) ? active.StdinSession : null;
 
     public async Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(
         string? threadId = null,
@@ -418,7 +428,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         }
     }
 
-    private static ProcessStartInfo CreateStartInfo(BackgroundTerminalStartRequest request)
+    private static ProcessStartInfo CreateStartInfo(BackgroundTerminalStartRequest request, ShellIdentity shell)
     {
         var psi = new ProcessStartInfo
         {
@@ -432,7 +442,6 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             StandardErrorEncoding = Encoding.UTF8
         };
 
-        var shell = request.Shell ?? ResolveHostDefaultShell();
         psi.FileName = shell.ExecutablePath;
         switch (shell.Family)
         {
@@ -797,6 +806,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             BackgroundTerminalStartRequest request,
             Process process,
             DateTimeOffset startedAt,
+            ShellStdinSession stdinSession,
             BackgroundTerminalService owner)
         {
             SessionId = sessionId;
@@ -805,6 +815,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             Request = request;
             Process = process;
             StartedAt = startedAt;
+            StdinSession = stdinSession;
             _owner = owner;
         }
 
@@ -821,6 +832,8 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         public Process Process { get; }
 
         public DateTimeOffset StartedAt { get; }
+
+        public ShellStdinSession StdinSession { get; }
 
         public TaskCompletionSource MetadataCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

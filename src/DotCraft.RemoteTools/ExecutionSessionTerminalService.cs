@@ -1,3 +1,4 @@
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.RemoteTools;
@@ -21,6 +22,7 @@ internal sealed class ExecutionSessionTerminalService(BackgroundTerminalService 
         Run(token => terminals.ReadAsync(sessionId, waitMs, maxOutputChars, token), ct);
     public Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default) =>
         Run(token => terminals.WriteStdinAsync(sessionId, input, yieldTimeMs, maxOutputChars, token), ct);
+    public ShellStdinSession? GetStdinSession(string sessionId) => terminals.GetStdinSession(sessionId);
     public Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(string? threadId = null, CancellationToken ct = default) =>
         Run(token => terminals.ListAsync(threadId, token), ct);
     public Task<BackgroundTerminalSnapshot> StopAsync(string sessionId, CancellationToken ct = default) =>

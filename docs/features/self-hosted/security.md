@@ -32,6 +32,8 @@ If a path resolves outside the workspace, DotCraft either denies it or asks the 
 
 Before a command runs, DotCraft resolves which shell will execute it, breaks the script into the commands it contains, and checks each one. A command runs without asking when it stays inside the workspace and matches no rule. It asks first when it force-deletes files or opens a URL, when it references or moves into a path outside the workspace, when it changes directory to somewhere DotCraft can't follow, or when one of your rules says so. A shell name DotCraft doesn't recognize is refused.
 
+Some commands keep running and wait for more input, such as an interactive shell or a language prompt. Whatever the agent types into one of those is checked the same way a new command would be, against the shell that terminal is running and the directory it was last known to be in. Once the terminal moves somewhere DotCraft can't follow, everything typed into it afterwards asks first.
+
 The approval shows the shell, the commands as DotCraft read them, and why it's asking. If the script uses syntax DotCraft can't read in advance, the approval says so and shows the script as a whole.
 
 Each choice remembers a different amount:

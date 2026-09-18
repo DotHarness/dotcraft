@@ -1,3 +1,4 @@
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Sessions;
@@ -291,6 +292,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
                 Truncated = false
             });
         }
+
+        public ShellStdinSession? GetStdinSession(string sessionId) => null;
 
         public Task<BackgroundTerminalSnapshot> ReadAsync(
             string sessionId,

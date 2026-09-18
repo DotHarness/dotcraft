@@ -6,7 +6,13 @@ public sealed class ShellSafetyRequest
 
     public string? ShellSelector { get; init; }
 
+    /// <summary>Identity of an already running shell; when set the selector is not resolved.</summary>
+    public ShellIdentity? ResolvedShell { get; init; }
+
     public required string WorkingDirectory { get; init; }
+
+    /// <summary>False when the caller already knows <see cref="WorkingDirectory"/> is stale.</summary>
+    public bool WorkingDirectoryIsKnown { get; init; } = true;
 
     public required WorkspaceBoundary Workspace { get; init; }
 
@@ -47,6 +53,9 @@ public sealed class ShellAssessment
     public ShellApprovalKey? ApprovalKey { get; init; }
 
     public ShellRiskLevel Risk { get; init; }
+
+    /// <summary>Directory tracked through the last command, or null when it ended undeterminable.</summary>
+    public string? WorkingDirectoryAfter { get; init; }
 
     public ShellRememberProposal Remember { get; init; } = ShellRememberProposal.ExactKeyOnly;
 

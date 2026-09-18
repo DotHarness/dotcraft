@@ -106,6 +106,14 @@ public sealed class ShellTools
     {
         try
         {
+            if (RequiresStdinAuthorization(input)
+                && _backgroundTerminals.GetStdinSession(sessionId) is { } stdinSession)
+            {
+                var stdinGate = await _gate.AuthorizeStdinAsync(stdinSession, input, cancellationToken);
+                if (!stdinGate.IsAllowed)
+                    return stdinGate.Error!;
+            }
+
             var snapshot = await _backgroundTerminals.WriteStdinAsync(
                 sessionId,
                 input,
@@ -123,6 +131,12 @@ public sealed class ShellTools
             return $"Error writing to background terminal: {ex.Message}";
         }
     }
+
+    private const char EndOfText = '\u0003';
+
+    // Empty input polls for output and a lone end-of-text is an interrupt; neither is a command.
+    private static bool RequiresStdinAuthorization(string input) =>
+        input.Trim('\r', '\n', EndOfText).Length > 0;
 
     private async Task<string> ExecWithBackgroundTerminalServiceAsync(
         string command,
