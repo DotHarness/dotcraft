@@ -8,40 +8,22 @@ function seriesColor(index: number): string {
   return index < SERIES_SLOTS ? `var(--chart-series-${index + 1})` : 'var(--chart-series-other)'
 }
 
-function reasoningLabel(value: string | null, strings: TokenHudStrings): string | null {
-  switch (value) {
-    case null:
-      return null
-    case 'low':
-      return strings.reasoningLow
-    case 'medium':
-      return strings.reasoningMedium
-    case 'high':
-      return strings.reasoningHigh
-    case 'extrahigh':
-      return strings.reasoningExtraHigh
-    default:
-      return value
-  }
+interface ModelSlice {
+  label: string
+  totalTokens: number
 }
 
-function speedLabel(value: string | null, strings: TokenHudStrings): string | null {
-  switch (value) {
-    case null:
-      return null
-    case 'standard':
-      return strings.speedStandard
-    case 'fast':
-      return strings.speedFast
-    default:
-      return value
+/** The server splits a thread's turns finer than the model; this readout only names the model. */
+function byModel(groups: readonly ThreadUsageGroup[], strings: TokenHudStrings): ModelSlice[] {
+  const totals = new Map<string, number>()
+  for (const group of groups) {
+    const label = group.model ?? strings.unknownModel
+    totals.set(label, (totals.get(label) ?? 0) + group.totalTokens)
   }
-}
-
-function groupLabel(group: ThreadUsageGroup, strings: TokenHudStrings): string {
-  return [group.model ?? strings.unknownModel, reasoningLabel(group.reasoningEffort, strings), speedLabel(group.speed, strings)]
-    .filter((part): part is string => part !== null)
-    .join(' · ')
+  return [...totals]
+    .filter(([, totalTokens]) => totalTokens > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([label, totalTokens]) => ({ label, totalTokens }))
 }
 
 interface ThreadUsagePopoverProps {
@@ -52,30 +34,30 @@ interface ThreadUsagePopoverProps {
 }
 
 export function ThreadUsagePopover({ usage, strings, formatTokens, style }: ThreadUsagePopoverProps): JSX.Element {
-  const groups = usage?.groups.filter((group) => group.totalTokens > 0) ?? []
+  const slices = usage === null ? [] : byModel(usage.groups, strings)
   const total = usage?.totalTokens ?? 0
   return (
     <div className="token-hud-popover" role="dialog" aria-label={strings.threadUsageTitle} style={style}>
       <div className="token-hud-popover-title">{strings.threadUsageTitle}</div>
-      {usage === null || groups.length === 0 || total <= 0 ? (
+      {usage === null || slices.length === 0 || total <= 0 ? (
         <div className="token-hud-popover-empty">{strings.threadUsageEmpty}</div>
       ) : (
         <>
           <div className="token-hud-popover-bar" aria-hidden="true">
-            {groups.map((group, index) => (
+            {slices.map((slice, index) => (
               <span
-                key={groupLabel(group, strings)}
-                style={{ width: `${(group.totalTokens / total) * 100}%`, background: seriesColor(index) }}
+                key={slice.label}
+                style={{ width: `${(slice.totalTokens / total) * 100}%`, background: seriesColor(index) }}
               />
             ))}
           </div>
           <ul className="token-hud-popover-rows">
-            {groups.map((group, index) => (
-              <li key={groupLabel(group, strings)}>
+            {slices.map((slice, index) => (
+              <li key={slice.label}>
                 <span className="token-hud-popover-swatch" style={{ background: seriesColor(index) }} />
-                <span className="token-hud-popover-label">{groupLabel(group, strings)}</span>
+                <span className="token-hud-popover-label">{slice.label}</span>
                 <span className="token-hud-popover-value">
-                  {`${Math.round((group.totalTokens / total) * 100)}% · ${formatTokens(group.totalTokens)}`}
+                  {`${Math.round((slice.totalTokens / total) * 100)}% · ${formatTokens(slice.totalTokens)}`}
                 </span>
               </li>
             ))}

@@ -12,8 +12,6 @@ export interface UsageState {
 
 export interface ThreadUsageGroup {
   readonly model: string | null
-  readonly reasoningEffort: string | null
-  readonly speed: string | null
   readonly turns: number
   readonly totalTokens: number
 }
@@ -269,8 +267,6 @@ function toThreadUsage(result: unknown): ThreadUsageSnapshot | null {
     totalTokens: numberOrNull(value.totalTokens) ?? 0,
     groups: groups.map((group: Record<string, unknown>) => ({
       model: textOrNull(group?.model),
-      reasoningEffort: textOrNull(group?.reasoningEffort),
-      speed: textOrNull(group?.speed),
       turns: numberOrNull(group?.turns) ?? 0,
       totalTokens: numberOrNull(group?.totalTokens) ?? 0
     }))
