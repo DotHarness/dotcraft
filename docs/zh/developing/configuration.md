@@ -216,7 +216,7 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 更具体的 key 优先于家族前缀，因此具体模型可以安全地使用不同于家族的窗口值。
 
 只有模型规则明确匹配，且目录窗口大于配置后的 Default 窗口时，MAX 才可用。未知模型以及
-不会扩大窗口的匹配不会提供 MAX。Default 模式继续受 `Compaction.MaxContextWindow` 限制；
+不会扩大窗口的匹配不会提供 MAX。Default 模式继续受 `Compaction.MaxContextWindow` 限制。
 MAX 使用目录中的原始窗口，同时保留常规的摘要预留和安全 buffer。
 
 ## Reasoning 与 PromptCaching

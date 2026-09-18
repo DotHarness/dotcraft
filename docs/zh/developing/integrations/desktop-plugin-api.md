@@ -102,7 +102,7 @@ DotCraft 的正式 surface 覆盖 application 与 Composer。Composer surface �
 | Surface | 位置 |
 |---|---|
 | **`app`** | 完整渲染出的 Desktop application。 |
-| **`app.background`** | application shell 后方由 Host 持有的装饰位。背景媒体在这里渲染；shell 如何叠加在其上由 `host.appearance` 控制。 |
+| **`app.background`** | application shell 后方由 Host 持有的装饰位。背景媒体在这里渲染，shell 如何叠加在其上由 `host.appearance` 控制。 |
 | **`app.overlay`** | application shell 前方的空位，默认穿透点击。 |
 | **`app.status`** | 由 Host 持有的右下角状态轨道，用于紧凑、持续的诊断信息。它与 Core 指示器的位置和间距由 Host 管理。 |
 | **`composer`** | 完整的已挂载 Composer，包括新聊天 welcome、创建 thread 前的 embedded Composer 与 active thread 状态。 |
@@ -415,7 +415,7 @@ host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
 ```
 
 每个插件 generation 在两类 contribution 中各有一个槽位。较晚 activation 的优先级更高，
-但不会丢掉前一层；传入 `null`，或者插件被禁用、卸载、热重载、activation 失败时，都会显露
+但不会丢掉前一层。传入 `null`，或者插件被禁用、卸载、热重载、activation 失败时，都会显露
 前一层。重复提供相同值不会再次发布 theme 变化。Desktop 会校验 seed 颜色，并限制 contrast
 和 opacity。
 
@@ -510,7 +510,7 @@ function DensityRow({
 
 不透明 RGB 颜色选择统一使用 `host.ui.pickColor`。compact dialog、portal、焦点锁定、通用文案、
 Hex 校验与键盘操作都由 Desktop 管理。它接受三位或六位 Hex，并返回规范化的小写
-`#rrggbb`；拖动和输入只在弹窗内部预览。
+`#rrggbb`。拖动和输入只在弹窗内部预览。
 
 ```ts
 const result = await host.ui.pickColor({
@@ -525,7 +525,7 @@ if (result.kind === "select") await save(result.color);
 if (result.kind === "reset") await clearOverride();
 ```
 
-Done 返回 `select`；Reset 立即返回 `reset` 并关闭。Escape、关闭按钮、遮罩、同时发起的另一个
+Done 返回 `select`，Reset 立即返回 `reset` 并关闭。Escape、关闭按钮、遮罩、同时发起的另一个
 picker 请求或插件销毁都返回 `cancel`。Host 参数不合法时 Promise 以 `TypeError` 拒绝。
 不要渲染原生 `input[type="color"]`，也不要自行维护插件颜色弹窗。
 

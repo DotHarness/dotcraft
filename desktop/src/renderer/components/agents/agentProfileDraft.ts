@@ -12,7 +12,7 @@ import type {
 export type SaveTarget = 'user' | 'workspace'
 export type AgentControl = 'full' | 'disabled' | 'allowList'
 export type ToolPolicyMode = 'all' | 'allowList' | 'denyList'
-export type ApprovalPolicy = 'default' | 'prompt' | 'autoApprove' | 'interrupt'
+export type ApprovalPolicy = 'default' | 'prompt' | 'autoApprove' | 'deny'
 
 export interface AgentProviderPreference {
   providerId: string
@@ -52,23 +52,19 @@ export interface ProfileDraft {
   }
   permissions: {
     approvalPolicy: ApprovalPolicy
-    requireApprovalOutsideWorkspace: boolean
+    /** `null` when the profile does not author the key; the builder neither presents nor writes it. */
+    requireApprovalOutsideWorkspace: boolean | null
   }
   roleInstructions: string
 }
 
-export const APPROVAL_OPTIONS: { value: ApprovalPolicy; label: string }[] = [
-  { value: 'default', label: 'Default' },
-  { value: 'prompt', label: 'Prompt' },
-  { value: 'autoApprove', label: 'Auto-approve' },
-  { value: 'interrupt', label: 'Interrupt' }
+/** The two answers the builder offers; `default` and `deny` are read but never authored here. */
+export const APPROVAL_OPTIONS: { value: ApprovalPolicy; labelKey: string }[] = [
+  { value: 'prompt', labelKey: 'agentBuilder.approval.prompt' },
+  { value: 'autoApprove', labelKey: 'agentBuilder.approval.autoApprove' }
 ]
 
-export const AGENT_CONTROL_OPTIONS: { value: AgentControl; label: string }[] = [
-  { value: 'full', label: 'Full' },
-  { value: 'disabled', label: 'Disabled' },
-  { value: 'allowList', label: 'Allow-list' }
-]
+export const DENY_APPROVAL_LABEL_KEY = 'agentBuilder.approval.deny'
 
 export function createEmptyDraft(): ProfileDraft {
   return {
@@ -78,13 +74,19 @@ export function createEmptyDraft(): ProfileDraft {
     tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
-    permissions: { approvalPolicy: 'default', requireApprovalOutsideWorkspace: false },
+    permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
     roleInstructions: ''
   }
 }
 
 function parseScalar(value: string): string {
   try { return String(loadYaml(value) ?? '') } catch { return value }
+}
+
+/** A persisted `interrupt` is the former name of `deny`. */
+function parseApprovalPolicy(value: string): ApprovalPolicy {
+  if (value === 'interrupt') return 'deny'
+  return (value || 'default') as ApprovalPolicy
 }
 
 function parseList(value: string): string[] {
@@ -157,7 +159,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       else if (section === 'skills' && key === 'preload') draft.skills.preload = parseList(val)
       else if (section === 'skills' && key === 'allow') draft.skills.allow = parseList(val)
       else if (section === 'skills' && key === 'deny') draft.skills.deny = parseList(val)
-      else if (section === 'permissions' && key === 'approvalPolicy') draft.permissions.approvalPolicy = (val || 'default') as ApprovalPolicy
+      else if (section === 'permissions' && key === 'approvalPolicy') draft.permissions.approvalPolicy = parseApprovalPolicy(val)
       else if (section === 'permissions' && key === 'requireApprovalOutsideWorkspace') draft.permissions.requireApprovalOutsideWorkspace = val === 'true'
     } else if (indent >= 4) {
       if (sub === 'providerReasoning') {
@@ -237,7 +239,9 @@ export function toMarkdown(draft: ProfileDraft): string {
 
   fm.push('permissions:')
   fm.push(`  approvalPolicy: ${draft.permissions.approvalPolicy}`)
-  fm.push(`  requireApprovalOutsideWorkspace: ${draft.permissions.requireApprovalOutsideWorkspace ? 'true' : 'false'}`)
+  if (draft.permissions.requireApprovalOutsideWorkspace !== null) {
+    fm.push(`  requireApprovalOutsideWorkspace: ${draft.permissions.requireApprovalOutsideWorkspace ? 'true' : 'false'}`)
+  }
   fm.push('---')
 
   return `${fm.join('\n')}\n\n${draft.roleInstructions.trim()}\n`

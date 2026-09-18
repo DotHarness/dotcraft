@@ -6,7 +6,7 @@ namespace DotCraft.Sessions;
 /// Approval service that denies approval requests without prompting the user.
 /// The active tool receives the denial as a normal tool result so the model can continue.
 /// </summary>
-internal sealed class InterruptOnApprovalService : IApprovalService
+internal sealed class DenyApprovalService : IApprovalService
 {
     private static readonly Task<bool> Denied = Task.FromResult(false);
 

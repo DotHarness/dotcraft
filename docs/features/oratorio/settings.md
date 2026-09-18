@@ -14,7 +14,7 @@ Provider pages show read, write, and webhook status. Select **Sync now** for one
 
 ## Agent execution and worktrees
 
-How the Agent runs, from when it pauses for approval to how finished work is delivered, is set on the main Oratorio settings page. These values are read when a new run starts, so a change only affects later runs.
+How the Agent runs, from what happens when an operation needs approval to how finished work is delivered, is set on the main Oratorio settings page. A run has nobody to ask, so by default an approval-gated operation is denied and the Agent continues with that result. Set approval to **Approve automatically** when runs should go through unattended. These values are read when a new run starts, so a change only affects later runs.
 
 Managed worktrees are created inside the repository by default:
 

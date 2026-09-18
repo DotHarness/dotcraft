@@ -27,7 +27,7 @@ Each line is a starting page, not a summary to recite. Fetch before quoting.
 **Agent system.** Memory and Dreams, skills and self-learning, plugins and tools, Remote Tool Host, plugin marketplaces, connected apps, automations and goals, Dynamic Workflows, lifecycle hooks, Agent Builder, agent profiles, subagents, and workspace handoff.
 `/features/agent-system/`
 
-**Channels and bots.** QQ, WeCom, Feishu, Telegram, and Weixin adapters, configured through Desktop Settings > Channels.
+**Channels and bots.** QQ, WeCom, Feishu, Telegram, and Weixin adapters, configured through Desktop > Channels.
 `/features/channels/`
 
 **Self-hosted.** Server deployment, observability, security and sandboxing.

@@ -16,7 +16,7 @@ internal static class SubAgentApprovalModeResolver
         {
             null => RestrictedMode,
             AutoApproveApprovalService => AutoApproveMode,
-            InterruptOnApprovalService => RestrictedMode,
+            DenyApprovalService => RestrictedMode,
             SessionApprovalService => InteractiveMode,
             ConsoleApprovalService => InteractiveMode,
             _ => RestrictedMode

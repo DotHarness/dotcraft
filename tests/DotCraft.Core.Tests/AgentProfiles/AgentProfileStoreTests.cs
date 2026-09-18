@@ -160,7 +160,7 @@ skills:
   preload: [code-review]
   allowManage: false
 permissions:
-  approvalPolicy: interrupt
+  approvalPolicy: deny
   requireApprovalOutsideWorkspace: true
 ---
 
@@ -196,7 +196,7 @@ Focus on correctness.
         var skillsPolicy = config.SkillsPolicy!;
         Assert.Equal(new[] { "code-review" }, skillsPolicy.Preload ?? Array.Empty<string>());
         Assert.False(skillsPolicy.AllowManage);
-        Assert.Equal(ApprovalPolicy.Interrupt, config.ApprovalPolicy);
+        Assert.Equal(ApprovalPolicy.Deny, config.ApprovalPolicy);
         Assert.True(config.RequireApprovalOutsideWorkspace);
         Assert.Equal("Focus on correctness.", config.RoleInstructions);
     }

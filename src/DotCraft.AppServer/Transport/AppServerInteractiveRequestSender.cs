@@ -203,7 +203,7 @@ internal sealed class AppServerInteractiveRequestSender
             return thread.Configuration?.ApprovalPolicy switch
             {
                 ApprovalPolicy.AutoApprove => SessionApprovalDecision.AcceptOnce,
-                ApprovalPolicy.Interrupt => SessionApprovalDecision.CancelTurn,
+                ApprovalPolicy.Deny => SessionApprovalDecision.Reject,
                 _ => _defaultApprovalDecision
             };
         }

@@ -28,14 +28,14 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | A setting for this project | `<workspace>/.craft/config.json` |
 | A personal default, credentials, or endpoints | `~/.craft/config.json` |
 | A custom model's context window or Fast capability | `<workspace>/.craft/models.json`, or `~/.craft/models.json` for every workspace |
-| A skill or tool turned off here | `Skills` or `EnabledTools` in the workspace config, or Desktop Settings > Skills to take effect at once |
+| A skill or tool turned off here | `Skills` or `EnabledTools` in the workspace config, or Desktop > Plugins > Skills to take effect at once |
 | A procedure worth repeating | A skill — `$skill-authoring` to write one, `$skill-installer` to install one |
 | A bundle of skills, tools, hooks, MCP servers, or UI | A plugin — `$plugin-creator` |
 | External data or actions from another program | `McpServers` |
 | "From now on, whenever X happens, do Y", mechanically | A hook — `$create-hooks`. Not memory, and not prose in a file |
 | Something on a schedule | the `Automation` tool |
 | Parallel orchestration across many items | `$workflow-authoring` |
-| A chat bot on QQ, WeCom, Feishu, Telegram, or Weixin | Desktop Settings > Channels, and `/features/channels/` for setup |
+| A chat bot on QQ, WeCom, Feishu, Telegram, or Weixin | Desktop > Channels, and `/features/channels/` for setup |
 
 Split a mixed request and place each part separately.
 
@@ -45,7 +45,7 @@ Split a mixed request and place each part separately.
 2. Open only the file you are changing, edit only the keys the user asked about, and keep the JSON valid. Credentials and endpoints belong to the personal file's `Providers`; the project's model selection belongs to the workspace file. An unknown property under `McpServers` or `LspServers` fails the entire config load.
 3. Never write a literal secret. Write `"ApiKey": "${OPENAI_API_KEY}"` and tell the user which variable to set. `$VAR` and `${VAR}` expand when the config loads; an unset variable keeps the placeholder unchanged.
 4. **A file edit is not live.** The running host does not watch these files, and `AppConfig` is a snapshot taken at startup, so the change applies at the next AppServer restart and the Desktop settings pages will not show it before then. Say "restart to apply" every time. If the user wants it live now, point them at the matching Desktop Settings panel instead. The `hot` reload tier in the schema describes changes made through Desktop Settings or AppServer RPC, never a hand-edited file.
-5. For provider sign-in, prefer the product surface: Desktop Settings > Models, or `dotcraft auth openai login`. Do not hand-write OAuth credentials.
+5. For provider sign-in, prefer the product surface: Desktop Settings > Model providers, or `dotcraft auth openai login`. Do not hand-write OAuth credentials.
 6. Custom model context windows belong in the `models.json` beside the applicable `config.json`, not under `Compaction` or `Providers`. Read `references/config-map.md` before creating or changing that file. Use the exact model id already configured for the provider, preserve unrelated entries, and restart the AppServer or Desktop before relying on the new capability metadata.
 
 ## References

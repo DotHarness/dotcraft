@@ -1946,33 +1946,34 @@ Each thread may carry a `Configuration` object. This is a thread-owned model, no
 
 ```
 ThreadConfiguration
-├── McpServers: McpServerConfig[]?               // Per-thread MCP server connections
-├── Mode: string                                 // Agent mode: "agent", "plan", etc. (default: "agent")
-├── Extensions: string[]?                        // Active extension prefixes, e.g. ["_unity"]
-├── CustomTools: string[]?                       // Additional tool names to enable
-├── ProviderId: string?                          // Per-thread provider id captured at thread creation
-├── Model: string?                               // Per-thread model captured from ProviderPreferences at thread creation
-├── Reasoning: ReasoningConfig?                  // Per-thread reasoning configuration
-├── Speed: standard|fast?                        // Per-thread requested inference-speed mode
-├── ContextWindow: { mode: "default"|"max" }?    // Per-thread context-window mode
-├── WorkspaceOverride: string?                   // Alternate workspace root for this thread
-├── Cwd: string?                                 // Sticky working directory; relative paths resolve here
-├── RuntimeWorkspaceRoots: string[]?             // Sticky ordered runtime boundaries; null defaults to cwd
-├── ExecutionWorkspaceOverride: string?          // Runtime execution root, typically a registered worktree
-├── ToolProfile: string?                         // Named tool profile to inject
-├── UseToolProfileOnly: bool                     // Use only the profile tools when true
-├── AgentInstructions: string?                   // Optional extra system instructions
-├── DeveloperInstructions: string?               // Starting application's instructions, final prompt section
-├── ApprovalPolicy: default|autoApprove|interrupt// Thread-scoped approval behavior
-├── AutomationTaskDirectory: string?             // Local automation task directory
-└── RequireApprovalOutsideWorkspace: bool?       // Overrides workspace file/shell boundary behavior
+├── McpServers: McpServerConfig[]?                  // Per-thread MCP server connections
+├── Mode: string                                    // Agent mode: "agent", "plan", etc. (default: "agent")
+├── Extensions: string[]?                           // Active extension prefixes, e.g. ["_unity"]
+├── CustomTools: string[]?                          // Additional tool names to enable
+├── ProviderId: string?                             // Per-thread provider id captured at thread creation
+├── Model: string?                                  // Per-thread model captured from ProviderPreferences at thread creation
+├── Reasoning: ReasoningConfig?                     // Per-thread reasoning configuration
+├── Speed: standard|fast?                           // Per-thread requested inference-speed mode
+├── ContextWindow: { mode: "default"|"max" }?       // Per-thread context-window mode
+├── WorkspaceOverride: string?                      // Alternate workspace root for this thread
+├── Cwd: string?                                    // Sticky working directory; relative paths resolve here
+├── RuntimeWorkspaceRoots: string[]?                // Sticky ordered runtime boundaries; null defaults to cwd
+├── ExecutionWorkspaceOverride: string?             // Runtime execution root, typically a registered worktree
+├── ToolProfile: string?                            // Named tool profile to inject
+├── UseToolProfileOnly: bool                        // Use only the profile tools when true
+├── AgentInstructions: string?                      // Optional extra system instructions
+├── DeveloperInstructions: string?                  // Starting application's instructions, final prompt section
+├── ApprovalPolicy: default|prompt|autoApprove|deny // Thread-scoped approval behavior
+├── AutomationTaskDirectory: string?                // Local automation task directory
+└── RequireApprovalOutsideWorkspace: bool?          // Overrides workspace file/shell boundary behavior
 ```
 
 Approval-related fields are normative:
 
 - `ApprovalPolicy = default` means the thread uses the normal interactive approval path when a tool requests approval.
+- `ApprovalPolicy = prompt` means the thread always uses the interactive approval path, even when the workspace default is `autoApprove`.
 - `ApprovalPolicy = autoApprove` means approval-gated operations on that thread are auto-accepted by the server.
-- `ApprovalPolicy = interrupt` means any approval-gated operation is rejected without prompting; the active tool receives the rejection and the turn may continue.
+- `ApprovalPolicy = deny` means any approval-gated operation is rejected without prompting; the active tool receives the rejection and the turn may continue. A persisted `interrupt` is read as `deny`.
 - `RequireApprovalOutsideWorkspace = true` allows outside-workspace file or shell operations to proceed through the approval service.
 - `RequireApprovalOutsideWorkspace = false` rejects outside-workspace file or shell operations without prompting.
 - `RequireApprovalOutsideWorkspace = null` falls back to the workspace-level default in `AppConfig.Tools.File`, which governs both file and shell operations.

@@ -448,7 +448,7 @@ public sealed class AppServerRunWorker(
                     DisplayName: prompt.DisplayName,
                     BaseWorkspacePath: baseWorkspacePath,
                     ExecutionWorkspacePath: executionWorkspacePath,
-                    ApprovalPolicy: string.IsNullOrWhiteSpace(value.ApprovalPolicy) ? "interrupt" : value.ApprovalPolicy,
+                    ApprovalPolicy: DotCraftApprovalPolicy.Normalize(value.ApprovalPolicy),
                     AgentInstructions: "You are connected through Oratorio. Follow the prompt exactly and use Oratorio dynamic tools when instructed.",
                     DynamicTools: dynamicTools.Declarations,
                     RuntimeAdditionalContext: prompt.RuntimeAdditionalContext), runToken);
@@ -475,7 +475,7 @@ public sealed class AppServerRunWorker(
                         DisplayName: prompt.DisplayName,
                         BaseWorkspacePath: baseWorkspacePath,
                         ExecutionWorkspacePath: executionWorkspacePath,
-                        ApprovalPolicy: string.IsNullOrWhiteSpace(value.ApprovalPolicy) ? "interrupt" : value.ApprovalPolicy,
+                        ApprovalPolicy: DotCraftApprovalPolicy.Normalize(value.ApprovalPolicy),
                         AgentInstructions: "You are connected through Oratorio. Follow the prompt exactly and use Oratorio dynamic tools when instructed.",
                         DynamicTools: dynamicTools.Declarations,
                         RuntimeAdditionalContext: prompt.RuntimeAdditionalContext), runToken);

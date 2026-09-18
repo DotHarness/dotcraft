@@ -59,7 +59,7 @@ tools:
   allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch]
   agentControl: disabled
 permissions:
-  approvalPolicy: default
+  approvalPolicy: prompt
 ---
 
 You are the Reviewer. Focus on correctness, risk, and missing tests.
@@ -196,6 +196,10 @@ Policy semantics:
 - Empty or omitted `deny` means no deny-list is applied.
 - Deny wins over allow.
 - Legacy exact-name tool filters compose with structured tool policy. The effective surface is the intersection of all allows after all denies are applied.
+- `permissions.approvalPolicy` is `default`, `prompt`, `autoApprove`, or `deny`. `default` follows the workspace default policy, `prompt` always asks, `autoApprove` accepts, and `deny` never asks: the operation is rejected and that rejection is returned to the calling tool, so the turn continues. A persisted `interrupt` is read as `deny`.
+- A profile written by the conversational builder carries `prompt` or `autoApprove`. `default` and `deny` stay legal on read for hand-written and automation-owned profiles.
+- `permissions.requireApprovalOutsideWorkspace` stays a legal profile key for hand-written and automation-owned profiles. The conversational builder neither presents nor writes it and preserves an authored value.
+- `tools.agentControl` is `full`, `disabled`, or `allowList`, and `allowList` draws its members from `tools.allowedAgentControlTools`. Both remain enforced as written; the conversational builder presents only the choice between `full` and `disabled` and preserves an authored `allowList` until that choice changes.
 - Profile policy must be enforced both when tools are shown to the model and when calls are invoked.
 
 ---
@@ -330,7 +334,7 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `AddAgentMcpServers(names[])` / `RemoveAgentMcpServers(names[])` | Add/remove `mcp.servers`. |
 | `SetAgentProviderPreference(...)` | Set the fixed `providerPreference` atomically. The input contains provider, model, reasoning enabled/effort, speed, and context-window mode; it does not expose reasoning output. |
 | `ClearAgentProviderPreference()` | Remove `providerPreference` so the profile inherits model settings. |
-| `SetAgentApproval(policy?, requireApprovalOutsideWorkspace?)` | Set the approval policy fields. |
+| `SetAgentApproval(policy)` | Set `permissions.approvalPolicy` to `prompt` or `autoApprove`. The builder does not author the unattended values or the workspace-boundary permission. |
 
 Every tool validates names against any live catalogs available to the builder runtime — built-in tools via the tool catalog (AppServer protocol Section 18A), skills via the skills loader, MCP servers via the configured MCP manager. When a catalog is available, unknown values are rejected with a diagnostic the agent can correct. When a catalog is not available in the host context, the builder preserves the requested names and relies on normal profile validation/refresh diagnostics to surface unresolved references. Each successful tool call leaves the working draft valid per the normal profile validation rules (Section 3).
 

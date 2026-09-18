@@ -81,12 +81,11 @@ public sealed class AgentProfileBuilderToolMethodsTests
         var threadId = NewThread();
         var methods = Seed(threadId);
 
-        var ok = Parse(methods.SetAgentApproval(AgentApprovalPolicy.Interrupt, requireApprovalOutsideWorkspace: true));
+        var ok = Parse(methods.SetAgentApproval(AgentApprovalPolicy.AutoApprove));
         Assert.True(ok.GetProperty("ok").GetBoolean());
 
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
-        Assert.Equal("interrupt", draft.ApprovalPolicy);
-        Assert.True(draft.RequireApprovalOutsideWorkspace);
+        Assert.Equal("autoApprove", draft.ApprovalPolicy);
 
         ProfileBuilderDraftStore.Remove(threadId);
     }

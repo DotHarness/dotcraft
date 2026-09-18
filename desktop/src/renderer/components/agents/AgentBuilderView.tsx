@@ -33,6 +33,11 @@ import {
 } from '../conversation/PreferenceModelPicker'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
+import {
+  resolveConcreteApprovalPolicyFromWorkspaceDefault,
+  resolveVisibleApprovalPolicy,
+  type ConcreteApprovalPolicy
+} from '../../utils/workspaceCoreConfig'
 import { AgentBuilderToolbar } from './AgentBuilderToolbar'
 import {
   AGENT_BUILDER_CHAT_MIN_WIDTH,
@@ -41,7 +46,7 @@ import {
 } from '../../utils/agentBuilderLayout'
 import { CatalogCompactGrid, CatalogHoverButton, CatalogScrollArea, CatalogSearchBox, CatalogSection, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
-import { SettingsSelect } from '../settings/ui/SettingsSelect'
+import { SettingsSelect, type SettingsSelectOption } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Button } from '../ui/Button'
 import { RefreshIcon } from '../ui/AppIcons'
@@ -57,12 +62,11 @@ import {
   type ProviderPreferences
 } from '../../../shared/modelPreference'
 import {
-  AGENT_CONTROL_OPTIONS,
   APPROVAL_OPTIONS,
+  DENY_APPROVAL_LABEL_KEY,
   createEmptyDraft,
   parseProfile,
   toMarkdown,
-  type AgentControl,
   type AgentProviderPreference,
   type ApprovalPolicy,
   type ProfileDraft,
@@ -850,6 +854,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   const mcpOptions = useMemo(() => mcpServers.map((server) => mcpOption(server, pluginsById, t)), [mcpServers, pluginsById, t])
   const [workspaceDefaultPreference, setWorkspaceDefaultPreference] = useState<AgentProviderPreference | null>(null)
   const [workspaceProviderPreferences, setWorkspaceProviderPreferences] = useState<ProviderPreferences>({})
+  const [workspaceApprovalDefault, setWorkspaceApprovalDefault] = useState<ConcreteApprovalPolicy>('prompt')
 
   useEffect(() => {
     void useProvidersStore.getState().reload()
@@ -864,8 +869,25 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
       const preference = findProviderPreference(preferences, providerId)
       setWorkspaceProviderPreferences(preferences)
       setWorkspaceDefaultPreference(preference ? toAgentProviderPreference(providerId, preference) : null)
+      setWorkspaceApprovalDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(
+        core.workspace.defaultApprovalPolicy ?? core.userDefaults.defaultApprovalPolicy
+      ))
     }).catch(() => undefined)
   }, [])
+
+  const authoredApprovalPolicy = draft.permissions.approvalPolicy
+  const approvalValue: ApprovalPolicy = authoredApprovalPolicy === 'deny'
+    ? 'deny'
+    : resolveVisibleApprovalPolicy(authoredApprovalPolicy, workspaceApprovalDefault)
+  const approvalOptions = useMemo<SettingsSelectOption<ApprovalPolicy>[]>(() => {
+    const options: SettingsSelectOption<ApprovalPolicy>[] = APPROVAL_OPTIONS
+      .map((option) => ({ value: option.value, label: t(option.labelKey) }))
+    // A profile that still denies keeps that answer visible, and inert, until the person answers.
+    if (authoredApprovalPolicy === 'deny') {
+      options.push({ value: 'deny', label: t(DENY_APPROVAL_LABEL_KEY), disabled: true })
+    }
+    return options
+  }, [authoredApprovalPolicy, t])
 
   const selectedProviderId = draft.providerPreference?.providerId ?? null
   useEffect(() => {
@@ -1133,48 +1155,37 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
               </div>
             )}
             <SettingsRow
-              label="Tool self-control"
-              description="Whether the agent can manage its own available tools at runtime."
-              controlMinWidth={200}
+              label={t('agentBuilder.delegation.label')}
+              description={t('agentBuilder.delegation.description')}
               control={(
-                <FieldAnchor field="tools.agentControl" className="agent-builder-detail-control">
-                  <SettingsSelect<AgentControl>
-                    value={draft.tools.agentControl}
-                    onValueChange={(v) => setDraft((d) => ({ ...d, tools: { ...d.tools, agentControl: v } }))}
+                <FieldAnchor field="tools.agentControl" className="agent-builder-detail-toggle">
+                  <PillSwitch
+                    checked={draft.tools.agentControl === 'full'}
+                    onChange={(checked) => setDraft((d) => ({
+                      ...d,
+                      tools: { ...d.tools, agentControl: checked ? 'full' : 'disabled' }
+                    }))}
                     disabled={preview}
-                    style={{ width: '100%' }}
-                    valueProps={{ 'data-agent-builder-marker-target': '' }}
-                    options={AGENT_CONTROL_OPTIONS}
+                    aria-label={t('agentBuilder.delegation.label')}
                   />
                 </FieldAnchor>
               )}
             />
             <SettingsRow
-              label="Approval"
+              label={t('agentBuilder.approval.label')}
               controlMinWidth={200}
               control={(
                 <FieldAnchor field="approval" className="agent-builder-detail-control">
                   <SettingsSelect<ApprovalPolicy>
-                    value={draft.permissions.approvalPolicy}
+                    value={approvalValue}
                     onValueChange={(v) => setDraft((d) => ({ ...d, permissions: { ...d.permissions, approvalPolicy: v } }))}
                     disabled={preview}
                     style={{ width: '100%' }}
                     valueProps={{ 'data-agent-builder-marker-target': '' }}
-                    options={APPROVAL_OPTIONS}
+                    options={approvalOptions}
+                    ariaLabel={t('agentBuilder.approval.label')}
                   />
                 </FieldAnchor>
-              )}
-            />
-            <SettingsRow
-              label="Approve outside workspace"
-              description="Require approval before the agent touches paths outside this workspace."
-              control={(
-                <PillSwitch
-                  checked={draft.permissions.requireApprovalOutsideWorkspace}
-                  onChange={(checked) => setDraft((d) => ({ ...d, permissions: { ...d.permissions, requireApprovalOutsideWorkspace: checked } }))}
-                  disabled={preview}
-                  aria-label="Require approval outside workspace"
-                />
               )}
             />
           </SettingsGroup>

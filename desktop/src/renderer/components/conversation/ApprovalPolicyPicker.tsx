@@ -6,6 +6,7 @@ import { addToast } from '../../stores/toastStore'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../../types/thread'
 import {
   resolveConcreteApprovalPolicyFromWorkspaceDefault,
+  resolveVisibleApprovalPolicy,
   type ConcreteApprovalPolicy,
   type WorkspaceDefaultApprovalPolicy
 } from '../../utils/workspaceCoreConfig'
@@ -36,12 +37,6 @@ interface WorkspaceCoreConfigWithApproval {
   userDefaults?: {
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   }
-}
-
-function normalizeVisiblePolicy(value: unknown, workspaceDefault: VisibleApprovalPolicy): VisibleApprovalPolicy {
-  if (value === 'autoApprove') return 'autoApprove'
-  if (value === 'prompt') return 'prompt'
-  return workspaceDefault
 }
 
 function setCaseInsensitiveField(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -80,7 +75,7 @@ export function ApprovalPolicyPicker({
   const listId = useId()
 
   const value = useMemo(
-    () => controlledValue ?? normalizeVisiblePolicy(activeThread?.configuration?.approvalPolicy, workspaceDefault),
+    () => controlledValue ?? resolveVisibleApprovalPolicy(activeThread?.configuration?.approvalPolicy, workspaceDefault),
     [activeThread?.configuration?.approvalPolicy, controlledValue, workspaceDefault]
   )
   const selectedIndex = Math.max(0, OPTIONS.findIndex((option) => option === value))

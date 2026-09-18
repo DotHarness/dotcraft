@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseProfile, toMarkdown, type ProfileDraft } from '../components/agents/agentProfileDraft'
+import { createEmptyDraft, parseProfile, toMarkdown, type ProfileDraft } from '../components/agents/agentProfileDraft'
 
 describe('agent profile draft avatar metadata', () => {
   it('drops legacy avatar frontmatter because appearance derives from name', () => {
@@ -10,7 +10,7 @@ describe('agent profile draft avatar metadata', () => {
       tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
       mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
       skills: { preload: [], allow: [], deny: [] },
-      permissions: { approvalPolicy: 'default', requireApprovalOutsideWorkspace: false },
+      permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
       roleInstructions: 'Avatar body.'
     }
 
@@ -117,6 +117,37 @@ providerPreference:
     else expect(markdown).not.toContain('tools:')
     expect(parseProfile(markdown).tools.mode).toBe(expectedMode)
   })
+
+  it('writes only the delegation and approval answers the profile authored', () => {
+    const authored = parseProfile(`---
+name: delegate-bot
+description: "Delegates"
+tools:
+  agentControl: allowList
+permissions:
+  approvalPolicy: interrupt
+  requireApprovalOutsideWorkspace: true
+---
+
+Body.
+`)
+
+    expect(authored.tools.agentControl).toBe('allowList')
+    expect(authored.permissions.approvalPolicy).toBe('deny')
+    expect(authored.permissions.requireApprovalOutsideWorkspace).toBe(true)
+
+    const rewritten = toMarkdown(authored)
+    expect(rewritten).toContain('  agentControl: allowList')
+    expect(rewritten).toContain('  requireApprovalOutsideWorkspace: true')
+    expect(toMarkdown(parseProfile(rewritten))).toBe(rewritten)
+
+    const fresh = createEmptyDraft()
+    expect(toMarkdown(fresh)).toContain('  approvalPolicy: prompt')
+    expect(toMarkdown(fresh)).not.toContain('requireApprovalOutsideWorkspace')
+    expect(toMarkdown(fresh)).not.toContain('agentControl:')
+    expect(toMarkdown({ ...fresh, tools: { ...fresh.tools, agentControl: 'disabled' } }))
+      .toContain('  agentControl: disabled')
+  })
 })
 
 function createDraftWithProviderPreference(): ProfileDraft {
@@ -133,7 +164,7 @@ function createDraftWithProviderPreference(): ProfileDraft {
     tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
-    permissions: { approvalPolicy: 'default', requireApprovalOutsideWorkspace: false },
+    permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
     roleInstructions: ''
   }
 }

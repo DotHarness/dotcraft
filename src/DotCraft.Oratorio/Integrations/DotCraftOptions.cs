@@ -17,7 +17,11 @@ public sealed class DotCraftOptions
     public string Command { get; set; } = "dotnet";
     public List<string> Arguments { get; set; } = [];
     public int RunTimeoutSeconds { get; set; } = 30 * 60;
-    public string ApprovalPolicy { get; set; } = "interrupt";
+    /// <summary>
+    /// Thread approval policy for Oratorio runs. A server run has nobody to ask, so it is
+    /// <c>autoApprove</c> or <c>deny</c>; see <see cref="DotCraftApprovalPolicy"/>.
+    /// </summary>
+    public string ApprovalPolicy { get; set; } = DotCraftApprovalPolicy.Deny;
     public int ConnectTimeoutSeconds { get; set; } = 5;
     public bool ManagedWorktreesEnabled { get; set; } = true;
     public string WorktreeRoot { get; set; } = "";
@@ -46,6 +50,24 @@ public sealed class DotCraftOptions
     public TimeSpan SucceededWorktreeRetention => TimeSpan.FromHours(Math.Clamp(SucceededWorktreeRetentionHours, 0, 24 * 30));
     public TimeSpan FailedWorktreeRetention => TimeSpan.FromHours(Math.Clamp(FailedWorktreeRetentionHours, 1, 24 * 60));
     public TimeSpan WorktreeCleanupInterval => TimeSpan.FromSeconds(Math.Clamp(WorktreeCleanupIntervalSeconds, 5, 3600));
+}
+
+/// <summary>
+/// Approval policies an Oratorio run may use. A server run never follows a desktop workspace
+/// default, so the retired <c>interrupt</c> and the workspace-following <c>default</c> both read
+/// as <c>deny</c>.
+/// </summary>
+public static class DotCraftApprovalPolicy
+{
+    public const string AutoApprove = "autoApprove";
+    public const string Deny = "deny";
+
+    public static string Normalize(string? value) =>
+        (value ?? string.Empty).Trim() switch
+        {
+            "" or "default" or "interrupt" => Deny,
+            var other => other
+        };
 }
 
 public sealed class DotCraftRepositoryWorkspaceRoute

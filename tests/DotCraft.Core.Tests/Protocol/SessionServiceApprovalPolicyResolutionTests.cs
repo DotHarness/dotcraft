@@ -58,9 +58,9 @@ public sealed class SessionServiceApprovalPolicyResolutionTests : IDisposable
         });
         var service = CreateService(agentFactory, monitor);
 
-        var resolved = InvokeResolveApprovalPolicy(service, ApprovalPolicy.Interrupt);
+        var resolved = InvokeResolveApprovalPolicy(service, ApprovalPolicy.Deny);
 
-        Assert.Equal(ApprovalPolicy.Interrupt, resolved);
+        Assert.Equal(ApprovalPolicy.Deny, resolved);
     }
 
     [Fact]

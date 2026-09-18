@@ -51,8 +51,8 @@ An Agent Profile is YAML frontmatter plus a Markdown role body. Fields:
 - `tools.agentControl` ('full' | 'disabled' | 'allowList') is independent of the built-in tool policy
 - `skills.preload` (installed skill names)
 - `mcp.servers` (configured MCP server names)
-- `permissions.approvalPolicy` ('default' | 'prompt' | 'autoApprove' | 'interrupt'),
-  `permissions.requireApprovalOutsideWorkspace` (boolean)
+- `permissions.approvalPolicy` ('default' | 'prompt' | 'autoApprove' | 'deny'); SetAgentApproval writes
+  only 'prompt' (ask the user) or 'autoApprove' (accept without asking)
 - the Markdown body holds the role instructions
 
 The guided Builder does not edit the operational Agent/Plan `mode`; capability scope is expressed through

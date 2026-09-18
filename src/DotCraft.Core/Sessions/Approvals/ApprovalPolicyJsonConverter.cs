@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 namespace DotCraft.Sessions;
 
 /// <summary>
-/// Serializes <see cref="ApprovalPolicy"/> as wire strings: default, prompt, autoApprove, interrupt.
+/// Serializes <see cref="ApprovalPolicy"/> as wire strings: default, prompt, autoApprove, deny.
+/// <c>interrupt</c> is the former name of <c>deny</c> and is still read from persisted
+/// sessions and configuration files.
 /// </summary>
 public sealed class ApprovalPolicyJsonConverter : JsonConverter<ApprovalPolicy>
 {
@@ -19,7 +21,7 @@ public sealed class ApprovalPolicyJsonConverter : JsonConverter<ApprovalPolicy>
             "default" or "Default" => ApprovalPolicy.Default,
             "prompt" or "Prompt" => ApprovalPolicy.Prompt,
             "autoApprove" or "AutoApprove" => ApprovalPolicy.AutoApprove,
-            "interrupt" or "Interrupt" => ApprovalPolicy.Interrupt,
+            "deny" or "Deny" or "interrupt" or "Interrupt" => ApprovalPolicy.Deny,
             _ => throw new JsonException($"Unknown ApprovalPolicy: {s}")
         };
     }
@@ -31,7 +33,7 @@ public sealed class ApprovalPolicyJsonConverter : JsonConverter<ApprovalPolicy>
             ApprovalPolicy.Default => "default",
             ApprovalPolicy.Prompt => "prompt",
             ApprovalPolicy.AutoApprove => "autoApprove",
-            ApprovalPolicy.Interrupt => "interrupt",
+            ApprovalPolicy.Deny => "deny",
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
         };
         writer.WriteStringValue(str);

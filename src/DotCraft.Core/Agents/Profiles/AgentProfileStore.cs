@@ -1296,14 +1296,14 @@ public sealed partial class AgentProfileStore
             "default" => ApprovalPolicy.Default,
             "prompt" => ApprovalPolicy.Prompt,
             "autoApprove" => ApprovalPolicy.AutoApprove,
-            "interrupt" => ApprovalPolicy.Interrupt,
+            "deny" or "interrupt" => ApprovalPolicy.Deny,
             _ => AddApprovalPolicyError(diagnostics)
         };
     }
 
     private static ApprovalPolicy AddApprovalPolicyError(List<AgentProfileDiagnostic> diagnostics)
     {
-        diagnostics.Add(Error("InvalidPolicyValue", "permissions.approvalPolicy must be 'default', 'prompt', 'autoApprove', or 'interrupt'."));
+        diagnostics.Add(Error("InvalidPolicyValue", "permissions.approvalPolicy must be 'default', 'prompt', 'autoApprove', or 'deny'."));
         return ApprovalPolicy.Default;
     }
 
@@ -1635,7 +1635,8 @@ public sealed partial class AgentProfileStore
             ApprovalPolicy.Default => string.Equals(raw, "default", StringComparison.OrdinalIgnoreCase),
             ApprovalPolicy.Prompt => string.Equals(raw, "prompt", StringComparison.OrdinalIgnoreCase),
             ApprovalPolicy.AutoApprove => string.Equals(raw, "autoApprove", StringComparison.OrdinalIgnoreCase),
-            ApprovalPolicy.Interrupt => string.Equals(raw, "interrupt", StringComparison.OrdinalIgnoreCase),
+            ApprovalPolicy.Deny => string.Equals(raw, "deny", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "interrupt", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
 

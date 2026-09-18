@@ -51,7 +51,7 @@ model: inherit
 tools:
   deny: [WriteFile, EditFile, Exec, WriteStdin]
 permissions:
-  approvalPolicy: default
+  approvalPolicy: prompt
 ---
 
 You are a smoke-test reviewer. Do not edit files. Report risks and missing tests only.

@@ -2167,7 +2167,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_InterruptApprovalPolicy_ReturnsToolDenialWithoutCancellingTurn()
+    public async Task SubmitInputAsync_DenyApprovalPolicy_ReturnsToolDenialWithoutCancellingTurn()
     {
         var approvalService = new SessionScopedApprovalService(new AutoApproveApprovalService());
         var chatClient = new ApprovalRequestingChatClient(approvalService);
@@ -2175,7 +2175,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         thread.Configuration ??= new ThreadConfiguration();
-        thread.Configuration.ApprovalPolicy = ApprovalPolicy.Interrupt;
+        thread.Configuration.ApprovalPolicy = ApprovalPolicy.Deny;
         var seen = new List<SessionThreadRuntimeSignal>();
         svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {

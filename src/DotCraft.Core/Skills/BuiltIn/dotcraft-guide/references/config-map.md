@@ -40,7 +40,7 @@ Three protocols exist. There are no others.
 | `openai-responses` | `https://api.openai.com/v1` | OpenAI Responses API providers |
 | `anthropic` | `https://api.anthropic.com` | Anthropic |
 
-An empty `EndPoint` uses the protocol default. `AuthMethod` is `apiKey` (default, reads `ApiKey`) or `chatgptOAuth`, which is only meaningful for the OpenAI protocols and is set up by `dotcraft auth openai login` or Desktop Settings > Models. Do not hand-write `chatgptOAuth` credentials; `ChatGptAccountId` and `ChatGptPlanType` are written by the login flow.
+An empty `EndPoint` uses the protocol default. `AuthMethod` is `apiKey` (default, reads `ApiKey`) or `chatgptOAuth`, which is only meaningful for the OpenAI protocols and is set up by `dotcraft auth openai login` or Desktop Settings > Model providers. Do not hand-write `chatgptOAuth` credentials; `ChatGptAccountId` and `ChatGptPlanType` are written by the login flow.
 
 ## Model capability catalog
 
@@ -53,7 +53,7 @@ Custom model context windows do not belong in `config.json` and do not appear in
 
 The workspace catalog overrides the personal catalog, which overrides DotCraft's built-in catalog. Model fields merge independently, so overriding `contextWindow` does not remove an inherited Fast declaration.
 
-Use the exact model id from `ProviderPreferences` or Desktop Settings > Models; do not guess it. A minimal workspace override is:
+Use the exact model id from `ProviderPreferences` or Desktop Settings > Model providers; do not guess it. A minimal workspace override is:
 
 ```json
 {
@@ -113,6 +113,6 @@ To inspect configuration, prefer `dotcraft config show --json`, which masks sens
 }
 ```
 
-Take the model id from Desktop Settings > Models or `dotcraft config show --json`; do not guess one. `ProviderPreferences` also carries `Reasoning`, `Speed`, and `ContextWindow` for that provider — read their shapes from `dotcraft config schema --section ProviderPreferences`.
+Take the model id from Desktop Settings > Model providers or `dotcraft config show --json`; do not guess one. `ProviderPreferences` also carries `Reasoning`, `Speed`, and `ContextWindow` for that provider — read their shapes from `dotcraft config schema --section ProviderPreferences`.
 
-Then tell the user: set `ANTHROPIC_API_KEY`, and restart to apply. Changing the provider in Desktop Settings > Models instead takes effect without a restart, and it only moves new threads — existing threads keep the model snapshot taken when they were created.
+Then tell the user: set `ANTHROPIC_API_KEY`, and restart to apply. Changing the provider in Desktop Settings > Model providers instead takes effect without a restart, and it only moves new threads — existing threads keep the model snapshot taken when they were created.
