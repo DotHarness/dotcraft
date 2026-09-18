@@ -659,10 +659,11 @@ There is no hollow, dashed, or translucent variant: a ring reads as a different
 component, and a dimmed circle already says "nothing is happening here". A
 transitional state — connecting, testing, restarting, a turn still running — shows
 the shared `Spinner` in the indicator's box rather than a colour, because a colour
-would claim a result the system does not have yet. It reads one step above the quiet
-dots it replaces, on `--text-secondary`, since it is the live thing in that box. When
-the label does not already name the state, the indicator carries an accessible name of
-its own, since colour alone is not readable.
+would claim a result the system does not have yet. The box does not dim it: a dot is
+a quiet fact and carries its own fill, while a spinner is the live thing in the row
+and reads at the row's own text colour. When the label does not already name the
+state, the indicator carries an accessible name of its own, since colour alone is not
+readable.
 
 When the state is the whole content rather than an attribute of a row, use a
 badge instead: the tinted surface tokens (`--success-bg`, `--warning-bg`,

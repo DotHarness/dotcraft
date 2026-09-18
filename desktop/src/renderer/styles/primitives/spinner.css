@@ -6,7 +6,3 @@
 .dc-spinner__track {
   opacity: 0.3;
 }
-
-.dc-status-indicator > .dc-spinner {
-  color: var(--text-secondary);
-}
