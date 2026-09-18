@@ -13,10 +13,12 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { BookOpen, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Wrench, X, type LucideIcon } from 'lucide-react'
+import { Box, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
+import { usePluginStore, type PluginEntry } from '../../stores/pluginStore'
+import type { McpServerOriginWire } from '../../stores/mcpStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useT } from '../../contexts/LocaleContext'
@@ -43,6 +45,9 @@ import { SettingsSelect } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Button } from '../ui/Button'
 import { RefreshIcon } from '../ui/AppIcons'
+import { IdentityMark } from '../ui/IdentityMark'
+import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
+import { pluginIconUrl, pluginTitle } from '../plugins/PluginCatalogItem'
 import { RobotAvatar } from './RobotAvatar'
 import { useAgentProfileNameStore } from '../../stores/agentProfileNameStore'
 import {
@@ -94,10 +99,19 @@ interface ToolInfo {
 
 interface SkillInfo {
   name: string
-  displayName?: string
+  displayName?: string | null
   description?: string
+  shortDescription?: string | null
   source?: string
+  pluginId?: string | null
+  pluginDisplayName?: string | null
+  iconSmallDataUrl?: string | null
   enabled?: boolean
+}
+
+interface McpServerInfo {
+  name: string
+  origin?: McpServerOriginWire | null
 }
 
 function toAgentProviderPreference(
@@ -149,10 +163,46 @@ const TOOL_ICON_BY_NAME: Record<string, LucideIcon> = {
   RequestUserInput: CircleHelp
 }
 
+/** The shape standing in for a capability the catalog holds no artwork for; a skill is the cube as line art. */
 function catalogIcon(kind: CatalogKind, id: string): LucideIcon {
   if (kind === 'mcp') return Server
-  if (kind === 'skill') return BookOpen
+  if (kind === 'skill') return Box
   return TOOL_ICON_BY_NAME[id] ?? Wrench
+}
+
+function toolOption(tool: ToolInfo): CatalogOption {
+  return { id: tool.name, label: tool.name, description: tool.description }
+}
+
+function skillOption(skill: SkillInfo, t: ReturnType<typeof useT>): CatalogOption {
+  return {
+    id: skill.name,
+    label: skill.displayName || skill.name,
+    description: skill.shortDescription || skill.description,
+    source: skillSourceLabel(skill, t),
+    iconUrl: skill.iconSmallDataUrl ?? null
+  }
+}
+
+function skillSourceLabel(skill: SkillInfo, t: ReturnType<typeof useT>): string | undefined {
+  if (skill.source === 'plugin') return skill.pluginDisplayName || t('plugins.source.plugin')
+  if (skill.source === 'builtin') return t('skills.source.system')
+  if (skill.source === 'workspace') return t('skills.source.workspace')
+  if (skill.source === 'user') return t('skills.source.user')
+  return undefined
+}
+
+function mcpOption(server: McpServerInfo, plugins: Map<string, PluginEntry>, t: ReturnType<typeof useT>): CatalogOption {
+  const origin = server.origin?.kind === 'plugin' ? server.origin : null
+  const plugin = origin?.pluginId ? plugins.get(origin.pluginId) : undefined
+  return {
+    id: server.name,
+    label: server.name,
+    source: origin
+      ? (plugin ? pluginTitle(plugin) : origin.pluginDisplayName || origin.pluginId || t('plugins.source.plugin'))
+      : undefined,
+    iconUrl: plugin ? pluginIconUrl(plugin) : null
+  }
 }
 
 const galleryAvatar: CSSProperties = { flex: '0 0 auto', display: 'inline-flex' }
@@ -198,7 +248,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
 
   const [toolCatalog, setToolCatalog] = useState<ToolInfo[]>([])
   const [skillCatalog, setSkillCatalog] = useState<SkillInfo[]>([])
-  const [mcpServers, setMcpServers] = useState<string[]>([])
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([])
 
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit')
   const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -394,8 +444,8 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     void rpc<{ skills?: SkillInfo[] }>('skills/list', {})
       .then((res) => setSkillCatalog(Array.isArray(res.skills) ? res.skills : []))
       .catch(() => setSkillCatalog([]))
-    void rpc<{ servers?: { name: string }[] }>('mcp/list', {})
-      .then((res) => setMcpServers(Array.isArray(res.servers) ? res.servers.map((s) => s.name).filter(Boolean) : []))
+    void rpc<{ servers?: McpServerInfo[] }>('mcp/list', {})
+      .then((res) => setMcpServers(Array.isArray(res.servers) ? res.servers.filter((server) => Boolean(server?.name)) : []))
       .catch(() => setMcpServers([]))
   }, [])
 
@@ -772,7 +822,7 @@ interface BuilderViewProps {
   setDraft: Dispatch<SetStateAction<ProfileDraft>>
   toolCatalog: ToolInfo[]
   skillCatalog: SkillInfo[]
-  mcpServers: string[]
+  mcpServers: McpServerInfo[]
   viewMode: 'edit' | 'preview'
   setViewMode: Dispatch<SetStateAction<'edit' | 'preview'>>
   autoSaveState: 'idle' | 'saving' | 'saved' | 'error'
@@ -793,6 +843,11 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   const modelCatalogStatus = useModelCatalogStore((s) => s.status)
   const modelCatalogError = useModelCatalogStore((s) => s.errorMessage)
   const effectiveCatalogProviderId = useModelCatalogStore((s) => s.providerId)
+  const plugins = usePluginStore((s) => s.plugins)
+  const pluginsById = useMemo(() => new Map(plugins.map((plugin) => [plugin.id, plugin])), [plugins])
+  const toolOptions = useMemo(() => toolCatalog.map(toolOption), [toolCatalog])
+  const skillOptions = useMemo(() => skillCatalog.map((skill) => skillOption(skill, t)), [skillCatalog, t])
+  const mcpOptions = useMemo(() => mcpServers.map((server) => mcpOption(server, pluginsById, t)), [mcpServers, pluginsById, t])
   const [workspaceDefaultPreference, setWorkspaceDefaultPreference] = useState<AgentProviderPreference | null>(null)
   const [workspaceProviderPreferences, setWorkspaceProviderPreferences] = useState<ProviderPreferences>({})
 
@@ -951,7 +1006,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
             <span className="agent-builder-pick-empty">{t('agentBuilder.tools.allHint')}</span>
           ) : (
             <CatalogField
-              options={toolCatalog.map((tool) => ({ id: tool.name, label: tool.name, description: tool.description }))}
+              options={toolOptions}
               selected={draft.tools.mode === 'allowList' ? draft.tools.allow : draft.tools.deny}
               onChange={(names) => setDraft((d) => ({
                 ...d,
@@ -974,7 +1029,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
 
         <Section label="MCP">
           <CatalogField
-            options={mcpServers.map((name) => ({ id: name, label: name }))}
+            options={mcpOptions}
             selected={draft.mcp.servers}
             onChange={(servers) => setDraft((d) => ({ ...d, mcp: { ...d.mcp, servers } }))}
             addLabel="Add MCP server"
@@ -986,7 +1041,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
 
         <Section label="Skills">
           <CatalogField
-            options={skillCatalog.map((s) => ({ id: s.name, label: s.displayName || s.name, description: s.description }))}
+            options={skillOptions}
             selected={draft.skills.preload}
             onChange={(preload) => setDraft((d) => ({ ...d, skills: { ...d.skills, preload } }))}
             addLabel="Add skill"
@@ -1193,6 +1248,9 @@ interface CatalogOption {
   id: string
   label: string
   description?: string
+  /** Where the capability came from: the plugin carrying it, else the skill's own source. */
+  source?: string
+  iconUrl?: string | null
 }
 
 /**
@@ -1246,6 +1304,7 @@ function CatalogField({
                 key={id}
                 label={label}
                 icon={catalogIcon(kind, id)}
+                iconUrl={option?.iconUrl ?? null}
                 readOnly={readOnly}
                 markerTarget={index === 0}
                 onRemove={() => onChange(selected.filter((x) => x !== id))}
@@ -1282,12 +1341,14 @@ function CatalogField({
 function AgentBuilderChip({
   label,
   icon: Icon,
+  iconUrl,
   readOnly,
   markerTarget,
   onRemove
 }: {
   label: string
   icon: LucideIcon
+  iconUrl?: string | null
   readOnly: boolean
   markerTarget?: boolean
   onRemove: () => void
@@ -1296,7 +1357,17 @@ function AgentBuilderChip({
   return (
     <span className={`agent-builder-chip${readOnly ? ' is-readonly' : ' is-removable'}`}>
       <span className="agent-builder-chip-icon-slot" aria-hidden={readOnly ? true : undefined}>
-        <Icon className="agent-builder-chip-ic agent-builder-chip-ic-default" size={13} strokeWidth={2} aria-hidden />
+        {iconUrl ? (
+          <IdentityMark
+            role="compact"
+            size={18}
+            src={iconUrl}
+            fallback={null}
+            className="agent-builder-chip-art agent-builder-chip-ic-default"
+          />
+        ) : (
+          <Icon className="agent-builder-chip-ic agent-builder-chip-ic-default" size={13} strokeWidth={2} aria-hidden />
+        )}
         {!readOnly && (
           <button type="button" className="agent-builder-chip-remove" aria-label={t('agentBuilder.removeChip', { item: label })} onClick={onRemove}>
             <X size={12} strokeWidth={2.2} aria-hidden />
@@ -1329,7 +1400,8 @@ function CatalogAddPopover({
   useLayoutEffect(() => {
     if (!anchor) return
     const rect = anchor.getBoundingClientRect()
-    const width = Math.max(rect.width, 260)
+    // Wide enough for a row's name over the line joining what it does with where it came from.
+    const width = Math.min(Math.max(rect.width, 288), window.innerWidth - 16)
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
     setPos({ top: rect.bottom + 6, left, width })
   }, [anchor])
@@ -1366,13 +1438,13 @@ function CatalogAddPopover({
           <div className="agent-builder-addmenu-empty">Nothing to add</div>
         ) : (
           filtered.map((o) => {
-            const Icon = catalogIcon(kind, o.id)
+            const line = [o.description, o.source].filter(Boolean).join(' · ')
             return (
               <button key={o.id} type="button" role="option" className="agent-builder-addmenu-opt" onClick={() => onPick(o.id)}>
-                <span className="agent-builder-addmenu-ic" aria-hidden><Icon size={14} strokeWidth={2} /></span>
+                <CatalogOptionMark kind={kind} option={o} />
                 <span className="agent-builder-addmenu-copy">
                   <span className="agent-builder-addmenu-name">{o.label}</span>
-                  {o.description && <span className="agent-builder-addmenu-desc">{o.description}</span>}
+                  {line && <span className="agent-builder-addmenu-desc">{line}</span>}
                 </span>
               </button>
             )
@@ -1381,5 +1453,20 @@ function CatalogAddPopover({
       </div>
     </div>,
     document.body
+  )
+}
+
+/** An option's mark: a skill or server is an identity, a tool is the glyph Desktop already draws for it. */
+function CatalogOptionMark({ kind, option }: { kind: CatalogKind; option: CatalogOption }): JSX.Element {
+  if (kind === 'tool') {
+    const Icon = catalogIcon(kind, option.id)
+    return <span className="agent-builder-addmenu-ic" aria-hidden><Icon size={15} strokeWidth={2} /></span>
+  }
+  return (
+    <IdentityMark
+      role="compact"
+      src={option.iconUrl}
+      fallback={<IdentityMarkFallback kind={kind === 'mcp' ? 'plugin' : 'skill'} />}
+    />
   )
 }

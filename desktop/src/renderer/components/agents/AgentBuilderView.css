@@ -44,6 +44,8 @@
 .agent-builder-chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; font-family: var(--font-mono); border: 1px solid var(--border-default); background: var(--bg-secondary); color: var(--text-primary); box-shadow: var(--shadow-sm); }
 .agent-builder-chip-icon-slot { position: relative; width: 18px; height: 18px; flex: 0 0 18px; display: inline-grid; place-items: center; color: var(--text-secondary); }
 .agent-builder-chip-ic { position: absolute; inset: 0; margin: auto; color: currentColor; transition: opacity 120ms ease; }
+/* Artwork of its own fills the slot the glyph is centred in, so both read as the same weight. */
+.agent-builder-chip-art { position: absolute; inset: 0; margin: auto; transition: opacity 120ms ease; }
 .agent-builder-chip-remove { position: absolute; inset: 0; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--text-dimmed); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
 .agent-builder-chip.is-removable:hover .agent-builder-chip-ic-default, .agent-builder-chip.is-removable:focus-within .agent-builder-chip-ic-default { opacity: 0; }
 .agent-builder-chip.is-removable:hover .agent-builder-chip-remove, .agent-builder-chip.is-removable:focus-within .agent-builder-chip-remove { opacity: 1; pointer-events: auto; }
@@ -61,7 +63,7 @@
 .agent-builder-addmenu-empty { padding: 10px; text-align: center; font-size: 12px; color: var(--text-dimmed); }
 .agent-builder-addmenu-opt { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .agent-builder-addmenu-opt:hover { background: var(--bg-tertiary); }
-.agent-builder-addmenu-ic { flex: 0 0 20px; width: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); line-height: 1; }
+.agent-builder-addmenu-ic { flex: 0 0 24px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); line-height: 1; }
 .agent-builder-addmenu-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .agent-builder-addmenu-name { font-size: 13px; font-weight: 600; font-family: var(--font-mono); color: var(--text-primary); }
 .agent-builder-addmenu-desc { font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -340,6 +340,42 @@ describe('AgentBuilderView creation', () => {
     })
   })
 
+  it('names where a skill or server came from beside what it does in the add popover', async () => {
+    const catalogs = appServerSendRequest.getMockImplementation()!
+    appServerSendRequest.mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'skills/list') {
+        return {
+          skills: [{
+            name: 'browser',
+            displayName: 'Browser',
+            shortDescription: 'Drive the in-app browser.',
+            source: 'plugin',
+            pluginId: 'browser',
+            pluginDisplayName: 'Browser Tools'
+          }, {
+            name: 'release-notes',
+            shortDescription: 'Draft release notes.',
+            source: 'workspace'
+          }]
+        }
+      }
+      if (method === 'mcp/list') {
+        return { servers: [{ name: 'review', origin: { kind: 'plugin', pluginId: 'browser', pluginDisplayName: 'Review Tools' } }] }
+      }
+      return catalogs(method, params)
+    })
+
+    await openBlankBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /Add skill/i }))
+    expect(await screen.findByRole('option', { name: /Browser.*Drive the in-app browser\. · Browser Tools/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /release-notes.*Draft release notes\. · Workspace/ })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Add MCP server/i }))
+    expect(await screen.findByRole('option', { name: /review.*Review Tools/ })).toBeInTheDocument()
+  })
+
   it('keeps selected chips readable in preview without remove controls', async () => {
     await openBlankBuilder()
     await addToolFromBuilder('WebSearch')

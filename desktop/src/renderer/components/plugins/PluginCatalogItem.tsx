@@ -101,8 +101,11 @@ export function PluginIcon({
   role: IdentityMarkRole
   size?: number
 }): JSX.Element {
-  const icon = plugin.interface?.composerIconDataUrl || plugin.interface?.logoDataUrl
-  return <IdentityMark role={role} size={size} src={icon} fallback={<IdentityMarkFallback kind="plugin" />} />
+  return <IdentityMark role={role} size={size} src={pluginIconUrl(plugin)} fallback={<IdentityMarkFallback kind="plugin" />} />
+}
+
+export function pluginIconUrl(plugin: PluginEntry): string | null {
+  return plugin.interface?.composerIconDataUrl || plugin.interface?.logoDataUrl || null
 }
 
 export function pluginTitle(plugin: PluginEntry): string {
