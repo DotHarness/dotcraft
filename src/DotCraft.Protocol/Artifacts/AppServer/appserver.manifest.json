@@ -3201,13 +3201,6 @@
           "required": true,
           "nullable": false,
           "const": null
-        },
-        {
-          "name": "risk",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
         }
       ],
       "variants": []

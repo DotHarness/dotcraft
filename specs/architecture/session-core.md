@@ -771,7 +771,6 @@ summary and compatibility projection; clients that consume both paths merge by
   "target": string,       // For file: the path. For shell: the working directory.
   "requestId": string,    // Unique ID for correlating with ApprovalResponse
   "shell": {              // Shell requests only; produced by the shell safety kernel
-    "risk": string,               // "Dangerous", "OutsideWorkspace", or "Rule"
     "reasons": string[],
     "rememberedPrefixes": string[][], // allow rules a permanent approval will store
     "remembersExactCommand": boolean  // a permanent approval also stores the exact key

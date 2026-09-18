@@ -811,7 +811,7 @@ describe('MessageStream', () => {
     expect(screen.queryByRole('button', { name: 'Decline' })).not.toBeInTheDocument()
   })
 
-  it('localizes resolved approval labels in zh-Hans', async () => {
+  it('renders nothing for an approval item once it is resolved', async () => {
     installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'zh-Hans' })
@@ -846,8 +846,10 @@ describe('MessageStream', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(await screen.findByText('本会话已允许')).toBeInTheDocument()
-    expect(screen.queryByText('Accepted for session')).not.toBeInTheDocument()
+    await screen.findByTestId('message-stream')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText('npm test')).not.toBeInTheDocument()
+    expect(screen.queryByText('等待审批')).not.toBeInTheDocument()
   })
 
   it('renders and clears the transient system status divider', async () => {

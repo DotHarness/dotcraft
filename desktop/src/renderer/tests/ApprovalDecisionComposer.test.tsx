@@ -375,7 +375,6 @@ describe('ApprovalDecisionComposer', () => {
       operation: 'rm -rf build && npm test',
       reason: 'Agent wants to execute a shell command. rm removes files recursively.',
       shell: {
-        risk: 'Dangerous',
         reasons: ['rm removes files recursively.'],
         rememberedPrefixes: [['npm', 'test']],
         remembersExactCommand: true
@@ -401,7 +400,6 @@ describe('ApprovalDecisionComposer', () => {
     const pending = pendingApproval({
       operation: 'eval "$PAYLOAD"',
       shell: {
-        risk: 'Rule',
         reasons: ['Matched the prompt rule eval.'],
         rememberedPrefixes: [],
         remembersExactCommand: true

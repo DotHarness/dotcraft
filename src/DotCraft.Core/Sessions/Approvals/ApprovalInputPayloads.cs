@@ -47,8 +47,6 @@ public sealed record ApprovalRequestPayload
 
 public sealed record ShellApprovalDetails
 {
-    public required string Risk { get; init; }
-
     public required IReadOnlyList<string> Reasons { get; init; }
 
     public required IReadOnlyList<IReadOnlyList<string>> RememberedPrefixes { get; init; }
@@ -57,7 +55,6 @@ public sealed record ShellApprovalDetails
 
     public static ShellApprovalDetails From(ShellApprovalRequest request) => new()
     {
-        Risk = request.Risk.ToString(),
         Reasons = request.Reasons,
         RememberedPrefixes = request.Remember.Rules.Select(rule => rule.Prefix).ToArray(),
         RemembersExactCommand = request.Remember.ExactKeyFallback || request.Remember.Rules.Count == 0

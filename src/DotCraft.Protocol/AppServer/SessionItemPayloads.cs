@@ -626,9 +626,6 @@ public sealed class ApprovalRequestPayload : ExtensibleJsonObject
 
 public sealed class ApprovalShellDetails : ExtensibleJsonObject
 {
-    [JsonPropertyName("risk")]
-    public required string Risk { get; init; }
-
     [JsonPropertyName("reasons")]
     public required IReadOnlyList<string> Reasons { get; init; }
 

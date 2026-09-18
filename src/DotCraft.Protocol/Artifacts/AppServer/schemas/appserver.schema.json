@@ -2301,17 +2301,13 @@
         },
         "remembersExactCommand": {
           "type": "boolean"
-        },
-        "risk": {
-          "type": "string"
         }
       },
       "additionalProperties": true,
       "required": [
         "reasons",
         "rememberedPrefixes",
-        "remembersExactCommand",
-        "risk"
+        "remembersExactCommand"
       ]
     },
     "AuthOpenAiAuthorizeUrlNotification": {

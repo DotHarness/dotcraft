@@ -100,7 +100,6 @@ internal sealed class AppServerInteractiveRequestSender
             ? null
             : new Contract.ApprovalShellDetails
             {
-                Risk = shell.Risk,
                 Reasons = shell.Reasons,
                 RememberedPrefixes = shell.RememberedPrefixes,
                 RemembersExactCommand = shell.RemembersExactCommand

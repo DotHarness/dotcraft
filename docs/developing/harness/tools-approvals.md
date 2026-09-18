@@ -103,7 +103,7 @@ Approval requests expire. Without a decision within five minutes, Session Core r
 
 ## Present shell command approvals
 
-A shell request carries `request.Shell` with what the safety check found: `Risk` is `Dangerous`, `OutsideWorkspace`, or `Rule`, and `Reasons` explains the prompt. Show the command and its directory as they arrive in `operation` and `target`.
+A shell request carries `request.Shell` with what the safety check found: `Reasons` explains the prompt. Show the command and its directory as they arrive in `operation` and `target`.
 
 `RememberedPrefixes` and `RemembersExactCommand` describe what `AcceptAlways` will store: an allow rule per prefix in the workspace's `shell-rules.json`, the exact command key, or both. State that scope in the `AcceptAlways` option itself so the user sees it before choosing. `AcceptForSession` always keys on the exact command, shell, and directory.
 

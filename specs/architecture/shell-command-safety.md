@@ -206,7 +206,7 @@ The key hash is SHA-256 over the canonical JSON of these fields. Two invocations
 
 Learned rules are appended to `.craft/security/shell-rules.json`; exact keys are stored in `.craft/security/approvals.json` under a versioned `shell` section.
 
-The `remember` field of the request describes these outcomes. The approval request sent to clients carries `risk`, `reasons`, `rememberedPrefixes`, and `remembersExactCommand` so a client can state the scope of a remembering decision next to that option; the command text and directory travel as `operation` and `target`.
+The `remember` field of the request describes these outcomes. The approval request sent to clients carries `reasons`, `rememberedPrefixes`, and `remembersExactCommand` so a client can state the scope of a remembering decision next to that option; the command text and directory travel as `operation` and `target`.
 
 ## 10. Execution gate
 

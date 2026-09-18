@@ -103,7 +103,7 @@ await handler.ProcessAsync(
 
 ## 呈现 Shell 命令审批
 
-Shell 请求带有 `request.Shell`，记录安全检查的结果：`Risk` 取 `Dangerous`、`OutsideWorkspace` 或 `Rule`，`Reasons` 解释为何询问。命令与目录按 `operation` 和 `target` 原样展示。
+Shell 请求带有 `request.Shell`，记录安全检查的结果：`Reasons` 解释为何询问。命令与目录按 `operation` 和 `target` 原样展示。
 
 `RememberedPrefixes` 与 `RemembersExactCommand` 描述 `AcceptAlways` 会记住什么：按前缀写入工作区 `shell-rules.json` 的放行规则、精确的命令键，或两者都有。把这个范围写进 `AcceptAlways` 选项本身，让用户在选择前看到。`AcceptForSession` 始终按精确的命令、shell 和目录记忆。
 

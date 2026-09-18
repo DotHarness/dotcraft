@@ -656,7 +656,6 @@ export interface ApprovalShellDetails {
   reasons: string[];
   rememberedPrefixes: string[][];
   remembersExactCommand: boolean;
-  risk: string;
   [key: string]: unknown;
 }
 

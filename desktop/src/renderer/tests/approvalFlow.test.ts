@@ -82,14 +82,12 @@ describe('approval card state machine', () => {
     s().onApprovalRequest('bridge-shell-ok', {
       ...SHELL_PARAMS,
       shell: {
-        risk: 'Dangerous',
         reasons: ['Matched a dangerous command.'],
         rememberedPrefixes: [['npm']],
         remembersExactCommand: false
       }
     })
 
-    expect(s().pendingApproval?.shell?.risk).toBe('Dangerous')
     expect(s().pendingApproval?.shell?.reasons).toEqual(['Matched a dangerous command.'])
     const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
     expect(approvalItem?.approvalShell?.rememberedPrefixes).toEqual([['npm']])

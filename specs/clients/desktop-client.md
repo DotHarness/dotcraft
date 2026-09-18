@@ -486,7 +486,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 
 1. An approval request arrives while a turn is running.
 2. The active thread enters a waiting-approval state.
-3. The approval request is surfaced with enough information for the user to decide. For a shell request, the composer shows the command, its directory, and the `reasons` from the `shell` block; the session and permanent options describe their scope (this exact command; allow-rule prefixes, the exact command, or both) from `rememberedPrefixes` and `remembersExactCommand`. A pending stream item marks a `Dangerous` risk visibly.
+3. The approval request is surfaced with enough information for the user to decide. For a shell request, the composer shows the command, its directory, and the `reasons` from the `shell` block; the session and permanent options describe their scope (this exact command; allow-rule prefixes, the exact command, or both) from `rememberedPrefixes` and `remembersExactCommand`. While the request is pending, the stream shows one quiet `Awaiting approval` line where the request sits; after the decision that item is not rendered, and the outcome shows on the tool row or in the turn result.
 4. The user can approve, decline, session-approve when supported, or cancel as allowed by the protocol surface.
 5. After the decision:
    - approved work continues

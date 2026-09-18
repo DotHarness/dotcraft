@@ -54,10 +54,7 @@ export type ApprovalDecision =
 
 export type ApprovalType = 'shell' | 'file' | 'remoteResource' | 'skill'
 
-export type ApprovalShellRisk = 'Dangerous' | 'OutsideWorkspace' | 'Rule' | 'None'
-
 export interface ApprovalShellInfo {
-  risk: ApprovalShellRisk
   reasons: string[]
   rememberedPrefixes: string[][]
   remembersExactCommand: boolean

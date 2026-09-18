@@ -2672,7 +2672,7 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
 | `expiresAt` | string | UTC ISO-8601 instant after which the Runtime resolves the request through its safe timeout path. Replayed requests retain the original expiry. |
-| `shell` | object? | Present for `approvalType = "shell"`: `{ risk, reasons: string[], rememberedPrefixes: string[][], remembersExactCommand }` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. `scopeKey` is `"shell:" + approvalKey`, so `acceptForSession` covers only this command, shell, and directory. |
+| `shell` | object? | Present for `approvalType = "shell"`: `{ reasons: string[], rememberedPrefixes: string[][], remembersExactCommand }` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. `scopeKey` is `"shell:" + approvalKey`, so `acceptForSession` covers only this command, shell, and directory. |
 
 **Example**:
 
@@ -2689,7 +2689,6 @@ The turn enters `"waitingApproval"` status while the server waits for the client
     "reason": "Agent wants to execute a shell command. rm -f style commands are not permitted without approval.",
     "expiresAt": "2026-03-16T10:30:00Z",
     "shell": {
-      "risk": "Dangerous",
       "reasons": ["rm -f style commands are not permitted without approval."],
       "rememberedPrefixes": [],
       "remembersExactCommand": true
