@@ -30,6 +30,23 @@ public sealed class ShellToolsStdinTests : IDisposable
         Assert.Empty(terminals.Writes);
     }
 
+    [Fact]
+    public async Task Exec_LaunchCommandThatChangesDirectory_StartsTheTerminalWhereItEndsUp()
+    {
+        var started = await StartAndCaptureAsync($"cd {_outside} && bash");
+
+        Assert.Equal(_outside, started.StdinSession!.WorkingDirectory);
+        Assert.True(started.StdinSession.WorkingDirectoryIsKnown);
+    }
+
+    [Fact]
+    public async Task Exec_LaunchCommandWhoseDirectoryCannotBeReported_StartsTheTerminalUndeterminable()
+    {
+        var started = await StartAndCaptureAsync($"false && cd {_outside} && bash");
+
+        Assert.False(started.StdinSession!.WorkingDirectoryIsKnown);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("\u0003")]
@@ -58,6 +75,23 @@ public sealed class ShellToolsStdinTests : IDisposable
             {
             }
         }
+    }
+
+    private async Task<BackgroundTerminalStartRequest> StartAndCaptureAsync(string command)
+    {
+        BackgroundTerminalStartRequest? started = null;
+        var terminals = new StubBackgroundTerminalService
+        {
+            StartHandler = (request, _) =>
+            {
+                started = request;
+                return Task.FromResult(new BackgroundTerminalSnapshot { SessionId = "term_1" });
+            }
+        };
+
+        await Tools(terminals, approve: true).Exec(command, runInBackground: true, interactive: true);
+
+        return started ?? throw new InvalidOperationException("The terminal was never started.");
     }
 
     private ShellTools Tools(IBackgroundTerminalService terminals, bool approve) =>

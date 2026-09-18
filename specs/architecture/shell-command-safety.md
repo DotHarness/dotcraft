@@ -64,8 +64,11 @@ LoweredScript
 ├── Family
 ├── PlainCommands: string[][] | null   // non-null only when plain lowering succeeded
 ├── PlainRejectReason: string | null   // first reason plain lowering failed
-└── LiteralCommands: string[][]        // literal extraction; equals PlainCommands when plain
+├── LiteralCommands: string[][]        // literal extraction; equals PlainCommands when plain
+└── UnconditionalPrefix: int           // leading plain commands the shell always runs in itself
 ```
+
+`UnconditionalPrefix` counts the leading commands that both run whenever the script runs and run in the shell itself. It stops at the first command reached through `&&` or `||`, whose execution depends on an exit status the kernel cannot predict, and at the first command in a pipeline, which runs in a subshell and cannot move the parent. Commands after that boundary may still be lowered and checked; they are only untrustworthy as evidence of where the shell ends up.
 
 Plain lowering must fail closed: any construct not listed as accepted makes the script opaque. Lowerers never guess the runtime meaning of a construct they do not model.
 
@@ -155,7 +158,9 @@ Path evidence comes from `PathEvidenceScanner`: for plain commands it inspects e
 
 Directory changes move the working directory for the commands that follow. In a plain script the changes are `cd`, `pushd`, and `popd` (Posix) and `cd`, `chdir`, `sl`, `Set-Location`, `pushd`, `Push-Location`, `popd`, and `Pop-Location` (PowerShell). A literal target is resolved against the current directory, counts as path evidence for that command, and becomes the directory every later command is checked in. A change without a resolvable target (no argument, `-`, or a stack pop) leaves the directory unknown, so that command and every later one are treated as outside the workspace.
 
-An opaque script is treated the same way when literal extraction puts a directory-changing word in a command position. This is a heuristic over extracted literals and not a proof in either direction: a change the extraction cannot see, such as an invoked variable or `eval`, is missed, and a directory-changing word that appears only as an argument or inside a string does not count. A caller that already knows the directory is undeterminable says so on the request, and every command in that script is then evaluated as running in an undeterminable directory. The assessment reports the directory it tracked through the last command, or nothing when it ended undeterminable.
+An opaque script is treated the same way when literal extraction puts a directory-changing word in a command position. This is a heuristic over extracted literals and not a proof in either direction: a change the extraction cannot see, such as an invoked variable or `eval`, is missed, and a directory-changing word that appears only as an argument or inside a string does not count. A caller that already knows the directory is undeterminable says so on the request, and every command in that script is then evaluated as running in an undeterminable directory.
+
+The assessment also reports where the shell ends up, which is a stricter question than where each command is checked. It reports the tracked directory only when every directory change in the script sits inside `UnconditionalPrefix`; a change the shell may skip or may run in a subshell leaves the final directory unreported, as does an opaque script that changes directory. Checking the commands of one script against the tracked directory is not held to that bar, because within a script a later command running already implies the earlier ones did.
 
 Workspace containment is decided by `WorkspaceBoundary`, the single implementation shared with file tools; it resolves symbolic links before comparing.
 
@@ -234,6 +239,10 @@ An admitted command can be an interpreter that keeps reading its standard input,
 
 A running terminal carries a stdin session: the `ShellIdentity` it was launched with, the working directory the kernel last knew it to be in, and whether that directory is still known. The assessment uses that identity rather than resolving a selector, because the process is already running and no selector can change it. After an admitted write the session takes the directory the assessment tracked; when the assessment ended undeterminable, the session's directory becomes unknown and every later write to it is evaluated as running in an undeterminable directory. A session never regains a known directory.
 
+The session starts from the command that launched the terminal, not from the directory that command was launched in: a terminal opened with `cd elsewhere && bash` is running elsewhere, and seeding it with the launch directory would admit later relative input the person never approved. The launch assessment's reported directory therefore seeds the session, and a launch whose directory the assessment could not report starts unknown. A terminal a client starts has no assessment and starts from its launch directory.
+
+One terminal admits one interaction at a time. Assessment, approval and the write are serialized per terminal, and the session state is read after that turn is acquired, so a write cannot be authorized against a directory that another write has already moved the terminal out of. Terminals do not block each other.
+
 Empty input polls for output and is not assessed. Input that is exactly the end-of-text character is an interrupt rather than a command and is not assessed. Terminal input a client sends on the person's behalf does not pass the gate; the person typing it is the authority.
 
 An approval raised for standard input carries the input as its command and the session's directory as its working directory, and states that the text is being written to a running terminal whose own directory and state may since have moved.
@@ -273,6 +282,9 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 - Wrapper inspection is depth-bounded and reports overflow as dangerous.
 - A directory change the kernel cannot follow makes the rest of the script outside the workspace.
 - Input written to a running terminal is assessed against the shell that terminal is running, and a directory change the kernel cannot follow there makes every later write to that terminal outside the workspace.
+- A terminal's session starts where its launch assessment said the shell ends up, and unknown when that assessment reported nothing.
+- The shell's final directory is reported only from changes the shell always runs in itself.
+- One terminal authorizes and writes one interaction at a time.
 - Approval keys carry the shell executable, so an approval for one shell never applies to another.
 - Banned prefixes are never persisted as `allow` rules.
 - The approval decision and the launched executable derive from one `ShellIdentity` instance.
@@ -280,4 +292,4 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 
 ## 14. Conformance
 
-Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands and across successive writes to one terminal, the directory-changing word appearing only as an argument in an opaque script, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.
+Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands and across successive writes to one terminal, a conditional or piped directory change leaving the final directory unreported, a terminal seeded from a launch command that changed directory, the directory-changing word appearing only as an argument in an opaque script, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.

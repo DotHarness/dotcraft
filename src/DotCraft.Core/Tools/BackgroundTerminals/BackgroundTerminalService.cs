@@ -41,6 +41,8 @@ public sealed record BackgroundTerminalStartRequest
 
     public ShellIdentity? Shell { get; init; }
 
+    public ShellStdinSession? StdinSession { get; init; }
+
     public bool RunInBackground { get; init; }
 
     public bool Interactive { get; init; }
@@ -117,10 +119,6 @@ public interface IBackgroundTerminalService
 
     Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default);
 
-    /// <summary>
-    /// Returns the shell and tracked directory a running terminal's standard input is authorized against,
-    /// or null when no such terminal is running.
-    /// </summary>
     ShellStdinSession? GetStdinSession(string sessionId);
 
     Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(string? threadId = null, CancellationToken ct = default);
@@ -229,7 +227,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             request,
             process,
             DateTimeOffset.UtcNow,
-            new ShellStdinSession(shell, request.WorkingDirectory),
+            request.StdinSession ?? new ShellStdinSession(shell, request.WorkingDirectory),
             this);
 
         _active[sessionId] = terminal;

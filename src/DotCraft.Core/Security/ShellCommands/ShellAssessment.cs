@@ -11,7 +11,6 @@ public sealed class ShellSafetyRequest
 
     public required string WorkingDirectory { get; init; }
 
-    /// <summary>False when the caller already knows <see cref="WorkingDirectory"/> is stale.</summary>
     public bool WorkingDirectoryIsKnown { get; init; } = true;
 
     public required WorkspaceBoundary Workspace { get; init; }

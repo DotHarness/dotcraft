@@ -67,7 +67,7 @@ public sealed class ShellApprovalKeyTests
     [Fact]
     public void Canonicalize_SeveralCommands_SeparatesThemWithAMarkerWord()
     {
-        var lowering = LoweredScript.Plain(ShellFamily.Posix, [["cd", "src"], ["ls", "-la"]]);
+        var lowering = LoweredScript.Plain(ShellFamily.Posix, [["cd", "src"], ["ls", "-la"]], unconditionalPrefix: 1);
 
         var canonical = ShellApprovalKey.Canonicalize(lowering, "cd src && ls -la");
 
@@ -81,7 +81,7 @@ public sealed class ShellApprovalKeyTests
         string fingerprint = "fingerprint")
     {
         var shell = new ShellIdentity(ShellKind.Bash, shellPath ?? ShellPath);
-        var lowering = LoweredScript.Plain(ShellFamily.Posix, [["ls", "-la"]]);
+        var lowering = LoweredScript.Plain(ShellFamily.Posix, [["ls", "-la"]], unconditionalPrefix: 1);
         return ShellApprovalKey.Create(
             shell,
             workingDirectory ?? WorkingDirectory,

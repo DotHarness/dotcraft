@@ -100,6 +100,20 @@ public sealed class ShellExecutionGateStdinTests : IDisposable
         Assert.Contains("no approval service", result.Error);
     }
 
+    [Fact]
+    public async Task EnterAsync_WhileAnotherInteractionIsHeld_WaitsForItToFinish()
+    {
+        var session = Session();
+        var first = await session.EnterAsync(default);
+
+        var second = session.EnterAsync(default);
+        Assert.False(second.IsCompleted);
+
+        first.Dispose();
+        (await second).Dispose();
+        (await session.EnterAsync(default)).Dispose();
+    }
+
     public void Dispose()
     {
         foreach (var directory in new[] { _root, _outside })
