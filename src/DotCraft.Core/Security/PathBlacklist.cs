@@ -29,19 +29,6 @@ public sealed class PathBlacklist
         return false;
     }
 
-    public bool CommandReferencesBlacklistedPath(string command)
-    {
-        if (_normalizedPaths.Count == 0)
-            return false;
-
-        foreach (var blocked in _normalizedPaths)
-        {
-            if (command.Contains(blocked, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        return false;
-    }
-
     private static string NormalizePath(string path)
     {
         var expanded = Environment.ExpandEnvironmentVariables(path);

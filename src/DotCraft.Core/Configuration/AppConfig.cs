@@ -11,6 +11,7 @@ using DotCraft.Mcp;
 using DotCraft.Dreams;
 using DotCraft.SourceControl;
 using DotCraft.Hooks;
+using DotCraft.Security.ShellCommands;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
@@ -692,6 +693,42 @@ public sealed class AppConfig
         /// Background terminal/session management settings for host shell commands.
         /// </summary>
         public ShellBackgroundConfig Background { get; set; } = new();
+
+        public ShellPolicyConfig Policy { get; set; } = new();
+    }
+
+    [ConfigSection("Tools.Shell.Policy", DisplayName = "Tools > Shell > Policy", Order = 21)]
+    public sealed class ShellPolicyConfig
+    {
+        [ConfigField(Hint = "JSON array of { prefix: [\"git\", \"push\"], decision: allow | prompt | forbidden, justification? }", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public List<ShellPrefixRuleConfig> Rules { get; set; } = [];
+
+        public IReadOnlyList<ShellPrefixRule> ToRules()
+        {
+            var rules = new List<ShellPrefixRule>();
+            foreach (var entry in Rules)
+            {
+                if (entry.Prefix.Count == 0
+                    || entry.Prefix.Any(string.IsNullOrWhiteSpace)
+                    || !Enum.TryParse<ShellDecision>(entry.Decision, ignoreCase: true, out var decision))
+                {
+                    continue;
+                }
+
+                rules.Add(new ShellPrefixRule(entry.Prefix, decision, entry.Justification));
+            }
+
+            return rules;
+        }
+    }
+
+    public sealed class ShellPrefixRuleConfig
+    {
+        public List<string> Prefix { get; set; } = [];
+
+        public string Decision { get; set; } = "prompt";
+
+        public string? Justification { get; set; }
     }
 
     [ConfigSection("Tools.Shell.Background", DisplayName = "Tools > Shell > Background", Order = 21)]

@@ -1,4 +1,5 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Sessions;
 
@@ -17,8 +18,7 @@ internal sealed class DenyApprovalService : IApprovalService
         Denied;
 
     public Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
+        ShellApprovalRequest request,
         ApprovalContext? context = null) =>
         Denied;
 

@@ -2165,6 +2165,16 @@
         "scopeKey": {
           "type": "string"
         },
+        "shell": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApprovalShellDetails"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "target": {
           "type": "string"
         },
@@ -2210,6 +2220,16 @@
         },
         "scopeKey": {
           "type": "string"
+        },
+        "shell": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApprovalShellDetails"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "target": {
           "type": "string"
@@ -2258,6 +2278,40 @@
       "additionalProperties": true,
       "required": [
         "decision"
+      ]
+    },
+    "ApprovalShellDetails": {
+      "title": "ApprovalShellDetails",
+      "type": "object",
+      "properties": {
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rememberedPrefixes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "remembersExactCommand": {
+          "type": "boolean"
+        },
+        "risk": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "reasons",
+        "rememberedPrefixes",
+        "remembersExactCommand",
+        "risk"
       ]
     },
     "AuthOpenAiAuthorizeUrlNotification": {

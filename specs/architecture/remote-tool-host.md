@@ -378,7 +378,10 @@ Tool definitions and model-facing schemas stay unchanged.
 
 Workspace configuration cannot relax Host authority or replace process executables. Language servers
 start only inside an approved invocation; file-only calls cannot start them. Shell approval permits
-execution with the signed-in user's authority, not filesystem isolation. Terminals remain bound to
+execution with the signed-in user's authority, not filesystem isolation. A Host `Exec` first passes
+the shell execution gate from [Shell Command Safety](shell-command-safety.md); the owner request
+carries the command as its operation and the working directory as its target, like the Agent-side
+approval. Terminals remain bound to
 their execution session within the lease.
 File path checks cover ancestor junctions and symlinks, including nonexistent destination files.
 

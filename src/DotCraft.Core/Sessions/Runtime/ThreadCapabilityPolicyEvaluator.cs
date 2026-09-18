@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -94,7 +95,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             if (ModeToolPolicy.PlanDeniedToolNames.Contains(name))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
             if (string.Equals(name, "Exec", StringComparison.OrdinalIgnoreCase)
-                && !ReadOnlyShellClassifier.IsReadOnly(
+                && !ReadOnlyCommandClassifier.IsReadOnly(
                     arguments["command"]?.GetValue<string>(),
                     arguments["shell"]?.GetValue<string>(),
                     out var shellReason))
@@ -248,7 +249,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
                     return false;
                 }
 
-                return ReadOnlyShellClassifier.IsReadOnly(
+                return ReadOnlyCommandClassifier.IsReadOnly(
                     TryGetStringArgument(arguments, "command"),
                     TryGetStringArgument(arguments, "shell"),
                     out reason);

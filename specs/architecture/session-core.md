@@ -769,9 +769,17 @@ summary and compatibility projection; clients that consume both paths merge by
   "approvalType": string, // "file" or "shell"
   "operation": string,    // For file: "read", "write", "edit", "list". For shell: the command.
   "target": string,       // For file: the path. For shell: the working directory.
-  "requestId": string     // Unique ID for correlating with ApprovalResponse
+  "requestId": string,    // Unique ID for correlating with ApprovalResponse
+  "shell": {              // Shell requests only; produced by the shell safety kernel
+    "risk": string,               // "Dangerous", "OutsideWorkspace", or "Rule"
+    "reasons": string[],
+    "rememberedPrefixes": string[][], // allow rules a permanent approval will store
+    "remembersExactCommand": boolean  // a permanent approval also stores the exact key
+  }
 }
 ```
+
+The `shell` block is defined by [Shell Command Safety](shell-command-safety.md) Section 9. Session-scoped shell approvals are keyed by the approval key carried in `scopeKey`, so accepting one command for the session never admits a different command.
 
 #### ApprovalResponse
 

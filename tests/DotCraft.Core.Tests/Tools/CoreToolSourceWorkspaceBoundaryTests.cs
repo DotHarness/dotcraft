@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Xunit;
@@ -56,21 +57,26 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
             ["command"] = $"cat \"{_outsideFile}\""
         });
 
-        Assert.Contains("outside workspace", result.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("outside the workspace", result.Content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("TOP-PRIVATE-CONTENT", result.Content, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task Unset_thread_override_keeps_the_workspace_default_approval_routing()
     {
-        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null);
+        var approvals = new RecordingApprovalService();
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, approvals);
         var readFile = Assert.Single(registrations, item => item.Definition.Name.Name == "ReadFile");
         var exec = Assert.Single(registrations, item => item.Definition.Name.Name == "Exec");
 
         Assert.True(readFile.Definition.PolicyHints.RequiresApproval);
         Assert.True(readFile.Definition.Annotations.ContainsKey("dotcraft/nativeApproval"));
-        Assert.True(exec.Definition.PolicyHints.RequiresApproval);
-        Assert.True(exec.Definition.Annotations.ContainsKey("dotcraft/nativeApproval"));
+
+        Assert.False(exec.Definition.PolicyHints.RequiresApproval);
+        await InvokeAsync(exec, new JsonObject { ["command"] = $"cat \"{_outsideFile}\"" });
+
+        var request = Assert.Single(approvals.ShellRequests);
+        Assert.Equal(ShellRiskLevel.OutsideWorkspace, request.Risk);
     }
 
     public void Dispose()
@@ -87,7 +93,8 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
     }
 
     private async Task<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
-        bool? requireApprovalOutsideWorkspace)
+        bool? requireApprovalOutsideWorkspace,
+        IApprovalService? approvalService = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         Assert.True(config.Tools.File.RequireApprovalOutsideWorkspace);
@@ -96,7 +103,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
             config,
             TestModelProviderRegistry.Create(),
             skillsLoader,
-            new AutoApproveApprovalService(),
+            approvalService ?? new AutoApproveApprovalService(),
             new StubBackgroundTerminalService());
         return await source.GetRegistrationsAsync(new ToolPlanningContext(
             "thread-analyst",
@@ -126,4 +133,21 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
                 registration.Binding.Revision,
                 DateTimeOffset.UtcNow),
             arguments);
+
+    private sealed class RecordingApprovalService : IApprovalService
+    {
+        public List<ShellApprovalRequest> ShellRequests { get; } = [];
+
+        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
+            Task.FromResult(true);
+
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
+        {
+            ShellRequests.Add(request);
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) =>
+            Task.FromResult(true);
+    }
 }

@@ -12,6 +12,7 @@ using DotCraft.Memory;
 using DotCraft.Processes;
 using DotCraft.Modules;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using Contract = DotCraft.Protocol.AppServer;
@@ -1575,7 +1576,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             return Task.FromResult(approve);
         }
 
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
             => throw new NotSupportedException();
 
         public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)

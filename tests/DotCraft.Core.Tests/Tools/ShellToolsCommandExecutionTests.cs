@@ -50,7 +50,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         var result = await tools.Exec(command);
 
-        Assert.Equal("Error: Command blocked by safety guard (path traversal detected).", result);
+        Assert.StartsWith("Error: Command references paths outside the workspace", result, StringComparison.Ordinal);
         Assert.Same(pending, Assert.Single(completed));
         Assert.Single(turn.Items);
         Assert.Equal(ItemStatus.Completed, pending.Status);
@@ -59,7 +59,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Equal(callId, payload.CallId);
         Assert.Equal("failed", payload.Status);
         Assert.Null(payload.ExitCode);
-        Assert.Contains("path traversal", payload.AggregatedOutput);
+        Assert.Contains("outside the workspace", payload.AggregatedOutput);
     }
 
     [Fact]

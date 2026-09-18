@@ -618,6 +618,25 @@ public sealed class ApprovalRequestPayload : ExtensibleJsonObject
 
     [JsonPropertyName("expiresAt")]
     public required DateTimeOffset ExpiresAt { get; init; }
+
+    [JsonPropertyName("shell")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ApprovalShellDetails? Shell { get; init; }
+}
+
+public sealed class ApprovalShellDetails : ExtensibleJsonObject
+{
+    [JsonPropertyName("risk")]
+    public required string Risk { get; init; }
+
+    [JsonPropertyName("reasons")]
+    public required IReadOnlyList<string> Reasons { get; init; }
+
+    [JsonPropertyName("rememberedPrefixes")]
+    public required IReadOnlyList<IReadOnlyList<string>> RememberedPrefixes { get; init; }
+
+    [JsonPropertyName("remembersExactCommand")]
+    public required bool RemembersExactCommand { get; init; }
 }
 
 /// <summary>Canonical payload for an approval response item.</summary>

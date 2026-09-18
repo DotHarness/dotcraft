@@ -621,6 +621,7 @@ export interface ApprovalRequestParams {
   reason?: string | null;
   requestId: string;
   scopeKey: string;
+  shell?: ApprovalShellDetails | null;
   target: string;
   threadId: string;
   turnId: string;
@@ -634,6 +635,7 @@ export interface ApprovalRequestPayload {
   reason: string;
   requestId: string;
   scopeKey: string;
+  shell?: ApprovalShellDetails | null;
   target: string;
   [key: string]: unknown;
 }
@@ -647,6 +649,14 @@ export interface ApprovalResponsePayload {
 
 export interface ApprovalResponseResult {
   decision: string;
+  [key: string]: unknown;
+}
+
+export interface ApprovalShellDetails {
+  reasons: string[];
+  rememberedPrefixes: string[][];
+  remembersExactCommand: boolean;
+  risk: string;
   [key: string]: unknown;
 }
 

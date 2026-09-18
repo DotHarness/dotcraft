@@ -5,6 +5,7 @@ using DotCraft.Tracing;
 using DotCraft.Diagnostics;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools.Sandbox;
@@ -71,6 +72,8 @@ public sealed class SubAgentManager
 
     private readonly IContributionView? _contributions;
 
+    private readonly ShellPolicySource? _shellPolicy;
+
     public SubAgentManager(
         IChatClient chatClient,
         string workspaceRoot,
@@ -91,10 +94,12 @@ public sealed class SubAgentManager
         int? maxOutputTokens = null,
         AppConfig? config = null,
         IReadOnlyList<string>? workspaceRoots = null,
-        IContributionView? contributions = null)
+        IContributionView? contributions = null,
+        ShellPolicySource? shellPolicy = null)
     {
         _chatClient = chatClient;
         _contributions = contributions;
+        _shellPolicy = shellPolicy;
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _workspaceRoots = workspaceRoots ?? [_workspaceRoot];
         _concurrencyGate = new SemaphoreSlim(maxConcurrency, maxConcurrency);
@@ -259,7 +264,8 @@ public sealed class SubAgentManager
                 maxOutputLength: 10000,
                 approvalService: approvalService,
                 blacklist: _blacklist,
-                workspaceRoots: _workspaceRoots
+                workspaceRoots: _workspaceRoots,
+                policy: _shellPolicy
             );
 
             tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));

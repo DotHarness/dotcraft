@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
+using DotCraft.Tests.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
@@ -3602,8 +3603,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var approved = await approvalService.RequestShellApprovalAsync(
-                "dotnet test",
-                Directory.GetCurrentDirectory());
+                ShellApprovalRequests.For("dotnet test", Directory.GetCurrentDirectory()));
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent($"approval={approved}")]);
         }
 

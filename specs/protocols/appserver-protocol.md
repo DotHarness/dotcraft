@@ -2672,6 +2672,7 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
 | `expiresAt` | string | UTC ISO-8601 instant after which the Runtime resolves the request through its safe timeout path. Replayed requests retain the original expiry. |
+| `shell` | object? | Present for `approvalType = "shell"`: `{ risk, reasons: string[], rememberedPrefixes: string[][], remembersExactCommand }` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. `scopeKey` is `"shell:" + approvalKey`, so `acceptForSession` covers only this command, shell, and directory. |
 
 **Example**:
 
@@ -2682,11 +2683,17 @@ The turn enters `"waitingApproval"` status while the server waits for the client
     "itemId": "item_005",
     "requestId": "approval_001",
     "approvalType": "shell",
-    "operation": "npm test",
+    "operation": "rm -rf build",
     "target": "/home/dev/myproject",
-    "scopeKey": "shell:*",
-    "reason": "Agent wants to execute a shell command",
-    "expiresAt": "2026-03-16T10:30:00Z"
+    "scopeKey": "shell:3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e",
+    "reason": "Agent wants to execute a shell command. rm -f style commands are not permitted without approval.",
+    "expiresAt": "2026-03-16T10:30:00Z",
+    "shell": {
+      "risk": "Dangerous",
+      "reasons": ["rm -f style commands are not permitted without approval."],
+      "rememberedPrefixes": [],
+      "remembersExactCommand": true
+    }
 } }
 ```
 

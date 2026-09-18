@@ -2,6 +2,7 @@ using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.AI;
 
@@ -79,7 +80,8 @@ public sealed class WorkspaceExecutionToolSource(
             config.Tools.Shell.MaxOutputLength,
             approvalService,
             pathBlacklist,
-            context.WorkspaceRoots);
+            context.WorkspaceRoots,
+            ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath));
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
 

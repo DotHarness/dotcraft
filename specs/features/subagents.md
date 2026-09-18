@@ -222,7 +222,7 @@ A role may define:
 - thread mode;
 - a model default for fresh and bounded native children;
 - tool allow and deny lists;
-- shell access of `none`, `readOnly`, or `full`;
+- shell access of `none`, `readOnly`, or `full`, where `readOnly` admits exactly the commands the read-only classifier in [Shell Command Safety](../architecture/shell-command-safety.md) accepts;
 - Agent-control access and allowed Agent-control tools.
 
 Native child tools use the normal session tool-construction path. The child inherits the parent's tool

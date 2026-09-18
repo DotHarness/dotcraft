@@ -370,6 +370,50 @@ describe('ApprovalDecisionComposer', () => {
     expect(screen.queryByRole('button', { name: 'Reject approval' })).not.toBeInTheDocument()
   })
 
+  it('states the remember scope of the session and always options for a shell request', async () => {
+    const pending = pendingApproval({
+      operation: 'rm -rf build && npm test',
+      reason: 'Agent wants to execute a shell command. rm removes files recursively.',
+      shell: {
+        risk: 'Dangerous',
+        reasons: ['rm removes files recursively.'],
+        rememberedPrefixes: [['npm', 'test']],
+        remembersExactCommand: true
+      }
+    })
+    setPendingApproval(pending)
+    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+
+    expect(screen.getByTestId('approval-detail-value-3')).toHaveTextContent('rm removes files recursively.')
+    expect(screen.queryByTestId('approval-detail-value-4')).not.toBeInTheDocument()
+
+    fireEvent.focus(screen.getByRole('img', { name: 'Why Allow for session is an option' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Approve this exact command again until this thread ends.')
+    fireEvent.blur(screen.getByRole('img', { name: 'Why Allow for session is an option' }))
+
+    fireEvent.focus(screen.getByRole('img', { name: 'Why Always allow is an option' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Always allow this exact command, plus commands that start with npm test.'
+    )
+  })
+
+  it('states that always allow remembers only the exact command when no prefix is proposed', async () => {
+    const pending = pendingApproval({
+      operation: 'eval "$PAYLOAD"',
+      shell: {
+        risk: 'Rule',
+        reasons: ['Matched the prompt rule eval.'],
+        rememberedPrefixes: [],
+        remembersExactCommand: true
+      }
+    })
+    setPendingApproval(pending)
+    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+
+    fireEvent.focus(screen.getByRole('img', { name: 'Why Always allow is an option' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Always allow this exact command only.')
+  })
+
   it('bounds long approval details so options remain reachable', () => {
     const operation = `python - <<'PY'\n${'print("operation detail")\n'.repeat(40)}PY`
     const reason = `Agent wants to execute a shell command. ${'Long reason detail. '.repeat(80)}`

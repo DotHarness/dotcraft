@@ -33,6 +33,8 @@
                       LogicalName="DotCraft.Tests.ModelHistorySchemaV1.json" />
     <EmbeddedResource Include="..\fixtures\desktop-plugin-revision.json"
                       LogicalName="DotCraft.Tests.DesktopPluginRevision.json" />
+    <EmbeddedResource Include="Security\ShellCommands\Fixtures\powershell-lowering.json"
+                      LogicalName="DotCraft.Tests.PowerShellLowering.json" />
   </ItemGroup>
 
   <ItemGroup>

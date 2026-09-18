@@ -368,10 +368,16 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
     "itemId": "item_005",
     "requestId": "approval_001",
     "approvalType": "shell",
-    "operation": "dotnet test",
+    "operation": "rm -rf build",
     "target": "/Users/me/project",
-    "scopeKey": "shell:*",
-    "reason": "Agent wants to execute a shell command."
+    "scopeKey": "shell:3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e",
+    "reason": "Agent wants to execute a shell command. rm -f style commands are not permitted without approval.",
+    "shell": {
+      "risk": "Dangerous",
+      "reasons": ["rm -f style commands are not permitted without approval."],
+      "rememberedPrefixes": [],
+      "remembersExactCommand": true
+    }
   }
 }
 ```

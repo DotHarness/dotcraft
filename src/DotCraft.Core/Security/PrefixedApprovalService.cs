@@ -1,9 +1,7 @@
+using DotCraft.Security.ShellCommands;
+
 namespace DotCraft.Security;
 
-/// <summary>
-/// Decorates an <see cref="IApprovalService"/> and prefixes shell/file targets so users can
-/// tell approvals were triggered by a subagent.
-/// </summary>
 public sealed class PrefixedApprovalService(IApprovalService inner, string prefix)
     : IApprovalService, IApprovalServiceDecorator
 {
@@ -14,8 +12,10 @@ public sealed class PrefixedApprovalService(IApprovalService inner, string prefi
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
         => inner.RequestFileApprovalAsync(operation, Prefix(path), context);
 
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
-        => inner.RequestShellApprovalAsync(Prefix(command), workingDir, context);
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
+        => inner.RequestShellApprovalAsync(
+            string.IsNullOrEmpty(_prefix) ? request : request with { Label = _prefix.Trim() },
+            context);
 
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)
         => inner.RequestResourceApprovalAsync(kind, operation, Prefix(target), context);

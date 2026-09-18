@@ -311,8 +311,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("git log -p -1")]
     [InlineData("rg SubAgentShellAccess")]
     [InlineData("rg --json ShellAccess")]
-    [InlineData("find . -name *.cs")]
-    [InlineData("sed -n 1,5p README.md")]
+    [InlineData("find . -name '*.cs'")]
+    [InlineData("sed -n '1,5p' README.md")]
     [InlineData("git status\ngit diff --stat")]
     // A single-quoted literal neutralizes substitution and redirection in both shells, so
     // these stay searchable patterns rather than operators.
@@ -382,6 +382,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("rg pattern ~/notes")]
     [InlineData("rg [a-z]+ README.md")]
     [InlineData("git log --format=%H | wc -l")]
+    [InlineData("find . -name *.cs")]
+    [InlineData("sed -n 1,5p README.md")]
     public void SubAgentExplorer_DeniesUnquotedSyntaxItCannotClassify(string command)
     {
         // The unquoted character set is closed, so a construct this classifier does not model is

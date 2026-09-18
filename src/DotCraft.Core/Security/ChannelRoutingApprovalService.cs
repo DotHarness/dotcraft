@@ -1,3 +1,5 @@
+using DotCraft.Security.ShellCommands;
+
 namespace DotCraft.Security;
 
 /// <summary>
@@ -12,8 +14,8 @@ public sealed class ChannelRoutingApprovalService(
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
         => Resolve(context).RequestFileApprovalAsync(operation, path, context);
 
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
-        => Resolve(context).RequestShellApprovalAsync(command, workingDir, context);
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
+        => Resolve(context).RequestShellApprovalAsync(request, context);
 
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)
         => Resolve(context).RequestResourceApprovalAsync(kind, operation, target, context);

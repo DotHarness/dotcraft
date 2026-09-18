@@ -1,3 +1,4 @@
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Security;
 
@@ -69,33 +70,38 @@ public sealed class ConsoleApprovalService : IApprovalService
         }
     }
 
-    public async Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+    public async Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
     {
+        var key = request.ApprovalKey.Hash;
         lock (_sessionLock)
         {
-            if (_sessionShellCommands.Contains("*"))
+            if (_sessionShellCommands.Contains(key))
             {
                 return true;
             }
         }
 
-        if (_store?.IsShellCommandApproved(command, workingDir) == true)
+        if (_store?.IsShellApproved(key) == true)
         {
             return true;
         }
 
-        var choice = _prompt.RequestShellApproval(command, workingDir);
+        var choice = _prompt.RequestShellApproval(request);
 
         switch (choice)
         {
             case InteractiveApprovalDecision.Always:
-                _store?.RecordShellCommand(command, workingDir);
+                _store?.RecordShellApproval(request);
+                lock (_sessionLock)
+                {
+                    _sessionShellCommands.Add(key);
+                }
                 return true;
 
             case InteractiveApprovalDecision.Session:
                 lock (_sessionLock)
                 {
-                    _sessionShellCommands.Add("*");
+                    _sessionShellCommands.Add(key);
                 }
                 return true;
 
@@ -150,7 +156,7 @@ public sealed class ConsoleApprovalService : IApprovalService
         public InteractiveApprovalDecision RequestFileApproval(string operation, string path) =>
             InteractiveApprovalDecision.Reject;
 
-        public InteractiveApprovalDecision RequestShellApproval(string command, string? workingDirectory) =>
+        public InteractiveApprovalDecision RequestShellApproval(ShellApprovalRequest request) =>
             InteractiveApprovalDecision.Reject;
     }
 }

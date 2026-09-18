@@ -1,5 +1,6 @@
 using DotCraft.Hooks;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Sessions;
@@ -28,18 +29,22 @@ internal sealed class HookApprovalService(
     }
 
     public async Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
+        ShellApprovalRequest request,
         ApprovalContext? context = null)
     {
-        var hookContext = BuildContext("shell", command, workingDir ?? string.Empty, context);
-        hookContext["command"] = command;
-        hookContext["workingDir"] = workingDir;
-        hookContext["working_dir"] = workingDir;
+        var hookContext = BuildContext("shell", request.Command, request.WorkingDirectory, context);
+        hookContext["command"] = request.Command;
+        hookContext["workingDir"] = request.WorkingDirectory;
+        hookContext["working_dir"] = request.WorkingDirectory;
+        hookContext["shell"] = request.Shell.Kind.ToString();
+        hookContext["shellExecutable"] = request.Shell.ExecutablePath;
+        hookContext["commands"] = request.Commands;
+        hookContext["risk"] = request.Risk.ToString();
+        hookContext["reasons"] = request.Reasons;
         if (!await RunPermissionHookAsync(hookContext).ConfigureAwait(false))
             return false;
 
-        return await inner.RequestShellApprovalAsync(command, workingDir, context).ConfigureAwait(false);
+        return await inner.RequestShellApprovalAsync(request, context).ConfigureAwait(false);
     }
 
     public async Task<bool> RequestResourceApprovalAsync(

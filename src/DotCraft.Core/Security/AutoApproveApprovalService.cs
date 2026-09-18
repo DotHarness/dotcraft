@@ -1,3 +1,5 @@
+using DotCraft.Security.ShellCommands;
+
 namespace DotCraft.Security;
 
 /// <summary>
@@ -9,7 +11,7 @@ public sealed class AutoApproveApprovalService : IApprovalService
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
         => Task.FromResult(true);
 
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
         => Task.FromResult(true);
 
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)

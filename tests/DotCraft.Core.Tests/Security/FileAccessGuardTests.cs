@@ -1,4 +1,5 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using Xunit;
 
 namespace DotCraft.Tests.Security;
@@ -91,7 +92,7 @@ public sealed class FileAccessGuardTests : IDisposable
             return Task.FromResult(fileApproved);
         }
 
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
             => Task.FromResult(true);
 
         public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)

@@ -5,6 +5,7 @@ using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.RemoteTools;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Workspaces;
@@ -243,7 +244,7 @@ internal sealed class ApproveService : IApprovalService
 {
     public int RequestCount { get; private set; }
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) => Task.FromResult(true);
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) => Task.FromResult(true);
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) => Task.FromResult(true);
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)
     {
         RequestCount++;

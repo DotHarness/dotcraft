@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -684,7 +685,7 @@ public sealed class ToolDispatcherTests
             return Task.FromResult(approved);
         }
 
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) =>
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) =>
             Task.FromResult(approved);
 
         public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)

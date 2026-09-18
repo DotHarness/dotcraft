@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Configuration;
+using DotCraft.Security.ShellCommands;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Tools.BackgroundTerminals;
@@ -38,7 +39,7 @@ public sealed record BackgroundTerminalStartRequest
 
     public string Source { get; init; } = "host";
 
-    public string? Shell { get; init; }
+    public ShellIdentity? Shell { get; init; }
 
     public bool RunInBackground { get; init; }
 
@@ -431,29 +432,28 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             StandardErrorEncoding = Encoding.UTF8
         };
 
-        if (OperatingSystem.IsWindows())
+        var shell = request.Shell ?? ResolveHostDefaultShell();
+        psi.FileName = shell.ExecutablePath;
+        switch (shell.Family)
         {
-            var shell = string.IsNullOrWhiteSpace(request.Shell) ? "powershell" : request.Shell.Trim();
-            if (string.Equals(shell, "cmd", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(shell, "cmd.exe", StringComparison.OrdinalIgnoreCase))
-            {
-                psi.FileName = "cmd.exe";
+            case ShellFamily.Cmd:
                 psi.Arguments = "/d /s /c \"" + request.Command.Replace("\"", "\\\"") + "\"";
-            }
-            else
-            {
+                break;
+            case ShellFamily.PowerShell:
                 var script = "$ProgressPreference = 'SilentlyContinue'\n[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n" + request.Command;
                 var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
-                psi.FileName = "powershell.exe";
                 psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}";
-            }
-        }
-        else
-        {
-            psi.FileName = string.IsNullOrWhiteSpace(request.Shell) ? "/bin/bash" : request.Shell.Trim();
+                break;
         }
 
         return psi;
+    }
+
+    private static ShellIdentity ResolveHostDefaultShell()
+    {
+        if (!ShellIdentityResolver.Host.TryResolve(null, out var identity, out var reason))
+            throw new InvalidOperationException(reason);
+        return identity;
     }
 
     private async Task WatchProcessAsync(ActiveTerminal terminal)

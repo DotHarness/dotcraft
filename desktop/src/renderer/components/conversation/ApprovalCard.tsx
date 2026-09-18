@@ -32,6 +32,7 @@ export function ApprovalCard({ item, isActive }: ApprovalCardProps): JSX.Element
   const target = item.approvalTarget?.trim() ?? ''
   const approvalState = item.approvalState ?? 'pending'
   const isPending = approvalState === 'pending'
+  const isDangerous = item.approvalShell?.risk === 'Dangerous'
 
   if (isPending) {
     const runningLabel = t('approval.running')
@@ -48,6 +49,9 @@ export function ApprovalCard({ item, isActive }: ApprovalCardProps): JSX.Element
         <span className={isActive ? 'tool-running-gradient-text' : undefined}>
           {runningLabel}
         </span>
+        {isDangerous && (
+          <span style={dangerousMarkerStyle}>{t('approval.risk.dangerous')}</span>
+        )}
         {summary && (
           <>
             <span style={{ color: 'var(--text-dimmed)' }}>-</span>
@@ -109,6 +113,12 @@ const pendingStatusStyle: CSSProperties = {
   color: 'var(--text-dimmed)',
   fontSize: 'var(--type-secondary-size)',
   lineHeight: 'var(--type-secondary-line-height)'
+}
+
+const dangerousMarkerStyle: CSSProperties = {
+  flexShrink: 0,
+  color: 'var(--warning)',
+  fontWeight: 500
 }
 
 const pendingSummaryStyle: CSSProperties = {

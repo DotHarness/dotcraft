@@ -1,33 +1,23 @@
 using System.ComponentModel;
 using System.Text;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 
-/// <summary>
-/// Shell command execution with safety guards.
-/// </summary>
 public sealed class ShellTools
 {
     private readonly string _workingDirectory;
 
     private readonly int _timeoutSeconds;
 
-    private readonly bool _requireApprovalOutsideWorkspace;
-
     private readonly int _maxOutputLength;
 
-    private readonly IApprovalService? _approvalService;
-
-    private readonly PathBlacklist? _blacklist;
-
-    private readonly ShellCommandInspector _inspector;
-
-    private readonly IReadOnlyList<string> _workspaceRoots;
-
     private readonly IBackgroundTerminalService _backgroundTerminals;
+
+    private readonly ShellExecutionGate _gate;
 
     public ShellTools(
         string workingDirectory,
@@ -37,19 +27,23 @@ public sealed class ShellTools
         int maxOutputLength = 10000,
         IApprovalService? approvalService = null,
         PathBlacklist? blacklist = null,
-        IReadOnlyList<string>? workspaceRoots = null)
+        IReadOnlyList<string>? workspaceRoots = null,
+        ShellPolicySource? policy = null)
     {
         _workingDirectory = Path.GetFullPath(workingDirectory);
         _timeoutSeconds = timeoutSeconds;
-        _requireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
         _maxOutputLength = maxOutputLength;
-        _approvalService = approvalService;
-        _blacklist = blacklist;
         _backgroundTerminals = backgroundTerminals;
-        _workspaceRoots = (workspaceRoots ?? [_workingDirectory])
+        var roots = (workspaceRoots ?? [_workingDirectory])
             .Select(Path.GetFullPath)
             .ToArray();
-        _inspector = new ShellCommandInspector(_workingDirectory, _workspaceRoots);
+        _gate = new ShellExecutionGate(
+            new ShellCommandSafetyKernel(),
+            new WorkspaceBoundary(roots),
+            policy ?? ShellPolicySource.Empty,
+            blacklist,
+            requireApprovalOutsideWorkspace,
+            approvalService);
     }
 
     [Description("Execute a shell command and return its output. On Windows PowerShell, run inline Python by piping a here-string to stdin, for example @'\\nprint('hello')\\n'@ | python -, instead of python -c with nested escaped quotes.")]
@@ -62,7 +56,7 @@ public sealed class ShellTools
         [Description("Milliseconds to wait for initial output before returning when runInBackground is true.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return in this tool result.")] int? maxOutputChars = null,
         [Description("Keep stdin open so WriteStdin can send input to the running process. This is pipe-based, not a full PTY.")] bool interactive = false,
-        [Description("Optional shell override. On Windows use 'powershell' or 'cmd'; on Unix provide a shell path such as /bin/bash.")] string? shell = null,
+        [Description("Optional shell override. On Windows use 'powershell', 'pwsh', or 'cmd'; on Unix use bash, sh, zsh, or pwsh.")] string? shell = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -71,21 +65,21 @@ public sealed class ShellTools
             : _workingDirectory;
 
         var commandExecution = CommandExecutionTracker.Begin(command, cwd, source: "host");
-        string? guardError;
+        ShellGateResult gate;
         try
         {
-            guardError = await GuardCommandAsync(command, cwd);
-            cancellationToken.ThrowIfCancellationRequested();
+            gate = await _gate.AuthorizeAsync(command, shell, cwd, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             commandExecution?.Complete(string.Empty, status: "cancelled", exitCode: null);
             throw;
         }
-        if (guardError != null)
+
+        if (!gate.IsAllowed)
         {
-            commandExecution?.Complete(guardError, status: "failed", exitCode: null);
-            return guardError;
+            commandExecution?.Complete(gate.Error!, status: "failed", exitCode: null);
+            return gate.Error!;
         }
 
         return await ExecWithBackgroundTerminalServiceAsync(
@@ -95,7 +89,7 @@ public sealed class ShellTools
             yieldTimeMs,
             maxOutputChars,
             interactive,
-            shell,
+            gate.Shell!,
             commandExecution,
             cancellationToken);
     }
@@ -137,7 +131,7 @@ public sealed class ShellTools
         int? yieldTimeMs,
         int? maxOutputChars,
         bool interactive,
-        string? shell,
+        ShellIdentity shell,
         CommandExecutionTracker? commandExecution,
         CancellationToken cancellationToken)
     {
@@ -255,57 +249,5 @@ public sealed class ShellTools
         if (snapshot.ExitCode is { } exitCode and not 0)
             return output + Environment.NewLine + $"Exit code: {exitCode}";
         return output;
-    }
-
-    private async Task<string?> GuardCommandAsync(string command, string cwd)
-    {
-        var normalized = command.Trim();
-
-        if (_blacklist != null && _blacklist.CommandReferencesBlacklistedPath(command))
-        {
-            return "Error: Command references a blacklisted path and cannot be executed.";
-        }
-
-        var hasPathTraversal = normalized.Contains("..\\") || normalized.Contains("../");
-
-        var cwdPath = new DirectoryInfo(cwd).FullName;
-        var isOutsideWorkspace = !_workspaceRoots.Any(root => IsWithinBoundary(cwdPath, root));
-
-        // Detect absolute, ~, and $HOME paths that resolve outside the workspace
-        var outsidePaths = _inspector.DetectOutsideWorkspacePaths(command);
-        var referencesOutsidePaths = outsidePaths.Count > 0;
-
-        if (hasPathTraversal || isOutsideWorkspace || referencesOutsidePaths)
-        {
-            if (!_requireApprovalOutsideWorkspace)
-            {
-                if (referencesOutsidePaths)
-                    return $"Error: Command references paths outside workspace: {string.Join(", ", outsidePaths)}";
-                if (hasPathTraversal)
-                    return "Error: Command blocked by safety guard (path traversal detected).";
-                if (isOutsideWorkspace)
-                    return "Error: Working directory is outside workspace boundary.";
-            }
-
-            if (_approvalService != null)
-            {
-                var context = ApprovalContextScope.Current;
-                var approved = await _approvalService.RequestShellApprovalAsync(command, cwd, context);
-                if (!approved)
-                {
-                    return "Error: Command execution was rejected by user.";
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsWithinBoundary(string path, string root)
-    {
-        var boundary = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return path.Equals(boundary, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(boundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(boundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 }
