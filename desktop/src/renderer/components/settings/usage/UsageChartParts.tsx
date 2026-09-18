@@ -1,4 +1,5 @@
-import type { CSSProperties, JSX } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import type { UsageRange } from '../../../stores/usageStore'
 import { Button } from '../../ui/Button'
 import { SegmentedControl, type SegmentedOption } from '../ui/SegmentedControl'
@@ -10,6 +11,30 @@ export const AXIS_TICK = { fill: 'var(--text-dimmed)', fontSize: 11 } as const
 export const CHART_HEIGHT = 144
 export const CHART_MARGIN = { top: 4, right: 0, left: 0, bottom: 0 } as const
 export const SECTION_STYLE: CSSProperties = { gap: '22px' }
+
+/** Sizes the chart in the same frame as its container, so the plot never trails the card edge while the window is being resized. */
+export function ChartFrame({ children }: { children: (width: number) => ReactNode }): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    setWidth(Math.round(element.getBoundingClientRect().width))
+    const observer = new ResizeObserver((entries) => {
+      const next = Math.round(entries[0]?.contentRect.width ?? 0)
+      flushSync(() => setWidth((current) => (current === next ? current : next)))
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} className={styles.chart}>
+      {width > 0 && children(width)}
+    </div>
+  )
+}
 
 /** Only the first, middle and last day are labelled so the axis never crowds. */
 export function axisTicks(dayKeys: string[]): string[] {

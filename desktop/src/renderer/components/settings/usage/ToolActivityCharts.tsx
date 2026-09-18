@@ -1,5 +1,5 @@
 import { useMemo, type JSX } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import type { LoadState, UsageHistoryWire, UsageRange } from '../../../stores/usageStore'
 import { formatCompactCount } from '../../../utils/formatCompactCount'
 import { Skeleton } from '../../ui/Skeleton'
@@ -12,6 +12,7 @@ import {
   CHART_MARGIN,
   ChartEmpty,
   ChartError,
+  ChartFrame,
   ChartLegend,
   ChartTooltip,
   RangeToggle,
@@ -47,9 +48,9 @@ function ActivityCard({ title, state, dimension, dayKeys, formatDate, pluginName
     body = <ChartEmpty message={t('settings.usage.activity.empty')} />
   } else {
     body = (
-      <div className={styles.chart}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={points} margin={CHART_MARGIN}>
+      <ChartFrame>
+        {(width) => (
+          <LineChart width={width} height={CHART_HEIGHT} data={points} margin={CHART_MARGIN}>
             <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
             <XAxis
               dataKey="date"
@@ -70,6 +71,7 @@ function ActivityCard({ title, state, dimension, dayKeys, formatDate, pluginName
               allowDecimals={false}
             />
             <Tooltip
+              isAnimationActive={false}
               cursor={{ stroke: 'var(--border-active)' }}
               content={
                 <ChartTooltip series={series} labelFor={labelFor} totalLabel={t('settings.usage.chart.total')} formatDate={formatDate} />
@@ -89,8 +91,8 @@ function ActivityCard({ title, state, dimension, dayKeys, formatDate, pluginName
               />
             ))}
           </LineChart>
-        </ResponsiveContainer>
-      </div>
+        )}
+      </ChartFrame>
     )
   }
 

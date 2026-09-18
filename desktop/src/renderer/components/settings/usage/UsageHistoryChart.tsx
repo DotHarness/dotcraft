@@ -1,5 +1,5 @@
 import { useMemo, type JSX } from 'react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts'
 import type { LoadState, UsageHistoryGroup, UsageHistoryWire, UsageRange } from '../../../stores/usageStore'
 import { formatCompactCount } from '../../../utils/formatCompactCount'
 import { Skeleton } from '../../ui/Skeleton'
@@ -13,6 +13,7 @@ import {
   CHART_MARGIN,
   ChartEmpty,
   ChartError,
+  ChartFrame,
   ChartLegend,
   ChartTooltip,
   RangeToggle,
@@ -67,9 +68,9 @@ export function UsageHistoryChart({
     body = <ChartEmpty message={t('settings.usage.history.empty')} />
   } else {
     body = (
-      <div className={styles.chart}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={points} margin={CHART_MARGIN} barCategoryGap="28%">
+      <ChartFrame>
+        {(width) => (
+          <BarChart width={width} height={CHART_HEIGHT} data={points} margin={CHART_MARGIN} barCategoryGap="28%">
             <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
             <XAxis
               dataKey="date"
@@ -90,6 +91,7 @@ export function UsageHistoryChart({
               allowDecimals={false}
             />
             <Tooltip
+              isAnimationActive={false}
               cursor={{ fill: 'var(--bg-hover)' }}
               content={
                 <ChartTooltip series={series} labelFor={labelFor} totalLabel={t('settings.usage.chart.total')} formatDate={formatDate} />
@@ -107,8 +109,8 @@ export function UsageHistoryChart({
               />
             ))}
           </BarChart>
-        </ResponsiveContainer>
-      </div>
+        )}
+      </ChartFrame>
     )
   }
 
