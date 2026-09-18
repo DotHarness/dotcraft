@@ -153,6 +153,8 @@ Some prefixes are too broad to remember as `allow` rules: shells and interpreter
 
 Path evidence comes from `PathEvidenceScanner`: for plain commands it inspects each word; for opaque scripts it scans the script text. It recognizes absolute paths, `~`, `$HOME`, drive letters, `%VAR%`, `$env:VAR`, and UNC paths, resolves them, and only ever raises the decision. A word that climbs with `..` is resolved against the working directory; in an opaque script such a climb counts as the parent of the working directory. The device names `/dev/null`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/zero`, `/dev/random`, `/dev/urandom`, `/dev/tty`, `NUL`, `CON`, `PRN`, and `AUX` are not evidence.
 
+Directory changes move the working directory for the commands that follow. In a plain script the changes are `cd`, `pushd`, and `popd` (Posix) and `cd`, `chdir`, `sl`, `Set-Location`, `pushd`, `Push-Location`, `popd`, and `Pop-Location` (PowerShell). A literal target is resolved against the current directory, counts as path evidence for that command, and becomes the directory every later command is checked in. A change without a resolvable target (no argument, `-`, or a stack pop) leaves the directory unknown, so that command and every later one are treated as outside the workspace. An opaque script that contains a directory-changing word is treated the same way.
+
 Workspace containment is decided by `WorkspaceBoundary`, the single implementation shared with file tools; it resolves symbolic links before comparing.
 
 An `Allow` produced by an explicit `allow` rule bypasses danger detection for that command. Danger detection is part of the fallback, not a veto above rules.
@@ -257,6 +259,7 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 - Opaque scripts are evaluated as a whole; inner literals can only raise the decision.
 - Plain lowering accepts a closed set of constructs; a new construct is opaque until this specification lists it.
 - Wrapper inspection is depth-bounded and reports overflow as dangerous.
+- A directory change the kernel cannot follow makes the rest of the script outside the workspace.
 - Approval keys carry the shell executable, so an approval for one shell never applies to another.
 - Banned prefixes are never persisted as `allow` rules.
 - The approval decision and the launched executable derive from one `ShellIdentity` instance.
@@ -264,4 +267,4 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 
 ## 14. Conformance
 
-Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.
+Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.

@@ -282,6 +282,67 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         Assert.False(remember.ExactKeyFallback);
     }
 
+    [Fact]
+    public void Evaluate_ChangingToTheParentThenReadingARelativeFile_Prompts()
+    {
+        var assessment = Posix().Evaluate(Request("cd .. && cat secret.txt"));
+
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
+        Assert.Contains("outside the workspace", assessment.ReasonText);
+    }
+
+    [Fact]
+    public void Evaluate_ChangingIntoASubdirectory_KeepsLaterCommandsAllowed()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "sub"));
+
+        var assessment = Posix().Evaluate(Request("cd sub && npm test && cat ../file"));
+
+        Assert.Equal(ShellDecision.Allow, assessment.Decision);
+    }
+
+    [Fact]
+    public void Evaluate_ChangingToAShallowerDirectoryThenClimbing_Prompts()
+    {
+        var nested = Path.Combine(_root, "a", "b");
+        Directory.CreateDirectory(nested);
+        var root = _root.Replace('\\', '/');
+
+        var assessment = Posix().Evaluate(Request($"cd {root} && cat ../x", workingDirectory: nested));
+
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
+    }
+
+    [Fact]
+    public void Evaluate_DirectoryChangeWithoutATarget_MakesLaterCommandsPrompt()
+    {
+        var assessment = Posix().Evaluate(Request("cd && cat x"));
+
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Contains("cannot be determined", assessment.ReasonText);
+    }
+
+    [Fact]
+    public void Evaluate_OpaqueScriptThatChangesDirectory_Prompts()
+    {
+        var assessment = Posix().Evaluate(Request("for d in a b; do cd $d; done"));
+
+        Assert.False(assessment.Lowering!.IsPlain);
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Contains("cannot be determined", assessment.ReasonText);
+    }
+
+    [Fact]
+    public void Evaluate_PowerShellChangingToTheParentThenReadingARelativeFile_Prompts()
+    {
+        var assessment = Windows().Evaluate(Request("cd ..; Get-Content secret.txt"));
+
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
+    }
+
     public void Dispose()
     {
         foreach (var directory in new[] { _root, _outside })
