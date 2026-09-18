@@ -34,7 +34,8 @@ public sealed class AgentProfileDraft
     public List<string> SkillsDeny { get; set; } = [];
 
     public string ApprovalPolicy { get; set; } = "default";
-    public bool RequireApprovalOutsideWorkspace { get; set; }
+    /// <summary>Null when the profile does not declare the key; the builder never authors it.</summary>
+    public bool? RequireApprovalOutsideWorkspace { get; set; }
 
     public string RoleInstructions { get; set; } = string.Empty;
 }
@@ -46,7 +47,7 @@ public sealed class AgentProfileDraft
 /// </summary>
 public static class AgentProfileDraftEditor
 {
-    private static readonly string[] ApprovalPolicies = ["default", "prompt", "autoApprove", "interrupt"];
+    private static readonly string[] ApprovalPolicies = ["default", "prompt", "autoApprove", "deny"];
     private static readonly string[] AgentControls = ["full", "disabled", "allowList"];
     private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh", "ultra"];
     private static readonly string[] Speeds = ["standard", "fast"];
@@ -213,7 +214,8 @@ public static class AgentProfileDraftEditor
 
         fm.Add("permissions:");
         fm.Add($"  approvalPolicy: {draft.ApprovalPolicy}");
-        fm.Add($"  requireApprovalOutsideWorkspace: {(draft.RequireApprovalOutsideWorkspace ? "true" : "false")}");
+        if (draft.RequireApprovalOutsideWorkspace is { } requireApprovalOutsideWorkspace)
+            fm.Add($"  requireApprovalOutsideWorkspace: {(requireApprovalOutsideWorkspace ? "true" : "false")}");
         fm.Add("---");
 
         return $"{string.Join('\n', fm)}\n\n{draft.RoleInstructions.Trim()}\n";

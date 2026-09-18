@@ -111,10 +111,10 @@ describe('agentBuilderDraftSync', () => {
       field: 'tools.agentControl',
       change: { op: 'set', value: 'allowList' }
     }))
-    const res = applyBuilderChange(draft, { ok: true, field: 'approval', change: { op: 'set', value: 'interrupt' } })
+    const res = applyBuilderChange(draft, { ok: true, field: 'approval', change: { op: 'set', value: 'autoApprove' } })
 
     expect(res.draft.tools.agentControl).toBe('allowList')
-    expect(res.draft.permissions.approvalPolicy).toBe('interrupt')
+    expect(res.draft.permissions.approvalPolicy).toBe('autoApprove')
   })
 
   it('ignores rejections and unknown fields', () => {

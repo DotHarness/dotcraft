@@ -64,6 +64,7 @@ describe('approval card state machine', () => {
     expect(state.pendingApproval?.locallySubmittedDecision).toBeNull()
     expect(state.pendingApproval?.approvalType).toBe('shell')
     expect(state.pendingApproval?.operation).toBe('npm test')
+    expect(state.pendingApproval?.shell).toBeUndefined()
 
     const items = state.turns[0].items
     const approvalItem = items.find((i) => i.type === 'approvalCard')
@@ -74,6 +75,22 @@ describe('approval card state machine', () => {
     expect(approvalItem?.approvalOperation).toBe('npm test')
     expect(approvalItem?.approvalTarget).toBe('/home/dev/project')
     expect(approvalItem?.approvalReason).toBe('Agent wants to execute a shell command')
+    expect(approvalItem?.approvalShell).toBeUndefined()
+  })
+
+  it('carries the shell safety block onto the pending approval and the item', () => {
+    s().onApprovalRequest('bridge-shell-ok', {
+      ...SHELL_PARAMS,
+      shell: {
+        reasons: ['Matched a dangerous command.'],
+        rememberedPrefixes: [['npm']],
+        remembersExactCommand: false
+      }
+    })
+
+    expect(s().pendingApproval?.shell?.reasons).toEqual(['Matched a dangerous command.'])
+    const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+    expect(approvalItem?.approvalShell?.rememberedPrefixes).toEqual([['npm']])
   })
 
   it('records and clears local approval submission without clearing pendingApproval', () => {

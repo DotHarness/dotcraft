@@ -1,4 +1,4 @@
-export type ApprovalPolicy = 'default' | 'autoApprove' | 'interrupt'
+export type ApprovalPolicy = 'autoApprove' | 'deny'
 export type DeliveryPolicy = 'manualDelivery' | 'autoPr'
 export type SourceProvider = 'github' | 'gitlab'
 export type ReviewListKey = 'autoReview' | 'draftPublish' | 'followUp'
@@ -86,7 +86,7 @@ export interface OratorioSettingsConfig {
 
 export function createDefaultOratorioSettings(): OratorioSettingsConfig {
   return {
-    revision: '', approvalPolicy: 'interrupt', runTimeoutSeconds: 1800,
+    revision: '', approvalPolicy: 'deny', runTimeoutSeconds: 1800,
     managedWorktreesEnabled: true, worktreeRoot: '', worktreeBranchPrefix: 'oratorio/run', globalMaxActiveRuns: 2,
     maxActiveRunsPerRepository: 1, maxActiveRunsPerSource: 2, maxRunAttempts: 3, retryBackoffSeconds: 10,
     maxRetryBackoffSeconds: 300, stallTimeoutSeconds: 300, succeededWorktreeRetentionHours: 24,

@@ -216,7 +216,7 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 更具体的 key 优先于家族前缀，因此具体模型可以安全地使用不同于家族的窗口值。
 
 只有模型规则明确匹配，且目录窗口大于配置后的 Default 窗口时，MAX 才可用。未知模型以及
-不会扩大窗口的匹配不会提供 MAX。Default 模式继续受 `Compaction.MaxContextWindow` 限制；
+不会扩大窗口的匹配不会提供 MAX。Default 模式继续受 `Compaction.MaxContextWindow` 限制。
 MAX 使用目录中的原始窗口，同时保留常规的摘要预留和安全 buffer。
 
 ## Reasoning 与 PromptCaching
@@ -278,6 +278,7 @@ Deep-thinking adapter 文件：
 | `Tools.File.SearchTimeoutSeconds` | `GrepFiles` 内容搜索最长运行时间，超时后返回超时结果 | `30` |
 | `Tools.Shell.Timeout` | Shell 命令超时时间（秒） | `300` |
 | `Tools.Shell.MaxOutputLength` | Shell 命令最大输出长度（字符） | `10000` |
+| `Tools.Shell.Policy.Rules` | 先于工作区兜底检查的前缀规则。每条形如 `{ "prefix": ["git", "push"], "decision": "allow" \| "prompt" \| "forbidden", "justification": "..." }`。前缀匹配的规则全部生效，最严格的决策胜出 | `[]` |
 | `Tools.Shell.Background.Enabled` | 是否启用后台终端会话 | `true` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | 运行中命令返回后台会话快照前的默认等待时间 | `1000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | 后台会话读取或写入可接受的最长等待时间 | `30000` |
@@ -335,11 +336,19 @@ hosted `image_generation` tool 由两个开关共同决定，两者都为真才�
       "RequireApprovalOutsideWorkspace": true
     },
     "Shell": {
-      "Timeout": 300
+      "Timeout": 300,
+      "Policy": {
+        "Rules": [
+          { "prefix": ["git", "push"], "decision": "prompt", "justification": "推送会离开本机" },
+          { "prefix": ["rm"], "decision": "forbidden" }
+        ]
+      }
     }
   }
 }
 ```
+
+**永久允许**学到的规则会追加到工作区数据目录的 `.craft/security/shell-rules.json`，并立即生效。
 
 工具 allow-list 示例：
 

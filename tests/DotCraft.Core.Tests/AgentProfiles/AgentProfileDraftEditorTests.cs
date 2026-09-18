@@ -32,7 +32,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal("full", draft.AgentControl);
         Assert.Equal("all", draft.ToolPolicyMode);
         Assert.Equal("default", draft.ApprovalPolicy);
-        Assert.False(draft.RequireApprovalOutsideWorkspace);
+        Assert.Null(draft.RequireApprovalOutsideWorkspace);
         Assert.Empty(draft.ToolsAllow);
     }
 
@@ -68,7 +68,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             SkillsPreload = ["pdf", "docx"],
             SkillsAllow = ["xlsx"],
             SkillsDeny = ["pptx"],
-            ApprovalPolicy = "interrupt",
+            ApprovalPolicy = "deny",
             RequireApprovalOutsideWorkspace = true,
             RoleInstructions = "You write crisp, accurate release notes."
         };
@@ -164,7 +164,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
     [InlineData("default", true)]
     [InlineData("prompt", true)]
     [InlineData("autoApprove", true)]
-    [InlineData("interrupt", true)]
+    [InlineData("deny", true)]
     [InlineData("restricted", false)]
     [InlineData("nonsense", false)]
     public void IsApprovalPolicy_ValidatesAgainstKnownSet(string value, bool expected) =>
@@ -184,7 +184,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             ToolPolicyMode = "allowList",
             ToolsAllow = ["ReadFile"],
             SkillsPreload = ["docx"],
-            ApprovalPolicy = "interrupt",
+            ApprovalPolicy = "deny",
             RoleInstructions = "You write clear documentation."
         };
         File.WriteAllText(

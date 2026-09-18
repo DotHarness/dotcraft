@@ -1,4 +1,5 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
@@ -38,8 +39,8 @@ internal sealed class HostInvocationApprovalService : IApprovalService
 
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
         RequestAsync("file", operation, path);
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) =>
-        RequestAsync("shell", "execute", command);
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) =>
+        RequestAsync("shell", request.Command, request.WorkingDirectory);
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) =>
         RequestAsync(kind, operation, target);
 

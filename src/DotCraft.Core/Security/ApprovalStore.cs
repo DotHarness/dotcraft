@@ -2,23 +2,25 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Security;
 
-/// <summary>
-/// Stores and manages persistent approval records for sensitive operations.
-/// </summary>
 public sealed class ApprovalStore
 {
+    private const int SchemaVersion = 2;
+
     private readonly string _storePath;
 
     private readonly HashSet<string> _approvedFileOperations = [];
 
-    private readonly HashSet<string> _approvedShellCommands = [];
+    private readonly HashSet<string> _approvedShellKeys = [];
 
     private readonly HashSet<string> _approvedResourceOperations = [];
 
     private readonly Lock _lock = new();
+
+    private readonly LearnedShellRuleStore _shellRules;
 
     private readonly JsonSerializerOptions _serializerOptions = new()
     {
@@ -31,6 +33,7 @@ public sealed class ApprovalStore
         var securityDir = Path.Combine(workspacePath, "security");
         Directory.CreateDirectory(securityDir);
         _storePath = Path.Combine(securityDir, "approvals.json");
+        _shellRules = new LearnedShellRuleStore(Path.Combine(securityDir, "shell-rules.json"));
         Load();
     }
 
@@ -46,16 +49,10 @@ public sealed class ApprovalStore
         }
     }
 
-    /// <summary>
-    /// Check if a shell command is already approved.
-    /// </summary>
-    public bool IsShellCommandApproved(string command, string? workingDir)
+    public bool IsShellApproved(string approvalKeyHash)
     {
         lock (_lock)
-        {
-            var key = ComputeShellCommandKey(command, workingDir);
-            return _approvedShellCommands.Contains(key);
-        }
+            return _approvedShellKeys.Contains(approvalKeyHash);
     }
 
     /// <summary>
@@ -82,18 +79,18 @@ public sealed class ApprovalStore
         }
     }
 
-    /// <summary>
-    /// Record an approved shell command.
-    /// </summary>
-    public void RecordShellCommand(string command, string? workingDir)
+    public void RecordShellApproval(ShellApprovalRequest request)
     {
+        foreach (var rule in request.Remember.Rules)
+            _shellRules.Append(rule);
+
+        if (!request.Remember.ExactKeyFallback && request.Remember.Rules.Count > 0)
+            return;
+
         lock (_lock)
         {
-            var key = ComputeShellCommandKey(command, workingDir);
-            if (_approvedShellCommands.Add(key))
-            {
+            if (_approvedShellKeys.Add(request.ApprovalKey.Hash))
                 Save();
-            }
         }
     }
 
@@ -109,47 +106,11 @@ public sealed class ApprovalStore
         }
     }
 
-    /// <summary>
-    /// Clear all approval records.
-    /// </summary>
-    public void ClearAll()
-    {
-        lock (_lock)
-        {
-            _approvedFileOperations.Clear();
-            _approvedShellCommands.Clear();
-            _approvedResourceOperations.Clear();
-            Save();
-        }
-    }
-
-    /// <summary>
-    /// Get count of approved operations.
-    /// </summary>
-    public (int fileOps, int shellCmds) GetApprovalCounts()
-    {
-        lock (_lock)
-        {
-            return (_approvedFileOperations.Count, _approvedShellCommands.Count);
-        }
-    }
-
     private static string ComputeFileOperationKey(string operation, string path)
     {
         // Normalize path and create a stable key
         var normalizedPath = Path.GetFullPath(path).ToLowerInvariant();
         var input = $"{operation.ToLowerInvariant()}:{normalizedPath}";
-        return ComputeHash(input);
-    }
-
-    private static string ComputeShellCommandKey(string command, string? workingDir)
-    {
-        // Create a stable key based on command structure
-        var normalizedCommand = command.Trim();
-        var normalizedDir = string.IsNullOrWhiteSpace(workingDir)
-            ? ""
-            : Path.GetFullPath(workingDir).ToLowerInvariant();
-        var input = $"{normalizedCommand}:{normalizedDir}";
         return ComputeHash(input);
     }
 
@@ -182,15 +143,16 @@ public sealed class ApprovalStore
                 if (data != null)
                 {
                     _approvedFileOperations.UnionWith(data.FileOperations ?? Array.Empty<string>());
-                    _approvedShellCommands.UnionWith(data.ShellCommands ?? Array.Empty<string>());
                     _approvedResourceOperations.UnionWith(data.ResourceOperations ?? Array.Empty<string>());
+                    if (data.SchemaVersion == SchemaVersion)
+                        _approvedShellKeys.UnionWith(data.ShellKeys ?? Array.Empty<string>());
                 }
             }
             catch
             {
                 // If file is corrupted, start fresh
                 _approvedFileOperations.Clear();
-                _approvedShellCommands.Clear();
+                _approvedShellKeys.Clear();
                 _approvedResourceOperations.Clear();
             }
         }
@@ -204,8 +166,9 @@ public sealed class ApprovalStore
             {
                 var data = new ApprovalData
                 {
+                    SchemaVersion = SchemaVersion,
                     FileOperations = _approvedFileOperations.ToArray(),
-                    ShellCommands = _approvedShellCommands.ToArray(),
+                    ShellKeys = _approvedShellKeys.ToArray(),
                     ResourceOperations = _approvedResourceOperations.ToArray(),
                     LastUpdated = DateTime.UtcNow
                 };
@@ -223,9 +186,11 @@ public sealed class ApprovalStore
 
     private sealed class ApprovalData
     {
+        public int SchemaVersion { get; set; }
+
         public string[]? FileOperations { get; set; }
 
-        public string[]? ShellCommands { get; set; }
+        public string[]? ShellKeys { get; set; }
 
         public string[]? ResourceOperations { get; set; }
 

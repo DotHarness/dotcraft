@@ -27,12 +27,6 @@ export interface TokenHudStrings {
   readonly threadUsageEmpty: string
   readonly turnsUnit: string
   readonly unknownModel: string
-  readonly reasoningLow: string
-  readonly reasoningMedium: string
-  readonly reasoningHigh: string
-  readonly reasoningExtraHigh: string
-  readonly speedStandard: string
-  readonly speedFast: string
 }
 
 const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
@@ -60,13 +54,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: 'Usage in this chat',
     threadUsageEmpty: 'No usage in this chat yet.',
     turnsUnit: 'turns',
-    unknownModel: 'Unknown model',
-    reasoningLow: 'Low',
-    reasoningMedium: 'Medium',
-    reasoningHigh: 'High',
-    reasoningExtraHigh: 'Extra high',
-    speedStandard: 'Standard',
-    speedFast: 'Fast'
+    unknownModel: 'Unknown model'
   },
   'zh-Hans': {
     settingsLabel: 'Token 状态条',
@@ -92,13 +80,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: '本线程用量',
     threadUsageEmpty: '本线程还没有用量。',
     turnsUnit: '回合',
-    unknownModel: '未知模型',
-    reasoningLow: '低',
-    reasoningMedium: '中',
-    reasoningHigh: '高',
-    reasoningExtraHigh: '超高',
-    speedStandard: '标准',
-    speedFast: '快速'
+    unknownModel: '未知模型'
   },
   ja: {
     settingsLabel: 'トークン HUD',
@@ -124,13 +106,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: 'このチャットの使用量',
     threadUsageEmpty: 'このチャットにはまだ使用量がありません。',
     turnsUnit: 'ターン',
-    unknownModel: '不明なモデル',
-    reasoningLow: '低',
-    reasoningMedium: '中',
-    reasoningHigh: '高',
-    reasoningExtraHigh: '最高',
-    speedStandard: '標準',
-    speedFast: '高速'
+    unknownModel: '不明なモデル'
   },
   ko: {
     settingsLabel: '토큰 HUD',
@@ -156,13 +132,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: '이 채팅의 사용량',
     threadUsageEmpty: '이 채팅에는 아직 사용량이 없습니다.',
     turnsUnit: '턴',
-    unknownModel: '알 수 없는 모델',
-    reasoningLow: '낮음',
-    reasoningMedium: '중간',
-    reasoningHigh: '높음',
-    reasoningExtraHigh: '매우 높음',
-    speedStandard: '표준',
-    speedFast: '빠름'
+    unknownModel: '알 수 없는 모델'
   },
   es: {
     settingsLabel: 'HUD de tokens',
@@ -188,13 +158,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: 'Uso en este chat',
     threadUsageEmpty: 'Este chat aún no tiene uso.',
     turnsUnit: 'turnos',
-    unknownModel: 'Modelo desconocido',
-    reasoningLow: 'Bajo',
-    reasoningMedium: 'Medio',
-    reasoningHigh: 'Alto',
-    reasoningExtraHigh: 'Muy alto',
-    speedStandard: 'Estándar',
-    speedFast: 'Rápido'
+    unknownModel: 'Modelo desconocido'
   },
   fr: {
     settingsLabel: 'HUD des jetons',
@@ -220,13 +184,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: 'Consommation dans cette discussion',
     threadUsageEmpty: 'Aucune consommation dans cette discussion pour l’instant.',
     turnsUnit: 'tours',
-    unknownModel: 'Modèle inconnu',
-    reasoningLow: 'Faible',
-    reasoningMedium: 'Moyen',
-    reasoningHigh: 'Élevé',
-    reasoningExtraHigh: 'Très élevé',
-    speedStandard: 'Standard',
-    speedFast: 'Rapide'
+    unknownModel: 'Modèle inconnu'
   },
   de: {
     settingsLabel: 'Token-HUD',
@@ -252,13 +210,7 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     threadUsageTitle: 'Verbrauch in diesem Chat',
     threadUsageEmpty: 'In diesem Chat gibt es noch keinen Verbrauch.',
     turnsUnit: 'Runden',
-    unknownModel: 'Unbekanntes Modell',
-    reasoningLow: 'Niedrig',
-    reasoningMedium: 'Mittel',
-    reasoningHigh: 'Hoch',
-    reasoningExtraHigh: 'Sehr hoch',
-    speedStandard: 'Standard',
-    speedFast: 'Schnell'
+    unknownModel: 'Unbekanntes Modell'
   }
 }
 

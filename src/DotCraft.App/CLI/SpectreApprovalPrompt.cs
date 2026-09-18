@@ -1,4 +1,5 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Text;
 using Spectre.Console;
 
@@ -21,15 +22,21 @@ internal sealed class SpectreApprovalPrompt : IInteractiveApprovalPrompt
         return Prompt($"[green]{FallbackText.Format("approval.file.approve_question")}[/]");
     }
 
-    public InteractiveApprovalDecision RequestShellApproval(string command, string? workingDirectory)
+    public InteractiveApprovalDecision RequestShellApproval(ShellApprovalRequest request)
     {
         AnsiConsole.WriteLine();
-        var message = $"[yellow]{FallbackText.Format("approval.shell.command")}[/] {Markup.Escape(command)}";
-        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        var message = $"[yellow]{FallbackText.Format("approval.shell.command")}[/] {Markup.Escape(request.Command)}";
+        message += $"\n[yellow]{FallbackText.Format("approval.shell.working_dir")}[/] " +
+                   Markup.Escape(request.WorkingDirectory);
+        if (request.Reasons.Count > 0)
         {
-            message += $"\n[yellow]{FallbackText.Format("approval.shell.working_dir")}[/] " +
-                       Markup.Escape(workingDirectory);
+            message += $"\n[yellow]{FallbackText.Format("approval.shell.reasons")}[/] " +
+                       Markup.Escape(request.ReasonText);
         }
+        message += request.Remember.Rules.Count > 0
+            ? $"\n[grey]{FallbackText.Format("approval.shell.remember_prefix")}[/] " +
+              Markup.Escape(string.Join("; ", request.Remember.Rules.Select(rule => string.Join(' ', rule.Prefix))))
+            : $"\n[grey]{FallbackText.Format("approval.shell.remember_exact")}[/]";
 
         AnsiConsole.Write(new Panel(message)
         {

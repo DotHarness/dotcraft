@@ -43,7 +43,7 @@ public sealed partial class OratorioAppBindingSdkTests
             DisplayName: "Review",
             BaseWorkspacePath: baseWorkspace,
             ExecutionWorkspacePath: worktree,
-            ApprovalPolicy: "interrupt",
+            ApprovalPolicy: "deny",
             AgentInstructions: "Review the change."), CancellationToken.None);
 
         using (var outbound = await transport.ReadOutboundAsync().WaitAsync(Timeout))
@@ -75,7 +75,7 @@ public sealed partial class OratorioAppBindingSdkTests
             DisplayName: "Review",
             BaseWorkspacePath: workspace,
             ExecutionWorkspacePath: workspace,
-            ApprovalPolicy: "interrupt",
+            ApprovalPolicy: "deny",
             AgentInstructions: "Review the change."), CancellationToken.None);
 
         using (var outbound = await transport.ReadOutboundAsync().WaitAsync(Timeout))

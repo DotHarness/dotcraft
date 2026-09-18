@@ -1,4 +1,6 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
+using DotCraft.Tests.Security.ShellCommands;
 using Xunit;
 
 namespace DotCraft.Tests.Security;
@@ -11,22 +13,25 @@ public sealed class PrefixedApprovalServiceTests
         var inner = new RecordingApprovalService();
         var service = new PrefixedApprovalService(inner, "[subagent:test] ");
 
-        var approved = await service.RequestFileApprovalAsync("read", "E:/tmp/demo.txt");
+        var approved = await service.RequestFileApprovalAsync("read", "/tmp/demo.txt");
 
         Assert.True(approved);
-        Assert.Equal("[subagent:test] E:/tmp/demo.txt", inner.LastFilePath);
+        Assert.Equal("[subagent:test] /tmp/demo.txt", inner.LastFilePath);
     }
 
     [Fact]
-    public async Task RequestShellApprovalAsync_PrefixesCommand()
+    public async Task RequestShellApprovalAsync_LabelsTheRequestWithoutRewritingTheCommand()
     {
         var inner = new RecordingApprovalService();
         var service = new PrefixedApprovalService(inner, "[subagent:test] ");
+        var request = ShellApprovalRequests.For("dotnet test");
 
-        var approved = await service.RequestShellApprovalAsync("dotnet test", "E:/repo");
+        var approved = await service.RequestShellApprovalAsync(request);
 
         Assert.True(approved);
-        Assert.Equal("[subagent:test] dotnet test", inner.LastCommand);
+        Assert.Equal("dotnet test", inner.LastShellRequest!.Command);
+        Assert.Equal("[subagent:test]", inner.LastShellRequest.Label);
+        Assert.Equal(request.ApprovalKey, inner.LastShellRequest.ApprovalKey);
     }
 
     [Fact]
@@ -44,7 +49,7 @@ public sealed class PrefixedApprovalServiceTests
     private sealed class RecordingApprovalService : IApprovalService
     {
         public string LastFilePath { get; private set; } = string.Empty;
-        public string LastCommand { get; private set; } = string.Empty;
+        public ShellApprovalRequest? LastShellRequest { get; private set; }
         public string LastResourceTarget { get; private set; } = string.Empty;
 
         public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
@@ -53,9 +58,9 @@ public sealed class PrefixedApprovalServiceTests
             return Task.FromResult(true);
         }
 
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
         {
-            LastCommand = command;
+            LastShellRequest = request;
             return Task.FromResult(true);
         }
 

@@ -734,7 +734,7 @@ public sealed class OratorioApiTests
                     new("github:github.com/example-owner/oratorio", workspace)
                 ],
                 AppServerUrl = "ws://127.0.0.1:9191/ws",
-                ApprovalPolicy = "default",
+                ApprovalPolicy = "autoApprove",
                 RunTimeoutSeconds = 900
             },
             Runtime = current.Configuration.Runtime with
@@ -791,7 +791,7 @@ public sealed class OratorioApiTests
         await WaitUntilAsync(async () =>
         {
             var status = await client.GetFromJsonAsync<DotCraftStatusResponse>("/api/v1/dotcraft/status", JsonOptions);
-            return status is { WorkspacePath: var path, ApprovalPolicy: "default", GlobalMaxActiveRuns: 3 }
+            return status is { WorkspacePath: var path, ApprovalPolicy: "autoApprove", GlobalMaxActiveRuns: 3 }
                 && path == workspace;
         });
 

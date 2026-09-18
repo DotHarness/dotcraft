@@ -1,4 +1,4 @@
-import type { OratorioSettingsConfig, SecretConfigurationField, SourceProvider } from './oratorio-settings-model'
+import type { ApprovalPolicy, OratorioSettingsConfig, SecretConfigurationField, SourceProvider } from './oratorio-settings-model'
 import { hasConfiguredSource } from './oratorio-connect-model'
 import { oratorioHost } from '../runtime'
 
@@ -121,7 +121,7 @@ function fromServer(envelope: JsonObject, schedules: JsonObject[]): OratorioSett
   ]
   return {
     revision: String(envelope.revision ?? ''),
-    approvalPolicy: dotCraft.approvalPolicy ?? 'interrupt',
+    approvalPolicy: normalizeApprovalPolicy(dotCraft.approvalPolicy),
     runTimeoutSeconds: dotCraft.runTimeoutSeconds ?? 1800,
     managedWorktreesEnabled: runtime.managedWorktreesEnabled ?? true,
     worktreeRoot: runtime.worktreeRoot ?? '',
@@ -158,6 +158,11 @@ function fromServer(envelope: JsonObject, schedules: JsonObject[]): OratorioSett
     },
     projects
   }
+}
+
+/** A server run never follows a desktop workspace default, so a stored `default` or `interrupt` reads as deny. */
+function normalizeApprovalPolicy(value: unknown): ApprovalPolicy {
+  return value === 'autoApprove' ? 'autoApprove' : 'deny'
 }
 
 function projectKeyMap(projects: string[]): Map<string, string> {

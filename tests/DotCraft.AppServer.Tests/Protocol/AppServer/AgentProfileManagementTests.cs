@@ -196,7 +196,7 @@ public sealed class AgentProfileManagementTests : IDisposable
             Assert.Equal("plan", config.GetProperty("mode").GetString());
             Assert.Equal("Profile body for reviewer-lite.", config.GetProperty("roleInstructions").GetString());
             Assert.Equal("WriteFile", config.GetProperty("toolPolicy").GetProperty("deny")[0].GetString());
-            Assert.Equal("interrupt", config.GetProperty("approvalPolicy").GetString());
+            Assert.Equal("deny", config.GetProperty("approvalPolicy").GetString());
         }
 
         await harness.Transport.ReadNextSentAsync();
@@ -607,7 +607,7 @@ tools:
 skills:
   allowManage: false
 permissions:
-  approvalPolicy: interrupt
+  approvalPolicy: deny
 ---
 
 {body ?? $"Profile body for {id}."}

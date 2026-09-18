@@ -1,3 +1,5 @@
+using DotCraft.Security.ShellCommands;
+
 namespace DotCraft.Security;
 
 /// <summary>Result returned by a host-provided interactive approval prompt.</summary>
@@ -17,5 +19,5 @@ public interface IInteractiveApprovalPrompt
 {
     InteractiveApprovalDecision RequestFileApproval(string operation, string path);
 
-    InteractiveApprovalDecision RequestShellApproval(string command, string? workingDirectory);
+    InteractiveApprovalDecision RequestShellApproval(ShellApprovalRequest request);
 }

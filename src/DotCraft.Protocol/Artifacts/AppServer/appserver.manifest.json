@@ -3026,6 +3026,13 @@
           "const": null
         },
         {
+          "name": "shell",
+          "type": "core.ApprovalShellDetails",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "target",
           "type": "string",
           "required": true,
@@ -3100,6 +3107,13 @@
           "const": null
         },
         {
+          "name": "shell",
+          "type": "core.ApprovalShellDetails",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "target",
           "type": "string",
           "required": true,
@@ -3152,6 +3166,38 @@
         {
           "name": "decision",
           "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ApprovalShellDetails",
+      "name": "ApprovalShellDetails",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ApprovalShellDetails.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "reasons",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "rememberedPrefixes",
+          "type": "array<array<string>>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "remembersExactCommand",
+          "type": "boolean",
           "required": true,
           "nullable": false,
           "const": null

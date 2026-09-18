@@ -68,6 +68,16 @@ export function resolveConcreteApprovalPolicyFromWorkspaceDefault(value: unknown
   return value === 'autoApprove' ? 'autoApprove' : 'prompt'
 }
 
+/** Any policy shown to a person is one of the two answers; anything else resolves through the workspace default. */
+export function resolveVisibleApprovalPolicy(
+  value: unknown,
+  workspaceDefault: ConcreteApprovalPolicy
+): ConcreteApprovalPolicy {
+  if (value === 'autoApprove') return 'autoApprove'
+  if (value === 'prompt') return 'prompt'
+  return workspaceDefault
+}
+
 export function resolveConcreteApprovalPolicyFromConfig(config: Record<string, unknown>): ConcreteApprovalPolicy {
   const permissions = getCaseInsensitiveValue(config, 'Permissions')
   if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) {

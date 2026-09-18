@@ -60,7 +60,7 @@ export const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
   description: 'agentBuilder.field.description',
   instructions: 'agentBuilder.field.instructions',
   'tools.policy': 'agentBuilder.field.tools',
-  'tools.agentControl': 'agentBuilder.field.toolControl',
+  'tools.agentControl': 'agentBuilder.field.delegation',
   'skills.preload': 'agentBuilder.field.skills',
   'mcp.servers': 'agentBuilder.field.mcp',
   providerPreference: 'agentBuilder.field.model',

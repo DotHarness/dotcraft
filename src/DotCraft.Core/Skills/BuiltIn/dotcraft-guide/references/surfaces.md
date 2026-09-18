@@ -12,7 +12,7 @@ Everything DotCraft keeps on disk. Confirm a path exists before quoting it; a wo
 | `commands/` | user-editable | Custom `/` commands. Not skills |
 | `models.json` | user-editable | Model catalog overrides, including context-window entries. Sits beside a `config.json` |
 | `model-thinking-adapters.json` | user-editable | Model reasoning-adapter overrides |
-| `qq.json` `wecom.json` `feishu.json` `telegram.json` `weixin.json` | prefer the UI | One per bundled channel adapter. Configure these through Desktop Settings > Channels, which validates credentials and restarts the adapter |
+| `qq.json` `wecom.json` `feishu.json` `telegram.json` `weixin.json` | prefer the UI | One per bundled channel adapter. Configure these through Desktop > Channels, which validates credentials and restarts the adapter |
 | `skills/` | mixed | Installed and built-in skills. A `.builtin` marker file means the directory was deployed by the product |
 | `plugins/` | mixed | Installed plugins, each with `.craft-plugin/plugin.json`. Install and enable through Desktop > Plugins |
 | `agents/` | user-editable | Subagent definitions |
@@ -60,4 +60,4 @@ Built-in skills redeploy only when the product version changes. To pick up an ed
 - Config and hooks: edit the file, then say "restart to apply", or send the user to the matching Desktop Settings panel for an immediate effect.
 - Skills: `$skill-authoring` and `$skill-installer`. Never edit an installed skill's source directory by hand.
 - Plugins: `$plugin-creator` to author, Desktop > Plugins to install and enable.
-- Channels: Desktop Settings > Channels rather than the `<channel>.json` file.
+- Channels: Desktop > Channels rather than the `<channel>.json` file.

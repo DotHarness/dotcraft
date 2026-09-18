@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Sessions;
 
@@ -26,11 +27,14 @@ internal sealed class SessionApprovalService : IApprovalService
     private sealed class PendingApproval(
         string scopeKey,
         ApprovalRequestPayload payload,
-        TaskCompletionSource<SessionApprovalDecision> completion)
+        TaskCompletionSource<SessionApprovalDecision> completion,
+        ShellApprovalRequest? shellRequest)
     {
         public string ScopeKey { get; } = scopeKey;
         public ApprovalRequestPayload Payload { get; } = payload;
         public TaskCompletionSource<SessionApprovalDecision> Completion { get; } = completion;
+
+        public ShellApprovalRequest? ShellRequest { get; } = shellRequest;
     }
 
     public SessionApprovalService(
@@ -58,10 +62,6 @@ internal sealed class SessionApprovalService : IApprovalService
     /// </summary>
     public bool HasPendingApproval => !_pending.IsEmpty;
 
-    // -------------------------------------------------------------------------
-    // IApprovalService
-    // -------------------------------------------------------------------------
-
     public Task<bool> RequestFileApprovalAsync(
         string operation,
         string path,
@@ -83,23 +83,30 @@ internal sealed class SessionApprovalService : IApprovalService
     }
 
     public Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
+        ShellApprovalRequest request,
         ApprovalContext? context = null)
     {
         var requestId = Guid.NewGuid().ToString("N")[..12];
-        var scopeKey = BuildScopeKey("shell", command, workingDir);
+        var scopeKey = "shell:" + request.ApprovalKey.Hash;
         var payload = new ApprovalRequestPayload
         {
             ApprovalType = "shell",
-            Operation = command,
-            Target = workingDir ?? string.Empty,
+            Operation = request.Command,
+            Target = request.WorkingDirectory,
             RequestId = requestId,
             ScopeKey = scopeKey,
-            Reason = $"Agent wants to execute a shell command: {command}",
-            ExpiresAt = ApprovalExpiry()
+            Reason = ShellApprovalReason(request),
+            ExpiresAt = ApprovalExpiry(),
+            Shell = ShellApprovalDetails.From(request)
         };
-        return RequestApprovalAsync(requestId, scopeKey, payload);
+        return RequestApprovalAsync(requestId, scopeKey, payload, request);
+    }
+
+    private static string ShellApprovalReason(ShellApprovalRequest request)
+    {
+        var label = string.IsNullOrEmpty(request.Label) ? "Agent" : request.Label;
+        var reasons = request.Reasons.Count == 0 ? string.Empty : " " + request.ReasonText;
+        return $"{label} wants to execute a shell command.{reasons}";
     }
 
     public Task<bool> RequestResourceApprovalAsync(
@@ -123,10 +130,6 @@ internal sealed class SessionApprovalService : IApprovalService
         return RequestApprovalAsync(requestId, scopeKey, payload);
     }
 
-    // -------------------------------------------------------------------------
-    // Called by SessionService.ResolveApprovalAsync
-    // -------------------------------------------------------------------------
-
     /// <summary>
     /// Resolves a pending approval request with the user's decision.
     /// Returns false if no matching pending request exists.
@@ -140,9 +143,8 @@ internal sealed class SessionApprovalService : IApprovalService
             _sessionScopes.Add(_turn.ThreadId, pending.ScopeKey);
 
         if (decision.IsPersistent())
-            PersistApproval(pending.Payload);
+            PersistApproval(pending);
 
-        // Create and emit ApprovalResponse Item
         var responseItem = CreateItem(ItemType.ApprovalResponse, new ApprovalResponsePayload
         {
             RequestId = requestId,
@@ -169,42 +171,36 @@ internal sealed class SessionApprovalService : IApprovalService
         return true;
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
     private async Task<bool> RequestApprovalAsync(
         string requestId,
         string scopeKey,
-        ApprovalRequestPayload payload)
+        ApprovalRequestPayload payload,
+        ShellApprovalRequest? shellRequest = null)
     {
         if (_sessionScopes.Contains(_turn.ThreadId, scopeKey))
             return true;
 
-        if (IsPersistedApproval(payload))
+        if (IsPersistedApproval(payload, shellRequest))
             return true;
 
-        // Create ApprovalRequest Item
         var requestItem = CreateItem(ItemType.ApprovalRequest, payload);
         _turn.Items.Add(requestItem);
         _turn.Status = TurnStatus.WaitingApproval;
 
         // Register TCS before emitting the event so there's no race
         var tcs = new TaskCompletionSource<SessionApprovalDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending[requestId] = new PendingApproval(scopeKey, payload, tcs);
+        _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest);
 
         _channel.EmitItemStarted(requestItem);
         _channel.EmitItemCompleted(requestItem);
         _channel.EmitApprovalRequested(requestItem);
         _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalRequested, _turn);
 
-        // Apply timeout
         using var cts = new CancellationTokenSource(_timeout);
         await using var reg = cts.Token.Register(() =>
         {
             if (_pending.TryRemove(requestId, out var pending))
             {
-                // Timeout: emit an Error Item and auto-reject
                 var errorItem = CreateItem(ItemType.Error, new ErrorPayload
                 {
                     Message = $"Approval request '{requestId}' timed out after {_timeout.TotalSeconds:0}s.",
@@ -215,7 +211,6 @@ internal sealed class SessionApprovalService : IApprovalService
                 _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
                 _channel.EmitItemStarted(errorItem);
                 _channel.EmitItemCompleted(errorItem);
-
                 pending.Completion.TrySetResult(SessionApprovalDecision.Reject);
             }
         });
@@ -224,27 +219,29 @@ internal sealed class SessionApprovalService : IApprovalService
         return decision.IsApproved();
     }
 
-    private bool IsPersistedApproval(ApprovalRequestPayload payload)
+    private bool IsPersistedApproval(ApprovalRequestPayload payload, ShellApprovalRequest? shellRequest)
     {
         if (_store == null) return false;
         return payload.ApprovalType switch
         {
             "file" => _store.IsFileOperationApproved(payload.Operation, payload.Target),
-            "shell" => _store.IsShellCommandApproved(payload.Operation, payload.Target),
+            "shell" => shellRequest is { } request && _store.IsShellApproved(request.ApprovalKey.Hash),
             _ => _store.IsResourceOperationApproved(payload.ApprovalType, payload.Operation, payload.Target)
         };
     }
 
-    private void PersistApproval(ApprovalRequestPayload payload)
+    private void PersistApproval(PendingApproval pending)
     {
         if (_store == null) return;
+        var payload = pending.Payload;
         switch (payload.ApprovalType)
         {
             case "file":
                 _store.RecordFileOperation(payload.Operation, payload.Target);
                 break;
             case "shell":
-                _store.RecordShellCommand(payload.Operation, payload.Target);
+                if (pending.ShellRequest is { } request)
+                    _store.RecordShellApproval(request);
                 break;
             default:
                 _store.RecordResourceOperation(payload.ApprovalType, payload.Operation, payload.Target);
@@ -258,7 +255,6 @@ internal sealed class SessionApprovalService : IApprovalService
         var normalizedOperation = operation.ToLowerInvariant();
         return normalizedType switch
         {
-            "shell" => "shell:*",
             "file" => $"file:{normalizedOperation}",
             _ => $"{normalizedType}:{normalizedOperation}:{target ?? string.Empty}"
         };

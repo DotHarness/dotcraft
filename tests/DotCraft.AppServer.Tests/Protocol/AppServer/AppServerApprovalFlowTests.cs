@@ -10,6 +10,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// - Client response is parsed into SessionApprovalDecision and resolved
 /// - Timeout falls back to the default approval decision (Fix 6)
 /// - approvalSupport=false applies the default policy without asking the client (Fix 6)
+/// - a thread whose approvalPolicy is deny resolves as decline without asking (spec Section 7.4)
 /// </summary>
 public sealed class AppServerApprovalFlowTests : IDisposable
 {
@@ -155,6 +156,32 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         // and the decision was AcceptOnce (the workspace default, not Reject)
         Assert.Single(harness.Service.ResolvedApprovals);
         Assert.Equal(SessionApprovalDecision.AcceptOnce, harness.Service.ResolvedApprovals[0].decision);
+    }
+
+    [Fact]
+    public async Task ApprovalFlow_DenyPolicyWithoutApprovalSupport_ResolvesAsDecline()
+    {
+        using var harness = new AppServerTestHarness(
+            defaultApprovalDecision: SessionApprovalDecision.AcceptOnce);
+        await harness.InitializeAsync(approvalSupport: false);
+
+        var thread = await harness.Service.CreateThreadAsync(
+            harness.Identity,
+            new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.Deny });
+        harness.Service.EnqueueSubmitEvents(
+            thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
+
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
+        {
+            threadId = thread.Id,
+            input = new[] { new { type = "text", text = "Needs approval" } }
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        await harness.Transport.WaitAndDrainAsync(4, TimeSpan.FromSeconds(10));
+
+        Assert.Single(harness.Service.ResolvedApprovals);
+        Assert.Equal(SessionApprovalDecision.Reject, harness.Service.ResolvedApprovals[0].decision);
     }
 
     [Fact]

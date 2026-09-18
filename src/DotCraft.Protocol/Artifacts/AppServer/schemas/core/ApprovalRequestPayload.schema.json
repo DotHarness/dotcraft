@@ -23,6 +23,16 @@
     "scopeKey": {
       "type": "string"
     },
+    "shell": {
+      "anyOf": [
+        {
+          "$ref": "./ApprovalShellDetails.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "target": {
       "type": "string"
     }

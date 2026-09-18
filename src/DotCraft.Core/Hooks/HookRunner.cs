@@ -4,6 +4,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DotCraft.Diagnostics;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Utilities;
 
 namespace DotCraft.Hooks;
@@ -366,24 +367,29 @@ public sealed class HookRunner
                 return result;
             }
 
-            if (!string.IsNullOrWhiteSpace(hookEntry.Shell))
+            if (!ShellIdentityResolver.Host.TryResolve(hookEntry.Shell, out var shell, out var shellReason))
             {
-                ConfigureShellOverride(psi, hookEntry.Shell!, hookEntry.Command, isWindows);
+                result.ExitCode = 127;
+                result.StdErr = shellReason;
+                WriteDebug($"[Hooks] Error executing '{hookEntry.Command}': {shellReason}");
+                return result;
             }
-            else if (isWindows)
+
+            psi.FileName = shell.ExecutablePath;
+            switch (shell.Family)
             {
-                // PowerShell's -Command parameter normalizes all non-zero exit codes to 1,
-                // losing the specific exit code (e.g., exit 2 for blocking).
-                // Using -File with a wrapper script preserves the actual exit code.
-                tempScript = Path.Combine(Path.GetTempPath(), $"dotcraft_hook_{Guid.NewGuid():N}.ps1");
-                File.WriteAllText(tempScript, BuildWindowsPowerShellScript(hookEntry.Command), PowerShellScriptEncoding);
-                psi.FileName = "powershell.exe";
-                psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -OutputFormat Text -File \"{tempScript}\"";
-            }
-            else
-            {
-                psi.FileName = "/bin/bash";
-                ConfigureShellCommandArguments(psi, hookEntry.Command);
+                case ShellFamily.PowerShell:
+                    // -Command folds every non-zero exit code into 1; -File keeps it.
+                    tempScript = Path.Combine(Path.GetTempPath(), $"dotcraft_hook_{Guid.NewGuid():N}.ps1");
+                    File.WriteAllText(tempScript, BuildWindowsPowerShellScript(hookEntry.Command), PowerShellScriptEncoding);
+                    psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -OutputFormat Text -File \"{tempScript}\"";
+                    break;
+                case ShellFamily.Cmd:
+                    psi.Arguments = $"/d /s /c \"{hookEntry.Command.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";
+                    break;
+                default:
+                    ConfigureShellCommandArguments(psi, hookEntry.Command);
+                    break;
             }
 
             using var process = Process.Start(psi);
@@ -628,40 +634,10 @@ public sealed class HookRunner
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
     }
 
-    private static void ConfigureShellOverride(ProcessStartInfo psi, string shell, string command, bool isWindows)
-    {
-        if (isWindows && (string.Equals(shell, "powershell", StringComparison.OrdinalIgnoreCase)
-                          || string.Equals(shell, "powershell.exe", StringComparison.OrdinalIgnoreCase)))
-        {
-            psi.FileName = "powershell.exe";
-            psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command {EscapeShellArg(command)}";
-            return;
-        }
-
-        if (isWindows && (string.Equals(shell, "cmd", StringComparison.OrdinalIgnoreCase)
-                          || string.Equals(shell, "cmd.exe", StringComparison.OrdinalIgnoreCase)))
-        {
-            psi.FileName = "cmd.exe";
-            psi.Arguments = $"/d /s /c \"{command.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";
-            return;
-        }
-
-        psi.FileName = shell;
-        ConfigureShellCommandArguments(psi, command);
-    }
-
     internal static void ConfigureShellCommandArguments(ProcessStartInfo psi, string command)
     {
         psi.ArgumentList.Add("-c");
         psi.ArgumentList.Add(command);
-    }
-
-    /// <summary>
-    /// Escapes a string for safe use as a single shell argument.
-    /// </summary>
-    private static string EscapeShellArg(string arg)
-    {
-        return "'" + arg.Replace("'", "'\\''") + "'";
     }
 
     private static string BuildWindowsPowerShellScript(string command) =>

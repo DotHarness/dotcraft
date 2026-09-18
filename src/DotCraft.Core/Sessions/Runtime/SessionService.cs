@@ -2758,8 +2758,8 @@ public sealed partial class SessionService(
                     case ApprovalPolicy.AutoApprove:
                         turnApprovalService = new AutoApproveApprovalService();
                         break;
-                    case ApprovalPolicy.Interrupt:
-                        turnApprovalService = new InterruptOnApprovalService();
+                    case ApprovalPolicy.Deny:
+                        turnApprovalService = new DenyApprovalService();
                         break;
                     default:
                         var sessionApproval = new SessionApprovalService(

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 
@@ -332,7 +333,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
     private sealed class RejectingApprovalService : IApprovalService
     {
         public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) => Task.FromResult(false);
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) => Task.FromResult(false);
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) => Task.FromResult(false);
         public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) => Task.FromResult(false);
     }
 

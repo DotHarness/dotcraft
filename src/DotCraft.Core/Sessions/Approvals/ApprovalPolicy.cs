@@ -2,7 +2,7 @@ namespace DotCraft.Sessions;
 
 /// <summary>
 /// Per-thread override for how tool approvals are handled.
-/// Serialized as camelCase strings (default, prompt, autoApprove, interrupt) via
+/// Serialized as camelCase strings (default, prompt, autoApprove, deny) via
 /// <see cref="ThreadConfiguration.ApprovalPolicy"/> property converter.
 /// </summary>
 public enum ApprovalPolicy
@@ -14,9 +14,10 @@ public enum ApprovalPolicy
     AutoApprove,
 
     /// <summary>
-    /// Tool calls that require approval cancel the current turn instead of prompting.
+    /// Tool calls that require approval are rejected without prompting. The calling tool
+    /// receives the rejection as its result, so the turn continues.
     /// </summary>
-    Interrupt,
+    Deny,
 
     /// <summary>
     /// Always use the interactive approval flow for this thread, regardless of the

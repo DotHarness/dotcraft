@@ -165,6 +165,8 @@ All sources MUST converge on this ordered source-neutral dispatch pipeline. Plan
 11. project the terminal Session lifecycle;
 12. run `PostToolUse` or `PostToolUseFailure` hooks.
 
+For the host `Exec` tool, step 8 is performed by the runtime-stage shell execution gate defined in [Shell Command Safety](shell-command-safety.md): the gate resolves the shell, evaluates the command, raises the structured approval, and launches the same resolved executable. The common approval evaluator does not declare a separate outside-workspace approval for `Exec`.
+
 Every path after step 2 MUST terminalize the same projection, including validation, authority, policy, approval, cancellation, timeout, execution, and normalization failures. `ToolExecution` MAY separately indicate when the approved runtime actually begins. Source adapters MAY add transport-specific lifecycle behavior, but MUST NOT duplicate common approval, result audience, or error normalization rules.
 
 Host-owned tools that start external work MUST pass the invocation cancellation token to the component that owns that work. That owner MUST distinguish caller cancellation from its own timeout, stop and drain foreground resources before propagating caller cancellation, and leave explicitly detached background resources under their separate control-plane lifecycle. A tool MUST NOT report cancellation merely by abandoning a still-running foreground operation.

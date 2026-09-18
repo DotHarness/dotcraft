@@ -712,7 +712,7 @@ Fields:
 | `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
-| `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
+| `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `deny`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, the thread falls back to the current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `ultra` and output values such as `none`, `summary`, or `full`. |
 | `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; a thread without the field uses `standard`. Changes affect future and queued turns, not a running request. |
@@ -724,7 +724,8 @@ Approval semantics:
 - `approvalPolicy = default` uses the workspace default approval policy. If the workspace default is also `default` or unset, the server uses the normal interactive approval flow when the client supports approvals.
 - `approvalPolicy = prompt` always uses the interactive approval flow for that thread, regardless of the workspace default. Use it to force per-thread review even when the workspace default is `autoApprove`.
 - `approvalPolicy = autoApprove` auto-accepts approval-gated operations for that thread.
-- `approvalPolicy = interrupt` cancels the turn when an approval-gated operation is encountered.
+- `approvalPolicy = deny` never prompts. The approval-gated operation is rejected and that rejection is returned to the calling tool as its result, so the turn continues.
+- `approvalPolicy = interrupt` is the former name of `deny`. A persisted or configured `interrupt` is read as `deny`, and the server always writes `deny`.
 - `requireApprovalOutsideWorkspace = true` allows outside-workspace file/shell operations to proceed through the approval service.
 - `requireApprovalOutsideWorkspace = false` rejects outside-workspace file/shell operations without prompting.
 - `requireApprovalOutsideWorkspace` omitted means the server uses workspace defaults.
@@ -2671,6 +2672,7 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
 | `expiresAt` | string | UTC ISO-8601 instant after which the Runtime resolves the request through its safe timeout path. Replayed requests retain the original expiry. |
+| `shell` | object? | Present for `approvalType = "shell"`: `{ reasons: string[], rememberedPrefixes: string[][], remembersExactCommand }` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. `scopeKey` is `"shell:" + approvalKey`, so `acceptForSession` covers only this command, shell, and directory. |
 
 **Example**:
 
@@ -2681,11 +2683,16 @@ The turn enters `"waitingApproval"` status while the server waits for the client
     "itemId": "item_005",
     "requestId": "approval_001",
     "approvalType": "shell",
-    "operation": "npm test",
+    "operation": "rm -rf build",
     "target": "/home/dev/myproject",
-    "scopeKey": "shell:*",
-    "reason": "Agent wants to execute a shell command",
-    "expiresAt": "2026-03-16T10:30:00Z"
+    "scopeKey": "shell:3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e",
+    "reason": "Agent wants to execute a shell command. rm -f style commands are not permitted without approval.",
+    "expiresAt": "2026-03-16T10:30:00Z",
+    "shell": {
+      "reasons": ["rm -f style commands are not permitted without approval."],
+      "rememberedPrefixes": [],
+      "remembersExactCommand": true
+    }
 } }
 ```
 
@@ -2719,7 +2726,7 @@ When approval resolution is persisted or echoed back in a later event, the respo
 If a client declared `capabilities.approvalSupport = false` during initialization, the server must not send `item/approval/request`. Instead, the server resolves approvals non-interactively using the same server-owned thread policy model:
 
 - `approvalPolicy = autoApprove` resolves as `accept`.
-- `approvalPolicy = interrupt` resolves as `cancel`.
+- `approvalPolicy = deny` resolves as `decline`; the calling tool receives the rejection and the turn continues.
 - `approvalPolicy = default` first resolves through the workspace default approval policy. If both the thread policy and workspace default are `default` or unset, the server cannot prompt on a non-interactive client, so it falls back to its non-interactive default decision. That fallback is `decline`.
 - `approvalPolicy = prompt` requires the interactive flow; because a non-interactive client cannot prompt, it falls back to the same non-interactive default decision as `default`.
 

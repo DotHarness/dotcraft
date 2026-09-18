@@ -1,5 +1,5 @@
 import { useMemo, useState, type JSX, type ReactNode } from 'react'
-import { Cpu, Server, ShieldCheck, SlidersHorizontal, Tag, Wrench, type LucideIcon } from 'lucide-react'
+import { Cpu, Server, ShieldCheck, Tag, Wrench, type LucideIcon } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import {
@@ -9,7 +9,7 @@ import {
   type BuilderToolChange,
   type BuilderToolResult
 } from '../agents/agentBuilderDraftSync'
-import { AGENT_CONTROL_OPTIONS, APPROVAL_OPTIONS, type AgentProviderPreference } from '../agents/agentProfileDraft'
+import { APPROVAL_OPTIONS, type AgentProviderPreference } from '../agents/agentProfileDraft'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { SkillRef } from './SkillToolLabel'
 import { ToolDisclosure } from './ToolDisclosure'
@@ -155,12 +155,10 @@ export function describeBuilderEdit(
     }
     case 'tools.agentControl': {
       const value = stringOf(change?.value) ?? stringOf(args?.value) ?? ''
-      const label = AGENT_CONTROL_OPTIONS.find((option) => option.value === value)?.label ?? value
-      return {
-        title: withSlot(t('toolCall.agentBuilder.toolControl', { value: SLOT }), <ProfileRef icon={SlidersHorizontal} label={label} />),
-        panel: null,
-        failed: false
-      }
+      const key = value === 'disabled'
+        ? 'toolCall.agentBuilder.delegation.disabled'
+        : value === 'allowList' ? 'toolCall.agentBuilder.delegation.allowList' : 'toolCall.agentBuilder.delegation.full'
+      return { title: t(key), panel: null, failed: false }
     }
     case 'skills.preload':
       return listEdit(
@@ -198,19 +196,13 @@ export function describeBuilderEdit(
     }
     case 'approval': {
       const value = stringOf(change?.value) ?? stringOf(args?.policy) ?? ''
-      const label = APPROVAL_OPTIONS.find((option) => option.value === value)?.label ?? value
-      const outside = args?.requireApprovalOutsideWorkspace
+      const labelKey = APPROVAL_OPTIONS.find((option) => option.value === value)?.labelKey
+      const label = labelKey ? t(labelKey) : value
       return {
         title: label
           ? withSlot(t('toolCall.agentBuilder.approval', { value: SLOT }), <ProfileRef icon={ShieldCheck} label={label} />)
           : t('agentBuilder.editing.updatedField', { field: fieldLabel }),
-        panel: typeof outside === 'boolean'
-          ? (
-            <div className="dc-profile-edit-text">
-              {t(outside ? 'toolCall.agentBuilder.outsideWorkspace.required' : 'toolCall.agentBuilder.outsideWorkspace.notRequired')}
-            </div>
-          )
-          : null,
+        panel: null,
         failed: false
       }
     }

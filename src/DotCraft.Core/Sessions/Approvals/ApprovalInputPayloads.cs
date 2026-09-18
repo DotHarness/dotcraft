@@ -1,3 +1,5 @@
+using DotCraft.Security.ShellCommands;
+
 namespace DotCraft.Sessions;
 
 /// <summary>
@@ -39,6 +41,24 @@ public sealed record ApprovalRequestPayload
     /// UTC instant after which the request can no longer be approved.
     /// </summary>
     public DateTimeOffset ExpiresAt { get; init; }
+
+    public ShellApprovalDetails? Shell { get; init; }
+}
+
+public sealed record ShellApprovalDetails
+{
+    public required IReadOnlyList<string> Reasons { get; init; }
+
+    public required IReadOnlyList<IReadOnlyList<string>> RememberedPrefixes { get; init; }
+
+    public required bool RemembersExactCommand { get; init; }
+
+    public static ShellApprovalDetails From(ShellApprovalRequest request) => new()
+    {
+        Reasons = request.Reasons,
+        RememberedPrefixes = request.Remember.Rules.Select(rule => rule.Prefix).ToArray(),
+        RemembersExactCommand = request.Remember.ExactKeyFallback || request.Remember.Rules.Count == 0
+    };
 }
 
 /// <summary>

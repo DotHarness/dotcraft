@@ -9,6 +9,7 @@ DotCraft holds the agent inside four layers of guardrails: a file blacklist, the
 In a freshly created workspace:
 
 - File and shell operations outside the workspace require approval.
+- Shell commands that force-delete files or open a URL ask before running. Other commands inside the workspace run without a prompt.
 - The blacklist is empty, so add the credential and secret directories that matter on your machine.
 - Every built-in tool is available until you narrow the tool surface.
 - Sandbox isolation is off until you turn it on.
@@ -26,6 +27,20 @@ Reads, writes, edits, and searches on those paths are denied, and so are shell c
 Before running a shell command, DotCraft expands every path the command references: Unix absolute paths, home-directory paths starting with `~`, environment variables, Windows drive-letter paths, and UNC paths like `\\server\share`.
 
 If a path resolves outside the workspace, DotCraft either denies it or asks the active interaction source for approval, depending on the workspace policy. File tools use the same expansion rules, so file operations and shell commands reach the same verdict.
+
+## Shell commands
+
+Before a command runs, DotCraft resolves which shell will execute it, breaks the script into the commands it contains, and checks each one. A command runs without asking when it stays inside the workspace and matches no rule. It asks first when it force-deletes files or opens a URL, when it references or moves into a path outside the workspace, when it changes directory to somewhere DotCraft can't follow, or when one of your rules says so. A shell name DotCraft doesn't recognize is refused.
+
+The approval shows the shell, the commands as DotCraft read them, and why it's asking. If the script uses syntax DotCraft can't read in advance, the approval says so and shows the script as a whole.
+
+Each choice remembers a different amount:
+
+- **Allow** runs the command once.
+- **Allow for this session** skips the prompt for this exact command, in this directory, for the rest of the conversation.
+- **Always allow** writes a rule that allows commands starting with the same words. Dangerous commands and unreadable scripts are an exception: they're remembered exactly, never as a rule.
+
+Rules you write yourself decide a command before any other check. Each rule names the leading words of a command and whether to allow it, ask, or refuse it, so `git push` can always ask and `rm` can always be refused. The field format is in [Tools, Security, and Sandbox](../../developing/configuration#tools-security-and-sandbox).
 
 ## Tool capability switches
 

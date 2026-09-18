@@ -190,7 +190,7 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
                     pluginPolicy = new { allow = new[] { PluginId } },
                     skillsPolicy = new { allow = new[] { "plugin-creator" }, allowManage = false },
                     mcpServers = Array.Empty<object>(),
-                    approvalPolicy = "interrupt",
+                    approvalPolicy = "deny",
                     requireApprovalOutsideWorkspace = false
                 },
                 displayName = "managed plugin authoring smoke"
@@ -223,7 +223,7 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
                     toolAllowList = new[] { ToolName },
                     pluginPolicy = new { allow = new[] { PluginId } },
                     mcpServers = Array.Empty<object>(),
-                    approvalPolicy = "interrupt",
+                    approvalPolicy = "deny",
                     requireApprovalOutsideWorkspace = false
                 },
                 displayName = $"managed plugin authoring smoke {phase}"

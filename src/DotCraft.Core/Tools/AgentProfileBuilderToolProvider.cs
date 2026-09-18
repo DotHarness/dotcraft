@@ -13,7 +13,7 @@ internal enum AgentToolControl { Full, Disabled, AllowList }
 internal enum AgentReasoningEffort { Low, Medium, High, ExtraHigh, Ultra }
 internal enum AgentInferenceSpeed { Standard, Fast }
 internal enum AgentContextWindowMode { Default, Max }
-internal enum AgentApprovalPolicy { Default, Prompt, AutoApprove, Interrupt }
+internal enum AgentApprovalPolicy { Prompt, AutoApprove }
 
 /// <summary>
 /// Exposes the conversational Agent Builder's fine-grained, model-visible profile-editing tools
@@ -291,15 +291,11 @@ internal sealed class AgentProfileBuilderToolMethods(
     [GeneratedTool]
     [Description("Set the agent's approval posture.")]
     public string SetAgentApproval(
-        [Description("Approval policy. Omit to leave unchanged.")] AgentApprovalPolicy? policy = null,
-        [Description("Whether to require approval for actions outside the workspace. Omit to leave unchanged.")] bool? requireApprovalOutsideWorkspace = null)
+        [Description("Approval policy: 'prompt' asks the user, 'autoApprove' accepts without asking.")] AgentApprovalPolicy policy)
     {
         return Mutate("approval", draft =>
         {
-            if (policy.HasValue)
-                draft.ApprovalPolicy = ToWireValue(policy.Value);
-            if (requireApprovalOutsideWorkspace.HasValue)
-                draft.RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace.Value;
+            draft.ApprovalPolicy = ToWireValue(policy);
             return Change("set", value: draft.ApprovalPolicy);
         });
     }

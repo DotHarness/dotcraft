@@ -339,7 +339,7 @@ public sealed class ServerConfigurationService(
                 dotCraft.AppServerUrl,
                 dotCraft.HubDiscoveryEnabled,
                 dotCraft.HubLockPath,
-                string.IsNullOrWhiteSpace(dotCraft.ApprovalPolicy) ? "interrupt" : dotCraft.ApprovalPolicy,
+                DotCraftApprovalPolicy.Normalize(dotCraft.ApprovalPolicy),
                 dotCraft.RunTimeoutSeconds),
             new RuntimeServerConfigurationDto(
                 dotCraft.ManagedWorktreesEnabled,
@@ -729,7 +729,7 @@ public sealed class ServerConfigurationService(
             next.DotCraft.AppServerUrl,
             next.DotCraft.HubDiscoveryEnabled,
             next.DotCraft.HubLockPath,
-            next.DotCraft.ApprovalPolicy,
+            ApprovalPolicy = DotCraftApprovalPolicy.Normalize(next.DotCraft.ApprovalPolicy),
             next.DotCraft.RunTimeoutSeconds,
             next.Runtime.ManagedWorktreesEnabled,
             next.Runtime.WorktreeRoot,
@@ -1211,9 +1211,10 @@ public sealed class ServerConfigurationService(
             errors["dotCraft.hubLockPath"] = "Hub lock path must be absolute when set.";
         }
 
-        if (configuration.DotCraft.ApprovalPolicy is not ("default" or "autoApprove" or "interrupt"))
+        if (DotCraftApprovalPolicy.Normalize(configuration.DotCraft.ApprovalPolicy)
+            is not (DotCraftApprovalPolicy.AutoApprove or DotCraftApprovalPolicy.Deny))
         {
-            errors["dotCraft.approvalPolicy"] = "Approval policy must be default, autoApprove, or interrupt.";
+            errors["dotCraft.approvalPolicy"] = "Approval policy must be autoApprove or deny.";
         }
 
         ValidateRange(configuration.DotCraft.RunTimeoutSeconds, 30, 7200, "dotCraft.runTimeoutSeconds", errors);

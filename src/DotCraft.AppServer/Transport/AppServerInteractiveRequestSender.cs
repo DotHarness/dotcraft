@@ -66,7 +66,8 @@ internal sealed class AppServerInteractiveRequestSender
             Target = request.Target,
             ScopeKey = request.ScopeKey,
             Reason = request.Reason,
-            ExpiresAt = request.ExpiresAt
+            ExpiresAt = request.ExpiresAt,
+            Shell = ToContract(request.Shell)
         };
 
         AppServerTypedClientResponse<Contract.ApprovalResponseResult> response;
@@ -93,6 +94,16 @@ internal sealed class AppServerInteractiveRequestSender
         var decision = ParseApprovalDecision(response.Result);
         await TryResolveApprovalAsync(threadId, turnId, request.RequestId, decision, CancellationToken.None);
     }
+
+    internal static Contract.ApprovalShellDetails? ToContract(ShellApprovalDetails? shell) =>
+        shell is null
+            ? null
+            : new Contract.ApprovalShellDetails
+            {
+                Reasons = shell.Reasons,
+                RememberedPrefixes = shell.RememberedPrefixes,
+                RemembersExactCommand = shell.RemembersExactCommand
+            };
 
     private static TimeSpan RemainingApprovalTimeout(DateTimeOffset expiresAt)
     {
@@ -203,7 +214,7 @@ internal sealed class AppServerInteractiveRequestSender
             return thread.Configuration?.ApprovalPolicy switch
             {
                 ApprovalPolicy.AutoApprove => SessionApprovalDecision.AcceptOnce,
-                ApprovalPolicy.Interrupt => SessionApprovalDecision.CancelTurn,
+                ApprovalPolicy.Deny => SessionApprovalDecision.Reject,
                 _ => _defaultApprovalDecision
             };
         }

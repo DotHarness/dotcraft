@@ -25,6 +25,7 @@ internal static class PluginHostAssemblies
         "ModelContextProtocol",
         "ModelContextProtocol.Core",
         "SixLabors.ImageSharp",
+        "System.Management.Automation",
         "TimeZoneConverter",
         "YamlDotNet"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);

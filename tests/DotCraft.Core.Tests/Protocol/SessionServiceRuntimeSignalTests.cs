@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
+using DotCraft.Tests.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
@@ -2167,7 +2168,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_InterruptApprovalPolicy_ReturnsToolDenialWithoutCancellingTurn()
+    public async Task SubmitInputAsync_DenyApprovalPolicy_ReturnsToolDenialWithoutCancellingTurn()
     {
         var approvalService = new SessionScopedApprovalService(new AutoApproveApprovalService());
         var chatClient = new ApprovalRequestingChatClient(approvalService);
@@ -2175,7 +2176,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         thread.Configuration ??= new ThreadConfiguration();
-        thread.Configuration.ApprovalPolicy = ApprovalPolicy.Interrupt;
+        thread.Configuration.ApprovalPolicy = ApprovalPolicy.Deny;
         var seen = new List<SessionThreadRuntimeSignal>();
         svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
@@ -3602,8 +3603,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var approved = await approvalService.RequestShellApprovalAsync(
-                "dotnet test",
-                Directory.GetCurrentDirectory());
+                ShellApprovalRequests.For("dotnet test", Directory.GetCurrentDirectory()));
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent($"approval={approved}")]);
         }
 

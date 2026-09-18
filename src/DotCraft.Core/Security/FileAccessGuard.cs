@@ -70,7 +70,7 @@ public sealed class FileAccessGuard
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        fullPath = ResolveSymbolicLink(fullPath);
+        fullPath = WorkspaceBoundary.ResolveSymbolicLink(fullPath);
         if (_blacklist != null && _blacklist.IsBlacklisted(fullPath))
             return $"Error: Path '{originalPath}' is in the blacklist and cannot be accessed.";
 
@@ -110,7 +110,7 @@ public sealed class FileAccessGuard
     {
         foreach (var trustedPath in _trustedReadPaths)
         {
-            if (IsWithinBoundary(fullPath, trustedPath))
+            if (WorkspaceBoundary.IsWithin(fullPath, trustedPath))
                 return true;
         }
 
@@ -118,40 +118,5 @@ public sealed class FileAccessGuard
     }
 
     private bool IsWithinWorkspace(string fullPath) =>
-        _workspaceRoots.Any(root => IsWithinBoundary(fullPath, root));
-
-    private static bool IsWithinBoundary(string fullPath, string boundaryRoot)
-    {
-        var resolvedPath = ResolveSymbolicLinkSafe(fullPath);
-        var resolvedBoundary = ResolveSymbolicLinkSafe(boundaryRoot)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-        if (resolvedPath.Equals(resolvedBoundary, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return resolvedPath.StartsWith(resolvedBoundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            || resolvedPath.StartsWith(resolvedBoundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string ResolveSymbolicLinkSafe(string path) => ResolveSymbolicLink(path);
-
-    private static string ResolveSymbolicLink(string path)
-    {
-        var full = Path.GetFullPath(path);
-        var root = Path.GetPathRoot(full)!;
-        var current = root;
-        foreach (var part in full[root.Length..].Split(
-            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
-        {
-            current = Path.Combine(current, part);
-            FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
-            if (info.LinkTarget is not null)
-            {
-                var target = info.ResolveLinkTarget(returnFinalTarget: true)
-                    ?? throw new IOException("Cannot resolve linked path.");
-                current = target.FullName;
-            }
-        }
-        return Path.GetFullPath(current);
-    }
+        _workspaceRoots.Any(root => WorkspaceBoundary.IsWithin(fullPath, root));
 }

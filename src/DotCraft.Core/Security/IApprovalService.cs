@@ -1,3 +1,5 @@
+using DotCraft.Security.ShellCommands;
+
 namespace DotCraft.Security;
 
 public sealed class ApprovalContext
@@ -32,14 +34,7 @@ public interface IApprovalService
     /// <returns>True if approved, false if rejected</returns>
     Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null);
 
-    /// <summary>
-    /// Request user approval for a shell command that accesses paths outside workspace.
-    /// </summary>
-    /// <param name="command">The shell command</param>
-    /// <param name="workingDir">The working directory</param>
-    /// <param name="context">Optional approval context with user info</param>
-    /// <returns>True if approved, false if rejected</returns>
-    Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null);
+    Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null);
 
     /// <summary>
     /// Request user approval for a generic remote-resource operation that is neither a

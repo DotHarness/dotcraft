@@ -1,0 +1,398 @@
+[
+  {
+    "script": "echo hi",
+    "expected": [["echo", "hi"]],
+    "note": "Bare words lower to themselves."
+  },
+  {
+    "script": "Get-Content 'foo bar'",
+    "expected": [["Get-Content", "foo bar"]],
+    "note": "A single-quoted string is one word."
+  },
+  {
+    "script": "Get-Content 'foo,bar'",
+    "expected": [["Get-Content", "foo,bar"]],
+    "note": "A comma inside quotes is data, not an array separator."
+  },
+  {
+    "script": "Get-Content \"foo bar\"",
+    "expected": [["Get-Content", "foo bar"]],
+    "note": "A double-quoted string without expansion is one word."
+  },
+  {
+    "script": "Write-Output 'a''b'",
+    "expected": [["Write-Output", "a'b"]],
+    "note": "A doubled single quote carries its decoded value."
+  },
+  {
+    "script": "Write-Output \"a`\"b\"",
+    "expected": [["Write-Output", "a\"b"]],
+    "note": "A backtick-escaped quote carries its decoded value."
+  },
+  {
+    "script": "rg \"--pr`e=helper.exe\" pattern",
+    "expected": [["rg", "--pr\u001b=helper.exe", "pattern"]],
+    "note": "Backtick-e is the escape character, so the word is not --pre=helper.exe."
+  },
+  {
+    "script": "rg \"--pre=`u{68}elper.exe\" pattern",
+    "expected": [["rg", "--pre=helper.exe", "pattern"]],
+    "note": "A Unicode escape resolves to the character it names."
+  },
+  {
+    "script": "Get-Content foo` bar",
+    "expected": [["Get-Content", "foo bar"]],
+    "note": "A backtick-escaped space keeps one word."
+  },
+  {
+    "script": "rg --pr`e helper.exe pattern",
+    "expected": [["rg", "--pr\u001b", "helper.exe", "pattern"]],
+    "note": "Escapes resolve in bare words too."
+  },
+  {
+    "script": "Get-ChildItem -Path .",
+    "expected": [["Get-ChildItem", "-Path", "."]],
+    "note": "A detached parameter and its value are separate words."
+  },
+  {
+    "script": "Get-Content -Path:1",
+    "expected": null,
+    "note": "An attached numeric argument is not a literal string."
+  },
+  {
+    "script": "Get-Content -Path:'foo bar'",
+    "expected": [["Get-Content", "-Path:", "foo bar"]],
+    "note": "An attached literal argument follows the parameter marker."
+  },
+  {
+    "script": "Write-Output foo | Measure-Object",
+    "expected": [["Write-Output", "foo"], ["Measure-Object"]],
+    "note": "A pipeline lowers to one command per stage."
+  },
+  {
+    "script": "Get-Content notes.txt; Test-Path notes.txt",
+    "expected": [["Get-Content", "notes.txt"], ["Test-Path", "notes.txt"]],
+    "note": "A semicolon separates statements."
+  },
+  {
+    "script": "pwd && ls",
+    "expected": [["pwd"], ["ls"]],
+    "note": "Pipeline chains lower to their pipelines."
+  },
+  {
+    "script": "pwd || ls",
+    "expected": [["pwd"], ["ls"]],
+    "note": "The or-chain behaves like the and-chain."
+  },
+  {
+    "script": "(Get-Content notes.txt -Raw)",
+    "expected": null,
+    "note": "Parentheses make the command an expression whose value flows on."
+  },
+  {
+    "script": "(Get-Content notes.txt | Measure-Object)",
+    "expected": null,
+    "note": "A parenthesized pipeline is an expression."
+  },
+  {
+    "script": "(pwd && ls)",
+    "expected": null,
+    "note": "A parenthesized chain is an expression."
+  },
+  {
+    "script": "Get-Content -TotalCount 100",
+    "expected": [["Get-Content", "-TotalCount", "100"]],
+    "note": "A decimal integer reads the same at run time as it is written."
+  },
+  {
+    "script": "git log -1 README.md",
+    "expected": [["git", "log", "-1", "README.md"]],
+    "note": "A dashed digit is a bare word, not a numeric literal."
+  },
+  {
+    "script": "Write-Output 0x10",
+    "expected": null,
+    "note": "A hexadecimal literal runs as 16."
+  },
+  {
+    "script": "Write-Output 0xFFFFFFFF",
+    "expected": null,
+    "note": "A wide hexadecimal literal runs as a negative number."
+  },
+  {
+    "script": "Write-Output 0b101",
+    "expected": null,
+    "note": "A binary literal runs as 5."
+  },
+  {
+    "script": "Write-Output 1d",
+    "expected": null,
+    "note": "A type-suffixed literal drops its suffix at run time."
+  },
+  {
+    "script": "Write-Output 1u",
+    "expected": null,
+    "note": "An unsigned suffix drops at run time."
+  },
+  {
+    "script": "Write-Output 1kb",
+    "expected": null,
+    "note": "A size suffix runs as 1024."
+  },
+  {
+    "script": "Write-Output 01",
+    "expected": null,
+    "note": "A leading zero is dropped at run time."
+  },
+  {
+    "script": "Write-Output 1.0",
+    "expected": null,
+    "note": "A real literal runs as 1."
+  },
+  {
+    "script": "Write-Output 1e3",
+    "expected": null,
+    "note": "An exponent literal runs as 1000."
+  },
+  {
+    "script": "Get-Content 1.0.0",
+    "expected": [["Get-Content", "1.0.0"]],
+    "note": "A version-shaped word is a bare word, not a number."
+  },
+  {
+    "script": "Get-Content --flag=value",
+    "expected": [["Get-Content", "--flag=value"]],
+    "note": "A double-dash option is one bare word."
+  },
+  {
+    "script": "Get-Content --flag=value | Measure-Object",
+    "expected": [["Get-Content", "--flag=value"], ["Measure-Object"]],
+    "note": "Double-dash options survive a pipeline."
+  },
+  {
+    "script": "git --git-dir=.git status",
+    "expected": [["git", "--git-dir=.git", "status"]],
+    "note": "An inline option value stays attached."
+  },
+  {
+    "script": "Get-Content C:\\tmp\\x",
+    "expected": [["Get-Content", "C:\\tmp\\x"]],
+    "note": "Backslashes are not escapes in PowerShell."
+  },
+  {
+    "script": "Write-Output @'\nhello\n'@",
+    "expected": [["Write-Output", "hello"]],
+    "note": "A verbatim here-string is a literal word."
+  },
+  {
+    "script": "Write-Output @\"\nhello\n\"@",
+    "expected": [["Write-Output", "hello"]],
+    "note": "An expandable here-string without expansion is a literal word."
+  },
+  {
+    "script": "Write-Output @\"\n`$foo\n\"@",
+    "expected": [["Write-Output", "$foo"]],
+    "note": "An escaped dollar stays a literal dollar."
+  },
+  {
+    "script": "Start-Process 'https://example.com'",
+    "expected": [["Start-Process", "https://example.com"]],
+    "note": "A dangerous command still lowers plainly; danger is judged later."
+  },
+  {
+    "script": "Remove-Item test -Force",
+    "expected": [["Remove-Item", "test", "-Force"]],
+    "note": "A forced removal lowers plainly."
+  },
+  {
+    "script": "Remove-Item test \u2013Force",
+    "expected": [["Remove-Item", "test", "-Force"]],
+    "note": "An en dash is a parameter marker, so the word is -Force."
+  },
+  {
+    "script": "Get-Content notes.txt # comment",
+    "expected": [["Get-Content", "notes.txt"]],
+    "note": "A trailing comment produces no words."
+  },
+  {
+    "script": "Get-Content foo#bar",
+    "expected": [["Get-Content", "foo#bar"]],
+    "note": "A hash inside a token does not start a comment."
+  },
+  {
+    "script": "git status --short#; Remove-Item victim",
+    "expected": [["git", "status", "--short#"], ["Remove-Item", "victim"]],
+    "note": "The hash belongs to the word, so the semicolon still separates two commands."
+  },
+  {
+    "script": "rg \u201c--pre=helper.exe\u201d pattern",
+    "expected": [["rg", "--pre=helper.exe", "pattern"]],
+    "note": "Unicode quotes delimit a string like plain quotes."
+  },
+  {
+    "script": "pwd#evil --flag=value",
+    "expected": [["pwd#evil", "--flag=value"]],
+    "note": "A hash inside the command name keeps one name."
+  },
+  {
+    "script": "<# note #>\nGet-Content foo",
+    "expected": [["Get-Content", "foo"]],
+    "note": "A block comment produces no words."
+  },
+  {
+    "script": "git log --% HEAD --output=x",
+    "expected": null,
+    "note": "The stop-parsing token hands the rest of the line to the command unparsed."
+  },
+  {
+    "script": "param([string]$path = (Get-Location)) Write-Output test",
+    "expected": null,
+    "note": "A param block binds values before the body runs."
+  },
+  {
+    "script": "param($x) Get-Location",
+    "expected": null,
+    "note": "Even an untyped param block is rejected."
+  },
+  {
+    "script": "begin { Set-Content victim.txt pwned } end { Get-Content README.md }",
+    "expected": null,
+    "literals": [["Set-Content", "victim.txt", "pwned"]],
+    "note": "A begin block runs code the statement list does not show."
+  },
+  {
+    "script": "begin { } end { Get-Location }",
+    "expected": null,
+    "note": "An empty begin block is still a named block."
+  },
+  {
+    "script": "using module ./helper.psm1\nGet-Content README.md",
+    "expected": null,
+    "note": "A using statement loads a module before the body runs."
+  },
+  {
+    "script": "Using module ./helper.psm1\nGet-Content README.md",
+    "expected": null,
+    "note": "Keyword casing does not change the statement."
+  },
+  {
+    "script": "using module Foo\nGet-Location",
+    "expected": null,
+    "note": "An unresolvable module makes the parser report an error."
+  },
+  {
+    "script": "#requires -Modules Evil\nGet-Location",
+    "expected": null,
+    "note": "A requires directive runs before the script body and produces no command node."
+  },
+  {
+    "script": "trap { Set-Content victim.txt pwned; continue } Get-Content missing -ErrorAction Stop",
+    "expected": null,
+    "note": "A trap block runs on error, outside the statement list."
+  },
+  {
+    "script": "trap { } Get-Location",
+    "expected": null,
+    "note": "An empty trap block is still a trap."
+  },
+  {
+    "script": "echo hi > out.txt",
+    "expected": null,
+    "note": "A file redirection writes outside the command."
+  },
+  {
+    "script": "dotnet test 2>&1 | Select-String Failed",
+    "expected": null,
+    "literals": [["Select-String", "Failed"]],
+    "note": "A stream merge is a redirection."
+  },
+  {
+    "script": "& Remove-Item foo",
+    "expected": null,
+    "literals": [["Remove-Item", "foo"]],
+    "note": "The call operator changes what runs."
+  },
+  {
+    "script": ". ./x.ps1",
+    "expected": null,
+    "note": "Dot sourcing runs a script in the current scope."
+  },
+  {
+    "script": "Write-Output (Set-Content out.txt 'abc')",
+    "expected": null,
+    "note": "A parenthesized command runs before the outer command."
+  },
+  {
+    "script": "Write-Output (Set-Content x y)",
+    "expected": null,
+    "literals": [["Set-Content", "x", "y"]],
+    "note": "The inner command still reaches literal extraction."
+  },
+  {
+    "script": "Write-Output $(Get-Content foo)",
+    "expected": null,
+    "note": "A subexpression runs before the outer command."
+  },
+  {
+    "script": "ls @(calc.exe)",
+    "expected": null,
+    "literals": [["calc.exe"]],
+    "note": "An array expression runs the command inside it."
+  },
+  {
+    "script": "Get-Content @args",
+    "expected": null,
+    "note": "Splatting expands to words known only at run time."
+  },
+  {
+    "script": "if ($true) { Remove-Item test -Force }",
+    "expected": null,
+    "literals": [["Remove-Item", "test", "-Force"]],
+    "note": "Control flow is not a command list, but the guarded command still reaches literal extraction."
+  },
+  {
+    "script": "''",
+    "expected": null,
+    "note": "A bare string is an expression, not a command."
+  },
+  {
+    "script": "Get-Content $foo",
+    "expected": null,
+    "note": "A variable holds a value known only at run time."
+  },
+  {
+    "script": "Write-Output \"foo $bar\"",
+    "expected": null,
+    "note": "An expandable string interpolates at run time."
+  },
+  {
+    "script": "Get-Content foo,bar",
+    "expected": null,
+    "note": "A comma builds an array, not two words."
+  },
+  {
+    "script": "Get-Content -foo=bar",
+    "expected": [["Get-Content", "-foo=bar"]],
+    "note": "The whole token is the parameter name, so it is one word."
+  },
+  {
+    "script": "Get-Content --flag=value )",
+    "expected": null,
+    "note": "An unexpected token makes the parser report an error."
+  },
+  {
+    "script": "Get-Content --flag=value | if (",
+    "expected": null,
+    "note": "An incomplete statement makes the parser report an error."
+  },
+  {
+    "script": "Get-Content --flag=value `",
+    "expected": null,
+    "note": "A dangling escape makes the parser report an error."
+  },
+  {
+    "script": "   ",
+    "expected": null,
+    "note": "A blank script has nothing to lower."
+  }
+]

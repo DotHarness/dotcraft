@@ -54,6 +54,12 @@ export type ApprovalDecision =
 
 export type ApprovalType = 'shell' | 'file' | 'remoteResource' | 'skill'
 
+export interface ApprovalShellInfo {
+  reasons: string[]
+  rememberedPrefixes: string[][]
+  remembersExactCommand: boolean
+}
+
 export type ApprovalState =
   | 'pending'
   | 'accepted'
@@ -187,6 +193,7 @@ export interface ConversationItem {
   approvalOperation?: string
   approvalTarget?: string
   approvalReason?: string
+  approvalShell?: ApprovalShellInfo
   approvalState?: ApprovalState
   /**
    * Set on a userMessage that was synthesized rather than typed by a human;
@@ -539,6 +546,11 @@ export function normalizeToolUiDescriptor(value: unknown): ToolUiDescriptor | un
     }
   }
   return descriptor
+}
+
+export function normalizeApprovalShell(value: unknown): ApprovalShellInfo | undefined {
+  if (value == null || typeof value !== 'object') return undefined
+  return value as ApprovalShellInfo
 }
 
 /**

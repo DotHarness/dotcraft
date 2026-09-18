@@ -1,4 +1,5 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Sessions;
 
@@ -32,10 +33,9 @@ public sealed class SessionScopedApprovalService(IApprovalService inner)
         GetEffectiveService().RequestFileApprovalAsync(operation, path, context);
 
     public Task<bool> RequestShellApprovalAsync(
-        string command,
-        string? workingDir,
+        ShellApprovalRequest request,
         ApprovalContext? context = null) =>
-        GetEffectiveService().RequestShellApprovalAsync(command, workingDir, context);
+        GetEffectiveService().RequestShellApprovalAsync(request, context);
 
     public Task<bool> RequestResourceApprovalAsync(
         string kind,

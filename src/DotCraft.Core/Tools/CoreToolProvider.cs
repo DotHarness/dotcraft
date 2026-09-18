@@ -5,6 +5,7 @@ using DotCraft.Contributions;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
@@ -90,15 +91,6 @@ public sealed class CoreToolSource(
             "GrepFiles" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
             "FindFiles" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
             "LSP" => FileApproval("filePath", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
-            "Exec" => new
-            {
-                kind = "shell",
-                targetArgument = "workingDir",
-                operationArgument = "command",
-                workspacePath = context.WorkspacePath,
-                workspaceRoots = context.WorkspaceRoots,
-                outsideWorkspaceOnly = true
-            },
             _ => null
         };
     }
@@ -140,6 +132,7 @@ public sealed class CoreToolSource(
         var tools = new List<AIFunction>();
         var requireOutside = RequiresApprovalOutsideWorkspace(context);
         var fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds));
+        var shellPolicy = ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath);
 
         var mainRuntime = chatClientRegistry.ResolveMainRuntime(
             config,
@@ -175,7 +168,8 @@ public sealed class CoreToolSource(
             maxOutputTokens: subAgentRuntime.MaxOutputTokens,
             config: config,
             workspaceRoots: context.WorkspaceRoots,
-            contributions: contributions);
+            contributions: contributions,
+            shellPolicy: shellPolicy);
         var subAgentCoordinator = new SubAgentCoordinator(
             context.WorkspacePath,
             [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
@@ -241,9 +235,10 @@ public sealed class CoreToolSource(
             config.Tools.Shell.Timeout,
             requireOutside,
             config.Tools.Shell.MaxOutputLength,
-            approvalService: null,
+            approvalService,
             blacklist: pathBlacklist,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            policy: shellPolicy);
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
 

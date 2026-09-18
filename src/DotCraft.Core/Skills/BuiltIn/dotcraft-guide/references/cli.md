@@ -45,7 +45,7 @@ There is no `dotcraft mcp` command and no top-level `dotcraft doctor`. MCP serve
 
 Desktop bundles its own AppServer executable and does not need `dotcraft` on PATH, so `Exec` can fail even on a healthy installation. Look in:
 
-- Desktop Settings > Connection, which shows the local AppServer binary path
+- Desktop Settings > Connections, which shows the local AppServer binary path
 - The DotCraft installation directory
 - `~/.craft/bin`
 

@@ -576,7 +576,10 @@ Allowed Settings content:
 - Credentials presence and write-only password-style inputs with show/hide
   controls that never echo stored plaintext;
 - Agents configuration for DotCraft bridge status, AppServer endpoint
-  discovery, Hub discovery, approval policy, and run timeout;
+  discovery, Hub discovery, approval policy, and run timeout. Approval offers
+  two choices, approve automatically or deny and continue, and defaults to deny
+  and continue; a server run never follows a desktop workspace default, and a
+  stored `default` or `interrupt` reads as deny and continue;
 - Worktree configuration for managed worktrees, the managed root, and the
   branch prefix;
 - implementation auto-dispatch policy and delivery behavior;

@@ -1,4 +1,6 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
+using DotCraft.Tests.Security.ShellCommands;
 using Xunit;
 
 namespace DotCraft.Tests.Security;
@@ -22,7 +24,7 @@ public sealed class ConsoleApprovalServiceTests
         var prompt = new StubPrompt(InteractiveApprovalDecision.Reject);
         var service = new ConsoleApprovalService(prompt);
 
-        Assert.False(await service.RequestShellApprovalAsync("dotnet test", "workspace"));
+        Assert.False(await service.RequestShellApprovalAsync(ShellApprovalRequests.For("dotnet test")));
         Assert.Equal(1, prompt.ShellRequestCount);
     }
 
@@ -46,7 +48,7 @@ public sealed class ConsoleApprovalServiceTests
             return decision;
         }
 
-        public InteractiveApprovalDecision RequestShellApproval(string command, string? workingDirectory)
+        public InteractiveApprovalDecision RequestShellApproval(ShellApprovalRequest request)
         {
             ShellRequestCount++;
             return decision;

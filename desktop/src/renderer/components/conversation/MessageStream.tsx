@@ -491,7 +491,6 @@ const TurnBlock = memo(function TurnBlock({
         streamRetrySignals={streamRetrySignals}
         isRunning={isRunning}
         showIdleThinkingFallback={showIdleThinkingFallback}
-        isActiveTurn={isActiveTurn}
         isLastTurn={isLastTurn}
         historicalToolContentMode={historicalToolContentMode}
       />

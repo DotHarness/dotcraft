@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Tools;
 
@@ -93,7 +94,7 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         if (descriptor.ValueKind == JsonValueKind.Object
             && descriptor.TryGetProperty("outsideWorkspaceOnly", out var outsideOnly)
             && outsideOnly.ValueKind == JsonValueKind.True
-            && !RequiresOutsideWorkspaceApproval(kind, target, operation, descriptor))
+            && !RequiresOutsideWorkspaceApproval(target, operation, descriptor))
         {
             return ToolDispatchDecision.Allow;
         }
@@ -101,7 +102,7 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         var approved = kind.ToLowerInvariant() switch
         {
             "file" => await approval.RequestFileApprovalAsync(operation, target).ConfigureAwait(false),
-            "shell" => await approval.RequestShellApprovalAsync(operation, target).ConfigureAwait(false),
+            "shell" => await RequestDeclaredShellApprovalAsync(approval, operation, target, descriptor).ConfigureAwait(false),
             _ => await approval.RequestResourceApprovalAsync(kind, operation, target).ConfigureAwait(false)
         };
         return approved
@@ -214,38 +215,53 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         if (string.IsNullOrWhiteSpace(normalizedCommand))
             return ToolDispatchDecision.Deny(ToolErrorCodes.InputInvalid, "Shell approval routing requires a non-empty command string.");
 
-        if (scope.PathBlacklist?.CommandReferencesBlacklistedPath(normalizedCommand) == true)
-        {
-            return ToolDispatchDecision.Deny(
-                ToolErrorCodes.AccessDenied,
-                "Error: Command references a blacklisted path and cannot be executed.");
-        }
-
         var resolvedWorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
             ? scope.WorkspacePath
             : ResolveAgainstWorkspace(scope.WorkspacePath, workingDirectory);
-        var hasPathTraversal = normalizedCommand.Contains("..\\", StringComparison.Ordinal)
-                               || normalizedCommand.Contains("../", StringComparison.Ordinal);
-        var isOutsideWorkspace = !scope.WorkspaceRoots.Any(
-            root => IsWithinBoundary(resolvedWorkingDirectory, root));
-        if (!hasPathTraversal && !isOutsideWorkspace)
+        var gate = new ShellExecutionGate(
+            new ShellCommandSafetyKernel(),
+            new WorkspaceBoundary(scope.WorkspaceRoots),
+            ShellPolicySource.Empty,
+            scope.PathBlacklist,
+            scope.RequireApprovalOutsideWorkspace,
+            scope.ApprovalService);
+        var result = await gate.AuthorizeAsync(normalizedCommand, null, resolvedWorkingDirectory, CancellationToken.None)
+            .ConfigureAwait(false);
+        if (result.IsAllowed)
             return ToolDispatchDecision.Allow;
 
-        if (!scope.RequireApprovalOutsideWorkspace)
-        {
-            var message = hasPathTraversal
-                ? "Error: Command blocked by safety guard (path traversal detected)."
-                : "Error: Working directory is outside workspace boundary.";
-            return ToolDispatchDecision.Deny(ToolErrorCodes.AccessDenied, message);
-        }
+        var code = result.Assessment.Decision == ShellDecision.Forbidden
+            ? ToolErrorCodes.AccessDenied
+            : ToolErrorCodes.ApprovalRejected;
+        return ToolDispatchDecision.Deny(code, result.Error!);
+    }
 
-        var approved = await scope.ApprovalService.RequestShellApprovalAsync(
-            normalizedCommand,
-            resolvedWorkingDirectory,
-            ApprovalContextScope.Current).ConfigureAwait(false);
-        return approved
-            ? ToolDispatchDecision.Allow
-            : ToolDispatchDecision.Deny(ToolErrorCodes.ApprovalRejected, "Error: Command execution was rejected by user.");
+    private static async Task<bool> RequestDeclaredShellApprovalAsync(
+        IApprovalService approval,
+        string command,
+        string workingDirectory,
+        JsonElement descriptor)
+    {
+        var workspacePath = descriptor.ValueKind == JsonValueKind.Object ? ReadString(descriptor, "workspacePath") : null;
+        var resolvedWorkingDirectory = Path.IsPathRooted(workingDirectory)
+            ? Path.GetFullPath(workingDirectory)
+            : Path.GetFullPath(Path.Combine(workspacePath ?? Directory.GetCurrentDirectory(), workingDirectory));
+        var roots = descriptor.ValueKind == JsonValueKind.Object && !string.IsNullOrWhiteSpace(workspacePath)
+            ? ReadWorkspaceRoots(descriptor, workspacePath)
+            : [resolvedWorkingDirectory];
+        var gate = new ShellExecutionGate(
+            new ShellCommandSafetyKernel(),
+            new WorkspaceBoundary(roots),
+            ShellPolicySource.Empty,
+            blacklist: null,
+            requireApprovalOutsideWorkspace: true,
+            approval);
+        var assessment = gate.Assess(command, null, resolvedWorkingDirectory);
+        if (assessment.Decision == ShellDecision.Forbidden || assessment.Shell is null)
+            return false;
+
+        var request = ShellApprovalRequest.FromAssessment(assessment, command, resolvedWorkingDirectory);
+        return await approval.RequestShellApprovalAsync(request, ApprovalContextScope.Current).ConfigureAwait(false);
     }
 
     private static async ValueTask<ToolDispatchDecision> GuardRemoteResourceAccessAsync(
@@ -268,18 +284,7 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
             ? Path.GetFullPath(path)
             : Path.GetFullPath(Path.Combine(workspacePath, path));
 
-    private static bool IsWithinBoundary(string path, string boundary)
-    {
-        var fullPath = Path.GetFullPath(path);
-        var fullBoundary = Path.GetFullPath(boundary)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return string.Equals(fullPath, fullBoundary, StringComparison.OrdinalIgnoreCase)
-               || fullPath.StartsWith(fullBoundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-               || fullPath.StartsWith(fullBoundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool RequiresOutsideWorkspaceApproval(
-        string kind,
         string target,
         string operation,
         JsonElement descriptor)
@@ -288,26 +293,6 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         if (string.IsNullOrWhiteSpace(workspacePath))
             return true;
         var workspaceRoots = ReadWorkspaceRoots(descriptor, workspacePath);
-
-        if (string.Equals(kind, "shell", StringComparison.OrdinalIgnoreCase))
-        {
-            var command = operation;
-            var workingDirectory = string.IsNullOrWhiteSpace(target)
-                || string.Equals(target, "Exec", StringComparison.Ordinal)
-                    ? workspacePath
-                    : target;
-            var fullWorkingDirectory = Path.IsPathRooted(workingDirectory)
-                ? Path.GetFullPath(workingDirectory)
-                : Path.GetFullPath(Path.Combine(workspacePath, workingDirectory));
-            var outsideWorkingDirectory = !workspaceRoots.Any(
-                root => IsWithinBoundary(fullWorkingDirectory, root));
-            return outsideWorkingDirectory
-                   || command.Contains("../", StringComparison.Ordinal)
-                   || command.Contains("..\\", StringComparison.Ordinal)
-                   || new ShellCommandInspector(workspacePath, workspaceRoots)
-                       .DetectOutsideWorkspacePaths(command).Count > 0;
-        }
-
         var trustedPaths = descriptor.TryGetProperty("trustedReadPaths", out var trusted)
                            && trusted.ValueKind == JsonValueKind.Array
             ? trusted.EnumerateArray()

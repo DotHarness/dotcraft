@@ -101,6 +101,12 @@ await handler.ProcessAsync(
 > [!CAUTION]
 > 不要只根据工具展示名称自动批准操作。请向用户展示具体操作、参数、受影响资源与审批范围。
 
+## 呈现 Shell 命令审批
+
+Shell 请求带有 `request.Shell`，记录安全检查的结果：`Reasons` 解释为何询问。命令与目录按 `operation` 和 `target` 原样展示。
+
+`RememberedPrefixes` 与 `RemembersExactCommand` 描述 `AcceptAlways` 会记住什么：按前缀写入工作区 `shell-rules.json` 的放行规则、精确的命令键，或两者都有。把这个范围写进 `AcceptAlways` 选项本身，让用户在选择前看到。`AcceptForSession` 始终按精确的命令、shell 和目录记忆。
+
 ## 相关文档
 
 - [配置与路径](./configuration-paths)——`AcceptAlways` 写入的审批状态落在 workspace 数据目录里。

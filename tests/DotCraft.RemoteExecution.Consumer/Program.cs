@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text.Json;
 using DotCraft.RemoteTools;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
@@ -53,6 +54,6 @@ internal sealed record ProbeInput(string FirstUri, string SecondUri, string Cred
 internal sealed class Approve : IApprovalService
 {
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) => Task.FromResult(true);
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) => Task.FromResult(true);
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) => Task.FromResult(true);
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) => Task.FromResult(true);
 }

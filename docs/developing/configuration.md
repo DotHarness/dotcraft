@@ -282,6 +282,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.File.SearchTimeoutSeconds` | Max `GrepFiles` content-search time before timeout | `30` |
 | `Tools.Shell.Timeout` | Shell timeout in seconds | `300` |
 | `Tools.Shell.MaxOutputLength` | Max shell output length in characters | `10000` |
+| `Tools.Shell.Policy.Rules` | Prefix rules checked before the workspace fallback; each entry is `{ "prefix": ["git", "push"], "decision": "allow" \| "prompt" \| "forbidden", "justification": "..." }`. Every rule whose prefix matches applies and the most restrictive decision wins | `[]` |
 | `Tools.Shell.Background.Enabled` | Enable background terminal sessions | `true` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a running command returns a background-session snapshot | `1000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait accepted for a background-session read or write | `30000` |
@@ -339,11 +340,19 @@ Personal local hardening example:
       "RequireApprovalOutsideWorkspace": true
     },
     "Shell": {
-      "Timeout": 300
+      "Timeout": 300,
+      "Policy": {
+        "Rules": [
+          { "prefix": ["git", "push"], "decision": "prompt", "justification": "pushes leave the machine" },
+          { "prefix": ["rm"], "decision": "forbidden" }
+        ]
+      }
     }
   }
 }
 ```
+
+Rules learned from **Always allow** decisions are appended to `.craft/security/shell-rules.json` in the workspace data directory and take effect immediately.
 
 Tool allow-list example:
 

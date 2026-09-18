@@ -23,9 +23,9 @@ public sealed class SubAgentApprovalModeResolverTests
     }
 
     [Fact]
-    public void Resolve_InterruptService_ReturnsRestricted()
+    public void Resolve_DenyService_ReturnsRestricted()
     {
-        var mode = SubAgentApprovalModeResolver.Resolve(new InterruptOnApprovalService(), null);
+        var mode = SubAgentApprovalModeResolver.Resolve(new DenyApprovalService(), null);
         Assert.Equal(SubAgentApprovalModeResolver.RestrictedMode, mode);
     }
 

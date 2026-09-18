@@ -239,7 +239,7 @@ internal sealed class DotNetPluginSmokeRunner(string dotcraftBin, DotNetPluginSm
                     toolAllowList = new[] { "review__normalize" },
                     pluginPolicy = new { allow = new[] { ConsumerId, ProviderId } },
                     mcpServers = Array.Empty<object>(),
-                    approvalPolicy = "interrupt"
+                    approvalPolicy = "deny"
                 },
                 displayName = "managed plugin smoke"
             });

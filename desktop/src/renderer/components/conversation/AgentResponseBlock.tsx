@@ -48,7 +48,6 @@ interface AgentResponseBlockProps {
   isRunning?: boolean
   streamRetrySignals?: StreamRetrySignal[]
   /** Whether this is the active turn that may be in waitingApproval */
-  isActiveTurn?: boolean
   isLastTurn?: boolean
   /** Show a UI-only Thinking row when an active running turn has no live visible work. */
   showIdleThinkingFallback?: boolean
@@ -92,7 +91,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   streamingReasoning = '',
   isRunning = false,
   streamRetrySignals = [],
-  isActiveTurn = false,
   isLastTurn = false,
   showIdleThinkingFallback = false,
   activeItemIdOverride,
@@ -100,7 +98,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   historicalToolContentMode = 'full'
 }: AgentResponseBlockProps): JSX.Element {
   useDesktopPluginRegistry((state) => state.toolRenderers)
-  const pendingApproval = useConversationStore((s) => s.pendingApproval)
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
@@ -269,18 +266,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           kind: 'other',
           node: <ErrorBlock key={item.id} message={item.text ?? 'Unknown error'} />
         })
-      } else if (item.type === 'approvalCard') {
-        const isActiveApproval = isActiveTurn && pendingApproval?.itemId === item.id
-        nodes.push({
-          kind: 'other',
-          node: (
-            <ApprovalCard
-              key={item.id}
-              item={item}
-              isActive={isActiveApproval}
-            />
-          )
-        })
+      } else if (item.type === 'approvalCard' && (item.approvalState ?? 'pending') === 'pending') {
+        nodes.push({ kind: 'other', node: <ApprovalCard key={item.id} item={item} /> })
       } else if (item.type === 'systemNotice') {
         nodes.push({
           kind: 'other',

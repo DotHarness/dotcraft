@@ -1,4 +1,6 @@
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
+using DotCraft.Tests.Security.ShellCommands;
 using DotCraft.Sessions;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
@@ -163,7 +165,7 @@ public sealed class SessionApprovalServiceTests
     {
         var (svc, channel, _) = MakeApprovalService();
 
-        var requestTask = svc.RequestShellApprovalAsync("rm -rf /tmp/data", "/tmp");
+        var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));
         await Task.Delay(10);
 
         string? requestId = null;
@@ -555,7 +557,7 @@ public sealed class SessionApprovalServiceTests
             var store = new ApprovalStore(storeDir);
             var (svc, channel, _) = MakeApprovalService(store: store);
 
-            var requestTask = svc.RequestShellApprovalAsync("rm -rf /tmp/data", "/tmp");
+            var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));
             await Task.Delay(10);
 
             var requestId = await GetApprovalRequestIdAsync(channel);
@@ -564,7 +566,7 @@ public sealed class SessionApprovalServiceTests
             svc.TryResolve(requestId!, SessionApprovalDecision.AcceptAlways);
             Assert.True(await requestTask);
 
-            Assert.True(store.IsShellCommandApproved("rm -rf /tmp/data", "/tmp"));
+            Assert.True(store.IsShellApproved(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp").ApprovalKey.Hash));
         }
         finally
         {
@@ -658,11 +660,11 @@ public sealed class SessionApprovalServiceTests
         {
             Directory.CreateDirectory(storeDir);
             var store = new ApprovalStore(storeDir);
-            store.RecordShellCommand("npm install", "/workspace");
+            store.RecordShellApproval(ShellApprovalRequests.For("npm install", "/workspace"));
 
             var (svc, channel, turn) = MakeApprovalService(store: store);
 
-            var result = await svc.RequestShellApprovalAsync("npm install", "/workspace");
+            var result = await svc.RequestShellApprovalAsync(ShellApprovalRequests.For("npm install", "/workspace"));
             Assert.True(result);
             Assert.DoesNotContain(turn.Items, i => i.Type == ItemType.ApprovalRequest);
         }
@@ -719,7 +721,7 @@ public sealed class SessionApprovalServiceTests
             TimeSpan.FromMinutes(1),
             () => cancelled = true);
 
-        var requestTask = svc.RequestShellApprovalAsync("rm -rf /tmp/data", "/tmp");
+        var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));
         await Task.Delay(10);
         var requestId = await GetApprovalRequestIdAsync(channel);
 
@@ -845,8 +847,8 @@ internal sealed class CallbackApprovalService(
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
         callback("file", operation, path);
 
-    public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null) =>
-        callback("shell", command, workingDir ?? string.Empty);
+    public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) =>
+        callback("shell", request.Command, request.WorkingDirectory);
 
     public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) =>
         callback(kind, operation, target);

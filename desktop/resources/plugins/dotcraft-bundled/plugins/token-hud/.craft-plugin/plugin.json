@@ -7,14 +7,14 @@
   "capabilities": ["desktop"],
   "settings": "./settings.schema.json",
   "desktop": {
-    "description": "Adds a compact performance readout to the window status rail.",
+    "description": "Adds a compact performance readout to the Composer status row.",
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
   },
   "interface": {
     "displayName": "Token HUD",
     "shortDescription": "Track token performance",
-    "longDescription": "Token HUD shows generation speed, workspace token use, and cache efficiency in the window status rail.",
+    "longDescription": "Token HUD shows generation speed, workspace token use, and cache efficiency in the Composer status row.",
     "developerName": "DotHarness",
     "category": "Productivity",
     "capabilities": ["Desktop", "Usage", "Status"],

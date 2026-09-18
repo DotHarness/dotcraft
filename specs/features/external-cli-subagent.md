@@ -168,7 +168,7 @@ DotCraft exposes three stable modes the subagent layer understands:
 |------|---------------------------|--------|
 | `interactive` | `SessionApprovalService` / `ConsoleApprovalService` | Real user present; conservative defaults, prompt on sensitive actions |
 | `auto-approve` | `AutoApproveApprovalService` | Headless automation channel; skip prompts, use permissive runtime flags |
-| `restricted` | `InterruptOnApprovalService`, unknown or `null` services | DotCraft-side approval needs are denied as tool results; runtime should launch in its most conservative mode |
+| `restricted` | `DenyApprovalService`, unknown or `null` services | DotCraft-side approval needs are denied as tool results; runtime should launch in its most conservative mode |
 
 ### 5.2 Native Subagent Propagation
 

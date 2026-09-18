@@ -991,11 +991,18 @@ public sealed class AcpBridgeHandler(
                     _ => AcpToolKind.Read
                 };
             var reqId = wireParams.TryGetProperty("requestId", out var rid) ? rid.GetString() ?? "" : "";
+            var shellReasons = wireParams.TryGetProperty("shell", out var shell)
+                && shell.ValueKind == JsonValueKind.Object
+                && shell.TryGetProperty("reasons", out var reasons)
+                && reasons.ValueKind == JsonValueKind.Array
+                    ? string.Join(" ", reasons.EnumerateArray().Select(reason => reason.GetString()).Where(reason => !string.IsNullOrWhiteSpace(reason)))
+                    : string.Empty;
             var toolCall = new AcpToolCallInfo
             {
                 ToolCallId = reqId,
                 Title = approvalType == "shell"
                     ? $"Shell: {(operation.Length > 80 ? operation[..80] + "..." : operation)}"
+                      + (shellReasons.Length > 0 ? $" ({shellReasons})" : string.Empty)
                     : $"File {operation}: {target}",
                 Kind = toolKind,
                 Status = AcpToolStatus.Pending

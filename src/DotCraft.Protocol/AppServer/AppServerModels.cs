@@ -1629,6 +1629,10 @@ public sealed class ApprovalRequestParams : ExtensibleJsonObject
 
     [JsonPropertyName("expiresAt")]
     public DateTimeOffset ExpiresAt { get; init; }
+
+    [JsonPropertyName("shell")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ApprovalShellDetails? Shell { get; init; }
 }
 
 /// <summary>Result of an approval callback.</summary>

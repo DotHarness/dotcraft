@@ -1,5 +1,7 @@
 using DotCraft.Hooks;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
+using DotCraft.Tests.Security.ShellCommands;
 using DotCraft.Sessions;
 using Xunit;
 
@@ -52,7 +54,7 @@ public sealed class HookApprovalServiceTests : IDisposable
             _tempDir,
             stopHookActive: false);
 
-        var approved = await service.RequestShellApprovalAsync("dotnet test", _tempDir);
+        var approved = await service.RequestShellApprovalAsync(ShellApprovalRequests.For("dotnet test", _tempDir));
 
         Assert.False(approved);
         Assert.Empty(inner.Requests);
@@ -73,9 +75,9 @@ public sealed class HookApprovalServiceTests : IDisposable
             return Task.FromResult(true);
         }
 
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
         {
-            Requests.Add(("shell", command, workingDir ?? string.Empty));
+            Requests.Add(("shell", request.Command, request.WorkingDirectory));
             return Task.FromResult(true);
         }
 

@@ -1,3 +1,4 @@
+using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -52,7 +53,7 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
         {
             var command = TryGetStringArgument(context.Arguments, "command");
             var shell = TryGetStringArgument(context.Arguments, "shell");
-            if (!ReadOnlyShellClassifier.IsReadOnly(command, shell, out var reason))
+            if (!ReadOnlyCommandClassifier.IsReadOnly(command, shell, out var reason))
                 return DenyPlanMode(toolName, reason);
         }
 

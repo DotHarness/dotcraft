@@ -3,7 +3,7 @@ import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import type { ApprovalDetailRowSpec, ApprovalOptionSpec, PendingApproval } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
-import type { ApprovalType } from '../../types/conversation'
+import type { ApprovalShellInfo, ApprovalType } from '../../types/conversation'
 import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalRequest'
 import { submitApprovalDecision } from '../../utils/submitApprovalDecision'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
@@ -35,11 +35,52 @@ function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT
   ]
   const operation = request.operation.trim()
   const target = request.target.trim()
-  const reason = request.reason.trim()
+  const reason = (request.shell ? request.shell.reasons.join(' ') : request.reason).trim()
   if (operation.length > 0) rows.push({ label: t('approval.detail.operation'), value: operation, mono: true })
   if (target.length > 0) rows.push({ label: t('approval.detail.target'), value: target, mono: true })
   if (reason.length > 0) rows.push({ label: t('approval.detail.reason'), value: reason })
   return rows
+}
+
+function buildToolOptions(request: PendingApproval, t: ReturnType<typeof useT>): ApprovalOptionSpec[] {
+  const shell = request.shell
+  return [
+    {
+      value: 'accept',
+      label: t('approval.option.accept.label'),
+      description: t('approval.option.accept.description')
+    },
+    {
+      value: 'acceptForSession',
+      label: t('approval.option.acceptForSession.label'),
+      description: shell
+        ? t('approval.option.acceptForSession.shellDescription')
+        : t('approval.option.acceptForSession.description')
+    },
+    {
+      value: 'acceptAlways',
+      label: t('approval.option.acceptAlways.label'),
+      description: shell
+        ? rememberDescription(shell, t)
+        : t('approval.option.acceptAlways.description')
+    },
+    {
+      value: 'decline',
+      label: t('approval.option.decline.label'),
+      description: t('approval.option.decline.description')
+    },
+    {
+      value: 'cancel',
+      label: t('approval.option.cancel.label'),
+      description: t('approval.option.cancel.description')
+    }
+  ]
+}
+
+function rememberDescription(shell: ApprovalShellInfo, t: ReturnType<typeof useT>): string {
+  const prefixes = shell.rememberedPrefixes.map((words) => words.join(' ')).join(', ')
+  if (prefixes.length === 0) return t('approval.remember.exact')
+  return t(shell.remembersExactCommand ? 'approval.remember.both' : 'approval.remember.prefixes', { prefixes })
 }
 
 export function ApprovalDecisionComposer({
@@ -62,33 +103,10 @@ export function ApprovalDecisionComposer({
     setSubmittedRequestKey(null)
   }, [requestKey])
 
-  const options = useMemo<ApprovalOptionSpec[]>(() => request.options ?? [
-    {
-      value: 'accept',
-      label: t('approval.option.accept.label'),
-      description: t('approval.option.accept.description')
-    },
-    {
-      value: 'acceptForSession',
-      label: t('approval.option.acceptForSession.label'),
-      description: t('approval.option.acceptForSession.description')
-    },
-    {
-      value: 'acceptAlways',
-      label: t('approval.option.acceptAlways.label'),
-      description: t('approval.option.acceptAlways.description')
-    },
-    {
-      value: 'decline',
-      label: t('approval.option.decline.label'),
-      description: t('approval.option.decline.description')
-    },
-    {
-      value: 'cancel',
-      label: t('approval.option.cancel.label'),
-      description: t('approval.option.cancel.description')
-    }
-  ], [t, request.options])
+  const options = useMemo<ApprovalOptionSpec[]>(
+    () => request.options ?? buildToolOptions(request, t),
+    [t, request]
+  )
 
   const selectedOption = options[Math.min(selectedIndex, options.length - 1)] ?? options[0]
   const declineValue = request.declineValue ?? 'decline'

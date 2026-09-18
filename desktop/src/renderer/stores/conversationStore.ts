@@ -6,6 +6,7 @@ import type {
   TurnStatus,
   ThreadMode,
   ApprovalDecision,
+  ApprovalShellInfo,
   ApprovalState,
   ApprovalType,
   PendingComposerMessage,
@@ -17,6 +18,7 @@ import {
   isToolLikeItemType,
   normalizeConversationItemType,
   normalizePluginFunctionContentItems,
+  normalizeApprovalShell,
   normalizeToolUiDescriptor,
   wireItemToConversationItem,
   wireTurnToConversationTurn
@@ -141,6 +143,7 @@ export interface PendingApproval {
   operation: string
   target: string
   reason: string
+  shell?: ApprovalShellInfo
   /**
    * Approval source (informational; routing is driven by `submit`). `'tool'` (default) responds to
    * AppServer; `'browserUse'` and `'uiTool'` are turn-less approvals shown via the generic-approval
@@ -3101,6 +3104,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const operation = (params.operation as string) ?? ''
     const target = (params.target as string) ?? ''
     const reason = (params.reason as string) ?? ''
+    const shell = normalizeApprovalShell(params.shell)
     const itemId = typeof params.itemId === 'string' && params.itemId.trim().length > 0
       ? params.itemId
       : `approval-${bridgeId}`
@@ -3114,6 +3118,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       approvalOperation: operation,
       approvalTarget: target,
       approvalReason: reason,
+      approvalShell: shell,
       approvalState: 'pending',
       createdAt: new Date().toISOString()
     }
@@ -3128,7 +3133,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       approvalType,
       operation,
       target,
-      reason
+      reason,
+      shell
     }
 
     set((s) => {
