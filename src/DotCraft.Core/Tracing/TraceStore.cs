@@ -61,7 +61,9 @@ public sealed class TraceStore
                 session_metadata_captured_at,
                 last_prompt_cache_change_at,
                 last_prompt_cache_change_kind,
-                last_prompt_cache_changed_fields_json
+                last_prompt_cache_changed_fields_json,
+                last_model_id,
+                last_reasoning_effort
         """;
 
     private static readonly JsonSerializerOptions PersistJsonOptions = new()
@@ -995,7 +997,9 @@ public sealed class TraceStore
                 session_metadata_captured_at,
                 last_prompt_cache_change_at,
                 last_prompt_cache_change_kind,
-                last_prompt_cache_changed_fields_json
+                last_prompt_cache_changed_fields_json,
+                last_model_id,
+                last_reasoning_effort
             ) VALUES (
                 $session_key,
                 $started_at,
@@ -1027,7 +1031,9 @@ public sealed class TraceStore
                 $session_metadata_captured_at,
                 $last_prompt_cache_change_at,
                 $last_prompt_cache_change_kind,
-                $last_prompt_cache_changed_fields_json
+                $last_prompt_cache_changed_fields_json,
+                $last_model_id,
+                $last_reasoning_effort
             )
             ON CONFLICT(session_key) DO UPDATE SET
                 started_at = CASE
@@ -1056,6 +1062,11 @@ public sealed class TraceStore
                 max_tool_duration_ms = MAX(trace_sessions.max_tool_duration_ms, excluded.max_tool_duration_ms),
                 max_turn_duration_ms = MAX(trace_sessions.max_turn_duration_ms, excluded.max_turn_duration_ms),
                 last_finish_reason = COALESCE(excluded.last_finish_reason, trace_sessions.last_finish_reason),
+                last_model_id = COALESCE(excluded.last_model_id, trace_sessions.last_model_id),
+                last_reasoning_effort = CASE
+                    WHEN excluded.last_model_id IS NOT NULL THEN excluded.last_reasoning_effort
+                    ELSE trace_sessions.last_reasoning_effort
+                END,
                 final_system_prompt = CASE
                     WHEN excluded.session_metadata_captured_at IS NOT NULL
                       AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
@@ -1128,6 +1139,8 @@ public sealed class TraceStore
         command.Parameters.AddWithValue("$max_tool_duration_ms", session.MaxToolDurationMs);
         command.Parameters.AddWithValue("$max_turn_duration_ms", session.MaxTurnDurationMs);
         command.Parameters.AddWithValue("$last_finish_reason", (object?)session.LastFinishReason ?? DBNull.Value);
+        command.Parameters.AddWithValue("$last_model_id", (object?)session.LastModelId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$last_reasoning_effort", (object?)session.LastReasoningEffort ?? DBNull.Value);
         command.Parameters.AddWithValue("$final_system_prompt", (object?)session.FinalSystemPrompt ?? DBNull.Value);
         command.Parameters.AddWithValue("$tool_names_json", JsonSerializer.Serialize(session.ToolNames, PersistJsonOptions));
         command.Parameters.AddWithValue("$first_user_request", (object?)session.FirstUserRequest ?? DBNull.Value);
@@ -1395,7 +1408,9 @@ public sealed class TraceStore
             SessionMetadataCapturedAt = ReadDateTimeOffsetOrNull(reader, 27),
             LastPromptCacheChangeAt = ReadDateTimeOffsetOrNull(reader, 28),
             LastPromptCacheChangeKind = ReadStringOrNull(reader, 29),
-            LastPromptCacheChangedFields = ReadStringArray(reader, 30)
+            LastPromptCacheChangedFields = ReadStringArray(reader, 30),
+            LastModelId = ReadStringOrNull(reader, 31),
+            LastReasoningEffort = ReadStringOrNull(reader, 32)
         };
         session.LoadAggregateSnapshot(
             ReadInt64(reader, 12),

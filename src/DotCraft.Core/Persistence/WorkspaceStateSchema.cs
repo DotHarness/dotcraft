@@ -238,7 +238,9 @@ internal static class WorkspaceStateSchema
                     session_metadata_captured_at TEXT,
                     last_prompt_cache_change_at TEXT,
                     last_prompt_cache_change_kind TEXT,
-                    last_prompt_cache_changed_fields_json TEXT
+                    last_prompt_cache_changed_fields_json TEXT,
+                    last_model_id TEXT,
+                    last_reasoning_effort TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_trace_sessions_last_activity
@@ -328,6 +330,8 @@ internal static class WorkspaceStateSchema
         EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "speed", "TEXT");
         EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
+        EnsureColumn(connection, "trace_sessions", "last_model_id", "TEXT");
+        EnsureColumn(connection, "trace_sessions", "last_reasoning_effort", "TEXT");
 
         using var usageIndexes = connection.CreateCommand();
         usageIndexes.CommandText = """

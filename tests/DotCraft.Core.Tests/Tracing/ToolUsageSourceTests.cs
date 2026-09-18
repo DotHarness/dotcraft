@@ -55,7 +55,7 @@ public sealed class ToolUsageSourceTests : IDisposable
     [Fact]
     public void TraceCollector_ReportsModelOfMostRecentResponse()
     {
-        var store = new TraceStore();
+        var store = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true);
         var collector = new TraceCollector(store);
         Assert.Null(collector.GetLastResponseModel("thread-1"));
 
