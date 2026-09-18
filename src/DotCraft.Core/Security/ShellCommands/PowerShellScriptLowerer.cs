@@ -32,8 +32,6 @@ public sealed class PowerShellScriptLowerer : IShellScriptLowerer
         }
 
         var commands = new List<IReadOnlyList<string>>();
-        var unconditionalPrefix = 0;
-        var stillUnconditional = true;
         foreach (var node in nodes)
         {
             if (!IsAllowedNode(node))
@@ -52,27 +50,11 @@ public sealed class PowerShellScriptLowerer : IShellScriptLowerer
             }
 
             commands.Add(words);
-            stillUnconditional = stillUnconditional && RunsInTheShellItself(command);
-            if (stillUnconditional)
-                unconditionalPrefix = commands.Count;
         }
 
         return commands.Count == 0
             ? Opaque("PowerShell script contains no commands.", nodes)
-            : LoweredScript.Plain(ShellFamily.PowerShell, commands, unconditionalPrefix);
-    }
-
-    private static bool RunsInTheShellItself(Ast command)
-    {
-        for (var node = command; node.Parent is { } parent; node = parent)
-        {
-            if (parent is PipelineAst { PipelineElements.Count: > 1 })
-                return false;
-            if (parent is PipelineChainAst chain && !ReferenceEquals(chain.LhsPipelineChain, node))
-                return false;
-        }
-
-        return true;
+            : LoweredScript.Plain(ShellFamily.PowerShell, commands);
     }
 
     private static string? RejectedBlock(ScriptBlockAst root) => root switch

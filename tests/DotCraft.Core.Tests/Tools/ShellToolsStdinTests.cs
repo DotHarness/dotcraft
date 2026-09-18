@@ -42,7 +42,7 @@ public sealed class ShellToolsStdinTests : IDisposable
     [Fact]
     public async Task Exec_LaunchCommandWhoseDirectoryCannotBeReported_StartsTheTerminalUndeterminable()
     {
-        var started = await StartAndCaptureAsync($"false && cd {_outside} && bash");
+        var started = await StartAndCaptureAsync("cd; bash");
 
         Assert.False(started.StdinSession!.WorkingDirectoryIsKnown);
     }

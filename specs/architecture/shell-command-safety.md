@@ -22,6 +22,7 @@ It replaces string and regular-expression heuristics with one kernel: resolve th
 - Process isolation. The kernel reasons about command text; it does not confine what an approved process can touch. Sandbox mode keeps the container boundary as its authority and does not use this gate.
 - Proving that an interpreter argument is harmless. `python -c`, `node -e`, and similar arguments are code; the kernel treats them as opaque words.
 - Parsing `cmd.exe` scripts. Cmd scripts are opaque and only scanned for dangerous literals.
+- Proving where a script leaves the shell. Directory tracking follows the changes it can read and assumes each one ran and succeeded. It cannot see a `cd` that failed, a branch the shell skipped, or a subshell, so a deliberately built chain can make the kernel check a later command against a directory the shell is not in. Tracking narrows accidents; it is not a boundary against crafted input.
 
 ## 3. Terminology
 
@@ -64,11 +65,8 @@ LoweredScript
 ├── Family
 ├── PlainCommands: string[][] | null   // non-null only when plain lowering succeeded
 ├── PlainRejectReason: string | null   // first reason plain lowering failed
-├── LiteralCommands: string[][]        // literal extraction; equals PlainCommands when plain
-└── UnconditionalPrefix: int           // leading plain commands the shell always runs in itself
+└── LiteralCommands: string[][]        // literal extraction; equals PlainCommands when plain
 ```
-
-`UnconditionalPrefix` counts the leading commands that both run whenever the script runs and run in the shell itself. It stops at the first command reached through `&&` or `||`, whose execution depends on an exit status the kernel cannot predict, and at the first command in a pipeline, which runs in a subshell and cannot move the parent. Commands after that boundary may still be lowered and checked; they are only untrustworthy as evidence of where the shell ends up.
 
 Plain lowering must fail closed: any construct not listed as accepted makes the script opaque. Lowerers never guess the runtime meaning of a construct they do not model.
 
@@ -160,7 +158,7 @@ Directory changes move the working directory for the commands that follow. In a 
 
 An opaque script is treated the same way when literal extraction puts a directory-changing word in a command position. This is a heuristic over extracted literals and not a proof in either direction: a change the extraction cannot see, such as an invoked variable or `eval`, is missed, and a directory-changing word that appears only as an argument or inside a string does not count. A caller that already knows the directory is undeterminable says so on the request, and every command in that script is then evaluated as running in an undeterminable directory.
 
-The assessment also reports where the shell ends up, which is a stricter question than where each command is checked. It reports the tracked directory only when every directory change in the script sits inside `UnconditionalPrefix`; a change the shell may skip or may run in a subshell leaves the final directory unreported, as does an opaque script that changes directory. Checking the commands of one script against the tracked directory is not held to that bar, because within a script a later command running already implies the earlier ones did.
+The assessment reports the directory it tracked through the last command, or nothing when it ended undeterminable. That report is the same best-effort tracking the commands were checked against, with the limit Section 2 states: it assumes every change it read ran and succeeded.
 
 Workspace containment is decided by `WorkspaceBoundary`, the single implementation shared with file tools; it resolves symbolic links before comparing.
 
@@ -283,7 +281,6 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 - A directory change the kernel cannot follow makes the rest of the script outside the workspace.
 - Input written to a running terminal is assessed against the shell that terminal is running, and a directory change the kernel cannot follow there makes every later write to that terminal outside the workspace.
 - A terminal's session starts where its launch assessment said the shell ends up, and unknown when that assessment reported nothing.
-- The shell's final directory is reported only from changes the shell always runs in itself.
 - One terminal authorizes and writes one interaction at a time.
 - Approval keys carry the shell executable, so an approval for one shell never applies to another.
 - Banned prefixes are never persisted as `allow` rules.
@@ -292,4 +289,4 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 
 ## 14. Conformance
 
-Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands and across successive writes to one terminal, a conditional or piped directory change leaving the final directory unreported, a terminal seeded from a launch command that changed directory, the directory-changing word appearing only as an argument in an opaque script, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.
+Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands and across successive writes to one terminal, a terminal seeded from a launch command that changed directory, the directory-changing word appearing only as an argument in an opaque script, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.

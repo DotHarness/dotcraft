@@ -359,40 +359,6 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         Assert.Equal(nested, assessment.WorkingDirectoryAfter);
     }
 
-    [Theory]
-    [InlineData("false && cd sub")]
-    [InlineData("false && cd sub || cd ..")]
-    [InlineData("cd sub | cat")]
-    [InlineData("echo a | cd ..")]
-    public void Evaluate_DirectoryChangeTheShellMaySkipOrRunInASubshell_ReportsNoFinalDirectory(string command)
-    {
-        Directory.CreateDirectory(Path.Combine(_root, "sub"));
-
-        var assessment = Posix().Evaluate(Request(command));
-
-        Assert.True(assessment.Lowering!.IsPlain);
-        Assert.Null(assessment.WorkingDirectoryAfter);
-    }
-
-    [Fact]
-    public void Evaluate_DirectoryChangesTheShellAlwaysRuns_ReportsTheFinalDirectory()
-    {
-        Directory.CreateDirectory(Path.Combine(_root, "sub"));
-
-        var assessment = Posix().Evaluate(Request("cd sub; cd .."));
-
-        Assert.Equal(_root, assessment.WorkingDirectoryAfter);
-    }
-
-    [Fact]
-    public void Evaluate_PowerShellDirectoryChangeInAPipeline_ReportsNoFinalDirectory()
-    {
-        var assessment = Windows().Evaluate(Request("Get-ChildItem | Set-Location"));
-
-        Assert.True(assessment.Lowering!.IsPlain);
-        Assert.Null(assessment.WorkingDirectoryAfter);
-    }
-
     [Fact]
     public void Evaluate_UndeterminableWorkingDirectory_PromptsAndStaysUndeterminable()
     {

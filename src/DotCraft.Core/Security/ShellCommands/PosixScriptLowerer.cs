@@ -8,19 +8,15 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
 
     public LoweredScript Lower(string script)
     {
-        var commands = TryLowerPlain(script, out var unconditionalPrefix, out var reason);
+        var commands = TryLowerPlain(script, out var reason);
         return commands is null
             ? LoweredScript.Opaque(ShellFamily.Posix, reason, PosixLiteralCommandReader.Read(script))
-            : LoweredScript.Plain(ShellFamily.Posix, commands, unconditionalPrefix);
+            : LoweredScript.Plain(ShellFamily.Posix, commands);
     }
 
-    private static List<IReadOnlyList<string>>? TryLowerPlain(
-        string script,
-        out int unconditionalPrefix,
-        out string reason)
+    private static List<IReadOnlyList<string>>? TryLowerPlain(string script, out string reason)
     {
         reason = string.Empty;
-        unconditionalPrefix = 0;
         var tokens = new List<PlainToken>();
         var index = 0;
         var atCommandStart = true;
@@ -61,7 +57,7 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
             atCommandStart = false;
         }
 
-        return BuildCommands(tokens, out unconditionalPrefix, out reason);
+        return BuildCommands(tokens, out reason);
     }
 
     private static SeparatorKind? ReadSeparator(string script, ref int index, out string reason)
@@ -76,10 +72,10 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
                 return SeparatorKind.Semicolon;
             case '|':
                 index += doubled ? 2 : 1;
-                return doubled ? SeparatorKind.Conditional : SeparatorKind.Pipe;
+                return SeparatorKind.Operator;
             case '&' when doubled:
                 index += 2;
-                return SeparatorKind.Conditional;
+                return SeparatorKind.Operator;
             default:
                 reason = PosixRejectReasons.Background;
                 return null;
@@ -225,13 +221,9 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
         return false;
     }
 
-    private static List<IReadOnlyList<string>>? BuildCommands(
-        List<PlainToken> tokens,
-        out int unconditionalPrefix,
-        out string reason)
+    private static List<IReadOnlyList<string>>? BuildCommands(List<PlainToken> tokens, out string reason)
     {
         reason = string.Empty;
-        unconditionalPrefix = 0;
         var normalized = DropTerminators(tokens);
         if (normalized.Count == 0)
         {
@@ -240,7 +232,6 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
         }
 
         var commands = new List<IReadOnlyList<string>>();
-        var separators = new List<SeparatorKind>();
         var current = new List<string>();
         foreach (var token in normalized)
         {
@@ -257,7 +248,6 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
             }
 
             commands.Add(current);
-            separators.Add(token.Separator);
             current = [];
         }
 
@@ -268,24 +258,7 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
         }
 
         commands.Add(current);
-        unconditionalPrefix = UnconditionalPrefixOf(commands.Count, separators);
         return commands;
-    }
-
-    private static int UnconditionalPrefixOf(int commandCount, List<SeparatorKind> separators)
-    {
-        var prefix = 0;
-        for (var index = 0; index < commandCount; index++)
-        {
-            var before = index == 0 ? SeparatorKind.None : separators[index - 1];
-            var after = index < separators.Count ? separators[index] : SeparatorKind.None;
-            if (before is SeparatorKind.Conditional or SeparatorKind.Pipe || after == SeparatorKind.Pipe)
-                break;
-
-            prefix = index + 1;
-        }
-
-        return prefix;
     }
 
     private static List<PlainToken> DropTerminators(List<PlainToken> tokens)
@@ -317,8 +290,7 @@ public sealed class PosixScriptLowerer : IShellScriptLowerer
         None,
         Newline,
         Semicolon,
-        Pipe,
-        Conditional
+        Operator
     }
 
     private readonly record struct PlainToken(string? Word, SeparatorKind Separator)

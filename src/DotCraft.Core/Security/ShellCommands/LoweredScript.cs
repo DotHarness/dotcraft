@@ -10,21 +10,13 @@ public sealed class LoweredScript
 
     public required IReadOnlyList<IReadOnlyList<string>> LiteralCommands { get; init; }
 
-    /// <summary>Leading commands that move the shell itself, stopping at the first one behind
-    /// <c>&amp;&amp;</c> or <c>||</c> and the first one in a pipeline.</summary>
-    public int UnconditionalPrefix { get; init; }
-
     public bool IsPlain => PlainCommands is not null;
 
-    public static LoweredScript Plain(
-        ShellFamily family,
-        IReadOnlyList<IReadOnlyList<string>> commands,
-        int unconditionalPrefix) => new()
+    public static LoweredScript Plain(ShellFamily family, IReadOnlyList<IReadOnlyList<string>> commands) => new()
     {
         Family = family,
         PlainCommands = commands,
-        LiteralCommands = commands,
-        UnconditionalPrefix = unconditionalPrefix
+        LiteralCommands = commands
     };
 
     public static LoweredScript Opaque(

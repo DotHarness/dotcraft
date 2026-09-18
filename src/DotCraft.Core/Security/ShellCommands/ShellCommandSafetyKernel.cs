@@ -73,11 +73,9 @@ public sealed class ShellCommandSafetyKernel
         var risk = ShellRiskLevel.None;
         var cwd = request.WorkingDirectoryIsKnown ? request.WorkingDirectory : null;
         var opaqueDirectoryChange = !lowering.IsPlain && ChangesDirectory(lowering.LiteralCommands, shell.Family);
-        var tracksFinalDirectory = !opaqueDirectoryChange;
 
-        for (var index = 0; index < commands.Count; index++)
+        foreach (var command in commands)
         {
-            var command = commands[index];
             var change = lowering.IsPlain ? DirectoryChangeOf(command, shell.Family, cwd) : null;
             AssessCommand(
                 command,
@@ -91,14 +89,8 @@ public sealed class ShellCommandSafetyKernel
                 matches,
                 reasons,
                 ref risk);
-            if (change is null)
-                continue;
-
-            // Reaching a later command implies the change ran, so the rest of this script may still
-            // be checked here; where the shell ends up may not be reported.
-            if (index >= lowering.UnconditionalPrefix)
-                tracksFinalDirectory = false;
-            cwd = change.Destination;
+            if (change is not null)
+                cwd = change.Destination;
         }
 
         var overall = matches.Count == 0 ? ShellDecision.Allow : matches.Max(match => match.Decision);
@@ -118,7 +110,7 @@ public sealed class ShellCommandSafetyKernel
             Matches = matches,
             ApprovalKey = approvalKey,
             Risk = overall == ShellDecision.Allow ? ShellRiskLevel.None : risk,
-            WorkingDirectoryAfter = tracksFinalDirectory ? cwd : null,
+            WorkingDirectoryAfter = opaqueDirectoryChange ? null : cwd,
             Remember = BuildRememberProposal(matches, lowering)
         };
     }
