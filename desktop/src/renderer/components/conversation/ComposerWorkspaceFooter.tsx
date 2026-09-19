@@ -1,18 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, ChevronDown, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Server } from 'lucide-react'
+import { ArrowRightLeft, ChevronDown, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
 import { changelistLabel, usePerforceChangelistStore, type PerforceChangelistEntry, type PerforceChangelistSnapshot } from '../../stores/perforceChangelistStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
-import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
-import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
-import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { useAddProjectFlow } from '../projects/AddProject'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -25,6 +22,13 @@ import {
   WorkspaceMenuItem,
   menuStyle
 } from './composerFooterPrimitives'
+import {
+  WorkspaceProjectMenuItems,
+  projectIcon,
+  projectLabel,
+  useWorkspaceProjectChoices,
+  workspaceSlug
+} from './workspaceProjectMenu'
 import {
   CreateBranchDialog,
   CreateChangelistDialog,
@@ -71,29 +75,6 @@ function currentBranchLabel(branches: GitBranchListSnapshot | null): string | nu
   return branches?.current || branches?.detachedHead || null
 }
 
-function workspaceSlug(path: string): string {
-  const trimmed = path.trim().replace(/[\\/]+$/, '')
-  const leaf = trimmed.split(/[\\/]+/).filter(Boolean).pop() || 'worktree'
-  const slug = leaf
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return slug || 'worktree'
-}
-
-function projectIdentity(project: WorkspaceProjectSummary): string {
-  return project.projectId?.trim() || normalizeWorkspaceProjectKey(project.path)
-}
-
-function projectIcon(project: WorkspaceProjectSummary): ReactNode {
-  if (project.kind !== 'remote') {
-    return <Folder size={14} strokeWidth={1.8} aria-hidden />
-  }
-  return project.remote?.source === 'servers'
-    ? <Server size={14} strokeWidth={1.8} aria-hidden />
-    : <Cloud size={14} strokeWidth={1.8} aria-hidden />
-}
-
 function defaultWorktreeBranchName(path: string): string {
   return `dotcraft/${workspaceSlug(path)}`
 }
@@ -117,13 +98,10 @@ export function ComposerWorkspaceFooter({
   const t = useT()
   const runOnVisible = useRunOnVisible()
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const projects = useWorkspaceProjectsStore((s) => s.projects)
-  const chat = useWorkspaceProjectsStore((s) => s.chat)
-  const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
+  const projectChoices = useWorkspaceProjectChoices(workspacePath, variant === 'welcome')
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [branchQuery, setBranchQuery] = useState('')
   const [changelistQuery, setChangelistQuery] = useState('')
-  const [projectQuery, setProjectQuery] = useState('')
   const addProject = useAddProjectFlow()
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -151,10 +129,7 @@ export function ComposerWorkspaceFooter({
   const handoffDisabledReason = isThread && threadBusy
     ? t('workspaceFooter.handoffUnavailableDuringConversation')
     : null
-  const selectedProjectId = foregroundProjectId || normalizeWorkspaceProjectKey(workspacePath)
-  const foregroundIsChat =
-    isDefaultChatWorkspacePathCandidate(workspacePath) ||
-    (chat != null && projectIdentity(chat) === selectedProjectId)
+  const { foregroundIsChat, selectedProject } = projectChoices
   const branchActionPath = workspacePath.trim()
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const ensureSourceControl = useSourceControlStore((s) => s.ensure)
@@ -218,42 +193,8 @@ export function ComposerWorkspaceFooter({
     ? (mode === 'worktree' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.workLocally'))
     : (mode === 'worktree' ? t('workspaceFooter.worktree') : t('workspaceFooter.local'))
   const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
-  const projectOptions = useMemo(() => {
-    if (variant !== 'welcome') return []
-    if (projects.some((project) => projectIdentity(project) === selectedProjectId)) {
-      return projects
-    }
-    return [
-      {
-        projectId: selectedProjectId,
-        kind: 'local' as const,
-        path: workspacePath,
-        identityWorkspacePath: workspacePath,
-        name: workspaceSlug(workspacePath),
-        state: 'foreground' as const,
-        running: true,
-        loaded: true,
-        threadCount: 0,
-        threads: [],
-        pinned: false
-      },
-      ...projects
-    ].filter((project) => project.path.trim().length > 0)
-  }, [projects, selectedProjectId, variant, workspacePath])
-  const selectedProject = projectOptions.find((project) =>
-    projectIdentity(project) === selectedProjectId
-  )
-  // The default Chat workspace is not a project: when it is foreground, suppress the
-  // project picker rather than surfacing the Chat workspace path as a project label.
-  const showProjectSelector = variant === 'welcome' && projectOptions.length > 0 && !foregroundIsChat
-  const filteredProjects = useMemo(() => {
-    const query = projectQuery.trim().toLowerCase()
-    if (!query) return projectOptions
-    return projectOptions.filter((project) =>
-      (project.name || workspaceSlug(project.path)).toLowerCase().includes(query) ||
-      project.path.toLowerCase().includes(query)
-    )
-  }, [projectOptions, projectQuery])
+  const showProjectSelector =
+    variant === 'welcome' && (projectChoices.projects.length > 0 || foregroundIsChat)
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent): void {
@@ -296,12 +237,6 @@ export function ComposerWorkspaceFooter({
   useEffect(() => {
     if (openMenu !== 'changelist') {
       setChangelistQuery('')
-    }
-  }, [openMenu])
-
-  useEffect(() => {
-    if (openMenu !== 'project') {
-      setProjectQuery('')
     }
   }, [openMenu])
 
@@ -401,7 +336,7 @@ export function ComposerWorkspaceFooter({
 
   async function selectWelcomeProject(project: WorkspaceProjectSummary): Promise<void> {
     setOpenMenu(null)
-    if (projectIdentity(project) === selectedProjectId) return
+    if (project.path === workspacePath) return
     if (project.kind === 'remote') return
     await onWelcomeWorkspaceChange?.(project.path)
   }
@@ -528,46 +463,22 @@ export function ComposerWorkspaceFooter({
           >
             {selectedProject ? projectIcon(selectedProject) : <Folder size={15} strokeWidth={1.8} aria-hidden />}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedProject?.name || workspaceSlug(workspacePath)}
+              {foregroundIsChat
+                ? t('workspaceFooter.chooseProject')
+                : selectedProject ? projectLabel(selectedProject) : workspaceSlug(workspacePath)}
             </span>
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </WorkspaceFooterPill>
           {openMenu === 'project' && (
             <div ref={projectMenuRef} style={menuStyle}>
               <ComposerOverlapBand height={projectBandHeight} radius={10} />
-              <FooterMenuSearchField
-                value={projectQuery}
-                placeholder={t('workspaceFooter.searchProjects')}
-                onChange={setProjectQuery}
+              <WorkspaceProjectMenuItems
+                choices={projectChoices}
+                busy={busy}
+                addBusy={addProject.busy}
+                onSelect={(project) => { void selectWelcomeProject(project) }}
+                onAddProject={() => { setOpenMenu(null); addProject.beginCreate() }}
               />
-              <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
-                {filteredProjects.length === 0 ? (
-                  <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>{t('workspaceFooter.noProjects')}</div>
-                ) : filteredProjects.map((project) => {
-                  const checked = projectIdentity(project) === selectedProjectId
-                  return (
-                    <FooterMenuButton
-                      key={projectIdentity(project)}
-                      icon={projectIcon(project)}
-                      checked={checked}
-                      disabled={busy || (project.kind === 'remote' && !checked)}
-                      onClick={() => { void selectWelcomeProject(project) }}
-                    >
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {project.name || workspaceSlug(project.path)}
-                      </span>
-                    </FooterMenuButton>
-                  )
-                })}
-              </div>
-              <FooterMenuDivider />
-              <FooterMenuButton
-                icon={<FolderPlus size={15} strokeWidth={1.8} aria-hidden />}
-                disabled={addProject.busy}
-                onClick={() => { setOpenMenu(null); addProject.beginCreate() }}
-              >
-                <span style={{ flex: 1 }}>{t('addProject.addNew')}</span>
-              </FooterMenuButton>
             </div>
           )}
           {addProject.dialog}

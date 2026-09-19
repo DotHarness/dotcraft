@@ -64,6 +64,7 @@ import {
 } from './ComposerShell'
 import { ComposerSubmitGlyphs } from './ComposerSubmitButton'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
+import { WelcomeHeading } from './WelcomeHeading'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -1766,42 +1767,11 @@ function ConversationWelcomeCore({
             alignItems: 'center'
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '18px'
-            }}
-          >
-            <h1
-              style={{
-                fontSize: 'var(--type-title-size)',
-                lineHeight: 'var(--type-title-line-height)',
-                fontWeight: 'var(--type-title-weight)',
-                color: 'var(--text-primary)',
-                margin: 0,
-                letterSpacing: 0
-              }}
-            >
-              {t('welcome.heroTitle')}
-            </h1>
-            <p style={{
-              fontSize: 'var(--type-body-size)',
-              lineHeight: 'var(--type-body-line-height)',
-              fontWeight: 'var(--type-body-weight)',
-              color: 'var(--text-secondary)',
-              margin: 0,
-              textAlign: 'center',
-              width: 'min(520px, 100%)',
-              maxWidth: '520px',
-              minHeight: '20px'
-            }}>
-              {isConnected
-                ? t('welcomeComposer.hint.select')
-                : t('welcomeComposer.hint.connecting')}
-            </p>
+          <div className="welcome-heading-block">
+            <WelcomeHeading
+              workspacePath={workspacePath}
+              onSelectWorkspace={switchWelcomeWorkspace}
+            />
           </div>
 
           <div style={{ width: '100%' }}>

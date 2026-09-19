@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.18.1 |
+| **Version** | 0.19.0 |
 | **Status** | Living |
-| **Date** | 2026-09-14 |
+| **Date** | 2026-09-20 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md) |
 
@@ -360,6 +360,8 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 2. Client begins connecting and makes connection state visible.
 3. After initialization succeeds, the client loads threads and any capability-gated data needed for the default workspace view.
 4. If no thread is selected, the user is shown a clear starting point for a new conversation.
+
+That starting point's heading names the foreground project and offers switching it in place. Selecting another project switches the foreground workspace exactly as the composer context row's project picker does; the two share one list and one set of actions, which list local projects, disable remote projects that are not already foreground, and offer creating a project and leaving the project for the default Chat workspace. In the default Chat workspace there is no project to name: the heading omits the project clause, and the context row's project control asks for a project instead of naming the Chat workspace. The heading carries no accompanying guidance line; connection state is carried by the composer placeholder and the surrounding loading state.
 
 ### 5.1.1 Welcome Suggestions
 

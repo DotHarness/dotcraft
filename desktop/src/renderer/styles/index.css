@@ -5,6 +5,7 @@
 @import "./foundations/themes.css";
 @import "./foundations/base.css";
 @import "./foundations/code-tokens.css";
+@import "../components/conversation/styles/welcome-heading.css";
 @import "../components/conversation/styles/composer-focus.css";
 @import "../components/conversation/styles/composer-submit.css";
 @import "../components/conversation/styles/model-picker.css";

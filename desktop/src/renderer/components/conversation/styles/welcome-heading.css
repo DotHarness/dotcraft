@@ -1,0 +1,66 @@
+/* Clears the composer mascot, which rises 43px above the card. */
+.welcome-heading-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 48px;
+}
+
+.welcome-heading {
+  max-width: calc(100% - 96px);
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--type-title-size);
+  font-weight: var(--type-title-weight);
+  letter-spacing: 0;
+  line-height: var(--type-title-line-height);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.welcome-heading-anchor {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: baseline;
+}
+
+.welcome-heading-project {
+  display: inline;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--text-tertiary);
+  text-underline-offset: 4px;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.welcome-heading-project:hover,
+.welcome-heading-project[aria-expanded='true'] {
+  color: var(--text-secondary);
+  text-decoration-color: var(--text-secondary);
+}
+
+.welcome-heading-project:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+}
+
+/* The menu renders inside the heading, so it has to leave the heading's type behind. */
+.welcome-heading-menu {
+  font-size: var(--type-secondary-size);
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: var(--type-secondary-line-height);
+  text-align: left;
+}

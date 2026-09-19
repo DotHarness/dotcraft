@@ -1,5 +1,5 @@
 ---
-version: "0.22.0"
+version: "0.23.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -937,6 +937,30 @@ preferences skip the staged animation.
 The thread sidebar and thread-header overflow menus are the reference treatment
 for ordinary Desktop menus: neutral overlay surface, quiet elevation, no outer
 frame, and borderless rows.
+
+### Headings that name a selection
+
+An entry heading may name the place the next action runs and let that name be
+changed in place, rather than repeating the choice in a control beside it:
+
+- the name stays part of the sentence — it keeps the heading's family, size,
+  weight, colour and letter-spacing, and gains no pill, chevron, border or
+  background;
+- a `1px` dotted underline in `--text-tertiary` at a `4px` offset is the only
+  resting affordance; hover and the open state move the text and the underline
+  to `--text-secondary`;
+- punctuation belongs to the sentence, not to the name, so it stays outside the
+  underline in every locale;
+- the heading and any control that offers the same choice open the same menu
+  built from the same rows, so the two entry points cannot drift;
+- the menu opens over the space above the heading, away from the primary input
+  below it, and flips only when the window leaves no room;
+- when there is nothing to name, the heading drops the clause and the control
+  beside the input asks for the choice instead. The heading never names a place
+  that does not exist.
+
+An entry heading carries no second line of guidance that repeats what the input's
+own placeholder and state already say.
 
 ### Inputs
 

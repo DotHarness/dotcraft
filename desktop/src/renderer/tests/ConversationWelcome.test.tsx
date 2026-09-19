@@ -2345,7 +2345,7 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryAllByTestId('welcome-suggestion-skeleton')).toHaveLength(0)
   })
 
-  it('keeps the connecting hint while rendering opening skeletons for footer and quick starts', async () => {
+  it('renders opening skeletons for the footer and quick starts while connecting', async () => {
     useConnectionStore.setState({
       status: 'connecting',
       serverInfo: null,
@@ -2362,8 +2362,6 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByTestId('welcome-footer-skeleton')).toBeInTheDocument()
       expect(screen.getAllByTestId('welcome-suggestion-skeleton')).toHaveLength(4)
     })
-    expect(screen.getByText('Connecting to workspace…')).toBeInTheDocument()
-    expect(screen.queryByTestId('welcome-hint-skeleton')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Explore this workspace' })).not.toBeInTheDocument()
   })
 

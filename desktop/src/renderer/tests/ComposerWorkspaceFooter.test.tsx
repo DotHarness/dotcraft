@@ -292,6 +292,58 @@ describe('ComposerWorkspaceFooter', () => {
     })
   })
 
+  it('offers a project instead of the Chat workspace when the welcome composer has none', async () => {
+    const onWelcomeWorkspaceChange = vi.fn().mockResolvedValue(undefined)
+    const chatPath = 'C:\Users\me\.craft\workspaces\chats'
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: chatPath,
+      foregroundProjectId: chatPath,
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: chatPath,
+        kind: 'chat',
+        path: chatPath,
+        name: 'Chat',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: []
+      }
+    })
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath={chatPath}
+          mode="local"
+          variant="welcome"
+          onWelcomeWorkspaceChange={onWelcomeWorkspaceChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose project' }))
+    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'b' }))
+
+    await waitFor(() => {
+      expect(onWelcomeWorkspaceChange).toHaveBeenCalledWith('/workspace/b')
+    })
+  })
+
   it('keeps footer controls mounted but disabled while branch probing is pending', () => {
     gitListBranches.mockReturnValue(new Promise(() => {}))
 
