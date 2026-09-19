@@ -27,7 +27,8 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
     {
         Directory.CreateDirectory(_root);
         Directory.CreateDirectory(_outside);
-        File.WriteAllText(Path.Combine(_outside, "secret.txt"), Marker);
+        // Output is captured per line, so a marker without a terminator never leaves the reader.
+        File.WriteAllText(Path.Combine(_outside, "secret.txt"), Marker + Environment.NewLine);
         _terminals = new BackgroundTerminalService(
             _root,
             new AppConfig.ShellBackgroundConfig { DefaultYieldTimeMs = 200, MaxYieldTimeMs = 10000 });
