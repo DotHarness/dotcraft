@@ -7,6 +7,7 @@ using DotCraft.Contributions;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
+using DotCraft.Context.WorldState;
 
 namespace DotCraft.Runtime;
 
@@ -27,6 +28,8 @@ internal static class PluginContributionAdapters
             IThreadSystemPromptContextProvider value
                 when typeof(TContract) == typeof(IThreadSystemPromptContextProvider) =>
                 new ThreadPromptContextAdapter(value, invocation),
+            IWorldStateSection value when typeof(TContract) == typeof(IWorldStateSection) =>
+                new WorldStateSectionAdapter(value, invocation),
             IAgentContextSource value when typeof(TContract) == typeof(IAgentContextSource) =>
                 new PluginAgentContextSourceAdapter(value, invocation),
             ICompactionSummarizer value when typeof(TContract) == typeof(ICompactionSummarizer) =>
@@ -389,6 +392,28 @@ internal static class PluginContributionAdapters
 
         public string? Expand(CommandInvocation invocation) =>
             _invocation.Invoke(() => _target.Value.Expand(invocation));
+    }
+
+    private sealed class WorldStateSectionAdapter : IWorldStateSection
+    {
+        private readonly PluginTarget<IWorldStateSection> _target;
+        private readonly PluginInvocation _invocation;
+
+        public WorldStateSectionAdapter(IWorldStateSection target, PluginInvocation invocation)
+        {
+            _target = invocation.Capture(target);
+            _invocation = invocation;
+            // The id is persisted in rollouts, so it is read once and never re-crossed.
+            Id = invocation.Invoke(() => target.Id);
+        }
+
+        public string Id { get; }
+
+        public JsonNode? Snapshot(WorldStateContext context) =>
+            _invocation.Invoke(() => _target.Value.Snapshot(context)?.DeepClone());
+
+        public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
+            _invocation.Invoke(() => _target.Value.RenderDiff(context, previous));
     }
 
     private sealed class TraceSinkAdapter : ITraceSink

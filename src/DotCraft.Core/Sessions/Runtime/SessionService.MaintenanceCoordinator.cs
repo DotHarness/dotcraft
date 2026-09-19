@@ -229,6 +229,7 @@ public sealed partial class SessionService
                                 $"Compaction backend '{compactExecution.BackendId}' returned no installable replacement.");
                         }
                         owner.InvalidatePromptRequestSnapshot(threadId, "manual_compaction");
+                        owner.ResetWorldStateBaseline(threadId, "manual_compaction");
                     }
                 }
                 catch (OperationCanceledException)

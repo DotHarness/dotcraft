@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using Xunit;
@@ -100,10 +101,11 @@ public sealed partial class RemoteToolHostCoreTests
     public async Task Runtime_context_reports_safe_connection_state_only_while_routed()
     {
         var client = new FakeRemoteClient();
-        var contributor = new RemoteToolHostRuntimeContextContributor(client);
+        var section = new RemoteToolHostSection(client);
         var thread = new SessionThread { Id = "thread-1" };
+        var context = new WorldStateContext { Thread = thread };
 
-        Assert.Null(contributor.BuildRuntimeContext(thread));
+        Assert.Null(section.RenderDiff(context, PreviousSectionState.Absent));
 
         client.SetRoute(
             thread.Id,
@@ -113,7 +115,7 @@ public sealed partial class RemoteToolHostCoreTests
                 "test-os",
                 "user",
                 new string('w', 5_000)));
-        var connected = Assert.IsType<string>(contributor.BuildRuntimeContext(thread));
+        var connected = Assert.IsType<string>(section.RenderDiff(context, PreviousSectionState.Absent));
 
         Assert.Contains("Status: Connected", connected, StringComparison.Ordinal);
         Assert.InRange(connected.Length, 1, 2_048);
@@ -121,14 +123,21 @@ public sealed partial class RemoteToolHostCoreTests
         Assert.DoesNotContain("lease-1", connected, StringComparison.Ordinal);
         Assert.DoesNotContain("instance-1", connected, StringComparison.Ordinal);
 
+        var routedSnapshot = section.Snapshot(context)!;
+
         client.SetConnectionStatus(thread.Id, RemoteToolConnectionStatus.LeaseLost);
         Assert.Contains(
             "Status: LeaseLost",
-            contributor.BuildRuntimeContext(thread),
+            Assert.IsType<string>(section.RenderDiff(context, PreviousSectionState.Known(routedSnapshot))),
             StringComparison.Ordinal);
 
+        var lostSnapshot = section.Snapshot(context)!;
         await client.DisconnectAsync(thread.Id);
-        Assert.Null(contributor.BuildRuntimeContext(thread));
+        Assert.Contains(
+            "no longer routed",
+            Assert.IsType<string>(section.RenderDiff(context, PreviousSectionState.Known(lostSnapshot))),
+            StringComparison.Ordinal);
+        Assert.Null(section.RenderDiff(context, PreviousSectionState.Absent));
     }
 
     private static ToolDefinition Definition(

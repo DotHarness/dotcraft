@@ -1,6 +1,8 @@
+using System.Text.Json.Nodes;
 using Acme.ReviewCore.Api;
 using DotCraft.Agents;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Contributions;
 
 namespace Acme.ReviewCore;
@@ -60,6 +62,23 @@ internal sealed class ReviewChatContext(IReviewService service) : IChatContextPr
 
     /// <inheritdoc />
     public IEnumerable<string> GetRuntimeContextLines() => [];
+}
+
+/// <summary>State the model is told about once, and again only when it moves.</summary>
+internal sealed class ReviewWorldState(IReviewService service) : IWorldStateSection
+{
+    internal const string Heading = "## Review Checklist State";
+
+    /// <inheritdoc />
+    public string Id => "acme_review";
+
+    /// <inheritdoc />
+    public JsonNode? Snapshot(WorldStateContext context) =>
+        new JsonObject { ["items"] = service.Checklist.Count };
+
+    /// <inheritdoc />
+    public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
+        $"{Heading}{Environment.NewLine}The review checklist has {service.Checklist.Count} items.";
 }
 
 /// <summary>A thread-scoped prompt page contributed through the thread-context section.</summary>

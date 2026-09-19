@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Commands.Core;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
 using DotCraft.Sessions;
@@ -44,6 +45,7 @@ internal static class DotNetPluginSampleCoverage
         Effect<ISystemPromptAssembler>("The assembled prompt ends with the takeover's trailer."),
         Effect<IChatContextProvider>("The provider's line inside the chat-context section of the assembled prompt."),
         Effect<IThreadSystemPromptContextProvider>("The provider's page inside the thread-context section of the assembled prompt."),
+        Effect<IWorldStateSection>("The section rendered once against no previous state, and silent against its own snapshot."),
         Effect<ICompactionSummarizer>("The summary CompactionSummarizerCatalog.Resolve returns, and the built-in returning once the plugin stops."),
         Effect<ICompactableToolPolicy>("CompactableToolPolicyCatalog.IsCompactable answering true for a plugin Tool the built-in allow-list defers on."),
         Effect<IChatMiddleware>("A model call driven through the folded pipeline reaching the inner client and being observed on the way."),

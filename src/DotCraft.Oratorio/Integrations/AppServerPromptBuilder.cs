@@ -9,7 +9,7 @@ namespace DotCraft.Oratorio.Integrations;
 
 public sealed class AppServerPromptBuilder(OratorioDbContext db)
 {
-    public const string RuntimeContextVersion = "oratorio-runtime-context-v1";
+    public const string RuntimeContextVersion = "oratorio-runtime-context-v2";
     public const string ThreadStateWorkspaceMode = "base";
 
     private const string RunContractInstructions = """
@@ -330,7 +330,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         };
 
         var contextJson = JsonSerializer.Serialize(context, JsonOptions);
-        var runtimeAdditionalContext = BuildThreadRuntimeAdditionalContext();
+        var runtimeAdditionalContext = BuildThreadRuntimeAdditionalContext(run.Purpose, item.Kind, item.Source);
         var prompt = new StringBuilder();
         if (incremental)
         {
@@ -490,32 +490,35 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
                 prompt.AppendLine($"- For each open finding above that the current head now addresses, call {OratorioDynamicToolCatalog.ResolveReviewFindingId} with its findingId and resolutionKind `fixed`. Leave still-present findings open and do not re-report them as new comments.");
             }
         }
-        prompt.AppendLine();
-        prompt.AppendLine("Available tools:");
-        if (requiredDynamicTools.Count == 0)
-        {
-            prompt.AppendLine("- None.");
-        }
-        else
-        {
-            foreach (var tool in requiredDynamicTools)
-            {
-                prompt.AppendLine($"- {tool}");
-            }
-        }
-
         return new AppServerPrompt(contextJson, prompt.ToString(), runtimeAdditionalContext);
     }
 
-    public static IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> BuildThreadRuntimeAdditionalContext() =>
-        new Dictionary<string, AppServerRuntimeAdditionalContextEntry>(StringComparer.Ordinal)
+    /// <summary>
+    /// A draft page ships only when a run on this thread can reach the matching tool, so the page set
+    /// is a function of the tool set and stays stable for as long as the thread is reused.
+    /// </summary>
+    public static IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> BuildThreadRuntimeAdditionalContext(
+        RunPurpose purpose,
+        ItemKind itemKind,
+        string? source)
+    {
+        var entries = new Dictionary<string, AppServerRuntimeAdditionalContextEntry>(StringComparer.Ordinal)
         {
             ["oratorio.runContract"] = RuntimeEntry(RunContractInstructions),
-            ["oratorio.discussionTurn"] = RuntimeEntry(DiscussionTurnInstructions),
-            ["oratorio.reviewDraft"] = RuntimeEntry(BuildReviewDraftRuntimeContext()),
-            ["oratorio.implementationDraft"] = RuntimeEntry(ImplementationDraftInstructions),
-            ["oratorio.followUpDraft"] = RuntimeEntry(FollowUpDraftInstructions)
+            ["oratorio.discussionTurn"] = RuntimeEntry(DiscussionTurnInstructions)
         };
+        if (OratorioDynamicToolCatalog.SupportsReviewDraft(itemKind, source))
+        {
+            entries["oratorio.reviewDraft"] = RuntimeEntry(BuildReviewDraftRuntimeContext());
+        }
+        if (OratorioDynamicToolCatalog.SupportsImplementationDraft(purpose, itemKind, source))
+        {
+            entries["oratorio.implementationDraft"] = RuntimeEntry(ImplementationDraftInstructions);
+        }
+
+        entries["oratorio.followUpDraft"] = RuntimeEntry(FollowUpDraftInstructions);
+        return entries;
+    }
 
     private static string BuildReviewDraftRuntimeContext()
     {

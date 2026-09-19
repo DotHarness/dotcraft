@@ -40,9 +40,7 @@ public sealed class SessionServiceHookTests : IDisposable
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
-        var request = Assert.Single(chatClient.CapturedRequests);
-        var userMessage = request.Last(message => message.Role == ChatRole.User);
-        var text = MessageText(userMessage);
+        var text = RequestText(Assert.Single(chatClient.CapturedRequests));
         Assert.Contains("## SessionStart Hook Context", text);
         Assert.Contains(marker, text);
     }
@@ -60,11 +58,9 @@ public sealed class SessionServiceHookTests : IDisposable
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
 
         Assert.Equal(2, chatClient.CapturedRequests.Count);
-        var firstUserText = MessageText(chatClient.CapturedRequests[0].Last(message => message.Role == ChatRole.User));
-        var secondUserText = MessageText(chatClient.CapturedRequests[1].Last(message => message.Role == ChatRole.User));
-        Assert.Contains(marker, firstUserText);
-        Assert.DoesNotContain("## SessionStart Hook Context", secondUserText);
-        Assert.DoesNotContain(marker, secondUserText);
+        Assert.Contains(marker, RequestText(chatClient.CapturedRequests[0]));
+        Assert.Equal(1, Occurrences(RequestText(chatClient.CapturedRequests[1]), "## SessionStart Hook Context"));
+        Assert.Equal(1, Occurrences(RequestText(chatClient.CapturedRequests[1]), marker));
     }
 
     [Fact]
@@ -82,9 +78,7 @@ public sealed class SessionServiceHookTests : IDisposable
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
-        var request = Assert.Single(chatClient.CapturedRequests);
-        var userMessage = request.Last(message => message.Role == ChatRole.User);
-        var text = MessageText(userMessage);
+        var text = RequestText(Assert.Single(chatClient.CapturedRequests));
         Assert.Contains("FIRST_SESSION_START_OUTPUT", text);
         Assert.Contains("SECOND_SESSION_START_OUTPUT", text);
     }
@@ -103,9 +97,7 @@ public sealed class SessionServiceHookTests : IDisposable
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
-        var request = Assert.Single(chatClient.CapturedRequests);
-        var userMessage = request.Last(message => message.Role == ChatRole.User);
-        var text = MessageText(userMessage);
+        var text = RequestText(Assert.Single(chatClient.CapturedRequests));
         Assert.Contains(marker, text);
         Assert.DoesNotContain("hookSpecificOutput", text);
     }
@@ -219,6 +211,21 @@ public sealed class SessionServiceHookTests : IDisposable
 
     private static string MessageText(ChatMessage message) =>
         string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
+
+    private static string RequestText(IEnumerable<ChatMessage> request) =>
+        string.Join(Environment.NewLine, request.Select(MessageText));
+
+    private static int Occurrences(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0;
+             index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
     {

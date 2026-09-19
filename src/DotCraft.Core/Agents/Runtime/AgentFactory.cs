@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
 using DotCraft.Tracing;
@@ -123,10 +124,10 @@ public sealed class AgentFactory : IAsyncDisposable
         {
             _runtimeContext = new AgentRuntimeContext(_runtimeContext)
             {
-                RuntimeContextContributors =
+                WorldStateSections =
                 [
-                    .. _runtimeContext.RuntimeContextContributors,
-                    new RemoteToolHostRuntimeContextContributor(remoteToolHostClient)
+                    .. _runtimeContext.WorldStateSections,
+                    new RemoteToolHostSection(remoteToolHostClient)
                 ]
             };
         }

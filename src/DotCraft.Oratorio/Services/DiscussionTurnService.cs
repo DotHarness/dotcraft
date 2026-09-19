@@ -456,7 +456,11 @@ public sealed class DiscussionTurnService(
             question = turn.QuestionComment?.Body
         };
         var contextJson = JsonSerializer.Serialize(context, JsonOptions);
-        var runtimeAdditionalContext = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext();
+        // Reproduces the page set the base run bound, so resuming its thread appends nothing.
+        var runtimeAdditionalContext = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(
+            turn.BaseRun?.Purpose ?? RunPurpose.ReviewAnalysis,
+            turn.Item?.Kind ?? ItemKind.LocalTask,
+            turn.Item?.Source);
 
         var prompt = new StringBuilder();
         prompt.AppendLine("You are answering an Oratorio Agent Discussion Turn in an existing DotCraft thread.");

@@ -1,6 +1,8 @@
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using DotCraft.Context.Compaction;
+using DotCraft.Context.WorldState;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -103,6 +105,19 @@ public sealed class SessionPersistenceService(
         string turnId,
         CancellationToken ct = default)
         => threadStore.AppendModelHistoryAsync(threadId, history, turnId, ct);
+
+    internal Task AppendWorldStateAsync(
+        string threadId,
+        string turnId,
+        bool full,
+        JsonObject state,
+        CancellationToken ct = default)
+        => threadStore.AppendWorldStateAsync(threadId, turnId, full, state, ct);
+
+    internal Task<WorldStateSnapshot?> LoadWorldStateBaselineAsync(
+        SessionThread thread,
+        CancellationToken ct = default)
+        => threadStore.LoadWorldStateBaselineAsync(thread, ct);
 
     internal Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
         SessionThread source,

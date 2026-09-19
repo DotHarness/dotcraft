@@ -6,6 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-09-16 |
 | **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
+| **Related Specs** | [Prompt Composition](prompt-composition.md), [World State](world-state.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 

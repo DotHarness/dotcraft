@@ -27,7 +27,8 @@ public static class TurnGuidanceRuntimeScope
         {
             TryDrainGuidanceMessageAsync = context.TryDrainGuidanceMessageAsync,
             TryDrainMailboxMessageAsync = context.TryDrainMailboxMessageAsync,
-            TryDrainAnswerBoundaryMessageAsync = context.TryDrainAnswerBoundaryMessageAsync
+            TryDrainAnswerBoundaryMessageAsync = context.TryDrainAnswerBoundaryMessageAsync,
+            TryDrainWorldStateMessagesAsync = context.TryDrainWorldStateMessagesAsync
         });
         var toolObserverScope = StreamingToolInvocationRuntimeScope.Set(
             new SessionStreamingToolInvocationObserver());
@@ -70,6 +71,8 @@ public sealed class TurnGuidanceRuntimeContext
     /// explicit guidance reopens the current turn.
     /// </summary>
     public Func<CancellationToken, Task<ChatMessage?>>? TryDrainAnswerBoundaryMessageAsync { get; init; }
+
+    public Func<CancellationToken, Task<IReadOnlyList<ChatMessage>>>? TryDrainWorldStateMessagesAsync { get; init; }
 
     /// <summary>
     /// Optional callback invoked after a tool handler has actually run and produced

@@ -382,6 +382,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
             await TryAppendMailboxAsync(nextHistory, cancellationToken);
             await TryAppendGuidanceAsync(nextHistory, cancellationToken);
+            await TryAppendWorldStateAsync(nextHistory, cancellationToken);
             UpdateOptionsForNextIteration(ref options, response.ConversationId);
             currentMessages = nextHistory;
             awaitingPostToolContinuation = toolMessages.Messages.Count > 0;

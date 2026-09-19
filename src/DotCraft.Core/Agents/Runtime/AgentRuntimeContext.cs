@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Mcp;
@@ -56,7 +57,7 @@ public sealed class AgentRuntimeContext
         SkillsLoader = source.SkillsLoader;
         ContextPageManager = source.ContextPageManager;
         ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders;
-        RuntimeContextContributors = source.RuntimeContextContributors;
+        WorldStateSections = source.WorldStateSections;
         Contributions = source.Contributions;
         SkillMutationApplier = source.SkillMutationApplier;
         ApprovalService = source.ApprovalService;
@@ -229,8 +230,8 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public IReadOnlyList<IThreadSystemPromptContextProvider> ThreadSystemPromptContextProviders { get; init; } = [];
 
-    /// <summary>Turn-local runtime reminder contributors.</summary>
-    public IReadOnlyList<IRuntimeContextContributor> RuntimeContextContributors { get; init; } = [];
+    /// <summary>Sections of the model-visible state that are re-sent only when they change.</summary>
+    public IReadOnlyList<IWorldStateSection> WorldStateSections { get; init; } = [];
 
     /// <summary>The workspace contribution view used to resolve the contribution points evaluated per turn. Unset by hosts without the workspace kernel, which fall back to the built-in catalogs.</summary>
     public IContributionView? Contributions { get; init; }

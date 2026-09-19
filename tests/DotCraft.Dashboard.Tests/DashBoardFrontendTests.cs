@@ -101,6 +101,18 @@ public sealed class DashBoardFrontendTests
     }
 
     [Fact]
+    public void Html_RendersWorldStateDiagnosticsIncludingTheStepsThatSendNothing()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("data-filter=\"WorldStateDiagnostic\"", html);
+        Assert.Contains("case 'WorldStateDiagnostic':", html);
+        Assert.Contains("nothing sent", html);
+        Assert.Contains("baseline from", html);
+        Assert.Contains("type-WorldStateDiagnostic .trace-icon", html);
+    }
+
+    [Fact]
     public void Html_RendersSubAgentRelationshipsAndPrefixDiagnostics()
     {
         var html = DashBoardFrontend.GetHtml();

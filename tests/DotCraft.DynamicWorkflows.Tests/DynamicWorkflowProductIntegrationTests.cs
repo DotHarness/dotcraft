@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
+using DotCraft.Context.WorldState;
 using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
@@ -43,7 +44,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
     [Fact]
     public void RuntimeGuidanceIsAvailableForUltraAndDoesNotPropagateIntoWorkflowChild()
     {
-        var provider = new DynamicWorkflowRuntimeContextContributor();
+        var section = new DynamicWorkflowSection();
         var ultra = new SessionThread
         {
             Configuration = new ThreadConfiguration
@@ -51,10 +52,15 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
                 Reasoning = new AppConfig.ReasoningConfig { Effort = ModelReasoningEffort.Ultra }
             }
         };
-        Assert.NotNull(provider.BuildRuntimeContext(ultra));
+        var context = new WorldStateContext { Thread = ultra };
+        Assert.Contains(
+            "Ultra is active",
+            section.RenderDiff(context, PreviousSectionState.Absent),
+            StringComparison.Ordinal);
 
         ultra.Source = ThreadSource.ForSubAgent(new SubAgentThreadSource { Purpose = "dynamicWorkflow" });
-        Assert.Null(provider.BuildRuntimeContext(ultra));
+        Assert.Null(section.RenderDiff(context, PreviousSectionState.Absent));
+        Assert.Null(section.Snapshot(context));
     }
 
     [Fact]

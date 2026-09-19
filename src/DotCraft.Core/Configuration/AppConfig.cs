@@ -1127,6 +1127,9 @@ public sealed class AppConfig
         [ConfigField(Hint = "Discover skills from the shared ~/.agents/skills directory", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
         public bool IncludeSharedSkills { get; set; } = true;
 
+        [ConfigField(Hint = "Deploy the skills DotCraft ships into the workspace on start", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
+        public bool IncludeBuiltInSkills { get; set; } = true;
+
         /// <summary>
         /// Optional agent self-learning behavior for creating and updating workspace skills.
         /// </summary>

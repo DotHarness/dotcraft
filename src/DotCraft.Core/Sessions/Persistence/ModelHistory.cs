@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -742,7 +743,8 @@ internal sealed record ModelHistoryReplayResult(
     int RejectedRecords = 0,
     IReadOnlySet<string>? FallbackTurnIds = null,
     long BytesRead = 0,
-    int RecordsDecoded = 0);
+    int RecordsDecoded = 0,
+    WorldStateSnapshot? WorldState = null);
 
 internal sealed record ModelHistoryReplayWarning(
     string Code,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -25,6 +26,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             .ToList();
         var survivingTurnIds = orderedTurns.Select(static turn => turn.Id).ToHashSet(StringComparer.Ordinal);
         var reverseBatches = new List<DecodedModelBatch>();
+        var reverseWorldStates = new List<WorldStatePayload>();
         var fallbackTurnIds = new HashSet<string>(StringComparer.Ordinal);
         var warnings = new List<ModelHistoryReplayWarning>();
         var codec = new ModelHistoryCodec();
@@ -60,7 +62,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         ? "Skipped an unreadable compaction checkpoint."
                         : "Skipped an unreadable rollout record.",
                     failedTurnId,
-                    markFallback: !checkpointRecord);
+                    markFallback: RebuildsTurnHistory(failedKind));
                 continue;
             }
 
@@ -80,7 +82,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         : "malformed_record",
                     envelopeError!,
                     envelopeTurnId,
-                    markFallback: !string.Equals(kind, "context_compacted", StringComparison.Ordinal));
+                    markFallback: RebuildsTurnHistory(kind));
                 continue;
             }
 
@@ -162,6 +164,22 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         markFallback: false);
                 }
             }
+            else if (string.Equals(kind, "world_state", StringComparison.Ordinal))
+            {
+                hasRecords = true;
+                var worldStateRecord = record.WorldState;
+                if (!TryValidateWorldState(worldStateRecord, out var worldStateError))
+                {
+                    // A bad world-state record must not rebuild a turn's history from its projection.
+                    Reject("malformed_record", worldStateError!, envelopeTurnId, markFallback: false);
+                    continue;
+                }
+                if (expectedThreadId == null
+                    || string.Equals(worldStateRecord!.ThreadId, expectedThreadId, StringComparison.Ordinal))
+                {
+                    reverseWorldStates.Add(worldStateRecord!);
+                }
+            }
         }
 
         reverseBatches.Reverse();
@@ -197,6 +215,9 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                 messages.AddRange(batch.Messages);
         }
 
+        // Folded last: a turn rebuilt from its projection carries no context items.
+        var worldState = FoldWorldState(reverseWorldStates, survivingTurnIds, fallbackTurnIds);
+
         RolloutTelemetry.RecordResume(reader.BytesRead, recordsDecoded, rejectedRecords);
         return new ModelHistoryReplayResult(
             messages,
@@ -205,7 +226,8 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             rejectedRecords,
             fallbackTurnIds,
             reader.BytesRead,
-            recordsDecoded);
+            recordsDecoded,
+            worldState);
 
         void Reject(
             string code,
@@ -220,6 +242,26 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         }
     }
 
+    private static WorldStateSnapshot? FoldWorldState(
+        List<WorldStatePayload> reverseWorldStates,
+        IReadOnlySet<string> survivingTurnIds,
+        IReadOnlySet<string> fallbackTurnIds)
+    {
+        reverseWorldStates.Reverse();
+        WorldStateSnapshot? baseline = null;
+        foreach (var entry in reverseWorldStates)
+        {
+            if (!survivingTurnIds.Contains(entry.TurnId) || fallbackTurnIds.Contains(entry.TurnId))
+                continue;
+            if (entry.Full)
+                baseline = WorldStateSnapshot.FromJsonObject(entry.State);
+            else
+                baseline?.ApplyMergePatch(entry.State);
+        }
+
+        return baseline;
+    }
+
     private static bool TryValidateTargetEnvelope(
         ThreadRolloutRecord record,
         string? kind,
@@ -227,14 +269,18 @@ internal sealed class RolloutReplayer : IRolloutReplayer
     {
         error = null;
         var populatedPayloads = (record.ContextCompacted == null ? 0 : 1)
-            + (record.ModelHistoryMessagesAppended == null ? 0 : 1);
+            + (record.ModelHistoryMessagesAppended == null ? 0 : 1)
+            + (record.WorldState == null ? 0 : 1);
 
-        if (kind is not ("context_compacted" or "model_history_messages_appended"))
+        if (kind is not ("context_compacted" or "model_history_messages_appended" or "world_state"))
             return true;
 
-        var hasExpectedPayload = kind == "context_compacted"
-            ? record.ContextCompacted != null
-            : record.ModelHistoryMessagesAppended != null;
+        var hasExpectedPayload = kind switch
+        {
+            "context_compacted" => record.ContextCompacted != null,
+            "world_state" => record.WorldState != null,
+            _ => record.ModelHistoryMessagesAppended != null
+        };
         if (!hasExpectedPayload)
         {
             error = $"Rollout record '{kind}' is missing its object payload.";
@@ -268,6 +314,29 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         if (batch.Messages.Any(static message => message is null))
         {
             error = "Skipped an invalid model-history batch containing a null message.";
+            return false;
+        }
+        return true;
+    }
+
+    // Only the batch that carries a turn's exact model history can cost the turn that history.
+    private static bool RebuildsTurnHistory(string? kind) =>
+        string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal);
+
+    private static bool TryValidateWorldState(WorldStatePayload? worldState, out string? error)
+    {
+        error = null;
+        if (worldState is null
+            || string.IsNullOrWhiteSpace(worldState.ThreadId)
+            || string.IsNullOrWhiteSpace(worldState.TurnId))
+        {
+            error = "Skipped an invalid world-state record with missing identity fields.";
+            return false;
+        }
+        // A persisted null reaches this as a null property, and the fold would dereference it.
+        if (worldState.State is null)
+        {
+            error = "Skipped an invalid world-state record with missing state.";
             return false;
         }
         return true;
@@ -327,6 +396,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         {
             "model_history_messages_appended" => record.ModelHistoryMessagesAppended?.TurnId,
             "context_compacted" => record.ContextCompacted?.CoveredThroughTurnId,
+            "world_state" => record.WorldState?.TurnId,
             _ => null
         };
 
@@ -336,6 +406,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         {
             "model_history_messages_appended" => "modelHistoryMessagesAppended",
             "context_compacted" => "contextCompacted",
+            "world_state" => "worldState",
             _ => null
         };
         if (payloadName == null

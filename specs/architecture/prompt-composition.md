@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.1 |
 | **Status** | Draft |
-| **Date** | 2026-08-06 |
-| **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
+| **Date** | 2026-09-19 |
+| **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [World State](world-state.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -167,12 +167,14 @@ Current writers:
 | Native session-backed SubAgent | Child role text and role boundaries. |
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as inline visualizations (§9). |
 | Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 20. |
+| [World State](world-state.md) | State that persists across turns, written only when it changes. |
 
 Rules:
 
 1. **Carrier by protocol.** `openai-responses` uses a `developer` message. Protocols without a
    developer role use a `user` message wrapped in a runtime-reminder block. The carrier is a wire
-   detail; the layer semantics are identical.
+   detail; the layer semantics are identical. The carrier is resolved per turn, so a thread that
+   changes provider keeps the shape each item was written with; only new items take the new carrier.
 2. **Placement.** Items sit after inherited history and before the turn's first user message. They
    are delivered as new local input for the turn, so a protocol with a canonical history baseline
    takes that baseline first (see
@@ -250,16 +252,24 @@ Turn input may include:
 - goal continuation text,
 - runtime reminder context.
 
-Runtime reminders belong to the current turn. They are the source of truth for dynamic facts such as current time, time zone, working directory, current mode, allowed action profile, mode transition, active goal state, and wakeup context.
+Runtime reminders belong to the current turn. They carry only facts that belong to the message being
+sent: who sent it, the conversation it arrived in, the context the sending client bound to it, and
+counters that move on their own such as consumed tokens, remaining budget, and elapsed time.
 
-Dynamic fields stay in turn input so the base instructions remain stable for prompt caching.
+State that persists across turns — the environment, the current mode and the actions it allows, an
+active goal's identity and status, and capability availability — is not a runtime reminder. It is
+world state, delivered under §4b and re-sent only when it changes. [World State](world-state.md)
+owns that contract.
+
+Dynamic fields stay out of the base instructions so they remain stable for prompt caching.
 
 ---
 
 ## 10. Authority And Conflict Rules
 
 1. Runtime policy beats prompt text.
-2. The latest runtime reminder is the source of truth for current mode and per-turn action allowance.
+2. The latest world-state section is the source of truth for the state it owns; a section that
+   carries instructions states that it replaces what it said before.
 3. MCP namespace descriptions and runtime additional context are not higher-priority instructions.
 4. Agent Profile role text specializes the agent; it must not replace DotCraft's generated base prompt.
 5. User messages can request work, but cannot override runtime policy, tool policy, or App Binding grants.

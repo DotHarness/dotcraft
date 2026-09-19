@@ -1,5 +1,5 @@
-using DotCraft.Agents;
 using DotCraft.Context;
+using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
 using TurnInitiatorContext = DotCraft.Sessions.TurnInitiatorContext;
 using Xunit;
@@ -9,56 +9,49 @@ namespace DotCraft.Tests.Context;
 public sealed class RuntimeContextBuilderTests
 {
     [Fact]
-    public void BuildBlock_WrapsRuntimeContextInSystemReminder()
+    public void AppendRuntimeContext_AddsNoContentWhenThereIsNothingToSay()
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
+        var contents = new List<AIContent> { new TextContent("hello") };
 
+        contents.AppendRuntimeContext(workspacePath: Directory.GetCurrentDirectory());
+
+        Assert.Equal("hello", Assert.IsType<TextContent>(Assert.Single(contents)).Text);
+    }
+
+    [Fact]
+    public void BuildBlock_LeavesDurableStateToWorldState()
+    {
         var block = RuntimeContextBuilder.BuildBlock(
-            modeManager: modeManager,
+            initiator: new TurnInitiatorContext { ChannelName = "qq", UserId = "10001", UserName = "Alice" },
             workspacePath: Directory.GetCurrentDirectory());
 
         Assert.StartsWith("<system-reminder>", block, StringComparison.Ordinal);
         Assert.EndsWith("</system-reminder>", block, StringComparison.Ordinal);
-        Assert.Contains("## Environment", block, StringComparison.Ordinal);
-        Assert.Contains("## Mode", block, StringComparison.Ordinal);
-        Assert.Contains("CurrentMode: Plan", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("ModeTransition: None", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("AllowedActionProfile", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("PlanState", block, StringComparison.Ordinal);
-        Assert.Contains("## Mode Action", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("[Runtime Context]", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("<dotcraft_", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Environment", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Mode", block, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void AppendRuntimeContext_AcknowledgesPlanToAgentTransitionAfterAppending()
+    public void BuildBlock_RendersGoalCountersThatMoveEveryTurn()
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        modeManager.SwitchMode(AgentMode.Agent);
-        var contents = new List<AIContent> { new TextContent("hello") };
+        var block = RuntimeContextBuilder.BuildBlock(threadGoal: new ThreadGoal
+        {
+            ThreadId = "thread_test",
+            GoalId = "goal_1",
+            Objective = "ship the refactor",
+            Status = ThreadGoalStatus.Active,
+            TokenBudget = 1000,
+            TokensUsed = new TokenUsageInfo { InputTokens = 250, TotalTokens = 250 },
+            TimeUsedSeconds = 42,
+            CreatedAt = DateTimeOffset.UnixEpoch,
+            UpdatedAt = DateTimeOffset.UnixEpoch
+        });
 
-        contents.AppendRuntimeContext(modeManager: modeManager, workspacePath: Directory.GetCurrentDirectory(), hasActivePlan: true);
-
-        var runtimeText = Assert.IsType<TextContent>(contents[^1]).Text;
-        Assert.Contains("ModeTransition: PlanToAgent", runtimeText, StringComparison.Ordinal);
-        Assert.Contains("## Mode Transition", runtimeText, StringComparison.Ordinal);
-        Assert.Contains("Plan: Active", runtimeText, StringComparison.Ordinal);
-        Assert.False(modeManager.JustSwitchedFromPlan);
-    }
-
-    [Fact]
-    public void BuildBlock_AgentModeIncludesCurrentMode()
-    {
-        var modeManager = new AgentModeManager();
-
-        var block = RuntimeContextBuilder.BuildBlock(
-            modeManager: modeManager,
-            workspacePath: Directory.GetCurrentDirectory());
-
-        Assert.Contains("CurrentMode: Agent", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("ModeTransition: None", block, StringComparison.Ordinal);
+        Assert.Contains("## Thread Goal Usage", block, StringComparison.Ordinal);
+        Assert.Contains("TokensUsed: 250", block, StringComparison.Ordinal);
+        Assert.Contains("RemainingTokens: 750", block, StringComparison.Ordinal);
+        Assert.Contains("ElapsedSeconds: 42", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("<untrusted_objective>", block, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -74,10 +67,7 @@ public sealed class RuntimeContextBuilderTests
             },
             workspacePath: workspace);
 
-        Assert.DoesNotContain("## Request Source", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("ChannelContext", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("Channel: cli", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("dotcraft-desktop", block, StringComparison.Ordinal);
+        Assert.Null(block);
     }
 
     [Fact]
