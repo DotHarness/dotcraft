@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.16.0 |
+| **Version** | 0.17.0 |
 | **Status** | Living |
-| **Date** | 2026-08-29 |
+| **Date** | 2026-09-19 |
 | **Related specs** | [Plugin Architecture](plugin-architecture.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Session Core](session-core.md), [Tool Architecture](tools-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 This specification defines trusted, in-process .NET plugins. The shared plugin manifest,
@@ -185,6 +185,7 @@ The catalog reuses kernel contracts. Capability tiers are:
 | Prompt | `ISystemPromptAssembler` | C | Resolved per prompt build |
 | Context | `IChatContextProvider` | A | Per request; returned lines are copied by the host adapter |
 | Context | `IThreadSystemPromptContextProvider` | A | Base-instruction path only; `ThreadContextItem` is rejected before activation; resolved per prompt build |
+| Context | `IWorldStateSection` | A | Snapshotted per sampling step, rendered only when that snapshot moves; the host owns persistence, diffing, and the item envelope |
 | Context | `IAgentContextSource` | A, B | Materialized; factory result is a gated host `AIContextProvider` |
 | Compaction | `ICompactionSummarizer` | B | Per compaction |
 | Compaction | `ICompactableToolPolicy` | A, B | Per compaction |

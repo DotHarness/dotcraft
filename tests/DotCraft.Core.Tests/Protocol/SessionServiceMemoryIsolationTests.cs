@@ -154,16 +154,17 @@ public sealed partial class SessionServiceMemoryConsolidationTests
             Assert.Equal($"main-turn_00{index + 1}", mainContext.ConversationState!.ContinuationState);
             Assert.NotSame(mainContext.ConversationState, contexts[index].Context!.ConversationState);
             var history = Assert.IsType<OpenAIResponsesProviderHistoryContext>(mainContext.History);
-            var messages = new List<ChatMessage> { new(ChatRole.User, "first"), new(ChatRole.Assistant, "ok") };
-            if (index == 1)
-                messages.AddRange([new(ChatRole.User, "second"), new(ChatRole.Assistant, "ok")]);
+            var messages = await new ThreadStore(_tempDir).LoadModelHistoryAsync(thread.Id, CancellationToken.None);
             var snapshot = await history.CaptureInputAsync(ProviderCompactionPhase.PreTurn,
                 messages, null, CancellationToken.None);
-            Assert.Equal(messages.Count, snapshot.CoveredMessageCount);
-            Assert.Equal(messages.Count, snapshot.Items.Count);
+            Assert.Contains(messages, message => MessageContains(message, index == 1 ? "second" : "first"));
+            Assert.Equal(snapshot.CoveredMessageCount, snapshot.Items.Count);
             Assert.DoesNotContain(snapshot.Items, item => item.Payload.GetRawText().Contains("memory-"));
         }
     }
+
+    private static bool MessageContains(ChatMessage message, string value) =>
+        message.Contents.OfType<TextContent>().Any(content => content.Text.Contains(value, StringComparison.Ordinal));
 
     private sealed class MainHistoryTransport : IResponsesToolSearchTransport
     {

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Context.WorldState;
 using DotCraft.Plugins;
 using DotCraft.Persistence;
 using Microsoft.Extensions.AI;
@@ -260,6 +261,23 @@ public sealed partial class ThreadStore : IAsyncDisposable
             .Select(message => codec.Encode(message, turnId))
             .ToList();
         var result = await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct);
+        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
+    }
+
+    internal async Task AppendWorldStateAsync(
+        string threadId,
+        string turnId,
+        bool full,
+        JsonObject state,
+        CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var result = await _rolloutStore.AppendWorldStateAsync(
+            threadId,
+            turnId,
+            full,
+            state,
+            ct);
         await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
@@ -788,6 +806,23 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
         if (limit <= 0)
             throw new ArgumentOutOfRangeException(nameof(limit), "History page limit must be positive.");
+    }
+
+    internal async Task<WorldStateSnapshot?> LoadWorldStateBaselineAsync(
+        SessionThread thread,
+        CancellationToken ct)
+    {
+        var rolloutPath = _rolloutStore.ResolveExistingPath(thread.Id);
+        if (rolloutPath == null)
+            return null;
+
+        var replayed = await _rolloutReplayer.ReplayModelHistoryAsync(
+            rolloutPath,
+            thread.Turns,
+            excludedTurnId: null,
+            ct,
+            thread.Id);
+        return replayed.WorldState;
     }
 
     private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(

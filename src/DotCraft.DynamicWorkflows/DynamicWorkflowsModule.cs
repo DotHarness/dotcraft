@@ -5,6 +5,7 @@ using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Commands.Core;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -51,7 +52,7 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase, IToolSourceModu
         services.AddSingleton<IThreadLifecycleObserver>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ISubAgentGuidanceProvider, DynamicWorkflowSubAgentGuidance>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptCommandProvider, DynamicWorkflowCommandProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRuntimeContextContributor, DynamicWorkflowRuntimeContextContributor>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, DynamicWorkflowSection>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRuntimeCapabilityProvider, DynamicWorkflowRuntimeCapability>());
     }
 

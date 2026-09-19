@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Commands.Core;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
 using DotCraft.Runtime;
@@ -51,6 +52,23 @@ internal static class DotNetPluginSampleEffects
 
         Assert.Contains("Review plugin is active for this thread", prompt, StringComparison.Ordinal);
         ledger.Prove<IThreadSystemPromptContextProvider>();
+
+        AssertWorldStateEffects(host, ledger);
+    }
+
+    private static void AssertWorldStateEffects(DotNetPluginSampleHost host, SampleCoverageLedger ledger)
+    {
+        var world = WorldStateComposer.Build(host.Registry.Resolve<IWorldStateSection>(ThreadId));
+        var context = new WorldStateContext { Thread = new SessionThread { Id = ThreadId } };
+
+        var full = world.RenderFull(context);
+        var section = Assert.Single(full.Fragments, fragment => fragment.SectionId == "acme_review");
+        Assert.Contains("## Review Checklist State", section.Text, StringComparison.Ordinal);
+        Assert.Contains("has 3 items", section.Text, StringComparison.Ordinal);
+
+        var repeat = world.Render(context, full.Snapshot, sectionIdsInHistory: null);
+        Assert.Contains("acme_review", repeat.SilentSectionIds);
+        ledger.Prove<IWorldStateSection>();
     }
 
     /// <summary>The section is sized from the plugin's settings snapshot.</summary>

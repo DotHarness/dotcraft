@@ -42,6 +42,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `SubAgentPrefixDiagnostic` | One-time comparison between a native subagent's first Responses request and its direct parent's fork anchor |
 | `MaintenanceForkRequest` | Maintenance fork request |
 | `MaintenanceForkResponse` | Maintenance fork response |
+| `WorldStateDiagnostic` | What the world state told the model for one sampling step, including the steps that sent nothing |
 
 Dashboard records `Thinking` and `Response` trace events by contiguous streaming content segment, not per chunk, and does not collapse a full turn into one event. `ThinkingCount` and `ResponseCount` therefore count segments. The realtime event stream emits a segment event once that segment ends and is recorded.
 
@@ -72,6 +73,26 @@ Maintenance requests such as context compaction and memory consolidation also re
 `PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability. It also records sanitized effective option flags such as requested max output tokens, whether OAuth rewriting removes them before transport, reasoning effort, tool-choice kind, tool count, and streaming mode.
 
 `SubAgentPrefixDiagnostic` compares a native subagent's first OpenAI Responses request with the direct parent's request captured at fork time. Its `status` is `compatible`, `staticShared`, `diverged`, or `unavailable`. `compatible` requires equal cache identity and leading request components plus at least one retained parent input item; a later fork-specific suffix is expected. `staticShared` means the static prefix matched but no input item was retained. Metadata contains component hashes, request and attempt indexes, input counts, the matched prefix length, `exactParentInputPrefix`, the first zero-based divergence index, and `changedFields`; it contains no prompt text, tool schema, or input item content. Chat Completions and Anthropic sessions expose their parent relationship without inferring prefix equality.
+
+The **World State** filter includes `WorldStateDiagnostic`. One event is recorded for every sampling
+step, including a step that sent nothing, because "the model was told nothing" and "the section
+never ran" are otherwise indistinguishable after the fact. Its `status` is `full`, `emitted`, or
+`unchanged`, and `baselineSource` is `none`, `memory`, `rollout`, or `fork`. Its `metadataJson` has
+this shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "status": "unchanged",
+  "turnId": "turn_002",
+  "baselineSource": "memory",
+  "changedSections": [],
+  "unchangedSections": ["environment", "mode"],
+  "suppressedSections": [{ "id": "acme_review", "reason": "render_failed" }]
+}
+```
+
+Section ids are recorded; rendered section text is not.
 
 ## Endpoints
 

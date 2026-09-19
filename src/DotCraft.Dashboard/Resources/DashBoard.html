@@ -966,6 +966,7 @@ body {
 .trace-event.type-ProviderError .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
 .trace-event.type-ResponseTerminal .trace-icon { color: var(--text-muted); border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border)); background: var(--bg-card); }
 .trace-event.type-ProviderResponseDiagnostic .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
+.trace-event.type-WorldStateDiagnostic .trace-icon,
 .trace-event.type-SubAgentPrefixDiagnostic .trace-icon { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border)); background: var(--info-dim); }
 .trace-event.type-ThreadRollback .trace-icon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-dim); }
 .trace-event.type-Thinking .trace-icon { color: var(--thinking); border-color: color-mix(in srgb, var(--thinking) 45%, var(--border)); background: var(--thinking-dim); }
@@ -2175,6 +2176,7 @@ body {
           <div class="filter-bar" id="traceFilters">
             <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
             <button class="filter-chip" data-filter="AgentInstructions" onclick="setTraceFilter('AgentInstructions')">Instructions</button>
+            <button class="filter-chip" data-filter="WorldStateDiagnostic" onclick="setTraceFilter('WorldStateDiagnostic')">World State</button>
             <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
             <button class="filter-chip" data-filter="Response" onclick="setTraceFilter('Response')">Responses</button>
             <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
@@ -3459,6 +3461,40 @@ function renderTraceEvent(e) {
         <div class="trace-body">
           ${promptCacheDiagnostics}
         </div></div>`;
+
+    case 'WorldStateDiagnostic': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const statusClass = md.status === 'unchanged'
+        ? 'badge-info'
+        : md.status === 'full'
+          ? 'badge-warning'
+          : 'badge-success';
+      const changed = md.changedSections || [];
+      const unchanged = md.unchangedSections || [];
+      const suppressed = md.suppressedSections || [];
+      // A step that sends nothing is the steady state, so say why rather than showing an empty card.
+      const summary = changed.length > 0
+        ? `${formatNumber(changed.length)} sent · ${formatNumber(unchanged.length)} unchanged`
+        : `nothing sent · ${formatNumber(unchanged.length)} sections unchanged`;
+      const baseline = md.baselineSource ? ` · baseline from ${escapeHtml(md.baselineSource)}` : '';
+      const badges = [
+        ...changed.map(id => `<span class="badge badge-success">${escapeHtml(id)}</span>`),
+        ...suppressed.map(item => `<span class="badge badge-warning">${escapeHtml(item.id)}: ${escapeHtml(item.reason)}</span>`)
+      ].join('');
+      const badgeRow = badges
+        ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${badges}</div>`
+        : '';
+      return `<div class="trace-event type-WorldStateDiagnostic">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('archive', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label">World State <span class="badge ${statusClass}">${escapeHtml(md.status || 'unknown')}</span></div>
+          <div style="margin-top:6px;color:var(--text-secondary)">${summary}${baseline}</div>
+          ${badgeRow}
+          ${metaLine}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
+        </div></div>`;
+    }
 
     case 'SubAgentPrefixDiagnostic': {
       const md = parseTraceMetadata(e.metadataJson) || {};

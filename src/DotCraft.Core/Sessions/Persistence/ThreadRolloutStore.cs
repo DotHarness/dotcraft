@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DotCraft.Sessions;
 
@@ -250,6 +251,34 @@ internal sealed class ThreadRolloutStore
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
+        var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<RolloutAppendResult> AppendWorldStateAsync(
+        string threadId,
+        string turnId,
+        bool full,
+        JsonObject state,
+        CancellationToken ct = default)
+    {
+        var existingPath = ResolveExistingPath(threadId);
+        if (existingPath == null)
+            throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "world_state",
+            Timestamp = DateTimeOffset.UtcNow,
+            WorldState = new WorldStatePayload
+            {
+                ThreadId = threadId,
+                TurnId = turnId,
+                Full = full,
+                State = state
+            }
+        };
+
         var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
         return new RolloutAppendResult(existingPath, receipt);
     }
@@ -1166,6 +1195,8 @@ internal sealed class ThreadRolloutRecord
 
     public ModelHistoryMessagesAppendedPayload? ModelHistoryMessagesAppended { get; init; }
 
+    public WorldStatePayload? WorldState { get; init; }
+
     public ProviderHistoryItemsAppendedPayload? ProviderHistoryItemsAppended { get; init; }
 
     public ProviderHistoryReplacedPayload? ProviderHistoryReplaced { get; init; }
@@ -1311,6 +1342,17 @@ internal sealed class ModelHistoryMessagesAppendedPayload
     public string TurnId { get; init; } = string.Empty;
 
     public List<ModelHistoryMessage> Messages { get; init; } = [];
+}
+
+internal sealed class WorldStatePayload
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string TurnId { get; init; } = string.Empty;
+
+    public bool Full { get; init; }
+
+    public JsonObject State { get; init; } = [];
 }
 
 internal sealed class TurnStateReplacedPayload

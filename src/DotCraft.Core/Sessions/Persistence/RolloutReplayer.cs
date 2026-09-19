@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -25,6 +26,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             .ToList();
         var survivingTurnIds = orderedTurns.Select(static turn => turn.Id).ToHashSet(StringComparer.Ordinal);
         var reverseBatches = new List<DecodedModelBatch>();
+        var reverseWorldStates = new List<WorldStatePayload>();
         var fallbackTurnIds = new HashSet<string>(StringComparer.Ordinal);
         var warnings = new List<ModelHistoryReplayWarning>();
         var codec = new ModelHistoryCodec();
@@ -162,6 +164,16 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         markFallback: false);
                 }
             }
+            else if (string.Equals(kind, "world_state", StringComparison.Ordinal)
+                && record.WorldState is { } worldStateRecord)
+            {
+                hasRecords = true;
+                if (expectedThreadId == null
+                    || string.Equals(worldStateRecord.ThreadId, expectedThreadId, StringComparison.Ordinal))
+                {
+                    reverseWorldStates.Add(worldStateRecord);
+                }
+            }
         }
 
         reverseBatches.Reverse();
@@ -197,6 +209,9 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                 messages.AddRange(batch.Messages);
         }
 
+        // Folded last: a turn rebuilt from its projection carries no context items.
+        var worldState = FoldWorldState(reverseWorldStates, survivingTurnIds, fallbackTurnIds);
+
         RolloutTelemetry.RecordResume(reader.BytesRead, recordsDecoded, rejectedRecords);
         return new ModelHistoryReplayResult(
             messages,
@@ -205,7 +220,8 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             rejectedRecords,
             fallbackTurnIds,
             reader.BytesRead,
-            recordsDecoded);
+            recordsDecoded,
+            worldState);
 
         void Reject(
             string code,
@@ -218,6 +234,26 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                 fallbackTurnIds.Add(turnId);
             warnings.Add(new ModelHistoryReplayWarning(code, message, turnId));
         }
+    }
+
+    private static WorldStateSnapshot? FoldWorldState(
+        List<WorldStatePayload> reverseWorldStates,
+        IReadOnlySet<string> survivingTurnIds,
+        IReadOnlySet<string> fallbackTurnIds)
+    {
+        reverseWorldStates.Reverse();
+        WorldStateSnapshot? baseline = null;
+        foreach (var entry in reverseWorldStates)
+        {
+            if (!survivingTurnIds.Contains(entry.TurnId) || fallbackTurnIds.Contains(entry.TurnId))
+                continue;
+            if (entry.Full)
+                baseline = WorldStateSnapshot.FromJsonObject(entry.State);
+            else
+                baseline?.ApplyMergePatch(entry.State);
+        }
+
+        return baseline;
     }
 
     private static bool TryValidateTargetEnvelope(
@@ -327,6 +363,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         {
             "model_history_messages_appended" => record.ModelHistoryMessagesAppended?.TurnId,
             "context_compacted" => record.ContextCompacted?.CoveredThroughTurnId,
+            "world_state" => record.WorldState?.TurnId,
             _ => null
         };
 
@@ -336,6 +373,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         {
             "model_history_messages_appended" => "modelHistoryMessagesAppended",
             "context_compacted" => "contextCompacted",
+            "world_state" => "worldState",
             _ => null
         };
         if (payloadName == null

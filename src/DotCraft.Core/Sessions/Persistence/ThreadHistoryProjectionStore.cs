@@ -41,7 +41,8 @@ internal sealed class ThreadHistoryProjectionStore(
         "context_compacted",
         "provider_history_items_appended",
         "provider_history_replaced",
-        "provider_history_attempt_aborted"
+        "provider_history_attempt_aborted",
+        "world_state"
     };
 
     public async Task ProjectCommittedAsync(

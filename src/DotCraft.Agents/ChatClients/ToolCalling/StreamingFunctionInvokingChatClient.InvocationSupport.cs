@@ -17,6 +17,19 @@ public sealed partial class StreamingFunctionInvokingChatClient
         return true;
     }
 
+    private static async Task<bool> TryAppendWorldStateAsync(List<ChatMessage> history, CancellationToken cancellationToken)
+    {
+        var callback = StreamingGuidanceRuntimeScope.Current?.TryDrainWorldStateMessagesAsync;
+        if (callback is null)
+            return false;
+        var messages = await callback(cancellationToken);
+        if (messages.Count == 0)
+            return false;
+        await AgentHistoryRuntimeScope.AppendAsync(messages, cancellationToken);
+        history.AddRange(messages);
+        return true;
+    }
+
     private static async Task<ChatMessage?> TryDrainMailboxAsync(CancellationToken cancellationToken)
     {
         var callback = StreamingGuidanceRuntimeScope.Current?.TryDrainMailboxMessageAsync;

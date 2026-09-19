@@ -96,11 +96,14 @@ public sealed class SessionServiceGoalTests : IDisposable
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
 
-        var captured = Assert.Single(chatClient.CapturedMessages);
-        var text = string.Concat(captured.Contents.OfType<TextContent>().Select(content => content.Text));
+        var text = string.Join(
+            Environment.NewLine,
+            chatClient.CapturedMessages.Select(static message =>
+                string.Concat(message.Contents.OfType<TextContent>().Select(static content => content.Text))));
         Assert.Contains("## Thread Goal", text);
         Assert.Contains("Status: Active", text);
         Assert.Contains("&lt;runtime&gt;", text);
+        Assert.Contains("## Thread Goal Usage", text);
 
         var goal = await service.GetThreadGoalAsync(thread.Id);
         Assert.NotNull(goal);

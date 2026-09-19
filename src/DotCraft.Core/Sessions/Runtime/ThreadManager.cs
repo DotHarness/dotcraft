@@ -4,6 +4,7 @@ using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Mcp;
 using DotCraft.Tools;
+using DotCraft.Context.WorldState;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Sessions;
@@ -176,6 +177,14 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
         _goalBudgetLimitReported.TryAdd(goalId, 0);
 
     public PromptRequestSnapshot? LastPromptRequest { get; set; }
+
+    public WorldStateSnapshot? WorldStateBaseline { get; set; }
+
+    public WorldStateSnapshot? PersistedWorldStateBaseline { get; set; }
+
+    public bool WorldStateBaselineRestored { get; set; }
+
+    public string WorldStateBaselineOrigin { get; set; } = "none";
 
     public ContextUsageAnchor? ContextUsageAnchor { get; set; }
 

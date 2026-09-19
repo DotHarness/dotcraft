@@ -2,6 +2,7 @@ using Acme.ReviewCore.Api;
 using DotCraft.Agents;
 using DotCraft.Commands.Core;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
 using DotCraft.Plugins;
@@ -67,6 +68,7 @@ public sealed class Plugin : IDotCraftPlugin, IDisposable
 
         contributions.Add<IChatContextProvider>(new ReviewChatContext(service));
         contributions.Add<IThreadSystemPromptContextProvider>(new ReviewThreadContext());
+        contributions.Add<IWorldStateSection>(new ReviewWorldState(service));
 
         contributions.Add<ICompactionSummarizer>(
             new ReviewCompactionSummarizer(service, journal),

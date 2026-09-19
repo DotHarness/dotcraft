@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Modules;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -53,15 +54,33 @@ public sealed class DynamicWorkflowCommandProvider(DynamicWorkflowCatalog catalo
     }
 }
 
-public sealed class DynamicWorkflowRuntimeContextContributor : IRuntimeContextContributor
+public sealed class DynamicWorkflowSection : IWorldStateSection
 {
-    public string? BuildRuntimeContext(SessionThread thread)
+    public const string SectionId = "dynamic_workflow";
+
+    private const string UltraGuidance =
+        "## Dynamic Workflow\nUltra is active. For a substantive task, do any necessary lightweight scouting, then launch one well-scoped Dynamic Workflow for the current phase. Put parallel work, verification, and synthesis in that script. Treat a successful launch as the handoff for this Turn; after its completion notification, decide whether another phase needs a new Workflow.";
+
+    private const string DefaultGuidance =
+        "## Dynamic Workflow\nUse Workflow only when the user, a command, or an active skill explicitly opts into dynamic workflow execution.";
+
+    public string Id => SectionId;
+
+    public JsonNode? Snapshot(WorldStateContext context) =>
+        Guidance(context.Thread) is { } guidance
+            ? new JsonObject { ["guidance"] = WorldStateHash.Of(guidance) }
+            : null;
+
+    public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
+        Guidance(context.Thread);
+
+    private static string? Guidance(SessionThread thread)
     {
         if (string.Equals(thread.Source.SubAgent?.Purpose, "dynamicWorkflow", StringComparison.Ordinal))
             return null;
         return thread.Configuration?.Reasoning?.Effort == ModelReasoningEffort.Ultra
-            ? "## Dynamic Workflow\nUltra is active. For a substantive task, do any necessary lightweight scouting, then launch one well-scoped Dynamic Workflow for the current phase. Put parallel work, verification, and synthesis in that script. Treat a successful launch as the handoff for this Turn; after its completion notification, decide whether another phase needs a new Workflow."
-            : "## Dynamic Workflow\nUse Workflow only when the user, a command, or an active skill explicitly opts into dynamic workflow execution.";
+            ? UltraGuidance
+            : DefaultGuidance;
     }
 }
 

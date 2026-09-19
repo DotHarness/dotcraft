@@ -52,6 +52,7 @@ public sealed class StreamingGuidanceRuntimeContext
     public required Func<CancellationToken, Task<ChatMessage?>> TryDrainGuidanceMessageAsync { get; init; }
     public Func<CancellationToken, Task<ChatMessage?>>? TryDrainMailboxMessageAsync { get; init; }
     public Func<CancellationToken, Task<ChatMessage?>>? TryDrainAnswerBoundaryMessageAsync { get; init; }
+    public Func<CancellationToken, Task<IReadOnlyList<ChatMessage>>>? TryDrainWorldStateMessagesAsync { get; init; }
 }
 
 /// <summary>Flows Session Core guidance callbacks into the foundation tool loop.</summary>

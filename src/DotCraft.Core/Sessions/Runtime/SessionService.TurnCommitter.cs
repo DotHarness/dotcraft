@@ -54,6 +54,8 @@ public sealed partial class SessionService
                 CancellationToken.None);
             PendingCompactionCheckpoint = null;
             PersistedModelHistoryCount += modelHistory.Count;
+            // Recorded only now: the fragments it describes are in persisted model history.
+            await owner.PersistWorldStateAsync(thread, turn.Id);
         }
     }
 }

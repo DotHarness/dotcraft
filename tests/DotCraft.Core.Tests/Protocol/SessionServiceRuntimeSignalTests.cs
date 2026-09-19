@@ -855,7 +855,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
                 "assistant:partial answer",
                 "user:follow up"
             ],
-            secondChatClient.LastMessages.Select(FormatMessageWithContents).ToList());
+            Conversation(secondChatClient.LastMessages).Select(FormatMessageWithContents).ToList());
     }
 
     [Fact]
@@ -2110,17 +2110,20 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
                 GroupId = "123456"
             }));
 
-        var userMessage = Assert.Single(chatClient.LastMessages, message => message.Role == ChatRole.User);
+        var userMessage = Assert.Single(Conversation(chatClient.LastMessages), message => message.Role == ChatRole.User);
         var modelInput = string.Concat(userMessage.Contents.OfType<TextContent>().Select(content => content.Text));
         Assert.Contains("<system-reminder>", modelInput);
-        Assert.Contains("## Environment", modelInput);
-        Assert.Contains("## Mode", modelInput);
-        Assert.Contains("CurrentMode: Agent", modelInput);
         Assert.Contains("## Request Source", modelInput);
         Assert.Contains("Channel: qq", modelInput);
         Assert.Contains("Conversation: group:123456", modelInput);
         Assert.Contains("SenderName: Alice", modelInput);
         Assert.DoesNotContain("SenderId: 10001", modelInput);
+        Assert.DoesNotContain("## Environment", modelInput);
+        Assert.DoesNotContain("CurrentMode: Agent", modelInput);
+
+        var requestText = string.Join(Environment.NewLine, chatClient.LastMessages.Select(MessageTextWithReminders));
+        Assert.Contains("## Environment", requestText);
+        Assert.Contains("CurrentMode: Agent", requestText);
         var systemInstructions = chatClient.LastOptions?.Instructions ?? string.Empty;
         Assert.DoesNotContain("SenderName: Alice", systemInstructions);
         Assert.DoesNotContain("SenderId: 10001", systemInstructions);
@@ -2677,7 +2680,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
         Assert.Equal(
             ["user:hello", "assistant:first answer", "user:follow up"],
-            secondChatClient.LastMessages.Select(FormatMessage).ToList());
+            Conversation(secondChatClient.LastMessages).Select(FormatMessage).ToList());
     }
 
     [Fact]
@@ -2699,7 +2702,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
         Assert.Equal(
             ["user:hello", "assistant:first answer", "user:follow up"],
-            secondChatClient.LastMessages.Select(FormatMessage).ToList());
+            Conversation(secondChatClient.LastMessages).Select(FormatMessage).ToList());
     }
 
     [Fact]
@@ -2878,6 +2881,9 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         throw new TimeoutException("The running turn did not request user input.");
     }
 
+    private static IEnumerable<ChatMessage> Conversation(IEnumerable<ChatMessage> messages) =>
+        messages.Where(static message => ThreadContextItems.GetKind(message) == null);
+
     private static string FormatMessage(ChatMessage message)
     {
         var text = string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
@@ -2903,6 +2909,9 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             text = text[..runtimeContextIndex];
         return $"{message.Role}:{text.Trim()}";
     }
+
+    private static string MessageTextWithReminders(ChatMessage message) =>
+        string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
 
     private static string MessageText(ChatMessage message) =>
         StripSystemReminderBlocks(string.Concat(message.Contents.Select(content => content switch

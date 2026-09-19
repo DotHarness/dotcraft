@@ -208,6 +208,7 @@ public sealed partial class SessionService(
         AgentInstructionContextPages.TryForkStablePages(parentThread.Id, childThread.Id);
 
         await PersistThreadWithMaterializationAsync(childThread, ct);
+        InheritWorldStateBaseline(parentThread.Id, childThread.Id, forkHistory);
         if (!childThread.Ephemeral)
         {
             var coveredThroughTurnId = childThread.Turns[^1].Id;
@@ -2200,6 +2201,7 @@ public sealed partial class SessionService(
                     session!.Clear();
                     session.AddRange(durableHistory);
                     turnCommitter.PersistedModelHistoryCount = session.Count;
+                    ResetWorldStateBaseline(threadId, "history_reconciled");
                 }
                 if (!_runtimeRegistry.IsCurrent(threadId, admittedRuntime))
                 {
@@ -2443,6 +2445,7 @@ public sealed partial class SessionService(
 
                         tokenTracker.Reset();
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
+                        ResetWorldStateBaseline(threadId, "auto_compaction");
                         var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
@@ -2633,6 +2636,7 @@ public sealed partial class SessionService(
                 }
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;
+                await RestoreWorldStateBaselineAsync(thread, executionCt);
 
                 var agentInstructionsSnapshot = ResolveAgentInstructions(thread, turnContext.Workspace);
                 var agentInstructionsChange = AgentInstructionsHistory.Reconcile(
@@ -2671,6 +2675,8 @@ public sealed partial class SessionService(
                     }
 
                     turnCommitter.PersistedModelHistoryCount = session.Count;
+                    // The new checkpoint is the newest one replay stops at, so both baselines restart here.
+                    ResetWorldStateBaseline(threadId, "history_replaced");
                 }
 
                 // Step 5c: Append runtime context to the multimodal content list
@@ -2865,16 +2871,8 @@ public sealed partial class SessionService(
                     ChatRole.User,
                     modelInputContent.AppendRuntimeContext(
                         turn.Initiator,
-                        runtimeModeManager,
                         thread.WorkspacePath,
-                        hasActivePlan,
                         threadGoalForContext,
-                        lifecycleHookContext,
-                        agentFactory.RuntimeContext.RuntimeContextContributors
-                            .Select(provider => provider.BuildRuntimeContext(thread))
-                            .Where(static section => !string.IsNullOrWhiteSpace(section))
-                            .Cast<string>()
-                            .ToArray(),
                         agentFactory.RuntimeContext.Contributions?
                             .Resolve<IChatContextProvider>(threadId)));
 
@@ -2978,6 +2976,18 @@ public sealed partial class SessionService(
                         threadContextCarrier);
                 }
 
+                var worldStateUpdate = BuildWorldStateUpdate(
+                    thread,
+                    session,
+                    threadContextCarrier,
+                    runtimeModeManager,
+                    hasActivePlan,
+                    threadGoalForContext,
+                    lifecycleHookContext);
+                foreach (var worldStateItem in worldStateUpdate.Items)
+                    session.Add(worldStateItem);
+                CommitWorldStateUpdate(threadId, turn.Id, worldStateUpdate, runtimeModeManager);
+
                 reactiveCompaction.ProviderContext = new ProviderRequestContext(
                     providerIdentity,
                     responsesProviderHistoryContext,
@@ -2994,8 +3004,9 @@ public sealed partial class SessionService(
                         : null);
                 try
                 {
+                    // Context items are plumbing, not conversation: a history of only those is still turn one.
                     if (!TrySnapshotInMemoryHistory(session, out var preflightHistory)
-                        || preflightHistory.Count == 0)
+                        || !preflightHistory.Any(static message => ThreadContextItems.GetKind(message) == null))
                     {
                         var preflightEstimate = PrepareContextTokenEstimate(
                             threadId,
@@ -3046,6 +3057,14 @@ public sealed partial class SessionService(
                         TryDrainGuidanceMessageAsync = TryDrainTurnContextMessageAsync,
                         TryDrainMailboxMessageAsync = TryDrainSubAgentMailboxMessageAsync,
                         TryDrainAnswerBoundaryMessageAsync = TryDrainAnswerBoundaryMessageAsync,
+                        TryDrainWorldStateMessagesAsync = drainCt => DrainWorldStateMessagesAsync(
+                            thread,
+                            turn.Id,
+                            session,
+                            threadContextCarrier,
+                            runtimeModeManager,
+                            lifecycleHookContext,
+                            drainCt),
                         OnToolHandlerFinishedAsync = async (toolName, callId, toolCt) =>
                             await AccountGoalToolCompletionAsync(turnKey, toolName, callId, toolCt)
                     });
@@ -3849,6 +3868,7 @@ public sealed partial class SessionService(
                                 }
                                 tokenTracker?.Reset();
                                 InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
+                                ResetWorldStateBaseline(threadId, "reactive_compaction");
                                 var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                     threadId,
                                     status.ThresholdAfter.Tokens,
@@ -4098,6 +4118,7 @@ public sealed partial class SessionService(
         await persistence.RollbackThreadAsync(thread, numTurns, ct);
         traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.Turns.Count, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
+        ResetWorldStateBaseline(threadId, "rollback");
         ClearContextUsageAnchor(threadId);
         agentFactory.RemoveTokenTracker(threadId);
         ForgetContextPages(threadId);

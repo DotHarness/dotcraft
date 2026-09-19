@@ -29,7 +29,8 @@ public enum TraceEventType
     MaintenanceForkResponse,
     ThreadRollback,
     TurnCompleted,
-    SkillReferenced
+    SkillReferenced,
+    WorldStateDiagnostic
 }
 
 /// <summary>

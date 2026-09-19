@@ -24,6 +24,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 
     private readonly ConcurrentDictionary<string, PromptCacheDiagnosticSessionState> _promptCacheDiagnosticStates = new();
     private readonly SubAgentPrefixDiagnosticTracker _subAgentPrefixDiagnostics = new(store);
+    private readonly WorldStateDiagnosticTracker _worldStateDiagnostics = new(store);
     private readonly ConcurrentDictionary<string, string> _pendingToolSources = new(StringComparer.Ordinal);
 
     void IModelRuntimeDiagnostics.Record(ModelRuntimeDiagnostic diagnostic)
@@ -100,6 +101,23 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
             Content = prompt
         });
     }
+
+    internal void RecordWorldState(
+        string sessionKey,
+        string turnId,
+        string status,
+        IReadOnlyList<string> changedSections,
+        IReadOnlyList<string> unchangedSections,
+        IReadOnlyList<WorldStateSectionSuppression> suppressedSections,
+        string baselineSource) =>
+        _worldStateDiagnostics.Record(
+            sessionKey,
+            turnId,
+            status,
+            changedSections,
+            unchangedSections,
+            suppressedSections,
+            baselineSource);
 
     /// <summary>
     /// Records the effective provider-neutral AGENTS.md snapshot when it differs from the latest

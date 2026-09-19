@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Commands.Custom;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Contributions;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
@@ -186,7 +187,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var chatClientRegistry = Services.GetRequiredService<ChatClientRegistry>();
             var contextPageManager = new ContextPageManager();
             var threadSystemPromptContextProviders = Services.GetServices<IThreadSystemPromptContextProvider>().ToArray();
-            var runtimeContextContributors = Services.GetServices<IRuntimeContextContributor>().ToArray();
+            var worldStateSections = Services.GetServices<IWorldStateSection>().ToArray();
 
             var contributionRegistry = Services.GetRequiredService<ContributionRegistry>();
             _contributionScope = new WorkspaceContributionScope(contributionRegistry);
@@ -277,7 +278,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         SkillsLoader = SkillsLoader,
                         ContextPageManager = contextPageManager,
                         ThreadSystemPromptContextProviders = threadSystemPromptContextProviders,
-                        RuntimeContextContributors = runtimeContextContributors,
+                        WorldStateSections = worldStateSections,
                         Contributions = contributionRegistry,
                         ApprovalService = scopedApproval,
                         PathBlacklist = PathBlacklist,

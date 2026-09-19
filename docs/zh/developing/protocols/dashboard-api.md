@@ -42,6 +42,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 | `SubAgentPrefixDiagnostic` | native subagent 首次 Responses 请求与直接父会话 fork anchor 的一次性比较 |
 | `MaintenanceForkRequest` | 维护型 fork 请求 |
 | `MaintenanceForkResponse` | 维护型 fork 响应 |
+| `WorldStateDiagnostic` | 一次采样中 world state 告诉模型了什么，包括什么都没发的那些采样 |
 
 Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace 事件，既不按每个 chunk 记录，也不会把整轮合并为单条。`ThinkingCount` 和 `ResponseCount` 因此表示内容段数量。实时事件流会在当前段结束并落库后发送该段事件。
 
@@ -72,6 +73,22 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 `PromptCacheRequestShape` 记录 OpenAI Responses 请求组件的 SHA-256 哈希和计数，用于比较相邻请求的前缀稳定性。它还会记录清洗后的有效选项标记，例如请求是否设置 max output tokens、OAuth rewrite 是否会在传输前移除该字段、reasoning effort、tool-choice 类型、工具数量和 streaming 模式。
 
 `SubAgentPrefixDiagnostic` 将 native subagent 的首次 OpenAI Responses 请求与 fork 时捕获的直接父会话请求进行比较。`status` 为 `compatible`、`staticShared`、`diverged` 或 `unavailable`。`compatible` 要求 cache identity 与前置请求组件一致，并至少保留一个父 input item。静态前缀一致但没有保留任何 input item 时为 `staticShared`。之后出现 child 专属 suffix 属于预期行为。Metadata 只包含组件哈希、请求与 attempt 序号、input 数量、匹配的前缀长度、`exactParentInputPrefix`、首个从零开始的分叉位置和 `changedFields`，不包含 prompt 文本、工具 schema 或 input item 内容。Chat Completions 和 Anthropic 会话只暴露父子关系，不推断前缀是否一致。
+
+**World State** 过滤器包含 `WorldStateDiagnostic`。每次采样都会记录一条，包括什么都没发的那次 —— 否则事后无法区分「告诉模型的内容为空」和「这个 section 根本没跑」。`status` 取值为 `full`、`emitted`、`unchanged`，`baselineSource` 取值为 `none`、`memory`、`rollout`、`fork`。其 `metadataJson` 形状如下：
+
+```json
+{
+  "schemaVersion": 1,
+  "status": "unchanged",
+  "turnId": "turn_002",
+  "baselineSource": "memory",
+  "changedSections": [],
+  "unchangedSections": ["environment", "mode"],
+  "suppressedSections": [{ "id": "acme_review", "reason": "render_failed" }]
+}
+```
+
+只记录 section id，不记录渲染出的正文。
 
 ## 端点
 
