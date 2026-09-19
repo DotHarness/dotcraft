@@ -296,7 +296,7 @@ public sealed class ModelHistoryTests : IDisposable
             Path.Combine(_root, "threads", "active", "thread_model_history.jsonl"));
         var historyRecord = Assert.Single(
             rollout.Split('\n', StringSplitOptions.RemoveEmptyEntries),
-            line => line.Contains("model_history_messages_appended", StringComparison.Ordinal));
+            line => line.Contains(RolloutKinds.ModelHistoryMessagesAppended, StringComparison.Ordinal));
         using (var historyJson = JsonDocument.Parse(historyRecord))
         {
             Assert.Equal(
@@ -386,16 +386,16 @@ public sealed class ModelHistoryTests : IDisposable
             "thread",
             "unused",
             [
-                new ThreadRolloutRecord { Kind = "turn_state_replaced" },
-                new ThreadRolloutRecord { Kind = "context_compacted" },
-                new ThreadRolloutRecord { Kind = "model_history_messages_appended" }
+                new ThreadRolloutRecord { Kind = RolloutKinds.TurnStateReplaced },
+                new ThreadRolloutRecord { Kind = RolloutKinds.ContextCompacted },
+                new ThreadRolloutRecord { Kind = RolloutKinds.ModelHistoryMessagesAppended }
             ]);
         var receipt = await writer.FlushAsync("thread");
         await writer.CloseAsync("thread");
 
         Assert.Equal(1, flushes);
         Assert.Equal(
-            ["turn_state_replaced", "context_compacted", "model_history_messages_appended"],
+            [RolloutKinds.TurnStateReplaced, RolloutKinds.ContextCompacted, RolloutKinds.ModelHistoryMessagesAppended],
             observed);
         Assert.Equal(3, receipt.RecordCount);
     }
@@ -407,7 +407,7 @@ public sealed class ModelHistoryTests : IDisposable
         var path = Path.Combine(_root, "utf8-rollout.jsonl");
         var record = new ThreadRolloutRecord
         {
-            Kind = "thread_name_updated",
+            Kind = RolloutKinds.ThreadNameUpdated,
             Timestamp = new DateTimeOffset(2026, 9, 5, 1, 2, 3, TimeSpan.Zero),
             ThreadNameUpdated = new ThreadNameUpdatedPayload
             {

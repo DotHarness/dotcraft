@@ -55,14 +55,14 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                     continue;
                 }
 
-                var checkpointRecord = string.Equals(failedKind, "context_compacted", StringComparison.Ordinal);
+                var checkpointRecord = string.Equals(failedKind, RolloutKinds.ContextCompacted, StringComparison.Ordinal);
                 Reject(
                     checkpointRecord ? "invalid_checkpoint" : "malformed_record",
                     checkpointRecord
                         ? "Skipped an unreadable compaction checkpoint."
                         : "Skipped an unreadable rollout record.",
                     failedTurnId,
-                    markFallback: RebuildsTurnHistory(failedKind));
+                    markFallback: RolloutKinds.RebuildsTurnHistory(failedKind));
                 continue;
             }
 
@@ -77,17 +77,17 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             if (!TryValidateTargetEnvelope(record, kind, out var envelopeError))
             {
                 Reject(
-                    string.Equals(kind, "context_compacted", StringComparison.Ordinal)
+                    string.Equals(kind, RolloutKinds.ContextCompacted, StringComparison.Ordinal)
                         ? "invalid_checkpoint"
                         : "malformed_record",
                     envelopeError!,
                     envelopeTurnId,
-                    markFallback: RebuildsTurnHistory(kind));
+                    markFallback: RolloutKinds.RebuildsTurnHistory(kind));
                 continue;
             }
 
             recordsDecoded++;
-            if (string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal))
+            if (string.Equals(kind, RolloutKinds.ModelHistoryMessagesAppended, StringComparison.Ordinal))
             {
                 hasRecords = true;
                 var batch = record.ModelHistoryMessagesAppended;
@@ -118,7 +118,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                     Reject("invalid_model_batch", "Skipped an undecodable model-history batch.", validBatch.TurnId);
                 }
             }
-            else if (string.Equals(kind, "context_compacted", StringComparison.Ordinal))
+            else if (string.Equals(kind, RolloutKinds.ContextCompacted, StringComparison.Ordinal))
             {
                 hasRecords = true;
                 var checkpoint = record.ContextCompacted;
@@ -164,7 +164,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         markFallback: false);
                 }
             }
-            else if (string.Equals(kind, "world_state", StringComparison.Ordinal))
+            else if (string.Equals(kind, RolloutKinds.WorldState, StringComparison.Ordinal))
             {
                 hasRecords = true;
                 var worldStateRecord = record.WorldState;
@@ -272,13 +272,13 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             + (record.ModelHistoryMessagesAppended == null ? 0 : 1)
             + (record.WorldState == null ? 0 : 1);
 
-        if (kind is not ("context_compacted" or "model_history_messages_appended" or "world_state"))
+        if (kind is not (RolloutKinds.ContextCompacted or RolloutKinds.ModelHistoryMessagesAppended or RolloutKinds.WorldState))
             return true;
 
         var hasExpectedPayload = kind switch
         {
-            "context_compacted" => record.ContextCompacted != null,
-            "world_state" => record.WorldState != null,
+            RolloutKinds.ContextCompacted => record.ContextCompacted != null,
+            RolloutKinds.WorldState => record.WorldState != null,
             _ => record.ModelHistoryMessagesAppended != null
         };
         if (!hasExpectedPayload)
@@ -318,10 +318,6 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         }
         return true;
     }
-
-    // Only the batch that carries a turn's exact model history can cost the turn that history.
-    private static bool RebuildsTurnHistory(string? kind) =>
-        string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal);
 
     private static bool TryValidateWorldState(WorldStatePayload? worldState, out string? error)
     {
@@ -394,28 +390,26 @@ internal sealed class RolloutReplayer : IRolloutReplayer
     private static string? TryGetEnvelopeTurnId(ThreadRolloutRecord record, string? kind) =>
         kind switch
         {
-            "model_history_messages_appended" => record.ModelHistoryMessagesAppended?.TurnId,
-            "context_compacted" => record.ContextCompacted?.CoveredThroughTurnId,
-            "world_state" => record.WorldState?.TurnId,
+            RolloutKinds.ModelHistoryMessagesAppended => record.ModelHistoryMessagesAppended?.TurnId,
+            RolloutKinds.ContextCompacted => record.ContextCompacted?.CoveredThroughTurnId,
+            RolloutKinds.WorldState => record.WorldState?.TurnId,
             _ => null
         };
 
     private static string? TryGetEnvelopeTurnId(JsonElement root, string? kind)
     {
-        var payloadName = kind switch
-        {
-            "model_history_messages_appended" => "modelHistoryMessagesAppended",
-            "context_compacted" => "contextCompacted",
-            "world_state" => "worldState",
-            _ => null
-        };
+        var payloadName = kind is RolloutKinds.ModelHistoryMessagesAppended
+            or RolloutKinds.ContextCompacted
+            or RolloutKinds.WorldState
+            ? RolloutKinds.PayloadProperty(kind)
+            : null;
         if (payloadName == null
             || !root.TryGetProperty(payloadName, out var payload)
             || payload.ValueKind != JsonValueKind.Object)
         {
             return null;
         }
-        return TryGetString(payload, kind == "context_compacted" ? "coveredThroughTurnId" : "turnId");
+        return TryGetString(payload, kind == RolloutKinds.ContextCompacted ? "coveredThroughTurnId" : "turnId");
     }
 
     private static ModelHistoryMessage WithTurnId(ModelHistoryMessage message, string turnId)

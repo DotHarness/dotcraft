@@ -19,32 +19,6 @@ internal sealed class ThreadHistoryProjectionStore(
     private static readonly Histogram<double> QueryDuration = Meter.CreateHistogram<double>("dotcraft.thread_history.query.duration", "ms");
     private static readonly Histogram<long> QueryRows = Meter.CreateHistogram<long>("dotcraft.thread_history.query.rows");
 
-    private static readonly HashSet<string> DomainKinds = new(StringComparer.Ordinal)
-    {
-        "thread_opened",
-        "thread_name_updated",
-        "thread_status_changed",
-        "queued_input_added",
-        "queued_input_removed",
-        "queued_input_updated",
-        "queued_input_reordered",
-        "turn_started",
-        "turn_completed",
-        "item_appended",
-        "turn_state_replaced",
-        "thread_rolled_back"
-    };
-
-    private static readonly HashSet<string> IgnoredKinds = new(StringComparer.Ordinal)
-    {
-        "model_history_messages_appended",
-        "context_compacted",
-        "provider_history_items_appended",
-        "provider_history_replaced",
-        "provider_history_attempt_aborted",
-        "world_state"
-    };
-
     public async Task ProjectCommittedAsync(
         string threadId,
         string rolloutPath,
@@ -309,13 +283,13 @@ internal sealed class ThreadHistoryProjectionStore(
             throw new InvalidDataException("A rollout record has no kind envelope.");
         }
 
-        if (DomainKinds.Contains(kind))
+        if (RolloutKinds.Domain.Contains(kind))
         {
             var record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions)
                 ?? throw new InvalidDataException("The rollout record is empty.");
             projector.Apply(record);
         }
-        else if (!IgnoredKinds.Contains(kind))
+        else if (!RolloutKinds.IsIgnoredByProjection(kind))
             throw new InvalidDataException($"Unsupported domain rollout record kind '{kind}'.");
     }
 

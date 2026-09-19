@@ -404,7 +404,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
     private static string BuildRollbackLine(string threadId, DateTimeOffset timestamp, int numTurns)
         => JsonSerializer.Serialize(new
         {
-            kind = "thread_rolled_back",
+            kind = RolloutKinds.ThreadRolledBack,
             timestamp,
             threadRolledBack = new
             {

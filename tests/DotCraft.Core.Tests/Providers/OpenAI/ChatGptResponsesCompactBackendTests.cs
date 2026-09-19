@@ -445,7 +445,7 @@ public sealed class ChatGptResponsesCompactBackendTests
             [
                 new ThreadRolloutRecord
                 {
-                    Kind = "provider_history_replaced",
+                    Kind = RolloutKinds.ProviderHistoryReplaced,
                     ProviderHistoryReplaced = replacement
                 }
             ]);

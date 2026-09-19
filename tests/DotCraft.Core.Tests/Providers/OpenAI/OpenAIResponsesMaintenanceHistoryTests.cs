@@ -230,7 +230,7 @@ public sealed class OpenAIResponsesMaintenanceHistoryTests
             {
                 records.Add(new ThreadRolloutRecord
                 {
-                    Kind = "provider_history_items_appended",
+                    Kind = RolloutKinds.ProviderHistoryItemsAppended,
                     ProviderHistoryItemsAppended = payload
                 });
                 return Task.CompletedTask;

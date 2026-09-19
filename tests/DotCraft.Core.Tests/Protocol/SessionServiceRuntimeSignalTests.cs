@@ -838,7 +838,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(TurnStatus.Failed, failedTurn.Status);
         var rollout = await File.ReadAllTextAsync(
             Path.Combine(_tempDir, "threads", "active", $"{thread.Id}.jsonl"));
-        Assert.Contains("model_history_messages_appended", rollout, StringComparison.Ordinal);
+        Assert.Contains(RolloutKinds.ModelHistoryMessagesAppended, rollout, StringComparison.Ordinal);
 
         var secondChatClient = new RecordingChatClient("second answer");
         await using var secondFactory = CreateAgentFactory(secondChatClient);
@@ -2657,7 +2657,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.NotNull(await store.LoadThreadAsync(thread.Id));
         var rollout = await File.ReadAllTextAsync(
             Path.Combine(_tempDir, "threads", "active", $"{thread.Id}.jsonl"));
-        Assert.Contains("model_history_messages_appended", rollout, StringComparison.Ordinal);
+        Assert.Contains(RolloutKinds.ModelHistoryMessagesAppended, rollout, StringComparison.Ordinal);
         Assert.True(ThreadRowExists(thread.Id));
     }
 

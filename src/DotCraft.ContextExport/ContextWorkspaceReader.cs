@@ -49,7 +49,7 @@ internal sealed class ContextWorkspaceReader
             try
             {
                 var record = JsonSerializer.Deserialize<ContextRolloutRecord>(line, JsonOptions);
-                if (record is { Kind: "thread_rolled_back", ThreadRolledBack: { } rollback })
+                if (record is { Kind: RolloutKinds.ThreadRolledBack, ThreadRolledBack: { } rollback })
                 {
                     continuityEvents.Add(ContextContinuityEvent.FromRollback(
                         lineNumber,
@@ -57,7 +57,7 @@ internal sealed class ContextWorkspaceReader
                         rollback.ThreadId,
                         rollback.NumTurns));
                 }
-                else if (record is { Kind: "context_compacted", ContextCompacted: { } compaction })
+                else if (record is { Kind: RolloutKinds.ContextCompacted, ContextCompacted: { } compaction })
                 {
                     continuityEvents.Add(ContextContinuityEvent.FromCompaction(
                         lineNumber,

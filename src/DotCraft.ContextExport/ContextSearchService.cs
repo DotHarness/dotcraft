@@ -273,15 +273,8 @@ public sealed class ContextSearchService
                         continue;
 
                     var kind = kindElement.GetString();
-                    if (string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal) ||
-                        string.Equals(kind, "provider_history_items_appended", StringComparison.Ordinal) ||
-                        string.Equals(kind, "provider_history_replaced", StringComparison.Ordinal) ||
-                        string.Equals(kind, "provider_history_attempt_aborted", StringComparison.Ordinal) ||
-                        string.Equals(kind, "context_compacted", StringComparison.Ordinal) ||
-                        kind is not ("item_appended" or "turn_state_replaced"))
-                    {
+                    if (kind is not (RolloutKinds.ItemAppended or RolloutKinds.TurnStateReplaced))
                         continue;
-                    }
 
                     record = document.RootElement.Deserialize<ContextRolloutRecord>(SessionJsonOptions.Default);
                 }
@@ -293,7 +286,7 @@ public sealed class ContextSearchService
                 if (record is null)
                     continue;
 
-                if (record is { Kind: "item_appended", ItemAppended: { } appended })
+                if (record is { Kind: RolloutKinds.ItemAppended, ItemAppended: { } appended })
                 {
                     AddOrReplaceRolloutItemSnippet(
                         snippetsByItem,
@@ -302,7 +295,7 @@ public sealed class ContextSearchService
                         lineNumber,
                         record.Timestamp);
                 }
-                else if (record is { Kind: "turn_state_replaced", TurnStateReplaced: { } replacement })
+                else if (record is { Kind: RolloutKinds.TurnStateReplaced, TurnStateReplaced: { } replacement })
                 {
                     foreach (var item in replacement.Turn.Items)
                     {

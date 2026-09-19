@@ -103,7 +103,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             "threads",
             "active",
             $"{thread.Id}.jsonl"));
-        Assert.Contains("context_compacted", rolloutJson, StringComparison.Ordinal);
+        Assert.Contains(RolloutKinds.ContextCompacted, rolloutJson, StringComparison.Ordinal);
         Assert.Contains("replacementHistory", rolloutJson, StringComparison.Ordinal);
     }
 

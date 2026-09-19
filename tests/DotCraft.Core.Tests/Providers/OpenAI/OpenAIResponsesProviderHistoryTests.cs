@@ -694,7 +694,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
     {
         var record = new ThreadRolloutRecord
         {
-            Kind = "provider_history_items_appended",
+            Kind = RolloutKinds.ProviderHistoryItemsAppended,
             ProviderHistoryItemsAppended = new ProviderHistoryItemsAppendedPayload
             {
                 SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
@@ -738,7 +738,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
             {
                 records.Add(new ThreadRolloutRecord
                 {
-                    Kind = "provider_history_items_appended",
+                    Kind = RolloutKinds.ProviderHistoryItemsAppended,
                     ProviderHistoryItemsAppended = payload
                 });
                 return Task.CompletedTask;
@@ -747,7 +747,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
             {
                 records.Add(new ThreadRolloutRecord
                 {
-                    Kind = "provider_history_replaced",
+                    Kind = RolloutKinds.ProviderHistoryReplaced,
                     ProviderHistoryReplaced = payload
                 });
                 return Task.CompletedTask;
@@ -756,7 +756,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
             {
                 records.Add(new ThreadRolloutRecord
                 {
-                    Kind = "provider_history_attempt_aborted",
+                    Kind = RolloutKinds.ProviderHistoryAttemptAborted,
                     ProviderHistoryAttemptAborted = payload
                 });
                 return Task.CompletedTask;

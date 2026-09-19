@@ -133,7 +133,7 @@ internal static class ProviderHistoryReplayer
     {
         switch (record.Kind)
         {
-            case "provider_history_items_appended":
+            case RolloutKinds.ProviderHistoryItemsAppended:
                 if (record.ProviderHistoryItemsAppended is not { } appended
                     || !IsCommonValid(
                         appended.SchemaVersion,
@@ -152,7 +152,7 @@ internal static class ProviderHistoryReplayer
                 }
                 break;
 
-            case "provider_history_replaced":
+            case RolloutKinds.ProviderHistoryReplaced:
                 if (record.ProviderHistoryReplaced is not { } replaced
                     || !IsCommonValid(
                         replaced.SchemaVersion,
@@ -167,7 +167,7 @@ internal static class ProviderHistoryReplayer
                 }
                 break;
 
-            case "provider_history_attempt_aborted":
+            case RolloutKinds.ProviderHistoryAttemptAborted:
                 if (record.ProviderHistoryAttemptAborted is not { } aborted
                     || !IsCommonValid(
                         aborted.SchemaVersion,

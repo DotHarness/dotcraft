@@ -23,50 +23,50 @@ internal sealed class ThreadHistoryProjector(
         var kind = record.Kind;
         switch (kind)
         {
-            case "thread_opened":
+            case RolloutKinds.ThreadOpened:
                 ApplyThreadOpened(record.ThreadOpened
                     ?? throw InvalidRecord(kind));
                 break;
-            case "thread_name_updated":
+            case RolloutKinds.ThreadNameUpdated:
                 EnsureSnapshot().DisplayName = record.ThreadNameUpdated?.DisplayName;
                 break;
-            case "thread_status_changed":
+            case RolloutKinds.ThreadStatusChanged:
                 ApplyStatus(record.ThreadStatusChanged
                     ?? throw InvalidRecord(kind));
                 break;
-            case "queued_input_added":
+            case RolloutKinds.QueuedInputAdded:
                 ApplyQueueAdded(record.QueuedInputAdded
                     ?? throw InvalidRecord(kind));
                 break;
-            case "queued_input_removed":
+            case RolloutKinds.QueuedInputRemoved:
                 ApplyQueueRemoved(record.QueuedInputRemoved
                     ?? throw InvalidRecord(kind));
                 break;
-            case "queued_input_updated":
+            case RolloutKinds.QueuedInputUpdated:
                 ApplyQueueUpdated(record.QueuedInputUpdated
                     ?? throw InvalidRecord(kind));
                 break;
-            case "queued_input_reordered":
+            case RolloutKinds.QueuedInputReordered:
                 ApplyQueueReordered(record.QueuedInputReordered
                     ?? throw InvalidRecord(kind));
                 break;
-            case "turn_started":
+            case RolloutKinds.TurnStarted:
                 ApplyTurnStarted(record.TurnStarted?.Turn
                     ?? throw InvalidRecord(kind));
                 break;
-            case "turn_completed":
+            case RolloutKinds.TurnCompleted:
                 ApplyTurnCompleted(record.TurnCompleted
                     ?? throw InvalidRecord(kind));
                 break;
-            case "item_appended":
+            case RolloutKinds.ItemAppended:
                 ApplyItem(record.ItemAppended
                     ?? throw InvalidRecord(kind));
                 break;
-            case "turn_state_replaced":
+            case RolloutKinds.TurnStateReplaced:
                 ApplyTurnReplacement(record.TurnStateReplaced
                     ?? throw InvalidRecord(kind));
                 break;
-            case "thread_rolled_back":
+            case RolloutKinds.ThreadRolledBack:
                 ApplyRollback(record.ThreadRolledBack
                     ?? throw InvalidRecord(kind));
                 break;

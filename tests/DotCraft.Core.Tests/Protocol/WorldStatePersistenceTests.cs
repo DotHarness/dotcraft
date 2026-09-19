@@ -184,7 +184,7 @@ public sealed class WorldStatePersistenceTests : IDisposable
     private static string UnreadableStateRecord(SessionThread thread, string turnId) =>
         JsonSerializer.Serialize(new
         {
-            kind = "world_state",
+            kind = RolloutKinds.WorldState,
             timestamp = DateTimeOffset.UnixEpoch,
             worldState = new
             {
@@ -198,7 +198,7 @@ public sealed class WorldStatePersistenceTests : IDisposable
     private static string NullStateRecord(SessionThread thread, string turnId, bool full) =>
         JsonSerializer.Serialize(new
         {
-            kind = "world_state",
+            kind = RolloutKinds.WorldState,
             timestamp = DateTimeOffset.UnixEpoch,
             worldState = new
             {

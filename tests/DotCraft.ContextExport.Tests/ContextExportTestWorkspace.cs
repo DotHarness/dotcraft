@@ -34,7 +34,7 @@ internal sealed class ContextExportTestWorkspace : IDisposable
     {
         var record = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             modelHistoryMessagesAppended = new
             {
@@ -50,7 +50,7 @@ internal sealed class ContextExportTestWorkspace : IDisposable
     {
         var record = new
         {
-            kind = "turn_state_replaced",
+            kind = RolloutKinds.TurnStateReplaced,
             timestamp = DateTimeOffset.UtcNow,
             turnStateReplaced = new
             {

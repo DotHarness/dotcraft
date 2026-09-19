@@ -170,7 +170,7 @@ internal sealed class ThreadRolloutStore
 
         var record = new ThreadRolloutRecord
         {
-            Kind = "thread_rolled_back",
+            Kind = RolloutKinds.ThreadRolledBack,
             Timestamp = thread.LastActiveAt,
             ThreadRolledBack = new ThreadRolledBackPayload
             {
@@ -201,7 +201,7 @@ internal sealed class ThreadRolloutStore
         }
         var record = new ThreadRolloutRecord
         {
-            Kind = "turn_state_replaced",
+            Kind = RolloutKinds.TurnStateReplaced,
             Timestamp = thread.LastActiveAt,
             TurnStateReplaced = new TurnStateReplacedPayload
             {
@@ -234,7 +234,7 @@ internal sealed class ThreadRolloutStore
 
         var record = new ThreadRolloutRecord
         {
-            Kind = "context_compacted",
+            Kind = RolloutKinds.ContextCompacted,
             Timestamp = createdAt,
             ContextCompacted = new ContextCompactedPayload
             {
@@ -268,7 +268,7 @@ internal sealed class ThreadRolloutStore
 
         var record = new ThreadRolloutRecord
         {
-            Kind = "world_state",
+            Kind = RolloutKinds.WorldState,
             Timestamp = DateTimeOffset.UtcNow,
             WorldState = new WorldStatePayload
             {
@@ -307,7 +307,7 @@ internal sealed class ThreadRolloutStore
                 return;
             }
 
-            if (record is not { Kind: "context_compacted", ContextCompacted: { } checkpoint } ||
+            if (record is not { Kind: RolloutKinds.ContextCompacted, ContextCompacted: { } checkpoint } ||
                 !string.Equals(checkpoint.ThreadId, threadId, StringComparison.Ordinal))
             {
                 return;
@@ -343,7 +343,7 @@ internal sealed class ThreadRolloutStore
 
         var record = new ThreadRolloutRecord
         {
-            Kind = "model_history_messages_appended",
+            Kind = RolloutKinds.ModelHistoryMessagesAppended,
             Timestamp = DateTimeOffset.UtcNow,
             ModelHistoryMessagesAppended = new ModelHistoryMessagesAppendedPayload
             {
@@ -373,7 +373,7 @@ internal sealed class ThreadRolloutStore
 
         var record = new ThreadRolloutRecord
         {
-            Kind = "provider_history_items_appended",
+            Kind = RolloutKinds.ProviderHistoryItemsAppended,
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryItemsAppended = payload
         };
@@ -390,7 +390,7 @@ internal sealed class ThreadRolloutStore
             ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
         var record = new ThreadRolloutRecord
         {
-            Kind = "provider_history_replaced",
+            Kind = RolloutKinds.ProviderHistoryReplaced,
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryReplaced = payload
         };
@@ -407,7 +407,7 @@ internal sealed class ThreadRolloutStore
             ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
         var record = new ThreadRolloutRecord
         {
-            Kind = "provider_history_attempt_aborted",
+            Kind = RolloutKinds.ProviderHistoryAttemptAborted,
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryAttemptAborted = payload
         };
@@ -441,9 +441,9 @@ internal sealed class ThreadRolloutStore
                     ex);
             }
 
-            if (record?.Kind is "provider_history_items_appended"
-                or "provider_history_replaced"
-                or "provider_history_attempt_aborted")
+            if (record?.Kind is RolloutKinds.ProviderHistoryItemsAppended
+                or RolloutKinds.ProviderHistoryReplaced
+                or RolloutKinds.ProviderHistoryAttemptAborted)
             {
                 records.Add(record);
             }
@@ -475,7 +475,7 @@ internal sealed class ThreadRolloutStore
         {
             new()
             {
-                Kind = "turn_state_replaced",
+                Kind = RolloutKinds.TurnStateReplaced,
                 Timestamp = thread.LastActiveAt,
                 TurnStateReplaced = new TurnStateReplacedPayload
                 {
@@ -492,7 +492,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "context_compacted",
+                Kind = RolloutKinds.ContextCompacted,
                 Timestamp = compaction.CreatedAt,
                 ContextCompacted = new ContextCompactedPayload
                 {
@@ -513,7 +513,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "model_history_messages_appended",
+                Kind = RolloutKinds.ModelHistoryMessagesAppended,
                 Timestamp = DateTimeOffset.UtcNow,
                 ModelHistoryMessagesAppended = new ModelHistoryMessagesAppendedPayload
                 {
@@ -722,7 +722,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "thread_name_updated",
+                Kind = RolloutKinds.ThreadNameUpdated,
                 Timestamp = current.LastActiveAt,
                 ThreadNameUpdated = new ThreadNameUpdatedPayload
                 {
@@ -738,7 +738,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "queued_input_added",
+                Kind = RolloutKinds.QueuedInputAdded,
                 Timestamp = queued.CreatedAt,
                 QueuedInputAdded = new QueuedInputAddedPayload
                 {
@@ -752,7 +752,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "queued_input_removed",
+                Kind = RolloutKinds.QueuedInputRemoved,
                 Timestamp = current.LastActiveAt,
                 QueuedInputRemoved = new QueuedInputRemovedPayload
                 {
@@ -771,7 +771,7 @@ internal sealed class ThreadRolloutStore
 
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "queued_input_updated",
+                Kind = RolloutKinds.QueuedInputUpdated,
                 Timestamp = current.LastActiveAt,
                 QueuedInputUpdated = new QueuedInputUpdatedPayload
                 {
@@ -790,7 +790,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "queued_input_reordered",
+                Kind = RolloutKinds.QueuedInputReordered,
                 Timestamp = current.LastActiveAt,
                 QueuedInputReordered = new QueuedInputReorderedPayload
                 {
@@ -805,7 +805,7 @@ internal sealed class ThreadRolloutStore
         {
             records.Add(new ThreadRolloutRecord
             {
-                Kind = "thread_status_changed",
+                Kind = RolloutKinds.ThreadStatusChanged,
                 Timestamp = current.LastActiveAt,
                 ThreadStatusChanged = new RolloutThreadStatusChangedPayload
                 {
@@ -874,7 +874,7 @@ internal sealed class ThreadRolloutStore
     {
         return new ThreadRolloutRecord
         {
-            Kind = "thread_opened",
+            Kind = RolloutKinds.ThreadOpened,
             Timestamp = thread.LastActiveAt,
             ThreadOpened = new ThreadOpenedPayload
             {
@@ -902,7 +902,7 @@ internal sealed class ThreadRolloutStore
     {
         return new ThreadRolloutRecord
         {
-            Kind = "turn_started",
+            Kind = RolloutKinds.TurnStarted,
             Timestamp = turn.StartedAt,
             TurnStarted = new TurnStartedPayload
             {
@@ -929,7 +929,7 @@ internal sealed class ThreadRolloutStore
     {
         return new ThreadRolloutRecord
         {
-            Kind = "item_appended",
+            Kind = RolloutKinds.ItemAppended,
             Timestamp = item.CompletedAt ?? item.CreatedAt,
             ItemAppended = new ItemAppendedPayload
             {
@@ -943,7 +943,7 @@ internal sealed class ThreadRolloutStore
     {
         return new ThreadRolloutRecord
         {
-            Kind = "turn_completed",
+            Kind = RolloutKinds.TurnCompleted,
             Timestamp = turn.CompletedAt ?? turn.StartedAt,
             TurnCompleted = new TurnCompletedPayload
             {
@@ -991,18 +991,18 @@ internal sealed class ThreadRolloutStore
                 return;
             }
 
-            if (record.Kind == "thread_opened" && record.ThreadOpened == null)
+            if (record.Kind == RolloutKinds.ThreadOpened && record.ThreadOpened == null)
                 throw new InvalidDataException("A canonical thread baseline record is incomplete.");
 
             if (!_hasCanonicalHeader
-                && (record.Kind != "thread_opened" || record.ThreadOpened == null))
+                && (record.Kind != RolloutKinds.ThreadOpened || record.ThreadOpened == null))
             {
                 throw new InvalidDataException("The rollout does not begin with a canonical thread header.");
             }
 
             switch (record.Kind)
             {
-                case "thread_opened" when record.ThreadOpened != null:
+                case RolloutKinds.ThreadOpened when record.ThreadOpened != null:
                     _thread ??= new SessionThread();
                     _thread.Id = record.ThreadOpened.ThreadId;
                     _thread.WorkspacePath = record.ThreadOpened.WorkspacePath;
@@ -1027,16 +1027,16 @@ internal sealed class ThreadRolloutStore
                     _hasCanonicalHeader = true;
                     break;
 
-                case "thread_name_updated" when _thread != null && record.ThreadNameUpdated != null:
+                case RolloutKinds.ThreadNameUpdated when _thread != null && record.ThreadNameUpdated != null:
                     _thread.DisplayName = record.ThreadNameUpdated.DisplayName;
                     break;
 
-                case "thread_status_changed" when _thread != null && record.ThreadStatusChanged != null:
+                case RolloutKinds.ThreadStatusChanged when _thread != null && record.ThreadStatusChanged != null:
                     _thread.Status = record.ThreadStatusChanged.Status;
                     _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
                     break;
 
-                case "turn_state_replaced" when _thread != null && record.TurnStateReplaced != null:
+                case RolloutKinds.TurnStateReplaced when _thread != null && record.TurnStateReplaced != null:
                     var replacement = record.TurnStateReplaced;
                     var replacementTurn = replacement.Turn;
                     _turnSequenceHighWatermark = Math.Max(
@@ -1050,7 +1050,7 @@ internal sealed class ThreadRolloutStore
                     _thread.DisplayName = replacement.DisplayName;
                     break;
 
-                case "turn_started" when _thread != null && record.TurnStarted != null:
+                case RolloutKinds.TurnStarted when _thread != null && record.TurnStarted != null:
                     var started = record.TurnStarted.Turn;
                     _turnSequenceHighWatermark = Math.Max(
                         _turnSequenceHighWatermark,
@@ -1060,7 +1060,7 @@ internal sealed class ThreadRolloutStore
                     _turns[started.Id] = started;
                     break;
 
-                case "item_appended" when record.ItemAppended != null:
+                case RolloutKinds.ItemAppended when record.ItemAppended != null:
                     if (!_turns.TryGetValue(record.ItemAppended.TurnId, out var turn))
                     {
                         turn = new SessionTurn
@@ -1083,7 +1083,7 @@ internal sealed class ThreadRolloutStore
                         turn.Input = record.ItemAppended.Item;
                     break;
 
-                case "turn_completed" when record.TurnCompleted != null && _turns.TryGetValue(record.TurnCompleted.TurnId, out var completedTurn):
+                case RolloutKinds.TurnCompleted when record.TurnCompleted != null && _turns.TryGetValue(record.TurnCompleted.TurnId, out var completedTurn):
                     completedTurn.Status = record.TurnCompleted.Status;
                     completedTurn.CompletedAt = record.TurnCompleted.CompletedAt;
                     completedTurn.TokenUsage = record.TurnCompleted.TokenUsage;
@@ -1092,29 +1092,29 @@ internal sealed class ThreadRolloutStore
                     completedTurn.Initiator = record.TurnCompleted.Initiator;
                     break;
 
-                case "thread_rolled_back" when _thread != null && record.ThreadRolledBack != null:
+                case RolloutKinds.ThreadRolledBack when _thread != null && record.ThreadRolledBack != null:
                     ApplyRollback(_turns, record.ThreadRolledBack.NumTurns);
                     _thread.LastActiveAt = record.ThreadRolledBack.LastActiveAt;
                     break;
 
-                case "queued_input_added" when _thread != null && record.QueuedInputAdded != null:
+                case RolloutKinds.QueuedInputAdded when _thread != null && record.QueuedInputAdded != null:
                     if (_thread.QueuedInputs.All(q => !string.Equals(q.Id, record.QueuedInputAdded.QueuedInput.Id, StringComparison.Ordinal)))
                         _thread.QueuedInputs.Add(record.QueuedInputAdded.QueuedInput);
                     break;
 
-                case "queued_input_removed" when _thread != null && record.QueuedInputRemoved != null:
+                case RolloutKinds.QueuedInputRemoved when _thread != null && record.QueuedInputRemoved != null:
                     _thread.QueuedInputs.RemoveAll(q => string.Equals(q.Id, record.QueuedInputRemoved.QueuedInputId, StringComparison.Ordinal));
                     _thread.LastActiveAt = record.QueuedInputRemoved.LastActiveAt;
                     break;
 
-                case "queued_input_updated" when _thread != null && record.QueuedInputUpdated != null:
+                case RolloutKinds.QueuedInputUpdated when _thread != null && record.QueuedInputUpdated != null:
                     var updateIndex = _thread.QueuedInputs.FindIndex(q => string.Equals(q.Id, record.QueuedInputUpdated.QueuedInput.Id, StringComparison.Ordinal));
                     if (updateIndex >= 0)
                         _thread.QueuedInputs[updateIndex] = record.QueuedInputUpdated.QueuedInput;
                     _thread.LastActiveAt = record.QueuedInputUpdated.LastActiveAt;
                     break;
 
-                case "queued_input_reordered" when _thread != null && record.QueuedInputReordered != null:
+                case RolloutKinds.QueuedInputReordered when _thread != null && record.QueuedInputReordered != null:
                     var queuedById = _thread.QueuedInputs.ToDictionary(q => q.Id, StringComparer.Ordinal);
                     var seenQueuedIds = new HashSet<string>(StringComparer.Ordinal);
                     var reorderedQueue = new List<QueuedTurnInput>(_thread.QueuedInputs.Count);

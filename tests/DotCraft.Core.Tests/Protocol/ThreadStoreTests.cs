@@ -341,7 +341,7 @@ public sealed class ThreadStoreTests : IDisposable
         var finalName = "最终名称-🤖";
         var firstRecord = new ThreadRolloutRecord
         {
-            Kind = "thread_name_updated",
+            Kind = RolloutKinds.ThreadNameUpdated,
             ThreadNameUpdated = new ThreadNameUpdatedPayload
             {
                 ThreadId = thread.Id,
@@ -350,7 +350,7 @@ public sealed class ThreadStoreTests : IDisposable
         };
         var finalRecord = new ThreadRolloutRecord
         {
-            Kind = "thread_name_updated",
+            Kind = RolloutKinds.ThreadNameUpdated,
             ThreadNameUpdated = new ThreadNameUpdatedPayload
             {
                 ThreadId = thread.Id,
@@ -491,7 +491,7 @@ public sealed class ThreadStoreTests : IDisposable
         var lines = File.ReadAllLines(path);
         Assert.Equal(initialLineCount + 1, lines.Length);
         using var last = JsonDocument.Parse(lines[^1]);
-        Assert.Equal("item_appended", last.RootElement.GetProperty("kind").GetString());
+        Assert.Equal(RolloutKinds.ItemAppended, last.RootElement.GetProperty("kind").GetString());
         Assert.Equal(
             "memoryConsolidated",
             last.RootElement
@@ -684,13 +684,13 @@ public sealed class ThreadStoreTests : IDisposable
         try
         {
             Assert.Single(records, record =>
-                record.RootElement.GetProperty("kind").GetString() == "turn_started"
+                record.RootElement.GetProperty("kind").GetString() == RolloutKinds.TurnStarted
                 && record.RootElement.GetProperty("turnStarted").GetProperty("turn").GetProperty("id").GetString() == turn.Id);
             Assert.Single(records, record =>
-                record.RootElement.GetProperty("kind").GetString() == "turn_completed"
+                record.RootElement.GetProperty("kind").GetString() == RolloutKinds.TurnCompleted
                 && record.RootElement.GetProperty("turnCompleted").GetProperty("turnId").GetString() == turn.Id);
             Assert.Equal(4, records.Count(record =>
-                record.RootElement.GetProperty("kind").GetString() == "item_appended"
+                record.RootElement.GetProperty("kind").GetString() == RolloutKinds.ItemAppended
                 && record.RootElement.GetProperty("itemAppended").GetProperty("turnId").GetString() == turn.Id));
         }
         finally
@@ -725,7 +725,7 @@ public sealed class ThreadStoreTests : IDisposable
 
         var lines = File.ReadAllLines(path);
         Assert.Equal(initialLineCount + 1, lines.Length);
-        Assert.Contains("thread_rolled_back", lines[^1]);
+        Assert.Contains(RolloutKinds.ThreadRolledBack, lines[^1]);
 
         var secondStore = new ThreadStore(_root);
         var loaded = await secondStore.LoadThreadAsync(thread.Id);
@@ -829,7 +829,7 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var lines = await File.ReadAllLinesAsync(GetCanonicalPath(thread.Id, archived: false));
-        Assert.Contains(lines, line => line.Contains("queued_input_reordered", StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.Contains(RolloutKinds.QueuedInputReordered, StringComparison.Ordinal));
 
         var secondStore = new ThreadStore(_root);
         var loaded = await secondStore.LoadThreadAsync(thread.Id);
@@ -1848,7 +1848,7 @@ public sealed class ThreadStoreTests : IDisposable
 
         var invalidBatch = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             modelHistoryMessagesAppended = new
             {
@@ -1893,7 +1893,7 @@ public sealed class ThreadStoreTests : IDisposable
 
         var conflictingBatch = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             modelHistoryMessagesAppended = new
             {
@@ -1955,7 +1955,7 @@ public sealed class ThreadStoreTests : IDisposable
         var path = GetCanonicalPath(thread.Id, archived: false);
         var foreignBatch = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             modelHistoryMessagesAppended = new
             {
@@ -2020,7 +2020,7 @@ public sealed class ThreadStoreTests : IDisposable
         var path = GetCanonicalPath(thread.Id, archived: false);
         var unreadableBatch = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             modelHistoryMessagesAppended = new
             {
@@ -2051,7 +2051,7 @@ public sealed class ThreadStoreTests : IDisposable
         var path = GetCanonicalPath(thread.Id, archived: false);
         var invalidBatch = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             modelHistoryMessagesAppended = new
             {
@@ -2079,7 +2079,7 @@ public sealed class ThreadStoreTests : IDisposable
         var path = GetCanonicalPath(thread.Id, archived: false);
         var inconsistentRecord = new
         {
-            kind = "model_history_messages_appended",
+            kind = RolloutKinds.ModelHistoryMessagesAppended,
             timestamp = DateTimeOffset.UtcNow,
             contextCompacted = new
             {
@@ -2140,7 +2140,7 @@ public sealed class ThreadStoreTests : IDisposable
             100);
         var unsupportedCheckpoint = new
         {
-            kind = "context_compacted",
+            kind = RolloutKinds.ContextCompacted,
             timestamp = DateTimeOffset.UtcNow,
             contextCompacted = new
             {
@@ -2256,7 +2256,7 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
         var badCheckpoint = new
         {
-            kind = "context_compacted",
+            kind = RolloutKinds.ContextCompacted,
             timestamp = DateTimeOffset.UtcNow,
             contextCompacted = new
             {

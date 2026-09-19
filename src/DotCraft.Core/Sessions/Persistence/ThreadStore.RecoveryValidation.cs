@@ -173,7 +173,7 @@ public sealed partial class ThreadStore
         var payload = CreateProviderReplacement(snapshot);
         var record = new ThreadRolloutRecord
         {
-            Kind = "provider_history_replaced",
+            Kind = RolloutKinds.ProviderHistoryReplaced,
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryReplaced = payload
         };

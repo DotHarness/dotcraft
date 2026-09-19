@@ -65,7 +65,7 @@ public sealed class SessionServiceNativeCompactionTests : IDisposable
 
         var records = await ReadRecordsAsync(threadId);
         Assert.Equal(3, records.Count(record => record.ProviderHistoryReplaced?.Reason == "remote_compaction"));
-        Assert.DoesNotContain(records, record => record.Kind == "context_compacted");
+        Assert.DoesNotContain(records, record => record.Kind == RolloutKinds.ContextCompacted);
     }
 
     [Fact]

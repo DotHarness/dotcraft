@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Sessions;
 
 namespace DotCraft.DashBoard;
 
@@ -30,7 +31,7 @@ internal sealed class DashBoardThreadOperationStore(string craftPath)
             foreach (var line in File.ReadLines(path))
             {
                 lineNumber++;
-                if (!line.Contains("\"thread_rolled_back\"", StringComparison.Ordinal))
+                if (!line.Contains(RolloutKinds.ThreadRolledBack, StringComparison.Ordinal))
                     continue;
 
                 if (TryReadRollbackOperation(line, threadId, lineNumber, out var operation))
@@ -60,12 +61,12 @@ internal sealed class DashBoardThreadOperationStore(string craftPath)
             using var doc = JsonDocument.Parse(line);
             var root = doc.RootElement;
             if (!TryGetString(root, "kind", out var kind) ||
-                !string.Equals(kind, "thread_rolled_back", StringComparison.Ordinal))
+                !string.Equals(kind, RolloutKinds.ThreadRolledBack, StringComparison.Ordinal))
             {
                 return false;
             }
 
-            if (!root.TryGetProperty("threadRolledBack", out var payload))
+            if (!root.TryGetProperty(RolloutKinds.PayloadProperty(RolloutKinds.ThreadRolledBack), out var payload))
                 return false;
 
             if (!TryGetString(payload, "threadId", out var threadId) ||
