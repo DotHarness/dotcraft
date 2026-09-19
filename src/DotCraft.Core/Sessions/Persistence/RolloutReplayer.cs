@@ -62,7 +62,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         ? "Skipped an unreadable compaction checkpoint."
                         : "Skipped an unreadable rollout record.",
                     failedTurnId,
-                    markFallback: !checkpointRecord);
+                    markFallback: RebuildsTurnHistory(failedKind));
                 continue;
             }
 
@@ -76,14 +76,13 @@ internal sealed class RolloutReplayer : IRolloutReplayer
 
             if (!TryValidateTargetEnvelope(record, kind, out var envelopeError))
             {
-                var rebuildsTurn = string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal);
                 Reject(
                     string.Equals(kind, "context_compacted", StringComparison.Ordinal)
                         ? "invalid_checkpoint"
                         : "malformed_record",
                     envelopeError!,
                     envelopeTurnId,
-                    markFallback: rebuildsTurn);
+                    markFallback: RebuildsTurnHistory(kind));
                 continue;
             }
 
@@ -319,6 +318,10 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         }
         return true;
     }
+
+    // Only the batch that carries a turn's exact model history can cost the turn that history.
+    private static bool RebuildsTurnHistory(string? kind) =>
+        string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal);
 
     private static bool TryValidateWorldState(WorldStatePayload? worldState, out string? error)
     {

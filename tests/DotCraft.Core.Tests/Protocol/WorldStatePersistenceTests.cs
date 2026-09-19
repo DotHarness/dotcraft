@@ -161,6 +161,40 @@ public sealed class WorldStatePersistenceTests : IDisposable
         Assert.Null(await LoadBaselineAsync(thread));
     }
 
+    [Fact]
+    public async Task Replay_KeepsExactTurnHistoryWhenAWorldStateRecordIsUnreadable()
+    {
+        var thread = await CreateThreadWithTurnsAsync(2);
+
+        await AppendWorldStateAsync(thread, thread.Turns[0].Id, full: true, new JsonObject
+        {
+            ["environment"] = new JsonObject { ["workingDirectory"] = "/a" }
+        });
+        await AppendRawAsync(thread, UnreadableStateRecord(thread, thread.Turns[1].Id));
+
+        var replay = await ReplayAsync(thread);
+
+        Assert.DoesNotContain(thread.Turns[1].Id, replay.FallbackTurnIds ?? new HashSet<string>());
+        Assert.Contains(
+            replay.Messages,
+            message => message.Text.Contains($"ask {thread.Turns[1].Id}", StringComparison.Ordinal));
+        Assert.Equal("/a", WorkingDirectory(Assert.IsType<WorldStateSnapshot>(replay.WorldState)));
+    }
+
+    private static string UnreadableStateRecord(SessionThread thread, string turnId) =>
+        JsonSerializer.Serialize(new
+        {
+            kind = "world_state",
+            timestamp = DateTimeOffset.UnixEpoch,
+            worldState = new
+            {
+                threadId = thread.Id,
+                turnId,
+                full = true,
+                state = new[] { 1, 2 }
+            }
+        }, SessionJsonOptions.Default);
+
     private static string NullStateRecord(SessionThread thread, string turnId, bool full) =>
         JsonSerializer.Serialize(new
         {
