@@ -21,7 +21,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
 import { automationScheduleSummary } from '../../utils/automationScheduleSummary'
 import { ensureScheduleTimeZone, resolveSystemTimeZone } from '../../utils/automationTimeZone'
-import { CatalogFilterButton, CatalogSearchBox } from '../catalog/CatalogSurface'
+import { CatalogFilterButton, CatalogSearchBox, CatalogTopBar } from '../catalog/CatalogSurface'
 import { DragHandle } from '../layout/DragHandle'
 import { ResizeEdgeGlow } from '../layout/ResizeEdgeGlow'
 import { Button } from '../ui/Button'
@@ -165,57 +165,65 @@ export function AutomationsView(): JSX.Element {
   return (
     <div ref={surfaceRef} className="dc-automations" data-editing={editing || undefined}>
       {!editing && (
-        <div className="dc-automations-topbar">
-          <SplitButton
-            label={t('automation.createButton')}
-            menuLabel={t('automation.createMenu')}
-            disabled={!connected}
-            onClick={() => chat()}
-            items={[
-              { key: 'agent', label: t('automation.createWithAgent'), icon: <MessageSquareText size={15} />, onClick: () => chat() },
-              { key: 'manual', label: t('automation.manual'), icon: <Pencil size={15} />, onClick: () => { void createManual() } }
-            ]}
-          />
-        </div>
+        <CatalogTopBar
+          actions={(
+            <SplitButton
+              label={t('automation.createButton')}
+              menuLabel={t('automation.createMenu')}
+              disabled={!connected}
+              onClick={() => chat()}
+              items={[
+                { key: 'agent', label: t('automation.createWithAgent'), icon: <MessageSquareText size={15} />, onClick: () => chat() },
+                { key: 'manual', label: t('automation.manual'), icon: <Pencil size={15} />, onClick: () => { void createManual() } }
+              ]}
+            />
+          )}
+        />
       )}
       <div className="dc-automations-body" style={editing ? { gridTemplateColumns: `${splitPercent}% ${100 - splitPercent}%` } : undefined}>
         <main className="dc-automations-list">
-          <h1>{t(editing ? 'automation.title' : 'auto.viewTitle')}</h1>
-          <div className="dc-automations-filters">
-            <CatalogSearchBox value={query} placeholder={t('automation.search')} onChange={setQuery} />
-            <CatalogFilterButton
-              ariaLabel={t('automation.filter')}
-              groups={[{
-                label: t('automation.filter'), value: filter, onChange: setFilter,
-                options: ['all', 'active', 'paused', 'completed'].map((value) => ({ value, label: t(`automation.status.${value}`) }))
-              }]}
-            />
-          </div>
-
-          {showDefinitions ? <section className="dc-automation-current">
-            <h2>{t('automation.yours')}</h2>
-            {store.loading ? <p role="status" className="dc-automation-empty">{t('common.loading')}</p> : null}
-            {store.error || actionError ? <p role="alert" className="dc-automation-error">{store.error ?? actionError}</p> : null}
-            {!store.loading && !rows.length ? <p className="dc-automation-empty">{t('automation.empty')}</p> : null}
-            <div className="dc-automation-list-rows">
-              {rows.map((automation) => (
-                <AutomationTaskRow key={automation.id} automation={automation} selected={selected?.id === automation.id}
-                  disabled={!connected || (selected?.id === automation.id && dirty)}
-                  disabledReason={!connected ? t('connection.disconnected') : selected?.id === automation.id && dirty ? t('automation.saveBeforeAction') : undefined}
-                  actionPending={quickPendingId === automation.id}
-                  onSelect={() => navigate(() => { setManual(null); store.selectAutomation(automation.id) })}
-                  onToggle={() => void action(() => store.setEnabled(automation.id, automation.status === 'paused'))}
-                  onRun={() => void quickAction(automation.id, () => store.run(automation.id))}
-                  onDelete={() => setRemoving(automation)} onDragStart={(event) => startDrag(event, automation)} />
-              ))}
+          <header className="dc-automations-header">
+            <h1>{t(editing ? 'automation.title' : 'auto.viewTitle')}</h1>
+            <div className="dc-automations-filters">
+              <CatalogSearchBox value={query} placeholder={t('automation.search')} onChange={setQuery} />
+              <CatalogFilterButton
+                ariaLabel={t('automation.filter')}
+                groups={[{
+                  label: t('automation.filter'), value: filter, onChange: setFilter,
+                  options: ['all', 'active', 'paused', 'completed'].map((value) => ({ value, label: t(`automation.status.${value}`) }))
+                }]}
+              />
             </div>
-          </section> : null}
+          </header>
 
-          <h2>{t('automation.presets')}</h2>
-          <div className="dc-automation-suggestions">
-            {presets.map((preset) => <AutomationSuggestion key={preset.id} preset={preset} locale={locale}
-              creating={creatingPresetId === preset.id} disabled={creatingPresetId != null || !connected || !preset.schedule}
-              onClick={() => void addPreset(preset)} />)}
+          <div className="dc-automations-groups dc-scrollbar-stable">
+            {showDefinitions ? <section className="dc-automations-group">
+              <h2>{t('automation.yours')}</h2>
+              {store.loading ? <p role="status" className="dc-automation-empty">{t('common.loading')}</p> : null}
+              {store.error || actionError ? <p role="alert" className="dc-automation-error">{store.error ?? actionError}</p> : null}
+              {!store.loading && !rows.length ? <p className="dc-automation-empty">{t('automation.empty')}</p> : null}
+              <div className="dc-automation-list-rows">
+                {rows.map((automation) => (
+                  <AutomationTaskRow key={automation.id} automation={automation} selected={selected?.id === automation.id}
+                    disabled={!connected || (selected?.id === automation.id && dirty)}
+                    disabledReason={!connected ? t('connection.disconnected') : selected?.id === automation.id && dirty ? t('automation.saveBeforeAction') : undefined}
+                    actionPending={quickPendingId === automation.id}
+                    onSelect={() => navigate(() => { setManual(null); store.selectAutomation(automation.id) })}
+                    onToggle={() => void action(() => store.setEnabled(automation.id, automation.status === 'paused'))}
+                    onRun={() => void quickAction(automation.id, () => store.run(automation.id))}
+                    onDelete={() => setRemoving(automation)} onDragStart={(event) => startDrag(event, automation)} />
+                ))}
+              </div>
+            </section> : null}
+
+            <section className="dc-automations-group">
+              <h2>{t('automation.presets')}</h2>
+              <div className="dc-automation-suggestions">
+                {presets.map((preset) => <AutomationSuggestion key={preset.id} preset={preset} locale={locale}
+                  creating={creatingPresetId === preset.id} disabled={creatingPresetId != null || !connected || !preset.schedule}
+                  onClick={() => void addPreset(preset)} />)}
+              </div>
+            </section>
           </div>
         </main>
 

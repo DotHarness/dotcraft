@@ -10,15 +10,6 @@
 
 .dc-automations button { cursor: pointer; }
 
-.dc-automations-topbar {
-  height: 56px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 0 12px;
-  flex: 0 0 auto;
-}
-
 .dc-automations-body {
   position: relative;
   flex: 1;
@@ -30,14 +21,18 @@
 }
 
 .dc-automations-list {
-  width: min(760px, calc(100% - 64px));
   min-width: 0;
-  margin: 16px auto 0;
-  padding-bottom: 48px;
-  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.dc-automations-list > h1 {
+.dc-automations-header {
+  flex: 0 0 auto;
+  padding: 28px 64px 16px;
+}
+
+.dc-automations-header > h1 {
   margin: 0 0 24px;
   text-align: center;
   font-size: 26px;
@@ -47,59 +42,75 @@
 }
 
 .dc-automations-filters {
+  max-width: 760px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.dc-automations-list > h2,
-.dc-automation-current > h2 {
-  margin: 30px 0 14px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+.dc-automations-groups {
+  flex: 1;
+  min-height: 0;
+  padding: 28px 64px 48px;
+  overflow-y: auto;
+}
+
+.dc-automations-group {
+  max-width: 760px;
+  margin: 0 auto 34px;
+}
+
+.dc-automations-group > h2 {
+  margin: 0 0 12px;
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 700;
 }
 
 .dc-automation-suggestions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  column-gap: 34px;
+  row-gap: 18px;
 }
 
 .dc-automation-suggestion {
-  min-height: 82px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
   width: 100%;
-  padding: 12px;
+  min-width: 0;
+  height: 58px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
   text-align: left;
-  border: 1px solid transparent;
-  border-radius: 9px;
+  border: none;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 .dc-automation-suggestion:hover,
 .dc-automation-suggestion:focus-visible {
-  border-color: var(--border-subtle);
-  background: var(--bg-hover);
+  background: var(--bg-tertiary);
 }
 .dc-automation-suggestion:disabled { cursor: default; }
 .dc-automation-suggestion:disabled:not([data-creating]) { opacity: .55; }
 
-.dc-automation-suggestion-icon,
-.dc-automation-row-icon {
-  width: 38px;
-  height: 38px;
+.dc-automation-suggestion-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: 9px;
+  border-radius: var(--identity-mark-radius-list);
   background: var(--bg-secondary);
 }
-.dc-automation-suggestion-icon { position: relative; }
 .dc-automation-suggestion-original-icon,
 .dc-automation-suggestion-add-icon { transition: opacity 120ms ease; }
 .dc-automation-suggestion-add-icon { position: absolute; opacity: 0; color: var(--text-secondary); }
@@ -115,31 +126,41 @@
 .dc-automation-suggestion > span:last-child { flex: 1; min-width: 0; }
 
 .dc-automation-suggestion-heading {
+  min-width: 0;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 6px;
+}
+
+.dc-automation-suggestion-heading strong,
+.dc-automation-suggestion-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dc-automation-suggestion-heading strong {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: 700;
 }
 
 .dc-automation-suggestion-heading small {
+  flex-shrink: 0;
   color: var(--text-dimmed);
-  font-size: 12px;
+  font-size: var(--type-secondary-size);
 }
 
 .dc-automation-suggestion-description {
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
 }
 
-.dc-automation-current { margin-top: 0; }
-.dc-automation-list-rows { display: grid; gap: 4px; }
+/* minmax(0, 1fr) keeps a long unwrapped task name from widening the column. */
+.dc-automation-list-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 
 .dc-automation-list-rows article {
   position: relative;
@@ -147,19 +168,18 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 10px 8px 12px;
-  border-radius: 9px;
+  padding: 0 8px;
+  border-radius: 8px;
   cursor: grab;
 }
 
 .dc-automation-list-rows article:hover,
 .dc-automation-list-rows article:focus-within,
 .dc-automation-list-rows article[data-selected] {
-  background: var(--bg-hover);
+  background: var(--bg-tertiary);
 }
 
 .dc-automation-list-rows article:active { cursor: grabbing; }
-.dc-automation-row-icon { color: var(--accent); }
 
 .dc-automation-task-main {
   min-width: 0;
@@ -208,8 +228,9 @@
 .dc-automation-list-rows strong {
   max-width: 100%;
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -218,20 +239,17 @@
   max-width: 100%;
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.dc-automations[data-editing] .dc-automations-list {
-  width: auto;
-  height: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 16px;
+.dc-automations[data-editing] .dc-automations-header {
+  padding: 16px 16px 0;
 }
 
-.dc-automations[data-editing] .dc-automations-list > h1 {
+.dc-automations[data-editing] .dc-automations-header > h1 {
   margin-bottom: 26px;
   text-align: left;
   font-size: 13px;
@@ -239,12 +257,15 @@
   font-weight: 600;
 }
 
-.dc-automations[data-editing] .dc-automation-suggestions { grid-template-columns: 1fr; }
-.dc-automations[data-editing] .dc-automation-suggestion { min-height: 0; padding: 11px 8px; }
+.dc-automations[data-editing] .dc-automations-filters { max-width: none; }
+.dc-automations[data-editing] .dc-automations-groups { padding: 30px 16px 16px; }
+.dc-automations[data-editing] .dc-automations-group { max-width: none; margin-bottom: 30px; }
+.dc-automations[data-editing] .dc-automations-group > h2 { color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+.dc-automations[data-editing] .dc-automation-suggestions { grid-template-columns: 1fr; row-gap: 8px; }
+.dc-automations[data-editing] .dc-automation-suggestion { height: auto; align-items: flex-start; padding: 11px 8px; }
 .dc-automations[data-editing] .dc-automation-suggestion-icon { width: 20px; height: 20px; border-radius: 0; background: transparent; }
 .dc-automations[data-editing] .dc-automation-suggestion-heading { flex-wrap: wrap; gap: 4px 10px; }
-.dc-automations[data-editing] .dc-automation-list-rows article { min-height: 52px; padding-left: 8px; }
-.dc-automations[data-editing] .dc-automation-row-icon { width: 20px; height: 20px; border-radius: 0; background: transparent; }
+.dc-automations[data-editing] .dc-automation-list-rows article { min-height: 52px; }
 
 .dc-automation-divider {
   position: absolute;
@@ -468,7 +489,7 @@
 .dc-automation-run time { transition: opacity 140ms ease; }
 .dc-automation-run-restore { transition: opacity 140ms ease; }
 .dc-automation-run-touch-menu { display: none; }
-.dc-automation-row-status { position: relative; width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; color: var(--text-dimmed); }
+.dc-automation-row-status { position: relative; width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; color: var(--text-dimmed); }
 .dc-automation-status-hover { position: absolute; opacity: 0; }
 .dc-automation-row-status:hover .dc-automation-status-rest,
 .dc-automation-row-status:focus-visible .dc-automation-status-rest { opacity: 0; }
@@ -504,6 +525,6 @@
   .dc-automation-editor { width: 100%; height: 100%; }
   .dc-automation-divider,
   .dc-automations[data-editing] .drag-handle { display: none; }
-  .dc-automations-list { width: calc(100% - 32px); }
-  .dc-automations-topbar { padding-inline: 8px; }
+  .dc-automations-header,
+  .dc-automations-groups { padding-inline: 16px; }
 }

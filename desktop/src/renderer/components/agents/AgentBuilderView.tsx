@@ -801,7 +801,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
                 {items.map((p) => (
                   <CatalogHoverButton key={`${p.source}:${p.id}`} type="button" baseStyle={catalogStyles.compactItem} onClick={() => void openProfile(p)}>
                     <span style={galleryAvatar}>
-                      <RobotAvatar name={p.name || p.id} size={36} />
+                      <RobotAvatar name={p.name || p.id} size={40} />
                     </span>
                     <span style={galleryText}>
                       <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.name || p.id}</strong></span>

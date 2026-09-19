@@ -1,5 +1,5 @@
 ---
-version: "0.21.0"
+version: "0.22.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -288,6 +288,16 @@ Desktop surfaces should favor dense but organized operational layouts.
   the hero/header below this band or compensate with negative offsets.
   Plugin detail is the narrow exception: item-scoped actions may sit beside the
   title block.
+- Every full-page catalog surface, including Automations, shares one browse frame
+  below that band: a pinned header padded `28px 64px 16px` carrying the hero title
+  and search row, then a scrolling body padded `28px 64px 48px`, both centering
+  their groups on the same 760px column. A surface that builds its own band, pads
+  its hero differently, or scrolls that hero away reads as a different page.
+- Inside that frame a group is a `16px`/`700` title over one grid of `58px` rows:
+  two columns at `34px`/`18px` gaps for items the user can add, one column at `4px`
+  for records the user already owns. Every row is a borderless `8px` box with a
+  `40px` leading mark, a `--type-ui` title and one truncating `--type-secondary`
+  line, and fills with `--bg-tertiary` on hover rather than gaining a border.
 - Catalog browse and manage pages separate their controls and groups with space
   and heading weight, not with rules: no rule under the hero/search header or
   manage toolbar, and none above a group. A rule above the first group is a frame
