@@ -421,7 +421,14 @@ export function CatalogScrollArea({
   )
 }
 
+// Every element on a catalog surface reads its column from here, so a new one
+// cannot land at the width of its scroll container by leaving the width out.
+const browseColumn = { maxWidth: '760px', margin: '0 auto' } satisfies CSSProperties
+const manageColumn = { maxWidth: '730px', margin: '0 auto' } satisfies CSSProperties
+
 export const styles = {
+  browseColumn,
+  manageColumn,
   page: {
     display: 'flex',
     flexDirection: 'column',
@@ -506,10 +513,9 @@ export const styles = {
     letterSpacing: 0
   },
   searchRow: {
+    ...browseColumn,
     display: 'flex',
     gap: '8px',
-    maxWidth: '760px',
-    margin: '0 auto',
     alignItems: 'center'
   },
   searchBox: {
@@ -576,7 +582,7 @@ export const styles = {
   // No rule above a group: the 34px gap and the heading weight already separate
   // them, and a rule above the first group reads as a frame edge.
   sectionTitle: {
-    maxWidth: '760px',
+    ...browseColumn,
     margin: '0 auto 12px',
     fontSize: '16px',
     lineHeight: 1.3,
@@ -584,8 +590,7 @@ export const styles = {
     color: 'var(--text-primary)'
   },
   compactGrid: {
-    maxWidth: '760px',
-    margin: '0 auto',
+    ...browseColumn,
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     columnGap: '34px',
@@ -724,16 +729,14 @@ export const styles = {
     padding: '28px 64px 48px'
   },
   manageRow: {
-    maxWidth: '730px',
-    margin: '0 auto',
+    ...manageColumn,
     minHeight: '74px',
     display: 'flex',
     alignItems: 'center',
     gap: '12px'
   },
   emptyText: {
-    maxWidth: '760px',
-    margin: '0 auto',
+    ...browseColumn,
     fontSize: '13px',
     color: 'var(--text-secondary)'
   }

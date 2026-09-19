@@ -22,26 +22,37 @@ public sealed class BuiltInPluginDeployer(
     /// Deploys configured built-in plugins into the workspace plugin directory.
     /// </summary>
     public IReadOnlyList<PluginDiagnostic> Deploy()
-        => DeployCore(targetPluginId: null);
+        => DeployCore(targetPluginIds: null);
 
     /// <summary>
     /// Deploys one configured built-in plugin into the workspace plugin directory.
     /// </summary>
     public IReadOnlyList<PluginDiagnostic> DeployPlugin(string pluginId)
-        => DeployCore(PluginIds.Canonicalize(pluginId));
+        => DeployPlugins([pluginId]);
+
+    /// <summary>
+    /// Deploys the named built-in plugins in one pass, so the sources behind them resolve once.
+    /// </summary>
+    public IReadOnlyList<PluginDiagnostic> DeployPlugins(IReadOnlyCollection<string> pluginIds)
+    {
+        var targets = pluginIds
+            .Select(PluginIds.Canonicalize)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return targets.Count == 0 ? [] : DeployCore(targets);
+    }
 
     public static bool IsManagedBuiltInPluginRoot(string pluginRoot) =>
         File.Exists(Path.Combine(pluginRoot, MarkerFile));
 
-    private IReadOnlyList<PluginDiagnostic> DeployCore(string? targetPluginId)
+    private IReadOnlyList<PluginDiagnostic> DeployCore(IReadOnlySet<string>? targetPluginIds)
     {
         lock (DeploymentLock)
         {
-            return DeployCoreLocked(targetPluginId);
+            return DeployCoreLocked(targetPluginIds);
         }
     }
 
-    private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(string? targetPluginId)
+    private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(IReadOnlySet<string>? targetPluginIds)
     {
         var diagnostics = new List<PluginDiagnostic>();
         var sources = BuiltInPluginSourceResolver.Discover(
@@ -49,18 +60,16 @@ public sealed class BuiltInPluginDeployer(
             diagnostics,
             pluginsConfig,
             userDataPath);
-        var foundTarget = string.IsNullOrWhiteSpace(targetPluginId);
+        var pending = targetPluginIds == null
+            ? null
+            : new HashSet<string>(targetPluginIds, StringComparer.OrdinalIgnoreCase);
 
         Directory.CreateDirectory(workspacePluginsPath);
         foreach (var source in sources)
         {
-            if (!string.IsNullOrWhiteSpace(targetPluginId)
-                && !PluginIds.EqualsCanonical(source.Manifest.Id, targetPluginId))
-            {
+            if (pending != null && !pending.Remove(PluginIds.Canonicalize(source.Manifest.Id)))
                 continue;
-            }
 
-            foundTarget = true;
             var pluginId = source.Manifest.Id;
             var pluginDir = Path.Combine(workspacePluginsPath, pluginId);
             var markerPath = Path.Combine(pluginDir, MarkerFile);
@@ -84,12 +93,12 @@ public sealed class BuiltInPluginDeployer(
             ReplacePluginDirectory(source.PluginRoot, pluginDir, markerText);
         }
 
-        if (!foundTarget && !string.IsNullOrWhiteSpace(targetPluginId))
+        foreach (var missing in (pending ?? []).OrderBy(id => id, StringComparer.Ordinal))
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "BuiltInPluginNotFound",
-                $"Built-in plugin '{targetPluginId}' was not found.",
-                targetPluginId));
+                $"Built-in plugin '{missing}' was not found.",
+                missing));
         }
 
         return diagnostics;

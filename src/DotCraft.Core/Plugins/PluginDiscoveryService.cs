@@ -141,7 +141,7 @@ public sealed class PluginDiscoveryService(
 
         return new PluginDiscoveryResult(
             PluginDependencyCatalogProjection.Attach(discovered),
-            diagnostics);
+            PluginDiagnostic.Deduplicate(diagnostics));
     }
 
     private void RefreshManagedBuiltInPlugins(
@@ -152,6 +152,7 @@ public sealed class PluginDiscoveryService(
         if (!Directory.Exists(workspacePluginsRoot))
             return;
 
+        var managed = new List<string>();
         foreach (var pluginRoot in Directory.GetDirectories(workspacePluginsRoot))
         {
             if (!BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(pluginRoot))
@@ -167,13 +168,15 @@ public sealed class PluginDiscoveryService(
             if (parse.Manifest.Dotnet != null)
                 continue;
 
-            diagnostics.AddRange(new BuiltInPluginDeployer(
-                    workspacePluginsRoot,
-                    builtInPluginSourceRoots,
-                    config.Plugins,
-                    craftHome)
-                .DeployPlugin(parse.Manifest.Id));
+            managed.Add(parse.Manifest.Id);
         }
+
+        diagnostics.AddRange(new BuiltInPluginDeployer(
+                workspacePluginsRoot,
+                builtInPluginSourceRoots,
+                config.Plugins,
+                craftHome)
+            .DeployPlugins(managed));
     }
 
     private IReadOnlyList<PluginCandidate> EnumerateCandidates(

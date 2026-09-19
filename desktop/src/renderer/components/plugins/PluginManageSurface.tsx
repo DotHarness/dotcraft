@@ -239,7 +239,7 @@ function PluginsManageList({
         />
       )}
       {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
-      <PluginDiagnosticsBanner diagnostics={diagnostics} />
+      <PluginDiagnosticsBanner diagnostics={diagnostics} column={catalogStyles.manageColumn} />
       {plugins.map((plugin) => (
         <PluginManageItem
           key={plugin.id}

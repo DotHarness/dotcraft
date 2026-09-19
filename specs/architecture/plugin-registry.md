@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.6.0 |
 | **Status** | Draft |
-| **Date** | 2026-09-15 |
+| **Date** | 2026-09-19 |
 | **Related Specs** | [Plugin Architecture](plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
@@ -193,6 +193,18 @@ An archive download is bounded by a timeout sized for a repository archive rathe
 Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval. The attempt record is what makes a source whose snapshot has never been activated stop re-downloading on every pass.
 
 The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again whenever a refresh operation runs. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
+
+### 7.8 Unavailable sources
+
+A configured source that cannot be resolved on this machine is reported, not repaired. This covers a local directory that no longer exists, a git marketplace that has not been fetched, and an archive marketplace that has not been downloaded. DotCraft never deletes or disables a configuration entry because it failed to resolve: a source is usually absent for a reason that reverses, such as an unmounted drive, a repository not cloned yet, or a directory that moved. Removal stays an explicit user action, and it succeeds whether or not the source still exists on disk.
+
+An unavailable source remains listed and remains removable. A client must be able to reach remove for a marketplace that contributes no plugins, because that is the state removal exists for.
+
+### 7.9 Source diagnostics
+
+A source diagnostic names the marketplace in a `marketplace` parameter and carries the offending path. The code and parameters are the stable contract; the message is English fallback text that a client may replace with its own localized copy.
+
+Each configured source contributes at most one diagnostic per discovery pass, however many times a pass resolves that source internally. A caller that aggregates diagnostics from more than one pass reports each distinct diagnostic once, comparing severity, code, message, plugin id, function name, and path. Repetition counts occurrences of an internal resolve, which carries no information a reader can act on.
 
 ---
 

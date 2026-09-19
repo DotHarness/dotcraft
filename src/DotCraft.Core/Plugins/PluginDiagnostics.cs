@@ -33,6 +33,24 @@ public sealed record PluginDiagnostic
     public IReadOnlyDictionary<string, JsonElement> Parameters { get; init; }
         = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Collapses diagnostics that repeat only because one discovery aggregated several resolve passes.
+    /// </summary>
+    public static List<PluginDiagnostic> Deduplicate(IEnumerable<PluginDiagnostic> diagnostics)
+    {
+        var seen = new HashSet<(PluginDiagnosticSeverity, string, string, string?, string?, string?)>();
+        var distinct = new List<PluginDiagnostic>();
+        foreach (var diagnostic in diagnostics)
+        {
+            var identity = (diagnostic.Severity, diagnostic.Code, diagnostic.Message,
+                diagnostic.PluginId, diagnostic.FunctionName, diagnostic.Path);
+            if (seen.Add(identity))
+                distinct.Add(diagnostic);
+        }
+
+        return distinct;
+    }
+
     public static PluginDiagnostic Info(
         string code,
         string message,

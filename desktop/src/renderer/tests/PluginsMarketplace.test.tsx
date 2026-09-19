@@ -81,11 +81,12 @@ async function showMarketplaceGrouping(): Promise<void> {
 function catalogResponse(overrides?: {
   plugins?: PluginEntry[]
   marketplaces?: MarketplaceEntry[]
+  diagnostics?: unknown[]
 }): unknown {
   return {
     plugins: overrides?.plugins ?? [marketplacePlugin],
     marketplaces: overrides?.marketplaces ?? [marketplace],
-    diagnostics: [],
+    diagnostics: overrides?.diagnostics ?? [],
     snapshotRevision: 1
   }
 }
@@ -376,6 +377,36 @@ describe('plugin marketplace surface', () => {
     await screen.findByText('Example Plugin')
     await showMarketplaceGrouping()
     await screen.findByRole('heading', { name: 'Example Plugins' })
+    fireEvent.click(screen.getByRole('button', { name: 'Marketplace actions' }))
+    fireEvent.click(await screen.findByText('Remove'))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('marketplace/remove', { name: 'example-marketplace' })
+    })
+  })
+
+  it('keeps an unavailable marketplace grouped so it stays removable', async () => {
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'marketplace/remove') return Promise.resolve({ name: 'example-marketplace' })
+      return Promise.resolve(catalogResponse({
+        plugins: [],
+        diagnostics: [{
+          severity: 'warning',
+          code: 'PluginRegistrySourceMissing',
+          message: "Plugin marketplace 'example-marketplace' is not available on this machine.",
+          path: '/home/user/gone',
+          parameters: { marketplace: 'example-marketplace' }
+        }]
+      }))
+    })
+
+    renderPluginsView()
+    await showMarketplaceGrouping()
+    await screen.findByRole('heading', { name: 'Example Plugins' })
+    expect(
+      screen.getAllByText('The folder for marketplace "example-marketplace" was deleted or moved.')
+    ).toHaveLength(2)
+
     fireEvent.click(screen.getByRole('button', { name: 'Marketplace actions' }))
     fireEvent.click(await screen.findByText('Remove'))
 

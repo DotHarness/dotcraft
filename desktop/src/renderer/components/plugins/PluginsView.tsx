@@ -23,7 +23,7 @@ import { pluginTitle } from './PluginCatalogItem'
 import { PluginInstallDialog } from './PluginInstallDialog'
 import { PluginBrowseSurface, PluginSurfaceTabs } from './PluginBrowseSurface'
 import { PluginDetailView } from './PluginDetailView'
-import { filterVisibleDiagnostics } from './PluginDiagnosticsBanner'
+import { buildMarketplaceNotices, filterVisibleDiagnostics } from './pluginDiagnostics'
 import { PluginManageSurface } from './PluginManageSurface'
 import { PLUGIN_CREATOR_SKILL, stagePluginCreationInChat, stagePluginTryInChat } from './pluginDraft'
 import { showPluginInstalledToast, showPluginUninstalledToast } from './pluginToasts'
@@ -130,6 +130,7 @@ export function PluginsView(): JSX.Element {
     [skills, skillManageQuery]
   )
   const visibleDiagnostics = useMemo(() => filterVisibleDiagnostics(diagnostics), [diagnostics])
+  const marketplaceNotices = useMemo(() => buildMarketplaceNotices(visibleDiagnostics, t), [visibleDiagnostics, t])
   const initialPluginLoading = loading && plugins.length === 0
   const selectedSkill = selectedSkillName
     ? skills.find((skill) => skill.name === selectedSkillName) ?? null
@@ -137,8 +138,8 @@ export function PluginsView(): JSX.Element {
   const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
   const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
   const sections = useMemo(
-    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces),
-    [browsePlugins, categoryFilter, marketplaces, publisherFilter, t]
+    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices),
+    [browsePlugins, categoryFilter, marketplaceNotices, marketplaces, publisherFilter, t]
   )
   // The dialog owns installed/app state for its own session and takes the live trust state from
   // the store, so completing the trust step advances the dialog without reopening it.

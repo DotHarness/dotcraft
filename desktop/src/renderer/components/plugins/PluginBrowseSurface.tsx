@@ -183,7 +183,7 @@ export function PluginBrowseSurface({
         {!pluginManagement && <p style={emptyText}>{t('plugins.unavailable')}</p>}
         {loading && <SkeletonCatalogGrid ariaLabel={t('plugins.loading')} />}
         {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
-        <PluginDiagnosticsBanner diagnostics={diagnostics} />
+        <PluginDiagnosticsBanner diagnostics={diagnostics} column={catalogStyles.browseColumn} />
         {sections.map((section) => (
           <section key={section.key} style={{ marginBottom: '34px' }}>
             {section.marketplace ? (
@@ -195,19 +195,23 @@ export function PluginBrowseSurface({
             ) : (
               <h2 style={sectionTitle}>{section.title}</h2>
             )}
-            <div style={compactGrid}>
-              {section.plugins.map((plugin) => (
-                <PluginCatalogItem
-                  key={plugin.id}
-                  plugin={plugin}
-                  tryLabel={t('plugins.tryInChat')}
-                  installLabel={t('plugins.install')}
-                  onOpen={() => onOpenPlugin(plugin)}
-                  onTryInChat={() => onTryPlugin(plugin)}
-                  onInstall={() => onInstallPlugin(plugin)}
-                />
-              ))}
-            </div>
+            {section.notice ? (
+              <p style={emptyText}>{section.notice}</p>
+            ) : (
+              <div style={compactGrid}>
+                {section.plugins.map((plugin) => (
+                  <PluginCatalogItem
+                    key={plugin.id}
+                    plugin={plugin}
+                    tryLabel={t('plugins.tryInChat')}
+                    installLabel={t('plugins.install')}
+                    onOpen={() => onOpenPlugin(plugin)}
+                    onTryInChat={() => onTryPlugin(plugin)}
+                    onInstall={() => onInstallPlugin(plugin)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         ))}
         {!loading && !error && plugins.length === 0 && <p style={emptyText}>{t('plugins.empty')}</p>}

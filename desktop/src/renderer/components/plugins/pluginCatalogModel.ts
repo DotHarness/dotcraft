@@ -22,6 +22,8 @@ export interface PluginSection {
   plugins: PluginEntry[]
   /** Present when the section groups a marketplace, which owns refresh and remove. */
   marketplace?: MarketplaceEntry
+  /** Why the section is empty, when it is empty for a reason worth reading. */
+  notice?: string
 }
 
 const FIXED_PLUGIN_CATEGORIES = [
@@ -89,7 +91,8 @@ export function buildSections(
   categoryFilter: CategoryFilter,
   publisherFilter: PublisherFilter,
   t: ReturnType<typeof useT>,
-  marketplaces: MarketplaceEntry[]
+  marketplaces: MarketplaceEntry[],
+  marketplaceNotices: ReadonlyMap<string, string>
 ): PluginSection[] {
   // Grouping by marketplace answers only "where did this come from": no
   // installed-state group, though the category filter still narrows each group.
@@ -97,12 +100,16 @@ export function buildSections(
     const sections: PluginSection[] = []
     for (const marketplace of marketplaces) {
       const owned = plugins.filter((plugin) => plugin.marketplaceName === marketplace.name)
-      if (owned.length === 0) continue
+      const notice = owned.length === 0 ? marketplaceNotices.get(marketplace.name) : undefined
+      // A marketplace that resolved to nothing keeps its group: dropping it also drops
+      // the header menu that removes it, which is what a broken one is there for.
+      if (owned.length === 0 && notice == null) continue
       sections.push({
         key: `marketplace:${marketplace.name}`,
         title: marketplaceTitle(marketplace),
         plugins: owned,
-        marketplace
+        marketplace,
+        notice
       })
     }
     return sections

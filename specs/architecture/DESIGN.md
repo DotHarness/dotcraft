@@ -1,5 +1,5 @@
 ---
-version: "0.20.0"
+version: "0.21.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -301,6 +301,11 @@ Desktop surfaces should favor dense but organized operational layouts.
 - Avoid nested cards and decorative section cards. Page sections should be
   unframed layouts or full-width bands with constrained inner content.
 - Cards are for repeated items, modals, or genuinely framed tools.
+- A notice that interrupts a surface takes that surface's content column: the
+  same width and centering as the rows, cards, or grid it sits above, never the
+  full content box. A notice wider than the column it interrupts reads as a
+  different page. Where several elements share a column, they read its width from
+  one place, so a new element cannot silently opt out of it.
 
 View-level color assignment stays neutral:
 
@@ -1186,10 +1191,10 @@ scenario or a benefit. A row never repeats its group's title.
 Each page or segment has one principal action, and it carries the primary neutral
 inversion wherever it sits in the header; refresh and other quiet actions beside
 it stay frameless icon buttons. Option cards show their choice through the
-selected state alone and carry no status pill. An inline error banner uses the
-shared banner geometry — 14px padding, 12px gap, a 20px `--error` glyph, a
-13px/600 title with an optional secondary line — and has no dismiss control: its
-height follows its content, and the header's refresh is the retry.
+selected state alone and carry no status pill. An inline notice uses the shared
+banner geometry — 14px padding, 12px gap, a 20px glyph, a 13px/600 title with an
+optional secondary line — in the level's own colour, and has no dismiss control:
+its height follows its content, and the header's refresh is the retry.
 
 ### Interactive Tool UI
 

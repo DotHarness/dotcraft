@@ -153,9 +153,10 @@ describe('PluginsView catalog', () => {
 
     renderPluginsView()
 
-    expect(await screen.findByText('Plugin diagnostics')).toBeInTheDocument()
-    expect(screen.getByText('MissingPluginCapabilities')).toBeInTheDocument()
+    expect(await screen.findByText('Needs attention')).toBeInTheDocument()
+    // A code the client carries no copy for falls back to the server's English message.
     expect(screen.getByText('Plugin manifest must declare a skills path or at least one tool.')).toBeInTheDocument()
+    expect(screen.queryByText('MissingPluginCapabilities')).not.toBeInTheDocument()
     expect(usePluginStore.getState().diagnostics).toHaveLength(1)
   })
 

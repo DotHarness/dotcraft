@@ -1098,6 +1098,37 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void Discovery_ReportsAnUnavailableMarketplaceSourceOnce()
+    {
+        var root = NewTempDir();
+        var workspace = Path.Combine(root, "workspace");
+        var botPath = Path.Combine(workspace, ".craft");
+        foreach (var id in new[] { "browser", "chrome", "dotcraft" })
+        {
+            var pluginRoot = Path.Combine(botPath, "plugins", id);
+            WriteInterfaceOnlyPlugin(pluginRoot, id: id);
+            File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "0.0.0.0");
+        }
+
+        var missingRoot = Path.Combine(root, "marketplace-that-moved");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
+        {
+            Name = "gone",
+            SourceType = "local",
+            Url = missingRoot
+        });
+
+        var result = new PluginDiscoveryService(Path.Combine(root, "global"), [CreateBundledPluginSourceRoot()])
+            .DiscoverAll(config, workspace, botPath);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "PluginRegistrySourceMissing");
+        Assert.Equal(PluginDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Equal(missingRoot, diagnostic.Path);
+        Assert.Equal("gone", diagnostic.Parameters["marketplace"].GetString());
+    }
+
+    [Fact]
     public void Discovery_DoesNotOverwriteInstalledManagedDotnetBundle()
     {
         var root = NewTempDir();

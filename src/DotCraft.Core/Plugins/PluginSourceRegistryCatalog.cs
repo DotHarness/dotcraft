@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Plugins.Marketplaces;
 
@@ -56,7 +57,8 @@ internal static class PluginSourceRegistryCatalog
                 diagnostics.Add(PluginDiagnostic.Warning(
                     "PluginRegistryMarketplaceMissing",
                     $"Plugin marketplace '{source.Name}' does not contain '{source.MarketplacePath}'.",
-                    path: snapshotRoot));
+                    path: snapshotRoot,
+                    parameters: MarketplaceParameter(source.Name)));
                 continue;
             }
 
@@ -304,7 +306,8 @@ internal static class PluginSourceRegistryCatalog
                 diagnostics.Add(PluginDiagnostic.Warning(
                     "PluginRegistrySourceMissing",
                     $"Plugin marketplace '{source.Name}' is not available on this machine.",
-                    path: source.Url));
+                    path: source.Url,
+                    parameters: MarketplaceParameter(source.Name)));
                 return null;
             }
 
@@ -323,11 +326,18 @@ internal static class PluginSourceRegistryCatalog
         return ResolveArchiveSnapshotRoot(source, diagnostics, archiveCache);
     }
 
+    private static IReadOnlyDictionary<string, JsonElement> MarketplaceParameter(string name) =>
+        new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        {
+            ["marketplace"] = JsonSerializer.SerializeToElement(name)
+        };
+
     private static string? UserDataDisabled(PluginRegistrySource source, List<PluginDiagnostic> diagnostics)
     {
         diagnostics.Add(PluginDiagnostic.Info(
             "PluginRegistryUserDataDisabled",
-            $"Plugin marketplace '{source.Name}' is disabled because UserDataPath is not configured."));
+            $"Plugin marketplace '{source.Name}' is disabled because UserDataPath is not configured.",
+            parameters: MarketplaceParameter(source.Name)));
         return null;
     }
 
@@ -348,7 +358,8 @@ internal static class PluginSourceRegistryCatalog
             diagnostics.Add(PluginDiagnostic.Warning(
                 "InvalidPluginRegistrySource",
                 ex.Message,
-                path: source.Url));
+                path: source.Url,
+                parameters: MarketplaceParameter(source.Name)));
             return null;
         }
 
@@ -358,7 +369,8 @@ internal static class PluginSourceRegistryCatalog
         diagnostics.Add(PluginDiagnostic.Warning(
             "PluginRegistrySnapshotMissing",
             $"Plugin marketplace '{source.Name}' has not been fetched yet; refresh it to install its plugins.",
-            path: root));
+            path: root,
+            parameters: MarketplaceParameter(source.Name)));
         return null;
     }
 
@@ -373,7 +385,8 @@ internal static class PluginSourceRegistryCatalog
             diagnostics.Add(PluginDiagnostic.Warning(
                 "InvalidPluginRegistrySourceUrl",
                 $"Plugin marketplace '{source.Name}' must be an HTTPS archive URL or a local archive/directory path.",
-                path: source.Url));
+                path: source.Url,
+                parameters: MarketplaceParameter(source.Name)));
             return null;
         }
 
@@ -387,7 +400,8 @@ internal static class PluginSourceRegistryCatalog
         diagnostics.Add(PluginDiagnostic.Warning(
             "PluginRegistrySnapshotMissing",
             $"Plugin marketplace '{source.Name}' has not been downloaded yet; refresh it to install its plugins.",
-            path: source.Url));
+            path: source.Url,
+            parameters: MarketplaceParameter(source.Name)));
         return null;
     }
 
