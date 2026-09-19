@@ -107,6 +107,18 @@ public sealed class OratorioDynamicToolCatalog
     public OratorioDynamicToolSet CreateDiscussionToolSet() =>
         CreateSet(SubmitDiscussionReplyName, ResolveReviewFindingName);
 
+    /// <summary>
+    /// Instruction pages are gated on the same predicates as the tools, so the model is never taught
+    /// a tool the turn does not expose.
+    /// </summary>
+    public static bool SupportsReviewDraft(ItemKind itemKind, string? source) =>
+        itemKind == ItemKind.PullRequest && source is "github" or "gitlab";
+
+    public static bool SupportsImplementationDraft(RunPurpose purpose, ItemKind itemKind, string? source) =>
+        purpose == RunPurpose.Implementation
+        && (itemKind == ItemKind.LocalTask
+            || itemKind == ItemKind.Issue && source is "github" or "gitlab");
+
     public OratorioDynamicToolSet CreateRunToolSet(RunPurpose purpose, ItemKind itemKind, string? source)
     {
         var names = new List<string>
@@ -115,13 +127,11 @@ public sealed class OratorioDynamicToolCatalog
             ResolveReviewFindingName,
             SubmitFollowUpDraftName
         };
-        if (itemKind == ItemKind.PullRequest && source is "github" or "gitlab")
+        if (SupportsReviewDraft(itemKind, source))
         {
             names.Add(SubmitReviewDraftName);
         }
-        if (purpose == RunPurpose.Implementation &&
-            (itemKind == ItemKind.LocalTask ||
-             itemKind == ItemKind.Issue && source is "github" or "gitlab"))
+        if (SupportsImplementationDraft(purpose, itemKind, source))
         {
             names.Add(SubmitImplementationDraftName);
         }
