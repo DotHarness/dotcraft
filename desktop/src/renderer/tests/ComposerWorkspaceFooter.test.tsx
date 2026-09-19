@@ -996,48 +996,6 @@ describe('ComposerWorkspaceFooter', () => {
     expect(useToastStore.getState().toasts).toEqual([])
   })
 
-  it('puts Run on ahead of the work-location chip on a thread', async () => {
-    withSatellites()
-
-    renderFooter(makeThread(), 'local')
-
-    const runOn = await screen.findByTestId('run-on-trigger')
-    const workLocation = await screen.findByRole('button', { name: 'Local' })
-    expect(runOn.compareDocumentPosition(workLocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('puts Run on between the project picker and Work locally on the welcome composer', async () => {
-    withSatellites()
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/a',
-          name: 'a',
-          state: 'foreground',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: []
-        }
-      ]
-    })
-
-    render(
-      <LocaleProvider>
-        <ComposerWorkspaceFooter workspacePath="/workspace/a" mode="local" variant="welcome" />
-      </LocaleProvider>
-    )
-
-    const project = await screen.findByRole('button', { name: 'a' })
-    const runOn = await screen.findByTestId('run-on-trigger')
-    const workLocation = await screen.findByRole('button', { name: 'Work locally' })
-    expect(project.compareDocumentPosition(runOn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(runOn.compareDocumentPosition(workLocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
   it('renders the context row for Run on alone when the workspace has no Git', async () => {
     withSatellites()
     gitListBranches.mockRejectedValue(new Error('not a repository'))

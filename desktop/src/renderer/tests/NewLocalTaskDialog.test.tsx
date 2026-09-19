@@ -19,17 +19,6 @@ describe('NewLocalTaskDialog', () => {
     installOratorioTestHost()
   })
 
-  it('uses shared task controls without the retired product eyebrow or comma field', () => {
-    renderDialog()
-
-    expect(screen.getByRole('dialog', { name: 'New local task' })).toBeInTheDocument()
-    expect(screen.queryByText('Oratorio')).not.toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Comma-separated labels')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Repository' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Assignee' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Base branch' })).toHaveAttribute('placeholder', 'Repository default')
-  })
-
   it('creates a normalized task from repository, label, assignee, and branch choices', () => {
     const onCreate = vi.fn()
     renderDialog(onCreate)

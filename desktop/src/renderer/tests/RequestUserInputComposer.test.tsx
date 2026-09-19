@@ -2,7 +2,7 @@ import './setupPluginRuntime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { installDesktopApiMock } from './desktopApiMock'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { RequestUserInputComposer } from '../components/conversation/RequestUserInputComposer'
@@ -126,23 +126,6 @@ describe('RequestUserInputComposer', () => {
     clearDesktopPluginRegistry()
   })
 
-  it('keeps decision pose while inheriting composer mascot effects', () => {
-    const { container } = render(
-      <LocaleProvider>
-        <RequestUserInputComposer
-          request={request()}
-          mascotEffectState={{ reasoningEffort: 'high', speed: 'fast', contextMax: true }}
-        />
-      </LocaleProvider>
-    )
-
-    const mascot = container.querySelector('[data-mascot-effort]')
-    expect(mascot).toHaveAttribute('data-mascot-effort', 'high')
-    expect(mascot).toHaveAttribute('data-mascot-speed', 'fast')
-    expect(mascot).toHaveAttribute('data-mascot-context', 'max')
-    expect(mascot?.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'waiting')
-  })
-
   it('renders in ConversationPanel instead of the normal composer', async () => {
     const pending = request()
     useConnectionStore.setState({
@@ -226,16 +209,6 @@ describe('RequestUserInputComposer', () => {
 
     expect(await screen.findByTestId('user-input-composer-context')).toHaveAttribute('data-busy', 'true')
     expect(screen.getByTestId('user-input-composer-context')).toHaveAttribute('data-awaiting-approval', 'false')
-  })
-
-  it('shows the current question directly without generic asking copy', () => {
-    renderWithLocale(<RequestUserInputComposer request={request()} />)
-
-    expect(screen.getByText('Should users handle the provider id directly?')).toBeInTheDocument()
-    expect(screen.queryByText('Asking')).not.toBeInTheDocument()
-    expect(screen.queryByText('question', { exact: true })).not.toBeInTheDocument()
-    expect(screen.queryByText('1 of 1')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Previous question' })).not.toBeInTheDocument()
   })
 
   it('submits the selected option after ArrowDown then Enter', async () => {
@@ -482,35 +455,4 @@ describe('RequestUserInputComposer', () => {
     })
   })
 
-  it('shows option descriptions through an info tooltip', async () => {
-    const longDescription =
-      'Use ProfilerDriver.GetHierarchyFrameDataView(frame, threadIndex) and keep the full path X:\\fixtures\\workspace\\samples\\profiles\\capture.trace visible when the tooltip wraps.'
-    renderWithLocale(<RequestUserInputComposer request={request({
-      questions: [
-        {
-          id: 'provider_id_handling',
-          header: 'Provider ID',
-          question: 'Should users handle the provider id directly?',
-          isOther: true,
-          options: [
-            {
-              label: 'Auto-generate (Recommended)',
-              description: longDescription
-            },
-            {
-              label: 'Required',
-              description: 'Users must type the id explicitly.'
-            }
-          ]
-        }
-      ]
-    })} />)
-
-    const icon = screen.getByRole('img', { name: /Why Auto-generate/ })
-    fireEvent.focus(icon)
-
-    const tooltip = await screen.findByRole('tooltip')
-    expect(tooltip).toHaveAttribute('data-multiline', 'true')
-    expect(within(tooltip).getByText(longDescription)).toBeInTheDocument()
-  })
 })

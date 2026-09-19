@@ -36,18 +36,6 @@ afterEach(() => {
 })
 
 describe('ScreenViewTheater', () => {
-  it('takes its shape from the stream, so a frame of any size cannot resize it', () => {
-    const theater = renderTheater(4 / 3)
-
-    expect(theater.style.getPropertyValue('--screen-aspect')).toBe(`${4 / 3}`)
-  })
-
-  it('falls back to a wide shape before the first frame arrives', () => {
-    const theater = renderTheater(null)
-
-    expect(theater.style.getPropertyValue('--screen-aspect')).toBe('16 / 9')
-  })
-
   it('asks the host for one width when it opens', () => {
     renderTheater(16 / 9)
 

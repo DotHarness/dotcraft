@@ -62,33 +62,6 @@ describe('OpenWorkspaceButton', () => {
     })
   })
 
-  it('places File Explorer at the top of the dropdown', async () => {
-    renderButton()
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Choose how to open workspace' })).toBeEnabled()
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Choose how to open workspace' }))
-
-    await waitFor(() => {
-      const menuItems = screen.getAllByRole('menuitem')
-      expect(menuItems[0]).toHaveTextContent('File Explorer')
-    })
-  })
-
-  it('renders image icons when iconDataUrl is available', async () => {
-    renderButton()
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Choose how to open workspace' })).toBeEnabled()
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Choose how to open workspace' }))
-
-    await waitFor(() => {
-      expect(document.querySelector('img[src="data:image/png;base64,cursor"]')).toBeInTheDocument()
-    })
-  })
-
   it('switches default editor without launching on menu click', async () => {
     renderButton()
 

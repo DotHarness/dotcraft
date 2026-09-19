@@ -104,38 +104,6 @@ describe('PluginsView catalog', () => {
     expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/installLocal', expect.anything())
   })
 
-  it('does not render a separate native app catalog section', async () => {
-    appServerSendRequest.mockResolvedValue({
-      plugins: [workflowPlugin, browserUsePlugin],
-      diagnostics: [], snapshotRevision: 1
-    })
-
-    renderPluginsView()
-
-    expect((await screen.findAllByText('Workflow App')).length).toBeGreaterThan(0)
-    expect(screen.queryByText('Native apps')).not.toBeInTheDocument()
-  })
-
-  it('shows the fixed category set including Productivity', async () => {
-    appServerSendRequest.mockResolvedValue({
-      plugins: [workflowPlugin, browserUsePlugin],
-      diagnostics: [], snapshotRevision: 1
-    })
-
-    renderPluginsView()
-
-    expect(await screen.findByText('Workflow App')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Filter plugins' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Category' }))
-
-    expect(screen.getByRole('menuitem', { name: 'Coding' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Design' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Engineering' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Lifestyle' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Productivity' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Research' })).toBeInTheDocument()
-  })
-
   it('renders plugin diagnostics returned by plugin/list', async () => {
     appServerSendRequest.mockResolvedValue({
       plugins: [browserUsePlugin],

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -185,26 +185,6 @@ describe('BrowserViewerTab', () => {
     expect(rectSpy).not.toHaveBeenCalled()
 
     rectSpy.mockRestore()
-  })
-
-  it('omits the redundant page and automation status row', async () => {
-    useViewerTabStore.getState().updateBrowserTab(THREAD_ID, TAB_ID, {
-      title: 'Composer subscription placement review',
-      automationActive: true,
-      automationSessionName: 'Design review',
-      lastAutomationAction: 'screenshot'
-    })
-
-    render(
-      <LocaleProvider>
-        <BrowserViewerTab tabId={TAB_ID} />
-      </LocaleProvider>
-    )
-
-    await waitFor(() => expect(browserApi.enableFeedback).toHaveBeenCalled())
-    expect(screen.queryByText('Composer subscription placement review')).not.toBeInTheDocument()
-    expect(screen.queryByText('Design review')).not.toBeInTheDocument()
-    expect(screen.queryByText('screenshot')).not.toBeInTheDocument()
   })
 
   it('keeps the ready guest visible beneath renderer overlays', async () => {

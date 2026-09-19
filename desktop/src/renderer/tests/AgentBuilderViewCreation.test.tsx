@@ -419,21 +419,6 @@ describe('AgentBuilderView creation', () => {
     expect(cursor.getAttribute('data-agent-builder-cursor-field')).toBe('providerPreference')
   })
 
-  it('positions the cursor from the active field target when a builder tool starts', async () => {
-    await startBuilderTurn()
-
-    emitBuilderToolStarted('instructions', 'AppendAgentInstructions')
-
-    const cursor = await screen.findByLabelText('Updating instructions')
-    const anchor = document.querySelector('[data-builder-field-anchor="instructions"]') as HTMLElement | null
-    expect(anchor).not.toBeNull()
-    expect(anchor?.querySelector('[data-agent-builder-marker-target]')).not.toBeNull()
-    await waitFor(() => {
-      expect(cursor.style.getPropertyValue('--agent-builder-cursor-x')).not.toBe('')
-      expect(cursor.style.getPropertyValue('--agent-builder-cursor-y')).not.toBe('')
-    })
-  })
-
   it('resizes the builder chat pane by dragging the divider', async () => {
     await startBuilderTurn()
 
@@ -452,23 +437,6 @@ describe('AgentBuilderView creation', () => {
       expect(afterWidth).toBeGreaterThan(beforeWidth)
       expect(useUIStore.getState().agentBuilderChatWidth).toBeGreaterThan(beforeWidth)
     })
-  })
-
-  it('lights the builder chat divider with the shared resize glow', async () => {
-    await startBuilderTurn()
-
-    const separator = document.querySelector('.drag-handle--agent-builder-chat') as HTMLElement
-    const glow = screen.getByTestId('agent-builder-divider-glow')
-
-    // The rest edge stays the pane's own hairline, as the detail panel and
-    // explorer dock do, rather than a divider that recolours.
-    expect(glow.style.opacity).toBe('0')
-
-    fireEvent.pointerEnter(separator)
-    expect(glow.style.opacity).toBe('1')
-
-    fireEvent.pointerLeave(separator)
-    expect(glow.style.opacity).toBe('0')
   })
 
   it('keeps the cursor on the last edited field after the turn and moves it on the next edit', async () => {

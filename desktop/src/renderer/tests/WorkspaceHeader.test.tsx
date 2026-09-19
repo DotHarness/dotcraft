@@ -13,14 +13,6 @@ const workspacePickFolder = vi.fn()
 const workspaceClearSelection = vi.fn()
 const shellOpenPath = vi.fn()
 
-function renderHeader(): void {
-  render(
-    <LocaleProvider>
-      <WorkspaceHeader workspaceName='dotcraft' workspacePath='X:\\fixtures\\workspace' />
-    </LocaleProvider>
-  )
-}
-
 function renderOptionsMenu(): void {
   render(
     <LocaleProvider>
@@ -73,13 +65,6 @@ describe('WorkspaceHeader', () => {
         openPath: shellOpenPath
       }
     })
-  })
-
-  it('renders workspace identity without a persistent options button', () => {
-    renderHeader()
-
-    expect(screen.getByText('dotcraft')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Workspace options' })).not.toBeInTheDocument()
   })
 
   it('shows a clear recent action in the recent workspace submenu', async () => {

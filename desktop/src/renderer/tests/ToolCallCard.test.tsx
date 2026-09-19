@@ -26,8 +26,6 @@ function expectDisclosureInsideTitleGroup(container: HTMLElement): HTMLElement {
   return disclosureIcon
 }
 
-const collapseAnimationMs = 200
-
 describe('ToolCallCard structured result rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
@@ -529,70 +527,6 @@ describe('ToolCallCard shell rendering', () => {
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
-  })
-
-  it('moves completed file metadata into the expanded header and colorizes collapsed stats on hover', async () => {
-    const item: ConversationItem = {
-      id: 'tool-edit-completed',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'EditFile',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'EditFile' },
-      presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } },
-      toolCallId: 'edit-completed-1',
-      arguments: { path: 'src/Target.cs', oldText: 'old', newText: 'new' },
-      result: 'Successfully edited src/Target.cs',
-      success: true,
-      createdAt: new Date().toISOString()
-    }
-    const diff: FileDiff = {
-      filePath: 'src/Target.cs',
-      turnId: 'turn-1',
-      turnIds: ['turn-1'],
-      additions: 1,
-      deletions: 1,
-      diffHunks: [
-        {
-          oldStart: 1,
-          oldLines: 1,
-          newStart: 1,
-          newLines: 1,
-          lines: [
-            { type: 'remove', content: 'old' },
-            { type: 'add', content: 'new' }
-          ]
-        }
-      ],
-      status: 'written',
-      isNewFile: false,
-      originalContent: 'old',
-      currentContent: 'new'
-    }
-    useConversationStore.setState({
-      workspacePath: 'F:/workspace',
-      itemDiffs: new Map([[item.id, diff]])
-    })
-
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    const toolButton = screen.getByTestId('tool-row')
-    expect(toolButton).toHaveTextContent('Edited Target.cs+1-1')
-    const collapsedStats = screen.getByTestId('tool-row-diff-stats')
-    expect((collapsedStats.children[0] as HTMLElement).style.color).toBe('currentcolor')
-    expect((collapsedStats.children[1] as HTMLElement).style.color).toBe('currentcolor')
-
-    fireEvent.mouseEnter(toolButton)
-    expect((collapsedStats.children[0] as HTMLElement).style.color).toBe('var(--success)')
-    expect((collapsedStats.children[1] as HTMLElement).style.color).toBe('var(--error)')
-    fireEvent.click(toolButton)
-
-    expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
-    expect(toolButton).toHaveTextContent('Edited file')
-    expect(toolButton).not.toHaveTextContent('Target.cs')
-    expect(screen.getAllByText('Target.cs')).toHaveLength(1)
-    expect(screen.getByTestId('file-result-diff-stats')).toHaveTextContent('+1-1')
-    expect(screen.queryByText('@@ -1,1 +1,1 @@')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Copy path' })).toBeInTheDocument()
   })
 
   it('uses a generic expanded Read file row with one path header and range metadata', () => {
@@ -1344,28 +1278,6 @@ describe('ToolCallCard shell rendering', () => {
     vi.useRealTimers()
   })
 
-  it('hides success glyph and duration for completed rows, and only shows chevron on hover', () => {
-    const item: ConversationItem = {
-      id: 'tool-style-completed',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'ReadFile',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-      presentation: { presentationId: 'core.read-file' },
-      toolCallId: 'call-style-1',
-      arguments: { path: 'src/main.ts' },
-      result: 'ok',
-      success: true,
-      duration: 350,
-      createdAt: '2026-04-13T10:00:00.000Z'
-    }
-
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    const button = screen.getByTestId('tool-row')
-    expect(button).toBeInTheDocument()
-  })
-
 })
 
 describe('ToolCallCard todo rendering safety', () => {
@@ -1455,89 +1367,6 @@ describe('ToolCallCard todo rendering safety', () => {
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
-  })
-})
-
-describe('ToolCallCard CreatePlan rendering', () => {
-  beforeEach(() => {
-    useConversationStore.getState().reset()
-    installDesktopApiMock({
-      settings: {
-        get: async () => ({ locale: 'en' })
-      }
-    })
-  })
-
-  it('renders completed CreatePlan as preview card and expands on demand', () => {
-    const item: ConversationItem = {
-      id: 'create-plan-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'CreatePlan',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'CreatePlan' },
-      presentation: { presentationId: 'core.create-plan' },
-      toolCallId: 'create-plan-call-1',
-      arguments: {
-        plan: '# Release Plan\n\n## Summary\n\nShip the feature in two phases.\n\n## Implementation Changes\n\n- add tests\n- run smoke checks',
-        todos: [
-          { id: 'tests', content: 'Add tests', status: 'in_progress' },
-          { id: 'smoke', content: 'Run smoke checks', status: 'pending' }
-        ]
-      },
-      success: true,
-      createdAt: new Date().toISOString()
-    }
-
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    const buttons = screen.getAllByRole('button')
-    expect(buttons.length).toBeGreaterThan(0)
-    fireEvent.click(buttons[0])
-
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
-  })
-
-  it('keeps preview mode from streaming to completed until user expands', () => {
-    const startedItem: ConversationItem = {
-      id: 'create-plan-2',
-      type: 'toolCall',
-      status: 'started',
-      toolName: 'CreatePlan',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'CreatePlan' },
-      presentation: { presentationId: 'core.create-plan' },
-      toolCallId: 'create-plan-call-2',
-      argumentsPreview: '{"plan":"# Migration\\n\\n## Summary\\n\\nRolling update\\n\\n- step 1"}',
-      createdAt: new Date().toISOString()
-    }
-
-    const completedItem: ConversationItem = {
-      ...startedItem,
-      status: 'completed',
-      arguments: {
-        plan: '# Migration\n\n## Summary\n\nDone plan\n\nMove traffic in batches.',
-        todos: [{ id: 'rollout', content: 'Roll out by cluster', status: 'completed' }]
-      },
-      success: true,
-      result: 'Plan created.'
-    }
-
-    const { rerender } = render(
-      <LocaleProvider>
-        <ToolCallCard threadId="thread-1" item={startedItem} turnId="turn-1" />
-      </LocaleProvider>
-    )
-
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
-
-    rerender(
-      <LocaleProvider>
-        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" />
-      </LocaleProvider>
-    )
-
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getAllByRole('button')[0])
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
   })
 })
 

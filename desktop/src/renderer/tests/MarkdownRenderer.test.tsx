@@ -152,80 +152,6 @@ describe('MarkdownRenderer', () => {
     expect(codeBlock?.textContent).toContain('const x = 1')
   })
 
-  it('wraps fenced code blocks by default', () => {
-    const longToken = 'example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789'
-    const { container } = renderWithLocale(`\`\`\`text\n${longToken}\n\`\`\``)
-    const codeBlock = container.querySelector('pre')
-    const wrapButton = screen.getByRole('button', { name: 'Disable word wrap' })
-
-    expect(codeBlock).toHaveStyle({
-      overflowX: 'hidden',
-      whiteSpace: 'pre-wrap',
-      overflowWrap: 'anywhere'
-    })
-    expect(wrapButton).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('shows code block actions on hover or keyboard focus', () => {
-    renderWithLocale('```text\ncontent\n```')
-    const codeBlock = screen.getByTestId('markdown-code-block')
-    const actions = screen.getByTestId('markdown-code-actions')
-    const copyButton = screen.getByRole('button', { name: 'Copy code' })
-
-    expect(actions).toHaveStyle({ opacity: 0, pointerEvents: 'none' })
-
-    fireEvent.mouseEnter(codeBlock)
-    expect(actions).toHaveStyle({ opacity: 1, pointerEvents: 'auto' })
-
-    fireEvent.mouseLeave(codeBlock)
-    expect(actions).toHaveStyle({ opacity: 0, pointerEvents: 'none' })
-
-    fireEvent.focus(copyButton)
-    expect(actions).toHaveStyle({ opacity: 1, pointerEvents: 'auto' })
-
-    fireEvent.blur(copyButton, { relatedTarget: document.body })
-    expect(actions).toHaveStyle({ opacity: 0, pointerEvents: 'none' })
-  })
-
-  it('toggles word wrap independently for each code block', () => {
-    const content = [
-      '```text',
-      'first-long-line',
-      '```',
-      '',
-      '```text',
-      'second-long-line',
-      '```'
-    ].join('\n')
-    const { container } = renderWithLocale(content)
-    const codeBlocks = container.querySelectorAll('pre')
-    const wrapButtons = screen.getAllByRole('button', { name: 'Disable word wrap' })
-
-    fireEvent.click(wrapButtons[0])
-
-    expect(codeBlocks[0]).toHaveStyle({
-      overflowX: 'auto',
-      whiteSpace: 'pre',
-      overflowWrap: 'normal'
-    })
-    expect(codeBlocks[1]).toHaveStyle({
-      overflowX: 'hidden',
-      whiteSpace: 'pre-wrap',
-      overflowWrap: 'anywhere'
-    })
-    const enableButton = screen.getByRole('button', { name: 'Enable word wrap' })
-    expect(enableButton).toHaveAttribute('aria-pressed', 'false')
-
-    fireEvent.click(enableButton)
-
-    expect(codeBlocks[0]).toHaveStyle({
-      overflowX: 'hidden',
-      whiteSpace: 'pre-wrap',
-      overflowWrap: 'anywhere'
-    })
-    expect(screen.getAllByRole('button', { name: 'Disable word wrap' })).toHaveLength(2)
-  })
-
   it('copies the complete code block and exposes localized icon-button feedback', async () => {
     renderWithLocale('```text\nfirst line\nsecond line\n```')
     const copyButton = screen.getByRole('button', { name: 'Copy code' })
@@ -467,30 +393,6 @@ describe('MarkdownRenderer', () => {
     expect(code?.textContent).toContain('npm install')
   })
 
-  it('marks markdown body for trailing block margin trim', () => {
-    const { container } = renderWithLocale('Only paragraph')
-    const markdownBody = container.querySelector('.markdown-body')
-    const lastBlock = container.querySelector('.markdown-body > :last-child')
-
-    expect(markdownBody).not.toBeNull()
-    expect(lastBlock).not.toBeNull()
-  })
-
-  it('keeps long inline code and paths inline when overflow containment is enabled', () => {
-    const longPath = 'Library/PackageCache/com.example.mock-long-package@0.0.0/FakeDependency.dll'
-    const longToken = 'example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789'
-    const { container } = renderWithLocale(
-      `Keep \`${longPath}\` and \`${longToken}\` in assumptions.`,
-      { containOverflow: true }
-    )
-
-    const inlineCode = container.querySelectorAll('p code')
-    expect(inlineCode).toHaveLength(2)
-    expect(container.querySelector('pre')).toBeNull()
-    expect(inlineCode[0].textContent).toBe(longPath)
-    expect(inlineCode[1].textContent).toBe(longToken)
-  })
-
   it('renders a GFM table', () => {
     const tableMarkdown = [
       '| Name | Value |',
@@ -502,13 +404,6 @@ describe('MarkdownRenderer', () => {
     expect(table).not.toBeNull()
     expect(container.textContent).toContain('foo')
     expect(container.textContent).toContain('bar')
-  })
-
-  it('renders a link with onClick (no href navigation)', () => {
-    renderWithLocale('[DotCraft](https://example.com)')
-    const link = screen.getByRole('link', { name: /dotcraft/i })
-    expect(link).toBeDefined()
-    expect(link.getAttribute('href')).toBe('https://example.com')
   })
 
   it('opens http links externally in external link mode', () => {

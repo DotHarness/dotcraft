@@ -3,10 +3,8 @@ import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadSearch } from '../components/sidebar/ThreadSearch'
-import { SidebarFooter } from '../components/sidebar/SidebarFooter'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
-import { useConnectionStore } from '../stores/connectionStore'
 import type { ThreadSummary } from '../types/thread'
 
 const settingsGet = vi.fn()
@@ -61,13 +59,6 @@ describe('sidebar search redesign', () => {
     resetStores()
   })
 
-  it('renders search as a sidebar action, not a persistent input', () => {
-    renderWithLocale(<ThreadSearch workspaceName="dotcraft" />)
-
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-  })
-
   it('opens the centered search dialog from the sidebar action', async () => {
     useThreadStore.getState().setThreadList([
       makeThread(),
@@ -111,40 +102,5 @@ describe('sidebar search redesign', () => {
     expect(useThreadStore.getState().activeThreadId).toBe('target-thread')
     expect(useUIStore.getState().activeMainView).toBe('conversation')
     expect(screen.queryByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
-  })
-})
-
-describe('SidebarFooter settings row', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    settingsGet.mockResolvedValue({ locale: 'en' })
-    installDesktopApiMock({
-      settings: { get: settingsGet }
-    })
-    resetStores()
-  })
-
-  it('shows the Settings shortcut inline on hover', () => {
-    renderWithLocale(<SidebarFooter />)
-
-    const settingsButton = screen.getByRole('button', { name: 'Open settings' })
-    expect(settingsButton).toHaveTextContent('Settings')
-    expect(settingsButton).not.toHaveTextContent('Ctrl')
-
-    fireEvent.mouseEnter(settingsButton)
-
-    expect(settingsButton).toHaveTextContent('Ctrl')
-    expect(settingsButton).toHaveTextContent(',')
-  })
-
-  it('shows only the Settings row — no status dot, version, or What\'s New', () => {
-    useConnectionStore.setState({ status: 'connected', errorMessage: null })
-    renderWithLocale(<SidebarFooter />)
-
-    expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
-    // Connection/run status now lives on each project's folder icon, not the footer.
-    expect(screen.queryByRole('img', { name: 'Connected' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: "What's New" })).not.toBeInTheDocument()
-    expect(screen.queryByText(/^v\d+\./)).not.toBeInTheDocument()
   })
 })

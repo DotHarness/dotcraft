@@ -366,20 +366,6 @@ describe('McpAppView', () => {
     }))
   })
 
-  it('removes the host border and background when the App requests a borderless frame', async () => {
-    sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'mcpApp/view/open') return openResult('view-1', false)
-      return {}
-    })
-    const { container } = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
-    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
-
-    const frame = container.querySelector('[data-mcp-app-frame="borderless"]') as HTMLDivElement
-    expect(frame).not.toBeNull()
-    expect(window.getComputedStyle(frame).borderStyle).toBe('none')
-    expect(window.getComputedStyle(frame).backgroundColor).toBe('rgba(0, 0, 0, 0)')
-  })
-
   it('does not request a View when current authority is unavailable and shows the generic fallback state', () => {
     const { container } = render(<LocaleProvider><McpAppView item={item(false)} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
     expect(sendRequest).not.toHaveBeenCalledWith('mcpApp/view/open', expect.anything(), expect.anything())

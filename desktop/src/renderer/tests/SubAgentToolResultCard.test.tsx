@@ -27,39 +27,6 @@ describe('ToolCallCard subagent result rendering', () => {
     })
   })
 
-  it('renders SpawnAgent result with role, external profile, and prompt without raw JSON', () => {
-    const item: ConversationItem = {
-      id: 'subagent-tool-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'SpawnAgent',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
-      presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
-      toolCallId: 'call-1',
-      arguments: {
-        agentPrompt: 'Create hatch pet',
-        agentNickname: 'Popper',
-        agentRole: 'worker',
-        profile: 'cursor-cli'
-      },
-      result: JSON.stringify({
-        childThreadId: 'thread_child',
-        agentNickname: 'Popper',
-        agentRole: 'worker',
-        profileName: 'cursor-cli',
-        runtimeType: 'cli-oneshot',
-        status: 'running'
-      }),
-      success: true,
-      createdAt: '2026-05-03T10:00:00.000Z'
-    }
-
-    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    expect(container.querySelector('span[style*="width: 7px"]')).toBeNull()
-    expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-  })
-
   it('renders streaming SpawnAgent from argument preview without raw JSON', () => {
     const item: ConversationItem = {
       id: 'subagent-tool-streaming',

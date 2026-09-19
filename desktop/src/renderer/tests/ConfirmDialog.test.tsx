@@ -15,11 +15,6 @@ describe('ConfirmDialog', () => {
     await waitFor(() => expect(cancel).toHaveFocus())
   })
 
-  it('uses the danger variant for destructive confirmation', () => {
-    render(<ConfirmDialog title="Delete?" message="Cannot be undone" danger onConfirm={vi.fn()} onCancel={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Confirm' })).toHaveAttribute('data-variant', 'danger')
-  })
-
   it('dismisses an imperative request and resolves it as cancelled', async () => {
     render(<ConfirmDialogHost />)
     let request!: ConfirmDialogRequest

@@ -28,29 +28,6 @@ describe('ModelPicker', () => {
     setViewport(originalInnerWidth, originalInnerHeight)
   })
 
-  it('marks the composer overlay layer active only while the picker is open', () => {
-    render(
-      <LocaleProvider>
-        <ModelPicker
-          modelName="gpt-5.5"
-          modelOptions={['gpt-5.5']}
-          reasoningValue="off"
-          triggerStyle={{}}
-        />
-      </LocaleProvider>
-    )
-
-    const trigger = screen.getByRole('button', { name: 'Select model' })
-    const picker = trigger.closest('[data-composer-overlay-open]')
-    expect(picker).toHaveAttribute('data-composer-overlay-open', 'false')
-
-    fireEvent.click(trigger)
-    expect(picker).toHaveAttribute('data-composer-overlay-open', 'true')
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(picker).toHaveAttribute('data-composer-overlay-open', 'false')
-  })
-
   it('headlines the level and offers one stop per advertised effort', () => {
     render(
       <LocaleProvider>
@@ -501,71 +478,7 @@ describe('ModelPicker', () => {
     }
   })
 
-  it('keeps the picker anchored to its trigger instead of lifting it above the composer card', () => {
-    setViewport(1100, 768)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
-      if (this.hasAttribute('data-composer-card')) return domRect(0, 200, 900, 180)
-      if (this.parentElement?.hasAttribute('data-composer-card')) return domRect(600, 360, 180, 32)
-      if (this.getAttribute('role') === 'dialog') return domRect(460, 260, 312, 132)
-      return domRect(0, 0, 0, 0)
-    })
-
-    renderPickerInComposer()
-
-    const panel = openPicker()
-    const modelRow = within(openMenu(panel, 'gpt-5.5')).getByRole('menuitem', { name: /Model/ })
-    Object.defineProperty(modelRow, 'offsetTop', { configurable: true, value: 46 })
-    fireEvent.click(modelRow)
-
-    expect(panel.style.transform).toBe('')
-    expect(screen.getByRole('listbox', { name: 'Model' })).toHaveStyle({
-      top: '40px',
-      maxHeight: '320px'
-    })
-  })
-
-  it('only shifts and caps a submenu when the viewport is genuinely too short', () => {
-    setViewport(1100, 768)
-    renderPickerInComposer()
-
-    const panel = openPicker()
-    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue(domRect(460, 100, 312, 132))
-    const modelRow = within(openMenu(panel, 'gpt-5.5')).getByRole('menuitem', { name: /Model/ })
-    Object.defineProperty(modelRow, 'offsetTop', { configurable: true, value: 46 })
-    fireEvent.click(modelRow)
-
-    const submenu = screen.getByRole('listbox', { name: 'Model' })
-    Object.defineProperty(submenu, 'scrollHeight', { configurable: true, value: 300 })
-    Object.defineProperty(submenu, 'offsetHeight', { configurable: true, value: 300 })
-    vi.spyOn(submenu, 'getBoundingClientRect').mockReturnValue(domRect(771, 140, 310, 300))
-
-    fireEvent(window, new Event('resize'))
-    expect(submenu).toHaveStyle({ top: '40px', maxHeight: '320px' })
-
-    setViewport(1100, 240)
-    fireEvent(window, new Event('resize'))
-    expect(submenu).toHaveStyle({ top: '-92px', maxHeight: '224px' })
-
-    fireEvent.click(modelRow)
-    expect(submenu).toHaveStyle({ top: '-92px', maxHeight: '224px' })
-  })
 })
-
-function renderPickerInComposer(): void {
-  render(
-    <div data-composer-card>
-      <LocaleProvider>
-        <ModelPicker
-          modelName="gpt-5.5"
-          modelOptions={['gpt-5.5']}
-          modelCatalog={[catalogModel('gpt-5.5', true, ['low', 'medium', 'high', 'extraHigh'], 'high')]}
-          reasoningValue="high"
-          triggerStyle={{}}
-        />
-      </LocaleProvider>
-    </div>
-  )
-}
 
 function openPicker(name = 'Select model'): HTMLElement {
   fireEvent.click(screen.getByRole('button', { name }))

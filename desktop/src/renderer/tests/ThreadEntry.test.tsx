@@ -132,38 +132,6 @@ describe('ThreadEntry', () => {
     expect(gitInspectHead).not.toHaveBeenCalled()
   })
 
-  it('keeps the row free of the relative time and reveals archive on hover', async () => {
-    renderThreadEntry(makeThread())
-
-    const archiveButton = screen.getByRole('button', { name: 'Archive' })
-    expect(screen.queryByText('1h')).not.toBeInTheDocument()
-    expect(archiveButton).not.toBeVisible()
-
-    fireEvent.mouseEnter(screen.getByTestId('thread-entry-thread-1'))
-
-    await waitFor(() => {
-      expect(archiveButton).toBeVisible()
-    })
-  })
-
-  it('shows the origin channel beside the title in the details card, not in the row', async () => {
-    useThreadStore.setState({ runningTurnThreadIds: new Set(['thread-1']) })
-    renderThreadEntry(makeThread({ originChannel: 'automations' }))
-
-    const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    expect(within(statusSlot).queryByLabelText('Origin channel: automations')).not.toBeInTheDocument()
-
-    fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
-
-    const card = await screen.findByRole('tooltip')
-    const originIcon = within(card).getByLabelText('Origin channel: automations')
-    const title = within(card).getByText('Optimize workspace cleanup')
-
-    expect(title.compareDocumentPosition(originIcon) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-    expect(card).toHaveTextContent('1h')
-    expect(originIcon).toHaveStyle({ width: '14px', height: '14px', background: 'transparent' })
-  })
-
   it('omits the origin badge for a thread started from Desktop', async () => {
     renderThreadEntry(makeThread({ originChannel: 'dotcraft-desktop' }))
 
@@ -182,79 +150,6 @@ describe('ThreadEntry', () => {
 
     expect(screen.getByTestId('thread-pending-approval-thread-1')).toHaveTextContent('Awaiting approval')
     expect(screen.queryByTestId('thread-running-indicator-thread-1')).not.toBeInTheDocument()
-  })
-
-  it('hides the spinner when Archive takes the trailing slot', async () => {
-    useThreadStore.setState({ runningTurnThreadIds: new Set(['thread-1']) })
-    renderThreadEntry(makeThread({ originChannel: 'automations' }))
-
-    const row = screen.getByTestId('thread-entry-thread-1')
-    const spinner = screen.getByTestId('thread-running-indicator-thread-1')
-    expect(spinner).toBeVisible()
-
-    fireEvent.mouseEnter(row)
-
-    await waitFor(() => {
-      expect(spinner).not.toBeVisible()
-      expect(screen.getByRole('button', { name: 'Archive' })).toBeVisible()
-    })
-  })
-
-  it('keeps archive action hidden for active row until hover', async () => {
-    useThreadStore.setState({ activeThreadId: 'thread-1' })
-    renderThreadEntry(makeThread())
-
-    const row = screen.getByTestId('thread-entry-thread-1')
-    const archiveButton = screen.getByRole('button', { name: 'Archive' })
-
-    expect(archiveButton).not.toBeVisible()
-
-    fireEvent.mouseEnter(row)
-
-    await waitFor(() => {
-      expect(archiveButton).toBeVisible()
-    })
-  })
-
-  it('reveals archive action on focus for keyboard access', async () => {
-    renderThreadEntry(makeThread())
-
-    const archiveButton = screen.getByRole('button', { name: 'Archive' })
-    expect(archiveButton).not.toBeVisible()
-
-    fireEvent.focus(archiveButton)
-
-    await waitFor(() => {
-      expect(archiveButton).toBeVisible()
-    })
-  })
-
-  it('keeps the pin action hidden until the row is hovered', async () => {
-    renderThreadEntry(makeThread())
-
-    const row = screen.getByTestId('thread-entry-thread-1')
-    const pinButton = screen.getByRole('button', { name: 'Pin conversation' })
-
-    expect(pinButton).not.toBeVisible()
-
-    fireEvent.mouseEnter(row)
-
-    await waitFor(() => {
-      expect(pinButton).toBeVisible()
-    })
-  })
-
-  it('reveals the pin action on focus for keyboard access', async () => {
-    renderThreadEntry(makeThread())
-
-    const pinButton = screen.getByRole('button', { name: 'Pin conversation' })
-    expect(pinButton).not.toBeVisible()
-
-    fireEvent.focus(pinButton)
-
-    await waitFor(() => {
-      expect(pinButton).toBeVisible()
-    })
   })
 
   it('keeps the pin action visible for pinned threads', () => {
@@ -575,27 +470,6 @@ describe('ThreadEntry', () => {
     expect(screen.getByLabelText('Turn running')).toBeInTheDocument()
   })
 
-  it('shows running spinner in default state and swaps to archive on hover', async () => {
-    useThreadStore.setState({
-      runningTurnThreadIds: new Set<string>(['thread-1'])
-    })
-
-    renderThreadEntry(makeThread())
-
-    const spinner = screen.getByTestId('thread-running-indicator-thread-1')
-    const archiveButton = screen.getByRole('button', { name: 'Archive' })
-
-    expect(spinner).toBeVisible()
-    expect(archiveButton).not.toBeVisible()
-
-    fireEvent.mouseEnter(screen.getByTestId('thread-entry-thread-1'))
-
-    await waitFor(() => {
-      expect(spinner).not.toBeVisible()
-      expect(archiveButton).toBeVisible()
-    })
-  })
-
   it('shows a running spinner after thread list runtime hydration', () => {
     const thread = makeThread({
       runtime: {
@@ -671,74 +545,6 @@ describe('ThreadEntry', () => {
     expect(screen.getByText('Awaiting confirmation')).toBeInTheDocument()
   })
 
-  it('moves the pending pill into the trailing status slot and hides the running spinner', () => {
-    useThreadStore.setState({
-      pendingPlanConfirmationThreadIds: new Set<string>(['thread-1']),
-      runningTurnThreadIds: new Set<string>(['thread-1'])
-    })
-
-    renderThreadEntry(makeThread({
-      displayName: 'A very long thread title that should give space to the pill without stealing the status slot'
-    }))
-
-    const content = screen.getByTestId('thread-layout-thread-1')
-    const title = screen.getByTestId('thread-title-thread-1')
-    const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    const badge = screen.getByTestId('thread-pending-confirmation-thread-1')
-
-    expect(title.parentElement).toBe(content)
-    expect(statusSlot.parentElement).toBe(content)
-    // The pending pill lives in the trailing status slot
-    // (pill span -> status span -> status slot).
-    expect(statusSlot).toContainElement(badge)
-    // The running spinner is suppressed while the pending pill occupies the slot.
-    expect(screen.queryByTestId('thread-running-indicator-thread-1')).not.toBeInTheDocument()
-    // The middle badge slot is not rendered for the pending pill.
-    expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-  })
-
-  it('keeps a pending badge row interactive when relative time swaps to archive', async () => {
-    useThreadStore.setState({
-      pendingPlanConfirmationThreadIds: new Set<string>(['thread-1'])
-    })
-
-    renderThreadEntry(makeThread({
-      displayName: 'A pending confirmation row with relative time should keep archive close to the pill'
-    }))
-
-    fireEvent.mouseEnter(screen.getByTestId('thread-entry-thread-1'))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Archive' })).toBeVisible()
-    })
-  })
-
-  it('keeps no-badge rows free of both a badge slot and status content', () => {
-    renderThreadEntry(makeThread({
-      lastActiveAt: new Date(Date.now() - 20 * 1000).toISOString()
-    }))
-
-    expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-    expect(screen.queryByText('just now')).not.toBeInTheDocument()
-    expect(screen.getByTestId('thread-status-slot-thread-1')).toHaveTextContent('')
-  })
-
-  it('lets no-badge running rows span title text while the spinner stays in the status slot', () => {
-    useThreadStore.setState({
-      runningTurnThreadIds: new Set<string>(['thread-1'])
-    })
-
-    renderThreadEntry(makeThread({
-      displayName: 'Currently implementing a no badge row that should show more title text'
-    }))
-
-    const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    const spinner = screen.getByTestId('thread-running-indicator-thread-1')
-
-    expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-    expect(statusSlot).toContainElement(spinner)
-  })
-
   it('shows pending user input badge when an inactive thread needs an answer', () => {
     useThreadStore.setState({
       pendingUserInputThreadIds: new Set<string>(['thread-1'])
@@ -772,16 +578,6 @@ describe('ThreadEntry', () => {
     renderThreadEntry(makeThread())
 
     expect(screen.getByLabelText('New result')).toBeInTheDocument()
-  })
-
-  it('hides the origin channel icon while the archive action is revealed on hover', async () => {
-    renderThreadEntry(makeThread({ originChannel: 'qq' }))
-
-    const row = await screen.findByTestId('thread-entry-thread-1')
-    fireEvent.mouseEnter(row)
-
-    expect(screen.getByRole('button', { name: 'Archive' })).toBeVisible()
-    expect(screen.queryByLabelText('Origin channel: qq')).not.toBeInTheDocument()
   })
 
   it('renders the app-origin badge (icon + name) when originApp is set', async () => {

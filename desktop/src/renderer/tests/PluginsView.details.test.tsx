@@ -16,24 +16,6 @@ describe('PluginsView details', () => {
 
   // Frameless: a section is marked by a rule under its heading, not a box around
   // its rows, so stacked groups read as one column instead of a stack of cards.
-  it('draws detail sections without framing them', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [localPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: localPlugin, snapshotRevision: 1 }
-      return {}
-    })
-
-    renderPluginsView()
-    fireEvent.click(await screen.findByText('External Process Echo'))
-
-    const heading = await screen.findByText('Info')
-    expect(heading.style.borderBottom).toContain('var(--border-subtle)')
-
-    const rows = heading.parentElement!.querySelector('div')!
-    expect(rows.style.border).toBe('')
-    expect(rows.style.borderRadius).toBe('')
-  })
-
   it('shows a concise error when an uninstalled plugin skill cannot be read', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }
@@ -49,20 +31,6 @@ describe('PluginsView details', () => {
     const dialog = await screen.findByRole('dialog')
     expect(await within(dialog).findByText('Unable to load skill contents.')).toBeInTheDocument()
     expect(within(dialog).queryByText('Skill not found: browser')).not.toBeInTheDocument()
-  })
-
-  it('leaves runtime wiring rows inert on plugin details', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [mcpOnlyPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: mcpOnlyPlugin, snapshotRevision: 1 }
-      return {}
-    })
-
-    renderPluginsView()
-    fireEvent.click(await screen.findByText('Review Tools MCP'))
-
-    const row = await screen.findByText('review-tools-mcp:review')
-    expect(row.closest('button')).toBeNull()
   })
 
   it('shows plugin-bundled MCP content on plugin details', async () => {

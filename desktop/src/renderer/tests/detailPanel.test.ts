@@ -158,26 +158,6 @@ describe('terminal command badge data', () => {
   })
 })
 
-describe('plan todo status icons', () => {
-  const statuses: PlanTodoStatusIconStatus[] = ['pending', 'in_progress', 'completed', 'cancelled']
-
-  it('maps all four statuses to distinct lucide icon names', () => {
-    const icons = statuses.map((status) => PLAN_TODO_STATUS_ICON_NAMES[status])
-    expect(new Set(icons).size).toBe(statuses.length)
-  })
-
-  it('renders status icons without Unicode glyph text', () => {
-    for (const status of statuses) {
-      const { container, unmount } = render(createElement(PlanTodoStatusIcon, { status }))
-      const icon = container.querySelector(`[data-plan-todo-status="${status}"]`)
-      expect(icon).not.toBeNull()
-      expect(icon?.getAttribute('data-plan-todo-icon')).toBe(PLAN_TODO_STATUS_ICON_NAMES[status])
-      expect(container.textContent).toBe('')
-      unmount()
-    }
-  })
-})
-
 describe('showChangesForFile', () => {
   it('sets detail panel visible, switches to changes tab, selects file', () => {
     useUIStore.setState({

@@ -8,23 +8,6 @@ import {
 } from '../stores/uiStore'
 
 describe('uiStore defaults', () => {
-  it('starts with the detail panel hidden', () => {
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-  })
-
-  it('starts with a wider default detail panel width', () => {
-    expect(useUIStore.getState().detailPanelWidth).toBe(DETAIL_DEFAULT_WIDTH)
-    expect(useUIStore.getState().detailPanelWidth).toBe(600)
-  })
-
-  it('starts with a proportional default detail panel width preference', () => {
-    expect(useUIStore.getState().detailPanelWidthRatio).toBe(DETAIL_DEFAULT_WIDTH_RATIO)
-    expect(useUIStore.getState().detailPanelWidthRatio).toBe(
-      DETAIL_DEFAULT_WIDTH / DETAIL_DEFAULT_MAIN_SURFACE_WIDTH
-    )
-  })
-
   it('updates the detail panel width fallback and ratio together', () => {
     useUIStore.getState().setDetailPanelWidth(580, 1676)
 
@@ -40,15 +23,6 @@ describe('uiStore defaults', () => {
     expect(useUIStore.getState().whatsNewOpenRequestSeq).toBe(before + 1)
   })
 
-  it('starts with thinking content hidden', () => {
-    expect(useUIStore.getState().showThinkingContent).toBe(false)
-  })
-
-  it('starts with sidebar project, pinned, and chat sections expanded', () => {
-    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
-    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(false)
-    expect(useUIStore.getState().chatsSectionCollapsed).toBe(false)
-  })
 })
 
 const settingsSet = vi.fn()

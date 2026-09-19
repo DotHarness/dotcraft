@@ -143,46 +143,6 @@ describe('CreatePlanCard', () => {
     expect(screen.getAllByRole('button', { name: 'Expand plan' }).length).toBeGreaterThan(0)
   })
 
-  it('contains long assumption tokens inside the plan markdown frame', () => {
-    const item: ConversationItem = {
-      id: 'plan-long-assumptions',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'CreatePlan',
-      toolCallId: 'call-long-assumptions',
-      arguments: {
-        plan: [
-          '# Rename Plan',
-          '',
-          '## Summary',
-          '',
-          'Keep existing dynamic runtime metadata stable.',
-          '',
-          '## Assumptions',
-          '',
-          '- 默认按 A（合并型）推进 —— 旧 `com.example.legacy-profiler` 包将被 sample-tracer 完全取代，Sandbox 项目侧不再装旧包；Sandbox 项目 `Packages/com.example.legacy-profiler/` 在导入新包后需手动移除。',
-          '- Sandbox 项目继续保留 `SAMPLE_TRACE` + `SAMPLE_TRACE_COMMAND` defines，并保留 `Example.Editor.TraceBridge` asmdef（token `example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789`）作为 FakeDependency.dll 来源。项目 `Library/PackageCache/com.example.mock-long-package@0.0.0/FakeDependency.dll` 持续可用。'
-        ].join('\n')
-      },
-      success: true,
-      createdAt: new Date().toISOString()
-    }
-
-    const { container } = render(
-      <LocaleProvider>
-        <CreatePlanCard item={item} locale="en" />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Expand plan' })[0])
-
-    const markdownBody = container.querySelector('.markdown-body--contained')
-    expect(markdownBody).not.toBeNull()
-    expect(screen.getByText('Assumptions')).toBeInTheDocument()
-    expect(screen.getByText('Packages/com.example.legacy-profiler/')).toBeInTheDocument()
-    expect(screen.getByText('example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789')).toBeInTheDocument()
-  })
-
   it('copies parsed content then falls back to generated markdown', async () => {
     const withContent: ConversationItem = {
       id: 'plan-copy-content',

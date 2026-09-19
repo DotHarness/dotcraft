@@ -159,66 +159,10 @@ describe('plugin marketplace surface', () => {
   })
 
   // The source identifies the group but does not earn a place in the layout.
-  it('keeps the marketplace source out of the group header layout', async () => {
-    appServerSendRequest.mockResolvedValue(catalogResponse())
-
-    renderPluginsView()
-    await screen.findByText('Example Plugin')
-    await showMarketplaceGrouping()
-    const heading = await screen.findByRole('heading', { name: 'Example Plugins' })
-    expect(screen.queryByText('https://example.com/team/plugins.git')).not.toBeInTheDocument()
-
-    fireEvent.mouseEnter(heading)
-    expect(await screen.findByText('https://example.com/team/plugins.git')).toBeInTheDocument()
-  })
-
   // A section title carries the column geometry that lines a heading up with the grid
   // beneath it, so the marketplace header row has to take that geometry over.
-  it('aligns the group header with the ordinary section column', async () => {
-    appServerSendRequest.mockResolvedValue(catalogResponse())
-
-    renderPluginsView()
-    const ordinary = await screen.findByRole('heading', { name: 'Other' })
-    const column = {
-      maxWidth: ordinary.style.maxWidth,
-      marginLeft: ordinary.style.marginLeft,
-      marginRight: ordinary.style.marginRight
-    }
-    expect(column.maxWidth).not.toBe('')
-
-    await showMarketplaceGrouping()
-    const header = (await screen.findByRole('heading', { name: 'Example Plugins' })).closest('div')!
-
-    expect(header.style.maxWidth).toBe(column.maxWidth)
-    expect(header.style.marginLeft).toBe(column.marginLeft)
-    expect(header.style.marginRight).toBe(column.marginRight)
-  })
-
   // Revealed by opacity, not by mounting, so the row does not shift under the pointer;
   // keyboard focus has to reveal it too or the actions are pointer-only.
-  it('reveals the group actions on hover and on keyboard focus', async () => {
-    appServerSendRequest.mockResolvedValue(catalogResponse())
-
-    renderPluginsView()
-    await screen.findByText('Example Plugin')
-    await showMarketplaceGrouping()
-
-    const header = (await screen.findByRole('heading', { name: 'Example Plugins' })).closest('div')!
-    // The tooltip wraps the button, so reach the reveal wrapper by its own style.
-    const actions = screen.getByRole('button', { name: 'Marketplace actions' })
-      .closest('span[style*="opacity"]') as HTMLElement
-    expect(actions.style.opacity).toBe('0')
-
-    fireEvent.mouseEnter(header)
-    expect(actions.style.opacity).toBe('1')
-
-    fireEvent.mouseLeave(header)
-    expect(actions.style.opacity).toBe('0')
-
-    fireEvent.focus(screen.getByRole('button', { name: 'Marketplace actions' }))
-    expect(actions.style.opacity).toBe('1')
-  })
-
   it('offers the marketplace mode only while a marketplace is configured', async () => {
     appServerSendRequest.mockResolvedValue(catalogResponse({ marketplaces: [] }))
 

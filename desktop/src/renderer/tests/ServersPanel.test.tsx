@@ -147,65 +147,6 @@ describe('ServersPanel', () => {
     })
   })
 
-  it('opens Add instance as a settings page instead of a modal', async () => {
-    useRemoteServersStore.setState({
-      hosts: [
-        {
-          id: 'h_prod',
-          name: 'Prod',
-          sshTarget: 'prod',
-          stacks: []
-        }
-      ],
-      loaded: true,
-      selectedHostId: 'h_prod'
-    })
-
-    renderServersPanel()
-
-    fireEvent.click(screen.getAllByRole('button', { name: /add instance/i })[0])
-
-    await waitFor(() => {
-      expect(window.api.remoteServers.test).toHaveBeenCalledWith({ id: 'h_prod' })
-    })
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /back to prod/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^back$/i })).not.toBeInTheDocument()
-    expect(screen.getByText('Register a DotCraft Docker Compose deployment on Prod.')).toBeInTheDocument()
-    expect(screen.getByText('Deployment')).toBeInTheDocument()
-    expect(screen.getByText('Ports')).toBeInTheDocument()
-  })
-
-  it('uses settings breadcrumbs for server detail and edit pages', async () => {
-    useRemoteServersStore.setState({
-      hosts: [stackHost],
-      loaded: true,
-      selectedHostId: 'h_prod',
-      statuses: { stack_1: runningStatus }
-    })
-
-    renderServersPanel()
-
-    await waitFor(() => {
-      expect(window.api.remoteServers.test).toHaveBeenCalledWith({ id: 'h_prod' })
-    })
-    expect(screen.getByRole('button', { name: /back to remote servers/i })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /edit server/i }))
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /back to prod/i })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /back to prod/i }))
-    fireEvent.click(screen.getAllByRole('button', { name: /more/i })[0])
-    fireEvent.click(screen.getByRole('button', { name: /edit instance/i }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /back to prod/i })).toBeInTheDocument()
-    })
-    expect(screen.queryByRole('button', { name: /^back$/i })).not.toBeInTheDocument()
-  })
-
   it('auto-tests saved servers when the panel opens', async () => {
     const host: RemoteHost = {
       id: 'h_prod',

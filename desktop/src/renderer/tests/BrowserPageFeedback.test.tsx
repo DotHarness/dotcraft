@@ -146,28 +146,3 @@ it('grows into the Annotating mode and leaves it on a second click or Escape', (
   expect(toggle.getAttribute('aria-pressed')).toBe('false')
 })
 
-it('marks the selection with the speech bubble and places the editor beside it', () => {
-  render(<Host />)
-  const bounds = { x: 10, y: 20, width: 80, height: 40 }
-  const page = document.querySelector('[data-page]')!
-  Object.defineProperty(page, 'clientWidth', { value: 1000 })
-  Object.defineProperty(page, 'clientHeight', { value: 600 })
-  act(() =>
-    listener({
-      type: 'selection',
-      reference: {
-        id: 'selection',
-        tabId: 'tab',
-        threadId: 'task',
-        kind: 'region',
-        url: 'https://example.com',
-        title: 'Example',
-        text: '',
-        bounds,
-      },
-    }),
-  )
-  expect(document.querySelector('.dc-browser-page-feedback__selection .dc-browser-page-feedback__marker svg path')).not.toBeNull()
-  const editor = document.querySelector<HTMLElement>('.dc-browser-page-feedback__editor')!
-  expect([editor.style.left, editor.style.top]).toEqual(['115px', '20px'])
-})

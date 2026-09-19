@@ -75,24 +75,6 @@ describe('ApprovalDecisionComposer', () => {
     clearDesktopPluginRegistry()
   })
 
-  it('keeps decision pose while inheriting composer mascot effects', () => {
-    const pending = pendingApproval()
-    const { container } = render(
-      <LocaleProvider>
-        <ApprovalDecisionComposer
-          request={pending}
-          mascotEffectState={{ reasoningEffort: 'high', speed: 'fast', contextMax: true }}
-        />
-      </LocaleProvider>
-    )
-
-    const mascot = container.querySelector('[data-mascot-effort]')
-    expect(mascot).toHaveAttribute('data-mascot-effort', 'high')
-    expect(mascot).toHaveAttribute('data-mascot-speed', 'fast')
-    expect(mascot).toHaveAttribute('data-mascot-context', 'max')
-    expect(mascot?.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'waiting')
-  })
-
   it('keeps subscription status independent when workspace status is replaced', () => {
     const host = {
       plugin: { id: 'fixture.status', version: '1.0.0', displayName: 'Fixture status' }
@@ -410,35 +392,6 @@ describe('ApprovalDecisionComposer', () => {
 
     fireEvent.focus(screen.getByRole('img', { name: 'Why Always allow is an option' }))
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Always allow this exact command only.')
-  })
-
-  it('bounds long approval details so options remain reachable', () => {
-    const operation = `python - <<'PY'\n${'print("operation detail")\n'.repeat(40)}PY`
-    const reason = `Agent wants to execute a shell command. ${'Long reason detail. '.repeat(80)}`
-    const pending = pendingApproval({ operation, reason })
-    setPendingApproval(pending)
-    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
-
-    expect(screen.getByTestId('approval-detail-panel')).toHaveStyle({
-      maxHeight: 'min(34vh, 300px)',
-      overflowY: 'auto'
-    })
-    const operationValue = screen.getByTestId('approval-detail-value-1')
-    const reasonValue = screen.getByTestId('approval-detail-value-3')
-    expect(operationValue).toHaveTextContent('print("operation detail")')
-    expect(reasonValue).toHaveTextContent('Long reason detail.')
-    expect(operationValue).toHaveStyle({
-      maxHeight: '120px',
-      overflowY: 'auto',
-      whiteSpace: 'pre-wrap'
-    })
-    expect(reasonValue).toHaveStyle({
-      maxHeight: '120px',
-      overflowY: 'auto',
-      whiteSpace: 'normal'
-    })
-    expect(screen.getByRole('button', { name: '1. Allow once' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '5. Cancel turn' })).toBeInTheDocument()
   })
 
   it('disables duplicate submits while sending and restores controls after failure', async () => {

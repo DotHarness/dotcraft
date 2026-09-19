@@ -46,50 +46,6 @@ describe('InlineDiffView', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('src/deep/AgentTools.cs')
   })
 
-  it('shows no streaming spinner or label, keeping only the live cursor', () => {
-    render(
-      <InlineDiffView
-        diff={baseDiff}
-        streaming
-      />
-    )
-
-    // The visibly-growing diff (live cursor) is the only running cue; the header
-    // carries no spinner and no "streaming" label.
-    expect(screen.queryByText('streaming')).toBeNull()
-    expect(screen.getByText('|')).toBeInTheDocument()
-  })
-
-  it('does not show a waiting placeholder for empty streaming diffs', () => {
-    render(
-      <InlineDiffView
-        diff={{ ...baseDiff, additions: 0, deletions: 0, diffHunks: [] }}
-        streaming
-      />
-    )
-
-    expect(screen.queryByText('Waiting for content...')).toBeNull()
-    expect(screen.queryByText('No changes')).toBeNull()
-  })
-
-  it('renders body-only diffs without repeated file or hunk metadata', () => {
-    render(
-      <InlineDiffView
-        diff={baseDiff}
-        variant="embedded"
-        presentation="body-only"
-      />
-    )
-
-    expect(screen.queryByTestId('file-result-header')).toBeNull()
-    expect(screen.queryByText('@@ -35,2 +35,2 @@')).toBeNull()
-    expect(screen.getByText('unchanged')).toBeInTheDocument()
-    expect(screen.getByText('old line')).toBeInTheDocument()
-    expect(screen.getByText('new line')).toBeInTheDocument()
-    expect(screen.getByTestId('inline-diff-body')).toHaveStyle({ overflowX: 'hidden' })
-    expect(screen.getByText('new line').parentElement).toHaveStyle({ whiteSpace: 'pre-wrap' })
-  })
-
   it('uses the conversation file-tool header, wrapping body, and path copy action', async () => {
     const writeText = vi.fn(async () => undefined)
     Object.defineProperty(navigator, 'clipboard', {

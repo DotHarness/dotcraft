@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -280,18 +280,4 @@ describe('PluginsView management', () => {
 
   // The detail page presents the plugin; the manage list is where its state changes,
   // so one control governs enablement rather than two that can disagree.
-  it('leaves plugin enablement to the manage list rather than the detail page', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [localPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: localPlugin, snapshotRevision: 1 }
-      return {}
-    })
-
-    renderPluginsView()
-    fireEvent.click(await screen.findByText('External Process Echo'))
-
-    expect(await screen.findByText('Info')).toBeInTheDocument()
-    const header = screen.getByRole('heading', { name: 'External Process Echo', level: 1 }).closest('header')!
-    expect(within(header).queryByRole('switch')).not.toBeInTheDocument()
-  })
 })

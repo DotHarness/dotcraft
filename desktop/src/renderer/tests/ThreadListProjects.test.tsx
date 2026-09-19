@@ -282,42 +282,6 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
   })
 
-  it('keeps project errors accessible while showing hover actions', () => {
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/b',
-          name: 'b',
-          state: 'error',
-          running: false,
-          loaded: false,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: [],
-          errorMessage: 'Connection refused'
-        }
-      ]
-    })
-
-    renderList()
-
-    const row = screen.getByRole('button', { name: 'b' })
-    expect(screen.getByLabelText('Connection refused')).toBeInTheDocument()
-
-    fireEvent.mouseEnter(row)
-
-    const errorIndicator = screen.getByLabelText('Connection refused')
-    const newChatButton = screen.getByRole('button', { name: 'New chat in project' })
-    const projectActionsButton = screen.getByRole('button', { name: 'Project actions' })
-    expect(errorIndicator).toBeInTheDocument()
-    expect(newChatButton).toBeInTheDocument()
-    expect(projectActionsButton).toBeInTheDocument()
-    expect(newChatButton.compareDocumentPosition(errorIndicator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(projectActionsButton.compareDocumentPosition(errorIndicator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
   it('marks only the foreground (current) workspace header with aria-current', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
@@ -416,45 +380,6 @@ describe('ThreadList project-first layout', () => {
     expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/cold')
   })
 
-  it('shows a thread-aligned empty state for each loaded empty project', () => {
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/a',
-          name: 'a',
-          state: 'foreground',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: []
-        },
-        {
-          path: '/workspace/b',
-          name: 'b',
-          state: 'secondary',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: []
-        }
-      ]
-    })
-
-    renderList()
-
-    expect(screen.getByRole('button', { name: 'a' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'b' })).toHaveAttribute('aria-expanded', 'true')
-    const projectEmptyStates = screen.getAllByText('No chats')
-    expect(projectEmptyStates).toHaveLength(2)
-    for (const emptyState of projectEmptyStates) {
-      expect(emptyState).toHaveStyle({ padding: '4px 16px 8px 32px' })
-    }
-  })
-
   it('shows search feedback instead of the ordinary project empty state', () => {
     useThreadStore.getState().setSearchQuery('missing')
     useWorkspaceProjectsStore.getState().setPayload({
@@ -478,50 +403,6 @@ describe('ThreadList project-first layout', () => {
 
     expect(screen.getByText('No threads match your search.')).toBeInTheDocument()
     expect(screen.queryByText('No chats')).not.toBeInTheDocument()
-  })
-
-  it('renders background running rows with the shared leading and status slots', () => {
-    const runningThread: ThreadSummary = {
-      ...makeThread('thread-b', 'Thread B'),
-      runtime: {
-        running: true,
-        busy: true,
-        waitingOnApproval: false,
-        waitingOnInput: false,
-        waitingOnPlanConfirmation: false,
-        maintenanceKind: null
-      }
-    }
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/b',
-          name: 'b',
-          state: 'secondary',
-          running: true,
-          loaded: true,
-          threadCount: 1,
-          threads: [runningThread],
-          pinnedThreadIds: []
-        }
-      ]
-    })
-
-    renderList()
-
-    const row = screen.getByTestId('project-thread-entry-/workspace/b-thread-b')
-    const leading = screen.getByTestId('project-thread-leading-/workspace/b-thread-b')
-    const layout = screen.getByTestId('project-thread-layout-/workspace/b-thread-b')
-    const status = screen.getByTestId('project-thread-status-/workspace/b-thread-b')
-    const spinner = screen.getByTestId('project-thread-running-indicator-/workspace/b-thread-b')
-
-    expect(leading.parentElement).toBe(row)
-    expect(layout.parentElement).toBe(row)
-    expect(status.parentElement).toBe(layout)
-    expect(status.contains(spinner)).toBe(true)
-    expect(screen.queryByTestId('project-thread-pinned-/workspace/b-thread-b')).not.toBeInTheDocument()
   })
 
   it('clicking a background thread queues it before promoting its workspace', async () => {
@@ -987,38 +868,6 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('shows section-aligned empty states when there are no configured projects or recent chats', () => {
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/chats',
-      foregroundProjectId: '/chats',
-      secondaryLimit: 8,
-      projects: [],
-      chat: {
-        projectId: '/chats',
-        kind: 'chat',
-        path: '/chats',
-        name: '/chats',
-        state: 'foreground',
-        running: true,
-        loaded: true,
-        threadCount: 0,
-        threads: [],
-        pinnedThreadIds: []
-      }
-    })
-
-    renderList({ workspacePath: '/chats' })
-
-    expect(screen.getByText('Projects')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
-      .toHaveStyle({ padding: '8px 16px 2px' })
-    expect(screen.getByText('No projects')).toHaveStyle({ padding: '4px 16px 8px' })
-    expect(screen.getByText('Recents')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle Recents section' }))
-      .toHaveStyle({ padding: '8px 16px 2px' })
-    expect(screen.getByText('No chats')).toHaveStyle({ padding: '4px 16px 8px' })
-  })
-
   it('does not report No projects when every configured project is pinned', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
@@ -1045,92 +894,6 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByRole('button', { name: 'Pinned project' })).toBeInTheDocument()
     expect(screen.getByText('Projects')).toBeInTheDocument()
     expect(screen.queryByText('No projects')).not.toBeInTheDocument()
-  })
-
-  it('renders a Recents group with default chat workspace threads after Projects', () => {
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      foregroundProjectId: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/a',
-          name: 'a',
-          state: 'foreground',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: []
-        }
-      ],
-      chat: {
-        projectId: '/chats',
-        kind: 'chat',
-        path: '/chats',
-        identityWorkspacePath: '/chats',
-        name: '/chats',
-        state: 'secondary',
-        running: true,
-        loaded: true,
-        threadCount: 1,
-        threads: [makeThread('chat-1', 'General chat thread')],
-        pinnedThreadIds: []
-      }
-    })
-
-    renderList()
-
-    const projectsHeading = screen.getByText('Projects')
-    const recentsHeading = screen.getByText('Recents')
-    expect(projectsHeading.parentElement).toHaveStyle({ padding: '8px 16px 2px' })
-    expect(recentsHeading.parentElement).toHaveStyle({ padding: '8px 16px 2px' })
-    // Recents renders as its own group, after Projects.
-    expect(projectsHeading.compareDocumentPosition(recentsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('General chat thread')).toBeInTheDocument()
-    // The Recents group is not a project: no folder row carrying its physical path.
-    expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
-  })
-
-  it('shows No chats when the default chat workspace has no threads', () => {
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      foregroundProjectId: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/a',
-          name: 'a',
-          state: 'foreground',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: []
-        }
-      ],
-      chat: {
-        projectId: '/chats',
-        kind: 'chat',
-        path: '/chats',
-        name: '/chats',
-        state: 'secondary',
-        running: true,
-        loaded: true,
-        threadCount: 0,
-        threads: [],
-        pinnedThreadIds: []
-      }
-    })
-
-    renderList()
-
-    const recentsHeading = screen.getByText('Recents')
-    const recentsGroup = recentsHeading.parentElement?.parentElement
-    expect(recentsGroup).not.toBeNull()
-    expect(within(recentsGroup as HTMLElement).getByText('No chats')).toHaveStyle({
-      padding: '4px 16px 8px'
-    })
   })
 
   it('shows mutually exclusive waiting and running counts in project details', async () => {

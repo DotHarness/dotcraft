@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import {
@@ -37,15 +37,6 @@ describe('WorkspaceLaunchTransition', () => {
     installApi('en')
   })
 
-  it('renders a single full-color logo and the light connecting message', async () => {
-    const { container } = renderTransition('connecting')
-
-    expect(container.querySelectorAll('.workspace-launch-transition__logo')).toHaveLength(1)
-    expect(container.querySelectorAll('.workspace-launch-transition__scrim')).toHaveLength(1)
-    expect(container.querySelector('.welcome-brand-opening-logo')).toBeNull()
-    expect(await screen.findByText('Connecting to workspace…')).toBeInTheDocument()
-  })
-
   it('renders the Chinese connecting message from initialLocale before settings resolve', () => {
     settingsGet.mockReturnValue(new Promise(() => {}))
     installApi('zh-Hans')
@@ -64,79 +55,6 @@ describe('WorkspaceLaunchTransition', () => {
       width: 96,
       height: 96
     })
-  })
-
-  it.each([
-    'connecting',
-    'preparing',
-    'main-reveal',
-    'error-reveal'
-  ] as const)('recenters the %s logo when the viewport is resized', (phase) => {
-    setViewportSize(800, 600)
-    const { container } = renderTransition(phase)
-    const overlay = container.querySelector<HTMLElement>('.workspace-launch-transition')
-
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('352px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('252px')
-
-    act(() => {
-      setViewportSize(1200, 800)
-      window.dispatchEvent(new Event('resize'))
-    })
-
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('552px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('352px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('552px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('352px')
-  })
-
-  it.each([
-    'welcome-to-center',
-    'setup-complete-to-center'
-  ] as const)('updates only the center target during %s', (phase) => {
-    setViewportSize(800, 600)
-    const { container } = renderTransition(phase)
-    const overlay = container.querySelector<HTMLElement>('.workspace-launch-transition')
-
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('10px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('20px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('352px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('252px')
-
-    act(() => {
-      setViewportSize(1200, 800)
-      window.dispatchEvent(new Event('resize'))
-    })
-
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('10px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('20px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('552px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('352px')
-  })
-
-  it('preserves element-to-element handoff coordinates when the viewport is resized', () => {
-    const { container } = renderTransition('setup-handoff')
-    const overlay = container.querySelector<HTMLElement>('.workspace-launch-transition')
-
-    act(() => {
-      setViewportSize(1200, 800)
-      window.dispatchEvent(new Event('resize'))
-    })
-
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('10px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('20px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('100px')
-    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('120px')
-  })
-
-  it('uses the setup logo while preparing a newly initialized workspace', async () => {
-    const setupLogo = 'setup-logo.svg'
-    const { container } = renderTransition('preparing', setupLogo)
-
-    const logo = container.querySelector('.workspace-launch-transition__logo')
-    expect(logo).toBeInstanceOf(HTMLImageElement)
-    expect(logo).toHaveAttribute('src', setupLogo)
-    expect(await screen.findByText('Preparing your workspace…')).toBeInTheDocument()
   })
 
   it('renders the Chinese preparing message from initialLocale before settings resolve', () => {

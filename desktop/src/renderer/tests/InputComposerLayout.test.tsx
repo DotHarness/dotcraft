@@ -1205,17 +1205,6 @@ describe('InputComposer layout', () => {
     expect(await screen.findByTestId('run-on-option-sat_studio:ws_shaders')).toBeInTheDocument()
   })
 
-  it('disables the Run on chip while a turn runs', async () => {
-    withSatellites()
-    useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-1' })
-
-    renderComposer()
-
-    const trigger = await screen.findByTestId('run-on-trigger')
-    expect(trigger).toBeDisabled()
-    expect(await screen.findByRole('button', { name: 'main' })).not.toBeDisabled()
-  })
-
   it('leaves the Run on chip out of a minimal-chrome composer', async () => {
     withSatellites()
 

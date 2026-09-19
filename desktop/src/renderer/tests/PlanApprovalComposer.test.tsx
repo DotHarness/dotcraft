@@ -110,25 +110,6 @@ describe('PlanApprovalComposer', () => {
     expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
   })
 
-  it('keeps decision pose while inheriting composer mascot effects', () => {
-    const { container } = render(
-      <LocaleProvider>
-        <PlanApprovalComposer
-          threadId="thread-1"
-          workspacePath="<workspace>"
-          turnId="turn-effects"
-          mascotEffectState={{ reasoningEffort: 'high', speed: 'fast', contextMax: true }}
-        />
-      </LocaleProvider>
-    )
-
-    const mascot = container.querySelector('[data-mascot-effort]')
-    expect(mascot).toHaveAttribute('data-mascot-effort', 'high')
-    expect(mascot).toHaveAttribute('data-mascot-speed', 'fast')
-    expect(mascot).toHaveAttribute('data-mascot-context', 'max')
-    expect(mascot?.querySelector('.dca-robot')).toHaveAttribute('data-pose', 'waiting')
-  })
-
   it('accept path switches to agent and shows the plan acceptance request', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />

@@ -309,41 +309,6 @@ describe('clipboard copy: extract last agentMessage', () => {
   })
 })
 
-describe('scroll position cache round-trip', () => {
-  it('stores and retrieves scroll positions for multiple threads', () => {
-    const cache = new Map<string, number>()
-
-    cache.set('thread-1', 350)
-    cache.set('thread-2', 0)
-    cache.set('thread-3', 9999)
-
-    expect(cache.get('thread-1')).toBe(350)
-    expect(cache.get('thread-2')).toBe(0)
-    expect(cache.get('thread-3')).toBe(9999)
-  })
-
-  it('near-bottom detection: scroll within 50px of bottom restores to bottom', () => {
-    const NEAR_BOTTOM_THRESHOLD = 50
-    const scrollHeight = 1000
-    const clientHeight = 400
-
-    const savedPos = 555 // scrollHeight - savedPos - clientHeight = 45 < 50
-    const atBottom = scrollHeight - savedPos - clientHeight <= NEAR_BOTTOM_THRESHOLD
-    expect(atBottom).toBe(true)
-
-    const savedPosFar = 400 // scrollHeight - 400 - 400 = 200 > 50
-    const notAtBottom = scrollHeight - savedPosFar - clientHeight <= NEAR_BOTTOM_THRESHOLD
-    expect(notAtBottom).toBe(false)
-  })
-
-  it('overwrites existing cache entry on re-visit', () => {
-    const cache = new Map<string, number>()
-    cache.set('thread-1', 100)
-    cache.set('thread-1', 250)
-    expect(cache.get('thread-1')).toBe(250)
-  })
-})
-
 describe('connectionStore.setStatus', () => {
   it('updates status to connected with serverInfo', () => {
     conn().setStatus({

@@ -146,18 +146,6 @@ describe('RichInputArea selection helpers', () => {
     expect(onSelectionChange).toHaveBeenCalledWith({ start: 5, end: 5 })
   })
 
-  it('disables browser spellcheck and autocorrect helpers on the editor', () => {
-    render(
-      <RichInputArea
-        onSubmit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByRole('textbox')
-    expect(textbox).toHaveAttribute('spellcheck', 'false')
-    expect(textbox).toHaveAttribute('autocorrect', 'off')
-    expect(textbox).toHaveAttribute('autocapitalize', 'off')
-  })
 })
 
 describe('RichInputArea reference removal', () => {

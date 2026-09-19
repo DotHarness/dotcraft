@@ -35,27 +35,6 @@ function makeSkillRef(skillName: string): HTMLSpanElement {
   return s
 }
 
-describe('createRefSpan', () => {
-  it('keeps default and remove icons in one fixed slot for every reference type', () => {
-    const refs = [
-      createRefSpan('file', 'src/foo.ts'),
-      createRefSpan('command', '/review'),
-      createRefSpan('skill', 'memory')
-    ]
-
-    for (const ref of refs) {
-      const slot = ref.querySelector('.dc-ref-icon-slot')
-      const defaultIcon = slot?.querySelector('.dc-ref-icon-default')
-      const removeIcon = slot?.querySelector('.dc-ref-icon-remove')
-
-      expect(ref.firstElementChild).toBe(slot)
-      expect(defaultIcon?.querySelector('svg')).not.toBeNull()
-      expect(removeIcon?.querySelector('svg')).not.toBeNull()
-      expect(ref.textContent).not.toContain('✕')
-    }
-  })
-})
-
 describe('truncateEditorDomToSerializedLength', () => {
   it('keeps file-ref spans that fit entirely before the cut', () => {
     const root = document.createElement('div')

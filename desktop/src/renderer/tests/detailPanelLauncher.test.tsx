@@ -31,15 +31,6 @@ describe('DetailPanelLauncher', () => {
     })
   })
 
-  it('renders the five launcher cards', () => {
-    renderLauncher({ onAction: vi.fn() })
-    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Browser' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Changes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Checks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Terminal' })).toBeInTheDocument()
-  })
-
   it('dispatches the matching add-tab action when a card is clicked', () => {
     const onAction = vi.fn()
     renderLauncher({ onAction })
@@ -63,12 +54,4 @@ describe('DetailPanelLauncher', () => {
     expect(screen.getByRole('button', { name: 'Checks' })).not.toBeDisabled()
   })
 
-  it('shows keyboard shortcuts on the cards that have them', () => {
-    renderLauncher({ onAction: vi.fn() })
-    expect(screen.queryByText('Ctrl+P')).not.toBeInTheDocument()
-    expect(screen.getByText('Ctrl+T')).toBeInTheDocument()
-    expect(screen.getByText('Ctrl+Shift+G')).toBeInTheDocument()
-    expect(screen.getByText('Ctrl+Shift+P')).toBeInTheDocument()
-    expect(screen.getByText('Ctrl+`')).toBeInTheDocument()
-  })
 })

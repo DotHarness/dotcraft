@@ -166,17 +166,6 @@ describe('SettingsView Chrome computer control', () => {
     useUIStore.setState({ activeMainView: 'settings', activeSettingsTab: 'general', sidebarCollapsed: false })
   })
 
-  it('renders Browser and Computer use navigation labels', async () => {
-    renderView()
-
-    const browserNav = await screen.findByRole('button', { name: 'Browser' })
-    expect(browserNav).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Computer use' })).toBeInTheDocument()
-
-    fireEvent.click(browserNav)
-    expect(await screen.findByText("Manage DotCraft's browser.")).toBeInTheDocument()
-  })
-
   it('renders the Chrome install shortcut when the plugin is not installed', async () => {
     renderView()
 

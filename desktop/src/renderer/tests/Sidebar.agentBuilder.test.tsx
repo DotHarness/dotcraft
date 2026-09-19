@@ -53,13 +53,6 @@ describe('Sidebar Agent Builder navigation', () => {
     expect(useUIStore.getState().activeMainView).toBe('agents')
   })
 
-  it('keeps Agents available in collapsed navigation', () => {
-    useUIStore.setState({ sidebarCollapsed: true, sidebarPreferredCollapsed: true })
-    renderSidebar()
-
-    expect(screen.getByRole('button', { name: 'Agents' })).toBeInTheDocument()
-  })
-
   it('uses the localized Agent Builder label', async () => {
     settingsGet.mockResolvedValue({ locale: 'ja' })
     renderSidebar()

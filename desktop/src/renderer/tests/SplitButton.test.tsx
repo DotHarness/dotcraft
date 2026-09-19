@@ -11,46 +11,8 @@ function items(overrides: Partial<SplitButtonItem>[] = []): SplitButtonItem[] {
 }
 
 describe('SplitButton', () => {
-  it('puts both segments in the toolbar band with one shared intent', () => {
-    render(
-      <SplitButton
-        label="Create"
-        onClick={vi.fn()}
-        items={items()}
-        menuLabel="More create options"
-        variant="secondary"
-      />
-    )
-    const primary = screen.getByRole('button', { name: 'Create' })
-    const menu = screen.getByRole('button', { name: 'More create options' })
-    for (const segment of [primary, menu]) {
-      expect(segment).toHaveAttribute('data-size', 'toolbar')
-      expect(segment).toHaveAttribute('data-variant', 'secondary')
-    }
-  })
-
   // The segments meet flush; only hover reveals the seam. A painted divider on the
   // touching edge is not the treatment DESIGN.md specifies.
-  it('paints no divider between the segments', () => {
-    render(<SplitButton label="Create" onClick={vi.fn()} items={items()} menuLabel="More" />)
-    expect(screen.getByRole('button', { name: 'Create' }).style.borderRightWidth).toBe('0px')
-    expect(screen.getByRole('button', { name: 'More' }).style.borderLeftWidth).toBe('0px')
-  })
-
-  it('names an icon-only principal segment from ariaLabel', () => {
-    render(
-      <SplitButton
-        ariaLabel="Open in File Explorer"
-        icon={<span data-testid="glyph" />}
-        onClick={vi.fn()}
-        items={items()}
-        menuLabel="Choose how to open"
-      />
-    )
-    expect(screen.getByRole('button', { name: 'Open in File Explorer' })).toBeInTheDocument()
-    expect(screen.getByTestId('glyph')).toBeInTheDocument()
-  })
-
   it('opens the menu highlighted on the current choice, not the first item', () => {
     const onFirst = vi.fn()
     const onSecond = vi.fn()

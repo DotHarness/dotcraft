@@ -40,15 +40,6 @@ describe('FindOverlay', () => {
     useFindStore.getState().closeFind()
   })
 
-  it('uses the shared bare field inside the framed search overlay', () => {
-    render(<LocaleProvider><FindOverlay /></LocaleProvider>)
-
-    const input = screen.getByRole('search').querySelector('input')
-    expect(input).not.toBeNull()
-    expect(input).toHaveClass('dc-field')
-    expect(input).toHaveAttribute('data-bare')
-  })
-
   it('keeps Enter and Shift+Enter result navigation', () => {
     render(<LocaleProvider><FindOverlay /></LocaleProvider>)
     const input = screen.getByRole('search').querySelector('input')

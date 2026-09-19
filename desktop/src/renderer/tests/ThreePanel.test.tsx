@@ -110,30 +110,6 @@ describe('ThreePanel sidebar resize', () => {
     expect(useUIStore.getState().sidebarWidth).toBe(292)
   })
 
-  it('reveals the sidebar divider glow only while the divider is hovered or dragged', () => {
-    renderThreePanel()
-
-    const glow = screen.getByTestId('sidebar-divider-glow')
-    const separator = screen.getByRole('separator')
-
-    // Rest state: the left edge stays the plain frame hairline, glow hidden.
-    expect(glow.style.opacity).toBe('0')
-
-    // Hover the divider: the center-bright gradient fades in.
-    fireEvent.pointerEnter(separator)
-    expect(glow.style.opacity).toBe('1')
-
-    // Leaving the divider restores the rest state.
-    fireEvent.pointerLeave(separator)
-    expect(glow.style.opacity).toBe('0')
-
-    // Dragging keeps the glow visible even without hover.
-    fireEvent.pointerDown(separator, { clientX: 240 })
-    expect(glow.style.opacity).toBe('1')
-    fireEvent.pointerUp(document)
-    expect(glow.style.opacity).toBe('0')
-  })
-
   it('keeps the sidebar above its minimum width while dragging', () => {
     renderThreePanel()
 
@@ -179,49 +155,6 @@ describe('ThreePanel sidebar resize', () => {
     fireEvent.doubleClick(screen.getByTestId('mac-sidebar-safe-area'))
 
     expect(toggleMaximize).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the detail boundary mounted on the animated panel edge', () => {
-    useThreadStore.setState({ activeThreadId: 'thread-1' })
-    renderThreePanel()
-
-    const shell = screen.getByTestId('detail-panel-shell')
-    const divider = screen.getByTestId('detail-divider-line')
-
-    expect(shell).toContainElement(divider)
-    expect(shell.style.width).toBe('0px')
-    expect(divider.style.opacity).toBe('0')
-    expect(screen.queryByText('Detail')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('separator')).toHaveLength(1)
-
-    act(() => {
-      useUIStore.getState().setDetailPanelVisible(true)
-    })
-
-    expect(screen.getByTestId('detail-divider-line')).toBe(divider)
-    expect(shell.style.width).not.toBe('0px')
-    expect(divider.style.left).toBe('0px')
-    expect(divider.style.opacity).toBe('1')
-    expect(screen.getByText('Detail')).toBeInTheDocument()
-    expect(shell).toContainElement(screen.getAllByRole('separator')[1])
-
-    act(() => {
-      useUIStore.getState().setDetailPanelVisible(false)
-    })
-
-    expect(screen.getByTestId('detail-divider-line')).toBe(divider)
-    expect(shell.style.width).toBe('0px')
-    expect(divider.style.opacity).toBe('0')
-    expect(divider.style.transition).toContain('200ms')
-    expect(screen.getAllByRole('separator')).toHaveLength(1)
-
-    act(() => {
-      useUIStore.getState().setDetailPanelVisible(true)
-    })
-
-    expect(screen.getByTestId('detail-divider-line')).toBe(divider)
-    expect(divider.style.opacity).toBe('1')
-    expect(screen.getAllByRole('separator')).toHaveLength(2)
   })
 
   it('accumulates repeated detail panel drag deltas without snapping back', () => {

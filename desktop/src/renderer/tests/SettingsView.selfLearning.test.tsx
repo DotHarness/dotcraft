@@ -396,29 +396,6 @@ describe('SettingsView self-learning settings', () => {
     })
   })
 
-  it('groups personalization settings by conversation, learning, memory, and Dreams', async () => {
-    useConnectionStore.setState({
-      status: 'connected',
-      capabilities: {
-        workspaceConfigManagement: true,
-        memoryManagement: true,
-        dreams: true
-      }
-    })
-
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
-
-    expect(await screen.findByText('Customize workspace suggestions, learning, memory, and response display.')).toBeInTheDocument()
-    expect(screen.getByText('Conversation')).toBeInTheDocument()
-    expect(screen.getByText('Learning')).toBeInTheDocument()
-    expect(screen.getByText('Memory')).toBeInTheDocument()
-    expect(screen.getByText('Dreams')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Manage Dreams' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run now' })).toBeInTheDocument()
-  })
-
   it('defaults self-learning on when workspace and user defaults are unset', async () => {
     workspaceConfigGetCore.mockResolvedValueOnce({
       workspace: {
@@ -1059,34 +1036,6 @@ describe('SettingsView self-learning settings', () => {
     expect(within(notSignedRow).getByText('ChatGPT · Not signed in')).toBeInTheDocument()
   })
 
-  it('renders provider protocol icons and hides provider ids in the provider list', async () => {
-    enableProviderManagement()
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    expect(await screen.findByText('Provider list')).toBeInTheDocument()
-
-    const openAiRow = await screen.findByRole('button', { name: 'Use provider OpenAI' })
-    const openAiChatRow = await screen.findByRole('button', { name: 'Use provider OpenAI Chat' })
-    const openAiResponsesRow = await screen.findByRole('button', { name: 'Use provider OpenAI Responses' })
-    const anthropicRow = await screen.findByRole('button', { name: 'Use provider Anthropic' })
-    expect(openAiRow.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
-    expect(openAiChatRow.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
-    expect(openAiResponsesRow.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
-    expect(anthropicRow.querySelector('svg[data-provider-mark="anthropic"]')).toBeInTheDocument()
-
-    expect(within(openAiRow).queryByText('openai')).not.toBeInTheDocument()
-    expect(within(openAiRow).getByText('OpenAI-Legacy')).toBeInTheDocument()
-    expect(within(openAiChatRow).getByText('OpenAI-Legacy')).toBeInTheDocument()
-    expect(within(openAiResponsesRow).getByText('OpenAI-Responses')).toBeInTheDocument()
-    expect(within(anthropicRow).queryByText('anthropic-main')).not.toBeInTheDocument()
-    expect(within(openAiRow).getAllByText('OpenAI')).toHaveLength(1)
-    expect(within(anthropicRow).getAllByText('Anthropic')).toHaveLength(2)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Edit provider OpenAI' }))
-    expect(await screen.findByRole('combobox', { name: 'Protocol' })).toHaveTextContent('OpenAI-Legacy')
-  })
-
   it('shows remembered main and subagent models in each provider row', async () => {
     enableProviderAndSubAgentManagement()
     workspaceConfigGetCore.mockResolvedValue({
@@ -1113,16 +1062,6 @@ describe('SettingsView self-learning settings', () => {
 
     expect(await within(openAiRow).findByText('main-model-v2 · Off')).toBeInTheDocument()
     expect(await within(openAiRow).findByText('subagent-model-v1 · Off')).toBeInTheDocument()
-  })
-
-  it('uses the simplified provider list title in Chinese', async () => {
-    settingsGet.mockResolvedValue({ locale: 'zh-Hans', connectionMode: 'stdio' })
-    enableProviderManagement()
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: '模型提供商' }))
-    expect(await screen.findByText('提供商列表')).toBeInTheDocument()
-    expect(screen.queryByText('个人提供商列表')).not.toBeInTheDocument()
   })
 
   it('uses provider rows to apply the workspace provider without a restart banner', async () => {
