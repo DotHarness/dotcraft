@@ -9,19 +9,24 @@ internal sealed class ThreadGoalSection : IWorldStateSection
 {
     public const string SectionId = "thread_goal";
 
+    private const string ReplacementNotice =
+        "This thread goal replaces all previously provided thread-goal status and objective.";
+
+    private const string RemovalNotice =
+        "The previously provided thread goal and objective no longer apply.";
+
     public string Id => SectionId;
 
     public JsonNode? Snapshot(WorldStateContext context)
     {
+        // Keep an object: JSON null would delete the section and lose that a goal was shown.
+        var values = new JsonObject();
         if (context.ThreadGoal is not { } goal)
-            return null;
+            return values;
 
-        var values = new JsonObject
-        {
-            ["status"] = goal.Status.ToString(),
-            ["goalId"] = goal.GoalId,
-            ["objective"] = WorldStateHash.Of(goal.Objective)
-        };
+        values["status"] = goal.Status.ToString();
+        values["goalId"] = goal.GoalId;
+        values["objective"] = WorldStateHash.Of(goal.Objective);
         if (goal.TokenBudget is { } budget)
             values["tokenBudget"] = budget;
         return values;
@@ -29,13 +34,21 @@ internal sealed class ThreadGoalSection : IWorldStateSection
 
     public string? RenderDiff(WorldStateContext context, PreviousSectionState previous)
     {
+        var previouslyShown = previous.Kind switch
+        {
+            PreviousSectionKind.Known => previous.Value is JsonObject values && values.ContainsKey("goalId"),
+            PreviousSectionKind.Unknown => true,
+            _ => false
+        };
+
         if (context.ThreadGoal is not { } goal)
-            return null;
+            return previouslyShown ? $"## Thread Goal\n{RemovalNotice}" : null;
 
         var canContinue = goal.Status == ThreadGoalStatus.Active ? "yes" : "no";
         var budget = goal.TokenBudget?.ToString() ?? "unbounded";
+        var notice = previouslyShown ? $"{ReplacementNotice}\n\n" : string.Empty;
 
-        return
+        return notice +
 $"""
 ## Thread Goal
 Status: {goal.Status}

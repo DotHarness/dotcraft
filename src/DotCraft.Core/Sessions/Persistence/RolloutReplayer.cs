@@ -76,13 +76,14 @@ internal sealed class RolloutReplayer : IRolloutReplayer
 
             if (!TryValidateTargetEnvelope(record, kind, out var envelopeError))
             {
+                var rebuildsTurn = string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal);
                 Reject(
                     string.Equals(kind, "context_compacted", StringComparison.Ordinal)
                         ? "invalid_checkpoint"
                         : "malformed_record",
                     envelopeError!,
                     envelopeTurnId,
-                    markFallback: !string.Equals(kind, "context_compacted", StringComparison.Ordinal));
+                    markFallback: rebuildsTurn);
                 continue;
             }
 
@@ -164,14 +165,20 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         markFallback: false);
                 }
             }
-            else if (string.Equals(kind, "world_state", StringComparison.Ordinal)
-                && record.WorldState is { } worldStateRecord)
+            else if (string.Equals(kind, "world_state", StringComparison.Ordinal))
             {
                 hasRecords = true;
-                if (expectedThreadId == null
-                    || string.Equals(worldStateRecord.ThreadId, expectedThreadId, StringComparison.Ordinal))
+                var worldStateRecord = record.WorldState;
+                if (!TryValidateWorldState(worldStateRecord, out var worldStateError))
                 {
-                    reverseWorldStates.Add(worldStateRecord);
+                    // A bad world-state record must not rebuild a turn's history from its projection.
+                    Reject("malformed_record", worldStateError!, envelopeTurnId, markFallback: false);
+                    continue;
+                }
+                if (expectedThreadId == null
+                    || string.Equals(worldStateRecord!.ThreadId, expectedThreadId, StringComparison.Ordinal))
+                {
+                    reverseWorldStates.Add(worldStateRecord!);
                 }
             }
         }
@@ -263,14 +270,18 @@ internal sealed class RolloutReplayer : IRolloutReplayer
     {
         error = null;
         var populatedPayloads = (record.ContextCompacted == null ? 0 : 1)
-            + (record.ModelHistoryMessagesAppended == null ? 0 : 1);
+            + (record.ModelHistoryMessagesAppended == null ? 0 : 1)
+            + (record.WorldState == null ? 0 : 1);
 
-        if (kind is not ("context_compacted" or "model_history_messages_appended"))
+        if (kind is not ("context_compacted" or "model_history_messages_appended" or "world_state"))
             return true;
 
-        var hasExpectedPayload = kind == "context_compacted"
-            ? record.ContextCompacted != null
-            : record.ModelHistoryMessagesAppended != null;
+        var hasExpectedPayload = kind switch
+        {
+            "context_compacted" => record.ContextCompacted != null,
+            "world_state" => record.WorldState != null,
+            _ => record.ModelHistoryMessagesAppended != null
+        };
         if (!hasExpectedPayload)
         {
             error = $"Rollout record '{kind}' is missing its object payload.";
@@ -304,6 +315,25 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         if (batch.Messages.Any(static message => message is null))
         {
             error = "Skipped an invalid model-history batch containing a null message.";
+            return false;
+        }
+        return true;
+    }
+
+    private static bool TryValidateWorldState(WorldStatePayload? worldState, out string? error)
+    {
+        error = null;
+        if (worldState is null
+            || string.IsNullOrWhiteSpace(worldState.ThreadId)
+            || string.IsNullOrWhiteSpace(worldState.TurnId))
+        {
+            error = "Skipped an invalid world-state record with missing identity fields.";
+            return false;
+        }
+        // A persisted null reaches this as a null property, and the fold would dereference it.
+        if (worldState.State is null)
+        {
+            error = "Skipped an invalid world-state record with missing state.";
             return false;
         }
         return true;

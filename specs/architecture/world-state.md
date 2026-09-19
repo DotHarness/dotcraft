@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.1.1 |
 | **Status** | Draft |
 | **Date** | 2026-09-19 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
@@ -91,7 +91,8 @@ replay can tell that a record describes context a rolled-back turn removed.
 ### 3.2 Replay
 
 Replay applies records oldest first: a full snapshot resets the baseline, a patch advances it, and a
-patch with no full snapshot to stand on is ignored. Replay stops at the newest surviving compaction
+patch with no full snapshot to stand on is ignored. A record missing its state or its identifiers is
+rejected and replay continues; a malformed record must never make a thread unloadable. Replay stops at the newest surviving compaction
 checkpoint, which is what makes compaction a reset.
 
 A record is skipped when its turn did not survive rollback, and when its turn was rebuilt from its
@@ -120,7 +121,7 @@ reaches the model within the same turn.
 | Condition | Behaviour |
 |-----------|-----------|
 | A section fails to snapshot | It contributes no baseline entry and the turn continues. |
-| A section fails to render | It contributes no text, the turn continues, and the diagnosis names it. |
+| A section fails to render | It contributes no text, the baseline keeps what the model was last told so the next step retries, the turn continues, and the diagnosis names it. |
 | A section reports an unusable or duplicate id | It is skipped and the turn continues. |
 | Recording the baseline fails | The turn continues; the next record is computed from the last one that succeeded. |
 

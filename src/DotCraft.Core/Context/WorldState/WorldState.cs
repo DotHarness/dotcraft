@@ -59,8 +59,6 @@ public sealed class WorldState
         {
             var id = section.Id;
             var snapshot = Snapshot(section, context);
-            if (snapshot != null)
-                snapshots.Add(new KeyValuePair<string, JsonNode>(id, snapshot));
 
             PreviousSectionState state;
             if (previous != null && previous.TryGetSection(id, out var value))
@@ -72,6 +70,7 @@ public sealed class WorldState
 
             if (state.TryGetKnown(out var known) && JsonNode.DeepEquals(known, snapshot))
             {
+                Record(id, snapshot);
                 silent.Add(id);
                 continue;
             }
@@ -85,13 +84,22 @@ public sealed class WorldState
             {
                 _logger?.LogWarning(ex, "World-state section {SectionId} failed to render.", id);
                 faults.Add(new WorldStateSectionFault(id, "render_failed"));
+                // The baseline is what the model was told, so keep the last delivered value.
+                Record(id, state.TryGetKnown(out var delivered) ? delivered : null);
                 continue;
             }
 
+            Record(id, snapshot);
             if (string.IsNullOrEmpty(text))
                 silent.Add(id);
             else
                 fragments.Add(new RenderedWorldStateSection(id, text));
+        }
+
+        void Record(string id, JsonNode? snapshot)
+        {
+            if (snapshot != null)
+                snapshots.Add(new KeyValuePair<string, JsonNode>(id, snapshot));
         }
 
         return new WorldStateRender(fragments, silent, faults, WorldStateSnapshot.FromSections(snapshots));

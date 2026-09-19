@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Context.WorldState;
 using DotCraft.Sessions;
@@ -124,6 +125,68 @@ public sealed class WorldStatePersistenceTests : IDisposable
 
         Assert.Null(await LoadBaselineAsync(thread));
     }
+
+    [Fact]
+    public async Task Replay_SkipsAMalformedRecordAndKeepsTheSurroundingOnes()
+    {
+        var thread = await CreateThreadWithTurnsAsync(2);
+
+        await AppendWorldStateAsync(thread, thread.Turns[0].Id, full: true, new JsonObject
+        {
+            ["environment"] = new JsonObject { ["workingDirectory"] = "/a" }
+        });
+        await AppendRawAsync(thread, NullStateRecord(thread, thread.Turns[1].Id, full: false));
+        await AppendWorldStateAsync(thread, thread.Turns[1].Id, full: false, new JsonObject
+        {
+            ["environment"] = new JsonObject { ["workingDirectory"] = "/b" }
+        });
+
+        var replay = await ReplayAsync(thread);
+
+        Assert.Equal("/b", WorkingDirectory(Assert.IsType<WorldStateSnapshot>(replay.WorldState)));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(replay.Warnings!, warning => warning.Code == "malformed_record");
+    }
+
+    [Fact]
+    public async Task Replay_KeepsModelHistoryLoadableWhenAWorldStateRecordIsMalformed()
+    {
+        var thread = await CreateThreadWithTurnsAsync(1);
+
+        await AppendRawAsync(thread, NullStateRecord(thread, thread.Turns[0].Id, full: true));
+
+        var history = await _store.LoadModelHistoryAsync(thread.Id, CancellationToken.None);
+
+        Assert.Contains(history, message => message.Text.Contains("ask ", StringComparison.Ordinal));
+        Assert.Null(await LoadBaselineAsync(thread));
+    }
+
+    private static string NullStateRecord(SessionThread thread, string turnId, bool full) =>
+        JsonSerializer.Serialize(new
+        {
+            kind = "world_state",
+            timestamp = DateTimeOffset.UnixEpoch,
+            worldState = new
+            {
+                threadId = thread.Id,
+                turnId,
+                full,
+                state = (JsonObject?)null
+            }
+        }, SessionJsonOptions.Default);
+
+    private Task AppendRawAsync(SessionThread thread, string line) =>
+        File.AppendAllTextAsync(
+            Path.Combine(_root, "threads", "active", thread.Id + ".jsonl"),
+            line.Trim() + Environment.NewLine);
+
+    private Task<ModelHistoryReplayResult> ReplayAsync(SessionThread thread) =>
+        new RolloutReplayer().ReplayModelHistoryAsync(
+            Path.Combine(_root, "threads", "active", thread.Id + ".jsonl"),
+            thread.Turns,
+            excludedTurnId: null,
+            CancellationToken.None,
+            thread.Id);
 
     private static string? WorkingDirectory(WorldStateSnapshot baseline) =>
         baseline.TryGetSection("environment", out var environment)

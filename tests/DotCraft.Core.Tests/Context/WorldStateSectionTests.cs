@@ -135,6 +135,34 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
+    public void ThreadGoalSection_RetiresAGoalThatWasCleared()
+    {
+        var section = new ThreadGoalSection();
+        var shown = section.Snapshot(Context(goal: Goal()))!;
+        var cleared = Context();
+
+        var retraction = section.RenderDiff(cleared, PreviousSectionState.Known(shown));
+
+        Assert.Contains("no longer apply", retraction, StringComparison.Ordinal);
+        Assert.Null(section.RenderDiff(cleared, PreviousSectionState.Absent));
+        Assert.Null(section.RenderDiff(cleared, PreviousSectionState.Known(section.Snapshot(cleared)!)));
+    }
+
+    [Fact]
+    public void ThreadGoalSection_RetiresTheEarlierGoalWhenTheGoalMoves()
+    {
+        var section = new ThreadGoalSection();
+        var shown = section.Snapshot(Context(goal: Goal()))!;
+
+        var text = section.RenderDiff(
+            Context(goal: Goal(status: ThreadGoalStatus.Paused)),
+            PreviousSectionState.Known(shown));
+
+        Assert.StartsWith("This thread goal replaces", text, StringComparison.Ordinal);
+        Assert.Contains("Status: Paused", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SessionStartHookSection_StaysSilentWithoutHookContext()
     {
         Assert.Null(RenderFull(new SessionStartHookSection(), Context()));
@@ -198,6 +226,28 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
+    public void WorldState_KeepsTheDeliveredSnapshotWhenARenderFails()
+    {
+        var section = new FlakySection();
+        var world = WorldStateComposer.Build([section]);
+        var delivered = world.RenderFull(Context()).Snapshot;
+        Assert.True(delivered.TryGetSection(FlakySection.SectionId, out var shown));
+
+        section.Value = "second";
+        section.Throws = true;
+        var failed = world.Render(Context(), delivered, sectionIdsInHistory: null);
+
+        Assert.Contains(failed.Faults, fault => fault.SectionId == FlakySection.SectionId);
+        Assert.True(failed.Snapshot.TryGetSection(FlakySection.SectionId, out var kept));
+        Assert.True(JsonNode.DeepEquals(shown, kept));
+
+        section.Throws = false;
+        var retry = world.Render(Context(), failed.Snapshot, sectionIdsInHistory: null);
+
+        Assert.Contains(retry.Fragments, fragment => fragment.SectionId == FlakySection.SectionId);
+    }
+
+    [Fact]
     public void WorldState_RejectsADuplicateSectionIdWithoutFailingTheTurn()
     {
         var world = WorldStateComposer.Build([new DuplicateModeSection()]);
@@ -237,18 +287,37 @@ public sealed class WorldStateSectionTests
         };
     }
 
-    private static ThreadGoal Goal(long tokensUsed = 0, long elapsedSeconds = 0) => new()
+    private static ThreadGoal Goal(
+        long tokensUsed = 0,
+        long elapsedSeconds = 0,
+        ThreadGoalStatus status = ThreadGoalStatus.Active) => new()
     {
         ThreadId = "thread_test",
         GoalId = "goal_1",
         Objective = "ship the refactor",
-        Status = ThreadGoalStatus.Active,
+        Status = status,
         TokenBudget = 1000,
         TokensUsed = new TokenUsageInfo { InputTokens = tokensUsed, TotalTokens = tokensUsed },
         TimeUsedSeconds = elapsedSeconds,
         CreatedAt = DateTimeOffset.UnixEpoch,
         UpdatedAt = DateTimeOffset.UnixEpoch
     };
+
+    private sealed class FlakySection : IWorldStateSection
+    {
+        public const string SectionId = "flaky";
+
+        public string Value { get; set; } = "first";
+
+        public bool Throws { get; set; }
+
+        public string Id => SectionId;
+
+        public JsonNode? Snapshot(WorldStateContext context) => new JsonObject { ["value"] = Value };
+
+        public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
+            Throws ? throw new InvalidOperationException("boom") : $"## Flaky {Value}";
+    }
 
     private sealed class ThrowingSection : IWorldStateSection
     {
