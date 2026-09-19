@@ -87,14 +87,18 @@ public sealed partial class SessionService
         if (TraceCollector is not { } trace)
             return;
 
-        var status = update.Items.Count == 0
+        var fragments = update.Render.Fragments;
+        var status = fragments.Count == 0
             ? "unchanged"
             : update.Full ? "full" : "emitted";
         trace.RecordWorldState(
             threadId,
             turnId,
             status,
-            [.. update.Render.Fragments.Select(static fragment => fragment.SectionId)],
+            [.. fragments.Select(static fragment => fragment.SectionId)],
+            fragments.Count == 0
+                ? null
+                : string.Join("\n\n", fragments.Select(static fragment => fragment.Text)),
             update.Render.SilentSectionIds,
             [.. update.Render.Faults.Select(static fault =>
                 new WorldStateSectionSuppression(fault.SectionId, fault.Reason))],

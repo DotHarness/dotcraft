@@ -17,12 +17,13 @@ public sealed class WorldStateDiagnosticsTests
             "turn_002",
             "unchanged",
             changedSections: [],
+            emitted: null,
             unchangedSections: ["environment", "mode"],
             suppressedSections: [],
             baselineSource: "memory");
 
         var diagnostic = Assert.Single(Events(store, "thread-1"));
-        Assert.Equal("World state unchanged; nothing sent", diagnostic.Content);
+        Assert.Null(diagnostic.Content);
         var root = Metadata(diagnostic);
         Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("unchanged", root.GetProperty("status").GetString());
@@ -45,18 +46,24 @@ public sealed class WorldStateDiagnosticsTests
             "turn_001",
             "full",
             changedSections: ["environment", "mode"],
+            emitted: Emitted,
             unchangedSections: [],
             suppressedSections: [new WorldStateSectionSuppression("acme_review", "render_failed")],
             baselineSource: "none");
 
         var diagnostic = Assert.Single(Events(store, "thread-1"));
-        Assert.Equal("World state sent in full (2 sections)", diagnostic.Content);
+        Assert.Equal(Emitted, diagnostic.Content);
         var root = Metadata(diagnostic);
         Assert.Equal("none", root.GetProperty("baselineSource").GetString());
         var suppressed = Assert.Single(root.GetProperty("suppressedSections").EnumerateArray());
         Assert.Equal("acme_review", suppressed.GetProperty("id").GetString());
         Assert.Equal("render_failed", suppressed.GetProperty("reason").GetString());
     }
+
+    private static readonly string Emitted =
+        "## Environment" + Environment.NewLine + "Cwd: /work"
+        + Environment.NewLine + Environment.NewLine
+        + "## Mode" + Environment.NewLine + "Current mode: Agent";
 
     private static JsonElement Metadata(TraceEvent diagnostic) =>
         JsonDocument.Parse(diagnostic.MetadataJson!).RootElement;

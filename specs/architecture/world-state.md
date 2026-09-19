@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.1 |
+| **Version** | 0.2.0 |
 | **Status** | Draft |
 | **Date** | 2026-09-19 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
@@ -132,7 +132,8 @@ No world-state failure may fail a turn.
 Every sampling step records one diagnostic, including a step that sent nothing — otherwise "the
 model was told nothing" and "the section never ran" cannot be told apart afterwards. The diagnostic
 reports which sections were sent, which were unchanged, which were suppressed and why, and where the
-baseline came from. It records section ids, never rendered text.
+baseline came from, and it carries the text that was sent so what the model was told can be read
+back. A step that sent nothing carries no text.
 
 ## 7. Conformance
 
@@ -144,3 +145,4 @@ baseline came from. It records section ids, never rendered text.
   history still carries.
 - Compaction, rollback, and history replacement each cause the next step to restate every section.
 - A plugin-contributed section behaves identically to a built-in one and cannot fail the turn.
+- A step that sends sections records their text; a step that sends none records no text.

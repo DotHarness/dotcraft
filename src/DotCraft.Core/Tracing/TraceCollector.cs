@@ -107,6 +107,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
         string turnId,
         string status,
         IReadOnlyList<string> changedSections,
+        string? emitted,
         IReadOnlyList<string> unchangedSections,
         IReadOnlyList<WorldStateSectionSuppression> suppressedSections,
         string baselineSource) =>
@@ -115,6 +116,7 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
             turnId,
             status,
             changedSections,
+            emitted,
             unchangedSections,
             suppressedSections,
             baselineSource);

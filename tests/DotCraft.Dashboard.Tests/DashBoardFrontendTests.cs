@@ -109,6 +109,7 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("case 'WorldStateDiagnostic':", html);
         Assert.Contains("nothing sent", html);
         Assert.Contains("baseline from", html);
+        Assert.Contains("const emitted = e.content", html);
         Assert.Contains("type-WorldStateDiagnostic .trace-icon", html);
     }
 

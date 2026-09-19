@@ -19,6 +19,7 @@ internal sealed class WorldStateDiagnosticTracker(TraceStore store)
         string turnId,
         string status,
         IReadOnlyList<string> changedSections,
+        string? emitted,
         IReadOnlyList<string> unchangedSections,
         IReadOnlyList<WorldStateSectionSuppression> suppressedSections,
         string baselineSource) =>
@@ -26,7 +27,7 @@ internal sealed class WorldStateDiagnosticTracker(TraceStore store)
         {
             Type = TraceEventType.WorldStateDiagnostic,
             SessionKey = sessionKey,
-            Content = Describe(status, changedSections.Count),
+            Content = emitted,
             MetadataJson = JsonSerializer.Serialize(
                 new
                 {
@@ -42,13 +43,6 @@ internal sealed class WorldStateDiagnosticTracker(TraceStore store)
                 },
                 JsonOptions)
         });
-
-    private static string Describe(string status, int changedCount) => status switch
-    {
-        "unchanged" => "World state unchanged; nothing sent",
-        "full" => $"World state sent in full ({changedCount} sections)",
-        _ => $"World state updated ({changedCount} sections)"
-    };
 }
 
 internal readonly record struct WorldStateSectionSuppression(string SectionId, string Reason);

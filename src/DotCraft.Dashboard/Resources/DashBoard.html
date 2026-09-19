@@ -3484,6 +3484,9 @@ function renderTraceEvent(e) {
       const badgeRow = badges
         ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${badges}</div>`
         : '';
+      const emitted = e.content
+        ? renderExpandableTraceText(evtId, e.content, 500, { mono: true })
+        : '';
       return `<div class="trace-event type-WorldStateDiagnostic">
         <div class="trace-time">${time}</div>
         <div class="trace-icon">${iconSvg('archive', 14)}</div>
@@ -3491,6 +3494,7 @@ function renderTraceEvent(e) {
           <div class="trace-label">World State <span class="badge ${statusClass}">${escapeHtml(md.status || 'unknown')}</span></div>
           <div style="margin-top:6px;color:var(--text-secondary)">${summary}${baseline}</div>
           ${badgeRow}
+          ${emitted}
           ${metaLine}
           ${renderMetadataDetail(evtId, e.metadataJson)}
         </div></div>`;
@@ -3867,7 +3871,7 @@ function toggleDetail(id, toggle) {
   if (el) {
     el.classList.toggle('open');
     toggle.classList.toggle('open');
-    toggle.textContent = el.classList.contains('open') ? 'Hide' : toggle.dataset.label || (el.classList.contains('open') ? 'Hide' : 'Show full');
+    toggle.textContent = el.classList.contains('open') ? 'Hide' : 'Metadata';
   }
 }
 
