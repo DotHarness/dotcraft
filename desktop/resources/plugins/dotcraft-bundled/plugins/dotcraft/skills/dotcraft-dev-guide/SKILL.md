@@ -50,7 +50,7 @@ A meaningful test catches a real regression without duplicating existing coverag
 
 Tests must verify observable behavior, not repository layout or source/spec text; do not locate the repository root or assert that production files, directories, comments, prompts, or wording exist at fixed checkout paths. Filesystem assertions are appropriate only when file lifecycle is the behavior under test or the file is an explicit test fixture; otherwise use temporary fixtures and public APIs.
 
-- **Frontend**: Test behavior such as accessibility, state, navigation, IPC, serialization, and data mapping. Do not assert styling details unless geometry or visual state is the functional contract; verify pure polish manually.
+- **Frontend**: Test behavior such as accessibility, state, navigation, IPC, serialization, and data mapping. Do not assert presentation such as rendered copy, class names, styles, geometry, or element order; verify it manually.
 - **Core C#**: Test through public APIs and observable results. Skip trivial formatters, getters, record equality, text passthrough, prompt wording, and framework behavior.
 
 ### Validation
