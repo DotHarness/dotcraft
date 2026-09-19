@@ -124,6 +124,7 @@ A `chatgptOAuth` provider authenticates with a ChatGPT subscription instead of a
 | `Memory.ConsolidateEveryNTurns` | Successful turns per thread between long-term memory consolidation attempts | `5` |
 | `Skills.DisabledSkills` | Skill names disabled for this workspace. A disabled skill stays on disk but is left out of agent context | `[]` |
 | `Skills.IncludeSharedSkills` | Also loads personal skills from `~/.agents/skills`, the directory shared with other agent tools. Takes effect on restart | `true` |
+| `Skills.IncludeBuiltInSkills` | Deploys the skills DotCraft ships, such as `dotcraft-guide`, into the workspace on start. A host that brings its own skills turns this off. Takes effect on restart | `true` |
 | `Skills.SelfLearning.Enabled` | Master switch for agent skill self-learning; off hides skill editing from the model | `true` |
 | `Skills.SelfLearning.VariantMode` | Skill variant write mode: `enabled` routes self-learning updates to workspace-local skill variants, `disabled` turns variants off | `enabled` |
 | `Skills.SelfLearning.MaxSkillContentChars` | Max chars for a single `SKILL.md` written through self-learning | `100000` |

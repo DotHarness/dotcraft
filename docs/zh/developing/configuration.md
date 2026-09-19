@@ -124,6 +124,7 @@ Sign in with ChatGPT 示例：
 | `Memory.ConsolidateEveryNTurns` | 每个线程成功完成多少轮后触发一次长期记忆沉淀 | `5` |
 | `Skills.DisabledSkills` | 当前工作区禁用的 skill 名称列表。被禁用的 skill 仍留在磁盘上，但不会注入 Agent 上下文 | `[]` |
 | `Skills.IncludeSharedSkills` | 同时从 `~/.agents/skills` 读取个人 skill，该目录与其他 agent 工具共用。重启后生效 | `true` |
+| `Skills.IncludeBuiltInSkills` | 启动时把 DotCraft 自带的 skill（如 `dotcraft-guide`）部署进工作区。自带 skill 的宿主可以关掉它。重启后生效 | `true` |
 | `Skills.SelfLearning.Enabled` | Skill 自学习主开关。关闭后模型看不到 skill 编辑能力 | `true` |
 | `Skills.SelfLearning.VariantMode` | Skill variant 写入模式。`enabled` 把自学习更新写入工作区本地 skill variant，`disabled` 关闭 variant | `enabled` |
 | `Skills.SelfLearning.MaxSkillContentChars` | 通过自学习写入单个 `SKILL.md` 的最大字符数 | `100000` |

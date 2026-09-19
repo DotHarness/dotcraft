@@ -178,7 +178,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             if (_started != null)
                 throw new InvalidOperationException("WorkspaceRuntime has already been started.");
 
-            SkillsLoader.DeployBuiltInSkills();
+            if (Config.Skills.IncludeBuiltInSkills)
+                SkillsLoader.DeployBuiltInSkills();
             Services.GetRequiredService<CustomCommandLoader>().DeployBuiltInCommands();
             SkillsLoader.SetDisabledSkills(Config.Skills.DisabledSkills);
 
