@@ -208,9 +208,11 @@ describe('AgentBuilderView creation', () => {
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: /Select model/i }))
-    const modelMenu = screen.queryByRole('menu', { name: /Select model/i })
-    if (modelMenu) {
-      fireEvent.click(within(modelMenu).getByRole('menuitem', { name: /Model/i }))
+    const panel = screen.queryByRole('dialog', { name: /Select model/i })
+    if (panel) {
+      const [modelButton] = within(panel).getAllByRole('button').filter((button) => button.getAttribute('aria-haspopup') === 'menu')
+      fireEvent.click(modelButton)
+      fireEvent.click(within(panel).getByRole('menuitem', { name: /Model/i }))
     }
     fireEvent.click(await screen.findByRole('option', { name: /gpt-5\.5/i }))
     await waitFor(() => {

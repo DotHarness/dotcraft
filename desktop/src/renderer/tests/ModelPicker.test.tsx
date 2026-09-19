@@ -51,7 +51,7 @@ describe('ModelPicker', () => {
     expect(picker).toHaveAttribute('data-composer-overlay-open', 'false')
   })
 
-  it('shows model and intelligence as secondary menu entries', () => {
+  it('headlines the level and offers one stop per advertised effort', () => {
     render(
       <LocaleProvider>
         <ModelPicker
@@ -64,13 +64,11 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
-    expect(within(menu).getByRole('menuitem', { name: /Model/ })).toBeInTheDocument()
-    fireEvent.mouseEnter(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
-
-    const listbox = screen.getByRole('listbox', { name: 'Intelligence' })
-    expect(within(listbox).getByRole('option', { name: /xHigh/ })).toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /Off/ })).toBeDisabled()
+    const panel = openPicker()
+    expect(within(panel).getByRole('button', { name: 'claude-opus-4-7' })).toBeInTheDocument()
+    const slider = within(panel).getByRole('slider', { name: 'Intelligence' })
+    expect(slider).toHaveAttribute('aria-valuetext', 'High')
+    expect(slider).toHaveAttribute('max', '1')
   })
 
   it('exposes a keyboard-accessible provider submenu and can hide Default', () => {
@@ -92,7 +90,7 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
+    const menu = openMenu(openPicker(), 'claude-opus-4-7')
     const providerRow = within(menu).getByRole('menuitem', { name: /Provider/ })
     providerRow.focus()
     fireEvent.keyDown(document, { key: 'ArrowRight' })
@@ -100,12 +98,12 @@ describe('ModelPicker', () => {
     fireEvent.click(within(providerMenu).getByRole('option', { name: /OpenAI/ }))
     expect(onProviderChange).toHaveBeenCalledWith('openai')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    fireEvent.mouseEnter(screen.getByRole('menuitem', { name: /Model/ }))
+    const reopened = openMenu(openPicker(), 'claude-opus-4-7')
+    fireEvent.mouseEnter(within(reopened).getByRole('menuitem', { name: /Model/ }))
     expect(within(screen.getByRole('listbox', { name: 'Model' })).queryByText('Default')).not.toBeInTheDocument()
   })
 
-  it('shows speed only for a fast-capable model and applies the selection', () => {
+  it('shows the Fast bolt only for a fast-capable model and toggles the speed', () => {
     const onSpeedChange = vi.fn()
     render(
       <LocaleProvider>
@@ -121,14 +119,13 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Speed/ }))
-    const listbox = screen.getByRole('listbox', { name: 'Speed' })
-    fireEvent.click(within(listbox).getByRole('option', { name: /Fast/ }))
+    const bolt = within(openPicker()).getByRole('button', { name: 'Fast', pressed: false })
+    fireEvent.click(bolt)
     expect(onSpeedChange).toHaveBeenCalledWith('fast')
+    expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
   })
 
-  it('hides speed when capability metadata is absent', () => {
+  it('hides the Fast bolt when capability metadata is absent', () => {
     render(
       <LocaleProvider>
         <ModelPicker
@@ -141,10 +138,10 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    expect(within(openPicker()).queryByRole('menuitem', { name: /Speed/ })).not.toBeInTheDocument()
+    expect(within(openPicker()).queryByRole('button', { name: 'Fast' })).not.toBeInTheDocument()
   })
 
-  it('applies an intelligence selection without changing the model', () => {
+  it('applies a level from the scale without changing the model or closing the panel', () => {
     const onReasoningChange = vi.fn()
     const onChange = vi.fn()
 
@@ -162,13 +159,12 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
-    fireEvent.click(screen.getByRole('option', { name: /xHigh/ }))
+    const slider = within(openPicker()).getByRole('slider', { name: 'Intelligence' })
+    fireEvent.change(slider, { target: { value: '2' } })
 
     expect(onReasoningChange).toHaveBeenCalledWith('extraHigh')
     expect(onChange).not.toHaveBeenCalled()
-    expect(screen.queryByRole('menu', { name: 'Select model' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
   })
 
   it('offers Ultra after Extra High only when the server advertises it', () => {
@@ -186,16 +182,10 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    let menu = openPicker()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
-    const intelligence = within(screen.getByRole('listbox', { name: 'Intelligence' }))
-    const options = intelligence.getAllByRole('option')
-    expect(intelligence.getByRole('option', { name: /^High/ })).toBeInTheDocument()
-    expect(intelligence.getByRole('option', { name: /^xHigh/ })).toBeInTheDocument()
-    expect(intelligence.getByRole('option', { name: /^Ultra/ })).toBeInTheDocument()
-    expect(options.findIndex((option) => option.textContent?.startsWith('Ultra')))
-      .toBeGreaterThan(options.findIndex((option) => option.textContent?.startsWith('xHigh')))
-    fireEvent.click(intelligence.getByRole('option', { name: /^Ultra/ }))
+    let slider = within(openPicker()).getByRole('slider', { name: 'Intelligence' })
+    expect(slider).toHaveAttribute('max', '3')
+    expect(slider).toHaveValue('2')
+    fireEvent.change(slider, { target: { value: '3' } })
     expect(onReasoningChange).toHaveBeenCalledWith('ultra')
 
     rerender(
@@ -209,13 +199,11 @@ describe('ModelPicker', () => {
         />
       </LocaleProvider>
     )
-    menu = openPicker()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
-    expect(within(screen.getByRole('listbox', { name: 'Intelligence' })).queryByRole('option', { name: /Ultra/ }))
-      .not.toBeInTheDocument()
+    slider = screen.getByRole('slider', { name: 'Intelligence' })
+    expect(slider).toHaveAttribute('max', '2')
   })
 
-  it('resolves inherited reasoning to the model default without offering a Default option', () => {
+  it('resolves inherited reasoning to the model default', () => {
     render(
       <LocaleProvider>
         <ModelPicker
@@ -228,13 +216,56 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
-    expect(within(menu).getByRole('menuitem', { name: /IntelligencexHigh/ })).toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
+    const panel = openPicker()
+    expect(within(panel).getByRole('slider', { name: 'Intelligence' })).toHaveAttribute('aria-valuetext', 'xHigh')
+    expect(within(panel).queryByRole('button', { name: 'Reset to default' })).not.toBeInTheDocument()
+  })
 
-    const listbox = screen.getByRole('listbox', { name: 'Intelligence' })
-    expect(within(listbox).queryByRole('option', { name: 'Default' })).not.toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /xHigh/ })).toHaveAttribute('aria-selected', 'true')
+  it('offers reset only while a setting differs from the catalog defaults and returns each one', () => {
+    const onReasoningChange = vi.fn()
+    const onSpeedChange = vi.fn()
+    const onContextModeChange = vi.fn()
+    const { rerender } = render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="gpt-5.5"
+          modelOptions={['gpt-5.5']}
+          modelCatalog={[catalogModel('gpt-5.5', true, ['low', 'medium', 'high'], 'medium', true)]}
+          reasoningValue="high"
+          speedValue="fast"
+          contextMode="default"
+          contextSupportsMax
+          onReasoningChange={onReasoningChange}
+          onSpeedChange={onSpeedChange}
+          onContextModeChange={onContextModeChange}
+          triggerStyle={{}}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(within(openPicker()).getByRole('button', { name: 'Reset to default' }))
+    expect(onReasoningChange).toHaveBeenCalledWith('medium')
+    expect(onSpeedChange).toHaveBeenCalledWith('standard')
+    expect(onContextModeChange).not.toHaveBeenCalled()
+
+    rerender(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="gpt-5.5"
+          modelOptions={['gpt-5.5']}
+          modelCatalog={[catalogModel('gpt-5.5', true, ['low', 'medium', 'high'], 'medium', true)]}
+          reasoningValue="medium"
+          speedValue="standard"
+          contextMode="default"
+          contextSupportsMax
+          onReasoningChange={onReasoningChange}
+          onSpeedChange={onSpeedChange}
+          onContextModeChange={onContextModeChange}
+          triggerStyle={{}}
+        />
+      </LocaleProvider>
+    )
+    expect(screen.queryByRole('button', { name: 'Reset to default' })).not.toBeInTheDocument()
   })
 
   it('delegates model compatibility adjustment to the atomic model-change handler', () => {
@@ -257,12 +288,13 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
+    const menu = openMenu(openPicker(), 'gpt-5.5')
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Model/ }))
     fireEvent.click(screen.getByRole('option', { name: 'gpt-5.5-mini' }))
 
     expect(onChange).toHaveBeenCalledWith('gpt-5.5-mini')
     expect(onReasoningChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'Select model' })).not.toBeInTheDocument()
   })
 
   it('does not offer a stale selected model when a ready provider model list excludes it', () => {
@@ -279,7 +311,7 @@ describe('ModelPicker', () => {
     )
 
     expect(screen.getByText('mimo-v2.5-pro')).toBeInTheDocument()
-    const menu = openPicker()
+    const menu = openMenu(openPicker(), 'mimo-v2.5-pro')
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Model/ }))
 
     const listbox = screen.getByRole('listbox', { name: 'Model' })
@@ -287,7 +319,7 @@ describe('ModelPicker', () => {
     expect(within(listbox).getByRole('option', { name: 'claude-sonnet-4-5' })).toBeInTheDocument()
   })
 
-  it('localizes intelligence options from model catalog metadata', async () => {
+  it('localizes the level and the scale from model catalog metadata', async () => {
     installDesktopApiMock({
         settings: { get: vi.fn().mockResolvedValue({ locale: 'zh-Hans' }) }
       })
@@ -305,15 +337,9 @@ describe('ModelPicker', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '选择模型' }))
-    const menu = screen.getByRole('menu', { name: '选择模型' })
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /思考强度/ }))
-
-    const listbox = screen.getByRole('listbox', { name: '思考强度' })
-    expect(within(listbox).getByText('低')).toBeInTheDocument()
-    expect(within(listbox).getByText('中')).toBeInTheDocument()
-    expect(within(listbox).getByText('高')).toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /超高/ })).toBeInTheDocument()
-    expect(within(listbox).getByText('支持模型的最高深度。')).toBeInTheDocument()
+    const panel = screen.getByRole('dialog', { name: '选择模型' })
+    expect(within(panel).getByRole('slider', { name: '思考强度' })).toHaveAttribute('aria-valuetext', '超高')
+    expect(within(panel).getByRole('button', { name: 'mimo-v2.5-pro' })).toBeInTheDocument()
   })
 
   it('omits MAX Mode when no context handler is provided', () => {
@@ -323,7 +349,9 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
+    const panel = openPicker()
+    expect(within(panel).queryByText('MAX')).not.toBeInTheDocument()
+    const menu = openMenu(panel, 'gpt-5.5')
     expect(within(menu).queryByText('Context')).not.toBeInTheDocument()
     expect(within(menu).queryByRole('switch', { name: 'MAX Mode' })).not.toBeInTheDocument()
   })
@@ -344,7 +372,7 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
+    const menu = openMenu(openPicker(), 'gpt-5.5')
     const maxSwitch = within(menu).getByRole('switch', { name: 'MAX Mode' })
     expect(maxSwitch).not.toBeDisabled()
     expect(maxSwitch).toHaveAttribute('aria-checked', 'false')
@@ -369,7 +397,7 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
+    const menu = openMenu(openPicker(), 'my-local-model')
     const maxSwitch = within(menu).getByRole('switch', { name: 'MAX Mode' })
     expect(maxSwitch).toBeDisabled()
 
@@ -377,7 +405,7 @@ describe('ModelPicker', () => {
     expect(onContextModeChange).not.toHaveBeenCalled()
   })
 
-  it('surfaces a degraded MAX thread and lets the switch reset it', () => {
+  it('surfaces a degraded MAX thread beside the level and lets the switch reset it', () => {
     const onContextModeChange = vi.fn()
     render(
       <LocaleProvider>
@@ -395,7 +423,9 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
+    const panel = openPicker()
+    expect(within(panel).getByText('MAX')).toHaveClass('is-degraded')
+    const menu = openMenu(panel, 'my-local-model')
     const maxSwitch = within(menu).getByRole('switch', { name: 'MAX Mode' })
     expect(maxSwitch).toHaveAttribute('aria-checked', 'true')
     expect(within(menu).getByText(/128K/)).toBeInTheDocument()
@@ -404,7 +434,7 @@ describe('ModelPicker', () => {
     expect(onContextModeChange).toHaveBeenCalledWith('default')
   })
 
-  it('uses Escape to leave a secondary menu before closing the picker', () => {
+  it('uses Escape to leave a submenu, then the menu, before closing the picker', () => {
     render(
       <LocaleProvider>
         <ModelPicker
@@ -417,16 +447,20 @@ describe('ModelPicker', () => {
       </LocaleProvider>
     )
 
-    const menu = openPicker()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
-    expect(screen.getByRole('listbox', { name: 'Intelligence' })).toBeInTheDocument()
+    const menu = openMenu(openPicker(), 'gpt-5.5')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Model/ }))
+    expect(screen.getByRole('listbox', { name: 'Model' })).toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('listbox', { name: 'Intelligence' })).not.toBeInTheDocument()
-    expect(screen.getByRole('menu', { name: 'Select model' })).toBeInTheDocument()
+    expect(screen.queryByRole('listbox', { name: 'Model' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menu', { name: 'Model' })).toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('menu', { name: 'Select model' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menu', { name: 'Model' })).not.toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Intelligence' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Select model' })).not.toBeInTheDocument()
   })
 
   it('keeps the current submenu while the pointer crosses another row inside the prediction cone', () => {
@@ -435,6 +469,9 @@ describe('ModelPicker', () => {
       render(
         <LocaleProvider>
           <ModelPicker
+            providerId="openai"
+            providerOptions={[{ id: 'openai', displayName: 'OpenAI' }]}
+            onProviderChange={vi.fn()}
             modelName="gpt-5.5"
             modelOptions={['gpt-5.5']}
             modelCatalog={[catalogModel('gpt-5.5', true, ['low', 'medium', 'high'], 'medium')]}
@@ -444,21 +481,21 @@ describe('ModelPicker', () => {
         </LocaleProvider>
       )
 
-      const menu = openPicker()
+      const menu = openMenu(openPicker(), 'gpt-5.5')
+      const providerRow = within(menu).getByRole('menuitem', { name: /Provider/ })
       const modelRow = within(menu).getByRole('menuitem', { name: /Model/ })
-      const intelligenceRow = within(menu).getByRole('menuitem', { name: /Intelligence/ })
-      fireEvent.click(modelRow)
+      fireEvent.click(providerRow)
 
-      const modelListbox = screen.getByRole('listbox', { name: 'Model' })
-      vi.spyOn(modelListbox, 'getBoundingClientRect').mockReturnValue(domRect(280, 50, 310, 250))
-      fireEvent.mouseMove(modelRow, { clientX: 100, clientY: 100 })
-      fireEvent.mouseEnter(intelligenceRow, { clientX: 180, clientY: 140 })
+      const providerListbox = screen.getByRole('listbox', { name: 'Provider' })
+      vi.spyOn(providerListbox, 'getBoundingClientRect').mockReturnValue(domRect(280, 50, 280, 250))
+      fireEvent.mouseMove(providerRow, { clientX: 100, clientY: 100 })
+      fireEvent.mouseEnter(modelRow, { clientX: 180, clientY: 140 })
 
-      expect(screen.getByRole('listbox', { name: 'Model' })).toBeInTheDocument()
-      expect(screen.queryByRole('listbox', { name: 'Intelligence' })).not.toBeInTheDocument()
+      expect(screen.getByRole('listbox', { name: 'Provider' })).toBeInTheDocument()
+      expect(screen.queryByRole('listbox', { name: 'Model' })).not.toBeInTheDocument()
 
       act(() => vi.advanceTimersByTime(280))
-      expect(screen.getByRole('listbox', { name: 'Intelligence' })).toBeInTheDocument()
+      expect(screen.getByRole('listbox', { name: 'Model' })).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
     }
@@ -469,19 +506,19 @@ describe('ModelPicker', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
       if (this.hasAttribute('data-composer-card')) return domRect(0, 200, 900, 180)
       if (this.parentElement?.hasAttribute('data-composer-card')) return domRect(600, 360, 180, 32)
-      if (this.getAttribute('role') === 'menu') return domRect(460, 260, 312, 132)
+      if (this.getAttribute('role') === 'dialog') return domRect(460, 260, 312, 132)
       return domRect(0, 0, 0, 0)
     })
 
     renderPickerInComposer()
 
-    const menu = openPicker()
-    const intelligenceRow = within(menu).getByRole('menuitem', { name: /Intelligence/ })
-    Object.defineProperty(intelligenceRow, 'offsetTop', { configurable: true, value: 46 })
-    fireEvent.click(intelligenceRow)
+    const panel = openPicker()
+    const modelRow = within(openMenu(panel, 'gpt-5.5')).getByRole('menuitem', { name: /Model/ })
+    Object.defineProperty(modelRow, 'offsetTop', { configurable: true, value: 46 })
+    fireEvent.click(modelRow)
 
-    expect(menu.style.transform).toBe('')
-    expect(screen.getByRole('listbox', { name: 'Intelligence' })).toHaveStyle({
+    expect(panel.style.transform).toBe('')
+    expect(screen.getByRole('listbox', { name: 'Model' })).toHaveStyle({
       top: '40px',
       maxHeight: '320px'
     })
@@ -491,16 +528,16 @@ describe('ModelPicker', () => {
     setViewport(1100, 768)
     renderPickerInComposer()
 
-    const menu = openPicker()
-    vi.spyOn(menu, 'getBoundingClientRect').mockReturnValue(domRect(460, 100, 312, 132))
-    const intelligenceRow = within(menu).getByRole('menuitem', { name: /Intelligence/ })
-    Object.defineProperty(intelligenceRow, 'offsetTop', { configurable: true, value: 46 })
-    fireEvent.click(intelligenceRow)
+    const panel = openPicker()
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue(domRect(460, 100, 312, 132))
+    const modelRow = within(openMenu(panel, 'gpt-5.5')).getByRole('menuitem', { name: /Model/ })
+    Object.defineProperty(modelRow, 'offsetTop', { configurable: true, value: 46 })
+    fireEvent.click(modelRow)
 
-    const submenu = screen.getByRole('listbox', { name: 'Intelligence' })
+    const submenu = screen.getByRole('listbox', { name: 'Model' })
     Object.defineProperty(submenu, 'scrollHeight', { configurable: true, value: 300 })
     Object.defineProperty(submenu, 'offsetHeight', { configurable: true, value: 300 })
-    vi.spyOn(submenu, 'getBoundingClientRect').mockReturnValue(domRect(771, 140, 280, 300))
+    vi.spyOn(submenu, 'getBoundingClientRect').mockReturnValue(domRect(771, 140, 310, 300))
 
     fireEvent(window, new Event('resize'))
     expect(submenu).toHaveStyle({ top: '40px', maxHeight: '320px' })
@@ -509,7 +546,7 @@ describe('ModelPicker', () => {
     fireEvent(window, new Event('resize'))
     expect(submenu).toHaveStyle({ top: '-92px', maxHeight: '224px' })
 
-    fireEvent.click(intelligenceRow)
+    fireEvent.click(modelRow)
     expect(submenu).toHaveStyle({ top: '-92px', maxHeight: '224px' })
   })
 })
@@ -532,7 +569,12 @@ function renderPickerInComposer(): void {
 
 function openPicker(name = 'Select model'): HTMLElement {
   fireEvent.click(screen.getByRole('button', { name }))
-  return screen.getByRole('menu', { name })
+  return screen.getByRole('dialog', { name })
+}
+
+function openMenu(panel: HTMLElement, modelName: string): HTMLElement {
+  fireEvent.click(within(panel).getByRole('button', { name: modelName }))
+  return within(panel).getByRole('menu')
 }
 
 function catalogModel(

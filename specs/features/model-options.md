@@ -313,37 +313,56 @@ capture the normalized preference mode; unsupported MAX becomes Default.
 
 ## 6. Desktop UX
 
-The composer Model picker supplies one shared menu implementation:
+The composer Model picker supplies one shared panel implementation. The trigger names the model and
+its reasoning level, with a compact speed indicator when a Fast-capable model uses Fast and a `MAX`
+tag when the context window is maximised. The panel opens above the trigger and reads as one decision:
 
-- Provider opens a submenu of configured providers. Welcome uses the workspace provider and remembered
-  `ProviderPreferences` entry; an existing thread uses its captured provider.
-- Model opens the model submenu and preserves manual fallback behavior.
-- Effort exposes only the active model's reasoning choices and keeps the trigger label compact.
-- Speed appears only for Fast-capable models and offers Standard and Fast.
-- When a Fast-capable active model uses Fast, the picker trigger shows a compact speed indicator and
-  the composer mascot adds a quiet looping afterimage independent of Effort and MAX. Standard and
-  unsupported models show neither treatment; reduced-motion mode keeps only a static, low-contrast
-  afterimage.
-- MAX is an advanced switch enabled only when `supportsMax=true`; a captured MAX that later becomes
-  unsupported is shown as degraded until changed.
+- The headline is the level the active model thinks at, with the `MAX` tag beside it when the context
+  window is maximised (warning-coloured while degraded). Beneath the headline the model name is a
+  button that leads one level in. A model without reasoning metadata has no level in the panel: its
+  name takes the headline's place and the panel has no scale.
+- The scale under the headline is a slider with one stop per reasoning effort the active model
+  advertises, in catalog order, with an `Off` stop at the near end only when the model supports
+  disabling reasoning. Moving the thumb applies the level at once and leaves the panel open. Reaching
+  the top stop plays a short arrival, and while the thumb stays there the fill takes on the hue the
+  mascot turns at its highest effort, blooming from the thumb's end and blending back into the
+  accent toward the far end; the fill never darkens. Reduced-motion mode shows one still frame.
+- Fast is a bolt at the panel's left, shown only for Fast-capable models and pressed while Fast is
+  active. While Fast is on, the stop dots the fill covers become particles streaming back from the
+  thumb along the bar. Fast and the top of the scale arrive and leave over a short fade; no change
+  of state switches abruptly. When a Fast-capable active model uses Fast, the composer mascot adds a quiet looping
+  afterimage independent of Effort and MAX. Standard and unsupported models show neither treatment;
+  reduced-motion mode keeps only a static, low-contrast afterimage.
+- Reset is an arrow at the panel's right, shown only while the level, the speed or MAX differs from
+  the active model's catalog defaults (its default effort, its default speed mode and the Default
+  window). It returns each differing setting to that default.
+- One level in, reached from the model name, a menu keeps the earlier rows. Provider opens a submenu
+  of configured providers; Welcome uses the workspace provider and remembered `ProviderPreferences`
+  entry, and an existing thread uses its captured provider. Model opens the model submenu and
+  preserves manual fallback behavior. MAX is a switch enabled only when `supportsMax=true`; a captured
+  MAX that later becomes unsupported is shown as degraded until changed. A Back row returns to the
+  panel. Escape closes an open submenu, then returns from the menu to the panel, then closes the
+  picker.
 
 Provider/model changes are one `thread/config/update`. If the target model invalidates reasoning,
 Desktop selects its default effort; if it does not support MAX, Desktop clears MAX. Speed preference is
-preserved and unsupported Fast continues to run as Standard.
+preserved and unsupported Fast continues to run as Standard. Changes made in quick succession apply one
+after another, each on the configuration the previous one wrote.
 
-The picker remains available while a turn is running; changes update the thread snapshot for queued and
-future turns without changing the active provider request. It is disabled while waiting for approval or
-user input, during blocking maintenance, or while a configuration update is being applied. The Welcome
-atomically updates `providerId` and `providerPreferences` and passes the resulting preference to thread
-creation.
+The picker remains available while a turn is running and while the turn waits for approval or user
+input; changes update the thread snapshot for queued and future turns without changing the active
+provider request. Whenever the scale is visible it can be moved. The trigger is disabled only while
+model controls are unavailable and while a configuration update is being applied; a panel that is already open
+stays open through that. The Welcome atomically updates `providerId` and `providerPreferences` and
+passes the resulting preference to thread creation.
 Existing threads never show Default and update only their own snapshot. They load `model/list` for their
 captured provider and do not follow later workspace provider changes. Without a remembered model Desktop
 chooses the first listed model; if no list is available, it leaves state unchanged and directs the user
 to Model providers settings.
 
-Settings and Setup reuse the same menu, keyboard navigation, portal placement, submenu aim, and
+Settings and Setup reuse the same panel, keyboard navigation, portal placement, submenu aim, and
 capability handling. Their full-width field wrapper hides the Provider row because those screens
-already establish the provider. It does not add alternate menu rows, icons, dividers, or explanatory
+already establish the provider. It does not add alternate rows, icons, dividers, or explanatory
 tooltips.
 
 The Settings `Workspace preferences` header owns the refresh action. MainAgent uses one full-width

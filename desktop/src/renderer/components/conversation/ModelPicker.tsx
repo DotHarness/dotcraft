@@ -10,7 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
@@ -23,6 +23,7 @@ import {
   composerFooterControlBoxStyle,
   composerFooterControlHoverBackground
 } from './ComposerShell'
+import { EffortSlider } from './EffortSlider'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
@@ -60,12 +61,11 @@ export interface ModelPickerProps {
 }
 
 type EffectiveReasoningValue = Exclude<ReasoningQuickValue, 'default'>
-type SecondaryMenu = 'provider' | 'model' | 'effort' | 'speed'
+type SecondaryMenu = 'provider' | 'model'
+type View = 'panel' | 'menu'
 
 const MAIN_MENU_WIDTH = 282
 const MODEL_MENU_WIDTH = 310
-const EFFORT_MENU_WIDTH = 248
-const SPEED_MENU_WIDTH = 248
 const PROVIDER_MENU_WIDTH = 280
 const MAX_SUBMENU_HEIGHT = 320
 const VIEWPORT_PADDING = 8
@@ -104,6 +104,7 @@ export function ModelPicker({
   const contextEnabled = typeof onContextModeChange === 'function'
   const contextMaxActive = contextMode === 'max' || contextDegraded
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState<View>('panel')
   const [triggerActive, setTriggerActive] = useState(false)
   const [secondary, setSecondary] = useState<SecondaryMenu | null>(null)
   const [secondaryTop, setSecondaryTop] = useState(6)
@@ -149,14 +150,13 @@ export function ModelPicker({
     return [modelName, ...withDefault]
   }, [allowDefaultModel, modelListReady, modelName, modelOptions])
 
-  const effortChoices = useMemo<EffectiveReasoningValue[]>(() => {
+  const effortStops = useMemo(() => {
     const next: EffectiveReasoningValue[] = []
     if (capability?.supportsDisable) next.push('off')
     for (const option of capability?.supportedEfforts ?? []) next.push(option.effort)
-    if (next.length === 0) next.push(effectiveReasoning)
     if (!next.includes(effectiveReasoning)) next.unshift(effectiveReasoning)
-    return Array.from(new Set(next))
-  }, [capability, effectiveReasoning])
+    return Array.from(new Set(next)).map((value) => ({ value, label: reasoningValueLabel(t, value) }))
+  }, [capability, effectiveReasoning, t])
 
   const hasError = Boolean(errorMessage)
   const interactive = !disabled && !loading && (!unsupported || hasError)
@@ -166,6 +166,12 @@ export function ModelPicker({
     : unsupported && !hasError
       ? t('composer.modelListUnsupportedTitle')
       : undefined
+
+  const defaultSpeed = speedCapability?.defaultMode ?? 'standard'
+  const effortDiffers = capability !== null && effectiveReasoning !== capability.defaultEffort
+  const speedDiffers = speedVisible && speedValue !== defaultSpeed
+  const contextDiffers = contextEnabled && contextMaxActive
+  const differsFromDefaults = effortDiffers || speedDiffers || contextDiffers
 
   useLayoutEffect(() => {
     if (!open) {
@@ -191,9 +197,27 @@ export function ModelPicker({
     }
   }, [open])
 
+  const showPanel = (): void => {
+    cancelMenuAim()
+    setSecondary(null)
+    setPopupShiftX(0)
+    setView('panel')
+    requestAnimationFrame(() => popupRef.current?.querySelector<HTMLElement>('[data-panel-model]')?.focus())
+  }
+
+  const showMenu = (): void => {
+    setMainHighlight(providerOffset + 1)
+    setView('menu')
+    requestAnimationFrame(() => {
+      const rows = popupRef.current?.querySelectorAll<HTMLButtonElement>('[data-main-action]')
+      rows?.[providerOffset + 1]?.focus()
+    })
+  }
+
   useEffect(() => {
     if (!open) {
       setSecondary(null)
+      setView('panel')
       setPopupShiftX(0)
       setSubmenuShiftY(0)
       setSubmenuMaxHeight(MAX_SUBMENU_HEIGHT)
@@ -230,10 +254,21 @@ export function ModelPicker({
           setSecondary(null)
           setPopupShiftX(0)
           requestAnimationFrame(() => focusButton(mainButtons(), mainHighlight))
+        } else if (view === 'menu') {
+          showPanel()
         } else {
           cancelMenuAim()
           setOpen(false)
         }
+        return
+      }
+
+      if (view === 'panel') {
+        // The scale and the panel's buttons answer their own keys; from the trigger an arrow steps in.
+        if (!event.key.startsWith('Arrow') || popupRef.current?.contains(document.activeElement)) return
+        event.preventDefault()
+        const popup = popupRef.current
+        ;(popup?.querySelector<HTMLElement>('input[type="range"]') ?? popup?.querySelector<HTMLElement>('[data-panel-model]'))?.focus()
         return
       }
 
@@ -295,6 +330,9 @@ export function ModelPicker({
           active.click()
           requestAnimationFrame(() => focusButton(submenuButtons(), 0))
         }
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        showPanel()
       }
     }
 
@@ -304,7 +342,7 @@ export function ModelPicker({
       document.removeEventListener('mousedown', handlePointerDown, true)
       document.removeEventListener('keydown', handleKeyDown, true)
     }
-  }, [cancelMenuAim, mainHighlight, open, secondary])
+  })
 
   useLayoutEffect(() => {
     const popup = popupRef.current
@@ -369,6 +407,7 @@ export function ModelPicker({
       cancelMenuAim()
       setMainHighlight(0)
       setSecondary(null)
+      setView('panel')
       setOpen(true)
     }
 
@@ -378,7 +417,7 @@ export function ModelPicker({
 
   const openSecondary = (kind: SecondaryMenu, row: HTMLButtonElement): void => {
     const popupRect = popupRef.current?.getBoundingClientRect()
-    const secondaryWidth = kind === 'provider' ? PROVIDER_MENU_WIDTH : kind === 'model' ? MODEL_MENU_WIDTH : kind === 'effort' ? EFFORT_MENU_WIDTH : SPEED_MENU_WIDTH
+    const secondaryWidth = kind === 'provider' ? PROVIDER_MENU_WIDTH : MODEL_MENU_WIDTH
     let shouldOpenLeft = false
     let nextShiftX = 0
     if (popupRect) {
@@ -431,10 +470,10 @@ export function ModelPicker({
     trackMenuAim(event)
   }
 
-  const handleMaxPointer = (event: ReactMouseEvent<HTMLDivElement>): void => {
+  const handlePlainRowPointer = (index: number, event: ReactMouseEvent<HTMLElement>): void => {
     if (secondary) {
       guardMenuAim(event, () => {
-        setMainHighlight(providerOffset + (speedVisible ? 3 : 2))
+        setMainHighlight(index)
         setSecondary(null)
         setPopupShiftX(0)
       })
@@ -442,7 +481,7 @@ export function ModelPicker({
     }
 
     cancelMenuAim()
-    setMainHighlight(providerOffset + (speedVisible ? 3 : 2))
+    setMainHighlight(index)
     setSecondary(null)
     setPopupShiftX(0)
   }
@@ -459,9 +498,18 @@ export function ModelPicker({
     closePicker()
   }
 
+  const resetDefaults = (): void => {
+    if (effortDiffers && capability) onReasoningChange?.(capability.defaultEffort)
+    if (speedDiffers) onSpeedChange?.(defaultSpeed)
+    if (contextDiffers) onContextModeChange?.('default')
+  }
+
   const modelLabel = modelName === 'Default' ? t('composer.defaultModel') : modelName
   const reasoningDisplayLabel = reasoningValueLabel(t, effectiveReasoning)
   const contextDisabled = loading || (!contextSupportsMax && !contextDegraded)
+  const maxTag = contextEnabled && contextMaxActive
+    ? <span className={`model-picker-max${contextDegraded ? ' is-degraded' : ''}`}>MAX</span>
+    : null
 
   return (
     <div
@@ -493,7 +541,7 @@ export function ModelPicker({
           type="button"
           value={modelName}
           aria-label={triggerAriaLabel ?? tooltipLabel}
-          aria-haspopup={interactive ? 'menu' : undefined}
+          aria-haspopup={interactive ? 'dialog' : undefined}
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? menuId : undefined}
           disabled={!interactive}
@@ -509,6 +557,7 @@ export function ModelPicker({
             else {
               setMainHighlight(0)
               setSecondary(null)
+              setView('panel')
               setOpen(true)
             }
           }}
@@ -557,23 +606,7 @@ export function ModelPicker({
               >
                 {reasoningDisplayLabel}
               </span>
-              {contextEnabled && contextMaxActive && (
-                <span
-                  style={{
-                    flexShrink: 0,
-                    padding: '3px 5px',
-                    borderRadius: '5px',
-                    background: `color-mix(in srgb, ${contextDegraded ? 'var(--permission-full-access)' : 'var(--accent)'} 16%, transparent)`,
-                    color: contextDegraded ? 'var(--permission-full-access)' : 'var(--accent)',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.4px',
-                    lineHeight: 1
-                  }}
-                >
-                  MAX
-                </span>
-              )}
+              {maxTag}
             </span>
           )}
           {interactive && (
@@ -592,11 +625,11 @@ export function ModelPicker({
         </button>
       </ActionTooltip>
 
-      {interactive && open && createPortal(
+      {open && createPortal(
         <div
           ref={popupRef}
           id={menuId}
-          role="menu"
+          role="dialog"
           aria-label={tooltipLabel}
           style={{
             position: 'fixed',
@@ -662,175 +695,169 @@ export function ModelPicker({
             </div>
           )}
 
-          {providerVisible && (
-            <MainMenuRow
-              label={t('composer.providerHeading')}
-              value={providerOptions.find((provider) => provider.id === providerId)?.displayName ?? providerId ?? ''}
-              highlighted={mainHighlight === 0 || secondary === 'provider'}
-              submenu="provider"
-              onHover={(event) => handleSecondaryPointer('provider', 0, event)}
-              onClick={(event) => {
-                cancelMenuAim()
-                setMainHighlight(0)
-                openSecondary('provider', event.currentTarget)
-              }}
-            />
-          )}
-
-          <MainMenuRow
-            label={t('composer.modelHeading')}
-            value={modelLabel}
-            highlighted={mainHighlight === providerOffset || secondary === 'model'}
-            submenu="model"
-            onHover={(event) => handleSecondaryPointer('model', providerOffset, event)}
-            onClick={(event) => {
-              cancelMenuAim()
-              setMainHighlight(providerOffset)
-              openSecondary('model', event.currentTarget)
-            }}
-          />
-          <MainMenuRow
-            label={t('composer.reasoning.heading')}
-            value={reasoningDisplayLabel}
-            highlighted={mainHighlight === providerOffset + 1 || secondary === 'effort'}
-            submenu="effort"
-            onHover={(event) => handleSecondaryPointer('effort', providerOffset + 1, event)}
-            onClick={(event) => {
-              cancelMenuAim()
-              setMainHighlight(providerOffset + 1)
-              openSecondary('effort', event.currentTarget)
-            }}
-          />
-          {speedVisible && (
-            <MainMenuRow
-              label={t('composer.speed.heading')}
-              value={speedValue === 'fast' ? t('composer.speed.fast') : t('composer.speed.standard')}
-              highlighted={mainHighlight === providerOffset + 2 || secondary === 'speed'}
-              submenu="speed"
-              onHover={(event) => handleSecondaryPointer('speed', providerOffset + 2, event)}
-              onClick={(event) => {
-                cancelMenuAim()
-                setMainHighlight(providerOffset + 2)
-                openSecondary('speed', event.currentTarget)
-              }}
-            />
-          )}
-          {contextEnabled && (
-            <>
-              <div
-                style={mainMenuRowStyle(mainHighlight === providerOffset + (speedVisible ? 3 : 2), contextDisabled, true)}
-                onMouseEnter={handleMaxPointer}
-                onMouseMove={handleMaxPointer}
-              >
-                <span style={mainLabelStyle}>{t('composer.context.label')}</span>
-                <span style={{ ...trailingSlotStyle, transform: 'translateX(-4px)' }}>
-                  <PillSwitch
-                    checked={contextMaxActive}
-                    onChange={(checked) => onContextModeChange(checked ? 'max' : 'default')}
-                    size="sm"
-                    disabled={contextDisabled}
-                    aria-label={t('composer.context.label')}
-                  />
-                </span>
-              </div>
-              {contextDegraded && (
-                <div
-                  style={{
-                    margin: '-1px 9px 5px',
-                    color: 'var(--permission-full-access)',
-                    fontSize: '10px',
-                    lineHeight: 1.35
-                  }}
-                >
-                  {t('composer.context.degraded', { window: formatContextWindow(contextConfiguredWindow) })}
+          {view === 'panel' ? (
+            <div className="model-picker-panel">
+              <div className="model-picker-head">
+                {speedVisible ? (
+                  <button
+                    type="button"
+                    className="model-picker-icon model-picker-fast"
+                    aria-pressed={speedValue === 'fast'}
+                    aria-label={t('composer.speed.fast')}
+                    onClick={() => onSpeedChange?.(speedValue === 'fast' ? 'standard' : 'fast')}
+                  >
+                    <Zap aria-hidden size={16} strokeWidth={2.2} fill={speedValue === 'fast' ? 'currentColor' : 'none'} />
+                  </button>
+                ) : (
+                  <span className="model-picker-slot" />
+                )}
+                <div className={`model-picker-title${capability ? '' : ' model-picker-title--model'}`}>
+                  {(capability || maxTag) && (
+                    <span className="model-picker-effort">
+                      {capability && reasoningDisplayLabel}
+                      {maxTag}
+                    </span>
+                  )}
+                  <button type="button" className="model-picker-model" data-panel-model aria-haspopup="menu" onClick={showMenu}>
+                    <span>{modelLabel}</span>
+                    <ChevronRight aria-hidden size={14} strokeWidth={1.8} />
+                  </button>
                 </div>
+                {differsFromDefaults ? (
+                  <button
+                    type="button"
+                    className="model-picker-icon"
+                    aria-label={t('composer.reasoning.resetToDefault')}
+                    onClick={resetDefaults}
+                  >
+                    <RotateCcw aria-hidden size={15} strokeWidth={2} />
+                  </button>
+                ) : (
+                  <span className="model-picker-slot" />
+                )}
+              </div>
+              {capability && (
+                <EffortSlider
+                  stops={effortStops}
+                  value={effectiveReasoning}
+                  ariaLabel={t('composer.reasoning.heading')}
+                  fast={speedVisible && speedValue === 'fast'}
+                  onChange={(value) => onReasoningChange?.(value)}
+                />
               )}
-            </>
-          )}
+            </div>
+          ) : (
+            <div role="menu" aria-label={t('composer.modelHeading')}>
+              <button
+                type="button"
+                role="menuitem"
+                data-main-action
+                className="model-picker-back"
+                data-highlighted={mainHighlight === 0 ? 'true' : undefined}
+                onMouseEnter={(event) => handlePlainRowPointer(0, event)}
+                onMouseMove={(event) => handlePlainRowPointer(0, event)}
+                onClick={showPanel}
+              >
+                <ChevronLeft aria-hidden size={15} strokeWidth={1.7} />
+                {t('composer.modelMenu.back')}
+              </button>
 
-          {secondary && (
-            <div
-              ref={submenuRef}
-              role="listbox"
-              aria-label={secondary === 'provider'
-                ? t('composer.providerHeading')
-                : secondary === 'model'
-                ? t('composer.modelHeading')
-                : secondary === 'effort'
-                  ? t('composer.reasoning.heading')
-                  : t('composer.speed.heading')}
-              style={submenuStyle(secondary, secondaryTop + submenuShiftY, secondaryOpensLeft, submenuMaxHeight)}
-              onMouseEnter={cancelMenuAim}
-              onMouseMove={cancelMenuAim}
-            >
-              {secondary === 'provider'
-                ? providerOptions.map((provider, index) => (
-                    <OptionRow
-                      key={provider.id}
-                      selected={provider.id === providerId}
-                      highlighted={submenuHighlight === index}
-                      label={provider.displayName}
-                      description={provider.id === provider.displayName ? undefined : provider.id}
-                      onHover={() => setSubmenuHighlight(index)}
-                      onSelect={() => {
-                        onProviderChange?.(provider.id)
-                        closePicker()
+              {providerVisible && (
+                <MainMenuRow
+                  label={t('composer.providerHeading')}
+                  value={providerOptions.find((provider) => provider.id === providerId)?.displayName ?? providerId ?? ''}
+                  highlighted={mainHighlight === 1 || secondary === 'provider'}
+                  submenu="provider"
+                  onHover={(event) => handleSecondaryPointer('provider', 1, event)}
+                  onClick={(event) => {
+                    cancelMenuAim()
+                    setMainHighlight(1)
+                    openSecondary('provider', event.currentTarget)
+                  }}
+                />
+              )}
+
+              <MainMenuRow
+                label={t('composer.modelHeading')}
+                value={modelLabel}
+                highlighted={mainHighlight === providerOffset + 1 || secondary === 'model'}
+                submenu="model"
+                onHover={(event) => handleSecondaryPointer('model', providerOffset + 1, event)}
+                onClick={(event) => {
+                  cancelMenuAim()
+                  setMainHighlight(providerOffset + 1)
+                  openSecondary('model', event.currentTarget)
+                }}
+              />
+              {contextEnabled && (
+                <>
+                  <div
+                    style={mainMenuRowStyle(mainHighlight === providerOffset + 2, contextDisabled, true)}
+                    onMouseEnter={(event) => handlePlainRowPointer(providerOffset + 2, event)}
+                    onMouseMove={(event) => handlePlainRowPointer(providerOffset + 2, event)}
+                  >
+                    <span style={mainLabelStyle}>{t('composer.context.label')}</span>
+                    <span style={{ ...trailingSlotStyle, transform: 'translateX(-4px)' }}>
+                      <PillSwitch
+                        checked={contextMaxActive}
+                        onChange={(checked) => onContextModeChange(checked ? 'max' : 'default')}
+                        size="sm"
+                        disabled={contextDisabled}
+                        aria-label={t('composer.context.label')}
+                      />
+                    </span>
+                  </div>
+                  {contextDegraded && (
+                    <div
+                      style={{
+                        margin: '-1px 9px 5px',
+                        color: 'var(--permission-full-access)',
+                        fontSize: '10px',
+                        lineHeight: 1.35
                       }}
-                    />
-                  ))
-                : secondary === 'model'
-                ? modelChoices.map((model, index) => (
-                    <OptionRow
-                      key={model}
-                      selected={model === modelName || (model === 'Default' && modelName === 'Default')}
-                      highlighted={submenuHighlight === index}
-                      label={model === 'Default' ? t('composer.defaultModel') : model}
-                      onHover={() => setSubmenuHighlight(index)}
-                      onSelect={() => selectModel(model)}
-                    />
-                  ))
-                : secondary === 'effort' ? (
-                    <>
-                      {effortChoices.map((value, index) => (
+                    >
+                      {t('composer.context.degraded', { window: formatContextWindow(contextConfiguredWindow) })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {secondary && (
+                <div
+                  ref={submenuRef}
+                  role="listbox"
+                  aria-label={secondary === 'provider' ? t('composer.providerHeading') : t('composer.modelHeading')}
+                  style={submenuStyle(secondary, secondaryTop + submenuShiftY, secondaryOpensLeft, submenuMaxHeight)}
+                  onMouseEnter={cancelMenuAim}
+                  onMouseMove={cancelMenuAim}
+                >
+                  {secondary === 'provider'
+                    ? providerOptions.map((provider, index) => (
                         <OptionRow
-                          key={value}
-                          selected={value === effectiveReasoning}
+                          key={provider.id}
+                          selected={provider.id === providerId}
                           highlighted={submenuHighlight === index}
-                          label={reasoningValueLabel(t, value)}
-                          description={value === 'off' ? undefined : reasoningDescription(t, value)}
+                          label={provider.displayName}
+                          description={provider.id === provider.displayName ? undefined : provider.id}
                           onHover={() => setSubmenuHighlight(index)}
                           onSelect={() => {
-                            onReasoningChange?.(value)
+                            onProviderChange?.(provider.id)
                             closePicker()
                           }}
                         />
-                      ))}
-                      {capability && !capability.supportsDisable && (
+                      ))
+                    : modelChoices.map((model, index) => (
                         <OptionRow
-                          selected={false}
-                          highlighted={false}
-                          label={t('composer.reasoning.off')}
-                          description={t('composer.reasoning.offUnavailable')}
-                          disabled
+                          key={model}
+                          selected={model === modelName || (model === 'Default' && modelName === 'Default')}
+                          highlighted={submenuHighlight === index}
+                          label={model === 'Default' ? t('composer.defaultModel') : model}
+                          onHover={() => setSubmenuHighlight(index)}
+                          onSelect={() => selectModel(model)}
                         />
-                      )}
-                    </>
-                  ) : (['standard', 'fast'] as InferenceSpeedWire[]).map((value, index) => (
-                    <OptionRow
-                      key={value}
-                      selected={value === speedValue}
-                      highlighted={submenuHighlight === index}
-                      label={value === 'fast' ? t('composer.speed.fast') : t('composer.speed.standard')}
-                      description={value === 'fast'
-                        ? t('composer.speed.fast.description')
-                        : t('composer.speed.standard.description')}
-                      onHover={() => setSubmenuHighlight(index)}
-                      onSelect={() => {
-                        onSpeedChange?.(value)
-                        closePicker()
-                      }}
-                    />
-                  ))}
+                      ))}
+                </div>
+              )}
             </div>
           )}
         </div>,
@@ -881,7 +908,6 @@ function OptionRow({
   highlighted,
   label,
   description,
-  disabled = false,
   onHover,
   onSelect
 }: {
@@ -889,7 +915,6 @@ function OptionRow({
   highlighted: boolean
   label: string
   description?: string
-  disabled?: boolean
   onHover?: () => void
   onSelect?: () => void
 }): JSX.Element {
@@ -899,7 +924,6 @@ function OptionRow({
       role="option"
       aria-selected={selected}
       data-submenu-option
-      disabled={disabled}
       onMouseEnter={onHover}
       onFocus={onHover}
       onClick={onSelect}
@@ -914,13 +938,8 @@ function OptionRow({
         border: 'none',
         borderRadius: '7px',
         background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
-        color: disabled
-          ? 'var(--text-dimmed)'
-          : highlighted || selected
-            ? 'var(--text-primary)'
-            : 'var(--text-secondary)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.7 : 1,
+        color: highlighted || selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+        cursor: 'pointer',
         textAlign: 'left'
       }}
     >
@@ -994,7 +1013,7 @@ function mainMenuRowStyle(
 }
 
 function submenuStyle(kind: SecondaryMenu, top: number, opensLeft: boolean, maxHeight: number): CSSProperties {
-  const width = kind === 'provider' ? PROVIDER_MENU_WIDTH : kind === 'model' ? MODEL_MENU_WIDTH : EFFORT_MENU_WIDTH
+  const width = kind === 'provider' ? PROVIDER_MENU_WIDTH : MODEL_MENU_WIDTH
   return {
     position: 'absolute',
     top,
@@ -1019,27 +1038,13 @@ function submenuStyle(kind: SecondaryMenu, top: number, opensLeft: boolean, maxH
 }
 
 function reasoningValueLabel(t: ReturnType<typeof useT>, value: EffectiveReasoningValue): string {
-  if (value === 'off') return t('composer.reasoning.off')
-  return reasoningLabel(t, value)
-}
-
-function reasoningLabel(t: ReturnType<typeof useT>, value: ReasoningEffortWire): string {
   switch (value) {
+    case 'off': return t('composer.reasoning.off')
     case 'low': return t('composer.reasoning.low')
     case 'medium': return t('composer.reasoning.medium')
     case 'high': return t('composer.reasoning.high')
     case 'extraHigh': return t('composer.reasoning.extraHigh')
     case 'ultra': return t('composer.reasoning.ultra')
-  }
-}
-
-function reasoningDescription(t: ReturnType<typeof useT>, value: ReasoningEffortWire): string {
-  switch (value) {
-    case 'low': return t('composer.reasoning.low.description')
-    case 'medium': return t('composer.reasoning.medium.description')
-    case 'high': return t('composer.reasoning.high.description')
-    case 'extraHigh': return t('composer.reasoning.extraHigh.description')
-    case 'ultra': return t('composer.reasoning.ultra.description')
   }
 }
 

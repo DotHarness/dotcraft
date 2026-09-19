@@ -245,8 +245,9 @@ describe('InputComposer layout', () => {
     expect(within(tooltip).getByText('M')).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'M', ctrlKey: true, shiftKey: true })
-    const menu = screen.getByRole('menu', { name: 'Select model' })
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Model/ }))
+    const panel = screen.getByRole('dialog', { name: 'Select model' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'gpt-5.4' }))
+    fireEvent.click(within(panel).getByRole('menuitem', { name: /Model/ }))
     const listbox = screen.getByRole('listbox', { name: 'Model' })
 
     expect(listbox).toBeInTheDocument()
@@ -1318,7 +1319,7 @@ describe('InputComposer layout', () => {
     expect(modelButton).toBeEnabled()
 
     fireEvent.click(modelButton)
-    expect(screen.getByRole('menu', { name: 'Select model' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
   })
 
   it.each(['compacting', 'consolidating'] as const)(
@@ -1336,18 +1337,22 @@ describe('InputComposer layout', () => {
       expect(modelButton).toBeEnabled()
 
       fireEvent.click(modelButton)
-      expect(screen.getByRole('menu', { name: 'Select model' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
     }
   )
 
   it.each(['waitingApproval', 'waitingInput'] as const)(
-    'keeps the model picker disabled while the turn is %s',
+    'keeps the model picker available while the turn is %s',
     (turnStatus) => {
       useConversationStore.setState({ turnStatus })
 
       renderComposer()
 
-      expect(screen.getByRole('button', { name: 'Select model' })).toBeDisabled()
+      const modelButton = screen.getByRole('button', { name: 'Select model' })
+      expect(modelButton).toBeEnabled()
+
+      fireEvent.click(modelButton)
+      expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
     }
   )
 

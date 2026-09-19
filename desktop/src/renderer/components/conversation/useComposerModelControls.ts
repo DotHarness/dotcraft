@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
   useModelCatalogStore,
@@ -106,6 +106,11 @@ export function useComposerModelControls({
   const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
   const [contextMode, setContextMode] = useState<ContextWindowMode>('default')
   const [modelApplying, setModelApplying] = useState(false)
+  // Every change reads the thread configuration before writing it back, so changes apply one after another.
+  const updates = useRef(Promise.resolve())
+  const enqueue = (task: () => Promise<void>): void => {
+    updates.current = updates.current.then(task)
+  }
   const [detachedModelTouched, setDetachedModelTouched] = useState(false)
   const [detachedReasoningTouched, setDetachedReasoningTouched] = useState(false)
   const [detachedReasoningOverride, setDetachedReasoningOverride] = useState<ResolvedReasoningConfig | null>(null)
@@ -651,19 +656,19 @@ export function useComposerModelControls({
     contextDegraded,
     contextConfiguredWindow,
     onModelChange: (model) => {
-      void handleModelChange(model)
+      enqueue(() => handleModelChange(model))
     },
     onProviderChange: (nextProviderId) => {
-      void handleProviderChange(nextProviderId)
+      enqueue(() => handleProviderChange(nextProviderId))
     },
     onReasoningChange: (reasoning) => {
-      void handleReasoningChange(reasoning)
+      enqueue(() => handleReasoningChange(reasoning))
     },
     onSpeedChange: (speed) => {
-      void handleSpeedChange(speed)
+      enqueue(() => handleSpeedChange(speed))
     },
     onContextModeChange: (nextMode) => {
-      void handleContextModeChange(nextMode)
+      enqueue(() => handleContextModeChange(nextMode))
     },
     onModelCatalogRetry: () => {
       void loadModels(true, providerId)

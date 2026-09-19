@@ -75,8 +75,10 @@ async function chooseModelPickerValue(label: string, model: string): Promise<voi
   const trigger = await screen.findByRole('button', { name: label })
   await waitFor(() => expect(trigger).not.toBeDisabled())
   fireEvent.click(trigger)
-  const menu = await screen.findByRole('menu', { name: 'Select model' })
-  fireEvent.click(within(menu).getByRole('menuitem', { name: /Model/ }))
+  const panel = await screen.findByRole('dialog', { name: 'Select model' })
+  const [modelButton] = within(panel).getAllByRole('button').filter((button) => button.getAttribute('aria-haspopup') === 'menu')
+  fireEvent.click(modelButton)
+  fireEvent.click(within(panel).getByRole('menuitem', { name: /Model/ }))
   fireEvent.click(await screen.findByRole('option', { name: model }))
 }
 

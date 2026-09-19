@@ -634,7 +634,7 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Disable plan mode' })).toBeNull()
     fireEvent.keyDown(window, { key: 'M', ctrlKey: true, shiftKey: true })
-    const menu = screen.getByRole('menu', { name: 'Select model' })
+    const menu = screen.getByRole('dialog', { name: 'Select model' })
     expect(menu).toBeInTheDocument()
     const modelButton = screen.getByRole('button', { name: 'Select model' })
     const voiceButton = screen.getByRole('button', { name: 'Click to dictate or hold' })
@@ -778,7 +778,7 @@ describe('ConversationWelcome composer', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
 
-    const menu = screen.getByRole('menu', { name: 'Select model' })
+    const menu = openModelMenu('gpt-5.5')
     expect(within(menu).getByText('MAX Mode')).toBeInTheDocument()
     expect(within(menu).getByRole('switch', { name: 'MAX Mode' })).not.toBeDisabled()
   })
@@ -798,8 +798,7 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5'))
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Select model' })).getByRole('menuitem', { name: /Speed/ }))
-    fireEvent.click(within(screen.getByRole('listbox', { name: 'Speed' })).getByRole('option', { name: /Fast/ }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Select model' })).getByRole('button', { name: 'Fast' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
@@ -840,7 +839,7 @@ describe('ConversationWelcome composer', () => {
     textbox.textContent = 'Use the largest context for this first thread'
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' }))
+    fireEvent.click(within(openModelMenu('gpt-5.5')).getByRole('switch', { name: 'MAX Mode' }))
     expect(document.querySelector('[data-mascot-context]')).toHaveAttribute('data-mascot-context', 'max')
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -925,7 +924,7 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('MAX')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    const maxSwitch = within(screen.getByRole('menu', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' })
+    const maxSwitch = within(openModelMenu('gpt-5.5')).getByRole('switch', { name: 'MAX Mode' })
     expect(maxSwitch).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(maxSwitch)
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -1068,7 +1067,8 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-a-v1')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    expect(screen.getByRole('menuitem', { name: /Provider.*Provider A/ })).toBeInTheDocument()
+    expect(within(openModelMenu('model-a-v1')).getByRole('menuitem', { name: /Provider.*Provider A/ })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.keyDown(document, { key: 'Escape' })
 
     const change: WorkspaceConfigChangedPayload = {
@@ -1097,7 +1097,7 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-b-v1')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    expect(screen.getByRole('menuitem', { name: /Provider.*Provider B/ })).toBeInTheDocument()
+    expect(within(openModelMenu('model-b-v1')).getByRole('menuitem', { name: /Provider.*Provider B/ })).toBeInTheDocument()
   })
 
   it('preserves the Welcome provider and model pair across unmount and remount', async () => {
@@ -1142,7 +1142,8 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-b-v2')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    expect(screen.getByRole('menuitem', { name: /Provider.*Provider B/ })).toBeInTheDocument()
+    expect(within(openModelMenu('model-b-v2')).getByRole('menuitem', { name: /Provider.*Provider B/ })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.keyDown(document, { key: 'Escape' })
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'Start with the restored pair'
@@ -1221,7 +1222,7 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.6-sol')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    expect(screen.getByRole('menuitem', { name: /Provider.*OpenAI/ })).toBeInTheDocument()
+    expect(within(openModelMenu('gpt-5.6-sol')).getByRole('menuitem', { name: /Provider.*OpenAI/ })).toBeInTheDocument()
     expect(appServerSendRequest).not.toHaveBeenCalledWith('workspace/config/update', expect.anything())
   })
 
@@ -1269,7 +1270,7 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.6-sol')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /Provider.*OpenAI/ }))
+    fireEvent.click(within(openModelMenu('gpt-5.6-sol')).getByRole('menuitem', { name: /Provider.*OpenAI/ }))
     fireEvent.click(within(screen.getByRole('listbox', { name: 'Provider' })).getByRole('option', { name: /Anthropic/ }))
 
     await waitFor(() => {
@@ -2504,3 +2505,9 @@ describe('ConversationWelcome composer', () => {
   })
 
 })
+
+function openModelMenu(modelName: string): HTMLElement {
+  const panel = screen.getByRole('dialog', { name: 'Select model' })
+  fireEvent.click(within(panel).getByRole('button', { name: modelName }))
+  return within(panel).getByRole('menu')
+}
