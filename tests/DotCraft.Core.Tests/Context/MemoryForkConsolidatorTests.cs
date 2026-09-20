@@ -139,7 +139,7 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ConsolidateAsync_WhenForkWritesMemoryFilesThroughTools_SucceedsWithoutLegacyOrFinalText()
+    public async Task ConsolidateAsync_WhenForkAttemptsFileWrites_DeniesThemAndFallsBack()
     {
         var memoryStore = new MemoryStore(_tempDir);
         var chatClient = new ToolWritingChatClient(
@@ -167,12 +167,12 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
             [new ChatMessage(ChatRole.User, "remember blue")],
             snapshot);
 
-        Assert.Equal(MemoryConsolidationOutcome.Succeeded, result.Outcome);
-        Assert.True(result.MemoryWritten);
-        Assert.True(result.HistoryWritten);
-        Assert.Contains("User prefers blue", memoryStore.ReadLongTerm());
-        Assert.Contains("User prefers blue", memoryStore.ReadHistory());
-        Assert.Equal(0, legacy.Calls);
+        Assert.Equal(MemoryConsolidationOutcome.Skipped, result.Outcome);
+        Assert.False(result.MemoryWritten);
+        Assert.False(result.HistoryWritten);
+        Assert.Equal(string.Empty, memoryStore.ReadLongTerm());
+        Assert.Equal(string.Empty, memoryStore.ReadHistory());
+        Assert.Equal(1, legacy.Calls);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ConsolidateAsync_RestoresFilesWhenHistoryIsRewrittenInsteadOfAppended()
+    public async Task ConsolidateAsync_DeniesRewritingExistingMemoryAndHistory()
     {
         var memoryStore = new MemoryStore(_tempDir);
         memoryStore.WriteLongTerm("- Existing memory.");

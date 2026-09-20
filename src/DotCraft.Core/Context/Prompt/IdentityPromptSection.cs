@@ -38,7 +38,6 @@ This is your working directory where you perform file and shell operations.
 ## DotCraft Directory
 Your data directory is at: {{craftPath}}
 This contains:
-- Memory: {{craftPath}}/memory/ (long-term context and history files)
 - Custom skills: {{craftPath}}/skills/{skill-name}/SKILL.md
 - Configuration: {{craftPath}}/config.json
 

@@ -102,8 +102,17 @@ internal static class WorkspaceContextPromptSections
 
     private static string BuildMemoryContext(PromptSectionSources sources)
     {
-        // The agent maintains these files itself, so the section names where they are.
-        var parts = new List<string> { $"Memory files: {Path.GetFullPath(sources.MemoryStore.MemoryDirectoryPath)}" };
+        var parts = new List<string>
+        {
+            $"Memory files: {Path.GetFullPath(sources.MemoryStore.MemoryDirectoryPath)}",
+            """
+Use this directory for memory operations.
+- Save useful stable facts in MEMORY.md. Promptly apply user requests to remember, correct, or forget information.
+- Read the current file before editing. Make targeted changes and preserve unrelated information.
+- HISTORY.md contains generated summaries of past events. Search it to recall past events. Do not create or modify this file.
+- Use memory as background context. Follow current instructions and verified evidence, and update outdated facts.
+"""
+        };
         var longTerm = sources.MemoryStore.GetMemoryContext();
         if (!string.IsNullOrWhiteSpace(longTerm))
             parts.Add(longTerm);
