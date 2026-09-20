@@ -88,6 +88,13 @@ public sealed record ProviderFailure(
     }
 }
 
+/// <summary>Carries a classification that a later layer must not re-derive from the exception.</summary>
+public sealed class ProviderFailureException(ProviderFailure failure, Exception innerException)
+    : Exception(innerException.Message, innerException)
+{
+    public ProviderFailure Failure { get; } = failure;
+}
+
 public interface IProviderFailureClassifier
 {
     ProviderFailure Classify(Exception exception);
@@ -106,6 +113,9 @@ public sealed class DefaultProviderFailureClassifier : IProviderFailureClassifie
     public ProviderFailure Classify(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
+
+        if (exception is ProviderFailureException carried)
+            return carried.Failure;
 
         if (IsStreamDisconnect(exception))
             return new ProviderFailure(ProviderFailureKind.ResponseStreamDisconnected);

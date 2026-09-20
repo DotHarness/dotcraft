@@ -329,6 +329,10 @@ public sealed record SessionWireTurn
 
     public string? Error { get; init; }
 
+    public string? ProviderError { get; init; }
+
+    public int? HttpStatus { get; init; }
+
     public string? OriginChannel { get; init; }
 
     public TurnInitiatorContext? Initiator { get; init; }

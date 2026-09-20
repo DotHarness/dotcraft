@@ -2568,13 +2568,7 @@ public sealed partial class SessionService(
             {
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
-                var errorItem = CreateErrorItem(
-                    turn,
-                    NextItemSeq(),
-                    errorMsg,
-                    errorCode,
-                    fatal: true,
-                    classifiedProviderFailure);
+                var errorItem = CreateErrorItem(turn, NextItemSeq(), errorMsg, errorCode, fatal: true);
                 turn.Items.Add(errorItem);
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
@@ -5468,8 +5462,12 @@ public sealed partial class SessionService(
     {
         turn.Status = TurnStatus.Failed;
         turn.Error = errorMsg;
+        turn.ProviderError = providerFailure is null
+            ? null
+            : ProviderFailureKinds.ToWireName(providerFailure.Kind);
+        turn.HttpStatus = providerFailure?.HttpStatus;
         turn.CompletedAt = DateTimeOffset.UtcNow;
-        channel.EmitTurnFailed(turn, errorMsg, providerFailure);
+        channel.EmitTurnFailed(turn, errorMsg);
     }
 
     private static bool IsConfiguredNetworkTimeoutCancellation(OperationCanceledException ex)
@@ -5900,12 +5898,7 @@ public sealed partial class SessionService(
     }
 
     private static SessionItem CreateErrorItem(
-        SessionTurn turn,
-        int seq,
-        string message,
-        string code,
-        bool fatal,
-        ProviderFailure? providerFailure = null)
+        SessionTurn turn, int seq, string message, string code, bool fatal)
     {
         return new SessionItem
         {
@@ -5915,16 +5908,7 @@ public sealed partial class SessionService(
             Status = ItemStatus.Completed,
             CreatedAt = DateTimeOffset.UtcNow,
             CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new ErrorPayload
-            {
-                Message = message,
-                Code = code,
-                Fatal = fatal,
-                ProviderError = providerFailure is null
-                    ? null
-                    : ProviderFailureKinds.ToWireName(providerFailure.Kind),
-                HttpStatus = providerFailure?.HttpStatus
-            }
+            Payload = new ErrorPayload { Message = message, Code = code, Fatal = fatal }
         };
     }
 

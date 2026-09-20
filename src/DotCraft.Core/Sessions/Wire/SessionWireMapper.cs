@@ -135,6 +135,8 @@ public static class SessionWireMapper
             CompletedAt = turn.CompletedAt,
             TokenUsage = turn.TokenUsage,
             Error = turn.Error,
+            ProviderError = turn.ProviderError,
+            HttpStatus = turn.HttpStatus,
             OriginChannel = turn.OriginChannel,
             Initiator = turn.Initiator,
             Items = includeItems ? turn.Items.Select(i => i.ToWire()).ToList() : null

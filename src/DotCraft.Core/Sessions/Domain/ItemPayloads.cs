@@ -102,8 +102,4 @@ public sealed record ErrorPayload
     /// Whether this error terminates the Turn.
     /// </summary>
     public bool Fatal { get; init; }
-
-    public string? ProviderError { get; init; }
-
-    public int? HttpStatus { get; init; }
 }

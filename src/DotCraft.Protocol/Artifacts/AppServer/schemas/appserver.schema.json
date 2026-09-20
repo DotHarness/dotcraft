@@ -5394,28 +5394,8 @@
         "fatal": {
           "type": "boolean"
         },
-        "httpStatus": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "message": {
           "type": "string"
-        },
-        "providerError": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true,
@@ -11793,6 +11773,16 @@
             }
           ]
         },
+        "httpStatus": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "id": {
           "type": "string"
         },
@@ -11820,6 +11810,16 @@
           ]
         },
         "originChannel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerError": {
           "anyOf": [
             {
               "type": "string"
@@ -18061,26 +18061,6 @@
       "type": "object",
       "properties": {
         "error": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "httpStatus": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerError": {
           "anyOf": [
             {
               "type": "string"

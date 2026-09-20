@@ -25,6 +25,16 @@
         }
       ]
     },
+    "httpStatus": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "id": {
       "type": "string"
     },
@@ -52,6 +62,16 @@
       ]
     },
     "originChannel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "providerError": {
       "anyOf": [
         {
           "type": "string"

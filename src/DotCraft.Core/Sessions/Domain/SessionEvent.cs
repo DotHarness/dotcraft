@@ -107,10 +107,6 @@ public sealed record TurnFailedPayload
     /// Human-readable error message describing why the turn failed.
     /// </summary>
     public string Error { get; init; } = string.Empty;
-
-    public string? ProviderError { get; init; }
-
-    public int? HttpStatus { get; init; }
 }
 
 /// <summary>

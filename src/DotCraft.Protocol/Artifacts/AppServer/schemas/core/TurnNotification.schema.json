@@ -14,26 +14,6 @@
         }
       ]
     },
-    "httpStatus": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "providerError": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "reason": {
       "anyOf": [
         {

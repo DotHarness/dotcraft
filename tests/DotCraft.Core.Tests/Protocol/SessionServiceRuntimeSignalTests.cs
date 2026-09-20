@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
@@ -927,6 +928,26 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal([1, 2], attempts.Select(metadata => metadata.GetProperty("attemptNumber").GetInt32()).ToArray());
         Assert.Equal("scheduled", attempts[0].GetProperty("retryDecision").GetString());
         Assert.Equal("succeeded", attempts[1].GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_WhenProviderThrottles_KeepsTheClassificationOnTheReadBackTurn()
+    {
+        IChatClient chatClient = new StreamRetryingChatClient(
+            new ThrowingChatClient(
+                new HttpRequestException("slow down", null, HttpStatusCode.TooManyRequests)),
+            new StreamRetryOptions(1, TimeSpan.FromSeconds(30)));
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var updatedThread = await svc.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updatedThread.Turns);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal("rateLimitExceeded", turn.ProviderError);
+        Assert.Equal(429, turn.HttpStatus);
     }
 
     [Fact]

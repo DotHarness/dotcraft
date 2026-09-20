@@ -1928,10 +1928,7 @@ export function App(): JSX.Element {
               if (errorCode === -32020 || error.includes('-32020')) {
                 conv.onApprovalTimeout()
               }
-              conv.onTurnFailed(rawTurn, error, {
-                providerError: typeof p.providerError === 'string' ? (p.providerError as string) : null,
-                httpStatus: typeof p.httpStatus === 'number' ? (p.httpStatus as number) : null
-              })
+              conv.onTurnFailed(rawTurn, error)
             }
 
             break

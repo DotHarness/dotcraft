@@ -12,6 +12,9 @@ internal sealed class AnthropicProviderFailureClassifier : IProviderFailureClass
     {
         ArgumentNullException.ThrowIfNull(exception);
 
+        if (exception is ProviderFailureException carried)
+            return carried.Failure;
+
         var fallback = DefaultProviderFailureClassifier.Instance.Classify(exception);
         var detail = Detail(exception);
         var status = fallback.HttpStatus;

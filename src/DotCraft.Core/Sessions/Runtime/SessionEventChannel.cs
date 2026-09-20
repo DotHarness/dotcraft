@@ -1,4 +1,3 @@
-using DotCraft.Agents;
 using System.Threading.Channels;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 
@@ -74,18 +73,11 @@ internal sealed class SessionEventChannel(
     public void EmitTurnCompleted(SessionTurn turn) =>
         Write(SessionEventType.TurnCompleted, null, SnapshotTurn(turn));
 
-    public void EmitTurnFailed(
-        SessionTurn turn,
-        string error,
-        ProviderFailure? providerFailure = null) =>
+    public void EmitTurnFailed(SessionTurn turn, string error) =>
         Write(SessionEventType.TurnFailed, null, new TurnFailedPayload
         {
             Turn = SnapshotTurn(turn),
-            Error = error,
-            ProviderError = providerFailure is null
-                ? null
-                : ProviderFailureKinds.ToWireName(providerFailure.Kind),
-            HttpStatus = providerFailure?.HttpStatus
+            Error = error
         });
 
     public void EmitTurnCancelled(SessionTurn turn, string reason) =>
@@ -241,6 +233,8 @@ internal sealed class SessionEventChannel(
         CompletedAt = turn.CompletedAt,
         TokenUsage = turn.TokenUsage,
         Error = turn.Error,
+        ProviderError = turn.ProviderError,
+        HttpStatus = turn.HttpStatus,
         OriginChannel = turn.OriginChannel,
         Initiator = turn.Initiator
     };

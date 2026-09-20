@@ -195,17 +195,27 @@ internal sealed class StreamRetryingChatClient(
                 attemptStopwatch.Elapsed.TotalMilliseconds,
                 emittedVisibleUpdate);
 
+            // Exhausting this layer's budget is terminal, so the tool loop adds no round of its own.
+            var surfaced = retryExhausted
+                ? new ProviderFailureException(
+                    new ProviderFailure(
+                        ProviderFailureKind.ResponseTooManyFailedAttempts,
+                        ModelStreamAttemptRuntimeScope.Current?.StatusCode,
+                        RequestId: ModelStreamAttemptRuntimeScope.Current?.RequestId),
+                    failure)
+                : failure;
+
             if (!retryDelegated)
             {
                 // Only the tool loop knows whether a delegated failure is terminal.
                 ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(
-                    Classifier.Classify(failure));
+                    Classifier.Classify(surfaced));
                 if (totalRetries > 0)
-                    ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(failure);
+                    ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(surfaced);
             }
 
             providerHistoryAttempt.Complete();
-            throw failure;
+            throw surfaced;
         }
     }
 

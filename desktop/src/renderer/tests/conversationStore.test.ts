@@ -2040,19 +2040,19 @@ describe('system events', () => {
     expect(s().streamRetry).toBeNull()
   })
 
-  it('records the provider classification on a failed turn', () => {
+  it('records the provider classification carried on the failed turn', () => {
     s().onTurnStarted(makeTurn())
 
-    s().onTurnFailed({ id: 'turn-1', threadId: 'thread-1' }, 'boom', {
-      providerError: 'usageLimitExceeded',
-      httpStatus: 429
-    })
+    s().onTurnFailed({ id: 'turn-1', threadId: 'thread-1', providerError: 'usageLimitExceeded' }, 'boom')
 
-    expect(s().turns[0]).toMatchObject({
-      status: 'failed',
-      providerError: 'usageLimitExceeded',
-      httpStatus: 429
-    })
+    expect(s().turns[0]).toMatchObject({ status: 'failed', providerError: 'usageLimitExceeded' })
+  })
+
+  it('keeps the provider classification when turns are reloaded from history', () => {
+    s().setTurns([makeTurn({ status: 'failed', error: 'boom', providerError: 'serverOverloaded' })])
+
+    expect(s().turns[0]).toMatchObject({ status: 'failed', providerError: 'serverOverloaded' })
+    expect(selectCapacityRetryDelaySeconds(s())).toBe(10)
   })
 })
 

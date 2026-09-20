@@ -377,11 +377,7 @@ interface ConversationActions {
   setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>, options?: SetTurnsOptions): void
   onTurnStarted(rawTurn: Record<string, unknown>): void
   onTurnCompleted(rawTurn: Record<string, unknown>): void
-  onTurnFailed(
-    rawTurn: Record<string, unknown>,
-    error: string,
-    classification?: { providerError?: string | null; httpStatus?: number | null }
-  ): void
+  onTurnFailed(rawTurn: Record<string, unknown>, error: string): void
   onTurnCancelled(rawTurn: Record<string, unknown>, reason: string): void
   onItemStarted(params: Record<string, unknown>): void
   /** item/agentMessage/delta notification */
@@ -1883,7 +1879,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     // pending-message auto-send is handled there, not here.
   },
 
-  onTurnFailed(rawTurn, error, classification) {
+  onTurnFailed(rawTurn, error) {
     flushConversationTextDeltas()
     const turn = wireTurnToConversationTurn(rawTurn)
     set((state) => ({
@@ -1893,8 +1889,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
             ...t,
             status: 'failed' as TurnStatus,
             error,
-            providerError: classification?.providerError ?? undefined,
-            httpStatus: classification?.httpStatus ?? undefined,
+            providerError: turn.providerError,
             completedAt: turn.completedAt
           }
           : t

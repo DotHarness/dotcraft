@@ -190,6 +190,22 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Single(inner.Requests);
     }
 
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenTransportExhaustsItsBudget_DoesNotStartAnotherRound()
+    {
+        var inner = new ScriptedStreamChatClient(([], new IOException("connection reset")));
+        IChatClient transport = new StreamRetryingChatClient(
+            inner,
+            new StreamRetryOptions(2, TimeSpan.FromSeconds(30)));
+        var client = new StreamingFunctionInvokingChatClient(new PassthroughChatClient(transport));
+
+        var failure = await Assert.ThrowsAsync<ProviderFailureException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")])));
+
+        Assert.Equal(ProviderFailureKind.ResponseTooManyFailedAttempts, failure.Failure.Kind);
+        Assert.Equal(3, inner.Requests.Count);
+    }
+
     private static ChatResponseUpdate Text(string text) => new(ChatRole.Assistant, text);
 
     private static string Text(IEnumerable<ChatResponseUpdate> updates) =>

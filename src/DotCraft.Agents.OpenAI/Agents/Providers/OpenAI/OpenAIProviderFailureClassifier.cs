@@ -8,6 +8,9 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
     {
         ArgumentNullException.ThrowIfNull(exception);
 
+        if (exception is ProviderFailureException carried)
+            return carried.Failure;
+
         var fallback = DefaultProviderFailureClassifier.Instance.Classify(exception);
         var result = FindClientResultException(exception);
         if (result is null)

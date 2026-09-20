@@ -319,7 +319,7 @@ public sealed class StreamRetryingChatClientTests
                 IdleTimeout: TimeSpan.FromSeconds(30),
                 ProviderServerErrorMaxRetries: 1));
 
-        var exception = await Assert.ThrowsAnyAsync<HttpRequestException>(async () =>
+        var exception = await Assert.ThrowsAsync<ProviderFailureException>(async () =>
         {
             await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
             {
@@ -328,6 +328,7 @@ public sealed class StreamRetryingChatClientTests
 
         Assert.Equal(2, inner.Calls);
         Assert.Contains("req_final", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(ProviderFailureKind.ResponseTooManyFailedAttempts, exception.Failure.Kind);
     }
 
     [Fact]
@@ -434,7 +435,7 @@ public sealed class StreamRetryingChatClientTests
             NotifyAttemptCompleted = attempts.Add
         });
 
-        var exception = await Assert.ThrowsAsync<IOException>(async () =>
+        var exception = await Assert.ThrowsAsync<ProviderFailureException>(async () =>
         {
             await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
             {
@@ -442,8 +443,10 @@ public sealed class StreamRetryingChatClientTests
         });
 
         Assert.Equal("second", exception.Message);
+        Assert.Equal(ProviderFailureKind.ResponseTooManyFailedAttempts, exception.Failure.Kind);
+        Assert.True(exception.Failure.IsTerminal);
         Assert.Equal(2, inner.Calls);
-        Assert.Equal(["IOException:second"], finalFailures);
+        Assert.Equal(["ProviderFailureException:second"], finalFailures);
         Assert.Equal(["scheduled", "exhausted"], attempts.Select(static attempt => attempt.RetryDecision).ToArray());
     }
 
