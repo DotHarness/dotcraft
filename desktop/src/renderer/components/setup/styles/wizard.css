@@ -257,3 +257,115 @@
     top: 12px;
   }
 }
+
+.setup-auth-group {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-auth-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.setup-auth-card[data-active="true"] {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+}
+
+.setup-auth-card:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.setup-auth-choice {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.setup-auth-choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.setup-auth-title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.setup-auth-description {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.setup-auth-action {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-auth-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.setup-auth-error {
+  margin-top: 6px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.setup-summary-provider {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.setup-summary-provider-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-summary-provider-name {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.setup-summary-provider-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--text-dimmed);
+  font-size: 12px;
+}
+
+.setup-summary-provider-id {
+  font-family: var(--font-mono);
+}

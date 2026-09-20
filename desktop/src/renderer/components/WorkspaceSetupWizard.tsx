@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type Ref } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode, type Ref } from 'react'
 import { ArrowLeft, ArrowRight, Check, Folder } from 'lucide-react'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
@@ -16,6 +16,7 @@ import { SecretInput } from './channels/FormShared'
 import { ToggleSwitch } from './channels/ToggleSwitch'
 import { SettingsSelect } from './settings/ui/SettingsSelect'
 import { ProviderProtocolIcon } from './settings/panels/ProviderProtocolIcon'
+import { ProviderModelSummary } from './settings/ProviderModelSummary'
 import { ActionTooltip } from './ui/ActionTooltip'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -222,6 +223,9 @@ export function WorkspaceSetupWizard({
   const modelSelectAvailable =
     modelLoadState === 'ready' &&
     modelCatalog.length > 0
+  // The catalog is fetched with the OAuth token, so a loaded list is the wizard's only signal that sign-in took.
+  const chatGptSignInState: ChatGptSignInState =
+    chatGptLoginPending ? 'pending' : modelLoadState === 'ready' ? 'signedIn' : 'required'
   const canAdvanceFromConfig =
     model.trim().length > 0 &&
     (providerChoice !== 'existing' || activeExistingProvider != null) &&
@@ -571,6 +575,10 @@ export function WorkspaceSetupWizard({
                 <ExistingProviderForm
                   providers={providers}
                   selectedProviderId={selectedProviderId}
+                  selectedProvider={activeExistingProvider}
+                  signInState={chatGptSignInState}
+                  loginError={loginError}
+                  onLoginChatGpt={() => { void loginChatGptForSetup() }}
                   onChange={setSelectedProviderId}
                 />
               )}
@@ -578,6 +586,9 @@ export function WorkspaceSetupWizard({
               {(providerChoice === 'openai-template' || providerChoice === 'anthropic-template') && activeDraft && (
                 <TemplateProviderForm
                   draft={activeDraft}
+                  signInState={chatGptSignInState}
+                  loginError={loginError}
+                  onLoginChatGpt={() => { void loginChatGptForSetup() }}
                   onChange={updateActiveDraft}
                 />
               )}
@@ -586,6 +597,9 @@ export function WorkspaceSetupWizard({
                 <CustomProviderForm
                   draft={customDraft}
                   timeoutDraft={customTimeoutDraft}
+                  signInState={chatGptSignInState}
+                  loginError={loginError}
+                  onLoginChatGpt={() => { void loginChatGptForSetup() }}
                   onChange={(partial) => {
                     setCustomDraft((draft) => ({ ...draft, ...partial }))
                   }}
@@ -611,9 +625,6 @@ export function WorkspaceSetupWizard({
                 modelListLoading={modelListLoading}
                 modelSelectAvailable={modelSelectAvailable}
                 modelLoadState={modelLoadState}
-                loginError={loginError}
-                chatGptLoginPending={chatGptLoginPending}
-                onLoginChatGpt={() => { void loginChatGptForSetup() }}
                 onRetry={retry}
                 onChange={(nextPreference) => {
                   setModelDirty(true)
@@ -656,6 +667,7 @@ export function WorkspaceSetupWizard({
                   ? activeExistingProvider?.id ?? selectedProviderId
                   : activeDraft?.id ?? ''
               }
+              protocol={activeProtocol}
               preference={preference}
               setAsUserDefault={setAsUserDefault}
               bootstrapImportSource={selectedBootstrapImportSource}
@@ -948,13 +960,23 @@ function BootstrapImportStep({
 function ExistingProviderForm({
   providers,
   selectedProviderId,
+  selectedProvider,
+  signInState,
+  loginError,
+  onLoginChatGpt,
   onChange
 }: {
   providers: WorkspaceSetupProviderSummary[]
   selectedProviderId: string
+  selectedProvider: WorkspaceSetupProviderSummary | null
+  signInState: ChatGptSignInState
+  loginError: string | null
+  onLoginChatGpt(): void
   onChange(providerId: string): void
 }): JSX.Element {
   const t = useT()
+  // A saved subscription provider has no auth-method cards, so its sign-in lives on the provider row.
+  const needsSignIn = selectedProvider?.authMethod === 'chatgptOAuth' && signInState !== 'signedIn'
   return (
     <div style={{ display: 'grid', gap: '14px' }}>
       <div>
@@ -972,15 +994,38 @@ function ExistingProviderForm({
           }))}
         />
       </div>
+      {needsSignIn && (
+        <div>
+          <div className="setup-auth-card">
+            <span className="setup-auth-choice">
+              <span className="setup-auth-title">{t('setupWizard.authMethod.chatgpt')}</span>
+            </span>
+            <span className="setup-auth-action">
+              <ChatGptSignInAction state={signInState} onSignIn={onLoginChatGpt} />
+            </span>
+          </div>
+          {loginError && (
+            <div className="setup-auth-error" role="alert">
+              {t('settings.llm.authMethod.signInFailed', { error: loginError })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 function TemplateProviderForm({
   draft,
+  signInState,
+  loginError,
+  onLoginChatGpt,
   onChange
 }: {
   draft: WorkspaceSetupProviderDraft
+  signInState: ChatGptSignInState
+  loginError: string | null
+  onLoginChatGpt(): void
   onChange(partial: Partial<WorkspaceSetupProviderDraft>): void
 }): JSX.Element {
   const t = useT()
@@ -997,20 +1042,28 @@ function TemplateProviderForm({
           <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
             {t('setupWizard.field.authMethod')}
           </label>
-          <div style={{ display: 'grid', gap: '8px' }}>
+          <div className="setup-auth-group" role="radiogroup" aria-label={t('setupWizard.field.authMethod')}>
             <AuthMethodCard
+              value="apiKey"
               active={authMethod === 'apiKey'}
               title={t('setupWizard.authMethod.apiKey')}
               description={t('setupWizard.authMethod.apiKeyDescription')}
-              onClick={() => onChange({ authMethod: 'apiKey' })}
+              onSelect={() => onChange({ authMethod: 'apiKey' })}
             />
             <AuthMethodCard
+              value="chatgptOAuth"
               active={authMethod === 'chatgptOAuth'}
               title={t('setupWizard.authMethod.chatgpt')}
               description={t('setupWizard.authMethod.chatgptDescription')}
-              onClick={() => onChange({ authMethod: 'chatgptOAuth', apiKey: '' })}
+              onSelect={() => onChange({ authMethod: 'chatgptOAuth', apiKey: '' })}
+              action={oauthMode ? <ChatGptSignInAction state={signInState} onSignIn={onLoginChatGpt} /> : undefined}
             />
           </div>
+          {oauthMode && loginError && (
+            <div className="setup-auth-error" role="alert">
+              {t('settings.llm.authMethod.signInFailed', { error: loginError })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1044,43 +1097,73 @@ function TemplateProviderForm({
   )
 }
 
+type ChatGptSignInState = 'required' | 'pending' | 'signedIn'
+
+function ChatGptSignInAction({ state, onSignIn }: { state: ChatGptSignInState; onSignIn(): void }): JSX.Element {
+  const t = useT()
+  if (state === 'signedIn') {
+    return (
+      <span className="setup-auth-state">
+        <Check size={14} aria-hidden="true" />
+        {t('setupWizard.authMethod.signedIn')}
+      </span>
+    )
+  }
+  return (
+    <Button variant="secondary" size="sm" loading={state === 'pending'} onClick={onSignIn}>
+      {state === 'pending' ? t('settings.llm.authMethod.signInPending') : t('settings.llm.authMethod.signIn')}
+    </Button>
+  )
+}
+
+// The action sits beside the label rather than inside it, so clicking it cannot also toggle the radio.
 function AuthMethodCard({
+  value,
   active,
   title,
   description,
-  onClick
+  onSelect,
+  action
 }: {
+  value: NonNullable<WorkspaceSetupProviderDraft['authMethod']>
   active: boolean
   title: string
   description: string
-  onClick: () => void
+  onSelect: () => void
+  action?: ReactNode
 }): JSX.Element {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        ...cardStyle(active),
-        textAlign: 'left',
-        padding: '10px 12px'
-      }}
-    >
-      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
-      <div style={{ marginTop: '4px', fontSize: '12px', lineHeight: 1.55, color: 'var(--text-secondary)' }}>
-        {description}
-      </div>
-    </button>
+    <div className="setup-auth-card" data-active={active}>
+      <label className="setup-auth-choice">
+        <input
+          type="radio"
+          name="setup-auth-method"
+          value={value}
+          checked={active}
+          onChange={onSelect}
+        />
+        <span className="setup-auth-title">{title}</span>
+        <span className="setup-auth-description">{description}</span>
+      </label>
+      {action ? <span className="setup-auth-action">{action}</span> : null}
+    </div>
   )
 }
 
 function CustomProviderForm({
   draft,
   timeoutDraft,
+  signInState,
+  loginError,
+  onLoginChatGpt,
   onChange,
   onTimeoutChange
 }: {
   draft: WorkspaceSetupProviderDraft
   timeoutDraft: string
+  signInState: ChatGptSignInState
+  loginError: string | null
+  onLoginChatGpt(): void
   onChange(partial: Partial<WorkspaceSetupProviderDraft>): void
   onTimeoutChange(value: string): void
 }): JSX.Element {
@@ -1137,7 +1220,13 @@ function CustomProviderForm({
           }))}
         />
       </div>
-      <TemplateProviderForm draft={draft} onChange={onChange} />
+      <TemplateProviderForm
+        draft={draft}
+        signInState={signInState}
+        loginError={loginError}
+        onLoginChatGpt={onLoginChatGpt}
+        onChange={onChange}
+      />
       <div>
         <label htmlFor="setup-provider-timeout" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
           {t('setupWizard.field.timeout')}
@@ -1162,9 +1251,6 @@ function ModelField({
   modelListLoading,
   modelSelectAvailable,
   modelLoadState,
-  chatGptLoginPending,
-  loginError,
-  onLoginChatGpt,
   onRetry,
   onChange
 }: {
@@ -1173,9 +1259,6 @@ function ModelField({
   modelListLoading: boolean
   modelSelectAvailable: boolean
   modelLoadState: 'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'
-  chatGptLoginPending: boolean
-  loginError: string | null
-  onLoginChatGpt(): void
   onRetry(): void
   onChange(preference: ModelPreference): void
 }): JSX.Element {
@@ -1198,12 +1281,6 @@ function ModelField({
         inputAriaLabel={t('setupWizard.field.model')}
         placeholder={t('setupWizard.placeholder.model')}
       />
-      {loginError && <div role="alert">{t('settings.llm.authMethod.signInFailed', { error: loginError })}</div>}
-      {modelLoadState === 'auth-required' && (
-        <Button variant="primary" onClick={onLoginChatGpt} loading={chatGptLoginPending} style={{ marginTop: '8px' }}>
-          {chatGptLoginPending ? t('settings.llm.authMethod.signInPending') : t('setupWizard.authMethod.chatgpt')}
-        </Button>
-      )}
       {(modelLoadState === 'unsupported' || modelLoadState === 'missing-key' || modelLoadState === 'error') && (
         <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
           {t('setupWizard.modelListUnavailable')}
@@ -1222,6 +1299,7 @@ function ConfirmStep({
   displayLanguage,
   providerName,
   providerId,
+  protocol,
   preference,
   setAsUserDefault,
   bootstrapImportSource,
@@ -1231,6 +1309,7 @@ function ConfirmStep({
   displayLanguage: string
   providerName: string
   providerId: string
+  protocol: WorkspaceSetupProviderProtocol
   preference: ModelPreference
   setAsUserDefault: boolean
   bootstrapImportSource: WorkspaceSetupBootstrapImportSource | null
@@ -1259,34 +1338,19 @@ function ConfirmStep({
           fontSize: '13px'
         }}
       >
+        <div className="setup-summary-provider">
+          <ProviderProtocolIcon protocol={protocol} size={30} />
+          <div className="setup-summary-provider-body">
+            <div className="setup-summary-provider-name">{providerName}</div>
+            <div className="setup-summary-provider-meta">
+              <span className="setup-summary-provider-id">{providerId}</span>
+              <span aria-hidden>·</span>
+              <span>{providerProtocolLabel(protocol)}</span>
+            </div>
+            <ProviderModelSummary main={preference} mainLabel={t('setupWizard.summary.model')} />
+          </div>
+        </div>
         <SummaryRow label={t('setupWizard.summary.displayLanguage')} value={displayLanguage} />
-        <SummaryRow label={t('setupWizard.summary.provider')} value={providerName} />
-        <SummaryRow label={t('setupWizard.summary.providerId')} value={providerId} mono />
-        <SummaryRow label={t('setupWizard.summary.model')} value={preference.model} mono />
-        <SummaryRow
-          label={t('composer.reasoning.heading')}
-          value={preference.reasoning.enabled
-            ? preference.reasoning.effort === 'ultra'
-              ? t('composer.reasoning.ultra')
-              : preference.reasoning.effort === 'extraHigh'
-                ? t('composer.reasoning.extraHigh')
-                : preference.reasoning.effort === 'high'
-                  ? t('composer.reasoning.high')
-                  : preference.reasoning.effort === 'medium'
-                    ? t('composer.reasoning.medium')
-                    : preference.reasoning.effort === 'low'
-                      ? t('composer.reasoning.low')
-                      : t('composer.reasoning.off')
-            : t('composer.reasoning.off')}
-        />
-        <SummaryRow
-          label={t('composer.speed.heading')}
-          value={t(preference.speed === 'fast' ? 'composer.speed.fast' : 'composer.speed.standard')}
-        />
-        <SummaryRow
-          label={t('composer.context.label')}
-          value={preference.contextWindow.mode === 'max' ? 'MAX' : t('composer.reasoning.default')}
-        />
         <SummaryRow
           label={t('setupWizard.summary.userDefault')}
           value={setAsUserDefault ? t('setupWizard.summary.yes') : t('setupWizard.summary.no')}
@@ -1343,12 +1407,10 @@ function ConfirmStep({
 
 function SummaryRow({
   label,
-  value,
-  mono = false
+  value
 }: {
   label: string
   value: string
-  mono?: boolean
 }): JSX.Element {
   return (
     <div
@@ -1363,8 +1425,7 @@ function SummaryRow({
       <div
         style={{
           color: 'var(--text-primary)',
-          wordBreak: 'break-word',
-          fontFamily: mono ? 'var(--font-mono)' : undefined
+          wordBreak: 'break-word'
         }}
       >
         {value}

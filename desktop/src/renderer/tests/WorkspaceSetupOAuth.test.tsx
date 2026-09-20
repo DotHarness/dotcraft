@@ -51,13 +51,8 @@ describe('Setup ChatGPT subscription', () => {
     loginSetupChatGpt.mockImplementation(async () => { authenticated = true; return { kind: 'success' } })
     await mount(false)
     fireEvent.click(await screen.findByRole('button', { name: /Custom/ }))
-    fireEvent.click(await screen.findByRole('button', { name: /Sign in with ChatGPT/ }))
-    const buttons = await waitFor(() => {
-      const matches = screen.getAllByRole('button', { name: /Sign in with ChatGPT/ })
-      expect(matches).toHaveLength(2)
-      return matches
-    })
-    fireEvent.click(buttons.at(-1)!)
+    fireEvent.click(await screen.findByRole('radio', { name: /ChatGPT subscription/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with ChatGPT' }))
     await waitFor(() => expect(screen.getByLabelText('Model').tagName).toBe('BUTTON'))
     expect(runSetup).not.toHaveBeenCalled()
     await submit()

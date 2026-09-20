@@ -144,7 +144,7 @@ describe('WorkspaceSetupWizard', () => {
     expect(screen.getByText('Step 2 of 3')).toBeInTheDocument()
 
     fireEvent.click(previousStep)
-    expect(screen.getByText('Confirm DotCraft workspace')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm workspace' })).toHaveAttribute('aria-current', 'step')
   })
 
   it('selects an existing explicit provider and saves only provider id and model', async () => {
@@ -222,7 +222,6 @@ describe('WorkspaceSetupWizard', () => {
     renderWizard(status)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    expect(screen.getByText('Import existing coding-agent config')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Claude Code/ })).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
@@ -347,7 +346,7 @@ describe('WorkspaceSetupWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
 
     // Pick ChatGPT subscription on the (default) Responses protocol.
-    fireEvent.click(await screen.findByRole('button', { name: /Sign in with ChatGPT/i }))
+    fireEvent.click(await screen.findByRole('radio', { name: /ChatGPT subscription/ }))
 
     // Now move the custom provider off Responses; the OAuth selection must be cleared so the
     // saved payload stays consistent with the new protocol.
@@ -388,11 +387,9 @@ describe('WorkspaceSetupWizard', () => {
     renderWizard(status)
     await openConfigStep()
     fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
-    fireEvent.click(await screen.findByRole('button', { name: /Sign in with ChatGPT/i }))
+    fireEvent.click(await screen.findByRole('radio', { name: /ChatGPT subscription/ }))
 
-    await screen.findAllByRole('button', { name: /Sign in with ChatGPT/i })
-    const signInButtons = await screen.findAllByRole('button', { name: /Sign in with ChatGPT/i })
-    fireEvent.click(signInButtons.at(-1)!)
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with ChatGPT' }))
 
     await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('provider'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
@@ -446,7 +443,7 @@ describe('WorkspaceSetupWizard', () => {
 
     expect(nextButton).not.toBeDisabled()
     fireEvent.click(nextButton)
-    expect(screen.getByRole('heading', { name: 'Confirm and create' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm and create' })).toHaveAttribute('aria-current', 'step')
   })
 
   it('passes the DotCraft logo to the setup completion handoff', async () => {

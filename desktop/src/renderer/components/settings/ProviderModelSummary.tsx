@@ -7,7 +7,9 @@ import type { ModelPreference, ModelPreferenceReasoningEffort } from '../../../s
 
 interface ProviderModelSummaryProps {
   main: ModelPreference | null
-  subAgent: ModelPreference | null
+  /** Omit where no sub-agent preference exists; `null` means it inherits the main model. */
+  subAgent?: ModelPreference | null
+  mainLabel?: string
 }
 
 const reasoningLabelKeys: Record<ModelPreferenceReasoningEffort, MessageKey> = {
@@ -18,13 +20,13 @@ const reasoningLabelKeys: Record<ModelPreferenceReasoningEffort, MessageKey> = {
   ultra: 'composer.reasoning.ultra'
 }
 
-export function ProviderModelSummary({ main, subAgent }: ProviderModelSummaryProps): JSX.Element | null {
+export function ProviderModelSummary({ main, subAgent, mainLabel }: ProviderModelSummaryProps): JSX.Element | null {
   const t = useT()
+  const pairsWithSubAgent = subAgent !== undefined
   if (!main && !subAgent) return null
 
-  const reasoningLabel = (preference: ModelPreference): string => t(preference.reasoning.enabled
-    ? reasoningLabelKeys[preference.reasoning.effort]
-    : 'composer.reasoning.off')
+  const reasoningLabel = (preference: ModelPreference): string | null =>
+    preference.reasoning.enabled ? t(reasoningLabelKeys[preference.reasoning.effort]) : null
 
   const clause = (label: string, value: string, fast: boolean): JSX.Element => (
     <span className={styles.clause}>
@@ -50,14 +52,14 @@ export function ProviderModelSummary({ main, subAgent }: ProviderModelSummaryPro
 
   return (
     <div className={styles.row}>
-      {main && preferenceClause(t('settings.llm.providerSummaryMain'), main)}
-      {subAgent
+      {main && preferenceClause(mainLabel ?? t('settings.llm.providerSummaryMain'), main)}
+      {pairsWithSubAgent && (subAgent
         ? preferenceClause(t('settings.llm.providerSummarySubAgent'), subAgent)
         : clause(
           t('settings.llm.providerSummarySubAgent'),
           t('settings.llm.providerSummarySubAgentInherit'),
           false
-        )}
+        ))}
     </div>
   )
 }
