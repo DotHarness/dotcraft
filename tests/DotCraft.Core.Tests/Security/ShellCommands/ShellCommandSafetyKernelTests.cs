@@ -221,6 +221,16 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
     }
 
     [Fact]
+    public void Evaluate_ForcedRemoveAfterAppendAssignment_PromptsAsDangerous()
+    {
+        var assessment = Posix().Evaluate(Request("TARGET+=build rm -rf build"));
+
+        Assert.False(assessment.Lowering!.IsPlain);
+        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.Dangerous, assessment.Risk);
+    }
+
+    [Fact]
     public void Evaluate_PowerShellForcedDelete_PromptsAsDangerous()
     {
         var assessment = Windows().Evaluate(Request("Remove-Item build -Force"));

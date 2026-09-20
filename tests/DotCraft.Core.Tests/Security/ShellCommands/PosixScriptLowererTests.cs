@@ -87,6 +87,7 @@ public sealed class PosixScriptLowererTests
     [InlineData("echo 'unterminated", "unbalanced")]
     [InlineData("echo \"unterminated", "unbalanced")]
     [InlineData("FOO=bar ls", "variable assignment prefix")]
+    [InlineData("FOO+=bar ls", "variable assignment prefix")]
     [InlineData("ls &&", "empty command position")]
     [InlineData("&& ls", "empty command position")]
     [InlineData("ls ;; pwd", "empty command position")]
@@ -142,6 +143,14 @@ public sealed class PosixScriptLowererTests
         var lowered = Lower("cmd=rm; $cmd -rf /tmp/example");
 
         Assert.Empty(lowered.LiteralCommands);
+    }
+
+    [Fact]
+    public void Lower_AppendAssignmentPrefix_ExtractsTheCommand()
+    {
+        var lowered = Lower("TARGET+=build rm -rf build");
+
+        AssertCommands([["rm", "-rf", "build"]], lowered.LiteralCommands);
     }
 
     [Theory]

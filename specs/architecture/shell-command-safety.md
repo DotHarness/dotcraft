@@ -1,8 +1,12 @@
 # Shell Command Safety
 
-Version: 1.1
-Status: Normative
-Owner: DotCraft.Core (`DotCraft.Security.ShellCommands`, `DotCraft.Tools.ShellTools`)
+| Field | Value |
+|---|---|
+| Version | 1.1.0 |
+| Status | Living |
+| Date | 2026-09-19 |
+| Owner | DotCraft.Core (`DotCraft.Security.ShellCommands`, `DotCraft.Tools.ShellTools`) |
+| Related Specs | [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [SubAgents](../features/subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 ## 1. Purpose
 

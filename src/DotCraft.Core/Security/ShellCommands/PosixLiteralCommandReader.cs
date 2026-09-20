@@ -22,7 +22,8 @@ internal static class PosixLiteralCommandReader
         if (separator <= 0 || (!char.IsAsciiLetter(word[0]) && word[0] != '_'))
             return false;
 
-        for (var i = 1; i < separator; i++)
+        var nameEnd = word[separator - 1] == '+' ? separator - 1 : separator;
+        for (var i = 1; i < nameEnd; i++)
         {
             if (!char.IsAsciiLetterOrDigit(word[i]) && word[i] != '_')
                 return false;
