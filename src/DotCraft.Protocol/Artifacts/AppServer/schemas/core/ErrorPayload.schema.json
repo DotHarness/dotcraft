@@ -10,8 +10,28 @@
     "fatal": {
       "type": "boolean"
     },
+    "httpStatus": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "message": {
       "type": "string"
+    },
+    "providerError": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true,

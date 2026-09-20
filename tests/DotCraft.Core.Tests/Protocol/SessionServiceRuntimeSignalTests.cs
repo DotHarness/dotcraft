@@ -930,6 +930,25 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_WithNoInput_RunsATurnWithoutAUserMessage()
+    {
+        IChatClient chatClient = new FakeChatClient(
+            [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("continued")])]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, []));
+
+        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
+        var updatedThread = await svc.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updatedThread.Turns);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Null(turn.Input);
+        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.UserMessage);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_WhenRetryableStreamFailsAfterVisibleUpdate_DoesNotEmitStreamErrorAndFails()
     {
         IChatClient inner = new ThrowingAfterUpdatesChatClient(

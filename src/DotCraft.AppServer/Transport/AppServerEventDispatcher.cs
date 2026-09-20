@@ -248,7 +248,9 @@ public sealed class AppServerEventDispatcher
             {
                 Turn = AppServerContractMapper.ToContract(
                     turn ?? throw new InvalidOperationException("turn/failed requires a turn payload.")),
-                Error = evt.TurnFailedPayload?.Error
+                Error = evt.TurnFailedPayload?.Error,
+                ProviderError = evt.TurnFailedPayload?.ProviderError,
+                HttpStatus = evt.TurnFailedPayload?.HttpStatus
             },
             SessionEventType.TurnCancelled => new Contract.TurnNotification
             {
@@ -352,7 +354,9 @@ public sealed class AppServerEventDispatcher
             Turn = AppServerContractMapper.ToContract(
                 ToWireTurnForConnection(evt.TurnPayload)
                 ?? throw new InvalidOperationException("turn/failed requires a turn payload.")),
-            Error = evt.TurnFailedPayload?.Error
+            Error = evt.TurnFailedPayload?.Error,
+            ProviderError = evt.TurnFailedPayload?.ProviderError,
+            HttpStatus = evt.TurnFailedPayload?.HttpStatus
         },
         SessionEventType.TurnCancelled => new Contract.TurnNotification
         {

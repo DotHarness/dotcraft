@@ -1528,6 +1528,14 @@ public sealed class TurnNotification : ExtensibleJsonObject
     [JsonPropertyName("reason")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Reason { get; init; }
+
+    [JsonPropertyName("providerError")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ProviderError { get; init; }
+
+    [JsonPropertyName("httpStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? HttpStatus { get; init; }
 }
 
 /// <summary>Item lifecycle notification payload.</summary>

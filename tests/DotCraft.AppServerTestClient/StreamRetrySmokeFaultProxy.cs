@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -9,8 +10,16 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.AppServerTestClient;
 
+internal enum StreamRetrySmokeFaultMode
+{
+    PreStream,
+    MidStream
+}
+
 internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
 {
+    private const int MidStreamAbortMinBytes = 2048;
+
     private static readonly HashSet<string> HopByHopHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
         "Connection",
@@ -26,17 +35,23 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
 
     private readonly WebApplication _app;
     private readonly Uri _upstreamBaseUri;
+    private readonly StreamRetrySmokeFaultMode _faultMode;
     private readonly HttpClient _httpClient;
     private readonly ConcurrentQueue<StreamRetrySmokeProxyRequestReport> _requests = new();
     private int _faultInjected;
     private int _faultedRequests;
     private int _forwardedRequests;
 
-    private StreamRetrySmokeFaultProxy(WebApplication app, Uri endpoint, Uri upstreamBaseUri)
+    private StreamRetrySmokeFaultProxy(
+        WebApplication app,
+        Uri endpoint,
+        Uri upstreamBaseUri,
+        StreamRetrySmokeFaultMode faultMode)
     {
         _app = app;
         Endpoint = endpoint;
         _upstreamBaseUri = upstreamBaseUri;
+        _faultMode = faultMode;
         _httpClient = new HttpClient
         {
             Timeout = Timeout.InfiniteTimeSpan
@@ -47,6 +62,7 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
 
     public static async Task<StreamRetrySmokeFaultProxy> StartAsync(
         Uri upstreamBaseUri,
+        StreamRetrySmokeFaultMode faultMode = StreamRetrySmokeFaultMode.PreStream,
         CancellationToken cancellationToken = default)
     {
         var port = AllocateLoopbackPort();
@@ -56,7 +72,7 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
         builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, port));
 
         var app = builder.Build();
-        var proxy = new StreamRetrySmokeFaultProxy(app, endpoint, upstreamBaseUri);
+        var proxy = new StreamRetrySmokeFaultProxy(app, endpoint, upstreamBaseUri, faultMode);
         app.Run(proxy.HandleAsync);
         await app.StartAsync(cancellationToken);
         return proxy;
@@ -85,14 +101,15 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
 
     private async Task HandleAsync(HttpContext context)
     {
-        if (ShouldFault(context.Request)
-            && Interlocked.CompareExchange(ref _faultInjected, 1, 0) == 0)
+        var selected = ShouldFault(context.Request)
+                       && Interlocked.CompareExchange(ref _faultInjected, 1, 0) == 0;
+        if (selected && _faultMode == StreamRetrySmokeFaultMode.PreStream)
         {
             await FaultAsync(context);
             return;
         }
 
-        await ForwardAsync(context);
+        await ForwardAsync(context, abortMidStream: selected);
     }
 
     private async Task FaultAsync(HttpContext context)
@@ -120,12 +137,12 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
         }
     }
 
-    private async Task ForwardAsync(HttpContext context)
+    private async Task ForwardAsync(HttpContext context, bool abortMidStream)
     {
         var stopwatch = Stopwatch.StartNew();
         var report = new StreamRetrySmokeProxyRequestReport
         {
-            Kind = "forwarded",
+            Kind = abortMidStream ? "faulted-midstream" : "forwarded",
             Method = context.Request.Method,
             Path = SafePath(context.Request)
         };
@@ -143,7 +160,18 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
 
             context.Response.StatusCode = (int)upstreamResponse.StatusCode;
             CopyResponseHeaders(upstreamResponse, context.Response);
-            await upstreamResponse.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+
+            if (!abortMidStream)
+            {
+                await upstreamResponse.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+            }
+            else
+            {
+                Interlocked.Increment(ref _faultedRequests);
+                await using var upstreamBody = await upstreamResponse.Content.ReadAsStreamAsync(context.RequestAborted);
+                if (await CopyUntilFirstDeltaAsync(upstreamBody, context.Response.Body, context.RequestAborted))
+                    context.Abort();
+            }
         }
         catch (Exception ex) when (!context.Response.HasStarted)
         {
@@ -156,6 +184,35 @@ internal sealed class StreamRetrySmokeFaultProxy : IAsyncDisposable
             stopwatch.Stop();
             report.DurationMs = stopwatch.ElapsedMilliseconds;
             _requests.Enqueue(report);
+        }
+    }
+
+    /// <summary>
+    /// Copies the response body until enough of it has carried a delta to reach the client, then
+    /// reports that the connection should drop. Returns false when the body ended on its own.
+    /// </summary>
+    private static async Task<bool> CopyUntilFirstDeltaAsync(
+        Stream source,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[4096];
+        var copied = 0L;
+        var sawDelta = false;
+
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+                return false;
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            await destination.FlushAsync(cancellationToken);
+            copied += read;
+            sawDelta |= Encoding.UTF8.GetString(buffer, 0, read).Contains("delta", StringComparison.Ordinal);
+
+            if (sawDelta && copied >= MidStreamAbortMinBytes)
+                return true;
         }
     }
 

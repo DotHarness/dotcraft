@@ -46,6 +46,35 @@ public sealed class StreamRetrySmokeTests
     }
 
     [Fact]
+    public void CliOptions_ParsesFaultMode()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "stream-retry-smoke-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(path, """{"providers":[]}""");
+
+            Assert.True(StreamRetrySmokeCliOptions.TryParse(["--matrix", path], out var defaults, out var error), error);
+            Assert.Equal(StreamRetrySmokeFaultMode.PreStream, defaults.FaultMode);
+
+            Assert.True(
+                StreamRetrySmokeCliOptions.TryParse(
+                    ["--matrix", path, "--fault-mode", "midstream"],
+                    out var midstream,
+                    out error),
+                error);
+            Assert.Equal(StreamRetrySmokeFaultMode.MidStream, midstream.FaultMode);
+
+            Assert.False(
+                StreamRetrySmokeCliOptions.TryParse(["--matrix", path, "--fault-mode", "nope"], out _, out error));
+            Assert.Contains("--fault-mode", error, StringComparison.Ordinal);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { }
+        }
+    }
+
+    [Fact]
     public void CliOptions_DefaultsToUserSmokeRunRootAndReport()
     {
         var path = Path.Combine(Path.GetTempPath(), "stream-retry-smoke-" + Guid.NewGuid().ToString("N") + ".json");

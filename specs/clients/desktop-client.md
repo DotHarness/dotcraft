@@ -337,7 +337,7 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 |---------------|-------------|
 | `subagent/progress` | The client may surface background worker progress if useful, but must not block the main conversation. |
 | `plan/updated` | Structured task progress becomes available in the current conversation context. |
-| `system/event` | Maintenance steps may be surfaced when relevant but must not overshadow core turn output. Provider stream retry events (`kind = "streamError"`) are shown as transient, tool-like rows at the active turn tail while the turn is running, then cleared on turn completion, failure, cancellation, or thread reload. |
+| `system/event` | Maintenance steps may be surfaced when relevant but must not overshadow core turn output. Provider stream retry events (`kind = "streamError"`) occupy a single transient status slot that each subsequent event replaces, leave no transcript entry, and clear on turn completion, failure, cancellation, or thread reload. The first attempt is not surfaced, and the underlying provider failure text stays behind a collapsed disclosure. |
 | `system/jobResult` | Automation output becomes visible as an out-of-band result associated with its source run. |
 | `automation/updated`, `automation/run/updated` | Definition and run views refresh independently. |
 | `thread/goal/updated` | Goal-aware surfaces for the affected thread update from the server snapshot without forcing thread navigation. |

@@ -683,6 +683,14 @@ public sealed class ErrorPayload : ExtensibleJsonObject
 
     [JsonPropertyName("fatal")]
     public required bool Fatal { get; init; }
+
+    [JsonPropertyName("providerError")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ProviderError { get; init; }
+
+    [JsonPropertyName("httpStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? HttpStatus { get; init; }
 }
 
 /// <summary>Canonical payload for a persistent system notice item.</summary>

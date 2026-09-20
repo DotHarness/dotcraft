@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using System.Threading.Channels;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 
@@ -73,8 +74,19 @@ internal sealed class SessionEventChannel(
     public void EmitTurnCompleted(SessionTurn turn) =>
         Write(SessionEventType.TurnCompleted, null, SnapshotTurn(turn));
 
-    public void EmitTurnFailed(SessionTurn turn, string error) =>
-        Write(SessionEventType.TurnFailed, null, new TurnFailedPayload { Turn = SnapshotTurn(turn), Error = error });
+    public void EmitTurnFailed(
+        SessionTurn turn,
+        string error,
+        ProviderFailure? providerFailure = null) =>
+        Write(SessionEventType.TurnFailed, null, new TurnFailedPayload
+        {
+            Turn = SnapshotTurn(turn),
+            Error = error,
+            ProviderError = providerFailure is null
+                ? null
+                : ProviderFailureKinds.ToWireName(providerFailure.Kind),
+            HttpStatus = providerFailure?.HttpStatus
+        });
 
     public void EmitTurnCancelled(SessionTurn turn, string reason) =>
         Write(SessionEventType.TurnCancelled, null, new TurnCancelledPayload { Turn = SnapshotTurn(turn), Reason = reason });
@@ -187,11 +199,16 @@ internal sealed class SessionEventChannel(
         string? message = null,
         double? percentLeft = null,
         long? tokenCount = null,
-        ContextUsageSnapshot? contextUsage = null) =>
+        ContextUsageSnapshot? contextUsage = null,
+        string? messageKey = null,
+        IReadOnlyDictionary<string, object?>? parameters = null) =>
         Write(SessionEventType.SystemEvent, null, new SystemEventPayload
         {
             Kind = kind,
             Message = message,
+            MessageKey = messageKey,
+            Params = parameters,
+            FallbackText = message,
             PercentLeft = percentLeft,
             TokenCount = tokenCount,
             ContextUsage = contextUsage

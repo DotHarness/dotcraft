@@ -2462,7 +2462,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `consolidationSkipped` | Memory consolidation completed without writing MEMORY.md or HISTORY.md (for example, the model did not call `save_memory` or produced no valid changes). Clients should dismiss any active consolidation status and should not show a success marker. |
 | `consolidationFailed` | Memory consolidation failed. Clients should dismiss any active consolidation status and may surface `message`. |
 | `consolidationCancelled` | Memory consolidation was interrupted by the user. Clients should dismiss any active consolidation status. |
-| `streamError` | A provider stream disconnected or timed out while idle before the sampling request completed. The server is retrying the same sampling request and `message` uses `Reconnecting... x/y`. |
+| `streamError` | A provider stream disconnected or timed out while idle before the sampling request completed. The server is retrying. `params` carry the one-based `attempt`, the `max` budget, the classified `providerError`, and the upstream `httpStatus` when known; `fallbackText` uses `Reconnecting... x/y`. |
 
 **Emission rules**:
 

@@ -1292,7 +1292,9 @@ export interface DynamicWorkflowCapabilities {
 export interface ErrorPayload {
   code: string;
   fatal: boolean;
+  httpStatus?: number | null;
   message: string;
+  providerError?: string | null;
   [key: string]: unknown;
 }
 
@@ -4382,6 +4384,8 @@ export interface TurnInterruptParams {
 
 export interface TurnNotification {
   error?: string | null;
+  httpStatus?: number | null;
+  providerError?: string | null;
   reason?: string | null;
   turn: SessionTurn;
   [key: string]: unknown;

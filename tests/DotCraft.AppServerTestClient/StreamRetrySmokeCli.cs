@@ -53,7 +53,7 @@ internal static class StreamRetrySmokeCli
     {
         Console.Error.WriteLine("""
             Usage:
-              dotcraft-test-client --dotcraft-bin <path> stream-retry-smoke --matrix <stream-retry-smoke.json> [--report <report.json>] [--work-root <dir>] [--timeout-minutes <n>]
+              dotcraft-test-client --dotcraft-bin <path> stream-retry-smoke --matrix <stream-retry-smoke.json> [--report <report.json>] [--work-root <dir>] [--timeout-minutes <n>] [--fault-mode pre-stream|midstream]
 
             Matrix:
               {
@@ -71,7 +71,8 @@ internal sealed record StreamRetrySmokeCliOptions(
     string MatrixPath,
     string ReportPath,
     string WorkRoot,
-    TimeSpan TurnTimeout)
+    TimeSpan TurnTimeout,
+    StreamRetrySmokeFaultMode FaultMode = StreamRetrySmokeFaultMode.PreStream)
 {
     public static bool TryParse(
         IReadOnlyList<string> args,
@@ -82,6 +83,7 @@ internal sealed record StreamRetrySmokeCliOptions(
         string? reportPath = null;
         string? workRoot = null;
         var turnTimeout = TimeSpan.FromMinutes(10);
+        var faultMode = StreamRetrySmokeFaultMode.PreStream;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -95,6 +97,21 @@ internal sealed record StreamRetrySmokeCliOptions(
                     break;
                 case "--work-root" when i + 1 < args.Count:
                     workRoot = args[++i];
+                    break;
+                case "--fault-mode" when i + 1 < args.Count:
+                    switch (args[++i])
+                    {
+                        case "pre-stream":
+                            faultMode = StreamRetrySmokeFaultMode.PreStream;
+                            break;
+                        case "midstream":
+                            faultMode = StreamRetrySmokeFaultMode.MidStream;
+                            break;
+                        default:
+                            options = default!;
+                            error = "--fault-mode must be 'pre-stream' or 'midstream'.";
+                            return false;
+                    }
                     break;
                 case "--timeout-minutes" when i + 1 < args.Count:
                     if (!double.TryParse(args[++i], out var minutes) || minutes <= 0)
@@ -133,7 +150,8 @@ internal sealed record StreamRetrySmokeCliOptions(
             Path.GetFullPath(matrixPath),
             Path.GetFullPath(reportPath),
             Path.GetFullPath(workRoot),
-            turnTimeout);
+            turnTimeout,
+            faultMode);
         error = string.Empty;
         return true;
     }

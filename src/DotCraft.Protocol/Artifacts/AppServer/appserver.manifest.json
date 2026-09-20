@@ -6496,10 +6496,24 @@
           "const": null
         },
         {
+          "name": "httpStatus",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "message",
           "type": "string",
           "required": true,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerError",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -21899,6 +21913,20 @@
       "fields": [
         {
           "name": "error",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "httpStatus",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "providerError",
           "type": "string",
           "required": false,
           "nullable": true,
