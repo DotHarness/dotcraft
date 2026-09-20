@@ -128,6 +128,87 @@ public sealed class SessionServiceNativeCompactionTests : IDisposable
     }
 
     [Fact]
+    public async Task Rollback_AfterPreTurnCompaction_KeepsNativeGenerationAndEstimate()
+    {
+        await using var factory = CreateFactory();
+        var service = CreateService(factory);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        _provider.ReportHighUsageNextResponse = true;
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("committed-prefix")]));
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("mistyped-tail")]));
+        Assert.Single(_provider.Compactions);
+
+        await service.RollbackThreadAsync(thread.Id, 1);
+
+        var snapshot = service.TryGetContextUsageSnapshot(thread.Id);
+        Assert.NotNull(snapshot);
+        Assert.Equal("provider_compacted_estimate", snapshot!.Source);
+        Assert.True(snapshot.Tokens > 0);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("edited-tail")]));
+        Assert.Single(_provider.Compactions);
+        Assert.Contains("encrypted-test", _provider.Requests[^1]);
+        AssertContainsOnce(_provider.Requests[^1], "edited-tail");
+        Assert.DoesNotContain("mistyped-tail", _provider.Requests[^1]);
+    }
+
+    [Fact]
+    public async Task Rollback_AfterPreTurnLocalCompaction_KeepsProjectedReplacement()
+    {
+        await using var factory = CreateFactory(oauth: false, smallTail: true);
+        var service = CreateService(factory);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        _provider.ReportHighUsageNextResponse = true;
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("committed-prefix")]));
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("mistyped-tail")]));
+
+        var committedTurnId = (await service.GetThreadAsync(thread.Id)).Turns[0].Id;
+        var records = await ReadRecordsAsync(thread.Id);
+        var checkpoint = records.First(record => record.Kind == RolloutKinds.ContextCompacted);
+        Assert.Equal(committedTurnId, checkpoint.ContextCompacted!.CoveredThroughTurnId);
+        var projected = Assert.Single(records, record => record.ProviderHistoryReplaced?.Reason == "pre_turn_compaction");
+        Assert.Equal(committedTurnId, projected.ProviderHistoryReplaced!.CoveredThroughTurnId);
+        Assert.Empty(_provider.Compactions);
+        var requestCount = _provider.Requests.Count;
+
+        await service.RollbackThreadAsync(thread.Id, 1);
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("edited-tail")]));
+
+        Assert.Equal(requestCount + 1, _provider.Requests.Count);
+        AssertContainsOnce(_provider.Requests[^1], "edited-tail");
+        Assert.DoesNotContain("mistyped-tail", _provider.Requests[^1]);
+        Assert.DoesNotContain("committed-prefix", _provider.Requests[^1]);
+    }
+
+    [Fact]
+    public async Task PostTurnCompaction_CoversCurrentTurnAndLeavesNextTurnUncompacted()
+    {
+        await using var factory = CreateFactory(postTurnCompactThresholdPercent: 50);
+        var service = CreateService(factory);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("committed-prefix")]));
+        _provider.ReportHighUsageNextResponse = true;
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("post-turn-covered")]));
+        Assert.Single(_provider.Compactions);
+        Assert.Contains("post-turn-covered", JsonSerializer.Serialize(_provider.Compactions.Single().Input));
+        Assert.Equal(TurnStatus.Completed, (await service.GetThreadAsync(thread.Id)).Turns[^1].Status);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("after-post-turn")]));
+        Assert.Single(_provider.Compactions);
+        Assert.Contains("encrypted-test", _provider.Requests[^1]);
+        AssertContainsOnce(_provider.Requests[^1], "after-post-turn");
+    }
+
+    [Fact]
     public async Task MidTurnCompaction_CoversToolResultTail()
     {
         await using var factory = CreateFactory();
@@ -190,13 +271,21 @@ public sealed class SessionServiceNativeCompactionTests : IDisposable
         Assert.True(result.Outcome == "partial", result.Message ?? result.Outcome);
     }
 
-    private AgentFactory CreateFactory(bool oauth = true)
+    private AgentFactory CreateFactory(bool oauth = true, int postTurnCompactThresholdPercent = 0, bool smallTail = false)
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-test");
         config.Providers["openai"].Protocol = ModelProviderProtocols.OpenAIResponses;
         if (oauth)
             config.Providers["openai"].AuthMethod = ModelProviderAuthMethods.ChatGptOAuth;
         config.Compaction.ContextWindow = 200_000;
+        config.Compaction.PostTurnCompactThresholdPercent = postTurnCompactThresholdPercent;
+        if (smallTail)
+        {
+            config.Compaction.KeepRecentMinTokens = 1;
+            config.Compaction.KeepRecentMinGroups = 1;
+            config.Compaction.KeepRecentMaxTokens = 500;
+            config.Compaction.MicrocompactEnabled = false;
+        }
         return new AgentFactory(_workspace, _workspace, config, new MemoryStore(_workspace),
             new SkillsLoader(_workspace), new AutoApproveApprovalService(), blacklist: null,
             toolSources: [], chatClientRegistry: new ChatClientRegistry(_provider));

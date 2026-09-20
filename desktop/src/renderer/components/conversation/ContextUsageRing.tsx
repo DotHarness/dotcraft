@@ -43,7 +43,7 @@ export function ContextUsageRing(): JSX.Element | null {
 
   const color = 'var(--composer-footer-text, var(--text-secondary, #a5a5a5))'
   const trackColor = 'color-mix(in srgb, var(--composer-footer-text, #a5a5a5) 28%, transparent)'
-  const formattedTokens = formatCompactCount(usage.tokens)
+  const formattedTokens = formatCompactCount(Math.min(usage.tokens, usage.contextWindow))
   const formattedWindow = formatCompactCount(usage.contextWindow)
   const autoPercent = usage.contextWindow > 0
     ? Math.round((usage.autoCompactThreshold / usage.contextWindow) * 100)

@@ -57,12 +57,14 @@ public sealed record CompactionThreshold(
     int WarningThreshold,
     int ErrorThreshold,
     int BlockingLimit,
-    double PercentLeft)
+    double PercentLeft,
+    int PostTurnThreshold = 0)
 {
     public bool AboveWarning => Tokens >= WarningThreshold;
     public bool AboveError => Tokens >= ErrorThreshold;
     public bool AboveAuto => Tokens >= AutoThreshold;
     public bool AboveBlocking => Tokens >= BlockingLimit;
+    public bool AbovePostTurn => PostTurnThreshold > 0 && (AboveAuto || Tokens >= PostTurnThreshold);
 }
 
 /// <summary>
@@ -126,6 +128,8 @@ public sealed class CompactionPipeline
     /// </summary>
     public int EffectiveContextWindow => _config.EffectiveContextWindow();
 
+    public bool PostTurnCompactionEnabled => _config.AutoCompactEnabled && _config.PostTurnCompactThreshold() > 0;
+
     /// <summary>
     /// Computes the <see cref="CompactionThreshold"/> for a given token count.
     /// </summary>
@@ -147,7 +151,8 @@ public sealed class CompactionPipeline
             warning,
             error,
             blocking,
-            percentLeft);
+            percentLeft,
+            _config.PostTurnCompactThreshold());
     }
 
     /// <summary>
@@ -221,13 +226,15 @@ public sealed class CompactionPipeline
     /// at sampling boundaries where the next request already has its complete
     /// message list, including tool results or same-turn guidance.
     /// </summary>
+    /// <param name="turnEnd">Gates on the turn-end threshold instead of the auto threshold.</param>
     public async Task<CompactionHistoryResult> TryAutoCompactHistoryAsync(
         IReadOnlyList<ChatMessage> history,
         string threadId,
         long inputTokenHint,
         DateTimeOffset? lastAssistantTimestampUtc,
         CancellationToken cancellationToken,
-        PromptRequestSnapshot? snapshot = null)
+        PromptRequestSnapshot? snapshot = null,
+        bool turnEnd = false)
     {
         var before = inputTokenHint > 0
             ? (int)Math.Min(int.MaxValue, inputTokenHint)
@@ -257,7 +264,7 @@ public sealed class CompactionPipeline
                 history);
         }
 
-        if (!beforeThreshold.AboveAuto)
+        if (turnEnd ? !beforeThreshold.AbovePostTurn : !beforeThreshold.AboveAuto)
         {
             return new CompactionHistoryResult(
                 new CompactionStatus(

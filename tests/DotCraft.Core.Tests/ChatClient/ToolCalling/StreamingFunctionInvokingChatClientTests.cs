@@ -1371,7 +1371,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             IReadOnlyList<ChatMessage> messages,
             ChatOptions? options,
             string reason,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string? coveredThroughTurnId = null)
         {
             Replacements.Add((messages, reason));
             return ValueTask.CompletedTask;

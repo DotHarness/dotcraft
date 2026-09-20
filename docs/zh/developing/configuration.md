@@ -167,6 +167,7 @@ Skill 自学习示例：
 | `Compaction.SummaryReserveTokens` | 为摘要输出预留的 Token | `20000` |
 | `Compaction.SummaryMaxOutputTokens` | 压缩摘要请求的最大输出 Token 数 | `12000` |
 | `Compaction.AutoCompactBufferTokens` | 低于硬上限多少 Token 时触发自动压缩 | `13000` |
+| `Compaction.PostTurnCompactThresholdPercent` | 达到有效上下文窗口的该百分比时，Turn 结束也触发压缩，`0` 表示禁用 | `0` |
 | `Compaction.WarningBufferTokens` | 到达自动阈值前多少 Token 发出 warning | `20000` |
 | `Compaction.ErrorBufferTokens` | 到达自动阈值前多少 Token 发出 error | `10000` |
 | `Compaction.ManualCompactBufferTokens` | 上报上下文压力上限时，预留在有效上下文窗口之下的余量 | `3000` |

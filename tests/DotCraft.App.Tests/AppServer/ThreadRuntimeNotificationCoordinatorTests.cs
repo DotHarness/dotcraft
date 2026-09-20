@@ -62,6 +62,46 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             third => AssertRuntime(third, running: true, activeTurnId: "turn-2"));
     }
 
+    [Fact]
+    public async Task ApplySignal_HistoryRolledBack_ResetsRuntimeWithoutTurnCompletion()
+    {
+        var transport = new RecordingTransport();
+        var activeTransports = new ConcurrentDictionary<IAppServerTransport, AppServerConnection>();
+        Assert.True(activeTransports.TryAdd(transport, new AppServerConnection()));
+        var coordinator = new ThreadRuntimeNotificationCoordinator();
+        var turn = new SessionTurn
+        {
+            Id = "turn-1",
+            ThreadId = "thread-1",
+            Status = TurnStatus.Completed,
+            StartedAt = DateTimeOffset.Parse("2026-08-25T00:00:00Z")
+        };
+
+        Assert.True(coordinator.ApplySignal(
+            turn.ThreadId,
+            SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation,
+            turn,
+            activeTransports));
+        Assert.True(coordinator.ApplySignal(
+            turn.ThreadId,
+            SessionThreadRuntimeSignal.HistoryRolledBack,
+            null,
+            activeTransports));
+        await coordinator.CompleteAsync();
+
+        Assert.Collection(
+            transport.Writes,
+            first => Assert.True(RuntimeOf(first).GetProperty("waitingOnPlanConfirmation").GetBoolean()),
+            second =>
+            {
+                AssertRuntime(second, running: false, activeTurnId: null);
+                Assert.False(RuntimeOf(second).GetProperty("waitingOnPlanConfirmation").GetBoolean());
+            });
+    }
+
+    private static JsonElement RuntimeOf(JsonElement notification) =>
+        notification.GetProperty("params").GetProperty("runtime");
+
     private static void AssertRuntime(JsonElement notification, bool running, string? activeTurnId)
     {
         Assert.Equal("thread/runtimeChanged", notification.GetProperty("method").GetString());
@@ -73,6 +113,33 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             Assert.False(runtime.TryGetProperty("activeTurnId", out _));
         else
             Assert.Equal(activeTurnId, runtime.GetProperty("activeTurnId").GetString());
+    }
+
+    private sealed class RecordingTransport : IAppServerTransport
+    {
+        private readonly object _writesGate = new();
+
+        public List<JsonElement> Writes { get; } = [];
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
+
+        public Task WriteMessageAsync(object message, CancellationToken ct = default)
+        {
+            var notification = JsonSerializer.SerializeToElement(message, SessionWireJsonOptions.Default);
+            lock (_writesGate)
+                Writes.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+            string method,
+            object? @params,
+            CancellationToken ct = default,
+            TimeSpan? timeout = null) =>
+            Task.FromException<AppServerIncomingMessage>(new NotSupportedException());
     }
 
     private sealed class BlockingFirstWriteTransport : IAppServerTransport

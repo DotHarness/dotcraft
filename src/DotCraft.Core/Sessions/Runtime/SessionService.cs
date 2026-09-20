@@ -562,11 +562,7 @@ public sealed partial class SessionService(
             return;
         }
 
-        var coveredTurn = thread.Turns
-            .Where(candidate => candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
-            .OrderBy(candidate => candidate.StartedAt)
-            .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-            .LastOrDefault();
+        var coveredTurn = ResolveNewestTerminalTurn(thread);
         var identity = ThreadConversationIdentity.Create(
             thread,
             coveredTurn,
@@ -2260,7 +2256,6 @@ public sealed partial class SessionService(
                 PublishQueueUpdated(thread.Id, queueSnapshot);
             }
 
-            var samplingBoundaryOrdinal = 0;
             var reactiveCompaction = new ReactiveCompactionState();
 
             async Task<CompactionExecutionResult?> TryCompactBeforeSamplingAsync(
@@ -2270,9 +2265,21 @@ public sealed partial class SessionService(
                 CancellationToken compactionCt)
             {
                 reactiveCompaction.Options = requestOptions?.Clone();
-                var phase = samplingBoundaryOrdinal++ == 0
-                    ? CompactionPhase.PreTurn
-                    : CompactionPhase.MidTurn;
+                return await TryCompactAtPhaseAsync(
+                    CompactionPhase.MidTurn,
+                    modelVisibleHistory,
+                    requestSnapshot,
+                    requestOptions,
+                    compactionCt);
+            }
+
+            async Task<CompactionExecutionResult?> TryCompactAtPhaseAsync(
+                CompactionPhase phase,
+                IReadOnlyList<ChatMessage> modelVisibleHistory,
+                PromptRequestSnapshot? requestSnapshot,
+                ChatOptions? requestOptions,
+                CancellationToken compactionCt)
+            {
                 if (session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
                     return null;
 
@@ -2284,17 +2291,21 @@ public sealed partial class SessionService(
                 var compactHistory = preparedEstimate.History;
                 var compactSnapshot = preparedEstimate.RequestSnapshot;
                 var usageEstimate = preparedEstimate.Estimate;
-                await SavePreparedContextEstimateAsync(
-                    threadId,
-                    usageEstimate,
-                    CancellationToken.None);
+                // The final response already persisted real provider usage; do not downgrade it to an estimate.
+                if (phase != CompactionPhase.PostTurn)
+                {
+                    await SavePreparedContextEstimateAsync(
+                        threadId,
+                        usageEstimate,
+                        CancellationToken.None);
+                }
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
                 var tokenHint = usageEstimate.Tokens;
                 var coordinator = GetCompactionCoordinatorForThread(thread);
                 var threshold = coordinator.EvaluateThreshold(tokenHint);
-                if (!threshold.AboveAuto)
+                if (phase == CompactionPhase.PostTurn ? !threshold.AbovePostTurn : !threshold.AboveAuto)
                     return null;
 
                 var preCompactUsage = CreateContextUsageSnapshot(
@@ -2397,16 +2408,35 @@ public sealed partial class SessionService(
                                 status.ThresholdAfter.Tokens,
                                 compactedHistory);
                             turnCommitter.PersistedModelHistoryCount = compactedHistory.Count;
-                            await TryAppendCompactionCheckpointAsync(
-                                threadId,
-                                turn.Id,
-                                compactedHistory,
-                                turnCommitter.PendingCompactionCheckpoint,
-                                CancellationToken.None);
-                            turnCommitter.PendingCompactionCheckpoint = null;
+                            var coveredTurnId = phase == CompactionPhase.PreTurn
+                                ? ResolveNewestTerminalTurn(thread)?.Id ?? turn.Id
+                                : turn.Id;
+                            // A turn-end checkpoint is committed together with the Turn's terminal state.
+                            if (phase != CompactionPhase.PostTurn)
+                            {
+                                await TryAppendCompactionCheckpointAsync(
+                                    threadId,
+                                    coveredTurnId,
+                                    compactedHistory,
+                                    turnCommitter.PendingCompactionCheckpoint,
+                                    CancellationToken.None);
+                                turnCommitter.PendingCompactionCheckpoint = null;
+                            }
                             session.Clear();
                             session.AddRange(compactedHistory);
                             TryAdvanceResponsesContextWindowAfterReplacement(threadId);
+                            // Sampling boundaries project the replacement from inside the request
+                            // pipeline; the phases outside it project here.
+                            if (phase != CompactionPhase.MidTurn
+                                && ProviderRequestContextScope.Current?.History is { } replacedProviderHistory)
+                            {
+                                await replacedProviderHistory.HistoryReplacedAsync(
+                                    compactedHistory,
+                                    requestOptions,
+                                    phase == CompactionPhase.PreTurn ? "pre_turn_compaction" : "post_turn_compaction",
+                                    CancellationToken.None,
+                                    coveredTurnId);
+                            }
                         }
                         else if (result.Replacement is CompactionReplacement.ProviderNative providerReplacement
                                  && ProviderRequestContextScope.Current?.Compaction is { } providerBridge)
@@ -2958,6 +2988,48 @@ public sealed partial class SessionService(
                                 ? "agents_md_instructions_changed"
                                 : "subagent_role_instructions_changed"
                             : null);
+                reactiveCompaction.ProviderContext = new ProviderRequestContext(
+                    providerIdentity,
+                    responsesProviderHistoryContext,
+                    responsesProviderHistoryContext as IProviderCompactionBridge,
+                    traceCollector,
+                    providerConversationState);
+                using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
+                    ? null
+                    : ProviderRequestContextScope.Push(reactiveCompaction.ProviderContext);
+                using var ephemeralHistorySnapshotScope = new ProviderHistorySnapshotScope(
+                    thread.Ephemeral ? responsesProviderHistoryContext : null,
+                    thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralHistoryRuntime)
+                        ? ephemeralHistoryRuntime
+                        : null);
+
+                // Pre-turn compaction runs before the Turn's context items and input are appended,
+                // so those stay behind the checkpoint and rolling this Turn back keeps the
+                // compacted history.
+                if (thread.HistoryMode != HistoryMode.Client
+                    && TrySnapshotInMemoryHistory(session, out var preTurnHistory)
+                    && preTurnHistory.Count > 0)
+                {
+                    var preTurnSnapshot = TryPrepareManualPromptRequestSnapshot(
+                        threadId,
+                        preTurnHistory,
+                        estimatedInputTokens: null);
+                    var preTurnAgentOptions = agent.ChatOptions ?? new ChatOptions();
+                    var preTurnOptions = preTurnSnapshot is null
+                        ? preTurnAgentOptions
+                        : MaintenanceForkRunner.BuildOptions(preTurnSnapshot);
+                    preTurnOptions.RawRepresentationFactory ??= preTurnAgentOptions.RawRepresentationFactory;
+                    preTurnOptions.AdditionalProperties ??= preTurnAgentOptions.AdditionalProperties;
+                    if (preTurnOptions.Tools is not { Count: > 0 } && preTurnAgentOptions.Tools is { Count: > 0 })
+                        preTurnOptions.Tools = preTurnAgentOptions.Tools.ToList();
+                    await TryCompactAtPhaseAsync(
+                        CompactionPhase.PreTurn,
+                        preTurnHistory,
+                        preTurnSnapshot,
+                        preTurnOptions,
+                        executionCt);
+                }
+
                 // Client-bound context is appended after the canonical provider-history baseline is
                 // captured, so it travels as new local input like the user message does. Appending
                 // it earlier would place it inside the already-covered region, where it never
@@ -2991,20 +3063,6 @@ public sealed partial class SessionService(
                     session.Add(worldStateItem);
                 CommitWorldStateUpdate(threadId, turn.Id, worldStateUpdate, runtimeModeManager);
 
-                reactiveCompaction.ProviderContext = new ProviderRequestContext(
-                    providerIdentity,
-                    responsesProviderHistoryContext,
-                    responsesProviderHistoryContext as IProviderCompactionBridge,
-                    traceCollector,
-                    providerConversationState);
-                using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
-                    ? null
-                    : ProviderRequestContextScope.Push(reactiveCompaction.ProviderContext);
-                using var ephemeralHistorySnapshotScope = new ProviderHistorySnapshotScope(
-                    thread.Ephemeral ? responsesProviderHistoryContext : null,
-                    thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralHistoryRuntime)
-                        ? ephemeralHistoryRuntime
-                        : null);
                 try
                 {
                     // Context items are plumbing, not conversation: a history of only those is still turn one.
@@ -3577,14 +3635,29 @@ public sealed partial class SessionService(
                     await hookRunner.RunAsync(HookEvent.Stop, stopInput, CancellationToken.None);
                 }
 
-                // Step 5k: Post-turn threshold notification.
-                // Auto compaction runs before model sampling through
-                // PreSamplingCompactionRuntimeScope. If the final response
-                // itself pushes the context over the threshold and no follow-up
-                // model call is needed, keep the snapshot visible and compact
-                // before the next sampling request.
+                // Step 5k: Turn-end compaction, then threshold notification.
                 {
                     var compactionPipeline = GetCompactionPipelineForThread(thread);
+                    if (compactionPipeline.PostTurnCompactionEnabled
+                        && !executionCt.IsCancellationRequested
+                        && !HasPendingQueuedInput(thread)
+                        && TrySnapshotInMemoryHistory(session, out var postTurnHistory))
+                    {
+                        try
+                        {
+                            await TryCompactAtPhaseAsync(
+                                CompactionPhase.PostTurn,
+                                postTurnHistory,
+                                reactiveCompaction.Snapshot,
+                                reactiveCompaction.Options,
+                                executionCt);
+                        }
+                        catch (Exception ex)
+                        {
+                            // The completed response stands; only the checkpoint is lost.
+                            logger?.LogWarning(ex, "Turn-end compaction failed for thread {ThreadId}", threadId);
+                        }
+                    }
                     var contextTokens = tokenTracker.LastContextTokens;
                     var threshold = compactionPipeline.EvaluateThreshold(contextTokens);
                     var contextUsage = CreateContextUsageSnapshot(
@@ -4112,9 +4185,6 @@ public sealed partial class SessionService(
         if (thread.Turns.Count < numTurns)
             throw new InvalidOperationException($"Thread '{threadId}' has only {thread.Turns.Count} turns; cannot roll back {numTurns}.");
 
-        var removedTurns = thread.Turns
-            .Skip(thread.Turns.Count - numTurns)
-            .ToList();
         thread.Turns.RemoveRange(thread.Turns.Count - numTurns, numTurns);
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
@@ -4125,10 +4195,9 @@ public sealed partial class SessionService(
         ClearContextUsageAnchor(threadId);
         agentFactory.RemoveTokenTracker(threadId);
         ForgetContextPages(threadId);
-        var agent = GetThreadAgentOrDefault(threadId);
-        var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
-        await SaveContextUsageFromSessionAsync(threadId, updatedSession, ct);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted, null);
+        var survivingSession = await TryLoadSurvivingModelHistoryAsync(threadId, ct);
+        await SaveContextUsageFromSessionAsync(thread, survivingSession, ct);
+        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.HistoryRolledBack, null);
         return thread;
     }
 
@@ -5420,6 +5489,19 @@ public sealed partial class SessionService(
         return true;
     }
 
+    private static SessionTurn? ResolveNewestTerminalTurn(SessionThread thread) =>
+        thread.Turns
+            .Where(static candidate =>
+                candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
+            .OrderBy(static candidate => candidate.StartedAt)
+            .ThenBy(static candidate => candidate.Id, StringComparer.Ordinal)
+            .LastOrDefault();
+
+    private static bool HasPendingQueuedInput(SessionThread thread) =>
+        thread.QueuedInputs.Any(static input =>
+            string.Equals(input.Status, "queued", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(input.Status, "guidancePending", StringComparison.OrdinalIgnoreCase));
+
     private string BuildEmptyProviderResponseMessage(
         string threadId,
         List<ChatMessage>? session,
@@ -5479,10 +5561,8 @@ public sealed partial class SessionService(
         return true;
     }
 
-    private async Task<List<ChatMessage>?> TryUpdateSessionAfterRollbackAsync(
-        ChatClientAgent agent,
+    private async Task<List<ChatMessage>?> TryLoadSurvivingModelHistoryAsync(
         string threadId,
-        IReadOnlyList<SessionTurn> removedTurns,
         CancellationToken ct)
     {
         try
@@ -5495,27 +5575,39 @@ public sealed partial class SessionService(
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to trim agent session after rollback for thread {ThreadId}", threadId);
+            logger?.LogWarning(ex, "Failed to reload model history after rollback for thread {ThreadId}", threadId);
         }
 
         return null;
     }
 
     private async Task SaveContextUsageFromSessionAsync(
-        string threadId,
+        SessionThread thread,
         List<ChatMessage>? session,
         CancellationToken ct)
     {
         try
         {
             var tokens = 0L;
+            var source = "history_estimate";
             if (session is not null && TrySnapshotInMemoryHistory(session, out var history) && history.Count > 0)
-                tokens = MessageTokenEstimator.Estimate(PrepareProviderVisibleHistory(history));
+            {
+                var visibleHistory = PrepareProviderVisibleHistory(history);
+                if (await TryEstimateNativeCompactedContextTokensAsync(thread, visibleHistory, ct) is { } nativeTokens)
+                {
+                    tokens = nativeTokens;
+                    source = "provider_compacted_estimate";
+                }
+                else
+                {
+                    tokens = MessageTokenEstimator.Estimate(visibleHistory);
+                }
+            }
 
             await SaveReplacementContextUsageSnapshotAsync(
-                threadId,
+                thread.Id,
                 tokens,
-                source: "history_estimate",
+                source,
                 ct: ct);
         }
         catch (OperationCanceledException)
@@ -5524,8 +5616,52 @@ public sealed partial class SessionService(
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to update context usage after rollback for thread {ThreadId}", threadId);
+            logger?.LogWarning(ex, "Failed to update context usage after rollback for thread {ThreadId}", thread.Id);
         }
+    }
+
+    // An active provider-native replacement has no neutral expansion; estimating the full
+    // transcript would report occupancy the provider does not hold.
+    private async Task<long?> TryEstimateNativeCompactedContextTokensAsync(
+        SessionThread thread,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken ct)
+    {
+        if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
+            || thread.HistoryMode != HistoryMode.Server
+            || thread.Ephemeral)
+        {
+            return null;
+        }
+
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            currentConfig,
+            thread.Configuration?.ProviderId,
+            thread.Configuration?.Model);
+        if (!string.Equals(runtime.Protocol, ModelProviderProtocols.OpenAIResponses, StringComparison.Ordinal))
+            return null;
+        var factory = agentFactory.RuntimeContext.ChatClientRegistry
+            .GetProviderService<IProviderHistorySessionFactory>(runtime);
+        if (factory == null)
+            return null;
+
+        var identity = ThreadConversationIdentity.Create(
+            thread,
+            ResolveNewestTerminalTurn(thread),
+            GetOrCreateResponsesContextWindow(thread.Id).CurrentWindowId,
+            ProviderRequestKind.Compaction);
+        var snapshot = ToOpaqueHistory(
+            runtime,
+            identity,
+            await persistence.LoadProviderHistoryAsync(thread, identity.ContextWindowId, ct).ConfigureAwait(false));
+        if (!snapshot.IsNativeCompacted)
+            return null;
+
+        var context = factory.CreateSession(identity, snapshot, history, sink: null);
+        // The thread agent's options carry the instructions and tools every request pays for.
+        var options = GetThreadAgentOrDefault(thread.Id).ChatOptions;
+        return context.TryEstimateActiveContextTokens(history, options, out var tokens) ? tokens : null;
     }
 
     private static int FindHistoryTailOverlap(

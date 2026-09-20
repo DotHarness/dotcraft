@@ -68,6 +68,7 @@ internal sealed class ProviderNativeCompactionBackend(
     {
         CompactionPhase.PreTurn => ProviderCompactionPhase.PreTurn,
         CompactionPhase.MidTurn => ProviderCompactionPhase.MidTurn,
+        CompactionPhase.PostTurn => ProviderCompactionPhase.PostTurn,
         CompactionPhase.Manual => ProviderCompactionPhase.Manual,
         CompactionPhase.Reactive => ProviderCompactionPhase.Reactive,
         _ => throw new ArgumentOutOfRangeException(nameof(phase), phase, null)

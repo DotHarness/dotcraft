@@ -56,11 +56,13 @@ public interface IProviderHistorySink
 /// <summary>Coordinates provider-owned history with generic retry and tool-loop middleware.</summary>
 public interface IProviderConversationHistory
 {
+    /// <param name="coveredThroughTurnId">The newest Turn the replacement covers; null means the conversation's current Turn.</param>
     ValueTask HistoryReplacedAsync(
         IReadOnlyList<ChatMessage> messages,
         ChatOptions? options,
         string reason,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? coveredThroughTurnId = null);
 
     void MarkProjectionCovered(IReadOnlyList<ChatMessage> samplingMessages);
 
@@ -97,6 +99,7 @@ public enum ProviderCompactionPhase
 {
     PreTurn,
     MidTurn,
+    PostTurn,
     Manual,
     Reactive
 }

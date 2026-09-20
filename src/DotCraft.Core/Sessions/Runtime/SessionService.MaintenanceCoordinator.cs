@@ -136,12 +136,7 @@ public sealed partial class SessionService
                 List<ChatMessage>? pendingNeutralReplacement = null;
                 try
                 {
-                    var manualCoveredTurn = thread.Turns
-                        .Where(candidate =>
-                            candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
-                        .OrderBy(candidate => candidate.StartedAt)
-                        .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-                        .LastOrDefault();
+                    var manualCoveredTurn = ResolveNewestTerminalTurn(thread);
                     var providerIdentity = ThreadConversationIdentity.Create(
                         thread,
                         turn: null,
@@ -270,11 +265,7 @@ public sealed partial class SessionService
                     case CompactionOutcome.Partial:
                     {
                         tokenTracker.Reset();
-                        var coveredTurn = thread.Turns
-                            .Where(t => t.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
-                            .OrderBy(t => t.StartedAt)
-                            .ThenBy(t => t.Id, StringComparer.Ordinal)
-                            .LastOrDefault();
+                        var coveredTurn = ResolveNewestTerminalTurn(thread);
                         if (!installedProviderNative && pendingNeutralReplacement != null)
                         {
                             if (coveredTurn == null)
