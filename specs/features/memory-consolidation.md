@@ -72,6 +72,12 @@ stay where they are. Page invalidation names the scope that was consolidated.
 
 The memory section names the store's directory so the agent can open and maintain the files itself, and what that section contributes to a prompt is bounded however large the file has grown. The file itself is never truncated.
 
+## 3b. Interactive Memory
+
+The memory prompt always supplies the resolved store path and basic read/write rules, even when the store is empty. Ordinary agents directly maintain `MEMORY.md` for explicit remember, correct, and forget requests and useful stable facts. An explicit request to save a test timestamp is honored; temporary task state is not otherwise saved automatically. Ordinary agents only read/search `HISTORY.md`; consolidation owns its event entries. Testing memory does not implicitly request consolidation.
+
+Memory contents are background context, subordinate to current instructions and verified evidence. At most the first 10,000 characters of `MEMORY.md` enter the stable prompt page, with a truncation notice when necessary. Agents read the actual file before editing and prefer targeted edits; a prompt excerpt must never be used as a complete replacement. Basic operations require no built-in Memory Skill. Existing user-authored skills remain independent.
+
 ## 4. Input Scope
 
 The consolidation input is the current thread's optimized model-visible conversation history at the end of a successful turn.
@@ -80,7 +86,7 @@ DotCraft intentionally uses the whole model-visible snapshot rather than only th
 
 If short-term compaction has already replaced older history with summaries, cleared tool-result markers, or another optimized projection, consolidation receives that optimized view rather than reconstructing pre-compaction rollout content. Compaction protects the active context window, and consolidation must not undo it by expanding older tool results or replaying pre-compaction history.
 
-When consolidation is implemented as a same-model maintenance fork, DotCraft may preserve the full model-visible tool schema from the active agent request so provider prompt-cache shape remains stable. Tool-schema stability is not the security boundary. The execution layer must enforce a consolidation-specific policy that rejects all tool calls except scoped file reads, searches, writes, and edits for the memory files described below.
+When consolidation is implemented as a same-model maintenance fork, DotCraft may preserve the full model-visible tool schema from the active agent request so provider prompt-cache shape remains stable. Tool-schema stability is not the security boundary. The execution layer must enforce a consolidation-specific policy that rejects all tool calls except scoped file reads and searches for the memory files described below.
 
 Maintenance forks keep provider-facing cache identity attached to the active thread id, but they may use a fork-local internal prompt-cache state path. Tool-executing consolidation forks use the prompt-cache `writeThrough` mode so they can reuse the main conversation's stable prefix while advancing their own task/tool-result tail breakpoints across continuation calls. The one-shot `readOnlyPrefix` mode used by no-tool maintenance forks does not apply to consolidation forks that execute tools. The fork-local state path must not change `prompt_cache_key`, OAuth `session-id` / `thread-id`, or dashboard trace session ownership.
 
@@ -91,12 +97,12 @@ Consolidation writes two memory layers:
 - `MEMORY.md` is updated as a full replacement. The consolidation model reads the current memory and returns the complete updated long-term memory.
 - `HISTORY.md` is append-only. Each consolidation attempt may append one timestamped paragraph describing key events, decisions, and topics.
 - If `HISTORY.md` does not exist when a consolidation attempt starts, DotCraft creates an empty file before invoking the maintenance agent. This bootstrap creation does not count as a successful memory write.
-- A tool-executing consolidation agent may directly update `MEMORY.md` and append `HISTORY.md`, but it must not read, search, write, or edit files outside those two memory files. Any attempted path traversal, absolute-path escape, or reparse-point escape must be denied before tool invocation.
+- Both fork and fallback return candidate `memory_update` and `history_entry` values. Fork tools may only read/search the two memory files; no tool writes are allowed. Path traversal, absolute-path escape, and reparse-point escape are denied before invocation. Explicitly saved facts, including test records, are retained unless corrected or removed by the user.
 - A successful consolidation may mark memory-derived prompt pages dirty so they can be re-read after their stable-page lifetime permits it. Any resulting base-instructions drift is accounted for by Session Core's context usage accounting rules and must not be treated as a full-history estimate trigger.
 
 The operation is best-effort. The system should avoid corrupting existing memory files; if a consolidation attempt cannot produce a valid update, it should leave existing memory unchanged.
 
-Concurrent consolidation attempts should be treated as independent background maintenance work across different threads. Implementations should serialize writes per memory store, replace `MEMORY.md` atomically via a temporary file, and append `HISTORY.md` under the same store lock.
+Concurrent consolidation attempts capture file contents, existence, and a store reset generation before model execution. Commit validates that snapshot under the same canonical path locks used by ordinary file tools, then atomically replaces `MEMORY.md` and appends `HISTORY.md`. A version conflict skips the attempt without committing either candidate or restoring an old snapshot. Reset invalidates in-flight work, including work against an initially empty store. Fork-to-fallback transitions retain the reset generation. These in-process locks do not isolate arbitrary shell or external-editor writes.
 
 ## 6. Failure And Backpressure
 

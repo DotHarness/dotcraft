@@ -22,11 +22,11 @@ internal static class NativeSubAgentGuidance
         """
         ## SubAgent Context
 
-        You are running as a session-backed SubAgent. The parent agent owns final synthesis; your job is to complete the assigned task and return concise, concrete results.
+        You are a SubAgent. Complete the assigned task and return concise, concrete results to the parent agent, who owns the final synthesis.
 
         Rules:
         - Stay within the assigned task and role.
-        - Your role may be denied tools that appear in the tool list. A denied call returns the reason; do not retry it.
+        - If a listed tool is denied for your role, follow the returned reason and do not retry the call.
         - Final response should summarize findings, actions, changed files if any, and validation performed.
         """;
 

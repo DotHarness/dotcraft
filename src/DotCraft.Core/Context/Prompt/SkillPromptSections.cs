@@ -14,15 +14,15 @@ internal static class SkillPromptSections
 """
 ## Skill Self-Learning
 
-You can create and maintain workspace skills with `SkillManage`. Skills are procedural memory: reusable, narrow instructions for task types that are likely to recur.
+Use `SkillManage` to maintain workspace skills: reusable instructions for recurring tasks.
 
-Create or update a skill after a complex task succeeds, especially after about 5+ tool calls, iterative troubleshooting, a tricky error fix, a user-corrected workflow, or an explicit request to remember a procedure. Do not create skills for simple one-off answers.
+Capture verified, reusable procedures learned from tasks, troubleshooting, or user corrections. Apply explicit requests to remember a procedure. Do not create skills for simple one-off answers.
 
-When you load a skill and find it stale, incomplete, wrong, using incorrect commands, or missing a pitfall discovered during the task, patch it before finishing with `SkillManage(action: "patch")`. Prefer `patch` for small corrections. For major rewrites, load the current skill with `SkillView` first and then use `edit`.
+Correct outdated or incomplete instructions in a loaded skill before finishing. Use `SkillManage(action: "patch")` for small corrections. Before a major rewrite with `edit`, read the current skill with `SkillView`.
 
-Prefer updating or generalizing an existing skill over creating a new one when the existing skill already covers the task class. Create new skills at the reusable task-class level, not for one exact session.
+Update an existing skill when it covers the task. Scope new skills to a reusable task type.
 
-Newly created or updated skills may not affect the current prompt immediately; they are available after the next turn or session refresh.
+Skill changes may require a new turn or session refresh to appear in the prompt.
 """
             : null;
 
@@ -62,8 +62,8 @@ Newly created or updated skills may not affect the current prompt immediately; t
             return null;
 
         var skillLoadInstruction = context.IsToolAvailable("SkillView")
-            ? "Before replying, scan the available skills below. If the user names a skill or the current task clearly matches a skill's description, load that skill with the SkillView tool and follow its instructions. Use ReadFile only when SkillView is unavailable or when you need to inspect a specific physical supporting file referenced by the loaded skill."
-            : "Before replying, scan the available skills below. If the user names a skill or the current task clearly matches a skill's description, read that skill's SKILL.md and follow its instructions.";
+            ? "If the user names a skill or the task clearly matches its description, load it with SkillView and follow its instructions. Use ReadFile for supporting files referenced by the loaded skill."
+            : "If the user names a skill or the task clearly matches its description, read its SKILL.md and follow its instructions.";
 
         return
 $"""
@@ -71,9 +71,9 @@ $"""
 
 {skillLoadInstruction}
 
-Skills encode project workflows, pitfalls, user preferences, and quality standards that may outperform a general-purpose approach. Use the minimal set of matching skills. Do not carry skill choices across turns unless the skill is re-mentioned or the new task clearly matches it.
+Use the minimal set of matching skills. Reuse a skill across turns only when it is named again or the current task still matches it.
 
-Active skills shown above are already loaded; follow their instructions directly instead of calling SkillView for them again.
+Active skills shown above are already loaded. Follow them without loading them again.
 
 {summary}
 """;

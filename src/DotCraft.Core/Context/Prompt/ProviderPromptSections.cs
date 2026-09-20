@@ -71,15 +71,8 @@ internal static class ProviderPromptSections
 $$"""
 ## Available Tool Sources
 
-You have a core set of tools available directly. Additional tools from external
-services (MCP servers) are available on demand.
-
-To use an external tool:
-1. Call `SearchTools` with keywords describing what you need
-2. The matching tools will become available for use
-3. Call the discovered tool directly
-
-Do NOT guess tool names. Always use SearchTools to discover available tools first.
+Additional tools from external services are available on demand. Call `SearchTools`
+with keywords describing the capability you need, then call a returned tool by its exact name.
 Currently connected external services: {{servers}}
 """;
     }

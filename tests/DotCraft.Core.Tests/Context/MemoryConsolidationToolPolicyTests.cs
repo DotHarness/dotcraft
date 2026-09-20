@@ -26,8 +26,7 @@ public sealed class MemoryConsolidationToolPolicyTests : IDisposable
 
     [Theory]
     [InlineData("ReadFile", "MEMORY.md")]
-    [InlineData("WriteFile", "HISTORY.md")]
-    [InlineData("EditFile", "MEMORY.md")]
+    [InlineData("ReadFile", "HISTORY.md")]
     public void Evaluate_AllowsDirectFileToolsForMemoryFiles(string toolName, string fileName)
     {
         var policy = new MemoryConsolidationToolPolicy(_memoryStore, _tempDir);
@@ -42,6 +41,9 @@ public sealed class MemoryConsolidationToolPolicyTests : IDisposable
     }
 
     [Theory]
+    [InlineData("WriteFile", "memory/HISTORY.md")]
+    [InlineData("WriteFile", "memory/MEMORY.md")]
+    [InlineData("EditFile", "memory/MEMORY.md")]
     [InlineData("ReadFile", "README.md")]
     [InlineData("WriteFile", "../outside.md")]
     [InlineData("EditFile", "memory/OTHER.md")]

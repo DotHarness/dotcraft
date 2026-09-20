@@ -33,56 +33,47 @@ public sealed class MemoryForkConsolidator(
         if (messagesToArchive.Count == 0)
             return MemoryConsolidationResult.Skipped("empty_snapshot");
 
-        memoryStore.EnsureHistoryFile();
-        var memoryFileExisted = File.Exists(memoryStore.LongTermFilePath);
-        var currentMemory = memoryStore.ReadLongTerm();
-        var currentHistory = memoryStore.ReadHistory();
-        var fallbackReason = GetFallbackReason(snapshot);
-        if (fallbackReason is not null)
-            return await fallback.ConsolidateAsync(
-                TrimForFallback(messagesToArchive, currentMemory),
-                cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var current = memoryStore.CaptureSnapshot(ensureHistoryFile: true);
+        if (GetFallbackReason(snapshot) is not null)
+            return await RunFallbackAsync();
 
         var policy = new MemoryConsolidationToolPolicy(memoryStore, ResolveWorkspaceRoot());
         var result = await forkRunner.RunAsync(
             snapshot!,
             new MaintenanceForkTask(
                 MaintenanceForkTaskKind.MemoryConsolidation,
-                BuildTaskInstructions(memoryStore.LongTermFilePath, memoryStore.HistoryFilePath)),
+                BuildTaskInstructions(memoryStore.LongTermFilePath, memoryStore.HistoryFilePath, current.Memory)),
             messagesBeforeTask: null,
-            new MaintenanceForkToolExecutionOptions(policy.Evaluate)
-            {
-                IncludeDetailedErrors = true
-            },
+            new MaintenanceForkToolExecutionOptions(policy.Evaluate) { IncludeDetailedErrors = true },
             cancellationToken);
 
-        if (!TryEvaluateFileWrites(currentMemory, memoryFileExisted, currentHistory, out var fileResult))
-        {
-            return await fallback.ConsolidateAsync(
-                TrimForFallback(messagesToArchive, currentMemory),
-                cancellationToken);
-        }
-
-        if (fileResult != null)
-            return fileResult;
-
         if (result.FallbackReason is not null)
-            return await fallback.ConsolidateAsync(
-                TrimForFallback(messagesToArchive, currentMemory),
-                cancellationToken);
-
+            return await RunFallbackAsync();
         if (TryParseNoChangesStatus(result.Text))
             return MemoryConsolidationResult.Skipped("no_memory_changes");
-
         if (!TryParseStructuredResult(result.Text, out var historyEntry, out var memoryUpdate))
-            return await fallback.ConsolidateAsync(
-                TrimForFallback(messagesToArchive, currentMemory),
-                cancellationToken);
+            return await RunFallbackAsync();
 
-        var write = memoryStore.SaveConsolidation(historyEntry, memoryUpdate);
-        return write.AnyWritten
-            ? MemoryConsolidationResult.Succeeded(write.MemoryWritten, write.HistoryWritten)
+        cancellationToken.ThrowIfCancellationRequested();
+        var commit = memoryStore.TrySaveConsolidation(current, historyEntry, memoryUpdate);
+        if (commit.Outcome == MemoryStoreCommitOutcome.Reset)
+            return MemoryConsolidationResult.Skipped("memory_reset");
+        if (commit.Outcome == MemoryStoreCommitOutcome.Conflict)
+            return MemoryConsolidationResult.Skipped("memory_version_conflict");
+        return commit.Write.AnyWritten
+            ? MemoryConsolidationResult.Succeeded(commit.Write.MemoryWritten, commit.Write.HistoryWritten)
             : MemoryConsolidationResult.Skipped("no_memory_changes");
+
+        async Task<MemoryConsolidationResult> RunFallbackAsync()
+        {
+            if (memoryStore.CaptureSnapshot().Generation != current.Generation)
+                return MemoryConsolidationResult.Skipped("memory_reset");
+            var messages = TrimForFallback(messagesToArchive, current.Memory ?? string.Empty);
+            return fallback is MemoryConsolidator consolidator
+                ? await consolidator.ConsolidateAsync(messages, current.Generation, cancellationToken)
+                : await fallback.ConsolidateAsync(messages, cancellationToken);
+        }
     }
 
     private string? GetFallbackReason(PromptRequestSnapshot? snapshot)
@@ -107,30 +98,6 @@ public sealed class MemoryForkConsolidator(
 
         var memoryDirectory = Path.GetFullPath(memoryStore.MemoryDirectoryPath);
         return Path.GetDirectoryName(memoryDirectory) ?? memoryDirectory;
-    }
-
-    private bool TryEvaluateFileWrites(
-        string previousMemory,
-        bool previousMemoryFileExisted,
-        string previousHistory,
-        out MemoryConsolidationResult? result)
-    {
-        result = null;
-        var currentHistory = memoryStore.ReadHistory();
-        if (!currentHistory.StartsWith(previousHistory, StringComparison.Ordinal))
-        {
-            memoryStore.RestoreLongTermForConsolidation(previousMemory, previousMemoryFileExisted);
-            memoryStore.RestoreHistoryForConsolidation(previousHistory);
-            return false;
-        }
-
-        var memoryWritten = !string.Equals(memoryStore.ReadLongTerm(), previousMemory, StringComparison.Ordinal);
-        var historyTail = currentHistory[previousHistory.Length..];
-        var historyWritten = !string.IsNullOrWhiteSpace(historyTail);
-        result = memoryWritten || historyWritten
-            ? MemoryConsolidationResult.Succeeded(memoryWritten, historyWritten)
-            : null;
-        return true;
     }
 
     private IReadOnlyList<ChatMessage> TrimForFallback(
@@ -166,7 +133,8 @@ public sealed class MemoryForkConsolidator(
 
     private static string BuildTaskInstructions(
         string memoryFilePath,
-        string historyFilePath)
+        string historyFilePath,
+        string? currentMemory)
     {
         return $$"""
 Consolidate durable memory from the completed conversation.
@@ -176,15 +144,16 @@ Memory files:
 - HISTORY.md: {{FormatPathForPrompt(historyFilePath)}}
 
 Tool rules:
-- Use file tools only for the two memory files above.
-- MEMORY.md may be replaced with the complete updated markdown.
-- HISTORY.md is append-only. Append at most one timestamped grep-searchable event paragraph.
-- Do not read or modify other workspace files, run shell commands, browse the web, spawn agents, or update goals/todos.
+- Only read or search the two memory files above. Do not write or edit files.
+- Do not access other workspace files, run shell commands, browse the web, spawn agents, or update goals/todos.
 
-Allowed output:
-- Prefer editing the files directly, then return a short JSON status such as {"status":"updated"}.
-- If nothing durable was learned, leave the files unchanged and return {"status":"unchanged"}.
-- Do not include the full MEMORY.md or HISTORY.md contents in the final response.
+Return candidate changes as JSON: {"history_entry":"[YYYY-MM-DD HH:MM] event paragraph","memory_update":"complete updated MEMORY.md markdown"}.
+The host checks for concurrent changes before applying the candidate. HISTORY.md is append-only; return at most one new timestamped paragraph, not its existing contents.
+Preserve explicitly saved information, including test records, unless the user corrected or removed it. Do not restore facts the user asked to forget.
+If nothing changed, return {"status":"unchanged"}.
+Use the current memory below rather than any cached memory earlier in the conversation:
+
+{{currentMemory ?? "(empty)"}}
 """;
     }
 
@@ -211,7 +180,7 @@ Allowed output:
                 || string.Equals(status, "no_changes", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(status, "no_memory_changes", StringComparison.OrdinalIgnoreCase);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return false;
         }
@@ -242,7 +211,7 @@ Allowed output:
             return !string.IsNullOrWhiteSpace(historyEntry)
                 || !string.IsNullOrWhiteSpace(memoryUpdate);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return false;
         }

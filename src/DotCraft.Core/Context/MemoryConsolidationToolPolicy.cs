@@ -14,9 +14,7 @@ internal sealed class MemoryConsolidationToolPolicy
 {
     private static readonly HashSet<string> DirectFileTools = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ReadFile",
-        "WriteFile",
-        "EditFile"
+        "ReadFile"
     };
 
     private static readonly HashSet<string> SearchTools = new(StringComparer.OrdinalIgnoreCase)
@@ -55,7 +53,7 @@ internal sealed class MemoryConsolidationToolPolicy
 
         return Deny(
             toolName,
-            "Memory consolidation may only use file read/search/edit tools for MEMORY.md and HISTORY.md.");
+            "Memory consolidation may only use file read/search tools for MEMORY.md and HISTORY.md.");
     }
 
     private ModeToolPolicyDecision EvaluateDirectFileTool(
@@ -224,6 +222,6 @@ Tool: {toolName}
 AllowedActionProfile: MemoryFilesOnly
 AllowedFiles: {FormatAllowedFiles()}
 Reason: {reason}
-NextAllowedActions: Read, search, write, or edit only MEMORY.md and HISTORY.md.
+NextAllowedActions: Read or search only MEMORY.md and HISTORY.md. Return candidate changes as JSON; do not write files.
 """);
 }
