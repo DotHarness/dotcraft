@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.1.1 |
+| **Version** | 0.2.0 |
 | **Status** | Draft |
-| **Date** | 2026-09-01 |
+| **Date** | 2026-09-20 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline for DotCraft contributors. This
@@ -23,8 +23,8 @@ The pipeline must:
 - install every successful replacement as an atomic context-window transition;
 - keep threshold accounting valid when a provider-native replacement cannot be represented as
   `ChatMessage`;
-- expose the existing Session Core event and maintenance behavior without adding a new public
-  configuration switch.
+- expose the existing Session Core event and maintenance behavior; the only public configuration
+  this pipeline adds is the turn-end threshold `Compaction.PostTurnCompactThresholdPercent`.
 
 The first provider-native backend targets ChatGPT OAuth with server-managed OpenAI Responses
 history. This version does not:
@@ -84,6 +84,7 @@ internal enum CompactionPhase
 {
     PreTurn,
     MidTurn,
+    PostTurn,
     Manual,
     Reactive
 }
@@ -181,6 +182,24 @@ Each attempt follows this order:
 
 Manual compaction holds thread maintenance for the complete sequence. Auto and reactive compaction
 remain serialized by the active Turn and Session Gate.
+
+## Automatic trigger phases
+
+Automatic compaction runs at three boundaries of a Turn. Each phase fixes what the compaction
+input contains and which Turn the resulting replacement covers. A replacement never covers a Turn
+later than its covered Turn: rollback that removes later Turns keeps it, and rollback that removes
+the covered Turn discards it.
+
+| Phase | When | Input | Covered Turn |
+|---|---|---|---|
+| **PreTurn** | At Turn start, after the persisted model history is loaded and instruction or guidance reconciliation is applied, before the Turn's context items and user input are appended. | The persisted neutral history only. | The newest surviving terminal Turn (`Completed`, `Failed`, or `Cancelled`); the current Turn when the Thread has no terminal Turn. |
+| **MidTurn** | Every sampling boundary inside the Turn, including the first one when the new input itself crosses the threshold. | The complete sampling list. | The current Turn. |
+| **PostTurn** | After the final assistant response, before the Turn reaches its terminal status. Requires `Compaction.PostTurnCompactThresholdPercent` above zero and a post-response active context at or above the auto threshold or `EffectiveContextWindow × percent / 100`. Skipped while the Turn is cancelling or queued inputs are pending. | The complete Turn history including the final response. | The current Turn. |
+
+After a PreTurn replacement, the Turn's context items and user input are persisted as the current
+Turn's model-history batch behind the checkpoint, so a later rollback of that Turn removes only the
+batch. A PostTurn replacement is committed together with the Turn's terminal state. A PostTurn
+failure emits `compactFailed`, keeps the completed Turn, and never fails it.
 
 ## Local summary backend
 
@@ -282,6 +301,7 @@ surviving provider-history appends.
 |---|---|---|
 | **PreTurn** | Current committed native generation. Excludes the new user message that has not entered provider history. | Retains the prior native message count and covered Turn. The new user tail is appended exactly once by ordinary request preparation. |
 | **MidTurn** | Current native generation plus a read-only mapping of the active Turn's uncovered tool/guidance tail. | Covers the complete current sampling list and current Turn. |
+| **PostTurn** | Current native generation plus a read-only mapping of the complete current Turn, including the final assistant response. | Covers the complete current sampling list and current Turn. |
 | **Manual** | The current persisted generation after protocol-return alignment, if needed. | Covers the full neutral session and latest terminal Turn represented by that generation. |
 | **Reactive** | The exact native input rejected by the provider for context overflow. | Covers that submitted sampling list and the failing Turn. |
 
@@ -388,7 +408,9 @@ backend's circuit breaker.
 - **Cold resume:** replay the newest valid provider replacement and later surviving entries. The
   opaque output is sent directly to the next Responses request.
 - **Rollback:** reject a replacement whose covered Turn no longer survives, then select an older
-  valid generation.
+  valid generation. PreTurn and PostTurn replacements cover only terminal Turns, so rolling back
+  the newest Turn to edit and resend its input keeps them; a MidTurn or reactive replacement
+  covering the removed Turn is discarded.
 - **Fork:** copy an exact compatible provider prefix for whole-Turn forks. Partial or incompatible
   forks materialize from neutral history.
 - **Leave Responses:** retain provider history but use neutral history for the new protocol.
@@ -422,7 +444,8 @@ recovery and SDK transport retries do not emit additional hook or Session Core l
 
 ## Public behavior
 
-This design adds no public configuration or AppServer method. Existing contracts remain:
+This design adds one public configuration field, `Compaction.PostTurnCompactThresholdPercent`
+(0–100; `0` disables turn-end compaction), and no AppServer method. Existing contracts remain:
 
 - `thread/compact/start` for manual compaction;
 - `outcome = "partial"` for a successful summary-producing or provider-native replacement;
@@ -442,8 +465,14 @@ Clients do not need to know which backend produced the replacement.
 - Compact body tests prove standard/Lite Responses shaping and a single trailing compaction trigger.
 - Raw compaction fields and retained message order survive persistence, restart, rollback, and compatible fork
   without MEAI conversion; legacy replacement windows remain readable.
-- Pre-turn input appends the pending user message once; mid-turn input preserves tool-call/result
-  correlation.
+- Pre-turn compaction runs before the Turn's context items and user input are recorded, covers
+  the newest surviving terminal Turn, and the pending user message is appended once behind the
+  checkpoint; mid-turn input preserves tool-call/result correlation.
+- Turn-end compaction runs only when `PostTurnCompactThresholdPercent` is positive and the
+  threshold is reached, commits its checkpoint with the Turn's terminal state, and never turns a
+  completed Turn into a failed one.
+- Rolling back the newest Turn after a pre-turn or turn-end compaction keeps the compacted history
+  and its context usage estimate.
 - Manual compaction works after cold resume and after protocol-return alignment.
 - Reactive compaction installs the rejected native request's compacted replacement while preserving
   the existing failed-Turn/resend behavior.

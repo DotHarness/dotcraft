@@ -21,6 +21,7 @@ internal enum CompactionPhase
 {
     PreTurn,
     MidTurn,
+    PostTurn,
     Manual,
     Reactive
 }

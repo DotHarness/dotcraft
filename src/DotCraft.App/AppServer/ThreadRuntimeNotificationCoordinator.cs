@@ -67,6 +67,13 @@ internal sealed class ThreadRuntimeNotificationCoordinator
                     ActiveTurnStartedAt = null,
                     WaitingOnPlanConfirmation = false
                 },
+                SessionThreadRuntimeSignal.HistoryRolledBack => current with
+                {
+                    Running = false,
+                    ActiveTurnId = null,
+                    ActiveTurnStartedAt = null,
+                    WaitingOnPlanConfirmation = false
+                },
                 SessionThreadRuntimeSignal.ApprovalRequested => current with
                 {
                     PendingApprovals = previous.PendingApprovals + 1

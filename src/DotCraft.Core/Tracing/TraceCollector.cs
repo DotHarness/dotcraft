@@ -513,6 +513,33 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
         });
     }
 
+    /// <summary>Records the tools the thread's capability policy kept out of the model's list.</summary>
+    public void RecordToolPolicyWithheld(string sessionKey, IReadOnlyList<ToolPolicyWithheldTraceTool> tools)
+    {
+        if (tools.Count == 0)
+            return;
+
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.ToolPolicyWithheld,
+            SessionKey = sessionKey,
+            ToolName = $"{tools.Count} tool{(tools.Count != 1 ? "s" : "")} withheld by policy",
+            ToolIcon = "🚫",
+            Content = string.Join(", ", tools.Select(static tool => tool.Name)),
+            MetadataJson = SerializeMetadata(new
+            {
+                schemaVersion = 1,
+                tools = tools.Select(static tool => new
+                {
+                    name = tool.Name,
+                    @namespace = tool.Namespace,
+                    source = tool.Source,
+                    reason = tool.Reason
+                })
+            })
+        });
+    }
+
     /// <summary>
     /// Records native deferred tool loading activation without marking the prompt cache as a tool extension.
     /// </summary>

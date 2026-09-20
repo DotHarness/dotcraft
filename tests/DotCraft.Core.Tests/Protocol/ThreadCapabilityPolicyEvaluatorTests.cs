@@ -12,6 +12,7 @@ using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 using Xunit;
 using DotCraft.Tools;
+using DotCraft.Tracing;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -254,6 +255,53 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         Assert.True(policy.EvaluateRegistration(
             Registration(new ToolName("mcp__catalog_service", "get_record"), ToolSourceKind.Mcp, "catalog-service"),
             []).Allowed);
+    }
+
+    [Fact]
+    public void McpToolsAnswerToTheMcpPolicyRatherThanTheProfileToolLists()
+    {
+        var config = new ThreadConfiguration
+        {
+            ToolAllowList = ["ReadFile"],
+            ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] },
+            McpPolicy = new ThreadMcpPolicy
+            {
+                Tools = new ThreadNamePolicy { Deny = ["mcp__feishu/feishu_change*"] }
+            }
+        };
+        var query = Registration(new ToolName("mcp__feishu", "feishu_query"), ToolSourceKind.Mcp, "feishu");
+        var change = Registration(new ToolName("mcp__feishu", "feishu_change"), ToolSourceKind.Mcp, "feishu");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([query, change], revision: 1);
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+
+        Assert.True(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(snapshot, query.Definition)));
+        Assert.True(policy.EvaluateRegistration(query, []).Allowed);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "mcp__feishu__feishu_query",
+                new Dictionary<string, object?>())).Kind);
+
+        Assert.False(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(snapshot, change.Definition)));
+        Assert.False(policy.EvaluateRegistration(change, []).Allowed);
+        Assert.False(policy.AllowsTool(Tool("WriteFile")));
+    }
+
+    [Fact]
+    public void WithheldFromModel_NamesEveryToolThePolicyKeptAndTheRefusal()
+    {
+        var config = new ThreadConfiguration { ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] } };
+        var kept = Registration(new ToolName(null, "ReadFile"), ToolSourceKind.CoreNative, "core");
+        var withheld = Registration(new ToolName(null, "WriteFile"), ToolSourceKind.CoreNative, "core");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([kept, withheld], revision: 1);
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+
+        var reported = Assert.Single(policy.WithheldFromModel(snapshot));
+
+        Assert.Equal("WriteFile", reported.Name);
+        Assert.Equal(ToolUsageSource.Builtin, reported.Source);
+        Assert.Equal("The thread tool policy does not allow this tool.", reported.Reason);
     }
 
     [Fact]

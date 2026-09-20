@@ -2,10 +2,13 @@ using DotCraft.Agents;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Tools;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using System.Text.Json.Nodes;
 
 namespace DotCraft.Sessions;
+
+internal sealed record WithheldTool(string Name, string? Namespace, string Source, string Reason);
 
 /// <summary>
 /// Evaluates profile-shaped thread capability policy for tool discovery and invocation.
@@ -15,6 +18,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
     private const string SkillViewToolName = "SkillView";
     private const string SkillManageToolName = "SkillManage";
+    private const string McpToolNamePrefix = "mcp__";
     private readonly HashSet<string> _runtimeManagedProviderToolNames = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -24,12 +28,47 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         AllowsTool(tool, out _);
 
     /// <summary>Returns true when source-qualified policy permits model exposure.</summary>
-    public bool AllowsRegistrationExposure(ToolRegistration registration)
+    public bool AllowsRegistrationExposure(ToolRegistration registration) =>
+        AllowsRegistrationExposure(registration, out _);
+
+    public bool AllowsRegistrationExposure(ToolRegistration registration, out string reason)
     {
         ArgumentNullException.ThrowIfNull(registration);
-        return registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged
-               || registration.Definition.Id.Kind != ToolSourceKind.Mcp
-               || AllowsMcpRegistration(registration, out _);
+        if (registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged
+            || registration.Definition.Id.Kind != ToolSourceKind.Mcp)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        return AllowsMcpRegistration(registration, out reason);
+    }
+
+    /// <summary>The tools this policy keeps out of the model's list, each with the refusal that hid it.</summary>
+    public IReadOnlyList<WithheldTool> WithheldFromModel(EffectiveToolSnapshot snapshot)
+    {
+        var withheld = new List<WithheldTool>();
+        foreach (var (name, registration) in snapshot.Registrations)
+        {
+            if (registration.Binding.Availability != ToolBindingAvailability.Available
+                || registration.Exposure is not (ToolExposure.Direct
+                    or ToolExposure.DirectModelOnly
+                    or ToolExposure.Deferred)
+                || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.Model))
+                continue;
+
+            if (AllowsRegistrationExposure(registration, out var reason)
+                && AllowsTool(AgentFactory.ProjectSnapshotDefinition(snapshot, registration.Definition), out reason))
+                continue;
+
+            withheld.Add(new WithheldTool(
+                snapshot.ProviderFlatNames[name],
+                name.Namespace,
+                ToolUsageSource.FromProvenance(registration.Definition.Provenance),
+                reason));
+        }
+
+        return [.. withheld.OrderBy(static tool => tool.Name, StringComparer.Ordinal)];
     }
 
     /// <summary>Captures the effective provider-facing aliases for runtime-managed tools.</summary>
@@ -58,6 +97,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         var runtimeManaged = IsRuntimeManagedToolName(toolName);
         var reason = string.Empty;
         if (!runtimeManaged
+            && !IsMcpToolName(toolName)
             && !AllowsToolName(toolName, isRuntimeReserved: IsRuntimeReservedToolName(toolName), out reason))
             return Deny(toolName, reason);
 
@@ -111,7 +151,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         var runtimeManaged = registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged;
         var reason = string.Empty;
-        if (!runtimeManaged)
+        if (!runtimeManaged && registration.Definition.Id.Kind != ToolSourceKind.Mcp)
         {
             var reserved = IsRuntimeReservedToolName(name);
             var policyName = registration.ProviderFlatNameOverride
@@ -260,7 +300,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         }
     }
 
-    private bool AllowsTool(AITool tool, out string reason)
+    public bool AllowsTool(AITool tool, out string reason)
     {
         var toolName = tool.Name;
         var isRuntimeReserved = IsRuntimeReservedToolName(toolName);
@@ -270,7 +310,8 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return true;
         }
 
-        if (!AllowsToolName(toolName, isRuntimeReserved, out reason))
+        reason = string.Empty;
+        if (!IsMcpToolName(toolName) && !AllowsToolName(toolName, isRuntimeReserved, out reason))
             return false;
 
         if (!AllowsMcpTool(tool, out reason))
@@ -334,8 +375,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             ? ToCanonicalSelector(canonicalName)
             : toolName;
         var serverName = ResolveMcpServerName(toolName);
-        var isKnownMcpTool = !string.IsNullOrWhiteSpace(serverName)
-                             || toolName.StartsWith("mcp__", StringComparison.Ordinal);
+        var isKnownMcpTool = IsMcpToolName(toolName);
 
         if (!string.IsNullOrWhiteSpace(serverName))
         {
@@ -488,6 +528,10 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
     private bool IsRuntimeManagedToolName(string toolName) =>
         _runtimeManagedProviderToolNames.Contains(toolName);
+
+    private bool IsMcpToolName(string toolName) =>
+        !string.IsNullOrWhiteSpace(ResolveMcpServerName(toolName))
+        || toolName.StartsWith(McpToolNamePrefix, StringComparison.Ordinal);
 
     private string? ResolveMcpServerName(string toolName)
     {

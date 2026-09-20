@@ -15,6 +15,10 @@ public enum SessionThreadRuntimeSignal
     UserInputRequested,
     UserInputResolved,
     /// <summary>
+    /// Visible history was rolled back. Resets runtime state without reporting a Turn completion.
+    /// </summary>
+    HistoryRolledBack,
+    /// <summary>
     /// A successful context compaction just completed. UI layers use this to
     /// clear any "context almost full" warning indicator.
     /// </summary>

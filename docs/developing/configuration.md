@@ -167,6 +167,7 @@ Self-learning example:
 | `Compaction.SummaryReserveTokens` | Tokens reserved for summary output | `20000` |
 | `Compaction.SummaryMaxOutputTokens` | Maximum output tokens for a compaction summary request | `12000` |
 | `Compaction.AutoCompactBufferTokens` | Token buffer below the hard limit that triggers auto compaction | `13000` |
+| `Compaction.PostTurnCompactThresholdPercent` | Percentage of the effective context window that also triggers compaction at the end of a Turn; `0` disables it | `0` |
 | `Compaction.WarningBufferTokens` | Token buffer before auto threshold that emits warning | `20000` |
 | `Compaction.ErrorBufferTokens` | Token buffer before auto threshold that emits error | `10000` |
 | `Compaction.ManualCompactBufferTokens` | Headroom below the effective context window used for the reported context-pressure limit | `3000` |

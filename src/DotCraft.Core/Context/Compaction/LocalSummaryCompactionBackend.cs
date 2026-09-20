@@ -22,7 +22,8 @@ internal sealed class LocalSummaryCompactionBackend(CompactionPipeline pipeline)
                     request.InputTokenHint,
                     request.LastAssistantTimestampUtc,
                     cancellationToken,
-                    request.PromptSnapshot)
+                    request.PromptSnapshot,
+                    turnEnd: request.Phase == CompactionPhase.PostTurn)
                 .ConfigureAwait(false),
             CompactionTrigger.Manual => await pipeline.TryManualCompactHistoryAsync(
                     request.NeutralHistory,

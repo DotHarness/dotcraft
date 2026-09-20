@@ -313,7 +313,8 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
         IReadOnlyList<ChatMessage> messages,
         ChatOptions? options,
         string reason,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? coveredThroughTurnId = null)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -325,6 +326,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
                                   ?? _identity;
             var windowId = currentIdentity.ContextWindowId;
             var generationId = windowId;
+            var coveredTurnId = string.IsNullOrWhiteSpace(coveredThroughTurnId) ? _identity.TurnId : coveredThroughTurnId;
             var replacement = new ProviderHistoryReplacedPayload
             {
                 SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
@@ -332,7 +334,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
                 Protocol = ModelProviderProtocols.OpenAIResponses,
                 GenerationId = generationId,
                 ContextWindowId = windowId,
-                CoveredThroughTurnId = _identity.TurnId,
+                CoveredThroughTurnId = coveredTurnId,
                 Reason = string.IsNullOrWhiteSpace(reason) ? "history_replaced" : reason,
                 Entries = entries
             };
@@ -343,7 +345,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
             _entries.AddRange(entries.Select(entry => new RuntimeEntry(entry, AttemptId: null)));
             _generationId = generationId;
             _contextWindowId = windowId;
-            _coveredThroughTurnId = _identity.TurnId;
+            _coveredThroughTurnId = coveredTurnId;
             _coveredSamplingMessageCount = GetSamplingProjection(messages).Count;
             _currentAttemptId = null;
             _isNativeCompacted = false;
@@ -441,8 +443,9 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
         IReadOnlyList<ChatMessage> messages,
         ChatOptions? options,
         string reason,
-        CancellationToken cancellationToken) =>
-        ReplaceAsync(messages, options, reason, cancellationToken);
+        CancellationToken cancellationToken,
+        string? coveredThroughTurnId) =>
+        ReplaceAsync(messages, options, reason, cancellationToken, coveredThroughTurnId);
 
     public bool TryEstimateActiveNativeContextTokens(
         IReadOnlyList<ChatMessage> messages,

@@ -147,7 +147,9 @@ transition set; adding an isolated lock to one method is not sufficient.
 - **Compaction:** a neutral replacement maps the final compacted MEAI history once. A
   provider-native replacement installs the client-built Responses v2 replacement without changing
   MEAI history. Both start a new provider-history generation and share the context-window
-  transition defined in [Context Compaction](context-compaction.md).
+  transition defined in [Context Compaction](context-compaction.md). A replacement produced by
+  pre-turn compaction covers the newest terminal Turn, the same Turn as its neutral checkpoint, so
+  rolling back the Turn that triggered it keeps the generation.
 - **Protocol change:** leaving Responses leaves the generation untouched. Returning after
   non-Responses turns creates a replacement from current MEAI history and advances the context
   window before the next Responses request.

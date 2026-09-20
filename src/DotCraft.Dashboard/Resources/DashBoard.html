@@ -964,7 +964,8 @@ body {
 .trace-event.type-TokenUsage .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
 .trace-event.type-Error .trace-icon,
 .trace-event.type-ProviderError .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
-.trace-event.type-ResponseTerminal .trace-icon { color: var(--text-muted); border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border)); background: var(--bg-card); }
+.trace-event.type-ResponseTerminal .trace-icon,
+.trace-event.type-ToolPolicyWithheld .trace-icon { color: var(--text-muted); border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border)); background: var(--bg-card); }
 .trace-event.type-ProviderResponseDiagnostic .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
 .trace-event.type-WorldStateDiagnostic .trace-icon,
 .trace-event.type-SubAgentPrefixDiagnostic .trace-icon { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border)); background: var(--info-dim); }
@@ -3153,7 +3154,7 @@ function traceEventMatchesFilter(evt, filter) {
   if (!filter || filter === 'all') return true;
   if (filter === 'Response') return evt.type === 'Response' || evt.type === 'ResponseTerminal';
   if (filter === 'Provider') return evt.type === 'ProviderResponseDiagnostic' || evt.type === 'ProviderError';
-  if (filter === 'Tool') return evt.type === 'ToolCallStarted' || evt.type === 'ToolCallCompleted' || evt.type === 'ToolInjection' || evt.type === 'DeferredToolLoading';
+  if (filter === 'Tool') return evt.type === 'ToolCallStarted' || evt.type === 'ToolCallCompleted' || evt.type === 'ToolInjection' || evt.type === 'DeferredToolLoading' || evt.type === 'ToolPolicyWithheld';
   if (filter === 'Maintenance') return evt.type === 'MaintenanceForkRequest' || evt.type === 'MaintenanceForkResponse' || evt.type === 'ContextCompaction' || evt.type === 'ThreadRollback';
   return evt.type === filter;
 }
@@ -3752,6 +3753,26 @@ function renderTraceEvent(e) {
           <div class="trace-label">${escapeHtml(e.toolName || 'Tools injected')} <span class="badge badge-info">injected</span></div>
           ${renderExpandableTraceText(evtId, e.content, 500)}
         </div></div>`;
+
+    case 'ToolPolicyWithheld': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const tools = Array.isArray(md.tools) ? md.tools : [];
+      const toolDetails = tools.length > 0
+        ? `<div class="session-tools-inline">${tools.map(tool => {
+            const name = escapeHtml(tool.name || '');
+            const detail = [tool.source, tool.reason].filter(Boolean).map(escapeHtml).join(' · ');
+            return `<span class="tool-badge">${name}${detail ? ` <span style="color:var(--text-muted)">(${detail})</span>` : ''}</span>`;
+          }).join('')}</div>`
+        : '';
+      return `<div class="trace-event type-ToolPolicyWithheld">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('eyeOff', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label">${escapeHtml(e.toolName || 'Tools withheld by policy')} <span class="badge badge-info">withheld</span></div>
+          ${renderExpandableTraceText(evtId, e.content, 500)}
+          ${toolDetails}
+        </div></div>`;
+    }
 
     case 'DeferredToolLoading': {
       const md = parseTraceMetadata(e.metadataJson) || {};

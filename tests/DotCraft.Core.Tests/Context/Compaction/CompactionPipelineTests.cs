@@ -21,6 +21,30 @@ public sealed class CompactionPipelineTests
     };
 
     [Fact]
+    public void EvaluateThreshold_PostTurnFollowsPercentAndAutoLimit()
+    {
+        var cfg = DefaultConfig();
+        cfg.PostTurnCompactThresholdPercent = 50;
+        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
+
+        // Effective window = 180k, so 50% = 90k; auto = 167k.
+        Assert.True(pipeline.PostTurnCompactionEnabled);
+        Assert.Equal(90_000, pipeline.EvaluateThreshold(0).PostTurnThreshold);
+        Assert.False(pipeline.EvaluateThreshold(89_999).AbovePostTurn);
+        Assert.True(pipeline.EvaluateThreshold(90_000).AbovePostTurn);
+
+        cfg.PostTurnCompactThresholdPercent = 100;
+        var wide = new CompactionPipeline(cfg, new DummyChatClient());
+        Assert.False(wide.EvaluateThreshold(160_000).AbovePostTurn);
+        Assert.True(wide.EvaluateThreshold(170_000).AbovePostTurn);
+
+        cfg.PostTurnCompactThresholdPercent = 0;
+        var disabled = new CompactionPipeline(cfg, new DummyChatClient());
+        Assert.False(disabled.PostTurnCompactionEnabled);
+        Assert.False(disabled.EvaluateThreshold(180_000).AbovePostTurn);
+    }
+
+    [Fact]
     public void EvaluateThreshold_BelowWarning()
     {
         var cfg = DefaultConfig();

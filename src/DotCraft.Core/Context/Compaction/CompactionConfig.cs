@@ -66,6 +66,13 @@ public sealed class CompactionConfig
     public int AutoCompactBufferTokens { get; set; } = 13_000;
 
     /// <summary>
+    /// Percentage of the effective context window at which the turn-end phase compacts after the
+    /// final response; the auto threshold still applies. Zero disables turn-end compaction.
+    /// </summary>
+    [ConfigField(Min = 0, Max = 100, Hint = "Compact at the end of a turn once this percentage of the effective context window is used (0 to disable).")]
+    public int PostTurnCompactThresholdPercent { get; set; }
+
+    /// <summary>
     /// Warning threshold buffer: emit compactWarning event when tokens reach
     /// (autoThreshold - WarningBuffer).
     /// </summary>
@@ -150,6 +157,7 @@ public sealed class CompactionConfig
         SummaryReserveTokens = SummaryReserveTokens,
         SummaryMaxOutputTokens = SummaryMaxOutputTokens,
         AutoCompactBufferTokens = AutoCompactBufferTokens,
+        PostTurnCompactThresholdPercent = PostTurnCompactThresholdPercent,
         WarningBufferTokens = WarningBufferTokens,
         ErrorBufferTokens = ErrorBufferTokens,
         ManualCompactBufferTokens = ManualCompactBufferTokens,
@@ -180,6 +188,18 @@ public sealed class CompactionConfig
     {
         var effective = EffectiveContextWindow();
         return Math.Max(1, effective - AutoCompactBufferTokens);
+    }
+
+    /// <summary>
+    /// Token count at which the turn-end phase compacts, or zero when turn-end compaction is disabled.
+    /// </summary>
+    public int PostTurnCompactThreshold()
+    {
+        var percent = Math.Clamp(PostTurnCompactThresholdPercent, 0, 100);
+        if (percent == 0)
+            return 0;
+
+        return Math.Max(1, (int)((long)EffectiveContextWindow() * percent / 100));
     }
 
     /// <summary>

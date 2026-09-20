@@ -192,6 +192,7 @@ Policy semantics:
 - Omitting both `tools.allow` and `tools.deny` allows all ordinary profile-managed tools.
 - An explicit empty `tools.allow` allows no ordinary tools; a non-empty list allows only the named tools.
 - A non-empty `tools.deny` allows ordinary tools except the named tools.
+- `tools.allow` and `tools.deny` name ordinary profile-managed tools and do not reach MCP tools. An MCP tool answers to `mcp.servers` and `mcp.tools`, which select by server and by namespaced tool selector and accept wildcards. A Profile author names the tools available to the agent it writes; an MCP server a host puts on one Thread for one Run is not among them, and a name list written without it would hide it with no way for the author to have known.
 - Outside the tool policy, omitted `allow` means no allow-list is applied and empty `allow` allows no profile-managed capability for that policy dimension.
 - Empty or omitted `deny` means no deny-list is applied.
 - Deny wins over allow.
@@ -241,6 +242,8 @@ The resolved profile policy affects:
 Invocation enforcement is mandatory even when discovery filtering is also present. A stale or hidden call to a denied capability must fail safely.
 
 Runtime-managed capabilities are contributed by the runtime that owns the thread and do not participate in Agent Profile tool allow/deny policy. Profiles cannot enable, disable, or impersonate those registrations.
+
+A capability the policy keeps out of the model's tool list is recorded on the thread's trace with the tool's model-visible name, its namespace, its usage source, and the refusal that hid it. A withheld tool produces no call and no result, so the trace is the only place that decision is written down.
 
 ---
 
