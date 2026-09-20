@@ -74,7 +74,11 @@ internal sealed class SessionEventChannel(
         Write(SessionEventType.TurnCompleted, null, SnapshotTurn(turn));
 
     public void EmitTurnFailed(SessionTurn turn, string error) =>
-        Write(SessionEventType.TurnFailed, null, new TurnFailedPayload { Turn = SnapshotTurn(turn), Error = error });
+        Write(SessionEventType.TurnFailed, null, new TurnFailedPayload
+        {
+            Turn = SnapshotTurn(turn),
+            Error = error
+        });
 
     public void EmitTurnCancelled(SessionTurn turn, string reason) =>
         Write(SessionEventType.TurnCancelled, null, new TurnCancelledPayload { Turn = SnapshotTurn(turn), Reason = reason });
@@ -187,11 +191,16 @@ internal sealed class SessionEventChannel(
         string? message = null,
         double? percentLeft = null,
         long? tokenCount = null,
-        ContextUsageSnapshot? contextUsage = null) =>
+        ContextUsageSnapshot? contextUsage = null,
+        string? messageKey = null,
+        IReadOnlyDictionary<string, object?>? parameters = null) =>
         Write(SessionEventType.SystemEvent, null, new SystemEventPayload
         {
             Kind = kind,
             Message = message,
+            MessageKey = messageKey,
+            Params = parameters,
+            FallbackText = message,
             PercentLeft = percentLeft,
             TokenCount = tokenCount,
             ContextUsage = contextUsage
@@ -224,6 +233,8 @@ internal sealed class SessionEventChannel(
         CompletedAt = turn.CompletedAt,
         TokenUsage = turn.TokenUsage,
         Error = turn.Error,
+        ProviderError = turn.ProviderError,
+        HttpStatus = turn.HttpStatus,
         OriginChannel = turn.OriginChannel,
         Initiator = turn.Initiator
     };

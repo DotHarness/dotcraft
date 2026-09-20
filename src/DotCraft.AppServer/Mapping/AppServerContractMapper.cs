@@ -75,6 +75,8 @@ public static class AppServerContractMapper
         CompletedAt = value.CompletedAt,
         TokenUsage = value.TokenUsage is null ? null : ToContract(value.TokenUsage),
         Error = value.Error,
+        ProviderError = value.ProviderError,
+        HttpStatus = value.HttpStatus,
         OriginChannel = value.OriginChannel,
         Initiator = value.Initiator is null ? null : ThreadContractMapper.ToContract(value.Initiator),
         Items = value.Items?.Select(ToContract).ToArray()

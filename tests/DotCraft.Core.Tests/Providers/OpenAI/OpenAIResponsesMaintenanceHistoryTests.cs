@@ -22,7 +22,7 @@ public sealed class OpenAIResponsesMaintenanceHistoryTests
         var completedAttempts = 0;
         using var retryScope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (_, _, _) => throw new InvalidOperationException("Parent retry callback leaked."),
+            NotifyRetry = _ => throw new InvalidOperationException("Parent retry callback leaked."),
             NotifyAttemptCompleted = _ => completedAttempts++
         });
         var transport = new CapturingResponsesTransport(new StreamingResponseOutputTextDeltaUpdate

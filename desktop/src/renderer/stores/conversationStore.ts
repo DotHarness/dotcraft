@@ -66,13 +66,11 @@ export interface AgentPlan {
   todos: PlanTodoItem[]
 }
 
-export interface StreamRetrySignal {
-  id: string
+export interface StreamRetryStatus {
   turnId: string
-  rawMessage: string
   attempt: number | null
   max: number | null
-  createdAt: string
+  serverBusy: boolean
 }
 
 /** Threshold classification used by the token ring for color coding. */
@@ -339,7 +337,7 @@ interface ConversationState {
   /** Thread-scoped background memory work that should not block input. */
   backgroundMemoryStatus: BackgroundMemoryStatus | null
   /** Transient provider stream retry rows for the active turn; never persisted. */
-  streamRetrySignals: StreamRetrySignal[]
+  streamRetry: StreamRetryStatus | null
   /** Thread-level maintenance that should keep input in queue mode. */
   maintenanceKind: MaintenanceKind | null
   /** Queued follow-up message (sent when current turn completes) */
@@ -427,6 +425,8 @@ interface ConversationActions {
     params?: {
       turnId?: string | null
       message?: string | null
+      messageKey?: string | null
+      params?: Record<string, unknown> | null
       tokenCount?: number | null
       percentLeft?: number | null
       contextUsage?: ContextUsageSnapshotInput | null
@@ -515,7 +515,7 @@ const initialState: ConversationState = {
   outputTokens: 0,
   systemLabel: null,
   backgroundMemoryStatus: null,
-  streamRetrySignals: [],
+  streamRetry: null,
   maintenanceKind: null,
   pendingMessage: null,
   queuedInputs: [],
@@ -1583,18 +1583,10 @@ function truncatePreviewField(value: string): string {
   return `${chars.slice(0, SUB_AGENT_ARGUMENT_FIELD_MAX_CHARS - 1).join('')}…`
 }
 
-function parseStreamRetryAttempt(message: string): Pick<StreamRetrySignal, 'attempt' | 'max'> {
-  const match = message.match(/(\d+)\s*\/\s*(\d+)/)
-  if (!match) {
-    return { attempt: null, max: null }
-  }
+const SERVER_BUSY_RETRY_KEY = 'system.streamError.serverBusy'
 
-  const attempt = Number.parseInt(match[1], 10)
-  const max = Number.parseInt(match[2], 10)
-  return {
-    attempt: Number.isFinite(attempt) ? attempt : null,
-    max: Number.isFinite(max) ? max : null
-  }
+function readRetryCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 export const useConversationStore = create<ConversationStore>((set, get) => ({
@@ -1760,7 +1752,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           : null,
         maintenanceKind: null,
         backgroundMemoryStatus: null,
-        streamRetrySignals: [],
+        streamRetry: null,
         changedFiles: preserveExistingRealtime
           ? new Map([...rehydratedChangedFiles, ...state.changedFiles])
           : rehydratedChangedFiles,
@@ -1810,7 +1802,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           inputTokens: 0,
           outputTokens: 0,
           systemLabel: null,
-          streamRetrySignals: [],
+          streamRetry: null,
           maintenanceKind: null,
                   streamingItemDiffs: new Map<string, FileDiff>(),
           streamingBaselines: new Map<string, StreamingFileBaseline>()
@@ -1843,7 +1835,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         inputTokens: 0,
         outputTokens: 0,
         systemLabel: null,
-        streamRetrySignals: [],
+        streamRetry: null,
         maintenanceKind: null,
               streamingItemDiffs: new Map<string, FileDiff>(),
         streamingBaselines: new Map<string, StreamingFileBaseline>()
@@ -1879,7 +1871,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         activeItemId: null,
         turnStartedAt: null,
         systemLabel: null,
-        streamRetrySignals: state.streamRetrySignals.filter((signal) => signal.turnId !== turn.id),
+        streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry,
         pendingMessage: null
       }
     })
@@ -1893,7 +1885,13 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set((state) => ({
       turns: state.turns.map((t) =>
         t.id === turn.id
-          ? { ...t, status: 'failed' as TurnStatus, error, completedAt: turn.completedAt }
+          ? {
+            ...t,
+            status: 'failed' as TurnStatus,
+            error,
+            providerError: turn.providerError,
+            completedAt: turn.completedAt
+          }
           : t
       ),
       turnStatus: 'idle',
@@ -1909,7 +1907,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       activeItemId: null,
       turnStartedAt: null,
       systemLabel: null,
-      streamRetrySignals: state.streamRetrySignals.filter((signal) => signal.turnId !== turn.id)
+      streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry
     }))
   },
 
@@ -1943,7 +1941,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       activeItemId: null,
       turnStartedAt: null,
       systemLabel: null,
-      streamRetrySignals: state.streamRetrySignals.filter((signal) => signal.turnId !== turn.id)
+      streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry
     }))
   },
 
@@ -2872,30 +2870,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }
 
     if (kind === 'streamError') {
-      const rawMessage = params?.message?.trim()
       const turnId = params?.turnId ?? get().activeTurnId
-      if (rawMessage && turnId) {
-        set((state) => {
-          const lastSignal = state.streamRetrySignals[state.streamRetrySignals.length - 1]
-          if (lastSignal?.turnId === turnId && lastSignal.rawMessage === rawMessage) {
-            return {}
-          }
-
-          const createdAtMs = Date.now()
-          const createdAt = new Date(createdAtMs).toISOString()
-          const attempt = parseStreamRetryAttempt(rawMessage)
-          return {
-            streamRetrySignals: [
-              ...state.streamRetrySignals,
-              {
-                id: `stream-retry-${turnId}-${createdAtMs}-${state.streamRetrySignals.length}`,
-                turnId,
-                rawMessage,
-                attempt: attempt.attempt,
-                max: attempt.max,
-                createdAt
-              }
-            ]
+      const attempt = readRetryCount(params?.params?.attempt)
+      // A first attempt that recovers immediately is noise, so only a repeat is surfaced.
+      if (turnId && attempt !== null && attempt > 1) {
+        set({
+          streamRetry: {
+            turnId,
+            attempt,
+            max: readRetryCount(params?.params?.max),
+            serverBusy: params?.messageKey === SERVER_BUSY_RETRY_KEY
           }
         })
       }
@@ -3001,7 +2985,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       inputTokens: 0,
       outputTokens: 0,
       systemLabel: null,
-      streamRetrySignals: [],
+      streamRetry: null,
       maintenanceKind: null
     }))
   },
@@ -3017,7 +3001,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingReasoningStartedAt: null,
       activeItemId: null,
       turnStartedAt: null,
-      streamRetrySignals: state.streamRetrySignals.filter((signal) => signal.turnId !== turnId)
+      streamRetry: state.streamRetry?.turnId === turnId ? null : state.streamRetry
     }))
   },
 
@@ -3038,9 +3022,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return {
         turns,
         activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
-        streamRetrySignals: state.streamRetrySignals.map((signal) =>
-          signal.turnId === localId ? { ...signal, turnId: serverId } : signal
-        )
+        streamRetry: state.streamRetry?.turnId === localId
+          ? { ...state.streamRetry, turnId: serverId }
+          : state.streamRetry
       }
     })
   },
@@ -3530,6 +3514,28 @@ function findStreamingCreatePlanCall(state: ConversationState): StreamingCreateP
   }
 
   return null
+}
+
+const CAPACITY_RETRY_DELAYS_SECONDS = [10, 30, 120, 300]
+
+function isCapacityFailure(turn: ConversationTurn): boolean {
+  return turn.status === 'failed' && turn.providerError === 'serverOverloaded'
+}
+
+function isReissuedTurn(turn: ConversationTurn): boolean {
+  return !turn.items.some((item) => item.type === 'userMessage')
+}
+
+/** Returns null only when the retry schedule is spent; the caller decides whether a retry applies at all. */
+export function selectCapacityRetryDelaySeconds(state: ConversationState): number | null {
+  const turns = state.turns
+  let consecutive = 0
+  for (let i = turns.length - 1; i > 0 && consecutive < CAPACITY_RETRY_DELAYS_SECONDS.length; i--) {
+    if (!isCapacityFailure(turns[i]) || !isReissuedTurn(turns[i]) || !isCapacityFailure(turns[i - 1])) break
+    consecutive += 1
+  }
+
+  return CAPACITY_RETRY_DELAYS_SECONDS[consecutive] ?? null
 }
 
 export function selectStreamingPlanItemId(state: ConversationState): string | null {

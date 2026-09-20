@@ -100,12 +100,12 @@ public sealed class AppServerErrorTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task TurnStart_EmptyInput_ReturnsInvalidParams()
+    public async Task TurnEnqueue_EmptyInput_ReturnsInvalidParams()
     {
         await _h.InitializeAsync();
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
         {
             threadId = thread.Id,
             input = Array.Empty<object>()

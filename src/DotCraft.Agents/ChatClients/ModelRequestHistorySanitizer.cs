@@ -152,7 +152,7 @@ internal static class ModelRequestHistorySanitizer
         return CloneWithContents(messages[0], contents);
     }
 
-    private static ChatMessage CreateSyntheticToolMessage(IEnumerable<FunctionCallContent> calls) =>
+    internal static ChatMessage CreateSyntheticToolMessage(IEnumerable<FunctionCallContent> calls) =>
         new(ChatRole.Tool, calls.Select(call => (AIContent)CreateSyntheticResult(call.CallId)).ToList());
 
     private static FunctionResultContent CreateSyntheticResult(string callId) =>

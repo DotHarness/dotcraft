@@ -69,7 +69,9 @@ public sealed partial class OpenAIClientProvider :
             new OpenAIFastModeChatClient(new DeepThinkingChatClient(client, runtime)),
             new Dictionary<Type, object>
             {
-                [typeof(IToolCallArgumentsDeltaExtractor)] = OpenAIToolCallArgumentsDeltaExtractor.Instance
+                [typeof(IToolCallArgumentsDeltaExtractor)] = OpenAIToolCallArgumentsDeltaExtractor.Instance,
+                [typeof(IProviderFailureClassifier)] =
+                    new OpenAIProviderFailureClassifier(runtime.IsChatGptOAuth)
             });
     }
 

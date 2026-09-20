@@ -14679,6 +14679,13 @@
           "const": null
         },
         {
+          "name": "httpStatus",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "id",
           "type": "string",
           "required": true,
@@ -14701,6 +14708,13 @@
         },
         {
           "name": "originChannel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "providerError",
           "type": "string",
           "required": false,
           "nullable": true,

@@ -234,6 +234,8 @@ export interface ConversationTurn {
   tokenUsage?: { inputTokens: number; outputTokens: number }
   /** Error message set when status === 'failed' */
   error?: string
+  /** Stable provider failure classification set when status === 'failed' */
+  providerError?: string
   /** Reason set when status === 'cancelled' */
   cancelReason?: string
 }
@@ -830,6 +832,7 @@ export function wireTurnToConversationTurn(raw: Record<string, unknown>): Conver
     completedAt: (raw.completedAt as string | undefined),
     tokenUsage: raw.tokenUsage as ConversationTurn['tokenUsage'],
     error: (raw.error as string | undefined),
+    providerError: (raw.providerError as string | undefined),
     cancelReason: (raw.reason as string | undefined)
   }
 }

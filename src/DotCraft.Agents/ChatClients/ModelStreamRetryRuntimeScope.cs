@@ -1,3 +1,5 @@
+using DotCraft.Agents;
+
 namespace DotCraft.Sessions;
 
 /// <summary>
@@ -7,14 +9,17 @@ namespace DotCraft.Sessions;
 public sealed class ModelStreamRetryRuntimeContext
 {
     /// <summary>
-    /// Reports that the current sampling request will be retried.
+    /// Reports that the current sampling request will be reissued.
     /// </summary>
-    public required Action<int, int, Exception> NotifyRetry { get; init; }
+    public required Action<ModelStreamRetryNotification> NotifyRetry { get; init; }
 
     /// <summary>
     /// Reports that stream retry handling is giving up on the current failure.
     /// </summary>
     public Action<Exception>? NotifyFinalFailure { get; init; }
+
+    /// <summary>Reports the provider's reading of a failure that is about to surface.</summary>
+    public Action<ProviderFailure>? NotifyFailureClassified { get; init; }
 
     /// <summary>
     /// Reports that a retryable stream failure was not retried because replaying
@@ -28,6 +33,12 @@ public sealed class ModelStreamRetryRuntimeContext
     /// </summary>
     public Action<ModelStreamAttemptDiagnostic>? NotifyAttemptCompleted { get; init; }
 }
+
+public sealed record ModelStreamRetryNotification(
+    int Attempt,
+    int MaxAttempts,
+    Exception Failure,
+    ProviderFailure? Classification);
 
 /// <summary>
 /// Sanitized provider stream attempt data exposed to the active Session Core turn.

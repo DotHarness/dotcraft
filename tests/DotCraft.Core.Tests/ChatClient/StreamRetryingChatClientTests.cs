@@ -21,7 +21,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (_, _, _) => { },
+            NotifyRetry = _ => { },
             NotifyAttemptCompleted = attempts.Add
         });
 
@@ -45,7 +45,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (_, _, _) => { },
+            NotifyRetry = _ => { },
             NotifyAttemptCompleted = attempts.Add
         });
 
@@ -69,7 +69,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (attempt, maxRetries, _) => notifications.Add($"{attempt}/{maxRetries}")
+            NotifyRetry = n => notifications.Add($"{n.Attempt}/{n.MaxAttempts}")
         });
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
@@ -90,7 +90,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (attempt, maxRetries, _) => notifications.Add($"{attempt}/{maxRetries}")
+            NotifyRetry = n => notifications.Add($"{n.Attempt}/{n.MaxAttempts}")
         });
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
@@ -112,7 +112,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (attempt, maxRetries, exception) => notifications.Add($"{attempt}/{maxRetries}:{exception.GetType().Name}")
+            NotifyRetry = n => notifications.Add($"{n.Attempt}/{n.MaxAttempts}:{n.Failure.GetType().Name}")
         });
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
@@ -123,7 +123,7 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotRetryAfterVisibleUpdate()
+    public async Task GetStreamingResponseAsync_DelegatesRetryAfterVisibleUpdate()
     {
         var inner = new SequenceChatClient(
             _ => StreamThenThrow(
@@ -137,7 +137,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (_, _, _) => { },
+            NotifyRetry = _ => { },
             NotifyRetrySuppressed = (exception, reason) => suppressed.Add($"{exception.GetType().Name}:{reason}"),
             NotifyAttemptCompleted = attempts.Add
         });
@@ -150,10 +150,10 @@ public sealed class StreamRetryingChatClientTests
 
         Assert.Equal(1, inner.Calls);
         Assert.Equal("partial", string.Concat(seen.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
-        Assert.Equal(["IOException:visible_output_emitted"], suppressed);
+        Assert.Equal(["IOException:delegated_to_turn_loop"], suppressed);
         var attempt = Assert.Single(attempts);
         Assert.Equal("failed", attempt.Outcome);
-        Assert.Equal("suppressed", attempt.RetryDecision);
+        Assert.Equal("delegated", attempt.RetryDecision);
         Assert.True(attempt.VisibleOutputEmitted);
     }
 
@@ -184,7 +184,7 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DiscardsUsageFromFailedAttempt()
+    public async Task GetStreamingResponseAsync_DelegatesRetryAfterUsageOnlyUpdate()
     {
         var failedUsage = new UsageContent(new UsageDetails { InputTokenCount = 10, OutputTokenCount = 1 });
         var inner = new SequenceChatClient(
@@ -193,16 +193,20 @@ public sealed class StreamRetryingChatClientTests
                 new IOException("connection reset")),
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var seen = new List<ChatResponseUpdate>();
 
-        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+        await Assert.ThrowsAsync<IOException>(async () =>
+        {
+            await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+                seen.Add(update);
+        });
 
-        Assert.Equal(2, inner.Calls);
-        Assert.DoesNotContain(updates.SelectMany(update => update.Contents), content => content is UsageContent);
-        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+        Assert.Equal(1, inner.Calls);
+        Assert.DoesNotContain(seen.SelectMany(update => update.Contents), content => content is UsageContent);
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_RetriesAfterToolResultAndProviderErrorContent()
+    public async Task GetStreamingResponseAsync_DelegatesRetryAfterToolResultAndProviderErrorContent()
     {
         var failedUpdates = new ChatResponseUpdate(ChatRole.Tool, [
             new FunctionResultContent("call-1", "tool result"),
@@ -214,17 +218,43 @@ public sealed class StreamRetryingChatClientTests
                 new HttpRequestException("server error", null, HttpStatusCode.InternalServerError)),
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var seen = new List<ChatResponseUpdate>();
 
-        var updates = await CollectAsync(client.GetStreamingResponseAsync([
-            new ChatMessage(ChatRole.Tool, [new FunctionResultContent("call-1", "tool result")])
-        ]));
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var update in client.GetStreamingResponseAsync([
+                new ChatMessage(ChatRole.Tool, [new FunctionResultContent("call-1", "tool result")])
+            ]))
+            {
+                seen.Add(update);
+            }
+        });
 
-        Assert.Equal(2, inner.Calls);
-        Assert.DoesNotContain(updates.SelectMany(update => update.Contents),
+        Assert.Equal(1, inner.Calls);
+        Assert.DoesNotContain(seen.SelectMany(update => update.Contents),
             content => content is FunctionResultContent or ErrorContent);
-        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents)
-            .OfType<TextContent>().Select(text => text.Text)));
     }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotReplayRateLimitedFailure()
+    {
+        var inner = new SequenceChatClient(
+            _ => StreamThenThrow(
+                [],
+                new HttpRequestException("slow down", null, HttpStatusCode.TooManyRequests)),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 3));
+
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+            {
+            }
+        });
+
+        Assert.Equal(1, inner.Calls);
+    }
+
 
     [Fact]
     public async Task GetStreamingResponseAsync_RetriesCompletedServerErrorOnceWithoutVisibleOutput()
@@ -250,7 +280,7 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (_, _, _) => { },
+            NotifyRetry = _ => { },
             NotifyAttemptCompleted = attempts.Add
         });
 
@@ -289,7 +319,7 @@ public sealed class StreamRetryingChatClientTests
                 IdleTimeout: TimeSpan.FromSeconds(30),
                 ProviderServerErrorMaxRetries: 1));
 
-        var exception = await Assert.ThrowsAnyAsync<HttpRequestException>(async () =>
+        var exception = await Assert.ThrowsAsync<ProviderFailureException>(async () =>
         {
             await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
             {
@@ -298,6 +328,7 @@ public sealed class StreamRetryingChatClientTests
 
         Assert.Equal(2, inner.Calls);
         Assert.Contains("req_final", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(ProviderFailureKind.ResponseTooManyFailedAttempts, exception.Failure.Kind);
     }
 
     [Fact]
@@ -399,12 +430,12 @@ public sealed class StreamRetryingChatClientTests
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = (_, _, _) => { },
+            NotifyRetry = _ => { },
             NotifyFinalFailure = exception => finalFailures.Add($"{exception.GetType().Name}:{exception.Message}"),
             NotifyAttemptCompleted = attempts.Add
         });
 
-        var exception = await Assert.ThrowsAsync<IOException>(async () =>
+        var exception = await Assert.ThrowsAsync<ProviderFailureException>(async () =>
         {
             await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
             {
@@ -412,8 +443,10 @@ public sealed class StreamRetryingChatClientTests
         });
 
         Assert.Equal("second", exception.Message);
+        Assert.Equal(ProviderFailureKind.ResponseTooManyFailedAttempts, exception.Failure.Kind);
+        Assert.True(exception.Failure.IsTerminal);
         Assert.Equal(2, inner.Calls);
-        Assert.Equal(["IOException:second"], finalFailures);
+        Assert.Equal(["ProviderFailureException:second"], finalFailures);
         Assert.Equal(["scheduled", "exhausted"], attempts.Select(static attempt => attempt.RetryDecision).ToArray());
     }
 

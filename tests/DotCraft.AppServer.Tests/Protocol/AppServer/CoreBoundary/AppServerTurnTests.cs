@@ -53,6 +53,23 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnStart_AcceptsEmptyInputSoAFailedTurnCanBeReissued()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
+
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
+        {
+            threadId = thread.Id,
+            input = Array.Empty<object>()
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+    }
+
+    [Fact]
     public async Task TurnStart_ResponseBeforeTurnStartedNotification_Ordering()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
@@ -825,26 +842,6 @@ public sealed class AppServerTurnTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(retryDoc);
         var retried = Assert.Single(retryDoc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
         Assert.Equal("queued", retried.GetProperty("status").GetString());
-    }
-
-    // -------------------------------------------------------------------------
-    // turn/start — empty input validation
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task TurnStart_EmptyInput_ReturnsInvalidParams()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = Array.Empty<object>()
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
     }
 
     // -------------------------------------------------------------------------

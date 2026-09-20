@@ -1,6 +1,6 @@
 import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useConversationStore, type StreamRetrySignal } from '../../stores/conversationStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
@@ -10,6 +10,7 @@ import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
+import { StreamRetryNotice } from './StreamRetryNotice'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
 import { wireTurnToConversationTurn } from '../../types/conversation'
@@ -32,7 +33,6 @@ const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const FULL_HISTORY_TURN_COUNT = 3
 /** Distance from the top within which a scroll retries the pending history page. */
 const LOAD_OLDER_TOP_THRESHOLD_PX = 80
-const EMPTY_STREAM_RETRY_SIGNALS: StreamRetrySignal[] = []
 
 const requestAppServer = (method: Parameters<typeof window.api.appServer.sendRequest>[0], params: any): Promise<any> =>
   window.api.appServer.sendRequest(method, params)
@@ -95,7 +95,7 @@ export function MessageStream(): JSX.Element {
   const streamingReasoning = useConversationStore((s) => s.streamingReasoning)
   const systemLabel = useConversationStore((s) => s.systemLabel)
   const backgroundMemoryStatus = useConversationStore((s) => s.backgroundMemoryStatus)
-  const streamRetrySignals = useConversationStore((s) => s.streamRetrySignals)
+  const streamRetry = useConversationStore((s) => s.streamRetry)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -125,7 +125,7 @@ export function MessageStream(): JSX.Element {
   const contentLength = turns.length + latestTurnItemCount +
     streamingMessage.length +
     (showThinkingContent ? streamingReasoning.length : 0) +
-    streamRetrySignals.reduce((acc, signal) => acc + signal.rawMessage.length, 0) +
+    (streamRetry?.attempt ?? 0) +
     (turnStatus === 'running' && activeTurnId ? activeTurnId.length : 0) +
     (turnStatus === 'running' ? (streamingMessageLastDeltaAt ?? 0) : 0) +
     (effectiveSystemLabel?.length ?? 0)
@@ -318,11 +318,6 @@ export function MessageStream(): JSX.Element {
                   streamingMessage={isActiveTurn ? streamingMessage : ''}
                   streamingMessageLastDeltaAt={isActiveTurn ? streamingMessageLastDeltaAt : null}
                   streamingReasoning={isActiveTurn ? streamingReasoning : ''}
-                  streamRetrySignals={
-                    isActiveTurn
-                      ? streamRetrySignals.filter((signal) => signal.turnId === turn.id)
-                      : EMPTY_STREAM_RETRY_SIGNALS
-                  }
                   isRunning={
                     (turnStatus === 'running' || turnStatus === 'waitingInput' || turnStatus === 'waitingApproval') &&
                     isActiveTurn
@@ -387,6 +382,8 @@ export function MessageStream(): JSX.Element {
 
           {effectiveSystemLabel && <SystemStatusDivider labelKey={effectiveSystemLabel} />}
 
+          {streamRetry && <StreamRetryNotice status={streamRetry} />}
+
           {/* Bottom anchor for auto-scroll */}
           <div />
         </ConversationColumn>
@@ -408,7 +405,6 @@ interface TurnBlockProps {
   streamingMessage: string
   streamingMessageLastDeltaAt: number | null
   streamingReasoning: string
-  streamRetrySignals: StreamRetrySignal[]
   isRunning: boolean
   showIdleThinkingFallback: boolean
   isActiveTurn: boolean
@@ -429,7 +425,6 @@ const TurnBlock = memo(function TurnBlock({
   streamingMessage,
   streamingMessageLastDeltaAt,
   streamingReasoning,
-  streamRetrySignals,
   isRunning,
   showIdleThinkingFallback,
   isActiveTurn,
@@ -488,7 +483,6 @@ const TurnBlock = memo(function TurnBlock({
         streamingMessage={streamingMessage}
         streamingMessageLastDeltaAt={streamingMessageLastDeltaAt}
         streamingReasoning={streamingReasoning}
-        streamRetrySignals={streamRetrySignals}
         isRunning={isRunning}
         showIdleThinkingFallback={showIdleThinkingFallback}
         isLastTurn={isLastTurn}
@@ -504,7 +498,6 @@ function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps):
     previous.streamingMessage === next.streamingMessage &&
     previous.streamingMessageLastDeltaAt === next.streamingMessageLastDeltaAt &&
     previous.streamingReasoning === next.streamingReasoning &&
-    previous.streamRetrySignals === next.streamRetrySignals &&
     previous.isRunning === next.isRunning &&
     previous.showIdleThinkingFallback === next.showIdleThinkingFallback &&
     previous.isActiveTurn === next.isActiveTurn &&

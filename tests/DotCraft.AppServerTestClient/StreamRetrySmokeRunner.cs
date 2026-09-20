@@ -173,7 +173,9 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
 
         try
         {
-            proxy = await StreamRetrySmokeFaultProxy.StartAsync(new Uri(provider.UpstreamEndPoint));
+            proxy = await StreamRetrySmokeFaultProxy.StartAsync(
+                new Uri(provider.UpstreamEndPoint),
+                options.FaultMode);
             caseReport.ProxyEndPoint = proxy.Endpoint.ToString();
             var workspacePath = StreamRetrySmokeWorkspace.Create(options.WorkRoot, provider, proxy.Endpoint);
             caseReport.WorkspacePath = workspacePath;
@@ -186,14 +188,14 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
             caseReport.TurnId = turnResult.TurnId;
             caseReport.StreamErrorCount = turnResult.StreamErrorMessages.Count;
 
-            var persisted = await ReadThreadAndValidateAsync(client, threadId, turnResult.TurnId);
+            var persisted = await ReadPersistedTurnAsync(client, threadId, turnResult.TurnId);
             var finalAssistantText = string.IsNullOrWhiteSpace(turnResult.AssistantText)
                 ? persisted.AssistantText
                 : turnResult.AssistantText;
             caseReport.FinalAssistantText = finalAssistantText;
 
             ApplyProxySnapshot(caseReport, proxy.Snapshot());
-            var validationMessage = ValidateCase(caseReport, turnResult, persisted);
+            var validationMessage = ValidateCase(caseReport, turnResult, persisted, options.FaultMode);
             caseReport.Status = validationMessage is null
                 ? StreamRetrySmokeStatuses.Passed
                 : StreamRetrySmokeStatuses.Failed;
@@ -228,6 +230,7 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
             identity = new
             {
                 channelName = "appserver-stream-retry-smoke",
+                userId = "stream-retry-smoke",
                 workspacePath
             },
             config = new
@@ -287,19 +290,38 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
         throw new TimeoutException($"Timed out waiting for turn {turnId} to complete.");
     }
 
+    /// <summary>The terminal rollout commit lands after turn/completed, so the read is retried briefly.</summary>
+    private async Task<PersistedTurnValidation> ReadPersistedTurnAsync(
+        AppServerClient client,
+        string threadId,
+        string turnId)
+    {
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(10);
+        PersistedTurnValidation persisted;
+        do
+        {
+            persisted = await ReadThreadAndValidateAsync(client, threadId, turnId);
+            if (persisted.Completed || persisted.HasFailedTurn)
+                return persisted;
+            await Task.Delay(250);
+        }
+        while (DateTimeOffset.UtcNow < deadline);
+
+        return persisted;
+    }
+
     private async Task<PersistedTurnValidation> ReadThreadAndValidateAsync(
         AppServerClient client,
         string threadId,
         string turnId)
     {
-        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
-        {
-            threadId
-        });
-        EnsureNoJsonRpcError(threadResponse, "thread/read");
+        var threadResponse = await client.SendRequestAsync(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList,
+            new { threadId });
+        EnsureNoJsonRpcError(threadResponse, "thread/turns/list");
 
-        var thread = threadResponse.RootElement.GetProperty("result").GetProperty("thread");
-        if (!thread.TryGetProperty("turns", out var turns) || turns.ValueKind != JsonValueKind.Array)
+        var result = threadResponse.RootElement.GetProperty("result");
+        if (!result.TryGetProperty("data", out var turns) || turns.ValueKind != JsonValueKind.Array)
             return new PersistedTurnValidation(false, true, string.Empty);
 
         var foundCompletedTurn = false;
@@ -331,7 +353,8 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
     private static string? ValidateCase(
         StreamRetrySmokeCaseReport caseReport,
         StreamRetryTurnResult turnResult,
-        PersistedTurnValidation persisted)
+        PersistedTurnValidation persisted,
+        StreamRetrySmokeFaultMode faultMode)
     {
         if (turnResult.StreamErrorMessages.Count != 1)
             return $"expected_one_stream_error_but_saw_{turnResult.StreamErrorMessages.Count}";
@@ -348,7 +371,47 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
         if (persisted.HasFailedTurn)
             return "persisted_failed_turn_present";
 
+        if (faultMode == StreamRetrySmokeFaultMode.MidStream)
+        {
+            var text = caseReport.FinalAssistantText ?? string.Empty;
+            if (CountOccurrences(text, ExpectedMarker) != 1)
+                return "assistant_marker_repeated";
+            if (!IsMonotonicCount(text))
+                return "assistant_restarted_its_count";
+        }
+
         return null;
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        for (var i = text.IndexOf(value, StringComparison.Ordinal); i >= 0;
+             i = text.IndexOf(value, i + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// A reissued stream must continue the answer. A counter that goes backwards means the model
+    /// restarted instead, which is the failure this mode exists to catch.
+    /// </summary>
+    private static bool IsMonotonicCount(string text)
+    {
+        var previous = 0;
+        foreach (var token in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!int.TryParse(token.Trim(',', '.', ';'), out var value))
+                continue;
+            if (value <= previous)
+                return false;
+            previous = value;
+        }
+
+        return true;
     }
 
     private static void ApplyProxySnapshot(
@@ -405,8 +468,11 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
         }
     }
 
-    private static string BuildPrompt() =>
-        "Stream retry smoke test. Reply with exactly: STREAM_RETRY_OK";
+    private string BuildPrompt() =>
+        options.FaultMode == StreamRetrySmokeFaultMode.MidStream
+            ? "Count from 1 to 120 on a single line separated by single spaces, with no other words. "
+              + "Then on a new line reply with exactly: STREAM_RETRY_OK"
+            : "Stream retry smoke test. Reply with exactly: STREAM_RETRY_OK";
 
     private static void EnsureNoJsonRpcError(JsonDocument response, string context)
     {

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { ConversationTurn } from '../types/conversation'
-import { selectLatestCreatePlanTurnId, useConversationStore } from '../stores/conversationStore'
+import {
+  selectCapacityRetryDelaySeconds,
+  selectLatestCreatePlanTurnId,
+  useConversationStore
+} from '../stores/conversationStore'
 import { getStreamingToolDisplay } from '../utils/toolCallDisplay'
 
 const s = () => useConversationStore.getState()
@@ -1984,48 +1988,71 @@ describe('system events', () => {
     expect(s().systemLabel).toBeNull()
   })
 
-  it('records stream retry signals from streamError without changing systemLabel', () => {
+  it('ignores the first reissue and keeps systemLabel untouched', () => {
     s().onTurnStarted(makeTurn())
 
     s().onSystemEvent('streamError', {
       turnId: 'turn-1',
-      message: 'Reconnecting... 1/1'
+      messageKey: 'system.streamError',
+      params: { attempt: 1, max: 5 }
     })
 
     expect(s().systemLabel).toBeNull()
-    expect(s().streamRetrySignals).toHaveLength(1)
-    expect(s().streamRetrySignals[0]).toMatchObject({
-      turnId: 'turn-1',
-      rawMessage: 'Reconnecting... 1/1',
-      attempt: 1,
-      max: 1
-    })
+    expect(s().streamRetry).toBeNull()
   })
 
-  it('dedupes identical stream retry signals and clears them when the turn ends', () => {
+  it('keeps one reissue status that later events replace', () => {
     s().onTurnStarted(makeTurn())
 
-    s().onSystemEvent('streamError', { turnId: 'turn-1', message: 'Reconnecting... 1/2' })
-    s().onSystemEvent('streamError', { turnId: 'turn-1', message: 'Reconnecting... 1/2' })
-    s().onSystemEvent('streamError', { turnId: 'turn-1', message: 'Reconnecting... 2/2' })
+    s().onSystemEvent('streamError', {
+      turnId: 'turn-1',
+      messageKey: 'system.streamError',
+      params: { attempt: 2, max: 5 }
+    })
+    s().onSystemEvent('streamError', {
+      turnId: 'turn-1',
+      messageKey: 'system.streamError.serverBusy',
+      params: { attempt: 3, max: 5 }
+    })
 
-    expect(s().streamRetrySignals.map((signal) => signal.rawMessage)).toEqual([
-      'Reconnecting... 1/2',
-      'Reconnecting... 2/2'
-    ])
+    expect(s().streamRetry).toMatchObject({
+      turnId: 'turn-1',
+      attempt: 3,
+      max: 5,
+      serverBusy: true
+    })
 
     s().onTurnCompleted(makeTurn({ status: 'completed' }))
 
-    expect(s().streamRetrySignals).toEqual([])
+    expect(s().streamRetry).toBeNull()
   })
 
-  it('clears stream retry signals when loading persisted turns', () => {
+  it('clears the reissue status when loading persisted turns', () => {
     s().onTurnStarted(makeTurn())
-    s().onSystemEvent('streamError', { turnId: 'turn-1', message: 'Reconnecting... 1/1' })
+    s().onSystemEvent('streamError', {
+      turnId: 'turn-1',
+      messageKey: 'system.streamError',
+      params: { attempt: 2, max: 5 }
+    })
 
     s().setTurns([makeTurn({ status: 'completed' })])
 
-    expect(s().streamRetrySignals).toEqual([])
+    expect(s().streamRetry).toBeNull()
+  })
+
+  it('records the provider classification carried on the failed turn', () => {
+    s().onTurnStarted(makeTurn())
+
+    s().onTurnFailed({ id: 'turn-1', threadId: 'thread-1', providerError: 'usageLimitExceeded' }, 'boom')
+
+    expect(s().turns[0]).toMatchObject({ status: 'failed', providerError: 'usageLimitExceeded' })
+  })
+
+  it('keeps the provider classification when turns are reloaded from history', () => {
+    s().setTurns([makeTurn({ status: 'failed', error: 'boom', providerError: 'serverOverloaded' })])
+
+    expect(s().turns[0]).toMatchObject({ status: 'failed', providerError: 'serverOverloaded' })
+    expect(selectCapacityRetryDelaySeconds(s())).toBe(10)
   })
 })
 
@@ -2928,5 +2955,62 @@ describe('itemDiffs per tool call', () => {
     expect(s().itemDiffs.size).toBeGreaterThan(0)
     s().reset()
     expect(s().itemDiffs.size).toBe(0)
+  })
+})
+
+describe('capacity retry schedule', () => {
+  const userTurn = (id: string, status: string): ConversationTurn => ({
+    id,
+    threadId: 'thread-1',
+    status,
+    items: [{ id: `${id}-u`, type: 'userMessage', status: 'completed', createdAt: new Date().toISOString() }],
+    startedAt: new Date().toISOString(),
+    providerError: status === 'failed' ? 'serverOverloaded' : undefined
+  } as unknown as ConversationTurn)
+
+  const reissuedTurn = (id: string): ConversationTurn => ({
+    id,
+    threadId: 'thread-1',
+    status: 'failed',
+    items: [],
+    startedAt: new Date().toISOString(),
+    providerError: 'serverOverloaded'
+  } as unknown as ConversationTurn)
+
+  const delayFor = (turns: ConversationTurn[]): number | null => {
+    useConversationStore.setState({ turns })
+    return selectCapacityRetryDelaySeconds(useConversationStore.getState())
+  }
+
+  it('starts at the first delay for a capacity failure the user asked for', () => {
+    expect(delayFor([userTurn('turn-1', 'failed')])).toBe(10)
+  })
+
+  it('escalates once a reissue also fails', () => {
+    expect(delayFor([userTurn('turn-1', 'failed'), reissuedTurn('turn-2')])).toBe(30)
+    expect(delayFor([
+      userTurn('turn-1', 'failed'),
+      reissuedTurn('turn-2'),
+      reissuedTurn('turn-3')
+    ])).toBe(120)
+  })
+
+  it('hands control back once the schedule is spent', () => {
+    expect(delayFor([
+      userTurn('turn-1', 'failed'),
+      reissuedTurn('turn-2'),
+      reissuedTurn('turn-3'),
+      reissuedTurn('turn-4'),
+      reissuedTurn('turn-5')
+    ])).toBeNull()
+  })
+
+  it('resets when the run is interrupted by a turn that succeeded', () => {
+    expect(delayFor([
+      userTurn('turn-1', 'failed'),
+      reissuedTurn('turn-2'),
+      userTurn('turn-3', 'completed'),
+      userTurn('turn-4', 'failed')
+    ])).toBe(10)
   })
 })

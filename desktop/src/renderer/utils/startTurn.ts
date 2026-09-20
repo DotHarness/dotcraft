@@ -129,6 +129,26 @@ export async function submitOptimisticTurn(
   }
 }
 
+export async function reissueFailedTurn({
+  threadId,
+  workspacePath,
+  identityWorkspacePath
+}: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath'>): Promise<void> {
+  const identityPath = identityWorkspacePath ?? workspacePath
+  const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+  await window.api.appServer.sendRequest('turn/start', {
+    threadId,
+    input: [],
+    ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
+    identity: {
+      channelName: 'dotcraft-desktop',
+      userId: 'local',
+      channelContext: `workspace:${identityPath}`,
+      workspacePath: identityPath
+    }
+  })
+}
+
 export async function startTurnWithOptimisticUI(params: StartTurnParams): Promise<void> {
   const echo = echoOptimisticTurn(params)
   if (echo) await submitOptimisticTurn(echo, params)

@@ -235,6 +235,10 @@ function dispatch(payload: { method: string; params: unknown }): void {
         conv.onSystemEvent((p.kind as string) ?? '', {
           turnId: typeof p.turnId === 'string' ? (p.turnId as string) : null,
           message: typeof p.message === 'string' ? (p.message as string) : null,
+          messageKey: typeof p.messageKey === 'string' ? (p.messageKey as string) : null,
+          params: typeof p.params === 'object' && p.params !== null
+            ? (p.params as Record<string, unknown>)
+            : null,
           tokenCount: typeof p.tokenCount === 'number' ? (p.tokenCount as number) : null,
           percentLeft: typeof p.percentLeft === 'number' ? (p.percentLeft as number) : null,
           contextUsage: typeof p.contextUsage === 'object' && p.contextUsage !== null
@@ -1550,7 +1554,7 @@ describe('notification dispatch payload format', () => {
     expect(s().systemLabel).toBeNull()
   })
 
-  it('dispatches streamError system/event message into retry signals', () => {
+  it('dispatches structured streamError params into the reissue status', () => {
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
 
     dispatch({
@@ -1559,16 +1563,17 @@ describe('notification dispatch payload format', () => {
         threadId: 'thread-1',
         turnId: 'turn_1',
         kind: 'streamError',
-        message: 'Reconnecting... 1/1'
+        messageKey: 'system.streamError.serverBusy',
+        params: { attempt: 2, max: 5 },
+        fallbackText: 'Server is busy, reconnecting... 2/5'
       }
     })
 
-    expect(s().streamRetrySignals).toHaveLength(1)
-    expect(s().streamRetrySignals[0]).toMatchObject({
+    expect(s().streamRetry).toMatchObject({
       turnId: 'turn_1',
-      rawMessage: 'Reconnecting... 1/1',
-      attempt: 1,
-      max: 1
+      attempt: 2,
+      max: 5,
+      serverBusy: true
     })
   })
 

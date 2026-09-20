@@ -68,7 +68,7 @@ internal sealed class TurnRequestHandler(
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
 
-        var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct);
+        var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct, allowEmpty: true);
         var content = materializedInput.Content;
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
@@ -485,9 +485,10 @@ internal sealed class TurnRequestHandler(
     private async Task<PreparedTurnInput> PrepareTurnInputAsync(
         IReadOnlyList<SessionInputPart> input,
         string? threadId,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool allowEmpty = false)
     {
-        if (input.Count == 0)
+        if (input.Count == 0 && !allowEmpty)
             throw AppServerErrors.InvalidParams("'input' must contain at least one part.");
 
         var inputMaterialization = new InputMaterializationService(

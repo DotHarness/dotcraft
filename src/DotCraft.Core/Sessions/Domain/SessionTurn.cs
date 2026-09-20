@@ -47,6 +47,16 @@ public sealed class SessionTurn
     public string? Error { get; set; }
 
     /// <summary>
+    /// Stable provider failure classification when Status is Failed and the provider reported one.
+    /// </summary>
+    public string? ProviderError { get; set; }
+
+    /// <summary>
+    /// Upstream HTTP status when Status is Failed and the failure came from the wire.
+    /// </summary>
+    public int? HttpStatus { get; set; }
+
+    /// <summary>
     /// Channel that originated this Turn (recorded for cross-channel resume attribution).
     /// </summary>
     public string? OriginChannel { get; set; }

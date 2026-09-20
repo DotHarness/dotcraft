@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using DotCraft.Context.Compaction;
+using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -151,6 +152,12 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
               ?? GetService(typeof(IProviderConversationHistory)) as IProviderConversationHistory;
         var providerManagedContinuationPolicy =
             GetService(typeof(IProviderManagedContinuationPolicy)) as IProviderManagedContinuationPolicy;
+        var streamFailureClassifier =
+            GetService(typeof(IProviderFailureClassifier)) as IProviderFailureClassifier
+            ?? DefaultProviderFailureClassifier.Instance;
+        var turnRetryBudget =
+            (GetService(typeof(IStreamRetryBudget)) as IStreamRetryBudget)?.MaxStreamRetries ?? 0;
+        var turnRetryCount = 0;
         var providerManagedContinuationLimit = providerManagedContinuationPolicy?.MaximumContinuations ?? 0;
         if (providerManagedContinuationLimit < 0)
         {
@@ -212,11 +219,28 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             var requestMarked = false;
 
             var samplingCompleted = false;
+            Exception? streamFailure = null;
+            ProviderFailure? classifiedStreamFailure = null;
+            var reissueAfterStreamFailure = false;
+            var streamEnumerator = base
+                .GetStreamingResponseAsync(samplingMessages, options, cancellationToken)
+                .GetAsyncEnumerator(cancellationToken);
             try
             {
                 using var promptCacheRequestIndexScope = PromptCacheRequestShapeTraceScope.UseRequestIndex(iteration + 1);
-                await foreach (var update in base.GetStreamingResponseAsync(samplingMessages, options, cancellationToken))
+                while (true)
                 {
+                    var step = await MoveNextCapturingAsync(streamEnumerator).ConfigureAwait(false);
+                    if (step.Failure is not null)
+                    {
+                        streamFailure = step.Failure;
+                        break;
+                    }
+
+                    if (!step.HasNext)
+                        break;
+
+                    var update = streamEnumerator.Current;
                     if (update is null)
                         throw new InvalidOperationException("The inner chat client streamed a null response update.");
 
@@ -241,22 +265,135 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                     }
                 }
 
-                MarkServerHandledFunctionCalls(updates, functionCalls);
-
-                for (; lastYieldedUpdateIndex < updates.Count; lastYieldedUpdateIndex++)
+                if (streamFailure is not null)
                 {
-                    var update = updates[lastYieldedUpdateIndex];
-                    IReadOnlyList<ToolCallArgumentsDeltaContent>? addedPreviewContents = null;
-                    previewContentsByUpdate?.TryGetValue(update, out addedPreviewContents);
-                    yield return update;
-                    RemoveToolCallArgumentPreviews(update, addedPreviewContents);
+                    classifiedStreamFailure = streamFailureClassifier.Classify(streamFailure);
+                    reissueAfterStreamFailure = !cancellationToken.IsCancellationRequested
+                        && turnRetryCount < turnRetryBudget
+                        && classifiedStreamFailure.GetRetryDelay(turnRetryCount + 1) is not null;
                 }
+
+                if (streamFailure is null || reissueAfterStreamFailure)
+                {
+                    MarkServerHandledFunctionCalls(updates, functionCalls);
+
+                    for (; lastYieldedUpdateIndex < updates.Count; lastYieldedUpdateIndex++)
+                    {
+                        var update = updates[lastYieldedUpdateIndex];
+                        IReadOnlyList<ToolCallArgumentsDeltaContent>? addedPreviewContents = null;
+                        previewContentsByUpdate?.TryGetValue(update, out addedPreviewContents);
+                        yield return update;
+                        RemoveToolCallArgumentPreviews(update, addedPreviewContents);
+                    }
+                }
+
                 samplingCompleted = true;
             }
             finally
             {
+                await DisposeStreamEnumeratorAsync(streamEnumerator, streamFailure).ConfigureAwait(false);
                 if (!samplingCompleted && updates.Count > 0 && invocationHistory is not null)
+                {
+                    RemoveRemainingToolCallArgumentPreviews(updates, previewContentsByUpdate);
                     await invocationHistory.AppendAsync(updates.ToAgentResponse().Messages, CancellationToken.None);
+                }
+            }
+
+            if (streamFailure is not null)
+            {
+                if (!reissueAfterStreamFailure)
+                {
+                    RemoveRemainingToolCallArgumentPreviews(updates, previewContentsByUpdate);
+                    if (updates.Count > 0 && invocationHistory is not null)
+                        await invocationHistory.AppendAsync(updates.ToAgentResponse().Messages, CancellationToken.None);
+                    ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(
+                        classifiedStreamFailure!);
+                    if (turnRetryCount > 0)
+                        ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(streamFailure);
+                    ExceptionDispatchInfo.Capture(streamFailure).Throw();
+                }
+
+                turnRetryCount++;
+                var truncated = updates.ToAgentResponse();
+                if (truncated.Messages.Count > 0)
+                {
+                    await AgentHistoryRuntimeScope.AppendAsync(truncated.Messages, cancellationToken);
+                    (responseMessages ??= []).AddRange(truncated.Messages);
+                    augmentedHistory ??= originalMessages.ToList();
+                    augmentedHistory.AddMessages(truncated);
+                    providerHistoryBridge?.MarkProjectionCovered(augmentedHistory);
+                    if (HasEffectiveProviderOutput(updates))
+                    {
+                        hasAnyEffectiveProviderOutput = true;
+                        awaitingPostToolContinuation = false;
+                    }
+                }
+
+                var reissueHistory = augmentedHistory ??= originalMessages.ToList();
+                if (functionCalls.Count > 0)
+                {
+                    if (ShouldTerminateLoopBasedOnHandleableFunctions(functionCalls, options))
+                    {
+                        // Close the call/result pair here rather than leaving request-local repair
+                        // to rewrite history.
+                        var unavailable = ModelRequestHistorySanitizer.CreateSyntheticToolMessage(functionCalls);
+                        await AgentHistoryRuntimeScope.AppendAsync([unavailable], cancellationToken);
+                        reissueHistory.Add(unavailable);
+                        (responseMessages ??= []).Add(unavailable);
+                    }
+                    else
+                    {
+                        var recoveredTools = await InvokeFunctionsAsync(
+                            reissueHistory,
+                            options,
+                            functionCalls,
+                            iteration,
+                            consecutiveErrorCount,
+                            cancellationToken);
+
+                        foreach (var message in recoveredTools.Messages)
+                        {
+                            await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
+                            reissueHistory.Add(message);
+                            (responseMessages ??= []).Add(message);
+                            yield return new ChatResponseUpdate
+                            {
+                                Role = message.Role,
+                                Contents = message.Contents,
+                                MessageId = message.MessageId ?? toolMessageId,
+                                ResponseId = message.MessageId ?? toolMessageId,
+                                ConversationId = options?.ConversationId,
+                                CreatedAt = DateTimeOffset.UtcNow,
+                                AdditionalProperties = message.AdditionalProperties
+                            };
+                        }
+
+                        foreach (var message in recoveredTools.ModelOnlyMessages)
+                        {
+                            await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
+                            reissueHistory.Add(message);
+                            (responseMessages ??= []).Add(message);
+                        }
+
+                        consecutiveErrorCount = recoveredTools.ConsecutiveErrorCount;
+                        if (recoveredTools.ShouldTerminate)
+                            yield break;
+
+                        awaitingPostToolContinuation = recoveredTools.Messages.Count > 0;
+                    }
+                }
+
+                currentMessages = reissueHistory;
+                UpdateOptionsForNextIteration(ref options, options?.ConversationId);
+                ModelStreamRetryRuntimeScope.Current?.NotifyRetry(new ModelStreamRetryNotification(
+                    turnRetryCount,
+                    turnRetryBudget,
+                    streamFailure,
+                    classifiedStreamFailure));
+                var reissueDelay = classifiedStreamFailure!.GetRetryDelay(turnRetryCount) ?? TimeSpan.Zero;
+                if (reissueDelay > TimeSpan.Zero)
+                    await Task.Delay(reissueDelay, cancellationToken);
+                continue;
             }
 
             var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);

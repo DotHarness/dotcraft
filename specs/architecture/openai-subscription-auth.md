@@ -285,11 +285,12 @@ turn, including every bounded 401 recovery attempt. The stored value is discarde
 turn's runtime scope ends and is not persisted to thread history, trace events, or the next user
 turn.
 
-When the ChatGPT OAuth stream terminates with `server_error` before emitting text, reasoning text,
-or a tool call, DotCraft retries that sampling request once. Usage, error, and echoed tool-result
-updates from the failed attempt remain buffered and are not surfaced or executed. A second
-`server_error`, or any failure after visible model output, is surfaced immediately with the final
-provider message and request ID.
+When the ChatGPT OAuth stream completes carrying only a `server_error` frame and no delivered model
+output, DotCraft replays that sampling request under a bounded budget. Usage, error, and echoed
+tool-result updates from the failed attempt remain buffered and are not surfaced or executed.
+Exhausting the budget surfaces the final provider message and request ID. A stream that breaks
+after delivering output is handled by the turn-level retry contract in
+[Model Runtime](model-runtime.md), not by this replay.
 
 Every completed stream attempt records a sanitized `ProviderResponseDiagnostic` trace event with
 `eventType=stream_attempt`. The event identifies the logical request by its existing request index

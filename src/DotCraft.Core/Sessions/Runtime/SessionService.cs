@@ -1794,7 +1794,8 @@ public sealed partial class SessionService(
         var images = ExtractUserMessageImages(content);
         var currentSubAgentSource = thread.Source.SubAgent;
 
-        var userItem = new SessionItem
+        var hasUserInput = content.Count > 0 || !string.IsNullOrWhiteSpace(inputSnapshot?.DisplayText);
+        var userItem = !hasUserInput ? null : new SessionItem
         {
             Id = SessionIdGenerator.NewItemId(NextItemSeq()),
             TurnId = turn.Id,
@@ -1825,8 +1826,12 @@ public sealed partial class SessionService(
             }
         };
 
-        turn.Input = userItem;
-        turn.Items.Add(userItem);
+        if (userItem != null)
+        {
+            turn.Input = userItem;
+            turn.Items.Add(userItem);
+        }
+
         thread.Turns.Add(turn);
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
@@ -2557,6 +2562,8 @@ public sealed partial class SessionService(
                     : fallback + " Failure reason: " + failureReason;
             }
 
+            ProviderFailure? classifiedProviderFailure = null;
+
             async Task FailAndPersistTurnAsync(string errorMsg, string errorCode)
             {
                 FinalizeStreamingAgentMessage();
@@ -2566,7 +2573,8 @@ public sealed partial class SessionService(
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
 
-                await RestoreUndrainedGuidanceAsync(() => FailTurn(turn, eventChannel, errorMsg));
+                await RestoreUndrainedGuidanceAsync(
+                    () => FailTurn(turn, eventChannel, errorMsg, classifiedProviderFailure));
                 await AccountGoalUsageAsync(
                     turnKey,
                     new TokenUsageInfo
@@ -2604,8 +2612,11 @@ public sealed partial class SessionService(
                 eventChannel.EmitTurnStarted(turn);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
                 await ContributionLifecycle.TurnStartedAsync(turnKey, CancellationToken.None);
-                eventChannel.EmitItemStarted(userItem);
-                eventChannel.EmitItemCompleted(userItem);
+                if (userItem != null)
+                {
+                    eventChannel.EmitItemStarted(userItem);
+                    eventChannel.EmitItemCompleted(userItem);
+                }
 
                 // Step 5a: Acquire SessionGate
                 try
@@ -3132,10 +3143,16 @@ public sealed partial class SessionService(
                     using var modelStreamRetryScope = ModelStreamRetryRuntimeScope.Set(
                         new ModelStreamRetryRuntimeContext
                         {
-                            NotifyRetry = (attempt, maxAttempts, _) =>
+                            NotifyRetry = notification =>
+                            {
+                                var presentation = StreamRetryPresentation.For(notification);
                                 eventChannel.EmitSystemEvent(
                                     "streamError",
-                                    $"Reconnecting... {attempt}/{maxAttempts}"),
+                                    presentation.FallbackText,
+                                    messageKey: presentation.MessageKey,
+                                    parameters: presentation.Params);
+                            },
+                            NotifyFailureClassified = failure => classifiedProviderFailure = failure,
                             NotifyAttemptCompleted = diagnostic =>
                                 traceCollector?.RecordStreamAttemptDiagnostic(threadId, diagnostic)
                         });
@@ -5437,10 +5454,18 @@ public sealed partial class SessionService(
         });
     }
 
-    private static void FailTurn(SessionTurn turn, SessionEventChannel channel, string errorMsg)
+    private static void FailTurn(
+        SessionTurn turn,
+        SessionEventChannel channel,
+        string errorMsg,
+        ProviderFailure? providerFailure = null)
     {
         turn.Status = TurnStatus.Failed;
         turn.Error = errorMsg;
+        turn.ProviderError = providerFailure is null
+            ? null
+            : ProviderFailureKinds.ToWireName(providerFailure.Kind);
+        turn.HttpStatus = providerFailure?.HttpStatus;
         turn.CompletedAt = DateTimeOffset.UtcNow;
         channel.EmitTurnFailed(turn, errorMsg);
     }

@@ -56,7 +56,8 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
             new Dictionary<Type, object>
             {
                 [typeof(IToolCallArgumentsDeltaExtractor)] = AnthropicToolCallArgumentsDeltaExtractor.Instance,
-                [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance
+                [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance,
+                [typeof(IProviderFailureClassifier)] = AnthropicProviderFailureClassifier.Instance
             });
     }
 

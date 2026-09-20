@@ -310,10 +310,15 @@ calls and ends through normal model completion, cancellation, the consecutive-er
 context compaction. Loop control must not issue a terminal sampling request with a reduced tool
 surface.
 
-Retries are sampling-attempt transitions, not recursive agent runs. An attempt that produced no
-externally committed output may be retried under the configured bounded policy. Completed
-provider items and tool effects are never executed again merely because transport streaming
-failed.
+Retries are sampling-attempt transitions, not recursive agent runs. Two bounded budgets apply.
+The transport budget covers failures raised before any update reaches the runtime and is available
+to every sampling path. The turn budget covers a stream that breaks after updates have been
+delivered: the runtime commits the truncated response to conversation history, settles the tool
+calls that response carries, and issues a new sampling request built from the grown history.
+
+Retry never replays a committed effect. Completed provider items and tool effects are never
+executed again merely because transport streaming failed, and a truncated attempt's delivered
+output is committed once and never withdrawn from the stream the caller already observed.
 
 ## 8. Tool Contract
 
@@ -437,8 +442,12 @@ resolved values and do not derive them from tracing state.
 
 ## 12. Failure Behavior
 
-- Provider authentication, rate-limit, invalid-request, and server failures retain stable provider
-  request IDs and existing public error classification.
+- Provider authentication, rate-limit, quota, overload, invalid-request, and server failures carry
+  a stable classification and, when the provider supplies them, the upstream HTTP status, request
+  ID, and a server-advised retry delay. Classification belongs to the provider integration; the
+  provider-neutral layer consumes it and does not re-derive it from message text.
+- A classified failure is the sole authority on whether it may be retried and after how long. A
+  server-advised delay takes precedence over the local backoff schedule.
 - Tool failures produce one deterministic result for their call and do not terminate unrelated
   parallel calls unless policy requires it.
 - Retry never duplicates a completed local tool effect.
