@@ -1,12 +1,10 @@
 import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { Info } from 'lucide-react'
 import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
-import { ErrorBlock } from './ErrorBlock'
 import { CancelledNotice } from './CancelledNotice'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
@@ -33,9 +31,10 @@ import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
 import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
+import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
+import { TurnFailureNotice } from './TurnFailureNotice'
 import { translate, type AppLocale } from '../../../shared/locales'
-import type { StreamRetrySignal } from '../../stores/conversationStore'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
 
 interface AgentResponseBlockProps {
@@ -46,7 +45,6 @@ interface AgentResponseBlockProps {
   /** Live reasoning text (only set for the active turn while reasoning) */
   streamingReasoning?: string
   isRunning?: boolean
-  streamRetrySignals?: StreamRetrySignal[]
   /** Whether this is the active turn that may be in waitingApproval */
   isLastTurn?: boolean
   /** Show a UI-only Thinking row when an active running turn has no live visible work. */
@@ -90,7 +88,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   streamingMessageLastDeltaAt = null,
   streamingReasoning = '',
   isRunning = false,
-  streamRetrySignals = [],
   isLastTurn = false,
   showIdleThinkingFallback = false,
   activeItemIdOverride,
@@ -264,7 +261,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       } else if (item.type === 'error') {
         nodes.push({
           kind: 'other',
-          node: <ErrorBlock key={item.id} message={item.text ?? 'Unknown error'} />
+          node: (
+            <TurnFailureNotice
+              key={item.id}
+              message={item.text ?? 'Unknown error'}
+              providerError={turn.providerError}
+            />
+          )
         })
       } else if (item.type === 'approvalCard' && (item.approvalState ?? 'pending') === 'pending') {
         nodes.push({ kind: 'other', node: <ApprovalCard key={item.id} item={item} /> })
@@ -278,48 +281,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       i++
     }
 
-    return nodes
-  }
-
-  const renderItemAndRetrySequence = (
-    itemsToRender: ConversationItem[],
-    retrySignals: StreamRetrySignal[],
-    keyPrefix = ''
-  ): ConversationRenderNode[] => {
-    if (retrySignals.length === 0) {
-      return renderItemSequence(itemsToRender, keyPrefix)
-    }
-
-    const nodes: ConversationRenderNode[] = []
-    const sortedSignals = [...retrySignals].sort(
-      (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)
-    )
-    let itemStart = 0
-
-    sortedSignals.forEach((signal, signalIndex) => {
-      const signalMs = Date.parse(signal.createdAt)
-      let insertIndex = itemStart
-      while (insertIndex < itemsToRender.length) {
-        const itemMs = Date.parse(itemsToRender[insertIndex].createdAt)
-        if (Number.isFinite(signalMs) && Number.isFinite(itemMs) && itemMs > signalMs) break
-        insertIndex++
-      }
-
-      nodes.push(...renderItemSequence(
-        itemsToRender.slice(itemStart, insertIndex),
-        `${keyPrefix}-before-retry-${signalIndex}`
-      ))
-      nodes.push({
-        kind: 'tool',
-        node: <StreamRetryRow key={signal.id} signal={signal} />
-      })
-      itemStart = insertIndex
-    })
-
-    nodes.push(...renderItemSequence(
-      itemsToRender.slice(itemStart),
-      `${keyPrefix}-after-retry`
-    ))
     return nodes
   }
 
@@ -466,10 +427,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       renderNodes.push(...trailingNodes)
     }
   } else {
-    renderNodes.push(...renderItemAndRetrySequence(
-      renderableItems,
-      isRunning ? streamRetrySignals : []
-    ))
+    renderNodes.push(...renderItemSequence(renderableItems))
   }
 
   if (shouldShowIdleThinkingFallback) {
@@ -489,7 +447,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       <ConversationNodeFlow nodes={renderNodes} defaultGap="var(--conversation-tool-assistant-gap)" />
 
       {turn.status === 'failed' && turn.error && !hasMatchingErrorItem && (
-        <ErrorBlock message={turn.error} />
+        <TurnFailureNotice message={turn.error} providerError={turn.providerError} />
+      )}
+
+      {isLastTurn && turn.status === 'failed' && turn.providerError === 'serverOverloaded' && (
+        <CapacityRetryRow />
       )}
 
       {turn.status === 'cancelled' && (
@@ -559,24 +521,6 @@ function ToolRunStack({ children }: { children: ReactNode }): JSX.Element {
   )
 }
 
-function StreamRetryRow({ signal }: { signal: StreamRetrySignal }): JSX.Element {
-  const locale = useLocale()
-  const label = formatStreamRetryLabel(signal, locale)
-
-  return (
-    <div
-      data-testid="stream-retry-row"
-      role="status"
-      aria-live="polite"
-      aria-label={label}
-      style={streamRetryRowStyle}
-    >
-      <Info size={15} strokeWidth={1.8} aria-hidden="true" style={streamRetryIconStyle} />
-      <span style={streamRetryLabelStyle}>{label}</span>
-    </div>
-  )
-}
-
 function ImageGenerationEntry({ item }: { item: ConversationItem }): JSX.Element {
   const image = (item.imageGenerationStatus ?? (item.status === 'completed' ? 'completed' : 'inProgress')) === 'completed' ? getImageGenerationOutputImage(item) : null
   return <ToolEntryWithOutputs images={image ? [image] : []}><ImageGenerationStatus item={item} /></ToolEntryWithOutputs>
@@ -600,17 +544,6 @@ function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
       <TurnCompletionSummary turnId={turnId} />
     </>
   )
-}
-
-function formatStreamRetryLabel(signal: StreamRetrySignal, locale: AppLocale): string {
-  if (signal.attempt != null && signal.max != null) {
-    return translate(locale, 'conversation.streamRetry.reconnecting', {
-      attempt: signal.attempt,
-      max: signal.max
-    })
-  }
-
-  return signal.rawMessage
 }
 
 const conversationFlowStyle: CSSProperties = {
@@ -894,31 +827,6 @@ const toolOutputImageStyle: CSSProperties = {
   border: '1px solid var(--border-default)',
   borderRadius: '4px',
   background: 'var(--bg-primary)'
-}
-
-const streamRetryRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  minHeight: '28px',
-  padding: '3px 6px',
-  color: 'var(--text-secondary)',
-  fontSize: '12px',
-  lineHeight: 1.35,
-  userSelect: 'none'
-}
-
-const streamRetryIconStyle: CSSProperties = {
-  flex: '0 0 auto',
-  color: 'var(--text-dimmed)'
-}
-
-const streamRetryLabelStyle: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  fontWeight: 600
 }
 
 interface GroupedToolCallRowProps {

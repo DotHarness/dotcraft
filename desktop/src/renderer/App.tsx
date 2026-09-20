@@ -1928,7 +1928,10 @@ export function App(): JSX.Element {
               if (errorCode === -32020 || error.includes('-32020')) {
                 conv.onApprovalTimeout()
               }
-              conv.onTurnFailed(rawTurn, error)
+              conv.onTurnFailed(rawTurn, error, {
+                providerError: typeof p.providerError === 'string' ? (p.providerError as string) : null,
+                httpStatus: typeof p.httpStatus === 'number' ? (p.httpStatus as number) : null
+              })
             }
 
             break
@@ -2114,6 +2117,10 @@ export function App(): JSX.Element {
             conv.onSystemEvent(kind, {
               turnId: typeof p.turnId === 'string' ? (p.turnId as string) : null,
               message: serverMessage,
+              messageKey: typeof p.messageKey === 'string' ? (p.messageKey as string) : null,
+              params: typeof p.params === 'object' && p.params !== null
+                ? (p.params as Record<string, unknown>)
+                : null,
               tokenCount: typeof p.tokenCount === 'number' ? (p.tokenCount as number) : null,
               percentLeft: typeof p.percentLeft === 'number' ? (p.percentLeft as number) : null,
               contextUsage: typeof p.contextUsage === 'object' && p.contextUsage !== null

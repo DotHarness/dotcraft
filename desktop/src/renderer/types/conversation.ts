@@ -234,6 +234,10 @@ export interface ConversationTurn {
   tokenUsage?: { inputTokens: number; outputTokens: number }
   /** Error message set when status === 'failed' */
   error?: string
+  /** Stable provider failure classification set when status === 'failed' */
+  providerError?: string
+  /** Upstream HTTP status set when status === 'failed' and the failure came from the wire */
+  httpStatus?: number
   /** Reason set when status === 'cancelled' */
   cancelReason?: string
 }
