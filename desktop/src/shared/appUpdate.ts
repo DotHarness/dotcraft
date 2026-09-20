@@ -59,10 +59,8 @@ export interface AppUpdateState {
 export type AppUpdatePlatform = 'win32' | 'darwin' | 'linux' | string
 export type AppUpdateArch = 'x64' | 'arm64' | string
 
-export function normalizeReleaseTagVersion(tagName: string | undefined | null): string | null {
-  const normalizedTag = tagName?.trim() ?? ''
-  if (!normalizedTag.startsWith('v')) return null
-  const version = normalizedTag.slice(1)
+function normalizeReleaseTagVersion(tagName: string | undefined | null): string | null {
+  const version = tagName?.trim().replace(/^v/i, '') ?? ''
   return isValidAppVersion(version) ? version : null
 }
 
@@ -70,7 +68,7 @@ export function isAllowedReleaseDownloadUrl(url: string): boolean {
   return url.startsWith(DOTCRAFT_RELEASE_DOWNLOAD_BASE_URL)
 }
 
-export function hasNewerRelease(currentVersion: string, latestVersion: string): boolean {
+function hasNewerRelease(currentVersion: string, latestVersion: string): boolean {
   if (!isValidAppVersion(currentVersion) || !isValidAppVersion(latestVersion)) {
     return false
   }
