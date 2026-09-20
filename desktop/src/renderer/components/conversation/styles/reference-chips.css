@@ -30,6 +30,12 @@
 }
 
 .dc-ref-file,
+.dc-ref-command,
+.dc-ref-automation,
+.dc-ref-link {
+  color: var(--ref-base);
+}
+
 .dc-ref-profile {
   color: var(--text-primary);
 }
@@ -42,18 +48,8 @@
   font-weight: 600;
 }
 
-.dc-ref-command,
-.dc-ref-automation {
-  color: var(--accent);
-}
-
 .dc-ref-skill {
   color: var(--ref-skill);
-}
-
-/* Links use the brighter --info rather than --accent, which reads too dark for URLs. */
-.dc-ref-link {
-  color: var(--info);
 }
 
 .dc-ref:focus-visible {

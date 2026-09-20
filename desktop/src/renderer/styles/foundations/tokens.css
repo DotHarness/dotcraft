@@ -77,9 +77,9 @@
   --warning: #eab308;
   --error: #ef4444;
   --info: #3b82f6;
-  /* Inline reference (chip) skill colour — a calmer sage than the status-green
-     --success, which reads too loud as inline text. Link chips reuse --info. */
-  --ref-skill: #56a87c;
+  /* Near the text lightness on purpose: a chip has to read as text, not as a link. */
+  --ref-base: #b5ccfc;
+  --ref-skill: #d3c2f5;
   /* Full-access (auto-approve) permission state: a warmer orange than the --warning
      yellow. Used only on the composer approval pill + small option icons to flag risk. */
   --permission-full-access: #e8924f;

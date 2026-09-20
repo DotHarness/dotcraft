@@ -32,8 +32,8 @@ html[data-theme="light"] {
   --warning: #c9a227;
   --error: #dc2626;
   --info: #2563eb;
-  /* Darker sage for legibility on the light surface (see dark-theme note). */
-  --ref-skill: #3e8c64;
+  --ref-base: #4a6fc9;
+  --ref-skill: #835dbc;
   /* Deeper orange for legibility on the light surface (see dark-theme note). */
   --permission-full-access: #c2601f;
 
