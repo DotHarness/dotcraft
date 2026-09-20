@@ -1,5 +1,5 @@
 ---
-version: "0.23.0"
+version: "0.24.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1073,6 +1073,12 @@ or leaving layout, so hover never changes the chip width, text baseline, caret
 position, or the position of surrounding text. Inert references (a value merely
 named by a tool row) do not react to hover. Use vector icons from the shared icon
 language instead of font-dependent Unicode glyphs.
+
+A click leaves nothing behind: the reference opens its target and keeps no frame
+afterwards. Keyboard focus is the only state that draws a ring, through the shared
+`focus-visible` outline, because it is the only one the reader cannot otherwise
+locate. A reference never paints a ring from a focus event, which a mouse click
+fires too.
 
 ### Message Markers
 

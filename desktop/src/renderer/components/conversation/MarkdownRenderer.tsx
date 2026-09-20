@@ -297,7 +297,6 @@ function InlineReferenceLink({
   linkMode: 'conversation' | 'external'
   t: (key: string) => string
 }): JSX.Element {
-  const [focused, setFocused] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
   const presentation = useMemo(
     () => getInlineReferencePresentation(href, workspacePath, extractText(children)),
@@ -346,8 +345,6 @@ function InlineReferenceLink({
         href={href}
         onClick={(event) => { void handleClick(event) }}
         onContextMenu={handleContextMenu}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
         data-inline-reference-kind={presentation.kind}
         // Shares the .dc-ref rules with the composer pills and user-message refs.
         className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
@@ -356,8 +353,7 @@ function InlineReferenceLink({
           maxWidth: 'min(100%, var(--inline-reference-max-width))',
           fontSize: '12px',
           lineHeight: 1.25,
-          cursor: href ? 'pointer' : 'default',
-          boxShadow: focused ? '0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)' : 'none'
+          cursor: href ? 'pointer' : 'default'
         }}
         {...props}
       >

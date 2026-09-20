@@ -56,6 +56,11 @@
   color: var(--info);
 }
 
+.dc-ref:focus-visible {
+  border-radius: 5px;
+  outline-offset: 1px;
+}
+
 a.dc-ref:hover,
 button.dc-ref:hover,
 .dc-ref[data-ref-type]:hover {
