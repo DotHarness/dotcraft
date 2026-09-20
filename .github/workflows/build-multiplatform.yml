@@ -394,7 +394,7 @@ jobs:
           [ -f "$file" ] || continue
           target=$(basename "$(dirname "$file")")
           target=${target#DotCraft-Satellite-}
-          new_name="DotCraft-Satellite-${VERSION}-${target}-Setup.exe"
+          new_name="DotCraft-Satellite-${VERSION}-${target}-Installer.exe"
           cp "$file" "release/$new_name"
           echo "Renamed: $(basename "$file") -> $new_name"
         done
@@ -412,6 +412,42 @@ jobs:
 
         echo "Final release files:"
         ls -lh release/
+
+    - name: Validate release asset contract
+      shell: bash
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        expected_assets=(
+          "DotCraft-${VERSION}-win-x64-Setup.exe"
+          "DotCraft-${VERSION}-win-arm64-Setup.exe"
+          "DotCraft-${VERSION}-macos-x64.dmg"
+          "DotCraft-${VERSION}-macos-arm64.dmg"
+          "DotCraft-Satellite-${VERSION}-win-x64-Installer.exe"
+          "DotCraft-Satellite-${VERSION}-win-arm64-Installer.exe"
+        )
+        for asset in "${expected_assets[@]}"; do
+          if [ ! -f "release/$asset" ]; then
+            echo "Missing required release asset: $asset" >&2
+            exit 1
+          fi
+        done
+
+        mapfile -t desktop_setups < <(find release -maxdepth 1 -type f -name 'DotCraft-*-Setup.exe' ! -name 'DotCraft-Satellite-*' -printf '%f\n')
+        mapfile -t satellite_installers < <(find release -maxdepth 1 -type f -name 'DotCraft-Satellite-*-Installer.exe' -printf '%f\n')
+        mapfile -t satellite_setups < <(find release -maxdepth 1 -type f -name 'DotCraft-Satellite-*-Setup.exe' -printf '%f\n')
+        if [ "${#desktop_setups[@]}" -ne 2 ]; then
+          echo "Expected exactly two Desktop Setup assets, found ${#desktop_setups[@]}." >&2
+          exit 1
+        fi
+        if [ "${#satellite_installers[@]}" -ne 2 ]; then
+          echo "Expected exactly two Satellite Installer assets, found ${#satellite_installers[@]}." >&2
+          exit 1
+        fi
+        if [ "${#satellite_setups[@]}" -ne 0 ]; then
+          echo "Satellite assets must not use the Desktop Setup suffix." >&2
+          printf '%s\n' "${satellite_setups[@]}" >&2
+          exit 1
+        fi
 
     - name: Prepare Release Notes
       id: release_notes

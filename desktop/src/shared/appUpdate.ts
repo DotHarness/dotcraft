@@ -60,7 +60,9 @@ export type AppUpdatePlatform = 'win32' | 'darwin' | 'linux' | string
 export type AppUpdateArch = 'x64' | 'arm64' | string
 
 export function normalizeReleaseTagVersion(tagName: string | undefined | null): string | null {
-  const version = tagName?.trim().replace(/^v/i, '') ?? ''
+  const normalizedTag = tagName?.trim() ?? ''
+  if (!normalizedTag.startsWith('v')) return null
+  const version = normalizedTag.slice(1)
   return isValidAppVersion(version) ? version : null
 }
 
@@ -75,18 +77,6 @@ export function hasNewerRelease(currentVersion: string, latestVersion: string): 
   return compareAppVersions(latestVersion, currentVersion) > 0
 }
 
-export function selectUpdateAsset(
-  assets: GitHubReleaseAsset[] | undefined,
-  platform: AppUpdatePlatform,
-  arch: AppUpdateArch
-): GitHubReleaseAsset | null {
-  const scored = (assets ?? [])
-    .map((asset) => ({ asset, score: scoreUpdateAsset(asset, platform, arch) }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score)
-  return scored[0]?.asset ?? null
-}
-
 export function resolveUpdateFromRelease(
   currentVersion: string,
   release: GitHubRelease,
@@ -98,15 +88,21 @@ export function resolveUpdateFromRelease(
   const latestVersion = normalizeReleaseTagVersion(release.tag_name)
   if (!latestVersion || !hasNewerRelease(currentVersion, latestVersion)) return null
 
-  const asset = selectUpdateAsset(release.assets, platform, arch)
+  const tagName = `v${latestVersion}`
+  const asset = selectExactUpdateAsset(
+    release.assets,
+    tagName,
+    latestVersion,
+    platform,
+    arch
+  )
   const assetName = asset?.name?.trim() ?? ''
   const downloadUrl = asset?.browser_download_url?.trim() ?? ''
-  if (!assetName || !downloadUrl || !isAllowedReleaseDownloadUrl(downloadUrl)) return null
 
   return {
     currentVersion,
     latestVersion,
-    tagName: release.tag_name?.trim() || `v${latestVersion}`,
+    tagName,
     releaseName: release.name?.trim() || undefined,
     releaseNotes: release.body?.trim() || undefined,
     publishedAt: release.published_at?.trim() || undefined,
@@ -117,47 +113,52 @@ export function resolveUpdateFromRelease(
   }
 }
 
-function scoreUpdateAsset(
-  asset: GitHubReleaseAsset,
+function selectExactUpdateAsset(
+  assets: GitHubReleaseAsset[] | undefined,
+  tagName: string,
+  version: string,
   platform: AppUpdatePlatform,
   arch: AppUpdateArch
-): number {
-  const name = asset.name?.trim().toLowerCase() ?? ''
-  const url = asset.browser_download_url?.trim() ?? ''
-  if (!name || !isAllowedReleaseDownloadUrl(url)) return -1
-  if (name.endsWith('.blockmap') || name.endsWith('.yml')) return -1
-
-  let score = 0
-  const normalizedArch = arch.toLowerCase()
-  const hasArch = name.includes(normalizedArch)
-  const hasUniversal = name.includes('universal')
-  if (!hasArch && !hasUniversal && hasDifferentKnownArchitecture(name, normalizedArch)) return -1
-
-  if (platform === 'win32') {
-    if (!name.endsWith('.exe') || !name.includes('setup')) return -1
-    score += 100
-    if (name.includes('win') || name.includes('windows')) score += 20
-  } else if (platform === 'darwin') {
-    if (!name.endsWith('.dmg')) return -1
-    score += 100
-    if (name.includes('mac') || name.includes('darwin') || name.includes('osx')) score += 20
-  } else if (platform === 'linux') {
-    if (!(name.endsWith('.appimage') || name.endsWith('.deb'))) return -1
-    score += name.endsWith('.appimage') ? 100 : 90
-    if (name.includes('linux')) score += 20
-  } else {
-    return -1
+): GitHubReleaseAsset {
+  const expectedNames = expectedDesktopAssetNames(version, platform, arch)
+  if (expectedNames.length === 0) {
+    throw new Error(`DotCraft Desktop updates are not published for ${platform}/${arch}.`)
   }
 
-  if (hasArch) score += 10
-  else if (hasUniversal) score += 5
+  for (const expectedName of expectedNames) {
+    const matches = (assets ?? []).filter((asset) => asset.name?.trim() === expectedName)
+    if (matches.length > 1) {
+      throw new Error(`Release ${tagName} contains multiple ${expectedName} assets.`)
+    }
+    if (matches.length === 0) continue
 
-  return score
+    const asset = matches[0]
+    const expectedUrl = `${DOTCRAFT_RELEASE_DOWNLOAD_BASE_URL}${tagName}/${expectedName}`
+    if (asset.browser_download_url?.trim() !== expectedUrl) {
+      throw new Error(`Release ${tagName} has an invalid download URL for ${expectedName}.`)
+    }
+    return asset
+  }
+
+  throw new Error(`Release ${tagName} does not contain a DotCraft Desktop asset for ${platform}/${arch}.`)
 }
 
-function hasDifferentKnownArchitecture(name: string, arch: string): boolean {
-  if (!arch) return false
+function expectedDesktopAssetNames(
+  version: string,
+  platform: AppUpdatePlatform,
+  arch: AppUpdateArch
+): string[] {
+  const normalizedArch = arch.trim().toLowerCase()
+  if (!/^[a-z0-9]+$/.test(normalizedArch)) return []
 
-  return ['arm64', 'x64', 'ia32', 'armv7l']
-    .some((knownArch) => knownArch !== arch && name.includes(knownArch))
+  const prefix = `DotCraft-v${version}`
+  if (platform === 'win32') return [`${prefix}-win-${normalizedArch}-Setup.exe`]
+  if (platform === 'darwin') return [`${prefix}-macos-${normalizedArch}.dmg`]
+  if (platform === 'linux') {
+    return [
+      `${prefix}-linux-${normalizedArch}.AppImage`,
+      `${prefix}-linux-${normalizedArch}.deb`
+    ]
+  }
+  return []
 }

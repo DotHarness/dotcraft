@@ -126,8 +126,8 @@ function Update-ReleaseDownloadsManifest {
         "cli-macos-x64" = "DotCraft-$tag-macos-x64.tar.gz"
         "cli-macos-arm64" = "DotCraft-$tag-macos-arm64.tar.gz"
         "cli-linux-x64" = "DotCraft-$tag-linux-x64.tar.gz"
-        "satellite-win-x64" = "DotCraft-Satellite-$tag-win-x64-Setup.exe"
-        "satellite-win-arm64" = "DotCraft-Satellite-$tag-win-arm64-Setup.exe"
+        "satellite-win-x64" = "DotCraft-Satellite-$tag-win-x64-Installer.exe"
+        "satellite-win-arm64" = "DotCraft-Satellite-$tag-win-arm64-Installer.exe"
     }
 
     $assets = [ordered]@{}
