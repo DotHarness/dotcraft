@@ -6,22 +6,10 @@ namespace DotCraft.Context.Compaction;
 /// </summary>
 public static class CompactionPrompts
 {
-    // Aggressive no-tools preamble. We still surface tools to the summarizer
-    // because FunctionInvokingChatClient is installed on the chat stack, so
-    // the system prompt has to be explicit that any tool call wastes the turn.
     private const string NoToolsPreambleEn = """
-CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
-
-- Do NOT use ReadFile, Exec, GrepFiles, FindFiles, EditFile, WriteFile, or ANY other tool.
-- You already have all the context you need in the conversation above.
-- Tool calls will be REJECTED and will waste your only turn; you will fail the task.
-- Return only the handoff summary. Do not include a separate analysis draft.
+Summarize the supplied conversation. Return only the handoff summary as text. Do not call tools or include a separate analysis draft.
 
 """;
-
-    private const string NoToolsTrailerEn =
-        "\n\nREMINDER: Do NOT call any tools. Respond with the handoff summary only. "
-        + "Tool calls will be rejected and you will fail the task.";
 
     private const string BaseCompactPromptEn = $$"""
 Create a concise handoff summary for continuing this session after context compaction.
@@ -29,7 +17,6 @@ Create a concise handoff summary for continuing this session after context compa
 Length:
 - Target about 4,000-6,000 output tokens.
 - Stay below 12,000 output tokens.
-- Do not produce a separate analysis draft or hidden reasoning section.
 
 Include only information needed to continue work:
 
@@ -40,9 +27,7 @@ Include only information needed to continue work:
 5. Current state: what has already been completed, what is partially done, and what remains.
 6. Next step: the most direct continuation aligned with the latest user request.
 
-Do not list every user message by default.
-Do not include complete code snippets, logs, or command outputs unless a tiny excerpt is essential for continuing the task.
-Prefer compact bullets over chronological narration.
+Use compact bullets focused on the continuation. Include code, logs, or command output only as short excerpts needed for the next step.
 
 Structure your response as:
 
@@ -68,12 +53,11 @@ If you choose not to use tags, keep the same section order.
     // follow after the summary in the next turn.
     private const string PartialCompactUpToEn = $$"""
 Create a concise handoff summary for the older portion of this conversation.
-This summary will be placed before newer messages that are preserved verbatim after compaction; you do not see those newer messages here.
+This summary will precede newer messages preserved verbatim after compaction. Those newer messages are not included here.
 
 Length:
 - Target about 4,000-6,000 output tokens.
 - Stay below 12,000 output tokens.
-- Do not produce a separate analysis draft or hidden reasoning section.
 
 Include only information needed to understand the older context before reading the preserved recent tail:
 
@@ -84,9 +68,7 @@ Include only information needed to understand the older context before reading t
 5. Work completed in the summarized prefix
 6. Context needed by the preserved recent messages
 
-Do not list every user message by default.
-Do not include complete code snippets, logs, or command outputs unless a tiny excerpt is essential for continuing the task.
-Prefer compact bullets over chronological narration.
+Use compact bullets focused on the continuation. Include code, logs, or command output only as short excerpts needed for the next step.
 
 Structure your response as:
 
@@ -122,14 +104,14 @@ If you choose not to use tags, keep the same section order.
     /// Returns the system-prompt text for a full-history compaction.
     /// </summary>
     public static string GetCompactPrompt() =>
-        NoToolsPreambleEn + BaseCompactPromptEn + NoToolsTrailerEn;
+        NoToolsPreambleEn + BaseCompactPromptEn;
 
     /// <summary>
     /// Returns the system-prompt text for a partial (up-to) compaction where
     /// the summary will precede retained recent messages.
     /// </summary>
     public static string GetPartialCompactPrompt() =>
-        NoToolsPreambleEn + PartialCompactUpToEn + NoToolsTrailerEn;
+        NoToolsPreambleEn + PartialCompactUpToEn;
 
     private static readonly Regex AnalysisBlockRegex =
         new(@"<analysis>[\s\S]*?</analysis>", RegexOptions.Compiled);

@@ -29,6 +29,10 @@ Cache](prompt-cache.md) owns the cache constraints this split serves.
 
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
+Model-visible guidance should state the action, its target, and necessary responsibility boundaries in terms the agent can use. Shared rules belong in stable sections, tool-specific contracts in tool descriptions, and current facts in runtime context. Conditional detail should load only when relevant. Wording changes must preserve authority, mode restrictions, output contracts, and required task completion behavior.
+
+Skill self-learning guidance should assess whether a verified procedure or correction is reusable. Tool-call counts alone do not establish that a workflow merits a skill.
+
 For `openai-responses`, this logical composition has two wire projections. Standard Responses sends
 base instructions and tools through the provider's top-level `instructions` and `tools` fields.
 Responses Lite moves them into leading developer input items required by that dialect. The

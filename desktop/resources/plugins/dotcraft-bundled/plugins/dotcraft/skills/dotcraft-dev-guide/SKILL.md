@@ -1,6 +1,6 @@
 ---
 name: dotcraft-dev-guide
-description: Development conventions for the DotCraft repository. Use when changing its C#, TypeScript, protocol artifacts, or specs.
+description: Development conventions for the DotCraft repository. Use when changing its code, protocols, specs, agent prompts, or skills.
 ---
 
 # DotCraft Development Guide
@@ -41,6 +41,10 @@ Review source and generated artifacts together and include both in the same chan
 When adding or changing model-visible tools, account for prompt cache stability. Avoid changing the tool schema solely because the thread switches operational modes, such as Plan to Agent. Prefer keeping the model-visible tool surface stable and enforcing mode-specific behavior with execution policy, runtime scopes, and prompt guidance.
 
 Mode-specific tool removal is appropriate only when the mode represents a genuinely different role or runtime surface. For ordinary operational constraints, use `ModeToolPolicy` or an equivalent policy guard to reject disallowed calls, and make the current allowed tool usage clear in the system prompt or runtime context.
+
+### Agent Prompts And Skills
+
+When creating or changing model-visible instructions, including system prompts, tool descriptions, and skills, read [Prompt guide](references/prompt-guide.md). It covers reference comparison, instruction placement, concise wording, and behavioral validation.
 
 ### Testing Rules
 

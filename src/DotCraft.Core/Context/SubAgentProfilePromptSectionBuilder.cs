@@ -29,7 +29,7 @@ internal static class SubAgentProfilePromptSectionBuilder
         {
             "## Available SubAgent Profiles",
             "",
-            "Do not guess profile names that are not listed here.",
+            "Choose a profile from this list.",
             $"Default profile: `{SubAgentCoordinator.DefaultProfileName}`",
             ""
         };
@@ -39,9 +39,6 @@ internal static class SubAgentProfilePromptSectionBuilder
             var description = DescribeProfile(profile);
             if (string.Equals(profile.WorkingDirectoryMode, "specified", StringComparison.OrdinalIgnoreCase))
                 description += " Requires `workingDirectory`.";
-
-            if (IsDefaultProfile(profile))
-                description += " This is the default profile.";
 
             lines.Add($"- `{profile.Name}`: {description}");
         }

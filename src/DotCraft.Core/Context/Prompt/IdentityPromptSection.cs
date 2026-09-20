@@ -22,16 +22,10 @@ internal static class IdentityPromptSection
 $$"""
 # DotCraft
 
-{{identity}} You have access to tools that allow you to:
-- Read, write, and edit files
-- Execute shell commands
-- Complete user tasks efficiently
-
-Be safe, reliable, and practical. When needed, use the available tools to complete the user's task.
+{{identity}} Use the available tools to gather context, complete the user's task, and validate your work.
 
 ## Workspace
-Your workspace is at: {{workspace}}
-This is your working directory where you perform file and shell operations.
+Your working directory for file and shell operations is: {{workspace}}
 
 {{workspaceRootsSection}}
 
@@ -42,9 +36,6 @@ This contains:
 - Configuration: {{craftPath}}/config.json
 
 {{envSection}}
-
-## Tool Usage Policy
-Use the available tools deliberately to gather context, make changes, validate work, and manage long-running collaboration when those tools are exposed.
 
 ## Git Commit Attribution
 When creating git commits for the user, do not change git config. End commit messages with:
@@ -102,7 +93,7 @@ $"""
             shell = "PowerShell";
             shellTips =
 """
-  - Variables: `$env:VAR_NAME` (not `$VAR_NAME`)
+  - Environment variables: `$env:VAR_NAME`
   - Command existence: `Get-Command <name>` (not `which`)
   - Null discard: `$null` (not `/dev/null`)
   - Path separator: `\` (use quotes for paths with spaces)
