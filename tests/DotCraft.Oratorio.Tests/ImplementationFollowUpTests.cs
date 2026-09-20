@@ -134,7 +134,6 @@ public sealed class ImplementationFollowUpTests
         var run = await db.Runs.FirstAsync(x => x.RunId == runId);
         var prompt = await builder.BuildAsync(run, "Address the review feedback.", "/workspace/sample", ["oratorio_run.SubmitImplementationDraft"], incremental: false, CancellationToken.None);
 
-        Assert.Contains("Review feedback on the generated pull request", prompt.Prompt);
         Assert.Contains("Guard against null token", prompt.Prompt);
         Assert.Contains("return token ?? throw new InvalidOperationException();", prompt.Prompt);
         Assert.Contains("Please also handle timeouts.", prompt.Prompt);

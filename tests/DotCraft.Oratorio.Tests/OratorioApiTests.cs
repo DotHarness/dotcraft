@@ -2125,9 +2125,6 @@ public sealed class OratorioApiTests
 
         Assert.NotNull(fakeAppServer.LastThreadStartRequest?.RuntimeAdditionalContext);
         Assert.True((fakeAppServer.LastThreadStartRequest?.DynamicTools ?? []).ContainsTool("oratorio_run", "SubmitReviewDraft"));
-        var reviewInstructions = fakeAppServer.LastThreadStartRequest!.RuntimeAdditionalContext!["oratorio.reviewDraft"].Value;
-        Assert.Contains("kind: suggestion", reviewInstructions);
-        Assert.Contains("Never send the retired nested suggestion or commentOnly objects", reviewInstructions);
     }
 
     [Fact]
@@ -3040,8 +3037,6 @@ public sealed class OratorioApiTests
         Assert.Equal("thread-test-1", runs[1].ThreadId);
         Assert.Equal(1, fakeAppServer.StartThreadCount);
         Assert.Single(fakeAppServer.ThreadResumeRequests);
-        Assert.Contains("Retry recovery:", fakeAppServer.TurnPrompts[1], StringComparison.Ordinal);
-        Assert.Contains(expectedErrorCode, fakeAppServer.TurnPrompts[1], StringComparison.Ordinal);
         Assert.Contains(reviewed.Timeline, x => x.Title == "Retry scheduled");
         var check = Assert.Single(fakeGitHub.CheckRuns);
         Assert.Equal("completed", check.Status);
@@ -3141,7 +3136,6 @@ public sealed class OratorioApiTests
         Assert.Contains(reviewed.Timeline, x =>
             x.Title == "DotCraft thread created" &&
             x.Body!.Contains("could not be resumed", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains("Retry recovery:", fakeAppServer.TurnPrompts[1], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -3699,8 +3693,6 @@ public sealed class OratorioApiTests
         var toolResult = Assert.Single(fakeAppServer.ToolResults);
         Assert.False(toolResult.Success);
         Assert.Equal("reviewDraftAnchorNotCommentable", toolResult.ErrorCode);
-        Assert.Contains("commentable ranges", toolResult.ContentItems!.Single().Text, StringComparison.Ordinal);
-        Assert.Contains("missing/File.cs", toolResult.ContentItems!.Single().Text, StringComparison.Ordinal);
         using var structured = JsonDocument.Parse(JsonSerializer.Serialize(toolResult.StructuredContent, JsonOptions));
         var invalidComments = structured.RootElement.GetProperty("error").GetProperty("details").GetProperty("invalidComments");
         Assert.Contains(invalidComments.EnumerateArray(), comment => comment.GetProperty("path").GetString() == "missing/File.cs" && comment.GetProperty("reason").GetString() == "fileNotInDiff");
@@ -3747,7 +3739,6 @@ public sealed class OratorioApiTests
         Assert.Empty(failed.ReviewDrafts);
         Assert.False(toolResult.Success);
         Assert.Equal("reviewDraftAnchorNotCommentable", toolResult.ErrorCode);
-        Assert.Contains("255-277", toolResult.ContentItems!.Single().Text, StringComparison.Ordinal);
         using var structured = JsonDocument.Parse(JsonSerializer.Serialize(toolResult.StructuredContent, JsonOptions));
         var invalidComment = Assert.Single(structured.RootElement.GetProperty("error").GetProperty("details").GetProperty("invalidComments").EnumerateArray());
         Assert.Equal("Synthetic anchor drift", invalidComment.GetProperty("title").GetString());

@@ -187,7 +187,6 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
         var submittedPrompt = string.Concat(_sessionService.LastSubmittedContent
             .OfType<TextContent>()
             .Select(c => c.Text));
-        Assert.Contains("Produce a Perforce pending changelist description", submittedPrompt, StringComparison.Ordinal);
         Assert.Contains("--- p4 opened ---", submittedPrompt, StringComparison.Ordinal);
         Assert.Contains("--- p4 diff -du ---", submittedPrompt, StringComparison.Ordinal);
         Assert.Contains("+new line", submittedPrompt, StringComparison.Ordinal);

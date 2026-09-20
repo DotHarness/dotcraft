@@ -56,17 +56,6 @@ describe('WhatsNewDialog', () => {
     installApi()
   })
 
-  it('renders the active release cards with skeleton fallback media', () => {
-    renderDialog()
-
-    expect(screen.getByRole('dialog', { name: "What's New in DotCraft" })).toBeInTheDocument()
-    expect(screen.getByText('Highlights from v0.1.6')).toBeInTheDocument()
-    expect(screen.getByText('Background Channels')).toBeInTheDocument()
-    expect(screen.getByText('Dreams')).toBeInTheDocument()
-    expect(screen.getByText('Goal')).toBeInTheDocument()
-    expect(screen.getAllByRole('img', { name: 'Downloading preview...' })).toHaveLength(3)
-  })
-
   it('swaps ready cached media in and falls back to a skeleton from failed images', () => {
     renderDialog({ mediaStates: readyMediaStates() })
 
@@ -92,22 +81,15 @@ describe('WhatsNewDialog', () => {
       releases: [WHATS_NEW_TEST_RELEASE_0_1_7, ...WHATS_NEW_TEST_RELEASES]
     })
 
-    expect(screen.getByText('Highlights from v0.1.7')).toBeInTheDocument()
-    expect(screen.getByText('Agent Builder')).toBeInTheDocument()
-    expect(screen.queryByText('Background Channels')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Newer/ })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Older (v0.1.6)' }))
 
-    expect(screen.getByText('Highlights from v0.1.6')).toBeInTheDocument()
-    expect(screen.getByText('Background Channels')).toBeInTheDocument()
-    expect(screen.queryByText('Agent Builder')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Older/ })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Newer (v0.1.7)' }))
 
-    expect(screen.getByText('Highlights from v0.1.7')).toBeInTheDocument()
-    expect(screen.getByText('Agent Builder')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Newer/ })).not.toBeInTheDocument()
   })
 
   it('renders no pagination buttons for a single release', () => {

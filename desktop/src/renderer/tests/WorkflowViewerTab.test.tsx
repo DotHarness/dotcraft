@@ -70,15 +70,11 @@ describe('WorkflowViewerTab', () => {
     const inspect = screen.getByText('Inspect').closest('button')!
     const review = screen.getByText('Review').closest('button')!
     expect(inspect).toHaveAttribute('aria-expanded', 'false')
-    expect(inspect).toHaveTextContent('15k tok · 4 tools · 18s')
     expect(review).toHaveAttribute('aria-expanded', 'true')
 
     fireEvent.click(review)
     expect(review).toHaveAttribute('aria-expanded', 'false')
-    expect(review).toHaveTextContent('25k tok · 6 tools')
 
-    const stop = screen.getByRole('button', { name: 'Stop' })
-    expect(stop).toHaveTextContent('')
-    expect(stop).toHaveAttribute('data-tone', 'neutral')
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
   })
 })

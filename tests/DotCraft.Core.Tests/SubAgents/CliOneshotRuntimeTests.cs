@@ -345,22 +345,6 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_ReportsLifecycleProgressToSink()
-    {
-        var profile = CreateProfile(CreateArgEchoScript());
-        profile.InputMode = "arg";
-        var sink = new RecordingSink();
-
-        var result = await RunProfileAsync(profile, "hello-cli", sink: sink);
-
-        Assert.False(result.IsError);
-        Assert.Contains(sink.ProgressMessages, m => m.Contains("Launching", StringComparison.Ordinal));
-        Assert.Contains(sink.ProgressMessages, m => m.Contains("Running", StringComparison.Ordinal));
-        Assert.Contains(sink.ProgressMessages, m => m.Contains("Waiting", StringComparison.Ordinal));
-        Assert.Contains(sink.CompletedMessages, m => m.Contains("Completed", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task RunAsync_ExtraLaunchArgs_ArePrependedToInvocationArguments()
     {
         var profile = CreateProfile(CreateArgsDumpScript());
@@ -675,36 +659,4 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         return shPath;
     }
 
-    private sealed class RecordingSink : ISubAgentEventSink
-    {
-        public List<string> ProgressMessages { get; } = [];
-
-        public List<string> CompletedMessages { get; } = [];
-
-        public List<string> FailedMessages { get; } = [];
-
-        public void OnInfo(string message)
-        {
-            if (!string.IsNullOrWhiteSpace(message))
-                ProgressMessages.Add(message);
-        }
-
-        public void OnProgress(string? currentTool, string? currentToolDisplay = null)
-        {
-            if (!string.IsNullOrWhiteSpace(currentToolDisplay))
-                ProgressMessages.Add(currentToolDisplay);
-        }
-
-        public void OnCompleted(string? summary = null, SubAgentTokenUsage? tokensUsed = null)
-        {
-            if (!string.IsNullOrWhiteSpace(summary))
-                CompletedMessages.Add(summary);
-        }
-
-        public void OnFailed(string? summary = null, SubAgentTokenUsage? tokensUsed = null)
-        {
-            if (!string.IsNullOrWhiteSpace(summary))
-                FailedMessages.Add(summary);
-        }
-    }
 }

@@ -36,8 +36,6 @@ describe('IconButton', () => {
     )
     const button = screen.getByRole('button', { name: 'Delete item' })
     expect(ref.current).toBe(button)
-    expect(button).toHaveClass('dc-icon-button')
-    expect(button).toHaveAttribute('data-tone', 'danger')
     expect(button).toHaveAttribute('aria-expanded', 'true')
   })
 

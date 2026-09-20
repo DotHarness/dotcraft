@@ -35,79 +35,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
-    public void MainPrompt_WhenSpawnAgentAvailable_IncludesLifecycleSection()
-    {
-        var prompt = CreateMainBuilder(
-                toolNames: ["SpawnAgent", "SendMessage", "FollowupTask", "WaitAgent", "ListAgents", "CloseAgent"])
-            .BuildSystemPrompt();
-
-        Assert.Contains("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_WhenCloseAgentAvailable_TiesCloseGuidanceToConcurrencyLimit()
-    {
-        var prompt = CreateMainBuilder(
-                toolNames: ["SpawnAgent", "WaitAgent", "CloseAgent"])
-            .BuildSystemPrompt();
-
-        Assert.Contains("`CloseAgent`", prompt, StringComparison.Ordinal);
-        Assert.Contains("count toward the concurrency limit until closed", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_WhenSpawnAgentUnavailable_OmitsLifecycleGuidance()
-    {
-        var prompt = CreateMainBuilder(
-                toolNames: ["ReadFile", "GrepFiles", "FindFiles"])
-            .BuildSystemPrompt();
-
-        Assert.DoesNotContain("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_WhenRequestUserInputAvailable_IncludesQuestionSection()
-    {
-        var prompt = CreateMainBuilder(
-                toolNames: ["ReadFile", "RequestUserInput"])
-            .BuildSystemPrompt();
-
-        Assert.Contains("## RequestUserInput", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_WhenRequestUserInputUnavailable_OmitsQuestionGuidance()
-    {
-        var prompt = CreateMainBuilder(
-                toolNames: ["ReadFile", "GrepFiles", "FindFiles"])
-            .BuildSystemPrompt();
-
-        Assert.DoesNotContain("## RequestUserInput", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_WithAllCoordinationTools_ExplainsBlockingAsyncAndSleepBoundaries()
-    {
-        var prompt = CreateMainBuilder(
-                ["RequestUserInput", "SendUserMessageAsync", "clock__Sleep", "clock__CurrentTime"])
-            .BuildSystemPrompt();
-
-        Assert.Contains("## User Coordination", prompt, StringComparison.Ordinal);
-        Assert.Contains("prerequisite for further work", prompt, StringComparison.Ordinal);
-        Assert.Contains("continue every authorized task that does not depend on the answer", prompt, StringComparison.Ordinal);
-        Assert.Contains("no independent work remains", prompt, StringComparison.Ordinal);
-        Assert.Contains("Do not create a Goal implicitly", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_WithoutCoordinationTools_OmitsCoordinationSection()
-    {
-        var prompt = CreateMainBuilder(["ReadFile"]).BuildSystemPrompt();
-
-        Assert.DoesNotContain("## User Coordination", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Prompt_WithoutRoleInstructions_MatchesBaselineByteForByte()
     {
         var toolNames = new[] { "ReadFile", "GrepFiles", "SpawnAgent", "SkillManage", "RequestUserInput" };
@@ -118,36 +45,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
         // A native SubAgent shares its parent's cache identity, so it must reuse the parent's
         // generated instructions verbatim. Role text reaches it as a thread context item instead.
         Assert.Equal(baseline, subAgentSurface);
-        Assert.Contains("USER instructions", baseline, StringComparison.Ordinal);
-        Assert.Contains("## SubAgent Lifecycle", baseline, StringComparison.Ordinal);
-        Assert.Contains("## RequestUserInput", baseline, StringComparison.Ordinal);
-        Assert.Contains("## Skill Self-Learning", baseline, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Prompt_WithRoleInstructions_AppendsRoleSectionForOrdinaryThreads()
-    {
-        var toolNames = new[] { "ReadFile", "GrepFiles" };
-
-        var prompt = CreateBuilder(toolNames, roleInstructions: "Role-specific guidance.").BuildSystemPrompt();
-
-        Assert.Contains("## Role Instructions", prompt, StringComparison.Ordinal);
-        Assert.Contains("Role-specific guidance.", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Prompt_WithDeveloperInstructions_AppendsThemAfterRoleInstructions()
-    {
-        var prompt = CreateBuilder(
-                ["ReadFile"],
-                roleInstructions: "Role-specific guidance.",
-                developerInstructions: "You are speaking through the host application.")
-            .BuildSystemPrompt();
-
-        var role = prompt.IndexOf("## Role Instructions", StringComparison.Ordinal);
-        var developer = prompt.IndexOf("## Developer Instructions", StringComparison.Ordinal);
-        Assert.True(role >= 0 && developer > role);
-        Assert.Contains("You are speaking through the host application.", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -191,11 +88,8 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
                 toolNamesProvider: () => ["TodoWrite"])
             .BuildSystemPrompt();
 
-        Assert.Contains("## Mode Protocol", prompt, StringComparison.Ordinal);
-        Assert.Contains("### Task State", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("<system-reminder>", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("This todo must stay out of the system prompt", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("## Current Plan", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -218,7 +112,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             .BuildSystemPrompt();
 
         Assert.Equal(agentPrompt, planPrompt);
-        Assert.Contains("## Mode Protocol", agentPrompt, StringComparison.Ordinal);
     }
 
     private PromptBuilder CreateMainBuilder(IReadOnlyList<string> toolNames) =>

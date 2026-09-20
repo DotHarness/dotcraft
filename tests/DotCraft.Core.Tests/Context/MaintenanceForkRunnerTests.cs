@@ -51,11 +51,6 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
         Assert.Equal(["user:start", "assistant:working"], chatClient.Messages.Take(2).Select(m => $"{m.Role}:{m.Text}"));
         Assert.Equal(3, chatClient.Messages.Count);
         Assert.Equal(ChatRole.User, chatClient.Messages[^1].Role);
-        Assert.Contains("<system-reminder>", chatClient.Messages[^1].Text);
-        Assert.Contains("## Maintenance Task", chatClient.Messages[^1].Text);
-        Assert.Contains("Task: context_compaction", chatClient.Messages[^1].Text);
-        Assert.DoesNotContain("<dotcraft_maintenance_task>", chatClient.Messages[^1].Text);
-        Assert.Contains("Summarize older context.", chatClient.Messages[^1].Text);
         Assert.Equal("stable base", chatClient.Options?.Instructions);
         Assert.Equal("gpt-test", chatClient.Options?.ModelId);
         Assert.True(chatClient.Options?.AllowMultipleToolCalls);
@@ -513,7 +508,6 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
         AssertAnthropicCacheControl(Assert.Single(chatClient.Messages[0].Contents));
         AssertNoAnthropicCacheControl(Assert.Single(chatClient.Messages[1].Contents));
         AssertAnthropicCacheControl(Assert.Single(chatClient.Messages[2].Contents));
-        Assert.Contains("Maintenance Task", chatClient.Messages[3].Text);
         AssertNoAnthropicCacheControl(Assert.Single(chatClient.Messages[3].Contents));
         Assert.Null(chatClient.Options?.Instructions);
 

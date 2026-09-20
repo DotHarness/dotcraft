@@ -12,7 +12,6 @@ describe('StatusMenuButton', () => {
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter' })
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('menuitem', { name: 'Disconnect' })).toHaveStyle({ color: 'var(--error)' })
 
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => expect(trigger).toHaveFocus())

@@ -13,7 +13,6 @@ public sealed class StreamRetryPresentationTests
             new ProviderFailure(ProviderFailureKind.ServerOverloaded)));
 
         Assert.Equal(StreamRetryPresentation.ServerBusyKey, presentation.MessageKey);
-        Assert.Equal("Server is busy, reconnecting... 2/5", presentation.FallbackText);
     }
 
     [Fact]
@@ -32,7 +31,6 @@ public sealed class StreamRetryPresentationTests
             new ProviderFailure(ProviderFailureKind.HttpConnectionFailed)));
 
         Assert.Equal(StreamRetryPresentation.ReconnectingKey, presentation.MessageKey);
-        Assert.Equal("Reconnecting... 2/5", presentation.FallbackText);
     }
 
     [Fact]

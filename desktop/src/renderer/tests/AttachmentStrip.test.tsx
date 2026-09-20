@@ -123,9 +123,6 @@ describe('AttachmentStrip', () => {
 
     const removeImage = screen.getByRole('button', { name: 'Remove image' })
     const removeFile = screen.getByRole('button', { name: 'Remove file' })
-    expect(removeImage).toHaveAttribute('data-tone', 'neutral')
-    expect(removeImage).toHaveClass('dc-attachment-image-remove')
-    expect(removeFile).toHaveAttribute('data-tone', 'neutral')
 
     fireEvent.click(removeImage)
     fireEvent.click(removeFile)

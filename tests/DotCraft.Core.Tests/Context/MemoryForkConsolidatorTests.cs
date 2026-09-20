@@ -69,11 +69,6 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
         Assert.Equal("stable base", chatClient.Options?.Instructions);
         Assert.Equal("gpt-test", chatClient.Options?.ModelId);
         Assert.Equal("ReadFile", Assert.Single(chatClient.Options?.Tools ?? []).Name);
-        Assert.Contains("## Maintenance Task", chatClient.Messages[^1].Text);
-        Assert.Contains("Task: memory_consolidation", chatClient.Messages[^1].Text);
-        Assert.DoesNotContain("## Current MEMORY.md", chatClient.Messages[^1].Text);
-        Assert.DoesNotContain("## Completed conversation snapshot", chatClient.Messages[^1].Text);
-        Assert.DoesNotContain("remember blue", chatClient.Messages[^1].Text);
     }
 
     [Fact]

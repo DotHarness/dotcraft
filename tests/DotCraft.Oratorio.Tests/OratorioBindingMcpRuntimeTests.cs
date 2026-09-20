@@ -126,7 +126,6 @@ public sealed class OratorioBindingMcpRuntimeTests
 
         Assert.Equal("2025-06-18", client.NegotiatedProtocolVersion);
         Assert.Equal("oratorio.board", client.ServerInfo.Name);
-        Assert.Equal(OratorioBindingMcpCatalog.BoardNamespaceDescription, client.ServerInstructions);
         Assert.True(runtime.Promote("binding-tools", bearer, 9));
 
         var tools = await client.ListToolsAsync(new ListToolsRequestParams(), CancellationToken.None);

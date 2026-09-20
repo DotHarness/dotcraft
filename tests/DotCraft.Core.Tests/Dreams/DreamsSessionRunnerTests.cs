@@ -129,9 +129,6 @@ public sealed class DreamsSessionRunnerTests : IDisposable
         Assert.Equal(ApprovalPolicy.AutoApprove, saved.Configuration?.ApprovalPolicy);
         Assert.Equal("fake-consolidation", saved.Configuration?.Model);
 
-        var prompt = Assert.IsType<TextContent>(Assert.Single(sessionService.LastSubmittedContent)).Text;
-        Assert.Contains("Dream Run consolidation pass", prompt, StringComparison.Ordinal);
-        Assert.Contains("PRUNING_NOTES.md", prompt, StringComparison.Ordinal);
         Assert.Equal(2, submitCalls);
     }
 

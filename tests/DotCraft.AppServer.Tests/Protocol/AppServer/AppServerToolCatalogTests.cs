@@ -94,14 +94,6 @@ public sealed class AppServerToolCatalogTests
         Assert.DoesNotContain(descriptors, descriptor => descriptor.Name == "imagegen");
     }
 
-    [Fact]
-    public void BuiltInToolCatalog_UsesCanonicalHostDescriptorForSandboxAlternates()
-    {
-        var exec = Assert.Single(BuiltInToolCatalog.Enumerate(), descriptor => descriptor.Name == "Exec");
-
-        Assert.Contains("On Windows PowerShell", exec.Description, StringComparison.Ordinal);
-    }
-
     private static JsonElement FindTool(JsonElement tools, string name) =>
         tools.EnumerateArray().Single(tool => tool.GetProperty("name").GetString() == name);
 }

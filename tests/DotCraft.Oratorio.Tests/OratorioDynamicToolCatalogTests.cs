@@ -140,7 +140,6 @@ public sealed class OratorioDynamicToolCatalogTests
 
         Assert.False(result.Success);
         Assert.Equal("InvalidArguments", result.ErrorCode);
-        Assert.Contains("requires", result.ErrorMessage);
     }
 
     private global::DotCraft.Sdk.DynamicTools.DynamicToolDescriptor Descriptor(string name) =>

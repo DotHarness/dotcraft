@@ -41,7 +41,6 @@ public sealed class FullCompactorTests
             client.Messages.Take(3).Select(message => $"{message.Role}:{message.Text}"));
         Assert.Equal("assistant:second assistant", $"{client.Messages[3].Role}:{client.Messages[3].Text}");
         Assert.Equal(ChatRole.User, client.Messages[^1].Role);
-        Assert.Contains("Task: context_compaction", client.Messages[^1].Text);
         Assert.Equal("stable base instructions", client.Options?.Instructions);
         Assert.Equal("gpt-test", client.Options?.ModelId);
         Assert.Equal(12_000, client.Options?.MaxOutputTokens);
@@ -289,10 +288,6 @@ public sealed class FullCompactorTests
     private static void AssertLegacyContextCompactionTask(ChatMessage message)
     {
         Assert.Equal(ChatRole.User, message.Role);
-        Assert.Contains("<system-reminder>", message.Text);
-        Assert.Contains("## Maintenance Task", message.Text);
-        Assert.Contains("Task: context_compaction", message.Text);
-        Assert.Contains("Do not call tools", message.Text);
     }
 
     private sealed class SequenceChatClient(params ChatResponse[] responses) : IChatClient

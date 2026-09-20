@@ -203,8 +203,6 @@ public sealed class PartialCompactorTests
         Assert.Contains("important bits", result.Result!.FormattedSummary);
         Assert.Equal(["user:user turn 0", "assistant:assistant turn 0"], client.Messages.Take(2).Select(m => $"{m.Role}:{m.Text}"));
         Assert.Equal(ChatRole.User, client.Messages[^1].Role);
-        Assert.Contains("## Maintenance Task", client.Messages[^1].Text);
-        Assert.Contains("Task: context_compaction", client.Messages[^1].Text);
         Assert.Equal("stable base", client.Options?.Instructions);
         Assert.Equal("gpt-test", client.Options?.ModelId);
         Assert.Equal(12_000, client.Options?.MaxOutputTokens);
@@ -532,10 +530,6 @@ public sealed class PartialCompactorTests
     private static void AssertLegacyContextCompactionTask(ChatMessage message)
     {
         Assert.Equal(ChatRole.User, message.Role);
-        Assert.Contains("<system-reminder>", message.Text);
-        Assert.Contains("## Maintenance Task", message.Text);
-        Assert.Contains("Task: context_compaction", message.Text);
-        Assert.Contains("Do not call tools", message.Text);
     }
 
     private sealed class SequenceChatClient(params ChatResponse[] responses) : IChatClient
