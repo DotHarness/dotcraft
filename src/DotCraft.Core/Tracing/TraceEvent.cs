@@ -30,7 +30,8 @@ public enum TraceEventType
     ThreadRollback,
     TurnCompleted,
     SkillReferenced,
-    WorldStateDiagnostic
+    WorldStateDiagnostic,
+    ToolPolicyWithheld
 }
 
 /// <summary>
@@ -74,6 +75,13 @@ public sealed record DeferredToolLoadingTraceTool(
     string Name,
     string? Source,
     string? Namespace);
+
+/// <summary>Tool metadata recorded when policy keeps a tool out of the model's list.</summary>
+public sealed record ToolPolicyWithheldTraceTool(
+    string Name,
+    string? Namespace,
+    string? Source,
+    string Reason);
 
 public sealed class TraceEvent
 {

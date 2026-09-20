@@ -417,6 +417,10 @@ MCP is the standard external tool and interactive app transport. DotCraft suppor
 
 Binding MCP is additive and independent. It is never removed or overridden by the three-state thread list.
 
+### 12.1.1 Policy boundary
+
+MCP registrations are governed by the thread's MCP policy — server selection and namespaced tool selectors — and MUST NOT participate in the Agent Profile's ordinary tool allow/deny name lists. An MCP origin is chosen by workspace configuration, by the host that owns the thread, or by an App Binding, none of which the Profile author enumerates; a name list written without that origin in view would withhold its tools silently. Mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
+
 ### 12.2 AppServer MCP surface
 
 DotCraft uses the following fixed method names for the MCP runtime/control surface:
@@ -432,7 +436,7 @@ DotCraft uses the following fixed method names for the MCP runtime/control surfa
 
 The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering and AppBridge follow the presentation contract in Section 13 and the client behavior contract in the [Desktop Client specification](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views).
 
-Thread archive/disposal MUST close thread and binding MCP sessions. Configuration changes invalidate the next snapshot. Status output MUST distinguish workspace, thread, plugin, and binding origins.
+Thread archive/disposal MUST close thread and binding MCP sessions. Configuration changes invalidate the next snapshot. Status output MUST distinguish workspace, thread, plugin, and binding origins. A server that fails to start MUST report the server and the reason, whatever origin it came from; a thread-origin server is not exempt because its lifetime is one Thread.
 
 Streamable HTTP is only an OAuth candidate transport; it MUST NOT by itself imply that authentication is supported or required. Runtime status, rather than transport shape or error-text matching, is the authority for OAuth UX. Desktop exposes an authentication action only when the effective server reports `authStatus: "notLoggedIn"`; `failureReason: "reauthenticationRequired"` changes that action to reauthentication. Unknown discovery results fail closed and do not expose an OAuth action. A connected server with usable OAuth credentials reports `authStatus: "oAuth"` but does not show a primary authentication action.
 
@@ -630,6 +634,8 @@ Diagnostics SHOULD identify:
 - connection/binding capability revision without secrets.
 
 Status and audit views MUST distinguish declaration availability, model exposure, live executor health, and authority. These states are not interchangeable.
+
+A capability that policy keeps out of the model's tool list MUST be recorded with its model-visible name, namespace, usage source, and the refusal that hid it. Such a capability produces no call, no result, and no error, so this record is the only evidence that it was withheld rather than absent.
 
 ## 21. Conformance requirements
 

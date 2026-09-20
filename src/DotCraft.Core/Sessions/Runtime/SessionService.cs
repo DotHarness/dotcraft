@@ -18,6 +18,7 @@ using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools.Sandbox;
 using DotCraft.Tracing;
+using DotCraft.Workspaces;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using DotCraft.Sessions.Wire;
@@ -109,7 +110,9 @@ public sealed partial class SessionService(
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
     McpAppTransientContextStore? mcpAppTransientContextStore = null,
     IEnumerable<IThreadLifecycleObserver>? threadLifecycleObservers = null,
-    IEnumerable<ISubAgentGuidanceProvider>? subAgentGuidanceProviders = null)
+    IEnumerable<ISubAgentGuidanceProvider>? subAgentGuidanceProviders = null,
+    DotCraftPaths? dotCraftPaths = null,
+    ILoggerFactory? loggerFactory = null)
     : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
@@ -5878,7 +5881,8 @@ public sealed partial class SessionService(
                 config.McpServers,
                 inheritedMcpServers,
                 bindingMcpServers);
-            var threadMcpManager = threadRuntimeState.McpManager ?? new McpClientManager();
+            var threadMcpManager = threadRuntimeState.McpManager
+                ?? new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>());
             await threadMcpManager.ConnectAsync(effectiveMcpServers, ct);
             await threadMcpManager.WaitForStartupCompletionAsync(ct);
             threadRuntimeState.McpManager = threadMcpManager;
@@ -5976,6 +5980,7 @@ public sealed partial class SessionService(
             toolContext,
             ct);
         capabilityPolicy.SetRuntimeManagedTools(toolSnapshot);
+        RecordWithheldTools(thread.Id, capabilityPolicy, toolSnapshot);
         toolSnapshot = toolSnapshot.WithModelExposure(definition =>
             toolSnapshot.Registrations.TryGetValue(definition.Name, out var registration)
             && capabilityPolicy.AllowsRegistrationExposure(registration)
@@ -6012,6 +6017,23 @@ public sealed partial class SessionService(
 
     private static void ApplyThreadToolFilters(List<AITool> tools, ThreadCapabilityPolicyEvaluator policy) =>
         tools.RemoveAll(tool => !policy.AllowsTool(tool));
+
+    private void RecordWithheldTools(
+        string threadId,
+        ThreadCapabilityPolicyEvaluator policy,
+        EffectiveToolSnapshot snapshot)
+    {
+        if (TraceCollector is not { } trace)
+            return;
+
+        trace.RecordToolPolicyWithheld(
+            threadId,
+            [.. policy.WithheldFromModel(snapshot).Select(static tool => new ToolPolicyWithheldTraceTool(
+                tool.Name,
+                tool.Namespace,
+                tool.Source,
+                tool.Reason))]);
+    }
 
     private static bool TryResolveProviderFunctionCall(
         EffectiveToolSnapshot snapshot,

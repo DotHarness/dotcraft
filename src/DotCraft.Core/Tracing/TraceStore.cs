@@ -1679,7 +1679,8 @@ public sealed class TraceStore
                 TraceEventType.ToolCallStarted,
                 TraceEventType.ToolCallCompleted,
                 TraceEventType.ToolInjection,
-                TraceEventType.DeferredToolLoading
+                TraceEventType.DeferredToolLoading,
+                TraceEventType.ToolPolicyWithheld
             ],
             "maintenance" => [
                 TraceEventType.MaintenanceForkRequest,

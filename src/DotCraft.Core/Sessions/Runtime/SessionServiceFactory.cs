@@ -7,6 +7,7 @@ using DotCraft.Security;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools;
 using DotCraft.Tracing;
+using DotCraft.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -52,7 +53,9 @@ public static class SessionServiceFactory
             toolDispatchPolicyRegistry: sp.GetService<ThreadToolDispatchPolicyRegistry>(),
             mcpAppTransientContextStore: sp.GetService<McpAppTransientContextStore>(),
             threadLifecycleObservers: sp.GetServices<IThreadLifecycleObserver>(),
-            subAgentGuidanceProviders: sp.GetServices<ISubAgentGuidanceProvider>());
+            subAgentGuidanceProviders: sp.GetServices<ISubAgentGuidanceProvider>(),
+            dotCraftPaths: sp.GetService<DotCraftPaths>(),
+            loggerFactory: loggerFactory);
         sessionService.ThreadTitleGenerator = new ModelThreadTitleGenerator(
             agentFactory.RuntimeContext.ChatClientRegistry,
             () => appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config);

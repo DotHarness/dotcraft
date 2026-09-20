@@ -236,10 +236,10 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         _logger = logger;
     }
 
-    public McpClientManager(DotCraftPaths paths, ILogger<McpClientManager>? logger = null)
+    public McpClientManager(DotCraftPaths? paths, ILogger<McpClientManager>? logger = null)
         : this(logger)
     {
-        _userDataPath = paths.UserData.RootPath;
+        _userDataPath = paths?.UserData.RootPath;
     }
 
     internal McpClientManager(
