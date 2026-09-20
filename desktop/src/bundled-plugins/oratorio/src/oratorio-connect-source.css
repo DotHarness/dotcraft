@@ -1,5 +1,7 @@
 /* Connect-a-source wizard; the stepper reuses the renderer's shared setup-stepper classes. */
 .ora-connect__stepper { margin: 2px 0 4px; }
+/* These step labels never wrap, so the shared two-line reservation would only pad the rail. */
+.ora-connect__stepper .setup-stepper-label { min-height: 0; }
 .ora-connect__form { display: grid; gap: 16px; }
 .ora-connect__panel { padding: 22px; border: 1px solid var(--border-default); border-radius: 12px; background: var(--bg-secondary); }
 .ora-connect__footer { display: flex; align-items: center; gap: 8px; }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, CircleAlert } from 'lucide-react'
-import { Button, SettingsBreadcrumb, SettingsGroup, SettingsPanelShell, SettingsRow } from '../ui'
+import { Check, CircleAlert, Pencil } from 'lucide-react'
+import { Button, IconButton, SettingsBreadcrumb, SettingsGroup, SettingsPanelShell, SettingsRow } from '../ui'
 import { oratorioClient } from '../oratorio-client'
 import { oratorioHost, showOratorioToast } from '../runtime'
 import { useOratorioConnectT } from './oratorio-connect-i18n'
@@ -186,7 +186,7 @@ function ConnectSummary({ draft, phase, result, onChange, onRetry, onOpenBoard, 
 }): JSX.Element {
   const t = useOratorioConnectT()
   const github = draft.provider === 'github'
-  const change = (step: number): JSX.Element | undefined => phase === 'pending' || phase === 'success' ? undefined : <Button variant="ghost" size="sm" onClick={() => onChange(step)}>{t('change')}</Button>
+  const change = (step: number, section: string): JSX.Element | undefined => phase === 'pending' || phase === 'success' ? undefined : <IconButton icon={<Pencil size={16} />} label={t('changeSection', { section })} tooltipLabel={t('change')} onClick={() => onChange(step)} />
   const schedule = draft.schedule === 'off' ? t('manualSync') : draft.schedule === '15m' ? t('every15') : draft.schedule === '1h' ? t('everyHour') : t('everyMinutes', { n: draft.customMinutes })
   const access = github ? t('accessGitHub', { id: draft.github.appId.trim() }) : `${draft.gitlab.tokenKind === 'personalAccessToken' ? t('personalAccessToken') : draft.gitlab.tokenKind === 'groupAccessToken' ? t('groupAccessToken') : t('projectAccessToken')} · ••••••••`
   const detection = result?.kind === 'detection'
@@ -194,11 +194,11 @@ function ConnectSummary({ draft, phase, result, onChange, onRetry, onOpenBoard, 
     <div className="ora-connect__step">
       <StepHeading title={phase === 'success' ? t('connectedTitle') : t('connectTitle')} description={phase === 'success' ? t('connectedDescription') : t('connectDescription')} />
       <SettingsGroup>
-        <SettingsRow label={t('summarySource')} description={<span className="ora-connect__summary"><ProviderGlyph provider={draft.provider} />{providerName(draft.provider)} · {providerInstance(draft.provider, draft.endpoint)}</span>} control={change(0)} />
-        <SettingsRow label={t('summaryAccess')} description={access} control={change(0)} />
-        <SettingsRow label={github ? t('repository') : t('project')} description={<span className="ora-connect__mono">{draft.projectKey.trim()}</span>} control={change(1)} />
-        <SettingsRow label={t('summaryWorkspace')} description={<span className="ora-connect__mono">{draft.workspacePath}</span>} control={change(2)} />
-        <SettingsRow label={t('summaryAutomation')} description={t('automationSummary', { schedule, review: draft.autoReview ? t('on') : t('offState'), writes: draft.allowWrites ? t('allowed') : t('offState') })} control={change(3)} />
+        <SettingsRow label={t('summarySource')} description={<span className="ora-connect__summary"><ProviderGlyph provider={draft.provider} />{providerName(draft.provider)} · {providerInstance(draft.provider, draft.endpoint)}</span>} control={change(0, t('summarySource'))} />
+        <SettingsRow label={t('summaryAccess')} description={access} control={change(0, t('summaryAccess'))} />
+        <SettingsRow label={github ? t('repository') : t('project')} description={<span className="ora-connect__mono">{draft.projectKey.trim()}</span>} control={change(1, github ? t('repository') : t('project'))} />
+        <SettingsRow label={t('summaryWorkspace')} description={<span className="ora-connect__mono">{draft.workspacePath}</span>} control={change(2, t('summaryWorkspace'))} />
+        <SettingsRow label={t('summaryAutomation')} description={t('automationSummary', { schedule, review: draft.autoReview ? t('on') : t('offState'), writes: draft.allowWrites ? t('allowed') : t('offState') })} control={change(3, t('summaryAutomation'))} />
       </SettingsGroup>
       {phase === 'success' && result ? (
         <div className="ora-connect__result" data-tone="success" role="status">

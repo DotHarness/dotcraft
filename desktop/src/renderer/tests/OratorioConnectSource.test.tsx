@@ -77,26 +77,28 @@ describe('Oratorio connect-a-source', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Connect a source' }))
-    expect(await screen.findByText('Where does your work live?')).toBeInTheDocument()
     const next = () => fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const onStep = (step: string) => waitFor(() => expect(screen.getByRole('button', { name: step })).toHaveAttribute('aria-current', 'step'))
+
+    await onStep('Source')
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
 
     fireEvent.click(screen.getByRole('radio', { name: /GitLab/ }))
     fireEvent.change(screen.getByLabelText('Token'), { target: { value: 'token-value' } })
     next()
 
-    expect(await screen.findByText('Which project?')).toBeInTheDocument()
+    await onStep('Project')
     fireEvent.change(screen.getByRole('textbox', { name: 'Project' }), { target: { value: 'group/demo' } })
     next()
 
-    expect(await screen.findByText('Where is the checkout?')).toBeInTheDocument()
+    await onStep('Workspace')
     await waitFor(() => expect(screen.getByRole('radio', { name: /Current/ })).toBeChecked())
     next()
 
-    expect(await screen.findByText('How should Oratorio keep up?')).toBeInTheDocument()
+    await onStep('Automation')
     next()
 
-    expect(await screen.findByText('Ready to connect')).toBeInTheDocument()
+    await onStep('Connect')
     fireEvent.click(screen.getByRole('button', { name: 'Connect and sync' }))
     expect(await screen.findByText('Read access confirmed')).toBeInTheDocument()
     expect(screen.getByText('12 issues and 3 merge requests synced from group/demo.')).toBeInTheDocument()
@@ -129,9 +131,9 @@ describe('Oratorio connect-a-source', () => {
       </LocaleProvider>
     )
 
-    expect(await screen.findByText('Bring your work onto the Board')).toBeInTheDocument()
+    const connectGitLab = await screen.findByRole('button', { name: /Connect GitLab/ })
     expect(screen.getByRole('button', { name: 'Sync sources' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: /Connect GitLab/ }))
+    fireEvent.click(connectGitLab)
 
     expect(openSettingsPage).toHaveBeenCalledWith('oratorio')
     expect(consumeOratorioNavigation()).toEqual({ kind: 'settings', section: 'connect', provider: 'gitlab' })
