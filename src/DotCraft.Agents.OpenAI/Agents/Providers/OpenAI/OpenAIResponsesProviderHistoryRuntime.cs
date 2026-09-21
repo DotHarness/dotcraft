@@ -13,7 +13,7 @@ using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 
-internal sealed class OpenAIResponsesProviderHistoryContext :
+internal sealed partial class OpenAIResponsesProviderHistoryContext :
     IProviderConversationHistory,
     IProviderCompactionBridge
 {
@@ -80,27 +80,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
             var tail = samplingMessages.Skip(_coveredSamplingMessageCount).ToList();
             if (tail.Count > 0)
             {
-                var correlations = BuildCallCorrelationIndex();
-                var mapped = ResponsesToolSearchMapper.BuildInputItems(
-                    tail,
-                    options,
-                    correlations,
-                    itemOrdinalOffset: _entries.Count);
-                var entries = CreateEntries(
-                    mapped.Input,
-                    ProviderHistorySources.LocalInput,
-                    attemptId: null);
-                if (entries.Count > 0)
-                {
-                    await PersistAppendAsync(
-                            entries,
-                            ProviderHistorySources.LocalInput,
-                            attemptId: null,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                    _entries.AddRange(entries.Select(entry => new RuntimeEntry(entry, AttemptId: null)));
-                    _coveredThroughTurnId = _identity.TurnId;
-                }
+                await AppendLocalInputCoreAsync(tail, options, cancellationToken).ConfigureAwait(false);
             }
 
             _coveredSamplingMessageCount = samplingMessages.Count;

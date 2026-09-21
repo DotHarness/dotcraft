@@ -28,8 +28,7 @@ public sealed partial class SessionService
 
         public Task CancelTurn(string threadId, string turnId)
         {
-            if (owner.TryGetTurnRuntime(new TurnKey(threadId, turnId))?.Cancellation is { } cts)
-                cts.Cancel();
+            owner.TryGetTurnRuntime(new TurnKey(threadId, turnId))?.Interrupt();
             return Task.CompletedTask;
         }
 

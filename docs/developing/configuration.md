@@ -6,7 +6,7 @@ DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.cr
 
 ## Inspect configuration from the CLI
 
-`dotcraft config schema` prints every section and field this build understands, with its type, default, sensitivity, and reload behavior. `dotcraft config show` prints the merged configuration of one workspace with `ApiKey`, `Password`, and `Token` values masked as `***`.
+`dotcraft config schema` prints the sections and fields included in the configuration schema, with their types, defaults, sensitivity, and reload behavior. `dotcraft config show` prints the merged configuration of one workspace with `ApiKey`, `Password`, and `Token` values masked as `***`.
 
 ```bash
 dotcraft config schema --section Tools.Web
@@ -25,6 +25,7 @@ dotcraft config show --json
 | `NetworkTimeoutSeconds` | Global model request timeout in seconds; providers can override it | `600` |
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
+| `AgentInterruptMessageEnabled` | Tell the model when a turn is intentionally interrupted, including an active-turn fork | `true` |
 | `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
 | `ConsolidationModel` | Memory consolidation model. Empty uses the main model | Empty |
 | `DebugMode` | Prints untruncated tool arguments in the console | `false` |

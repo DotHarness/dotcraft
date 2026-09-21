@@ -172,6 +172,7 @@ Current writers:
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as inline visualizations (§9). |
 | Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 20. |
 | [World State](world-state.md) | State that persists across turns, written only when it changes. |
+| Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
 
 Rules:
 
@@ -179,7 +180,10 @@ Rules:
    developer role use a `user` message wrapped in a runtime-reminder block. The carrier is a wire
    detail; the layer semantics are identical. The carrier is resolved per turn, so a thread that
    changes provider keeps the shape each item was written with; only new items take the new carrier.
-2. **Placement.** Items sit after inherited history and before the turn's first user message. They
+2. **Placement.** Interruption events follow the interrupted history, before any subsequent user input.
+   Their `<turn_aborted>` text says the turn was intentionally interrupted and tools may have partially
+   executed, without attributing the action to a particular actor. Other items sit after inherited
+   history and before the turn's first user message. They
    are delivered as new local input for the turn, so a protocol with a canonical history baseline
    takes that baseline first (see
    [Canonical OpenAI Responses Provider History](responses-provider-history.md)).

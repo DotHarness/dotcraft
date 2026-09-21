@@ -941,6 +941,11 @@ public sealed partial class SessionService(
         CancellationToken ct = default)
     {
         var normalizedTokens = Math.Max(0, tokens);
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var ephemeralRuntime) && ephemeralRuntime.Thread.Ephemeral)
+        {
+            ephemeralRuntime.ContextUsageAnchor = anchor;
+            return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);
+        }
         if (anchor is not null)
         {
             var normalizedAnchor = anchor with { Tokens = Math.Max(0, anchor.Tokens) };
@@ -1912,6 +1917,7 @@ public sealed partial class SessionService(
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
             var turnCommitter = new TurnCommitter(this, thread, turn);
             TurnModelHistory? turnModelHistory = null;
+            var reactiveCompaction = new ReactiveCompactionState();
 
             void FinalizeStreamingAgentMessage()
                 => itemProjector.FinalizeAgentMessage();
@@ -1921,7 +1927,9 @@ public sealed partial class SessionService(
 
             async Task PersistCancelledTurnAsync()
             {
-                await PersistCurrentTurnCommitAsync();
+                turnCommitter.Session = session;
+                await CommitInterruptedTurnAsync(thread, turn, turnRuntime, turnCommitter,
+                    reactiveCompaction.ProviderContext?.History);
             }
 
             async Task PersistCurrentTurnCommitAsync()
@@ -2260,8 +2268,6 @@ public sealed partial class SessionService(
 
                 PublishQueueUpdated(thread.Id, queueSnapshot);
             }
-
-            var reactiveCompaction = new ReactiveCompactionState();
 
             async Task<CompactionExecutionResult?> TryCompactBeforeSamplingAsync(
                 IReadOnlyList<ChatMessage> modelVisibleHistory,
@@ -2676,7 +2682,9 @@ public sealed partial class SessionService(
                 }
                 else
                 {
-                    session = await persistence.LoadModelHistoryAsync(thread, turn.Id, executionCt);
+                    session = thread.Ephemeral && admittedRuntime.EphemeralHistory is { } ephemeralHistory
+                        ? ephemeralHistory.Select(message => message.Clone()).ToList()
+                        : await persistence.LoadModelHistoryAsync(thread, turn.Id, executionCt);
                 }
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;
@@ -2817,7 +2825,7 @@ public sealed partial class SessionService(
                             turn,
                             NextItemSeq,
                             ResolveApprovalTimeout(turnContext.Configuration.ApprovalTimeoutSeconds),
-                            cts.Cancel,
+                            turnRuntime.Interrupt,
                             approvalStore,
                             ThreadRuntimeSignalForBroadcast,
                             _sessionApprovalScopes);
@@ -3763,9 +3771,9 @@ public sealed partial class SessionService(
                     turn.Status = TurnStatus.Cancelled;
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                 });
+                await PersistCancelledTurnAsync();
                 eventChannel.EmitTurnCancelled(turn, "Cancelled by request");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
-                await PersistCancelledTurnAsync();
             }
             catch (OperationCanceledException) when (callerCt.IsCancellationRequested)
             {
@@ -3777,9 +3785,9 @@ public sealed partial class SessionService(
                     turn.Status = TurnStatus.Cancelled;
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                 });
+                await PersistCancelledTurnAsync();
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
-                await PersistCancelledTurnAsync();
             }
             catch (OperationCanceledException ex) when (IsConfiguredNetworkTimeoutCancellation(ex))
             {
@@ -3797,9 +3805,9 @@ public sealed partial class SessionService(
                     turn.Status = TurnStatus.Cancelled;
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                 });
+                await PersistCancelledTurnAsync();
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
-                await PersistCancelledTurnAsync();
             }
             catch (ContextCompactionFailedException ex)
             {

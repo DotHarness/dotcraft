@@ -5,6 +5,7 @@ using DotCraft.Context.Compaction;
 using DotCraft.Mcp;
 using DotCraft.Tools;
 using DotCraft.Context.WorldState;
+using Microsoft.Extensions.AI;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Sessions;
@@ -96,6 +97,8 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
     public SemaphoreSlim AgentLock { get; set; } = new(1, 1);
 
     public ChatClientAgent? Agent { get; set; }
+
+    public IReadOnlyList<ChatMessage>? EphemeralHistory { get; set; }
 
     public McpClientManager? McpManager { get; set; }
 
@@ -222,6 +225,14 @@ internal sealed class TurnExecutionState : IDisposable
     private readonly Queue<string> _pendingGoalSteering = new();
 
     public CancellationTokenSource? Cancellation { get; set; }
+
+    public bool IntentionallyInterrupted { get; private set; }
+
+    public void Interrupt()
+    {
+        IntentionallyInterrupted = true;
+        Cancellation?.Cancel();
+    }
 
     /// <summary>The immutable execution choices captured when this Turn was admitted.</summary>
     public TurnExecutionContext? Context { get; set; }

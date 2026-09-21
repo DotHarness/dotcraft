@@ -13,6 +13,8 @@ public sealed class GeneratedConfigSchemaTests
         var core = Assert.Single(schema, s => s.Section == "Core");
         var fields = core.Fields.ToDictionary(f => f.Key, f => f);
 
+        Assert.DoesNotContain("AgentInterruptMessageEnabled", fields.Keys);
+
         Assert.Equal(ReloadBehavior.ProcessRestart, fields["ProviderId"].Reload);
         Assert.Equal("number", fields["NetworkTimeoutSeconds"].Type);
         Assert.Equal(1, fields["NetworkTimeoutSeconds"].Min);
