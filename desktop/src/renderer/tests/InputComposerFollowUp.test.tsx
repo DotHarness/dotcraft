@@ -230,7 +230,7 @@ describe('InputComposer follow-up routing', () => {
     await waitFor(() => expect(useConversationStore.getState().queuedInputs).toEqual([]))
   })
 
-  it('echoes a steered message into the running turn and drops the echo when turn/steer fails', async () => {
+  it('echoes a steered message only in the queue and drops the echo when turn/steer fails', async () => {
     useConversationStore.setState({ turns: [{
       id: 'turn-123', threadId: 'thread-1', status: 'running', items: [], startedAt: '2025-01-01T00:00:00Z'
     }] })
@@ -241,11 +241,18 @@ describe('InputComposer follow-up routing', () => {
     renderComposer()
     fireEvent.keyDown(draft('steered request'), { key: 'Enter', code: 'Enter' })
     await waitFor(() => expect(fail).toBeDefined())
-    const echoed = useConversationStore.getState().turns[0].items
-    expect(echoed).toHaveLength(1)
-    expect(echoed[0]).toMatchObject({ type: 'userMessage', text: 'steered request' })
+    const state = useConversationStore.getState()
+    expect(state.turns[0].items).toEqual([])
+    expect(state.queuedInputs).toHaveLength(1)
+    expect(state.queuedInputs[0]).toMatchObject({
+      displayText: 'steered request',
+      threadId: 'thread-1',
+      status: 'guidancePending'
+    })
+    expect(state.queuedInputs[0].id).toBe(`local-${state.queuedInputs[0].clientUserMessageId}`)
     await act(async () => fail(new Error('turn changed')))
-    await waitFor(() => expect(useConversationStore.getState().turns[0].items).toEqual([]))
+    await waitFor(() => expect(useConversationStore.getState().queuedInputs).toEqual([]))
+    expect(useConversationStore.getState().turns[0].items).toEqual([])
   })
 
   it('keeps feedback added while the accepted message is in flight', async () => {

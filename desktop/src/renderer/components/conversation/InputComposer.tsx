@@ -32,7 +32,6 @@ import type {
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
-import { createOptimisticUserMessage } from '../../utils/inputPresentation'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
@@ -1099,31 +1098,25 @@ function InputComposerCore({
       images: [...inputImages]
     })
 
-    const steerWithEcho = async (messageId: string, parts: InputPart[], displayText: string): Promise<void> => {
-      const echo = createOptimisticUserMessage(parts, displayText, messageId)
-      if (activeTurnId) useConversationStore.getState().addOptimisticUserMessage(activeTurnId, echo)
-      try {
-        await sendComposerFollowUp({ clientUserMessageId: messageId, mode: 'steer', threadId, activeTurnId, input: parts })
-      } catch (err) {
-        useConversationStore.getState().removeOptimisticUserMessage(echo.id)
-        throw err
-      }
-    }
-
-    const enqueueWithEcho = async (messageId: string, parts: InputPart[], displayText: string): Promise<void> => {
+    const sendFollowUpWithEcho = async (
+      messageId: string,
+      parts: InputPart[],
+      displayText: string,
+      mode: 'queue' | 'steer'
+    ): Promise<void> => {
       const echo: QueuedTurnInput = {
         id: `local-${messageId}`,
         clientUserMessageId: messageId,
         threadId,
         nativeInputParts: parts,
         displayText,
-        status: 'queued',
+        status: mode === 'steer' ? 'guidancePending' : 'queued',
         createdAt: new Date().toISOString()
       }
       const conversation = useConversationStore.getState()
       conversation.setQueuedInputs([...conversation.queuedInputs, echo])
       try {
-        await sendComposerFollowUp({ clientUserMessageId: messageId, mode: 'queue', threadId, activeTurnId, input: parts })
+        await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, activeTurnId, input: parts })
       } catch (err) {
         const latest = useConversationStore.getState()
         latest.setQueuedInputs(latest.queuedInputs.filter((item) => item.id !== echo.id))
@@ -1239,8 +1232,7 @@ function InputComposerCore({
       })
       clearComposerForSubmission()
       try {
-        if (followUpMode === 'steer') await steerWithEcho(clientUserMessageId, inputParts, visibleText)
-        else await enqueueWithEcho(clientUserMessageId, inputParts, visibleText)
+        await sendFollowUpWithEcho(clientUserMessageId, inputParts, visibleText, followUpMode)
       } catch (err) {
         console.error(`turn/${followUpMode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
         restoreComposerSubmission(submission)
@@ -1287,7 +1279,7 @@ function InputComposerCore({
       if (isTurnBusyError(err)
         && (currentMaintenanceKind === 'compacting' || currentMaintenanceKind === 'consolidating')) {
         try {
-          await enqueueWithEcho(crypto.randomUUID(), inputParts, visibleText)
+          await sendFollowUpWithEcho(crypto.randomUUID(), inputParts, visibleText, 'queue')
           return
         } catch (enqueueErr) {
           console.error('turn/enqueue fallback failed:', enqueueErr)
