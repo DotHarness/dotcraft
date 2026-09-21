@@ -261,17 +261,5 @@ internal static partial class ResponsesToolSearchMapper
             ? value.GetString()
             : null;
 
-    private static string NormalizeReasoningEffortToken(ReasoningEffort effort) => effort switch
-    {
-        ReasoningEffort.ExtraHigh => "xhigh",
-        _ => NormalizeEnumToken(effort.ToString())
-    };
-
-    private static string NormalizeEnumToken(string value)
-    {
-        var chars = value.Where(static ch => ch is not '-' and not '_' and not ' ').ToArray();
-        return new string(chars).ToLowerInvariant();
-    }
-
     private sealed record PromptCacheKeyResolution(string? Value, string? Source);
 }

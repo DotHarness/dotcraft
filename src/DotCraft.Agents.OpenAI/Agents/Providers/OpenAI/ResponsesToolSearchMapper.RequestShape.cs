@@ -155,12 +155,22 @@ internal static partial class ResponsesToolSearchMapper
             ["tools"] = tools
         };
 
+    private static ResponseReasoningEffortLevel ToResponseReasoningEffort(ReasoningEffort effort) => effort switch
+    {
+        ReasoningEffort.None => ResponseReasoningEffortLevel.None,
+        ReasoningEffort.Low => ResponseReasoningEffortLevel.Low,
+        ReasoningEffort.Medium => ResponseReasoningEffortLevel.Medium,
+        ReasoningEffort.High => ResponseReasoningEffortLevel.High,
+        ReasoningEffort.ExtraHigh => ResponseReasoningEffortLevel.ExtraHigh,
+        _ => throw new ArgumentOutOfRangeException(nameof(effort), effort, null)
+    };
+
     private static ResponseReasoningOptions CreateReasoningOptions(ReasoningOptions? reasoning)
     {
         var options = new ResponseReasoningOptions();
         if (reasoning?.Effort is { } effort)
         {
-            options.ReasoningEffortLevel = new ResponseReasoningEffortLevel(NormalizeReasoningEffortToken(effort));
+            options.ReasoningEffortLevel = ToResponseReasoningEffort(effort);
         }
 
         if (reasoning?.Output is { } output && output != ReasoningOutput.None)
@@ -213,7 +223,7 @@ internal static partial class ResponsesToolSearchMapper
             maxOutputTokensRequested,
             maxOutputTokensRequested.HasValue && !maxOutputTokensRemovedByOAuthRewrite,
             maxOutputTokensRemovedByOAuthRewrite,
-            options?.Reasoning?.Effort is { } effort ? NormalizeReasoningEffortToken(effort) : null,
+            options?.Reasoning?.Effort is { } effort ? ToResponseReasoningEffort(effort).ToString() : null,
             DescribeToolChoiceKind(options?.ToolMode),
             tools.Count,
             responseOptions.StreamingEnabled == true);

@@ -137,6 +137,15 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                            .AsChatResponseUpdatesAsync(responseOptions, cancellationToken)
                            .ConfigureAwait(false))
         {
+            if (update.RawRepresentation is StreamingResponseCompletedUpdate
+                { Response.Usage.InputTokenDetails.CacheWriteTokenCount: { } cacheWrite })
+            {
+                foreach (var usage in update.Contents.OfType<UsageContent>())
+                {
+                    usage.Details.AdditionalCounts ??= new AdditionalPropertiesDictionary<long>();
+                    usage.Details.AdditionalCounts["CacheWriteInputTokenCount"] = cacheWrite;
+                }
+            }
             images.Apply(update);
             reasoning.Apply(update);
             ResponsesToolSearchMapper.ApplyRecordedFunctionCallNamespaces(update, functionCallNamespaces);

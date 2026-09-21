@@ -79,14 +79,7 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
     {
         ArgumentNullException.ThrowIfNull(tool);
 
-        var betaTool = new BetaTool
-        {
-            Name = tool.Name,
-            Description = tool.Description,
-            InputSchema = CreateInputSchema(tool),
-            DeferLoading = true
-        };
-        return new BetaToolUnion(betaTool).AsAITool();
+        return new DeferredToolDeclaration(tool);
     }
 
     private void PatchRawRepresentationFactory(ChatOptions options)
@@ -130,21 +123,15 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
             .ToArray();
     }
 
-    private static InputSchema CreateInputSchema(AITool tool)
+    private sealed class DeferredToolDeclaration(AITool tool) : AIFunctionDeclaration
     {
-        var schema = GetJsonSchema(tool);
-        if (schema.ValueKind != JsonValueKind.Object)
-            return new InputSchema();
-
-        var rawData = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var property in schema.EnumerateObject())
-            rawData[property.Name] = property.Value;
-
-        return new InputSchema(rawData);
+        public override string Name => tool.Name;
+        public override string Description => tool.Description;
+        public override JsonElement JsonSchema { get; } =
+            tool is AIFunctionDeclaration function && function.JsonSchema.ValueKind != JsonValueKind.Undefined
+                ? function.JsonSchema
+                : JsonSerializer.SerializeToElement(new { type = "object" });
+        public override IReadOnlyDictionary<string, object?> AdditionalProperties { get; } =
+            new Dictionary<string, object?> { [nameof(BetaTool.DeferLoading)] = true };
     }
-
-    private static JsonElement GetJsonSchema(AITool tool) =>
-        tool is AIFunctionDeclaration function && function.JsonSchema.ValueKind != JsonValueKind.Undefined
-            ? AnthropicToolSchema.Narrow(function)
-            : JsonSerializer.SerializeToElement(new { type = "object" });
 }
