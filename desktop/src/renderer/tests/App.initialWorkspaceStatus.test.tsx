@@ -907,6 +907,77 @@ describe('App initial workspace status bootstrap', () => {
     })
   })
 
+  it('reloads plugins once for each promoted foreground connection', async () => {
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    let activeWorkspace: 'a' | 'b' = 'a'
+    const appServerSendRequest = vi.fn(async (method: string) => {
+      if (method === 'thread/list') return { data: [] }
+      if (method === 'plugin/list') {
+        return {
+          plugins: activeWorkspace === 'a' ? [testDesktopPlugin] : [],
+          diagnostics: [],
+          snapshotRevision: 1
+        }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+        emitStatus = callback
+        return vi.fn()
+      }),
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({
+      status: 'connected',
+      capabilities: { pluginManagement: true }
+    })
+
+    renderApp()
+    await waitFor(() => {
+      expect(usePluginStore.getState().plugins.map((entry) => entry.id)).toEqual(['example-desktop'])
+    })
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'plugin/list')).toHaveLength(1)
+
+    activeWorkspace = 'b'
+    act(() => emitStatus?.(workspaceBStatus))
+    await waitFor(() => expect(usePluginStore.getState().plugins).toEqual([]))
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'plugin/list')).toHaveLength(1)
+
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected',
+        capabilities: { pluginManagement: true }
+      })
+    })
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'plugin/list')).toHaveLength(2)
+    })
+    expect(usePluginStore.getState().plugins).toEqual([])
+
+    activeWorkspace = 'a'
+    act(() => emitStatus?.(readyWorkspaceStatus))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected',
+        capabilities: { pluginManagement: true }
+      })
+    })
+
+    await waitFor(() => {
+      expect(usePluginStore.getState().plugins.map((entry) => entry.id)).toEqual(['example-desktop'])
+    })
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'plugin/list')).toHaveLength(3)
+  })
+
   it('reloads when workspace status changes before the projects payload settles', async () => {
     const workspaceBStatus: WorkspaceStatusPayload = {
       ...readyWorkspaceStatus,

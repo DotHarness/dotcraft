@@ -400,17 +400,7 @@ function resetWorkspaceScopedRendererState(): void {
   useModelCatalogStore.getState().reset()
   useProvidersStore.getState().reset()
   useMcpStore.getState().reset()
-  usePluginStore.setState({
-    plugins: [],
-    diagnostics: [],
-    selectedPluginId: null,
-    selectedPlugin: null,
-    loading: false,
-    error: null,
-    detailLoading: false,
-    snapshotRevision: 0,
-    completeSnapshotRevision: 0
-  })
+  usePluginStore.getState().resetForWorkspaceChange()
   useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
   useSubAgentStore.getState().reset()
   useUIStore.getState().resetDetailTabs()
@@ -1588,6 +1578,7 @@ export function App(): JSX.Element {
 
   const prevStatusRef = useRef<string>('')
   const prevForegroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
+  const lastPluginCatalogConnectionEpochRef = useRef<number | null>(null)
 
   useEffect(() => {
     const nextIdentityKey = foregroundThreadListIdentityKey
@@ -1635,10 +1626,12 @@ export function App(): JSX.Element {
   }, [status, reloadThreadList])
 
   useEffect(() => {
-    if (status === 'connected' && capabilities?.pluginManagement === true) {
-      void usePluginStore.getState().fetchPlugins()
-    }
-  }, [capabilities?.pluginManagement, status])
+    if (status !== 'connected' || capabilities?.pluginManagement !== true) return
+    if (lastPluginCatalogConnectionEpochRef.current === connectionEpoch) return
+
+    lastPluginCatalogConnectionEpochRef.current = connectionEpoch
+    void usePluginStore.getState().fetchPlugins()
+  }, [capabilities?.pluginManagement, connectionEpoch, status])
 
   useEffect(() => {
     if (!isDesktopPluginMainView(activeMainView) || activeDesktopPluginView) return
