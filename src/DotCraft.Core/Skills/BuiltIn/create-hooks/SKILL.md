@@ -54,7 +54,7 @@ Global hooks load first, workspace hooks are appended, and enabled plugin hooks 
 |-------|------|-------------|
 | `matcher` | string | Regex matching tool names. Empty string = match all. Only applies to tool-related events |
 | `type` | string | Always `"command"` |
-| `command` | string | Shell command. Linux/macOS: `/bin/bash -c`; Windows: `powershell.exe` |
+| `command` | string | Shell command. Linux/macOS: `/bin/bash -c`; Windows: `pwsh` when installed, otherwise Windows PowerShell, then cmd |
 | `timeout` | number | Seconds before kill, default `30` |
 
 ## Trust and User State
@@ -146,7 +146,7 @@ The optional `if` field supports portable conditions such as `Bash(git commit:*)
 ## Platform Differences
 
 - **Linux/macOS**: Commands run via `/bin/bash -c '<command>'`. Use standard bash syntax, `jq` for JSON parsing.
-- **Windows**: Commands run via `powershell.exe -File <temp.ps1>`. Use PowerShell syntax, `ConvertFrom-Json` for JSON parsing.
+- **Windows**: PowerShell commands run via `pwsh` when installed, otherwise Windows PowerShell, with `-File <temp.ps1>`. Use PowerShell syntax and `ConvertFrom-Json` for JSON parsing. If neither is available, the default is cmd; set `shell` to `powershell` or `pwsh` when the hook requires PowerShell.
 
 ### Windows (PowerShell) stdin reading pattern
 
@@ -191,7 +191,7 @@ TOOL_ARGS=$(echo "$INPUT" | jq -c '.toolArgs')
 
 When generating hooks for the user:
 
-1. **Detect the OS from workspace context** — use PowerShell syntax on Windows, bash on Linux/macOS
+1. **Read the shell from workspace context** — use its syntax, or explicitly set `shell` when the hook requires PowerShell; use bash on Linux/macOS
 2. **For complex hooks, create script files** in the selected hooks directory and reference them in the `command` field
 3. **Merge with existing config** — if `.craft/hooks.json` already exists, read it first and merge new hooks into the existing config rather than overwriting
 4. **Validate event names** — use an event name from the Lifecycle Events table above

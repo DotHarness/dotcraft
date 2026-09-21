@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { spawn, type IPty } from '@lydell/node-pty'
+import { resolveShellCommand } from './terminalShell'
 import type {
   TerminalAttachResult,
   TerminalCreateResult,
@@ -23,20 +24,6 @@ interface TerminalTabRuntime {
 
 interface WindowRuntime {
   tabs: Map<string, TerminalTabRuntime>
-}
-
-function isWin32(): boolean {
-  return process.platform === 'win32'
-}
-
-function resolveShellCommand(): { shell: string; args: string[] } {
-  if (isWin32()) {
-    const fromEnv = process.env.COMSPEC?.trim()
-    if (fromEnv) return { shell: fromEnv, args: [] }
-    return { shell: 'powershell.exe', args: ['-NoLogo'] }
-  }
-  const fromEnv = process.env.SHELL?.trim()
-  return { shell: fromEnv || '/bin/bash', args: [] }
 }
 
 function trimBuffer(input: string): string {

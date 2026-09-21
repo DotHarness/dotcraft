@@ -13,11 +13,16 @@ public sealed record ShellExecutableProbe(
     Func<string, bool> FileExists,
     Func<string, string?> FindOnPath)
 {
+    public string? ProgramFiles { get; init; }
+
     public static ShellExecutableProbe Host { get; } = new(
         OperatingSystem.IsWindows(),
         Environment.GetEnvironmentVariable("SystemRoot"),
         File.Exists,
-        FindOnHostPath);
+        FindOnHostPath)
+    {
+        ProgramFiles = Environment.GetEnvironmentVariable("ProgramFiles")
+    };
 
     private static string? FindOnHostPath(string fileName)
     {
@@ -27,7 +32,7 @@ public sealed record ShellExecutableProbe(
 
         foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            var candidate = Path.Combine(directory.Trim(), fileName);
+            var candidate = Path.Combine(directory.Trim().Trim('"'), fileName);
             if (File.Exists(candidate))
                 return Path.GetFullPath(candidate);
         }
@@ -60,7 +65,19 @@ public sealed class ShellIdentityResolver(ShellExecutableProbe probe)
     {
         identity = null;
         reason = null;
-        var name = ExecutableName(selector.Length == 0 ? "powershell" : selector, isWindows: true);
+        if (selector.Length == 0)
+        {
+            foreach (var (kind, candidate) in WindowsDefaultCandidates())
+            {
+                if (ResolveKnownWindows(kind, candidate, out identity, out reason))
+                    return true;
+            }
+
+            reason = "No supported default Windows shell could be located on this machine.";
+            return false;
+        }
+
+        var name = ExecutableName(selector, isWindows: true);
         var isPath = selector.Contains('\\') || selector.Contains('/');
 
         switch (name)
@@ -80,13 +97,31 @@ public sealed class ShellIdentityResolver(ShellExecutableProbe probe)
             case "pwsh":
                 return ResolveKnownWindows(
                     ShellKind.Pwsh,
-                    isPath ? selector : probe.FindOnPath("pwsh.exe"),
+                    isPath ? selector : FindPwsh(),
                     out identity,
                     out reason);
             default:
                 reason = $"Shell '{selector}' is not a supported shell. Use 'powershell', 'pwsh', or 'cmd'.";
                 return false;
         }
+    }
+
+    private string? FindPwsh()
+    {
+        var onPath = probe.FindOnPath("pwsh.exe");
+        if (onPath is not null && probe.FileExists(onPath))
+            return onPath;
+        return string.IsNullOrEmpty(probe.ProgramFiles)
+            ? null
+            : Path.Combine(probe.ProgramFiles, "PowerShell", "7", "pwsh.exe");
+    }
+
+    private IEnumerable<(ShellKind Kind, string? Path)> WindowsDefaultCandidates()
+    {
+        yield return (ShellKind.Pwsh, FindPwsh());
+        yield return (ShellKind.PowerShell, probe.FindOnPath("powershell.exe"));
+        yield return (ShellKind.PowerShell, SystemPath(@"System32\WindowsPowerShell\v1.0\powershell.exe"));
+        yield return (ShellKind.Cmd, SystemPath(@"System32\cmd.exe"));
     }
 
     private bool ResolveKnownWindows(

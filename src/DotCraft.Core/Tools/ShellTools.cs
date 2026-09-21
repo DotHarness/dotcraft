@@ -46,7 +46,7 @@ public sealed class ShellTools
             approvalService);
     }
 
-    [Description("Execute a shell command and return its output. On Windows PowerShell, run inline Python by piping a here-string to stdin, for example @'\\nprint('hello')\\n'@ | python -, instead of python -c with nested escaped quotes.")]
+    [Description("Execute a shell command and return its output.")]
     [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
     [ToolRpc]
     public async Task<string> Exec(
@@ -56,7 +56,7 @@ public sealed class ShellTools
         [Description("Milliseconds to wait for initial output before returning when runInBackground is true.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return in this tool result.")] int? maxOutputChars = null,
         [Description("Keep stdin open so WriteStdin can send input to the running process. This is pipe-based, not a full PTY.")] bool interactive = false,
-        [Description("Optional shell override. On Windows use 'powershell', 'pwsh', or 'cmd'; on Unix use bash, sh, zsh, or pwsh.")] string? shell = null,
+        [Description("Optional shell override. Defaults to the shell reported in the environment context.")] string? shell = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

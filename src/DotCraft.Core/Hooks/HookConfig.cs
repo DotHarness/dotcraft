@@ -14,7 +14,7 @@ public sealed class HookEntry
 
     /// <summary>
     /// The shell command to execute.
-    /// Runs via /bin/bash on Linux/macOS or powershell.exe on Windows.
+    /// Defaults to /bin/bash on Linux/macOS and pwsh, Windows PowerShell, then cmd on Windows.
     /// Receives JSON context on stdin.
     /// </summary>
     public string Command { get; set; } = string.Empty;

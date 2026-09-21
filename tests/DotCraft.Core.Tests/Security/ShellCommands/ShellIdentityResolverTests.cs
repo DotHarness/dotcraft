@@ -16,6 +16,80 @@ public sealed class ShellIdentityResolverTests
 
     private static readonly string CustomPowerShell = Path.Combine(SystemRoot, "custom", "powershell.exe");
 
+    private static readonly string ProgramFiles = Path.Combine(SystemRoot, "Program Files");
+    private static readonly string InstalledPwsh = Path.Combine(ProgramFiles, "PowerShell", "7", "pwsh.exe");
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void TryResolve_DefaultPrefersPwshOnPath(string? selector)
+    {
+        var resolver = Windows(findOnPath: name => name == "pwsh.exe" ? PwshOnPath : CustomPowerShell);
+        Assert.True(resolver.TryResolve(selector, out var identity, out _));
+        Assert.Equal(new ShellIdentity(ShellKind.Pwsh, PwshOnPath), identity);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("pwsh")]
+    [InlineData("pwsh.exe")]
+    public void TryResolve_PwshOutsidePathUsesStandardInstallation(string? selector)
+    {
+        var resolver = new ShellIdentityResolver(new ShellExecutableProbe(
+            true, SystemRoot, path => path == InstalledPwsh || path == SystemPowerShell,
+            name => name == "powershell.exe" ? SystemPowerShell : null) { ProgramFiles = ProgramFiles });
+        Assert.True(resolver.TryResolve(selector, out var identity, out _));
+        Assert.Equal(new ShellIdentity(ShellKind.Pwsh, InstalledPwsh), identity);
+    }
+
+    [Fact]
+    public void TryResolve_DefaultFallsBackToPowerShellOnPath()
+    {
+        var resolver = Windows(findOnPath: name => name == "powershell.exe" ? CustomPowerShell : null);
+        Assert.True(resolver.TryResolve(null, out var identity, out _));
+        Assert.Equal(new ShellIdentity(ShellKind.PowerShell, CustomPowerShell), identity);
+    }
+
+    [Fact]
+    public void TryResolve_DefaultFallsBackToCmdWhenPowerShellIsMissing()
+    {
+        Assert.True(Windows(fileExists: path => path == SystemCmd).TryResolve(null, out var identity, out _));
+        Assert.Equal(new ShellIdentity(ShellKind.Cmd, SystemCmd), identity);
+    }
+
+    [Fact]
+    public void TryResolve_NoDefaultShellFails()
+    {
+        Assert.False(Windows(fileExists: _ => false).TryResolve(null, out _, out _));
+    }
+
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("powershell.exe")]
+    public void TryResolve_ExplicitPowerShellDoesNotSelectPwsh(string selector)
+    {
+        var resolver = Windows(findOnPath: _ => PwshOnPath);
+        Assert.True(resolver.TryResolve(selector, out var identity, out _));
+        Assert.Equal(new ShellIdentity(ShellKind.PowerShell, SystemPowerShell), identity);
+    }
+
+    [Fact]
+    public void TryResolve_ExplicitMissingPowerShellDoesNotFallBack()
+    {
+        var resolver = Windows(fileExists: path => path != SystemPowerShell, findOnPath: _ => PwshOnPath);
+        Assert.False(resolver.TryResolve("powershell", out _, out _));
+        Assert.False(resolver.TryResolve(SystemPowerShell, out _, out _));
+    }
+
+    [Fact]
+    public void TryResolve_ExplicitPwshPathWithSpacesIsPreserved()
+    {
+        var resolver = Windows(fileExists: path => path == InstalledPwsh, findOnPath: _ => PwshOnPath);
+        Assert.True(resolver.TryResolve(InstalledPwsh, out var identity, out _));
+        Assert.Equal(new ShellIdentity(ShellKind.Pwsh, InstalledPwsh), identity);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("powershell")]
