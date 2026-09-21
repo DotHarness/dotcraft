@@ -10,20 +10,6 @@ using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Sessions;
 
-internal sealed record ForkModelHistoryMaterialization(
-    IReadOnlyList<ChatMessage> History,
-    IReadOnlyList<ChatMessage>? CheckpointReplacementHistory,
-    string? CheckpointCoveredThroughTurnId,
-    string? CheckpointMode,
-    long EstimatedTokens,
-    string UsageSource,
-    bool UsageIsEstimate)
-{
-    public bool HasCompatibleCheckpoint =>
-        CheckpointReplacementHistory is not null &&
-        !string.IsNullOrWhiteSpace(CheckpointCoveredThroughTurnId);
-}
-
 internal sealed record TurnPersistenceCommit(
     SessionThread Thread,
     SessionTurn Turn,
@@ -362,50 +348,6 @@ public sealed partial class ThreadStore : IAsyncDisposable
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
         var result = await _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct);
         await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
-    }
-
-    internal async Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
-        SessionThread source,
-        SessionThread forked,
-        CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        var orderedForkTurns = OrderTurns(forked.Turns);
-        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(source.Id, ct);
-        for (var i = checkpoints.Count - 1; i >= 0; i--)
-        {
-            var checkpoint = checkpoints[i];
-            if (!IsCheckpointCompatibleForFork(source, orderedForkTurns, checkpoint))
-                continue;
-
-            if (!TryDeserializeCheckpointHistory(checkpoint, out var checkpointHistory))
-                continue;
-
-            var history = checkpointHistory.ToList();
-            var coveredTurnIndex = orderedForkTurns.FindIndex(turn =>
-                string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-            for (var turnIndex = coveredTurnIndex + 1; turnIndex < orderedForkTurns.Count; turnIndex++)
-                history.AddRange(BuildModelVisibleHistoryFromTurn(orderedForkTurns[turnIndex]));
-
-            return new ForkModelHistoryMaterialization(
-                history,
-                checkpointHistory,
-                checkpoint.CoveredThroughTurnId,
-                checkpoint.Mode,
-                MessageTokenEstimator.Estimate(history),
-                "compacted_estimate",
-                UsageIsEstimate: true);
-        }
-
-        var rawHistory = BuildModelVisibleHistoryFromTurns(orderedForkTurns);
-        return new ForkModelHistoryMaterialization(
-            rawHistory,
-            CheckpointReplacementHistory: null,
-            CheckpointCoveredThroughTurnId: null,
-            CheckpointMode: null,
-            MessageTokenEstimator.Estimate(rawHistory),
-            "history_estimate",
-            UsageIsEstimate: true);
     }
 
     /// <summary>

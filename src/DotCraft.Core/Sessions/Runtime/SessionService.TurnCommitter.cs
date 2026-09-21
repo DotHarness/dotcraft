@@ -21,6 +21,10 @@ public sealed partial class SessionService
 
         public async Task CommitAsync()
         {
+            if (thread.Ephemeral && Session != null
+                && owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                runtime.EphemeralHistory = Session.Select(message => message.Clone()).ToArray();
+
             IReadOnlyList<ChatMessage> modelHistory;
             if (Session != null && TrySnapshotInMemoryHistory(Session, out var currentHistory))
             {

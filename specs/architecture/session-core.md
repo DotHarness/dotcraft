@@ -2155,6 +2155,22 @@ Session Core owns active-run cancellation:
 
 ---
 
+### 13.5 Turn interruption history
+
+`AgentInterruptMessageEnabled` defaults to `true`.
+Explicit turn cancellation (including the approval CancelTurn decision) appends one model-visible
+`turn_aborted` context item after the interrupted turn's partial history. Caller cancellation,
+thread deletion, recovery, and failures do not imply an intentional interruption. The terminal
+turn and its history are persisted before publishing cancellation notifications.
+
+A regular fork that retains an active source turn appends the same boundary only to the child.
+Completed-turn item cuts and forks excluding the active turn do not generate a new marker.
+Retained existing markers survive fork and resume. Ephemeral threads retain them in memory.
+Disabling the setting suppresses new markers without removing existing history.
+
+Responses records the marker as provider-owned local input as well as neutral history, without
+replacing native compacted history. Existing compression and rollback rules apply.
+
 ## 14. Bidirectional Capabilities
 
 Bidirectional capabilities are outside the session model.

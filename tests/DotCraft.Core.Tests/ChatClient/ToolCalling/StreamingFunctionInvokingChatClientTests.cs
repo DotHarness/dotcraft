@@ -1365,6 +1365,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
     private sealed class RecordingProviderHistoryBridge : IProviderConversationHistory
     {
+        public ValueTask AppendLocalInputAsync(IReadOnlyList<ChatMessage> messages, CancellationToken cancellationToken)
+            => ValueTask.CompletedTask;
         public List<(IReadOnlyList<ChatMessage> Messages, string Reason)> Replacements { get; } = [];
 
         public ValueTask HistoryReplacedAsync(

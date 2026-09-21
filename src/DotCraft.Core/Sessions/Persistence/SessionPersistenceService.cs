@@ -122,8 +122,9 @@ public sealed class SessionPersistenceService(
     internal Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
         SessionThread source,
         SessionThread forked,
-        CancellationToken ct = default)
-        => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
+        CancellationToken ct = default,
+        IReadOnlyDictionary<string, ChatMessage>? interruptions = null)
+        => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct, interruptions);
 
     public Task<List<ChatMessage>> LoadModelHistoryAsync(
         string threadId,

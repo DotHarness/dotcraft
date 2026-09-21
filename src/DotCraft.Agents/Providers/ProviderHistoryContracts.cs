@@ -56,6 +56,11 @@ public interface IProviderHistorySink
 /// <summary>Coordinates provider-owned history with generic retry and tool-loop middleware.</summary>
 public interface IProviderConversationHistory
 {
+    /// <summary>Appends model-visible local input outside a sampling request, without replacing native history.</summary>
+    ValueTask AppendLocalInputAsync(
+        IReadOnlyList<ChatMessage> messages,
+        CancellationToken cancellationToken);
+
     /// <param name="coveredThroughTurnId">The newest Turn the replacement covers; null means the conversation's current Turn.</param>
     ValueTask HistoryReplacedAsync(
         IReadOnlyList<ChatMessage> messages,

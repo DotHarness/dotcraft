@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 
 namespace DotCraft.Sessions;
@@ -123,6 +124,7 @@ public sealed partial class SessionService
                 options.Cwd,
                 options.RuntimeWorkspaceRoots);
             var forkedThreadId = SessionIdGenerator.NewThreadId();
+            var activeSourceTurns = source.Turns.Where(IsActiveTurn).ToArray();
             var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
             var forked = new SessionThread
             {
@@ -158,13 +160,20 @@ public sealed partial class SessionService
                     owner.SetThreadAgent(forked.Id, threadAgent);
             }
 
-            if (!forked.Ephemeral)
+            var interruptions = await owner.BuildForkInterruptionsAsync(source, forked, activeSourceTurns, ct);
+            var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(
+                source, forked, ct, interruptions);
+            if (forked.Ephemeral)
+                owner._runtimeRegistry.SetThread(forked).EphemeralHistory = materialization.History;
+            else
             {
-                var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
                 await owner.PersistThreadWithMaterializationAsync(forked, ct);
                 await PersistForkModelHistoryAsync(forked, materialization, ct);
-                await PersistForkProviderHistoryAsync(source, forked, options, ct);
             }
+            await PersistForkProviderHistoryAsync(source, forked, options, ct);
+            var activeSourceTurn = activeSourceTurns.LastOrDefault();
+            if (activeSourceTurn != null && interruptions.TryGetValue(activeSourceTurn.Id, out var newMarker))
+                await owner.AppendProviderInterruptionAsync(forked, forked.Turns[^1], newMarker, null, ct);
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
             owner.ThreadCreatedForBroadcast?.Invoke(forked);
@@ -198,16 +207,19 @@ public sealed partial class SessionService
                 && materialization.History.Count > 0
                 && forked.Turns.Count > 0)
             {
-                if (!materialization.HasCompatibleCheckpoint)
+                var afterCheckpoint = !materialization.HasCompatibleCheckpoint;
+                foreach (var forkTurn in forked.Turns)
                 {
-                    foreach (var forkTurn in forked.Turns)
+                    if (afterCheckpoint)
                     {
                         await owner.Persistence.AppendModelHistoryAsync(
                             forked.Id,
-                            ThreadStore.BuildModelVisibleHistoryFromTurn(forkTurn),
+                            materialization.TurnHistories[forkTurn.Id],
                             forkTurn.Id,
                             ct);
                     }
+                    if (forkTurn.Id == materialization.CheckpointCoveredThroughTurnId)
+                        afterCheckpoint = true;
                 }
             }
 
@@ -247,6 +259,22 @@ public sealed partial class SessionService
                 return;
 
             var forkWindow = owner.GetOrCreateResponsesContextWindow(forked.Id);
+            if (forked.Ephemeral)
+            {
+                var config = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
+                var model = owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+                    config, forked.Configuration?.ProviderId, forked.Configuration?.Model);
+                var identity = ThreadConversationIdentity.Create(forked, forked.Turns.LastOrDefault(),
+                    forkWindow.CurrentWindowId, ProviderRequestKind.Turn);
+                owner._runtimeRegistry.SetThread(forked).ResponsesProviderHistorySnapshot = ToOpaqueHistory(model, identity,
+                    sourceSnapshot with
+                    {
+                        GenerationId = forkWindow.CurrentWindowId,
+                        ContextWindowId = forkWindow.CurrentWindowId,
+                        CoveredThroughTurnId = forked.Turns.LastOrDefault()?.Id
+                    });
+                return;
+            }
             await owner.Persistence.ReplaceProviderHistoryAsync(
                 new ProviderHistoryReplacedPayload
                 {

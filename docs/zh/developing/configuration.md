@@ -25,6 +25,7 @@ dotcraft config show --json
 | `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒。Provider 可单独覆盖 | `600` |
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
 | `SubagentMaxConcurrency` | 最大并发 subagent 数量 | `3` |
+| `AgentInterruptMessageEnabled` | 向模型说明 turn 被主动中断，包括从运行中的 turn 分叉 | `true` |
 | `MaxSessionQueueSize` | 每个 Session 最大排队请求数，`0` 表示无限制 | `3` |
 | `ConsolidationModel` | 记忆整合专用模型，空值使用主模型 | 空 |
 | `DebugMode` | 控制台不截断工具调用参数输出 | `false` |

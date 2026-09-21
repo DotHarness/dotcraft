@@ -25,6 +25,7 @@ dotcraft config show --json
 | `NetworkTimeoutSeconds` | Global model request timeout in seconds; providers can override it | `600` |
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
+| `AgentInterruptMessageEnabled` | Tell the model when a turn is intentionally interrupted, including an active-turn fork | `true` |
 | `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
 | `ConsolidationModel` | Memory consolidation model. Empty uses the main model | Empty |
 | `DebugMode` | Prints untruncated tool arguments in the console | `false` |

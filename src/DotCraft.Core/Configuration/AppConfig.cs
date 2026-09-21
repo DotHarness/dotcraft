@@ -72,6 +72,9 @@ public sealed class AppConfig
     /// </summary>
     public int SubagentMaxConcurrency { get; set; } = 3;
 
+    [ConfigField(Ignore = true)]
+    public bool AgentInterruptMessageEnabled { get; set; } = true;
+
     /// <summary>
     /// Maximum number of pending requests per session.
     /// When exceeded, the oldest waiting request is evicted and the user is notified.

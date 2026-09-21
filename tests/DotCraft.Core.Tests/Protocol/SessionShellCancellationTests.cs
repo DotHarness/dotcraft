@@ -98,6 +98,8 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
         var cancelled = await service.GetThreadAsync(thread.Id);
         Assert.Equal(TurnStatus.Cancelled, Assert.Single(cancelled.Turns).Status);
         Assert.Single(sessionEvents, sessionEvent => sessionEvent.EventType == SessionEventType.TurnCancelled);
+        var history = await new ThreadStore(_tempDir).LoadModelHistoryAsync(thread.Id);
+        Assert.Single(history, message => ThreadContextItems.IsKind(message, TurnInterruption.Kind));
         Assert.Equal(
             BackgroundTerminalStatus.Killed,
             Assert.Single(terminalEvents, terminalEvent =>
