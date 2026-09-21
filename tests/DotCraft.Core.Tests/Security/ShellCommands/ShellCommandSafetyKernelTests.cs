@@ -245,7 +245,7 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         var assessment = Windows().Evaluate(Request("Get-ChildItem -Recurse"));
 
         Assert.Equal(ShellDecision.Allow, assessment.Decision);
-        Assert.Equal(ShellKind.PowerShell, assessment.Shell!.Kind);
+        Assert.Equal(ShellKind.Pwsh, assessment.Shell!.Kind);
     }
 
     [Fact]

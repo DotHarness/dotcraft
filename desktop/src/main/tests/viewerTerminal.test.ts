@@ -75,6 +75,7 @@ describe('ViewerTerminalManager', () => {
     expect(created.tabId).toBe('tab-1')
     expect(created.pid).toBe(4321)
     expect(spawnMock).toHaveBeenCalledTimes(1)
+    expect(created.shell).toBe(spawnMock.mock.calls[0][0])
 
     onDataHandler?.('hello\r\n')
     expect(vi.mocked(win.webContents.send)).toHaveBeenCalledWith(
@@ -85,6 +86,7 @@ describe('ViewerTerminalManager', () => {
     const attached = manager.attachTab(win, 'tab-1')
     expect(attached.buffer).toContain('hello')
     expect(attached.pid).toBe(4321)
+    expect(attached.shell).toBe(created.shell)
   })
 
   it('writes/resizes active terminal and marks exit state', () => {

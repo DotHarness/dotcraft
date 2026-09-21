@@ -1,5 +1,6 @@
 using DotCraft.Contributions;
 using DotCraft.Plugins;
+using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Context;
 
@@ -84,50 +85,34 @@ $"""
     {
         string osName;
         string shell;
-        string shellTips;
+        string? shellPath = null;
 
         if (OperatingSystem.IsWindows())
         {
             var version = Environment.OSVersion.Version;
             osName = $"Windows {version.Major}.{version.Minor} (Build {version.Build})";
-            shell = "PowerShell";
-            shellTips =
-"""
-  - Environment variables: `$env:VAR_NAME`
-  - Command existence: `Get-Command <name>` (not `which`)
-  - Null discard: `$null` (not `/dev/null`)
-  - Path separator: `\` (use quotes for paths with spaces)
-  - Chaining: `;` to sequence, `&&` requires PowerShell 7+
-""";
-        }
-        else if (OperatingSystem.IsMacOS())
-        {
-            osName = "macOS";
-            shell = "Bash";
-            shellTips =
-"""
-  - Standard Unix/Bash syntax applies
-  - Use `/bin/bash` compatible commands
-""";
+            ShellIdentityResolver.Host.TryResolve(null, out var identity, out _);
+            shellPath = identity?.ExecutablePath;
+            shell = identity?.Kind switch
+            {
+                ShellKind.Pwsh => "PowerShell (pwsh)",
+                ShellKind.PowerShell => "Windows PowerShell",
+                ShellKind.Cmd => "Command Prompt (cmd)",
+                _ => "Unavailable"
+            };
         }
         else
         {
-            osName = "Linux";
+            osName = OperatingSystem.IsMacOS() ? "macOS" : "Linux";
             shell = "Bash";
-            shellTips =
-"""
-  - Standard Unix/Bash syntax applies
-""";
+            shellPath = "/bin/bash";
         }
 
         return
 $$"""
 ## Environment
 - OS: {{osName}}
-- Shell: {{shell}}
-
-When using the Exec tool, write commands for {{shell}}. Key syntax notes:
-{{shellTips}}
+- Default shell: {{shell}}{{(shellPath is null ? string.Empty : $" ({shellPath})")}}
 """;
     }
 
@@ -137,9 +122,7 @@ When using the Exec tool, write commands for {{shell}}. Key syntax notes:
 """
 ## Environment
 - OS: Linux (sandbox container)
-- Shell: Bash
-
-When using the Exec tool, write standard Bash commands.
+- Default shell: Bash (/bin/bash)
 """;
     }
 }

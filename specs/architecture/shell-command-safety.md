@@ -48,8 +48,9 @@ The `Exec` tool takes the script text and an optional `shell` selector; the host
 
 | Platform | Selector | Resolution |
 |---|---|---|
-| Windows | empty, `powershell`, `powershell.exe` | `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` |
-| Windows | `pwsh`, `pwsh.exe` | `PATH` lookup; must resolve |
+| Windows | empty | First existing executable: `pwsh.exe` on `PATH`, `%ProgramFiles%\PowerShell\7\pwsh.exe`, `powershell.exe` on `PATH`, system Windows PowerShell, system cmd |
+| Windows | `powershell`, `powershell.exe` | `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` |
+| Windows | `pwsh`, `pwsh.exe` | `PATH` lookup, then `%ProgramFiles%\PowerShell\7\pwsh.exe`; must resolve |
 | Windows | `cmd`, `cmd.exe` | `%SystemRoot%\System32\cmd.exe` |
 | Unix | empty | `/bin/bash` |
 | Unix | `bash`, `sh`, `zsh`, `pwsh`, or a path whose file name is one of them | `PATH` lookup or the given absolute path; must exist |
@@ -59,6 +60,10 @@ Any other selector is `Forbidden` with a reason naming the selector. The resolve
 `ShellKind` is one of `PowerShell`, `Pwsh`, `Cmd`, `Bash`, `Sh`, `Zsh`. `ShellFamily` groups them as `PowerShell`, `Cmd`, and `Posix`; the family selects the lowerer.
 
 Lifecycle hooks resolve their shell through the same resolver so hook commands and tool commands cannot disagree about what `pwsh` means.
+
+Explicit selectors never fall back to another shell kind. Approval and execution use the same resolved identity; an existing terminal retains its launch identity. Host environment context reports the resolved default shell name and executable path. Container context reports Bash (`/bin/bash`) as its default shell.
+
+Desktop integrated terminals use the same Windows PowerShell discovery order, falling back to `COMSPEC` or `cmd.exe` only when neither PowerShell executable is found. Unix shell selection is unchanged.
 
 ## 5. Lowering
 
