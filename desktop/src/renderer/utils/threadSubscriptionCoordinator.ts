@@ -60,43 +60,43 @@ export function isThreadSubscriptionConnectionCurrent(
 }
 
 export interface ThreadSubscriptionOperationQueue {
-  enqueue: (threadId: string, operation: ThreadSubscriptionOperation) => Promise<void>
-  clear: (threadId?: string) => void
-  pending: (threadId: string) => Promise<void> | null
+  enqueue: (operationKey: string, operation: ThreadSubscriptionOperation) => Promise<void>
+  clear: (operationKey?: string) => void
+  pending: (operationKey: string) => Promise<void> | null
 }
 
 export function createThreadSubscriptionOperationQueue(): ThreadSubscriptionOperationQueue {
   const chains = new Map<string, Promise<void>>()
 
   return {
-    enqueue(threadId, operation) {
-      const previous = chains.get(threadId) ?? Promise.resolve()
+    enqueue(operationKey, operation) {
+      const previous = chains.get(operationKey) ?? Promise.resolve()
       const current = previous
         .catch(() => undefined)
         .then(async () => {
           await operation()
         })
 
-      chains.set(threadId, current)
+      chains.set(operationKey, current)
       void current
         .finally(() => {
-          if (chains.get(threadId) === current) {
-            chains.delete(threadId)
+          if (chains.get(operationKey) === current) {
+            chains.delete(operationKey)
           }
         })
         .catch(() => undefined)
 
       return current
     },
-    clear(threadId) {
-      if (threadId == null) {
+    clear(operationKey) {
+      if (operationKey == null) {
         chains.clear()
         return
       }
-      chains.delete(threadId)
+      chains.delete(operationKey)
     },
-    pending(threadId) {
-      return chains.get(threadId) ?? null
+    pending(operationKey) {
+      return chains.get(operationKey) ?? null
     }
   }
 }

@@ -1228,6 +1228,7 @@ describe('App initial workspace status bootstrap', () => {
   })
 
   it('does not send the previous workspace thread subscription through a promoted connection', async () => {
+    const sharedThreadId = 'shared-thread'
     const workspaceBStatus: WorkspaceStatusPayload = {
       ...readyWorkspaceStatus,
       workspacePath: 'C:\\sample\\workspace-b'
@@ -1246,7 +1247,7 @@ describe('App initial workspace status bootstrap', () => {
         if (params?.identity?.workspacePath === workspaceBStatus.workspacePath) {
           return workspaceBThreads.promise
         }
-        return { data: [makeThreadSummary('thread-a', readyWorkspaceStatus.workspacePath, 'A thread')] }
+        return { data: [makeThreadSummary(sharedThreadId, readyWorkspaceStatus.workspacePath, 'A thread')] }
       }
       if (method === 'thread/subscribe' || method === 'thread/unsubscribe') {
         subscriptionRoutes.push({
@@ -1256,7 +1257,7 @@ describe('App initial workspace status bootstrap', () => {
         })
         if (
           method === 'thread/subscribe' &&
-          params?.threadId === 'thread-a' &&
+          params?.threadId === sharedThreadId &&
           activeWorkspace === 'a' &&
           delayWorkspaceASubscribe
         ) {
@@ -1266,7 +1267,7 @@ describe('App initial workspace status bootstrap', () => {
         return {}
       }
       if (method === 'thread/read') {
-        const workspace = params?.threadId === 'thread-b'
+        const workspace = activeWorkspace === 'b'
           ? workspaceBStatus.workspacePath
           : readyWorkspaceStatus.workspacePath
         return { thread: makeThread(params?.threadId ?? '', workspace) }
@@ -1288,15 +1289,15 @@ describe('App initial workspace status bootstrap', () => {
 
     renderApp()
     await waitFor(() => {
-      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['thread-a'])
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual([sharedThreadId])
     })
     act(() => {
-      useThreadStore.getState().setActiveThreadId('thread-a')
+      useThreadStore.getState().setActiveThreadId(sharedThreadId)
     })
     await waitFor(() => {
       expect(subscriptionRoutes).toContainEqual({
         method: 'thread/subscribe',
-        threadId: 'thread-a',
+        threadId: sharedThreadId,
         workspace: 'a'
       })
     })
@@ -1306,7 +1307,7 @@ describe('App initial workspace status bootstrap', () => {
       useUIStore.getState().setPendingProjectThreadOpen({
         projectKey: workspaceBStatus.workspacePath,
         workspacePath: workspaceBStatus.workspacePath,
-        threadId: 'thread-b'
+        threadId: sharedThreadId
       })
       activeWorkspace = 'b'
       emitStatus?.(workspaceBStatus)
@@ -1317,23 +1318,23 @@ describe('App initial workspace status bootstrap', () => {
     expect(subscriptionRoutes).toEqual([])
 
     workspaceBThreads.resolve({
-      data: [makeThreadSummary('thread-b', workspaceBStatus.workspacePath, 'B thread')]
+      data: [makeThreadSummary(sharedThreadId, workspaceBStatus.workspacePath, 'B thread')]
     })
     await waitFor(() => {
-      expect(useThreadStore.getState().activeThreadId).toBe('thread-b')
+      expect(useThreadStore.getState().activeThreadId).toBe(sharedThreadId)
       expect(subscriptionRoutes).toEqual([{
         method: 'thread/subscribe',
-        threadId: 'thread-b',
+        threadId: sharedThreadId,
         workspace: 'b'
       }])
     })
 
     delayedWorkspaceASubscribe.resolve({})
     await flushPromises()
-    expect(useThreadStore.getState().activeThreadId).toBe('thread-b')
+    expect(useThreadStore.getState().activeThreadId).toBe(sharedThreadId)
     expect(subscriptionRoutes).toEqual([{
       method: 'thread/subscribe',
-      threadId: 'thread-b',
+      threadId: sharedThreadId,
       workspace: 'b'
     }])
 
@@ -1342,7 +1343,7 @@ describe('App initial workspace status bootstrap', () => {
       useUIStore.getState().setPendingProjectThreadOpen({
         projectKey: readyWorkspaceStatus.workspacePath,
         workspacePath: readyWorkspaceStatus.workspacePath,
-        threadId: 'thread-a'
+        threadId: sharedThreadId
       })
       activeWorkspace = 'a'
       emitStatus?.(readyWorkspaceStatus)
@@ -1350,10 +1351,10 @@ describe('App initial workspace status bootstrap', () => {
     })
 
     await waitFor(() => {
-      expect(useThreadStore.getState().activeThreadId).toBe('thread-a')
+      expect(useThreadStore.getState().activeThreadId).toBe(sharedThreadId)
       expect(subscriptionRoutes).toEqual([{
         method: 'thread/subscribe',
-        threadId: 'thread-a',
+        threadId: sharedThreadId,
         workspace: 'a'
       }])
     })

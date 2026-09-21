@@ -4,6 +4,7 @@ import {
   isSameThreadSubscriptionTarget,
   isThreadSubscriptionConnectionCurrent,
   resolveActiveThreadSubscriptionTarget,
+  threadSubscriptionTargetKey,
   runQueuedThreadUnsubscribe
 } from '../utils/threadSubscriptionCoordinator'
 
@@ -74,17 +75,23 @@ describe('thread subscription coordinator', () => {
     })).toBe(false)
   })
 
-  it('serializes operations for the same thread', async () => {
+  it('serializes operations for the same subscription target', async () => {
     const queue = createThreadSubscriptionOperationQueue()
     const unblockUnsubscribe = createDeferred()
     const calls: string[] = []
+    const targetKey = threadSubscriptionTargetKey({
+      threadId: 'thread-a',
+      workspaceIdentity: 'workspace-a\u0000workspace-a',
+      workspaceKey: 'workspace-a',
+      connectionEpoch: 3
+    })
 
-    const unsubscribe = queue.enqueue('thread-a', async () => {
+    const unsubscribe = queue.enqueue(targetKey, async () => {
       calls.push('unsubscribe:start')
       await unblockUnsubscribe.promise
       calls.push('unsubscribe:end')
     })
-    const subscribe = queue.enqueue('thread-a', async () => {
+    const subscribe = queue.enqueue(targetKey, async () => {
       calls.push('subscribe')
     })
 
@@ -95,6 +102,40 @@ describe('thread subscription coordinator', () => {
     await Promise.all([unsubscribe, subscribe])
 
     expect(calls).toEqual(['unsubscribe:start', 'unsubscribe:end', 'subscribe'])
+  })
+
+  it('does not serialize the same thread id across workspace targets', async () => {
+    const queue = createThreadSubscriptionOperationQueue()
+    const unblockWorkspaceA = createDeferred()
+    const calls: string[] = []
+    const workspaceAKey = threadSubscriptionTargetKey({
+      threadId: 'shared-thread',
+      workspaceIdentity: 'workspace-a\u0000workspace-a',
+      workspaceKey: 'workspace-a',
+      connectionEpoch: 3
+    })
+    const workspaceBKey = threadSubscriptionTargetKey({
+      threadId: 'shared-thread',
+      workspaceIdentity: 'workspace-b\u0000workspace-b',
+      workspaceKey: 'workspace-b',
+      connectionEpoch: 4
+    })
+
+    const workspaceA = queue.enqueue(workspaceAKey, async () => {
+      calls.push('workspace-a:start')
+      await unblockWorkspaceA.promise
+      calls.push('workspace-a:end')
+    })
+    const workspaceB = queue.enqueue(workspaceBKey, async () => {
+      calls.push('workspace-b')
+    })
+
+    await flushPromises()
+    expect(calls).toEqual(['workspace-a:start', 'workspace-b'])
+
+    unblockWorkspaceA.resolve()
+    await Promise.all([workspaceA, workspaceB])
+    expect(calls).toEqual(['workspace-a:start', 'workspace-b', 'workspace-a:end'])
   })
 
   it('skips a queued unsubscribe when the user has returned to the thread', async () => {

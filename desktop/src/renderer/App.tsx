@@ -2715,8 +2715,9 @@ export function App(): JSX.Element {
 
     let sent = false
     let promise!: Promise<boolean>
+    const operationKey = threadSubscriptionTargetKey(target)
     promise = threadSubscriptionOperationsRef.current
-      .enqueue(threadId, async () => {
+      .enqueue(operationKey, async () => {
         if (!isSameThreadSubscriptionTarget(getCurrentThreadSubscriptionTarget(threadId), target)) return
         await window.api.appServer.sendRequest('thread/subscribe', requestParams)
         sent = true
@@ -2767,7 +2768,7 @@ export function App(): JSX.Element {
     clearThreadSubscriptionState(threadId)
     if (!target) return Promise.resolve()
 
-    return threadSubscriptionOperationsRef.current.enqueue(threadId, async () => {
+    return threadSubscriptionOperationsRef.current.enqueue(threadSubscriptionTargetKey(target), async () => {
       await runQueuedThreadUnsubscribe({
         threadId,
         getActiveThreadId: () => useThreadStore.getState().activeThreadId,
