@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Integrations;
@@ -163,6 +164,9 @@ public sealed class ImplementationFollowUpTests
 
         return new TestOratorioApp(services =>
         {
+            services.Remove(services.Single(descriptor =>
+                descriptor.ServiceType == typeof(IHostedService) &&
+                descriptor.ImplementationType == typeof(ImplementationFollowUpDispatchWorker)));
             services.RemoveAll<IGitHubApiClient>();
             services.AddSingleton<IGitHubApiClient>(resolvedGitHub);
             services.RemoveAll<IGitDeliveryClient>();

@@ -256,13 +256,25 @@ internal sealed class StreamRetryingChatClient(
         CancellationTokenSource attemptCancellation,
         CancellationToken cancellationToken)
     {
+        var moveNext = enumerator.MoveNextAsync().AsTask();
         try
         {
-            var hasNext = await enumerator.MoveNextAsync()
-                .AsTask()
+            var hasNext = await moveNext
                 .WaitAsync(retryOptions.IdleTimeout, cancellationToken)
                 .ConfigureAwait(false);
             return new MoveNextResult(hasNext, null);
+        }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            CancelAttempt(attemptCancellation);
+            try
+            {
+                await moveNext.ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+            return new MoveNextResult(HasNext: false, ex);
         }
         catch (TimeoutException ex)
         {

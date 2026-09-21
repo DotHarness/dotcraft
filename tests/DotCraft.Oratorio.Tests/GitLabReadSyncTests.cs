@@ -1252,7 +1252,15 @@ public sealed class GitLabReadSyncTests
             client,
             $"/api/v1/items/id/{issue.ItemId}/dispatch",
             new DispatchRequest("appServer", "Implement the GitLab issue.", null, null, "implementation", DeliveryPolicy.AutoPr));
-        var delivered = await WaitForItemByIdAsync(client, issue.ItemId!, x => x.ImplementationDrafts.Any(draft => draft.Status == ImplementationDraftStatus.Delivered));
+        var delivered = await WaitForItemByIdAsync(
+            client,
+            issue.ItemId!,
+            x => x.ImplementationDrafts.Any(draft =>
+                    draft.Status == ImplementationDraftStatus.Delivered &&
+                    draft.PullRequestItemId != null) &&
+                x.SourceWrites.Any(write =>
+                    write.Kind == SourceWriteKind.MergeRequestCreation &&
+                    write.Status == SourceWriteStatus.Succeeded));
         var draft = Assert.Single(delivered.ImplementationDrafts);
 
         Assert.Equal("commit-sha-123", draft.CommitSha);

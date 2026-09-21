@@ -401,6 +401,29 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_WaitsForInFlightMoveNextCancellationCleanup()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var stream = new CancellationCleanupStream();
+        var inner = new SequenceChatClient(_ => stream);
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var consuming = CollectAsync(client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "hi")],
+            cancellationToken: cancellation.Token));
+
+        await stream.MoveNextStarted.Task.WaitAsync(HangingStreamCompletionTimeout);
+        await cancellation.CancelAsync();
+        await stream.CancellationObserved.Task.WaitAsync(HangingStreamCompletionTimeout);
+        Assert.False(consuming.IsCompleted);
+
+        stream.AllowCleanup.TrySetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await consuming.WaitAsync(HangingStreamCompletionTimeout));
+        Assert.True(stream.CleanupCompleted.Task.IsCompletedSuccessfully);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_DoesNotRetryBadRequest()
     {
         var inner = new SequenceChatClient(
@@ -574,5 +597,41 @@ public sealed class StreamRetryingChatClientTests
         }
 
         public ValueTask DisposeAsync() => new(_disposeCompletion.Task);
+    }
+
+    private sealed class CancellationCleanupStream
+        : IAsyncEnumerable<ChatResponseUpdate>, IAsyncEnumerator<ChatResponseUpdate>
+    {
+        private CancellationToken _cancellationToken;
+
+        public TaskCompletionSource MoveNextStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CancellationObserved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource AllowCleanup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CleanupCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ChatResponseUpdate Current => new(ChatRole.Assistant, string.Empty);
+
+        public IAsyncEnumerator<ChatResponseUpdate> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            _cancellationToken = cancellationToken;
+            return this;
+        }
+
+        public async ValueTask<bool> MoveNextAsync()
+        {
+            MoveNextStarted.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, _cancellationToken);
+                return false;
+            }
+            finally
+            {
+                CancellationObserved.TrySetResult();
+                await AllowCleanup.Task;
+                CleanupCompleted.TrySetResult();
+            }
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

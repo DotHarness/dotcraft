@@ -58,12 +58,8 @@ try {
 async function downloadArtifact(targetArtifact, targetPlatform, targetArch, targetRoot) {
   await mkdir(targetRoot, { recursive: true })
   const archivePath = path.join(targetRoot, targetArtifact.file)
-  const response = await fetch(
-    `https://github.com/${lock.repository}/releases/download/v${lock.version}/${targetArtifact.file}`,
-    { redirect: 'follow' }
-  )
-  if (!response.ok) throw new Error(`Failed to download pinned lark-cli artifact: HTTP ${response.status}.`)
-  const archive = Buffer.from(await response.arrayBuffer())
+  const artifactUrl = `https://github.com/${lock.repository}/releases/download/v${lock.version}/${targetArtifact.file}`
+  const archive = await downloadWithRetry(artifactUrl)
   const archiveSha256 = sha256(archive)
   if (archiveSha256 !== targetArtifact.sha256) {
     throw new Error(`Checksum mismatch for lark-cli ${targetPlatform}-${targetArch}.`)
@@ -77,6 +73,45 @@ async function downloadArtifact(targetArtifact, targetPlatform, targetArch, targ
   const executable = path.join(extractedDir, executableNameFor(targetPlatform))
   if (targetPlatform !== 'win32') await chmod(executable, 0o755)
   return { archiveSha256, executable, extractedDir }
+}
+
+async function downloadWithRetry(url) {
+  const maxAttempts = 4
+  let lastError
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let response
+    try {
+      response = await fetch(url, { redirect: 'follow' })
+    } catch (error) {
+      lastError = error
+    }
+
+    if (response) {
+      if (!response.ok) {
+        const error = new Error(`Failed to download pinned lark-cli artifact: HTTP ${response.status}.`)
+        if (!isRetryableStatus(response.status)) throw error
+        lastError = error
+      } else {
+        try {
+          return Buffer.from(await response.arrayBuffer())
+        } catch (error) {
+          lastError = error
+        }
+      }
+    }
+
+    if (attempt < maxAttempts) await delay(1000 * (2 ** (attempt - 1)))
+  }
+
+  throw new Error(`Failed to download pinned lark-cli artifact after ${maxAttempts} attempts.`, { cause: lastError })
+}
+
+function isRetryableStatus(status) {
+  return status === 408 || status === 429 || status >= 500
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 function executableNameFor(targetPlatform) {

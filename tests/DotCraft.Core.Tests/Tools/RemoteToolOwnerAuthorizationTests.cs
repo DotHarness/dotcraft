@@ -85,6 +85,7 @@ public sealed class RemoteToolOwnerAuthorizationTests
         await owner.Requested.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await cancellation.CancelAsync();
         try { await running; } catch (OperationCanceledException) { }
+        await owner.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         owner.Decision.TrySetResult(true);
         await server.DisposeAsync();
         Assert.False(File.Exists(target));
@@ -143,11 +144,13 @@ public sealed class RemoteToolOwnerAuthorizationTests
     private sealed class PendingOwner : IRemoteToolApprovalPresenter
     {
         public TaskCompletionSource Requested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Decision { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<bool> RequestAsync(RemoteToolApprovalRequest request, CancellationToken cancellationToken)
+        public async Task<bool> RequestAsync(RemoteToolApprovalRequest request, CancellationToken cancellationToken)
         {
             Requested.TrySetResult();
-            return Decision.Task;
+            using var registration = cancellationToken.Register(Cancelled.SetResult);
+            return await Decision.Task;
         }
     }
 }

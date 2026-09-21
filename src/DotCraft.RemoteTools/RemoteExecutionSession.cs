@@ -161,7 +161,11 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         CallToolResult result;
         try
         {
-            result = await lease.Session.Client.CallToolAsync(request, cancellationToken).ConfigureAwait(false);
+            result = await CallToolAsync(
+                lease.Session.Client,
+                request,
+                invocationId,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !_lease.Lost)
         {

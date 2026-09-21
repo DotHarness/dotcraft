@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using ModelContextProtocol.Client;
@@ -7,6 +8,48 @@ namespace DotCraft.RemoteTools;
 
 public sealed partial class RemoteExecutionSession
 {
+    private static async ValueTask<CallToolResult> CallToolAsync(
+        McpClient client,
+        CallToolRequestParams request,
+        string requestId,
+        CancellationToken cancellationToken)
+    {
+        var protocolRequestId = new RequestId(requestId);
+        try
+        {
+            return await client.SendRequestAsync<CallToolRequestParams, CallToolResult>(
+                RequestMethods.ToolsCall,
+                request,
+                RemoteToolHostProtocol.JsonOptions,
+                protocolRequestId,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await client.SendMessageAsync(
+                    new JsonRpcNotification
+                    {
+                        Method = NotificationMethods.CancelledNotification,
+                        Params = JsonSerializer.SerializeToNode(
+                            new CancelledNotificationParams
+                            {
+                                RequestId = protocolRequestId,
+                                Reason = "Remote tool invocation was cancelled."
+                            },
+                            RemoteToolHostProtocol.JsonOptions)
+                    },
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
+    }
+
     private static async ValueTask<TResult> SendAsync<TParams, TResult>(
         McpClient client,
         string method,
