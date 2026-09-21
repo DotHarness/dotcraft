@@ -417,8 +417,9 @@ When the user selects a thread, Desktop opens a new restore generation for it an
 6. Subscription updates overwrite loaded entities by stable id. An Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
 7. Older history is read on demand rather than drained: advancing the history cursor must not pull the remaining pages by itself, and inserting a page preserves the visible-content scroll anchor.
 8. Every loaded Turn remains whole in the active conversation store, and unopened older pages remain server-side. Switching threads releases the prior thread's loaded page state. Live-only output buffers must be bounded independently from persisted history so a long-running command cannot grow renderer memory without limit.
-9. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
-10. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
+9. A subscription target is the tuple of foreground workspace identity, connection epoch, and `threadId`. Desktop may start the subscription only after the target thread is present in the authoritative thread list for that foreground workspace.
+10. For the same subscription target, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same target after the user has returned. Operations for different targets must not block one another, including when two workspaces contain the same `threadId`.
+11. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from subscribing through a different workspace connection or restoring UI into the wrong foreground thread. An unsubscribe queued for an older workspace connection must not be sent through the new foreground connection.
 
 This pipeline is a Desktop client responsibility. `thread/read` is the current header, the two list methods are the persisted display history, and `thread/subscribe` is the live notification channel.
 

@@ -1227,6 +1227,139 @@ describe('App initial workspace status bootstrap', () => {
     })).toBe(false)
   })
 
+  it('does not send the previous workspace thread subscription through a promoted connection', async () => {
+    const sharedThreadId = 'shared-thread'
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    const workspaceBThreads = createDeferred<{ data: ThreadSummary[] }>()
+    const delayedWorkspaceASubscribe = createDeferred<Record<string, never>>()
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    let activeWorkspace: 'a' | 'b' = 'a'
+    let delayWorkspaceASubscribe = true
+    const subscriptionRoutes: Array<{ method: string; threadId: string; workspace: 'a' | 'b' }> = []
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { identity?: { workspacePath?: string }; threadId?: string }
+    ) => {
+      if (method === 'thread/list') {
+        if (params?.identity?.workspacePath === workspaceBStatus.workspacePath) {
+          return workspaceBThreads.promise
+        }
+        return { data: [makeThreadSummary(sharedThreadId, readyWorkspaceStatus.workspacePath, 'A thread')] }
+      }
+      if (method === 'thread/subscribe' || method === 'thread/unsubscribe') {
+        subscriptionRoutes.push({
+          method,
+          threadId: params?.threadId ?? '',
+          workspace: activeWorkspace
+        })
+        if (
+          method === 'thread/subscribe' &&
+          params?.threadId === sharedThreadId &&
+          activeWorkspace === 'a' &&
+          delayWorkspaceASubscribe
+        ) {
+          delayWorkspaceASubscribe = false
+          return delayedWorkspaceASubscribe.promise
+        }
+        return {}
+      }
+      if (method === 'thread/read') {
+        const workspace = activeWorkspace === 'b'
+          ? workspaceBStatus.workspacePath
+          : readyWorkspaceStatus.workspacePath
+        return { thread: makeThread(params?.threadId ?? '', workspace) }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+        emitStatus = callback
+        return vi.fn()
+      }),
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual([sharedThreadId])
+    })
+    act(() => {
+      useThreadStore.getState().setActiveThreadId(sharedThreadId)
+    })
+    await waitFor(() => {
+      expect(subscriptionRoutes).toContainEqual({
+        method: 'thread/subscribe',
+        threadId: sharedThreadId,
+        workspace: 'a'
+      })
+    })
+
+    subscriptionRoutes.length = 0
+    act(() => {
+      useUIStore.getState().setPendingProjectThreadOpen({
+        projectKey: workspaceBStatus.workspacePath,
+        workspacePath: workspaceBStatus.workspacePath,
+        threadId: sharedThreadId
+      })
+      activeWorkspace = 'b'
+      emitStatus?.(workspaceBStatus)
+      useConnectionStore.getState().setStatus({ status: 'connected' })
+    })
+    await flushPromises()
+
+    expect(subscriptionRoutes).toEqual([])
+
+    workspaceBThreads.resolve({
+      data: [makeThreadSummary(sharedThreadId, workspaceBStatus.workspacePath, 'B thread')]
+    })
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThreadId).toBe(sharedThreadId)
+      expect(subscriptionRoutes).toEqual([{
+        method: 'thread/subscribe',
+        threadId: sharedThreadId,
+        workspace: 'b'
+      }])
+    })
+
+    delayedWorkspaceASubscribe.resolve({})
+    await flushPromises()
+    expect(useThreadStore.getState().activeThreadId).toBe(sharedThreadId)
+    expect(subscriptionRoutes).toEqual([{
+      method: 'thread/subscribe',
+      threadId: sharedThreadId,
+      workspace: 'b'
+    }])
+
+    subscriptionRoutes.length = 0
+    act(() => {
+      useUIStore.getState().setPendingProjectThreadOpen({
+        projectKey: readyWorkspaceStatus.workspacePath,
+        workspacePath: readyWorkspaceStatus.workspacePath,
+        threadId: sharedThreadId
+      })
+      activeWorkspace = 'a'
+      emitStatus?.(readyWorkspaceStatus)
+      useConnectionStore.getState().setStatus({ status: 'connected' })
+    })
+
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThreadId).toBe(sharedThreadId)
+      expect(subscriptionRoutes).toEqual([{
+        method: 'thread/subscribe',
+        threadId: sharedThreadId,
+        workspace: 'a'
+      }])
+    })
+  })
+
   it('restores the active thread subscription when the foreground connection is refreshed', async () => {
     const appServerSendRequest = vi.fn(async (method: string, params?: { threadId?: string }) => {
       if (method === 'thread/list') {
