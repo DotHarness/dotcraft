@@ -122,6 +122,50 @@ describe('pluginStore snapshot revisions', () => {
     expect(usePluginStore.getState().plugins[0]?.enabled).toBe(true)
   })
 
+  it('drops an in-flight list response after the workspace state resets', async () => {
+    let resolveList!: (value: {
+      plugins: PluginEntry[]
+      diagnostics: []
+      snapshotRevision: number
+    }) => void
+    sendRequest.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveList = resolve
+    }))
+    resetStore({
+      plugins: [trusted()],
+      selectedPluginId: 'acme.review-core',
+      selectedPlugin: trusted(),
+      snapshotRevision: 6,
+      completeSnapshotRevision: 6
+    })
+
+    const pendingList = usePluginStore.getState().fetchPlugins()
+    expect(usePluginStore.getState().loading).toBe(true)
+
+    usePluginStore.getState().resetForWorkspaceChange()
+    expect(usePluginStore.getState()).toMatchObject({
+      plugins: [],
+      diagnostics: [],
+      loading: false,
+      error: null,
+      selectedPluginId: null,
+      selectedPlugin: null,
+      detailLoading: false,
+      snapshotRevision: 0,
+      completeSnapshotRevision: 0
+    })
+
+    resolveList({ plugins: [trusted()], diagnostics: [], snapshotRevision: 7 })
+    await pendingList
+
+    expect(usePluginStore.getState()).toMatchObject({
+      plugins: [],
+      loading: false,
+      snapshotRevision: 0,
+      completeSnapshotRevision: 0
+    })
+  })
+
   it('refreshes the complete baseline when a mutation already observed the same revision', async () => {
     resetStore({ plugins: [plugin()], snapshotRevision: 3, completeSnapshotRevision: 3 })
     sendRequest

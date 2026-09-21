@@ -226,6 +226,7 @@ interface PluginState {
   /** Revision of the last unfiltered list, the only complete-workspace baseline. */
   completeSnapshotRevision: number
 
+  resetForWorkspaceChange(): void
   fetchPlugins(): Promise<void>
   selectPlugin(id: string): Promise<void>
   clearSelection(): void
@@ -255,6 +256,21 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   detailLoading: false,
   snapshotRevision: 0,
   completeSnapshotRevision: 0,
+
+  resetForWorkspaceChange() {
+    ++pluginListRequestToken
+    set({
+      plugins: [],
+      diagnostics: [],
+      loading: false,
+      error: null,
+      selectedPluginId: null,
+      selectedPlugin: null,
+      detailLoading: false,
+      snapshotRevision: 0,
+      completeSnapshotRevision: 0
+    })
+  },
 
   async fetchPlugins() {
     const requestToken = ++pluginListRequestToken
