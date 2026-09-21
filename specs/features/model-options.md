@@ -305,6 +305,12 @@ unsupported MAX to Default.
 Thread configuration and `ModelPreference` use `{ "contextWindow": { "mode": "max" } }`. New threads
 capture the normalized preference mode; unsupported MAX becomes Default.
 
+Desktop persists an explicit `{ "contextWindow": { "mode": "default" } }` when MAX is turned off,
+including in new-thread overlays and when switching to a model that does not support MAX.
+Existing threads read their captured context-window mode; omitted or null means Default and must not
+fall back to workspace preferences. Only untouched new-thread drafts inherit the workspace preference.
+Changing reasoning effort, refreshing thread state, or navigating between threads preserves this choice.
+
 `model/list.contextWindow` supplies `catalogWindow`, `configuredWindow`, `supportsMax`, and
 `maxWindow`. `supportsMax` is true only for an explicit match whose catalog window is larger.
 `ContextUsageSnapshot.contextWindow` remains the effective denominator after reserve and buffer logic.

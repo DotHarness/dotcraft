@@ -213,10 +213,10 @@ export function useComposerModelControls({
     workspaceCfg: Record<string, unknown>,
     effectiveProviderId: string
   ): ContextWindowMode => {
-    return readThreadContextMode(thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow)
-      ?? readWorkspacePreference(workspaceCfg, effectiveProviderId)?.contextWindow.mode
-      ?? 'default'
-  }, [])
+    const threadMode = readThreadContextMode(thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow)
+    if (!detached) return threadMode ?? 'default'
+    return threadMode ?? readWorkspacePreference(workspaceCfg, effectiveProviderId)?.contextWindow.mode ?? 'default'
+  }, [detached])
 
   const threadConfiguration = activeThread?.configuration ?? null
   // Thread snapshots arrive on a timer with new objects, so the resolve effect compares values.
@@ -519,8 +519,6 @@ export function useComposerModelControls({
     [activeThread, detached, setCaseInsensitiveField, speedValue]
   )
 
-  // MAX is a per-thread override: unlike model/reasoning it deliberately does NOT
-  // dual-write the workspace default, so toggling it never affects other threads.
   const handleContextModeChange = useCallback(
     async (nextMode: ContextWindowMode): Promise<void> => {
       if (nextMode === contextMode) return
@@ -542,11 +540,7 @@ export function useComposerModelControls({
           readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
             ? { ...(readRes.thread.configuration as Record<string, unknown>) }
             : {}
-        if (nextMode === 'max') {
-          setCaseInsensitiveField(existingConfig, 'contextWindow', { mode: 'max' })
-        } else {
-          deleteCaseInsensitiveField(existingConfig, 'contextWindow')
-        }
+        setCaseInsensitiveField(existingConfig, 'contextWindow', { mode: nextMode })
 
         await window.api.appServer.sendRequest('thread/config/update', {
           threadId: activeThread.id,
@@ -556,12 +550,7 @@ export function useComposerModelControls({
         const active = useThreadStore.getState().activeThread
         if (active && active.id === activeThread.id) {
           const mergedCfg: Record<string, unknown> = { ...(active.configuration ?? {}) }
-          if (nextMode === 'max') {
-            deleteCaseInsensitiveField(mergedCfg, 'contextWindow')
-            mergedCfg.contextWindow = { mode: 'max' }
-          } else {
-            deleteCaseInsensitiveField(mergedCfg, 'contextWindow')
-          }
+          setCaseInsensitiveField(mergedCfg, 'contextWindow', { mode: nextMode })
           useThreadStore.getState().setActiveThread({
             ...active,
             configuration: mergedCfg as typeof active.configuration
@@ -594,7 +583,7 @@ export function useComposerModelControls({
         setModelApplying(false)
       }
     },
-    [activeThread, contextMode, deleteCaseInsensitiveField, detached, setCaseInsensitiveField]
+    [activeThread, contextMode, detached, setCaseInsensitiveField]
   )
 
   const reasoningValue: ReasoningQuickValue =
@@ -619,8 +608,8 @@ export function useComposerModelControls({
       config.reasoning = detachedReasoningOverride
     }
     if (detachedSpeedTouched) config.speed = speedValue
-    if (detachedContextTouched && contextMode === 'max') {
-      config.contextWindow = { mode: 'max' }
+    if (detachedContextTouched) {
+      config.contextWindow = { mode: contextMode }
     }
     return config
   }, [
@@ -780,7 +769,7 @@ function applyModelCompatibility(config: Record<string, unknown>, model: ModelCa
 
   if (model?.contextWindow?.supportsMax !== true) {
     const contextKey = Object.keys(config).find((key) => key.toLowerCase() === 'contextwindow')
-    if (contextKey) delete config[contextKey]
+    config[contextKey ?? 'contextWindow'] = { mode: 'default' }
   }
 }
 

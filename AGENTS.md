@@ -17,7 +17,6 @@ It uses a modular architecture where multiple entry points (CLI, editors, bots, 
 
 ## Commits and Pull Requests
 
-- Run `/please-cleanup` before committing by default, without waiting for a reminder. This check does not itself authorize committing, pushing, or publishing.
 - Commit messages contain a single subject line, with no body or trailers.
 - Follow [CONTRIBUTING.md](CONTRIBUTING.md) when creating or updating a pull request; it owns the title and body format.
 
