@@ -2170,6 +2170,10 @@ Disabling the setting suppresses new markers without removing existing history.
 
 Responses records the marker as provider-owned local input as well as neutral history, without
 replacing native compacted history. Existing compression and rollback rules apply.
+On cancellation, Responses preserves completed provider output and any streamed assistant text
+whose output item has not completed before appending the interruption boundary. Failed attempts
+that are retried are still discarded. Ephemeral history retains the cancelled turn's input even
+when cancellation occurs before session initialization or no interruption marker is generated.
 
 ## 14. Bidirectional Capabilities
 

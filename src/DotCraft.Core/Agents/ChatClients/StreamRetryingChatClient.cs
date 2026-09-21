@@ -54,7 +54,8 @@ internal sealed class StreamRetryingChatClient(
             var providerHistoryAttemptId = providerHistoryBridge?.BeginAttempt();
             await using var providerHistoryAttempt = new ProviderHistoryAttemptLease(
                 providerHistoryBridge,
-                providerHistoryAttemptId);
+                providerHistoryAttemptId,
+                cancellationToken);
             var emittedVisibleUpdate = false;
             var receivedAnyUpdate = false;
             var bufferedNonVisibleUpdates = new List<ChatResponseUpdate>();
@@ -427,7 +428,8 @@ internal sealed class StreamRetryingChatClient(
 
     private sealed class ProviderHistoryAttemptLease(
         IProviderConversationHistory? bridge,
-        string? attemptId) : IAsyncDisposable
+        string? attemptId,
+        CancellationToken cancellationToken) : IAsyncDisposable
     {
         private bool _closed = bridge is null || attemptId is null;
 
@@ -449,8 +451,12 @@ internal sealed class StreamRetryingChatClient(
             _closed = true;
         }
 
-        public ValueTask DisposeAsync() =>
-            _closed ? ValueTask.CompletedTask : AbortAsync();
+        public ValueTask DisposeAsync()
+        {
+            if (cancellationToken.IsCancellationRequested)
+                Complete();
+            return _closed ? ValueTask.CompletedTask : AbortAsync();
+        }
     }
 
     private readonly record struct MoveNextResult(bool HasNext, Exception? Exception);

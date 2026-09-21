@@ -78,14 +78,19 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
         Assert.DoesNotContain(await store.LoadModelHistoryAsync(thread.Id), IsMarker);
     }
 
-    [Fact]
-    public async Task CancelBeforeSessionInitialization_PreservesInputAndMarker()
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public async Task CancelBeforeSessionInitialization_PreservesInputAndMarker(bool ephemeral, bool enabled, bool callerCancellation)
     {
         var client = new InterruptibleClient { Block = false };
-        await using var factory = Factory();
+        await using var factory = Factory(enabled: enabled);
         var store = new ThreadStore(root);
         var service = Service(factory, client, store);
         var thread = await service.CreateThreadAsync(Identity());
+        thread.Ephemeral = ephemeral;
+        await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("previous")]));
         var runtime = Assert.IsType<ThreadRuntime>(service.DebugGetRuntime(thread.Id));
         runtime.AgentLock = new SemaphoreSlim(0, 1);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -93,14 +98,18 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
         {
             if (signal == SessionThreadRuntimeSignal.TurnStarted) started.TrySetResult();
         };
-        var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("early")]));
+        using var cts = new CancellationTokenSource();
+        var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("early")], ct: cts.Token));
         await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
-        await run.WaitAsync(TimeSpan.FromSeconds(10));
-        var history = await store.LoadModelHistoryAsync(thread.Id);
-        Assert.Single(history, IsMarker);
-        Assert.Contains(history, message => message.Text.Contains("early"));
+        if (callerCancellation) cts.Cancel();
+        else await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
+        try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+        catch (OperationCanceledException) when (callerCancellation) { }
         runtime.AgentLock.Release();
+        await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("next")]));
+        Assert.Equal(enabled && !callerCancellation ? 1 : 0, client.Messages.Count(IsMarker));
+        Assert.Contains(client.Messages, message => message.Text.Contains("previous"));
+        Assert.Contains(client.Messages, message => message.Text.Contains("early"));
     }
 
     [Theory]

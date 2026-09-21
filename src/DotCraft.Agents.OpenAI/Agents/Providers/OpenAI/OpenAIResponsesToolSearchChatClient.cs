@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json.Nodes;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -253,18 +254,38 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         OpenAIResponsesProviderHistoryContext providerHistory,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
+        var pendingText = new SortedDictionary<int, SortedDictionary<int, StringBuilder>>();
+        try
         {
-            if (update is StreamingResponseOutputItemDoneUpdate { Item: { } item } done)
+            await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                await providerHistory.AppendProviderOutputAsync(
-                        item,
-                        done.OutputIndex,
-                        done.SequenceNumber,
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                if (update is StreamingResponseOutputTextDeltaUpdate delta)
+                {
+                    if (!pendingText.TryGetValue(delta.OutputIndex, out var contents))
+                        pendingText[delta.OutputIndex] = contents = new();
+                    if (!contents.TryGetValue(delta.ContentIndex, out var text))
+                        contents[delta.ContentIndex] = text = new();
+                    text.Append(delta.Delta);
+                }
+                else if (update is StreamingResponseOutputItemDoneUpdate { Item: { } item } done)
+                {
+                    await providerHistory.AppendProviderOutputAsync(
+                            item, done.OutputIndex, done.SequenceNumber, CancellationToken.None)
+                        .ConfigureAwait(false);
+                    pendingText.Remove(done.OutputIndex);
+                }
+                yield return update;
             }
-            yield return update;
+        }
+        finally
+        {
+            if (cancellationToken.IsCancellationRequested && pendingText.Count > 0)
+            {
+                var partial = pendingText.Values.Select(contents => new ChatMessage(
+                    ChatRole.Assistant,
+                    contents.Values.Select(text => (AIContent)new TextContent(text.ToString())).ToList())).ToList();
+                await providerHistory.AppendLocalInputAsync(partial, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 

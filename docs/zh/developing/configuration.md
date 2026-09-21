@@ -6,7 +6,7 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 
 ## 从 CLI 查看配置
 
-`dotcraft config schema` 打印当前构建认识的全部配置节和字段，包括类型、默认值、是否敏感和重载方式。`dotcraft config show` 打印某个工作区合并后的配置，其中 `ApiKey`、`Password`、`Token` 的值会被遮蔽为 `***`。
+`dotcraft config schema` 打印配置 schema 中的配置节和字段，包括类型、默认值、是否敏感和重载方式。`dotcraft config show` 打印某个工作区合并后的配置，其中 `ApiKey`、`Password`、`Token` 的值会被遮蔽为 `***`。
 
 ```bash
 dotcraft config schema --section Tools.Web

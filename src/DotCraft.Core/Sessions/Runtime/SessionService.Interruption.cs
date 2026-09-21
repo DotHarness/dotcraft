@@ -15,22 +15,23 @@ public sealed partial class SessionService
         TurnCommitter committer,
         IProviderConversationHistory? providerHistory)
     {
-        if (execution.IntentionallyInterrupted && InterruptMessageEnabled)
+        var appendMarker = execution.IntentionallyInterrupted && InterruptMessageEnabled;
+        if (committer.Session == null && (thread.Ephemeral || appendMarker))
+        {
+            var previous = thread.Ephemeral
+                && _runtimeRegistry.TryGetRuntime(thread.Id, out var existingRuntime)
+                && existingRuntime.EphemeralHistory is { } inMemory
+                    ? inMemory.Select(message => message.Clone()).ToList()
+                    : await persistence.LoadModelHistoryAsync(thread, turn.Id, CancellationToken.None);
+            committer.PersistedModelHistoryCount = previous.Count;
+            previous.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
+            committer.Session = previous;
+        }
+        if (appendMarker)
         {
             var marker = TurnInterruption.Create(turn.Id, ResolveThreadContextCarrier(thread));
-            if (committer.Session == null)
-            {
-                var previous = thread.Ephemeral
-                    && _runtimeRegistry.TryGetRuntime(thread.Id, out var existingRuntime)
-                    && existingRuntime.EphemeralHistory is { } inMemory
-                        ? inMemory.Select(message => message.Clone()).ToList()
-                        : await persistence.LoadModelHistoryAsync(thread, turn.Id, CancellationToken.None);
-                committer.PersistedModelHistoryCount = previous.Count;
-                previous.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
-                committer.Session = previous;
-            }
             await AppendProviderInterruptionAsync(thread, turn, marker, providerHistory, CancellationToken.None);
-            committer.Session.Add(marker);
+            committer.Session!.Add(marker);
         }
         await committer.CommitAsync();
     }

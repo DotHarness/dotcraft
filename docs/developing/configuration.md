@@ -6,7 +6,7 @@ DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.cr
 
 ## Inspect configuration from the CLI
 
-`dotcraft config schema` prints every section and field this build understands, with its type, default, sensitivity, and reload behavior. `dotcraft config show` prints the merged configuration of one workspace with `ApiKey`, `Password`, and `Token` values masked as `***`.
+`dotcraft config schema` prints the sections and fields included in the configuration schema, with their types, defaults, sensitivity, and reload behavior. `dotcraft config show` prints the merged configuration of one workspace with `ApiKey`, `Password`, and `Token` values masked as `***`.
 
 ```bash
 dotcraft config schema --section Tools.Web
