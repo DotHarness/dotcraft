@@ -1,38 +1,20 @@
-// Frozen v1 draw order. IDs are serialized; positions are only sampling weights.
-export const primaryIds = ['none', 'baseball-cap', 'bucket-hat', 'beret', 'beanie', 'top-hat', 'wizard-hat', 'chef-hat', 'party-hat', 'crown', 'hard-hat', 'nightcap', 'straw-hat', 'poop', 'banana', 'fried-egg', 'rubber-duck', 'paper-boat', 'traffic-cone', 'sprout', 'donut'] as const
-export const heldIds = ['task-board', 'wrench', 'shield', 'magnifier', 'control-panel'] as const
-export type HeldId = typeof heldIds[number]
-export const secondaryIds = ['none', 'forehead-goggles', ...heldIds] as const
-export type PrimaryId = typeof primaryIds[number]
-export type SecondaryId = typeof secondaryIds[number]
-export type DecorationId = Exclude<PrimaryId | SecondaryId, 'none'>
+import { conflicts, itemOf, items, rarities, slots, type BackId, type FaceId, type HandId, type HeadId, type ItemId, type ItemOf, type Rarity, type SkinId, type Slot, type Zone } from './items.js'
+
 export interface Appearance {
-  version: 2
+  version: 1
   palette: number
   baseFace: number
-  primary: PrimaryId
-  secondary: SecondaryId
+  head: HeadId | 'none'
+  face: FaceId | 'none'
+  hand: HandId | 'none'
+  back: BackId | 'none'
+  skin: SkinId | 'none'
 }
+export type SlotValue<S extends Slot> = ItemOf<S> | 'none'
 
-// Explicit allow-list, including the undecorated head. No cartesian-product fallback.
-const faceAccessories = ['none', ...heldIds] as const
-export const compatibility: Record<PrimaryId, readonly SecondaryId[]> = {
-  none: [...faceAccessories, 'forehead-goggles'],
-  'baseball-cap': faceAccessories, 'bucket-hat': faceAccessories, beret: faceAccessories,
-  beanie: faceAccessories, 'top-hat': faceAccessories, 'wizard-hat': faceAccessories,
-  'chef-hat': faceAccessories, 'party-hat': faceAccessories, crown: faceAccessories,
-  'hard-hat': faceAccessories, nightcap: faceAccessories, 'straw-hat': faceAccessories,
-  poop: [...faceAccessories, 'forehead-goggles'], banana: [...faceAccessories, 'forehead-goggles'],
-  'fried-egg': [...faceAccessories, 'forehead-goggles'], 'rubber-duck': [...faceAccessories, 'forehead-goggles'],
-  'paper-boat': [...faceAccessories, 'forehead-goggles'], 'traffic-cone': [...faceAccessories, 'forehead-goggles'],
-  sprout: [...faceAccessories, 'forehead-goggles'], donut: [...faceAccessories, 'forehead-goggles'],
-}
-export function isCompatible(primary: PrimaryId, secondary: SecondaryId) {
-  return compatibility[primary].includes(secondary)
-}
-export function withPrimary(appearance: Appearance, primary: PrimaryId): Appearance {
-  return { ...appearance, primary, secondary: isCompatible(primary, appearance.secondary) ? appearance.secondary : 'none' }
-}
+export const slotPresence: Record<Slot, number> = { head: .85, face: .35, hand: .4, back: .25, skin: .3 }
+export const rarityWeights: Record<Rarity, number> = { common: 55, uncommon: 27, rare: 12, epic: 5, legendary: 1 }
+
 export function hashSeed(seed: string): number {
   let value = 0x811c9dc5
   for (let index = 0; index < seed.length; index++) value = Math.imul(value ^ seed.charCodeAt(index), 0x01000193)
@@ -41,18 +23,56 @@ export function hashSeed(seed: string): number {
   value ^= value >>> 15; value = Math.imul(value, 0x846ca68b)
   return (value ^ (value >>> 16)) >>> 0
 }
-export function isHeld(id: SecondaryId): id is HeldId { return (heldIds as readonly string[]).includes(id) }
-export const originalAppearance: Appearance = { version: 2, palette: -1, baseFace: 0, primary: 'none', secondary: 'none' }
+export const originalAppearance: Appearance = { version: 1, palette: -1, baseFace: 0, head: 'none', face: 'none', hand: 'none', back: 'none', skin: 'none' }
 export function normalizeName(name: string): string { return name.trim().normalize('NFC') }
+
+export function equippedIds(appearance: Appearance): ItemId[] {
+  return slots.map(slot => appearance[slot]).filter((id): id is ItemId => id !== 'none')
+}
+export function occupiedZones(appearance: Appearance): Set<Zone> {
+  return new Set(equippedIds(appearance).flatMap(id => [...itemOf(id).zones]))
+}
+export function canEquip<S extends Slot>(appearance: Appearance, slot: S, id: SlotValue<S>): boolean {
+  if (id === 'none') return true
+  if (itemOf(id).slot !== slot) return false
+  return slots.every(other => other === slot || appearance[other] === 'none' || !conflicts(appearance[other] as ItemId, id))
+}
+export function equip<S extends Slot>(appearance: Appearance, slot: S, id: SlotValue<S>): { appearance: Appearance; cleared: Slot[] } {
+  if (id !== 'none' && itemOf(id).slot !== slot) throw new TypeError(`Cannot equip ${id} in the ${slot} slot`)
+  const next: Appearance = { ...appearance, [slot]: id }
+  const cleared: Slot[] = []
+  if (id !== 'none') for (const other of slots) {
+    const current = next[other]
+    if (other !== slot && current !== 'none' && conflicts(current, id)) { (next as Record<Slot, string>)[other] = 'none'; cleared.push(other) }
+  }
+  return { appearance: next, cleared }
+}
+export function hasConflicts(appearance: Appearance): boolean {
+  const ids = equippedIds(appearance)
+  return ids.some((a, index) => ids.slice(index + 1).some(b => conflicts(a, b)))
+}
+
 export function deriveAppearance(name: string): Appearance {
   const seed = normalizeName(name)
   if (!seed) return { ...originalAppearance }
   const draw = (dimension: string) => hashSeed(JSON.stringify(['dotcraft-avatar', 1, seed, dimension])) / 0x100000000
-  const primary = primaryIds[Math.floor(draw('primary') * primaryIds.length)]
-  const choices = compatibility[primary].filter(id => id !== 'none')
-  const secondaryDraw = (dimension: string) => hashSeed(JSON.stringify(['dotcraft-avatar', 2, seed, dimension])) / 0x100000000
-  const secondary = secondaryDraw('secondary-presence') < .5 ? 'none' : choices[Math.floor(secondaryDraw('secondary-item') * choices.length)]
-  return { version: 2, palette: Math.floor(draw('palette') * 12), baseFace: Math.floor(draw('face') * 5), primary, secondary }
+  const appearance: Appearance = { ...originalAppearance, palette: Math.floor(draw('palette') * 12), baseFace: Math.floor(draw('face') * 5) }
+  const occupied = new Set<Zone>()
+  for (const slot of slots) {
+    if (draw(`${slot}-presence`) >= slotPresence[slot]) continue
+    const slotItems = items.filter(item => item.slot === slot)
+    const tiers = rarities.filter(rarity => slotItems.some(item => item.rarity === rarity))
+    let roll = draw(`${slot}-rarity`) * tiers.reduce((sum, rarity) => sum + rarityWeights[rarity], 0)
+    let rarity: Rarity = tiers[tiers.length - 1]
+    for (const tier of tiers) { roll -= rarityWeights[tier]; if (roll < 0) { rarity = tier; break } }
+    // A tier with no zone-compatible item leaves the slot empty, so rare combinations stay rare.
+    const pool = slotItems.filter(item => item.rarity === rarity && item.zones.every(zone => !occupied.has(zone)))
+    if (!pool.length) continue
+    const pick = pool[Math.floor(draw(`${slot}-item`) * pool.length)]
+    ;(appearance as Record<Slot, string>)[slot] = pick.id
+    for (const zone of pick.zones) occupied.add(zone)
+  }
+  return appearance
 }
 export function sampleSeed(seed: string, round: number, index: number) {
   return JSON.stringify([seed, round, index])

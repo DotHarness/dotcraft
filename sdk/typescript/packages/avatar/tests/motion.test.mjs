@@ -1,13 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { primaryIds } from '../dist/appearanceModel.js'
+import { slotIds } from '../dist/items.js'
 import { advanceDecoration, decorationFrame, decorationMotionProfiles, eventDuration, frameTransform, requestDecorationEvent, restFrame } from '../dist/decorationMotion.js'
 
-test('all 20 stable primary IDs have explicit contact and motion profiles', () => {
-  assert.deepEqual(Object.keys(decorationMotionProfiles).sort(), primaryIds.filter(id => id !== 'none').sort())
-  const counts = Object.values(decorationMotionProfiles).reduce((result, profile) => ({ ...result, [profile.kind]: (result[profile.kind] ?? 0) + 1 }), {})
-  assert.deepEqual(counts, { lift: 9, fitted: 3, bounce: 3, rock: 3, squish: 1, sprout: 1 })
-  assert.equal(decorationMotionProfiles['traffic-cone'].angle, decorationMotionProfiles['paper-boat'].angle / 2)
+test('every head item has an explicit contact and motion profile', () => {
+  assert.deepEqual(Object.keys(decorationMotionProfiles).sort(), slotIds('head').sort())
 })
 test('every event starts and lands at its exact mounting pose, with bounded movement', () => {
   for (const profile of Object.values(decorationMotionProfiles)) {

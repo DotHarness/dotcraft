@@ -31,6 +31,8 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 
 `@dotcraft/avatar/react` 提供面向 React 19 的 DotCraft 名称派生 `Avatar` 组件。传入 `name` 和 `size`，还可传入 `state`、`motion`、`paused`、`eventSequence` 和 `label`。其中的 `ComposerMascot` 组件通过可选 `theme` 属性接收宿主已应用的 `light` 或 `dark` 主题，默认值为 `dark`。不依赖框架的包根入口导出 `deriveAppearance`，它会先去除名称两端空白并进行 NFC 规范化，再生成外观。规范化后相同的名称会得到相同的视觉身份，空名称会使用原始 DotCraft 外观。
 
+一个外观由五个独立槽位（`head`、`face`、`hand`、`back`、`skin`）组成，物件来自一个收藏品注册表，每件都带有从 Common 到 Legendary 的稀有度和所属系列。占用同一挂载区域的物件不会同时出现；`equip(appearance, slot, id)` 修改一个槽位并清除与之冲突的槽位。Holographic、Chrome 等物件特效只在 44px 及以上且开启动效时播放，20px 及以下的头像只保留头顶和背后的轮廓。可通过 `@dotcraft/avatar/react` 的 `AppearanceAvatar` 渲染显式指定的外观。
+
 ## 高层 API
 
 | 任务 | API |

@@ -1,8 +1,74 @@
-import type { PrimaryId } from './appearanceModel.js'
-import { Detail, Silhouette as S } from './DecorationShapes.js'
+import type { HeadId } from './items.js'
+import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
 
-export function ObjectDecoration({ id }: { id: PrimaryId }) {
+function RingedPlanet() {
+  const clip = useClipId()
+  return <>
+    <defs><clipPath id={clip}><circle cx="512" cy="300" r="92" /></clipPath></defs>
+    <Glow blur={22} className="dca-fx-pulse"><circle cx="512" cy="312" r="150" fill="#f1e3c8" opacity=".5" /></Glow>
+    <g transform="rotate(-16 512 335)">
+      <ellipse cx="512" cy="335" rx="175" ry="40" stroke="#fff" strokeWidth="40" fill="none" />
+      <ellipse cx="512" cy="335" rx="175" ry="40" stroke="#f1e3c8" strokeWidth="22" fill="none" />
+    </g>
+    <S d="M512 208a92 92 0 1 1 0 184a92 92 0 1 1 0-184Z" fill="#d9b07a" />
+    <g clipPath={`url(#${clip})`}>
+      <path d="M410 272c70 24 140 24 210 0v40c-70 24-140 24-210 0Z" fill="#b8875a" />
+    </g>
+    <g transform="rotate(-16 512 335)">
+      <path d="M337 335A175 40 0 0 0 687 335" stroke="#fff" strokeWidth="40" fill="none" />
+      <path d="M337 335A175 40 0 0 0 687 335" stroke="#f1e3c8" strokeWidth="22" fill="none" />
+    </g>
+  </>
+}
+
+function Ufo() {
+  return <g className="dca-fx-hover" style={{ transformOrigin: '512px 300px' }}>
+    <Glow blur={16} className="dca-fx-pulse"><path d="M452 336 402 404h220l-50-68Z" fill="#c7f6ff" opacity=".6" /></Glow>
+    <path d="M452 336 402 404h220l-50-68Z" fill="#c7f6ff" opacity=".4" />
+    <S d="M432 296c0-50 36-86 80-86s80 36 80 86Z" fill="#a2c5d1" />
+    <S d="M342 304c0-26 76-46 170-46s170 20 170 46-76 46-170 46-170-20-170-46Z" fill="#8b95a5" />
+    <g fill="#f6b500"><circle className="dca-fx dca-fx-node" cx="420" cy="312" r="11" /><circle className="dca-fx dca-fx-node" cx="512" cy="322" r="11" style={{ animationDelay: '.6s' }} /><circle className="dca-fx dca-fx-node" cx="604" cy="312" r="11" style={{ animationDelay: '1.2s' }} /></g>
+  </g>
+}
+
+export function ObjectDecoration({ id }: { id: HeadId }) {
   switch (id) {
+    case 'ringed-planet': return <RingedPlanet />
+    case 'cat-ears': return <>
+      <S d="M340 404 384 210 520 380Z" fill="#c9a27e" /><path d="M374 388 396 268 480 372Z" fill="#f2a0b4" />
+      <S d="M684 404 640 210 504 380Z" fill="#c9a27e" /><path d="M650 388 628 268 544 372Z" fill="#f2a0b4" />
+    </>
+    case 'mushroom': return <>
+      <rect x="470" y="356" width="84" height="52" rx="16" fill="#fff1dc" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+      <S d="M352 366c0-90 72-160 160-160s160 70 160 160c0 26-20 40-46 40H398c-26 0-46-14-46-40Z" fill="#e8654f" />
+      <g fill="#fff4ef"><circle cx="430" cy="300" r="24" /><circle cx="540" cy="266" r="20" /><circle cx="600" cy="334" r="18" /><circle cx="490" cy="350" r="16" /></g>
+    </>
+    case 'shark-fin': return <>
+      <S d="M446 404c10-92 42-166 104-214 22 62 72 134 118 214Z" fill="#8b95a5" />
+      <path d="M480 404c8-64 30-118 70-160 12 42 34 96 68 160Z" fill="#a7b1c0" />
+    </>
+    case 'ice-cream': return <>
+      <S d="M440 330 512 130 584 330Z" fill="#e0ad84" />
+      <S d="M512 258a82 82 0 1 1 0 164a82 82 0 1 1 0-164Z" fill="#f2a0b4" />
+      <circle cx="512" cy="120" r="20" fill="#e8654f" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+    </>
+    case 'flower-crown': return <>
+      <S d="M330 404c40-40 324-40 364 0v4H330Z" fill="#89b875" />
+      <g stroke="#fff" strokeWidth="12" paintOrder="stroke fill">
+        <circle cx="372" cy="392" r="26" fill="#f2a0b4" /><circle cx="442" cy="376" r="26" fill="#f6b500" /><circle cx="512" cy="370" r="28" fill="#f2a0b4" /><circle cx="582" cy="376" r="26" fill="#f6b500" /><circle cx="652" cy="392" r="26" fill="#f2a0b4" />
+      </g>
+      <g fill="#fff"><circle cx="372" cy="392" r="9" /><circle cx="442" cy="376" r="9" /><circle cx="512" cy="370" r="10" /><circle cx="582" cy="376" r="9" /><circle cx="652" cy="392" r="9" /></g>
+    </>
+    case 'lightning': return <>
+      <Glow blur={20} className="dca-fx-pulse"><path d="M548 160 438 320h70l-32 84 116-150h-70Z" fill="#fff3c4" opacity=".8" /></Glow>
+      <S d="M548 160 438 320h70l-32 84 116-150h-70Z" fill="#ffcf11" />
+    </>
+    case 'crystal-cluster': return <>
+      <Glow blur={20} className="dca-fx-pulse"><path d="M512 200 560 320 512 404 464 320Z" fill="#c4b5fd" opacity=".8" /></Glow>
+      <S d="M440 270 474 340 446 404 412 340Z" fill="#a78bfa" /><S d="M584 270 618 340 590 404 556 340Z" fill="#a78bfa" />
+      <S d="M512 200 560 320 512 404 464 320Z" fill="#8b5cf6" /><path d="M512 200 536 320 512 404Z" fill="#c4b5fd" />
+    </>
+    case 'ufo': return <Ufo />
     case 'poop': return <>
       <S d="M393 315c-17-37 10-65 57-67-12-33 15-48 39-53 21-5 29-17 27-35 52 20 69 43 55 75 47 0 72 35 52 73 70 9 81 92 8 92H389c-67 0-62-77 4-85Z" fill="#a97b5f" />
       <path d="M397 313c64 19 157 22 227-5-9 32-171 60-227 5Zm53-65c35 16 80 15 121-13-1 31-82 49-121 13Z" fill="#805840" />

@@ -72,9 +72,43 @@
       calc(h + 27.55)) 36%, transparent));
 }
 
+@keyframes dca-skin-energy {
+  0%, 100% { opacity: 0; }
+  50% { opacity: var(--dca-skin-energy-peak); }
+}
+
+[data-mascot-effort='medium'] .dca-robot[data-effects='live'] .dca-skin-energy {
+  --dca-skin-energy-peak: .16;
+  animation: dca-skin-energy 6s ease-in-out infinite;
+}
+
+[data-mascot-effort='high'] .dca-robot[data-effects='live'] .dca-skin-energy {
+  --dca-skin-energy-peak: .26;
+  animation: dca-skin-energy 3.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='extraHigh'] .dca-robot[data-effects='live'] .dca-skin-energy {
+  --dca-skin-energy-peak: .38;
+  animation: dca-skin-energy 2.8s ease-in-out infinite;
+}
+
+[data-mascot-effort='medium'] .dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-holo) stop { animation-duration: 4.6s; }
+[data-mascot-effort='high'] .dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-holo) stop { animation-duration: 3.2s; }
+[data-mascot-effort='extraHigh'] .dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-holo) stop { animation-duration: 2.2s; }
+[data-mascot-effort='medium'] .dca-robot[data-effects='live'] .dca-fx-sheen { animation-duration: 3.4s; }
+[data-mascot-effort='high'] .dca-robot[data-effects='live'] .dca-fx-sheen { animation-duration: 2.4s; }
+[data-mascot-effort='extraHigh'] .dca-robot[data-effects='live'] .dca-fx-sheen { animation-duration: 1.6s; }
+[data-mascot-effort='high'] .dca-robot[data-effects='live'] [data-skin-overlay='galaxy'] .dca-fx-node { animation-duration: 1.1s; }
+[data-mascot-effort='extraHigh'] .dca-robot[data-effects='live'] [data-skin-overlay='galaxy'] .dca-fx-node { animation-duration: .7s; }
+
 [data-mascot-context='max'] .dca-robot {
   animation: composer-mascot-max-overdrive-edge 3.8s ease-in-out infinite;
   will-change: filter;
+}
+
+[data-mascot-context='max'] .dca-robot[data-effects='live'] .dca-skin-energy {
+  --dca-skin-energy-peak: .3;
+  animation: dca-skin-energy 3.8s ease-in-out infinite;
 }
 
 [data-mascot-context='max'] .dca-robot .dca-paint-body stop:nth-child(1) {

@@ -1,7 +1,7 @@
-import type { PrimaryId } from './appearanceModel.js'
+import type { HeadId } from './items.js'
 import { Detail, Silhouette as S } from './DecorationShapes.js'
 
-export function HatDecoration({ id }: { id: PrimaryId }) {
+export function HatDecoration({ id }: { id: HeadId }) {
   switch (id) {
     case 'baseball-cap': return <>
       <S d="M337 368c0-94 44-163 139-163 91 0 142 65 142 155 36 0 71 8 88 24 9 9-2 23-24 23H363c-24 0-31-15-26-39Z" fill="#e87967" />
@@ -69,6 +69,33 @@ export function HatDecoration({ id }: { id: PrimaryId }) {
       <S d="M319 352c19-7 47-11 78-15l13-83c3-17 200-17 204 0l13 83c31 4 59 8 78 15 32 12 17 45-20 48-115 12-231 12-346 0-37-3-52-36-20-48Z" fill="#e8c78a" />
       <path d="m405 302 214 0 8 35c-72 11-150 11-230 0Z" fill="#c57568" /><ellipse cx="512" cy="258" rx="97" ry="16" fill="#f5dfb2" />
       <Detail><path d="M334 379q177 26 356 0" stroke="#c49b5e" strokeWidth="10" strokeLinecap="round" /></Detail>
+    </>
+    case 'cowboy-hat': return <>
+      <S d="M300 376c60-26 100-30 110-34l-8-84c-2-30 40-56 110-56s112 26 110 56l-8 84c10 4 50 8 110 34 22 10 12 40-18 42-130-16-264-16-388 0-30-2-40-32-18-42Z" fill="#b98352" />
+      <path d="M300 376c60-26 100-30 110-34 62 14 142 14 204 0 10 4 50 8 110 34 22 10 12 40-18 42-130-16-264-16-388 0-30-2-40-32-18-42Z" fill="#a8734a" />
+      <path d="M408 338c62 14 142 14 204 0l-4 26c-62 12-134 12-196 0Z" fill="#6e4a2e" />
+    </>
+    case 'propeller-cap': return <>
+      <g className="dca-fx-spin-flat" style={{ transformOrigin: '512px 228px' }}>
+        <rect x="392" y="216" width="240" height="24" rx="12" fill="#c9d2ff" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      </g>
+      <S d="M368 404c0-94 60-160 144-160s144 66 144 160Z" fill="#f6b500" />
+      <path d="M512 244c56 0 104 30 128 76l-128 84Z" fill="#e8654f" /><path d="M512 244c-56 0-104 30-128 76l128 84Z" fill="#e8654f" opacity=".55" />
+      <circle cx="512" cy="240" r="16" fill="#3c4658" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+    </>
+    case 'graduation-cap': return <>
+      <S d="M420 404v-30c0-38 40-66 92-66s92 28 92 66v30Z" fill="#3c4658" />
+      <S d="M512 250 700 316 512 382 324 316Z" fill="#2b2f3a" />
+      <g className="dca-fx-swing" style={{ transformOrigin: '512px 316px' }}>
+        <path d="M512 316 616 372" stroke="#fff" strokeWidth="24" strokeLinecap="round" /><path d="M512 316 616 372" stroke="#f6b500" strokeWidth="10" strokeLinecap="round" />
+        <circle cx="622" cy="386" r="18" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+      </g>
+      <circle cx="512" cy="316" r="12" fill="#f6b500" />
+    </>
+    case 'pirate-hat': return <>
+      <S d="M312 392c40-96 116-160 200-160s160 64 200 160c-64 36-336 36-400 0Z" fill="#2b2f3a" />
+      <path d="M312 392c56-22 344-22 400 0-64 36-336 36-400 0Z" fill="#3c4658" />
+      <circle cx="512" cy="300" r="28" fill="#fff" /><circle cx="501" cy="296" r="5" fill="#2b2f3a" /><circle cx="523" cy="296" r="5" fill="#2b2f3a" />
     </>
     default: return null
   }

@@ -31,6 +31,8 @@ Contracts has no Node.js, WebSocket, or runtime I/O dependency, so Renderer code
 
 `@dotcraft/avatar/react` provides the React 19 `Avatar` component for DotCraft's name-derived visual identity. Pass `name` and `size`, with optional `state`, `motion`, `paused`, `eventSequence`, and `label` props. Its `ComposerMascot` component accepts the host's applied `light` or `dark` theme through the optional `theme` prop, which defaults to `dark`. The framework-neutral package root exports `deriveAppearance`, which trims and NFC-normalizes the name before deriving an appearance. The same normalized name produces the same identity; an empty name produces the original DotCraft appearance.
 
+An appearance fills five independent slots (`head`, `face`, `hand`, `back`, `skin`) from a registry of collectible items, each with a rarity from Common to Legendary and a series. Items that share a mounting zone never appear together; `equip(appearance, slot, id)` changes one slot and clears conflicting ones. Item effects such as the Holographic or Chrome skins animate only at 44px and above with motion enabled, and avatars at 20px and below keep just the head and back silhouettes. Render an explicit appearance with `AppearanceAvatar` from `@dotcraft/avatar/react`.
+
 ## High-level API
 
 | Task | API |

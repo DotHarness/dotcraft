@@ -1,31 +1,56 @@
-import type { PrimaryId, SecondaryId, DecorationId } from './appearanceModel.js'
-import { isHeld } from './appearanceModel.js'
-import { HeldDecoration } from './HeldDecorations.js'
+import { useId } from 'react'
+import type { ItemId, HeadId, SkinId } from './items.js'
+import { itemOf } from './items.js'
 import { HatDecoration } from './HatDecorations.js'
 import { ObjectDecoration } from './ObjectDecorations.js'
+import { FaceDecoration, FaceplateEyes, FaceplatePlate, isFaceplate } from './FaceDecorations.js'
+import { HandDecoration } from './HandDecorations.js'
+import { BackDecoration, BackFrontDecoration } from './BackDecorations.js'
+import { SkinOverlay, SkinPaintSurface, skinPaint } from './SkinDecorations.js'
 import { decorationOf } from './decorationCatalog.js'
 
-export function SecondaryDecoration({ id }: { id: SecondaryId }) {
-  if (isHeld(id)) return <HeldDecoration id={id} />
-  switch (id) {
-    case 'forehead-goggles': return <g strokeLinejoin="round">
-      <path d="M374 419h109v46H374Zm167 0h109v46H541Z" fill="#a2c5d1" stroke="#8b7568" strokeWidth="14" />
-      <path d="M483 442q29 20 58 0" stroke="#8b7568" strokeWidth="11" fill="none" />
-      <path d="m389 429 18 21m149-21 18 21" stroke="#e0eff1" strokeWidth="8" />
-    </g>
-    default: return null
-  }
-}
-export function PrimaryDecoration({ id }: { id: PrimaryId }) {
+export function HeadDecoration({ id }: { id: HeadId }) {
   return <g data-decoration={id}><HatDecoration id={id} /><ObjectDecoration id={id} /></g>
 }
-export function DecoratedTop({ id }: { id: Exclude<PrimaryId, 'none'> }) {
-  return <PrimaryDecoration id={id} />
+
+function SkinSpecimen({ id }: { id: SkinId }) {
+  const uid = useId().replace(/:/g, '')
+  const paint = skinPaint(id)
+  return <g data-skin={id}>
+    <defs>
+      {paint?.render(`dca-swatch-paint-${uid}`)}
+      <clipPath id={`dca-swatch-clip-${uid}`}><rect x="243" y="408" width="538" height="426" rx="113" /></clipPath>
+    </defs>
+    <rect x="243" y="408" width="538" height="426" rx="113" fill={paint ? `url(#dca-swatch-paint-${uid})` : '#4f7cf6'} stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+    <g clipPath={`url(#dca-swatch-clip-${uid})`}>{paint ? <SkinPaintSurface id={id} /> : <SkinOverlay id={id} />}</g>
+  </g>
 }
-export function DecorationSwatch({ id, size = 112 }: { id: DecorationId; size?: number }) {
-  const secondary = decorationOf(id).category === 'Accessories'
-  const forehead = id === 'forehead-goggles'
-  return <svg width={size} height={size} viewBox={secondary ? forehead ? '300 280 424 324' : '65 435 315 360' : '265 105 494 360'} fill="none" role="img" aria-label={`${decorationOf(id).name} specimen`}>
-    {secondary ? <SecondaryDecoration id={id as SecondaryId} /> : <PrimaryDecoration id={id as PrimaryId} />}
+
+export function SlotDecoration({ id }: { id: ItemId }) {
+  const item = itemOf(id)
+  switch (item.slot) {
+    case 'head': return <HeadDecoration id={item.id} />
+    case 'face': return isFaceplate(item.id)
+      ? <g data-accessory={item.id}><rect x="295" y="464" width="434" height="315" rx="78" fill="#fff" /><FaceplatePlate id={item.id} /><FaceplateEyes id={item.id} /></g>
+      : <g data-accessory={item.id}><FaceDecoration id={item.id} /></g>
+    case 'hand': return <g data-accessory={item.id}><HandDecoration id={item.id} /></g>
+    case 'back': return <g data-back={item.id}><BackDecoration id={item.id} /><BackFrontDecoration id={item.id} /></g>
+    case 'skin': return <SkinSpecimen id={item.id} />
+  }
+}
+
+const swatchViewBox: Record<ReturnType<typeof itemOf>['slot'], string> = {
+  head: '265 105 494 360',
+  face: '300 280 424 324',
+  hand: '40 330 400 400',
+  back: '20 120 984 800',
+  skin: '203 368 618 506',
+}
+export function DecorationSwatch({ id, size = 112 }: { id: ItemId; size?: number }) {
+  const item = itemOf(id)
+  const viewBox = item.slot === 'face' && isFaceplate(item.id) ? '255 404 514 436' : swatchViewBox[item.slot]
+  return <svg width={size} height={size} viewBox={viewBox} fill="none" role="img" aria-label={`${decorationOf(id).name} specimen`}
+    className="dca-swatch dca-part-robot" data-expression="neutral" data-slot={item.slot} data-effects="static">
+    <SlotDecoration id={id} />
   </svg>
 }
