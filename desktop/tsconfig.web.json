@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "composite": true,
+    "outDir": "./node_modules/.cache/dotcraft/typescript/web",
+    "tsBuildInfoFile": "./node_modules/.cache/dotcraft/typescript/web.tsbuildinfo",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ESNext",

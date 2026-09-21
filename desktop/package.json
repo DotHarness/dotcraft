@@ -21,7 +21,6 @@
     "check:styles": "node scripts/check-css-architecture.mjs",
     "typecheck": "tsc -p tsconfig.node.json --noEmit --pretty false && tsc -p tsconfig.preload.json --noEmit --pretty false && tsc -p tsconfig.web.json --noEmit --pretty false",
     "prepare:runtime": "node scripts/install-target-optional-deps.mjs",
-    "typecheck:appserver-boundary": "tsc -p tsconfig.appserver-boundary.json",
     "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

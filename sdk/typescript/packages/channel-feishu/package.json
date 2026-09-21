@@ -20,9 +20,7 @@
     "assets",
     "vendor",
     "official-cli/lark-cli.lock.json",
-    "manifest.json",
-    "README.md",
-    "README_ZH.md"
+    "manifest.json"
   ],
   "scripts": {
     "start": "node dist/cli.js --workspace .",

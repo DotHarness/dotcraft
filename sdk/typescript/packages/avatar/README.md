@@ -1,12 +1,9 @@
 # @dotcraft/avatar
 
-Render a DotCraft companion from an Agent name. The same name produces the same colors,
-expression and decorations across applications. React components require React 19; the core
-entry works without React.
+Render a consistent DotCraft companion from an Agent name. React components require React 19;
+the package root works without React.
 
 ## Install
-
-After the package's first npm release:
 
 ```shell
 npm install @dotcraft/avatar
@@ -25,22 +22,23 @@ export function AgentIdentity() {
 }
 ```
 
-Avatars are static by default. Set `state="working"` and `motion="system"` to animate while
-respecting reduced-motion preferences. Use `paused` to freeze playback and increment
-`eventSequence` to replay an event. Provide a localized `label`, or omit it for decorative artwork.
-See the [component props](./src/Avatar.tsx) for all options.
+Import `deriveAppearance` from `@dotcraft/avatar` when an application needs the same
+name-derived appearance without React.
 
-`ComposerMascot` accepts `theme="light"` or `theme="dark"` for host-aware effects. It defaults
-to `dark`; pass the host's applied theme when the surrounding application supports both variants.
+## Collection
 
-## Derive an appearance
+An appearance fills five independent slots: `head`, `face`, `hand`, `back`, and `skin`. Every
+item in the [registry](./src/items.ts) carries a rarity (`common` to `legendary`), a series, and
+the zones it occupies; items that share a zone never appear together. Name derivation draws each
+slot's rarity with shared weights, so legendary items are rare but reachable. Use
+`equip(appearance, slot, id)` to change one slot and clear conflicting ones, and the
+[catalog](./src/decorationCatalog.ts) for display names, rarity chrome colors, and series labels.
 
-```ts
-import { deriveAppearance } from '@dotcraft/avatar'
+Effects belong to items: paint skins such as `chrome` and `holographic` replace the body paint,
+glow items pulse, and orbit moons circle. Effects animate only at 44px and above with motion
+enabled; smaller avatars render their static frame, and avatars at 20px and below drop face, hand,
+overlay-skin, and effect layers entirely. The model is specified in
+[specs/features/avatar-collection.md](../../../../specs/features/avatar-collection.md).
 
-const appearance = deriveAppearance('Reviewer')
-```
-
-Names are trimmed and normalized to Unicode NFC; case and internal spaces remain significant.
-An empty name shows the original undecorated mascot. `AppearanceAvatar` from `/react` renders
-an explicit appearance for design tools. See the [appearance types and compatibility rules](./src/appearanceModel.ts).
+See the [TypeScript SDK reference](https://www.dotcraft.net/developing/sdks/typescript) for the
+available entry points.

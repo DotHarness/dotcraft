@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "outDir": "./node_modules/.cache/dotcraft/typescript/preload",
+    "tsBuildInfoFile": "./node_modules/.cache/dotcraft/typescript/preload.tsbuildinfo",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ESNext",
@@ -11,6 +14,6 @@
     "skipLibCheck": true,
     "types": ["electron-vite/node", "node"]
   },
-  "include": ["src/preload/**/*"],
+  "include": ["src/preload/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "src/**/tests/**", "src/**/*.test.*"]
 }

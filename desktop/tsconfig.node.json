@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "composite": true,
+    "outDir": "./node_modules/.cache/dotcraft/typescript/node",
+    "tsBuildInfoFile": "./node_modules/.cache/dotcraft/typescript/node.tsbuildinfo",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ESNext",
@@ -12,6 +14,6 @@
     "skipLibCheck": true,
     "types": ["electron-vite/node", "node"]
   },
-  "include": ["electron.vite.config.*", "src/main/**/*", "src/shared/**/*"],
+  "include": ["electron.vite.config.*", "package.json", "src/main/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "src/**/tests/**", "src/**/*.test.*"]
 }
