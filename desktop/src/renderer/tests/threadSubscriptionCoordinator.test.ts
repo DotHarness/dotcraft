@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   createThreadSubscriptionOperationQueue,
+  isSameThreadSubscriptionTarget,
+  isThreadSubscriptionConnectionCurrent,
+  resolveActiveThreadSubscriptionTarget,
   runQueuedThreadUnsubscribe
 } from '../utils/threadSubscriptionCoordinator'
 
@@ -24,6 +27,53 @@ async function flushPromises(): Promise<void> {
 }
 
 describe('thread subscription coordinator', () => {
+  it('resolves a target only from the authoritative foreground workspace list', () => {
+    const base = {
+      connected: true,
+      activeThreadId: 'thread-a',
+      workspaceIdentity: 'workspace-a\u0000workspace-a',
+      workspaceKey: 'workspace-a',
+      connectionEpoch: 3,
+      threadListWorkspaceKey: 'workspace-a',
+      threadIds: ['thread-a']
+    }
+
+    const target = resolveActiveThreadSubscriptionTarget(base)
+    expect(target).toEqual({
+      threadId: 'thread-a',
+      workspaceIdentity: 'workspace-a\u0000workspace-a',
+      workspaceKey: 'workspace-a',
+      connectionEpoch: 3
+    })
+    expect(isSameThreadSubscriptionTarget(target, { ...target!, connectionEpoch: 4 })).toBe(false)
+    expect(resolveActiveThreadSubscriptionTarget({
+      ...base,
+      workspaceIdentity: 'workspace-b\u0000workspace-b',
+      workspaceKey: 'workspace-b'
+    })).toBeNull()
+    expect(resolveActiveThreadSubscriptionTarget({
+      ...base,
+      threadIds: []
+    })).toBeNull()
+  })
+
+  it('matches a subscription connection by workspace identity and epoch', () => {
+    const target = {
+      threadId: 'thread-a',
+      workspaceIdentity: 'workspace-a\u0000workspace-a',
+      workspaceKey: 'workspace-a',
+      connectionEpoch: 3
+    }
+
+    expect(isThreadSubscriptionConnectionCurrent(target, target)).toBe(true)
+    expect(isThreadSubscriptionConnectionCurrent(target, { ...target, connectionEpoch: 4 })).toBe(false)
+    expect(isThreadSubscriptionConnectionCurrent(target, {
+      ...target,
+      workspaceIdentity: 'workspace-b\u0000workspace-b',
+      workspaceKey: 'workspace-b'
+    })).toBe(false)
+  })
+
   it('serializes operations for the same thread', async () => {
     const queue = createThreadSubscriptionOperationQueue()
     const unblockUnsubscribe = createDeferred()
@@ -77,6 +127,22 @@ describe('thread subscription coordinator', () => {
     await Promise.all([prior, unsubscribe])
 
     expect(calls).toEqual(['prior:start', 'prior:end', 'unsubscribe:skipped'])
+    expect(unsubscribeRequests).toEqual([])
+  })
+
+  it('skips a queued unsubscribe after its workspace connection is replaced', async () => {
+    const unsubscribeRequests: string[] = []
+
+    const sent = await runQueuedThreadUnsubscribe({
+      threadId: 'thread-a',
+      getActiveThreadId: () => null,
+      isConnectionCurrent: () => false,
+      unsubscribe: async (threadId) => {
+        unsubscribeRequests.push(threadId)
+      }
+    })
+
+    expect(sent).toBe(false)
     expect(unsubscribeRequests).toEqual([])
   })
 

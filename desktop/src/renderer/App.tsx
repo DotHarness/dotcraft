@@ -94,6 +94,11 @@ import { interruptTurn } from './utils/interruptTurn'
 import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
 import {
   createThreadSubscriptionOperationQueue,
+  isSameThreadSubscriptionTarget,
+  isThreadSubscriptionConnectionCurrent,
+  resolveActiveThreadSubscriptionTarget,
+  threadSubscriptionTargetKey,
+  type ThreadSubscriptionTarget,
   runQueuedThreadUnsubscribe
 } from './utils/threadSubscriptionCoordinator'
 import {
@@ -151,7 +156,7 @@ interface ThreadSubscribeEnsureOptions {
 type EnsureThreadSubscribed = (
   threadId: string,
   options?: ThreadSubscribeEnsureOptions
-) => Promise<void>
+) => Promise<boolean>
 
 interface WorkspaceLaunchTransitionState {
   phase: WorkspaceLaunchTransitionPhase
@@ -660,6 +665,10 @@ export function App(): JSX.Element {
   )
   const activeProjectKeyRef = useRef(activeProjectKey)
   activeProjectKeyRef.current = activeProjectKey
+  const foregroundThreadListKeyRef = useRef(foregroundThreadListKey)
+  foregroundThreadListKeyRef.current = foregroundThreadListKey
+  const foregroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
+  foregroundThreadListIdentityKeyRef.current = foregroundThreadListIdentityKey
   const foregroundChatKey = foregroundChat
     ? normalizeWorkspaceProjectKey(
       foregroundChat.projectId || foregroundChat.identityWorkspacePath || foregroundChat.path
@@ -2599,37 +2608,62 @@ export function App(): JSX.Element {
    * completions across React StrictMode and rapid thread switches.
    */
   const subscribedThreadIdRef = useRef<string | null>(null)
-  const subscribedThreadConnectionKeyRef = useRef<string | null>(null)
+  const subscribedThreadTargetRef = useRef<ThreadSubscriptionTarget | null>(null)
   const threadSubscriptionOperationsRef = useRef(createThreadSubscriptionOperationQueue())
-  const threadSubscriptionIntentRef = useRef<{ threadId: string; key: string } | null>(null)
-  const threadSubscriptionReadyRef = useRef<{ threadId: string; key: string } | null>(null)
+  const threadSubscriptionIntentRef = useRef<ThreadSubscriptionTarget | null>(null)
+  const threadSubscriptionReadyRef = useRef<ThreadSubscriptionTarget | null>(null)
   const threadSubscriptionInFlightRef = useRef<{
-    threadId: string
-    key: string
+    target: ThreadSubscriptionTarget
     replayRecent: boolean
-    promise: Promise<void>
+    promise: Promise<boolean>
   } | null>(null)
-  const { activeThreadId } = useThreadStore()
+  const { activeThreadId, threadList, threadListProjectKey } = useThreadStore()
   const activeThreadSubscriptionScope =
     status === 'connected'
       ? `${foregroundThreadListIdentityKey}\u0000${connectionEpoch}`
       : ''
   const activeThreadSubscriptionScopeRef = useRef(activeThreadSubscriptionScope)
   activeThreadSubscriptionScopeRef.current = activeThreadSubscriptionScope
-  const activeThreadSubscriptionKey =
-    activeThreadId && activeThreadSubscriptionScope
-      ? `${activeThreadSubscriptionScope}\u0000${activeThreadId}`
-      : null
+  const activeThreadSubscriptionTarget = resolveActiveThreadSubscriptionTarget({
+    connected: status === 'connected',
+    activeThreadId,
+    workspaceIdentity: foregroundThreadListIdentityKey,
+    workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKey),
+    connectionEpoch,
+    threadListWorkspaceKey: normalizeWorkspaceProjectKey(threadListProjectKey),
+    threadIds: threadList.map((thread) => thread.id)
+  })
+  const activeThreadSubscriptionKey = activeThreadSubscriptionTarget
+    ? threadSubscriptionTargetKey(activeThreadSubscriptionTarget)
+    : null
 
-  const getThreadSubscriptionKey = useCallback((threadId: string): string => {
-    const scope = activeThreadSubscriptionScopeRef.current
-    return scope ? `${scope}\u0000${threadId}` : `unscoped\u0000${threadId}`
+  const getCurrentThreadSubscriptionTarget = useCallback((threadId?: string): ThreadSubscriptionTarget | null => {
+    const connection = useConnectionStore.getState()
+    const threads = useThreadStore.getState()
+    return resolveActiveThreadSubscriptionTarget({
+      connected: connection.status === 'connected',
+      activeThreadId: threads.activeThreadId,
+      workspaceIdentity: foregroundThreadListIdentityKeyRef.current,
+      workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKeyRef.current),
+      connectionEpoch: connection.connectionEpoch,
+      threadListWorkspaceKey: normalizeWorkspaceProjectKey(threads.threadListProjectKey),
+      threadIds: threads.threadList.map((thread) => thread.id)
+    }, threadId)
+  }, [])
+
+  const isSubscriptionConnectionCurrent = useCallback((target: ThreadSubscriptionTarget): boolean => {
+    const connection = useConnectionStore.getState()
+    return connection.status === 'connected' && isThreadSubscriptionConnectionCurrent(target, {
+      workspaceIdentity: foregroundThreadListIdentityKeyRef.current,
+      workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKeyRef.current),
+      connectionEpoch: connection.connectionEpoch
+    })
   }, [])
 
   const clearThreadSubscriptionState = useCallback((threadId?: string): void => {
     if (!threadId || subscribedThreadIdRef.current === threadId) {
       subscribedThreadIdRef.current = null
-      subscribedThreadConnectionKeyRef.current = null
+      subscribedThreadTargetRef.current = null
     }
     if (!threadId || threadSubscriptionIntentRef.current?.threadId === threadId) {
       threadSubscriptionIntentRef.current = null
@@ -2637,7 +2671,7 @@ export function App(): JSX.Element {
     if (!threadId || threadSubscriptionReadyRef.current?.threadId === threadId) {
       threadSubscriptionReadyRef.current = null
     }
-    if (!threadId || threadSubscriptionInFlightRef.current?.threadId === threadId) {
+    if (!threadId || threadSubscriptionInFlightRef.current?.target.threadId === threadId) {
       threadSubscriptionInFlightRef.current = null
     }
   }, [])
@@ -2645,31 +2679,33 @@ export function App(): JSX.Element {
   const ensureThreadSubscribed = useCallback<EnsureThreadSubscribed>((
     threadId: string,
     options: ThreadSubscribeEnsureOptions = {}
-  ): Promise<void> => {
-    const key = getThreadSubscriptionKey(threadId)
+  ): Promise<boolean> => {
+    const target = getCurrentThreadSubscriptionTarget(threadId)
+    if (!target) return Promise.resolve(false)
+
     const forceReplay = options.forceReplay === true
     const replayRecent = options.replayRecent === true
     const ready = threadSubscriptionReadyRef.current
-    if (!forceReplay && !replayRecent && ready?.threadId === threadId && ready.key === key) {
-      return Promise.resolve()
+    if (!forceReplay && !replayRecent && isSameThreadSubscriptionTarget(ready, target)) {
+      return Promise.resolve(true)
     }
 
     const inFlight = threadSubscriptionInFlightRef.current
     const needsReplaySubscribe = replayRecent || forceReplay
     if (
-      inFlight?.threadId === threadId &&
-      inFlight.key === key &&
+      inFlight != null &&
+      isSameThreadSubscriptionTarget(inFlight.target, target) &&
       (!needsReplaySubscribe || inFlight.replayRecent)
     ) {
       return inFlight.promise
     }
 
-    const keepReadyOnFailure = (forceReplay || replayRecent) && ready?.threadId === threadId && ready.key === key
-    threadSubscriptionIntentRef.current = { threadId, key }
+    const keepReadyOnFailure = (forceReplay || replayRecent) && isSameThreadSubscriptionTarget(ready, target)
+    threadSubscriptionIntentRef.current = target
     if (!forceReplay && !replayRecent) {
       threadSubscriptionReadyRef.current = null
       subscribedThreadIdRef.current = null
-      subscribedThreadConnectionKeyRef.current = null
+      subscribedThreadTargetRef.current = null
     }
 
     const requestParams: { threadId: string; replayRecent?: boolean } = { threadId }
@@ -2677,66 +2713,71 @@ export function App(): JSX.Element {
       requestParams.replayRecent = true
     }
 
-    let promise!: Promise<void>
+    let sent = false
+    let promise!: Promise<boolean>
     promise = threadSubscriptionOperationsRef.current
       .enqueue(threadId, async () => {
-        if (getThreadSubscriptionKey(threadId) !== key) {
-          return
-        }
+        if (!isSameThreadSubscriptionTarget(getCurrentThreadSubscriptionTarget(threadId), target)) return
         await window.api.appServer.sendRequest('thread/subscribe', requestParams)
+        sent = true
       })
       .then(() => {
         const intent = threadSubscriptionIntentRef.current
-        const activeThread = useThreadStore.getState().activeThreadId
         if (
-          intent?.threadId !== threadId ||
-          intent.key !== key ||
-          activeThread !== threadId
+          !sent ||
+          !isSameThreadSubscriptionTarget(intent, target) ||
+          !isSameThreadSubscriptionTarget(getCurrentThreadSubscriptionTarget(threadId), target)
         ) {
-          return
+          return false
         }
         subscribedThreadIdRef.current = threadId
-        subscribedThreadConnectionKeyRef.current = key
-        threadSubscriptionReadyRef.current = { threadId, key }
+        subscribedThreadTargetRef.current = target
+        threadSubscriptionReadyRef.current = target
+        return true
       })
       .catch((err: unknown) => {
         const intent = threadSubscriptionIntentRef.current
-        if (intent?.threadId === threadId && intent.key === key && !keepReadyOnFailure) {
+        if (isSameThreadSubscriptionTarget(intent, target) && !keepReadyOnFailure) {
           subscribedThreadIdRef.current = null
-          subscribedThreadConnectionKeyRef.current = null
+          subscribedThreadTargetRef.current = null
           threadSubscriptionReadyRef.current = null
         }
         throw err
       })
       .finally(() => {
         const inFlight = threadSubscriptionInFlightRef.current
-        if (inFlight?.threadId === threadId && inFlight.key === key && inFlight.promise === promise) {
+        if (isSameThreadSubscriptionTarget(inFlight?.target, target) && inFlight?.promise === promise) {
           threadSubscriptionInFlightRef.current = null
         }
       })
 
-    threadSubscriptionInFlightRef.current = { threadId, key, replayRecent, promise }
+    threadSubscriptionInFlightRef.current = { target, replayRecent, promise }
     return promise
-  }, [getThreadSubscriptionKey])
+  }, [getCurrentThreadSubscriptionTarget])
 
   ensureThreadSubscribedRef.current = ensureThreadSubscribed
 
   const queueThreadUnsubscribe = useCallback((threadId: string): Promise<void> => {
-    const key = getThreadSubscriptionKey(threadId)
+    const target = [
+      threadSubscriptionInFlightRef.current?.target,
+      threadSubscriptionIntentRef.current,
+      threadSubscriptionReadyRef.current,
+      subscribedThreadTargetRef.current
+    ].find((candidate) => candidate?.threadId === threadId) ?? null
     clearThreadSubscriptionState(threadId)
+    if (!target) return Promise.resolve()
+
     return threadSubscriptionOperationsRef.current.enqueue(threadId, async () => {
-      if (getThreadSubscriptionKey(threadId) !== key) {
-        return
-      }
       await runQueuedThreadUnsubscribe({
         threadId,
         getActiveThreadId: () => useThreadStore.getState().activeThreadId,
+        isConnectionCurrent: () => isSubscriptionConnectionCurrent(target),
         unsubscribe: async (targetThreadId) => {
           await window.api.appServer.sendRequest('thread/unsubscribe', { threadId: targetThreadId })
         }
       })
     })
-  }, [clearThreadSubscriptionState, getThreadSubscriptionKey])
+  }, [clearThreadSubscriptionState, isSubscriptionConnectionCurrent])
 
   useEffect(() => {
     const unsubscribeOpen = window.api.workspace.viewer.browserUse.onOpen(handleBrowserUseOpen)
@@ -2955,7 +2996,6 @@ export function App(): JSX.Element {
       const restoreGateToken = beginThreadRestoreGate(requestedId)
       performance.mark(`app:thread-switch-start:${requestedId}`)
       const subscriptionReady = ensureThreadSubscribed(requestedId, { replayRecent: true })
-        .then(() => true)
         .catch((err: unknown) => {
           console.error('thread/subscribe failed:', err)
           return false
