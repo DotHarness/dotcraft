@@ -11,6 +11,7 @@ const electronMock = vi.hoisted(() => {
     isDestroyed: vi.fn(() => false),
     close: vi.fn(),
     getURL: vi.fn(() => currentUrl),
+    getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36'),
     getTitle: vi.fn(() => 'DotCraft Browser'),
     isLoading: vi.fn(() => false),
     focus: vi.fn(),
@@ -28,16 +29,22 @@ const electronMock = vi.hoisted(() => {
       goForward: vi.fn()
     }
   }
-  const fromPartition = vi.fn(() => ({
+  const partitionSession = {
     protocol: { handle: vi.fn() },
     on: vi.fn(),
+    getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36'),
+    setUserAgent: vi.fn(),
+    webRequest: { onBeforeSendHeaders: vi.fn() },
     setPermissionCheckHandler: vi.fn(),
     setPermissionRequestHandler: vi.fn()
-  }))
+  }
+  Object.assign(webContents, { session: partitionSession })
+  const fromPartition = vi.fn(() => partitionSession)
   return {
     loadURL,
     webContents,
     fromPartition,
+    partitionSession,
     reset() {
       currentUrl = 'about:blank'
       loadURL.mockClear()
@@ -47,6 +54,7 @@ const electronMock = vi.hoisted(() => {
       webContents.reload.mockClear()
       webContents.stop.mockClear()
       webContents.focus.mockClear()
+      webContents.getUserAgent.mockClear()
       webContents.setWindowOpenHandler.mockClear()
       webContents.sendInputEvent.mockClear()
       webContents.insertText.mockClear()
@@ -56,11 +64,24 @@ const electronMock = vi.hoisted(() => {
       webContents.navigationHistory.goBack.mockClear()
       webContents.navigationHistory.goForward.mockClear()
       fromPartition.mockClear()
+      partitionSession.protocol.handle.mockClear()
+      partitionSession.on.mockClear()
+      partitionSession.getUserAgent.mockClear()
+      partitionSession.setUserAgent.mockClear()
+      partitionSession.webRequest.onBeforeSendHeaders.mockClear()
+      partitionSession.setPermissionCheckHandler.mockClear()
+      partitionSession.setPermissionRequestHandler.mockClear()
     }
   }
 })
 
 vi.mock('electron', () => ({
+  app: {
+    getName: vi.fn(() => 'DotCraft'),
+    getPreferredSystemLanguages: vi.fn(() => ['zh-CN', 'en-US']),
+    getLocale: vi.fn(() => 'zh-CN'),
+    getPath: vi.fn(() => 'C:/tmp')
+  },
   BrowserWindow: { fromWebContents: vi.fn(() => null) },
   nativeImage: { createFromBuffer: vi.fn(() => ({ isEmpty: () => true })) },
   session: { fromPartition: electronMock.fromPartition },
@@ -140,6 +161,9 @@ describe('ViewerBrowserManager partition configuration', () => {
     const fakeSession = {
       protocol: { handle },
       on: vi.fn(),
+      getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36'),
+      setUserAgent: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() },
       setPermissionCheckHandler: vi.fn(),
       setPermissionRequestHandler: vi.fn()
     } as unknown as Electron.Session
@@ -150,6 +174,12 @@ describe('ViewerBrowserManager partition configuration', () => {
 
     expect(handle).toHaveBeenCalledTimes(1)
     expect(handle).toHaveBeenCalledWith('dotcraft-viewer', expect.any(Function))
+    expect(fakeSession.setUserAgent).toHaveBeenCalledTimes(1)
+    expect(fakeSession.setUserAgent).toHaveBeenCalledWith(
+      'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36',
+      'zh-CN,en-US'
+    )
+    expect(fakeSession.webRequest.onBeforeSendHeaders).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -247,6 +277,113 @@ describe('ViewerBrowserManager tab creation', () => {
     expect(request).toHaveBeenCalledOnce()
     expect(electronMock.webContents.close).not.toHaveBeenCalled()
     expect(electronMock.loadURL).toHaveBeenCalledOnce()
+  })
+
+  it('keeps ordinary new-tab links in the viewer', async () => {
+    const manager = new ViewerBrowserManager()
+    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
+    win.webContents.send.mockClear()
+    const handler = electronMock.webContents.setWindowOpenHandler.mock.calls[0][0]
+
+    const response = handler({
+      url: 'https://accounts.example.com/',
+      frameName: '',
+      features: '',
+      disposition: 'foreground-tab',
+      referrer: { url: '', policy: 'default' }
+    })
+
+    expect(response).toEqual({ action: 'deny' })
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'viewer:browser:event',
+      expect.objectContaining({ type: 'request-new-tab', url: 'https://accounts.example.com/' })
+    )
+  })
+
+  it('allows script authentication popups with the opener session and hardened preferences', async () => {
+    const manager = new ViewerBrowserManager()
+    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
+    const handler = electronMock.webContents.setWindowOpenHandler.mock.calls[0][0]
+
+    const response = handler({
+      url: 'https://accounts.example.com/oauth',
+      frameName: 'oauth',
+      features: 'width=500,height=650',
+      disposition: 'new-window',
+      referrer: { url: 'https://example.com/', policy: 'strict-origin-when-cross-origin' }
+    })
+
+    expect(response).toMatchObject({
+      action: 'allow',
+      outlivesOpener: false,
+      overrideBrowserWindowOptions: {
+        parent: win,
+        autoHideMenuBar: true,
+        webPreferences: {
+          session: electronMock.partitionSession,
+          nodeIntegration: false,
+          nodeIntegrationInSubFrames: false,
+          nodeIntegrationInWorker: false,
+          contextIsolation: true,
+          sandbox: true,
+          webSecurity: true,
+          allowRunningInsecureContent: false,
+          webviewTag: false,
+          plugins: false,
+          devTools: true
+        }
+      }
+    })
+
+    const popupWebContents = {
+      on: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
+      setUserAgent: vi.fn(),
+      session: electronMock.partitionSession
+    }
+    const popup = {
+      webContents: popupWebContents,
+      setMenuBarVisibility: vi.fn(),
+      once: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn()
+    } as unknown as Electron.BrowserWindow
+    const didCreateWindow = electronMock.webContents.on.mock.calls
+      .find(([event]) => event === 'did-create-window')?.[1]
+    didCreateWindow(popup)
+
+    expect((popup as unknown as { setMenuBarVisibility: ReturnType<typeof vi.fn> }).setMenuBarVisibility)
+      .toHaveBeenCalledWith(false)
+    expect(popupWebContents.setWindowOpenHandler).toHaveBeenCalledOnce()
+    expect(popupWebContents.setUserAgent).toHaveBeenCalledWith(
+      'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36'
+    )
+
+    manager.destroyTab(win, 'tab')
+    expect((popup as unknown as { destroy: ReturnType<typeof vi.fn> }).destroy).toHaveBeenCalledOnce()
+  })
+
+  it('keeps named blank login windows as native child browsing contexts', async () => {
+    const manager = new ViewerBrowserManager()
+    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
+    const handler = electronMock.webContents.setWindowOpenHandler.mock.calls[0][0]
+
+    const response = handler({
+      url: 'about:blank',
+      frameName: 'oauth-login',
+      features: '',
+      disposition: 'foreground-tab',
+      referrer: { url: 'https://example.com/', policy: 'strict-origin-when-cross-origin' }
+    })
+
+    expect(response).toMatchObject({ action: 'allow', outlivesOpener: false })
+    expect(response).not.toHaveProperty('createWindow')
   })
 })
 

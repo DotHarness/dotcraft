@@ -1,5 +1,6 @@
 import { session, webContents, type BrowserWindow, type WebContents } from 'electron'
 import type { BrowserHostDescriptor, BrowserHostEvent } from '../shared/viewer/browserHost'
+import { applyEmbeddedBrowserSecurity } from './browserSecurity'
 
 interface GuestEntry {
   descriptor: BrowserHostDescriptor
@@ -15,11 +16,7 @@ export class BrowserGuestRegistry {
 
   attachWindow(win: BrowserWindow): void {
     win.webContents.on('will-attach-webview', (_event, preferences) => {
-      delete preferences.preload
-      preferences.nodeIntegration = false
-      preferences.contextIsolation = true
-      preferences.sandbox = true
-      preferences.devTools = true
+      applyEmbeddedBrowserSecurity(preferences)
     })
     win.once('closed', () => this.clear(win))
   }

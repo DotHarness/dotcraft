@@ -6,6 +6,8 @@ import { createHash } from 'crypto'
 import { fileURLToPath } from 'url'
 import type { BrowserEventPayload } from '../shared/viewer/types'
 import { installViewerProtocolHandlerForSession, viewerUrlToPath } from './viewerFileProtocol'
+import { configureEmbeddedBrowserIdentity } from './browserIdentity'
+import { applyEmbeddedBrowserSecurity } from './browserSecurity'
 
 const BROWSER_EVENT_CHANNEL = 'viewer:browser:event'
 const START_URL = 'about:blank'
@@ -38,6 +40,7 @@ interface BrowserTabRuntime {
   virtualMouseMoved?: boolean
   viewportWidth?: number
   viewportHeight?: number
+  authPopups: Set<BrowserWindow>
 }
 
 interface WindowRuntime {
@@ -135,6 +138,13 @@ function extractScheme(raw: string): string | null {
   } catch {
     return null
   }
+}
+
+function requestsControlledPopup(details: Electron.HandlerDetails): boolean {
+  const frameName = details.frameName.trim().toLowerCase()
+  const isNamedBrowsingContext = frameName !== ''
+    && !['_blank', '_self', '_parent', '_top'].includes(frameName)
+  return details.disposition === 'new-window' || details.features.trim() !== '' || isNamedBrowsingContext
 }
 
 function clampViewportCoordinate(value: number): number {
@@ -397,7 +407,8 @@ export class ViewerBrowserManager {
       title: DEFAULT_START_TITLE,
       allowFileScheme: params.allowFileScheme === true,
       viewportWidth: 1280,
-      viewportHeight: 720
+      viewportHeight: 720,
+      authPopups: new Set()
     }
     runtime.tabs.set(params.tabId, tabRuntime)
     this.bindWebContentsEvents(win, tabRuntime)
@@ -427,10 +438,20 @@ export class ViewerBrowserManager {
 
   destroyTab(win: BrowserWindow, tabId: string): void {
     const runtime = this.byWindowId.get(win.id)
-    this.hosts.remove(win, tabId)
-    if (!runtime) return
+    if (!runtime) {
+      this.hosts.remove(win, tabId)
+      return
+    }
     const tab = runtime.tabs.get(tabId)
-    if (!tab) return
+    if (!tab) {
+      this.hosts.remove(win, tabId)
+      return
+    }
+    for (const popup of tab.authPopups) {
+      if (!popup.isDestroyed()) popup.destroy()
+    }
+    tab.authPopups.clear()
+    this.hosts.remove(win, tabId)
     runtime.tabs.delete(tabId)
     if (runtime.activeTabId === tabId) runtime.activeTabId = null
   }
@@ -1049,31 +1070,70 @@ export class ViewerBrowserManager {
       }
     })
 
-    wc.setWindowOpenHandler((details) => {
-      const normalized = normalizeBrowserUrl(details.url)
-      if (!normalized) return { action: 'deny' }
-      const navigationDecision = this.classifyUrlForTab(tab, normalized)
-      if (navigationDecision === 'allow') {
-        emitBrowserEvent(win, {
-          tabId: tab.tabId,
-          threadId: tab.threadId,
-          type: 'request-new-tab',
-          url: normalized
-        })
-        return { action: 'deny' }
+    this.bindWindowOpenEvents(win, tab, wc)
+  }
+
+  private bindWindowOpenEvents(win: BrowserWindow, tab: BrowserTabRuntime, wc: Electron.WebContents): void {
+    wc.setWindowOpenHandler((details) => this.handleWindowOpen(win, tab, details))
+    wc.on('did-create-window', (popup) => this.bindAuthPopup(win, tab, popup))
+  }
+
+  private handleWindowOpen(
+    win: BrowserWindow,
+    tab: BrowserTabRuntime,
+    details: Electron.HandlerDetails
+  ): Electron.WindowOpenHandlerResponse {
+    const normalized = normalizeBrowserUrl(details.url)
+    const opensControlledPopup = requestsControlledPopup(details)
+    const isBlankPopup = opensControlledPopup && details.url === 'about:blank'
+    const isAllowedPopup = normalized && this.classifyUrlForTab(tab, normalized) === 'allow'
+    if (opensControlledPopup && (isBlankPopup || isAllowedPopup)) {
+      return {
+        action: 'allow',
+        outlivesOpener: false,
+        overrideBrowserWindowOptions: {
+          parent: win,
+          autoHideMenuBar: true,
+          webPreferences: applyEmbeddedBrowserSecurity({}, tab.page.session)
+        }
       }
-      if (navigationDecision === 'external-handoff') {
-        void shell.openExternal(normalized)
-      } else {
-        emitBrowserEvent(win, {
-          tabId: tab.tabId,
-          threadId: tab.threadId,
-          type: 'blocked-navigation',
-          message: `Blocked scheme: ${extractScheme(normalized) ?? 'unknown'}`
-        })
-      }
+    }
+    if (!normalized) return { action: 'deny' }
+    const navigationDecision = this.classifyUrlForTab(tab, normalized)
+    if (navigationDecision === 'allow') {
+      emitBrowserEvent(win, {
+        tabId: tab.tabId,
+        threadId: tab.threadId,
+        type: 'request-new-tab',
+        url: normalized
+      })
       return { action: 'deny' }
+    }
+    if (navigationDecision === 'external-handoff') {
+      void shell.openExternal(normalized)
+    } else {
+      emitBrowserEvent(win, {
+        tabId: tab.tabId,
+        threadId: tab.threadId,
+        type: 'blocked-navigation',
+        message: `Blocked scheme: ${extractScheme(normalized) ?? 'unknown'}`
+      })
+    }
+    return { action: 'deny' }
+  }
+
+  private bindAuthPopup(win: BrowserWindow, tab: BrowserTabRuntime, popup: BrowserWindow): void {
+    tab.authPopups.add(popup)
+    popup.setMenuBarVisibility(false)
+    popup.webContents.setUserAgent(tab.page.getUserAgent())
+    popup.once('closed', () => tab.authPopups.delete(popup))
+    popup.webContents.on('will-navigate', (event, url) => {
+      if (this.handleSchemeBoundary(win, tab, url)) event.preventDefault()
     })
+    popup.webContents.on('will-redirect', (event, url) => {
+      if (this.handleSchemeBoundary(win, tab, url)) event.preventDefault()
+    })
+    this.bindWindowOpenEvents(win, tab, popup.webContents)
   }
 
   private classifyUrlForTab(tab: BrowserTabRuntime, url: string): BrowserNavigationDecision {
@@ -1106,6 +1166,11 @@ export class ViewerBrowserManager {
   configurePartitionSession(partitionName: string, partitionSession: Electron.Session): void {
     if (this.configuredPartitions.has(partitionName)) return
     installViewerProtocolHandlerForSession(partitionSession)
+    configureEmbeddedBrowserIdentity(partitionSession, {
+      appName: app.getName(),
+      preferredLanguages: app.getPreferredSystemLanguages(),
+      fallbackLocale: app.getLocale()
+    })
     this.configuredPartitions.add(partitionName)
 
     partitionSession.on('will-download', (event, item, webContents) => {

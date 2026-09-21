@@ -6,8 +6,12 @@ vi.mock('electron', () => ({ webContents: { fromId: mocks.fromId }, session: { f
 import { BrowserGuestRegistry } from '../browserGuestRegistry'
 
 function fixture() {
-  const owner = { isDestroyed: () => false, send: vi.fn() }
-  const win = { id: 1, isDestroyed: () => false, webContents: owner } as unknown as Electron.BrowserWindow
+  const owner = Object.assign(new EventEmitter(), { isDestroyed: () => false, send: vi.fn() })
+  const win = Object.assign(new EventEmitter(), {
+    id: 1,
+    isDestroyed: () => false,
+    webContents: owner
+  }) as unknown as Electron.BrowserWindow
   const page = Object.assign(new EventEmitter(), {
     hostWebContents: owner, session: mocks.partition, isDestroyed: () => false, close: vi.fn()
   })
@@ -32,6 +36,31 @@ it('registers one guest, keeps it through presentation changes and forwards page
   registry.clear(win)
   expect(page.close).toHaveBeenCalledOnce()
   expect(registry.list(win)).toEqual([])
+})
+
+it('hardens remote guest preferences before attachment', () => {
+  const { registry, win, owner } = fixture()
+  registry.attachWindow(win)
+  const listener = owner.listeners('will-attach-webview')[0] as (
+    event: unknown,
+    preferences: Electron.WebPreferences
+  ) => void
+  const preferences = { preload: 'unsafe.js', webSecurity: false, plugins: true }
+
+  listener({}, preferences)
+
+  expect(preferences).toEqual({
+    nodeIntegration: false,
+    nodeIntegrationInSubFrames: false,
+    nodeIntegrationInWorker: false,
+    contextIsolation: true,
+    sandbox: true,
+    webSecurity: true,
+    allowRunningInsecureContent: false,
+    webviewTag: false,
+    plugins: false,
+    devTools: true
+  })
 })
 
 it('rejects pending creation on close and cannot bind a late guest', async () => {
