@@ -208,7 +208,7 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
             padding: '4px 0 12px'
           }}
         >
-          {files.map((file, index) => (
+          {files.map((file) => (
             <FileDiffSection
               key={file.filePath}
               file={file}
@@ -216,7 +216,6 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
               mode={mode}
               wordWrap={wordWrap}
               expanded={expanded.has(file.filePath)}
-              first={index === 0}
               registerSection={registerSection}
               onToggle={() => toggleFile(file.filePath)}
               onRevert={() => { void handleRevert(file) }}
@@ -246,7 +245,6 @@ interface FileDiffSectionProps {
   mode: ChangesDiffMode
   wordWrap: boolean
   expanded: boolean
-  first: boolean
   registerSection: (filePath: string, node: HTMLElement | null) => void
   onToggle: () => void
   onRevert: () => void
@@ -259,7 +257,6 @@ function FileDiffSection({
   mode,
   wordWrap,
   expanded,
-  first,
   registerSection,
   onToggle,
   onRevert,
@@ -289,9 +286,6 @@ function FileDiffSection({
   return (
     <section
       ref={(node) => registerSection(file.filePath, node)}
-      style={{
-        borderTop: first ? 'none' : '1px solid var(--border-default)'
-      }}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       onFocusCapture={() => setActive(true)}
