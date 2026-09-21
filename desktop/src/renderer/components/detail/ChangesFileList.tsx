@@ -62,7 +62,7 @@ export function ChangesFileList({
         </div>
       </div>
 
-      <div role="list" aria-label={t('changes.fileListTitle')} style={listStyle}>
+      <div className="dc-scrollbar-stable" role="list" aria-label={t('changes.fileListTitle')} style={listStyle}>
         {visible.length === 0
           ? <div style={placeholderStyle}>{t('viewer.explorerNoMatch')}</div>
           : visible.map((row) => {

@@ -200,6 +200,7 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
         <div
+          className="dc-scrollbar-stable"
           style={{
             flex: '1 1 0',
             minWidth: 160,

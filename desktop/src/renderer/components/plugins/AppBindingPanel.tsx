@@ -194,7 +194,6 @@ const appRow: CSSProperties = {
   gap: 16,
   minHeight: 66,
   padding: '10px 8px',
-  borderBottom: '1px solid var(--border-subtle)',
   outline: 'none'
 }
 const appMain: CSSProperties = { minWidth: 0 }
