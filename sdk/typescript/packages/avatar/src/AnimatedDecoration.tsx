@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
-import type { PrimaryId } from './appearanceModel.js'
+import type { HeadId } from './items.js'
 import type { AvatarPose } from './characters.js'
-import { PrimaryDecoration } from './Decorations.js'
+import { HeadDecoration } from './Decorations.js'
 import { advanceDecoration, decorationMotionProfiles, frameTransform, requestDecorationEvent, restFrame, type DecorationClock, type DecorationFrame } from './decorationMotion.js'
 
 export function AnimatedDecoration({ id, pose, sequence, enabled, paused }: {
-  id: Exclude<PrimaryId, 'none'>; pose: AvatarPose; sequence: number; enabled: boolean; paused: boolean
+  id: HeadId; pose: AvatarPose; sequence: number; enabled: boolean; paused: boolean
 }) {
   const art = useRef<SVGGElement>(null)
   const shadow = useRef<SVGEllipseElement>(null)
@@ -38,6 +38,6 @@ export function AnimatedDecoration({ id, pose, sequence, enabled, paused }: {
   }, [id, pose, sequence, enabled, paused])
   return <g data-decoration-motion={profile.kind}>
     {profile.shadow > 0 && <ellipse ref={shadow} cx={profile.x} cy="404" rx={profile.shadow} ry="7" fill="#243344" opacity=".12" />}
-    <g ref={art} transform={frameTransform(profile, restFrame)}><PrimaryDecoration id={id} /></g>
+    <g ref={art} transform={frameTransform(profile, restFrame)}><HeadDecoration id={id} /></g>
   </g>
 }

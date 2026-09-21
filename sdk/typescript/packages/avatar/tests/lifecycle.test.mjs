@@ -70,7 +70,7 @@ function createEnvironment({ reduced = false, matchMedia = true } = {}) {
 
 function identity(container) {
   const avatar = container.querySelector('.dca-robot')
-  return [avatar.dataset.primary, avatar.dataset.secondary, avatar.dataset.baseFace]
+  return [avatar.dataset.head, avatar.dataset.face, avatar.dataset.hand, avatar.dataset.back, avatar.dataset.skin, avatar.dataset.baseFace]
 }
 
 function decoration(container) {
@@ -91,14 +91,14 @@ test('renaming derives a new identity without saving avatar state', async () => 
 test('incrementing eventSequence retriggers the same event pose', async () => {
   const env = createEnvironment()
   try {
-    await env.render({ name: 'leader', state: 'done', eventSequence: 1, motion: 'on', size: 44 })
+    await env.render({ name: 'Reviewer', state: 'done', eventSequence: 1, motion: 'on', size: 44 })
     assert.ok(env.frames.size > 0)
     await env.flushFrame(0)
     assert.ok(env.frames.size > 0)
     await env.flushFrame(320)
     assert.match(decoration(env.dom.window.document).getAttribute('transform'), /translate\(0 -[1-9]/)
     await env.flushFrame(800)
-    await env.render({ name: 'leader', state: 'done', eventSequence: 2, motion: 'on', size: 44 })
+    await env.render({ name: 'Reviewer', state: 'done', eventSequence: 2, motion: 'on', size: 44 })
     await env.flushFrame(1000)
     await env.flushFrame(1320)
     assert.match(decoration(env.dom.window.document).getAttribute('transform'), /translate\(0 -[1-9]/)
@@ -108,16 +108,16 @@ test('incrementing eventSequence retriggers the same event pose', async () => {
 test('pause freezes the airborne DOM frame and resume continues it', async () => {
   const env = createEnvironment()
   try {
-    await env.render({ name: 'leader', state: 'done', eventSequence: 1, motion: 'on', size: 44 })
+    await env.render({ name: 'Reviewer', state: 'done', eventSequence: 1, motion: 'on', size: 44 })
     assert.ok(env.frames.size > 0)
     await env.flushFrame(0)
     await env.flushFrame(320)
     const airborne = decoration(env.dom.window.document).getAttribute('transform')
     assert.match(airborne, /translate\(0 -[1-9]/)
-    await env.render({ name: 'leader', state: 'done', eventSequence: 1, motion: 'on', paused: true, size: 44 })
+    await env.render({ name: 'Reviewer', state: 'done', eventSequence: 1, motion: 'on', paused: true, size: 44 })
     await env.flushFrame(10000)
     assert.equal(decoration(env.dom.window.document).getAttribute('transform'), airborne)
-    await env.render({ name: 'leader', state: 'done', eventSequence: 1, motion: 'on', paused: false, size: 44 })
+    await env.render({ name: 'Reviewer', state: 'done', eventSequence: 1, motion: 'on', paused: false, size: 44 })
     await env.flushFrame(10000)
     await env.flushFrame(10480)
     assert.notEqual(decoration(env.dom.window.document).getAttribute('transform'), airborne)
@@ -126,7 +126,7 @@ test('pause freezes the airborne DOM frame and resume continues it', async () =>
 
 test('reduced motion resets decoration', async () => {
   const env = createEnvironment()
-  await env.render({ name: 'leader', state: 'done', eventSequence: 1, motion: 'system', size: 44 })
+  await env.render({ name: 'Reviewer', state: 'done', eventSequence: 1, motion: 'system', size: 44 })
   await env.flushFrame(0)
   await env.flushFrame(320)
   assert.equal(env.dom.window.document.querySelector('.dca-robot').dataset.motion, 'on')
@@ -141,7 +141,7 @@ test('reduced motion resets decoration', async () => {
 
 test('unmount cancels subscriptions, observation, and scheduled animation frames', async () => {
   const env = createEnvironment()
-  await env.render({ name: 'leader', state: 'done', eventSequence: 1, motion: 'on', size: 44 })
+  await env.render({ name: 'Reviewer', state: 'done', eventSequence: 1, motion: 'on', size: 44 })
   await env.cleanup()
   assert.equal(env.mediaListeners.size, 0)
   assert.ok(env.observers.every(observer => observer.disconnected))
@@ -207,7 +207,7 @@ test('gesture replay pauses active time and cancels superseded completion', asyn
 test('work states stow a held accessory without replacing it and idle restores it', async () => {
   const env = createEnvironment()
   try {
-    const props = { name: 'Fixture 5', motion: 'on', size: 44 }
+    const props = { name: 'Fixture 55', motion: 'on', size: 44 }
     await env.render({ ...props, state: 'idle' })
     const robot = env.dom.window.document.querySelector('.dca-robot')
     const accessory = robot.querySelector('[data-accessory="shield"]')

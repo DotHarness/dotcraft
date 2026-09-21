@@ -1,3 +1,6 @@
+import type { SkinId } from './items.js'
+import { paintMaterialOf } from './paintMaterials.js'
+
 export interface PaletteEntry {
   key: string
   bodyD: string
@@ -46,7 +49,8 @@ export const PALETTE: PaletteEntry[] = [
 
 
 export function paletteOf(spec: { palette: number }): PaletteEntry { return PALETTE[spec.palette] ?? DEFAULT_MASCOT_PALETTE }
-export function mascotPaletteOf(spec?: { palette: number }): MascotPaintPalette {
- if (!spec || spec.palette === -1) return DEFAULT_MASCOT_PALETTE
- const paint = paletteOf(spec); return { ...paint, markM: paint.markL }
+export function mascotPaletteOf(spec?: { palette: number; skin?: SkinId | 'none' }): MascotPaintPalette {
+  const material = paintMaterialOf(spec?.skin ?? 'none')
+  const paint: MascotPaintPalette = !spec || spec.palette === -1 ? DEFAULT_MASCOT_PALETTE : { ...paletteOf(spec), markM: paletteOf(spec).markL }
+  return material ? { ...paint, ...material } : paint
 }

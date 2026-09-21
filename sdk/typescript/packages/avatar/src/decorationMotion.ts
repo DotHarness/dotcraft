@@ -1,4 +1,4 @@
-import type { PrimaryId } from './appearanceModel.js'
+import type { HeadId } from './items.js'
 import type { AvatarPose } from './characters.js'
 
 export type MotionKind = 'lift' | 'fitted' | 'bounce' | 'rock' | 'squish' | 'sprout'
@@ -6,10 +6,13 @@ export interface MotionProfile { kind: MotionKind; x: number; y: number; height:
 const lift = (x = 512, y = 400): MotionProfile => ({ kind: 'lift', x, y, height: .05, angle: 3, shadow: 95 })
 const fitted = (x = 512): MotionProfile => ({ kind: 'fitted', x, y: 400, height: 0, angle: 3, shadow: 0 })
 const bounce = (x = 512): MotionProfile => ({ kind: 'bounce', x, y: 400, height: .06, angle: 5, shadow: 64 })
-export const decorationMotionProfiles: Record<Exclude<PrimaryId, 'none'>, MotionProfile> = {
+export const decorationMotionProfiles: Record<HeadId, MotionProfile> = {
   'baseball-cap': lift(478), 'bucket-hat': lift(), beret: lift(494), beanie: fitted(),
   'top-hat': lift(), 'wizard-hat': lift(), 'chef-hat': lift(), 'party-hat': lift(), crown: lift(),
-  'hard-hat': fitted(), nightcap: fitted(493), 'straw-hat': lift(),
+  'hard-hat': fitted(), nightcap: fitted(493), 'straw-hat': lift(), 'ringed-planet': { ...lift(512, 335), shadow: 110 },
+  'cowboy-hat': lift(), 'graduation-cap': lift(), 'pirate-hat': lift(), lightning: { ...lift(), shadow: 40 }, ufo: { ...lift(512, 300), shadow: 120 },
+  'cat-ears': fitted(), 'shark-fin': fitted(), 'propeller-cap': fitted(), 'flower-crown': fitted(), 'crystal-cluster': fitted(),
+  mushroom: bounce(), 'ice-cream': bounce(),
   poop: bounce(), 'rubber-duck': bounce(520), donut: { ...bounce(), shadow: 40 },
   banana: { kind: 'rock', x: 487, y: 402, height: 0, angle: 5, shadow: 0 },
   'paper-boat': { kind: 'rock', x: 512, y: 399, height: 0, angle: 5, shadow: 0 },

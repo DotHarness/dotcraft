@@ -392,9 +392,12 @@ corner geometry from an arbitrary size:
 Agent avatars derive their complete visual identity and interaction rendering from
 the shared `@dotcraft/avatar` package. Hosts pass names, state, expression, gesture,
 and hand/work-prop intent without copying or overriding internal SVG artwork. At
-`20px` and below, keep the robot arms but hide handheld accessories and work props while retaining the primary
-head silhouette. A left-side hold owns the left hand. Native work props take priority
-over decorative hand poses when both are requested.
+`20px` and below, keep the robot arms but hide face, hand, overlay-skin, and effect layers
+while retaining the head and back silhouettes. Item effects animate only at `44px` and above with
+motion enabled. A left-side hold owns the left hand. Native work props take priority
+over decorative hand poses when both are requested. Rarity is catalog and settings chrome; it
+never paints onto an avatar in product lists. See
+[Avatar Collection](../features/avatar-collection.md).
 
 | Role | Standard size / radius | Use |
 | --- | --- | --- |
