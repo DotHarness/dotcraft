@@ -57,6 +57,8 @@ test('equip clears conflicting slots and reports them', () => {
   assert.deepEqual(hat.cleared, ['face'])
   assert.equal(equip(hat.appearance, 'back', 'halo').cleared.length, 0)
   assert.equal(equip(hat.appearance, 'head', 'none').appearance.head, 'none')
+  assert.ok(!canEquip(base, 'head', 'shield'))
+  assert.throws(() => equip(base, 'head', 'shield'), TypeError)
 })
 
 test('walls reproduce from their seed and cells replay individually', () => {

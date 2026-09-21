@@ -32,11 +32,13 @@ export function equippedIds(appearance: Appearance): ItemId[] {
 export function occupiedZones(appearance: Appearance): Set<Zone> {
   return new Set(equippedIds(appearance).flatMap(id => [...itemOf(id).zones]))
 }
-export function canEquip(appearance: Appearance, slot: Slot, id: ItemId | 'none'): boolean {
+export function canEquip<S extends Slot>(appearance: Appearance, slot: S, id: SlotValue<S>): boolean {
   if (id === 'none') return true
+  if (itemOf(id).slot !== slot) return false
   return slots.every(other => other === slot || appearance[other] === 'none' || !conflicts(appearance[other] as ItemId, id))
 }
 export function equip<S extends Slot>(appearance: Appearance, slot: S, id: SlotValue<S>): { appearance: Appearance; cleared: Slot[] } {
+  if (id !== 'none' && itemOf(id).slot !== slot) throw new TypeError(`Cannot equip ${id} in the ${slot} slot`)
   const next: Appearance = { ...appearance, [slot]: id }
   const cleared: Slot[] = []
   if (id !== 'none') for (const other of slots) {

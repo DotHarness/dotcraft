@@ -138,7 +138,9 @@ Two items conflict when they share at least one zone. Zones replace per-item all
 
 `conflicts(a, b)` is the only compatibility predicate. `equip(appearance, slot, id)` sets the slot
 and clears every other slot whose item conflicts with the new one, returning the cleared slots so
-design tools can explain the change.
+design tools can explain the change. Both `canEquip` and `equip` require the item to belong to the
+named slot: `canEquip` answers `false` for a mismatch and `equip` throws, because a hand item stored
+in the head slot would render as an empty slot without any signal.
 
 ---
 
@@ -177,7 +179,7 @@ a JSON tuple so a wall of 100 samples is reproducible from its seed and any cell
 
 | Tier | Size | Renders |
 |------|------|---------|
-| `compact` | ≤ 20px | Head silhouette, back silhouette, faceplates, paint skins as static paint. Brow and rim items, hand items, overlay skins, detail layers, work props, and every effect are hidden. Motion is off. |
+| `compact` | ≤ 20px | Head silhouette, back silhouette, faceplates, paint skins as static paint. Brow and rim items, hand items, overlay skins, and work props are not mounted; detail layers and every effect stay in the document and are hidden by the `data-compact` and `data-effects="off"` gates. Motion is off. |
 | `standard` | 21–43px | Every equipped item. Effects render their static frame; effect animations do not run. |
 | `full` | ≥ 44px with motion enabled | Effects animate. |
 
@@ -262,8 +264,9 @@ show the same static paint as before.
   every item in the registry is reachable by name.
 - Every item renders as a swatch and mounted on the rig in every pose; the arm geometry never
   changes.
-- Compact renders contain no brow/rim, hand, overlay skin, detail, or effect markup; faceplates
-  remain.
+- Compact renders omit brow/rim, hand, and overlay-skin markup; faceplates remain. Detail layers and
+  effects stay in the document and are hidden through `data-compact` and `data-effects="off"`, the
+  same CSS gates every other tier uses, so no slot needs a second compact rendering path.
 - Faceplates render all four expression layers and no native face marks.
 - Paint skins keep the palette on the face marks, keep their material on raised arms, and overlay
   skins keep the palette body paint.
