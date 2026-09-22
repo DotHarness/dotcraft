@@ -13,8 +13,7 @@ import {
   loadSettings,
   normalizeShowInMenuBar,
   resolveTaskCompletionNotificationMode,
-  type AppSettings,
-  type RecentWorkspace
+  type AppSettings
 } from './settings'
 import { requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
 import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
@@ -30,10 +29,17 @@ import {
 import { NO_WORKSPACE_ARG } from './workspaceArgs'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
+import { isDefaultChatWorkspace } from './defaultChatWorkspace'
+import {
+  DIRECT_RECENT_THREAD_COUNT,
+  RECENT_THREAD_TITLE_MAX_LENGTH,
+  TrayRecentThreadCatalog,
+  type TrayRecentThread
+} from './trayRecentThreads'
 
 interface TrayState {
   appServers: HubAppServerResponse[]
-  recentWorkspaces: RecentWorkspace[]
+  recentThreads: TrayRecentThread[]
   locale: AppLocale
   /** Machines currently connected to Hub. */
   satellites: number
@@ -293,19 +299,46 @@ function buildAppServerMenu(
   }
 }
 
-function buildRecentMenu(recent: RecentWorkspace[], locale: AppLocale): MenuItemConstructorOptions {
-  const L = (key: string) => translate(locale, key)
-  const items = recent.slice(0, 8).map((workspace) => ({
-    label: workspace.name || displayWorkspaceName(workspace.path),
-    click: () => {
-      void openDesktopWindow(workspace.path)
-    }
-  }))
+function truncateRecentThreadTitle(title: string): string {
+  const characters = Array.from(title)
+  if (characters.length <= RECENT_THREAD_TITLE_MAX_LENGTH) return title
+  return `${characters.slice(0, RECENT_THREAD_TITLE_MAX_LENGTH - 1).join('').trimEnd()}…`
+}
+
+function buildRecentThreadItem(
+  thread: TrayRecentThread,
+  locale: AppLocale
+): MenuItemConstructorOptions {
+  const title = thread.displayName || translate(locale, 'sidebar.newConversation')
   return {
-    label: L('tray.recent'),
-    enabled: items.length > 0,
-    submenu: items.length > 0 ? items : [{ label: L('tray.noRecentWorkspaces'), enabled: false }]
+    label: truncateRecentThreadTitle(title),
+    sublabel: isDefaultChatWorkspace(thread.workspacePath)
+      ? translate(locale, 'chatsRail.title')
+      : thread.workspaceName,
+    click: () => {
+      void openDesktopWindow(thread.workspacePath, thread.id)
+    }
   }
+}
+
+function buildRecentThreadItems(
+  recent: TrayRecentThread[],
+  locale: AppLocale
+): MenuItemConstructorOptions[] {
+  if (recent.length === 0) return []
+
+  const direct = recent.slice(0, DIRECT_RECENT_THREAD_COUNT)
+  const overflow = recent.slice(DIRECT_RECENT_THREAD_COUNT)
+  return [
+    { label: translate(locale, 'tray.recent'), enabled: false },
+    ...direct.map((thread) => buildRecentThreadItem(thread, locale)),
+    ...(overflow.length > 0
+      ? [{
+          label: translate(locale, 'tray.more'),
+          submenu: overflow.map((thread) => buildRecentThreadItem(thread, locale))
+        } satisfies MenuItemConstructorOptions]
+      : [])
+  ]
 }
 
 function buildTrayMenu(
@@ -319,15 +352,14 @@ function buildTrayMenu(
     ? state.appServers.map((server) => buildAppServerMenu(server, hubClient, refresh, state.locale))
     : [{ label: L('tray.noManagedAppServers'), enabled: false } satisfies MenuItemConstructorOptions]
 
+  const recentItems = buildRecentThreadItems(state.recentThreads, state.locale)
   const template: MenuItemConstructorOptions[] = [
-    { label: L('tray.hub'), enabled: false },
-    { type: 'separator' },
+    ...recentItems,
+    ...(recentItems.length > 0 ? [{ type: 'separator' } satisfies MenuItemConstructorOptions] : []),
     {
       label: L('tray.newChat'),
       click: () => spawnDesktopWindow()
     },
-    buildRecentMenu(state.recentWorkspaces, state.locale),
-    { type: 'separator' },
     {
       label: L('tray.appServers'),
       submenu: appServerItems
@@ -343,10 +375,6 @@ function buildTrayMenu(
         } satisfies MenuItemConstructorOptions]
       : []),
     { type: 'separator' },
-    {
-      label: L('tray.refresh'),
-      click: refresh
-    },
     {
       label: L('tray.exit'),
       click: () => {
@@ -484,6 +512,7 @@ export async function runTrayProcess(): Promise<void> {
     preferDevBuild: import.meta.env.DEV,
     requireDevBuild: import.meta.env.DEV
   })
+  const recentThreadCatalog = new TrayRecentThreadCatalog()
   let eventAbortController: AbortController | null = null
   let refreshTimer: ReturnType<typeof setInterval> | null = null
   let disposed = false
@@ -521,12 +550,14 @@ export async function runTrayProcess(): Promise<void> {
       hubClient.listAppServers(),
       hubClient.listSatellites()
     ])
+    const activeAppServers = appServers.status === 'fulfilled' ? appServers.value : []
+    const recentThreads = await recentThreadCatalog.refresh(activeAppServers)
     setMenu({
-      appServers: appServers.status === 'fulfilled' ? appServers.value : [],
+      appServers: activeAppServers,
       satellites: satellites.status === 'fulfilled'
         ? satellites.value.filter((satellite) => satellite.online).length
         : 0,
-      recentWorkspaces: getRecentWorkspaces(settings),
+      recentThreads,
       locale: normalizeLocale(settings.locale)
     })
     if (status.status === 'fulfilled' || appServers.status === 'fulfilled') {
@@ -556,6 +587,7 @@ export async function runTrayProcess(): Promise<void> {
     }
     eventAbortController?.abort()
     eventAbortController = null
+    recentThreadCatalog.dispose()
     try {
       await hubClient.shutdownHub()
     } catch {
@@ -572,6 +604,7 @@ export async function runTrayProcess(): Promise<void> {
     }
     eventAbortController?.abort()
     eventAbortController = null
+    recentThreadCatalog.dispose()
     tray?.destroy()
     tray = null
     lockHandle.release()
@@ -582,7 +615,7 @@ export async function runTrayProcess(): Promise<void> {
   setMenu({
     appServers: [],
     satellites: 0,
-    recentWorkspaces: getRecentWorkspaces(settings),
+    recentThreads: [],
     locale: normalizeLocale(settings.locale)
   })
   await refresh()

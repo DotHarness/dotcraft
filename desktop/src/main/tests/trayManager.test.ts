@@ -58,6 +58,11 @@ const hubClientMocks = vi.hoisted(() => {
   }
 })
 
+const recentThreadCatalogMocks = vi.hoisted(() => ({
+  refresh: vi.fn(async () => []),
+  dispose: vi.fn()
+}))
+
 const activationMocks = vi.hoisted(() => ({
   requestWorkspaceActivation: vi.fn<() => Promise<boolean>>(async () => false),
   requestWorkspaceWindowState: vi.fn<() => Promise<WorkspaceWindowState | null>>(async () => null)
@@ -158,6 +163,14 @@ vi.mock('../trayLock', () => trayLockMocks)
 
 vi.mock('../desktopHub', () => ({ createDesktopHubClient: hubClientMocks.createDesktopHubClient }))
 
+vi.mock('../trayRecentThreads', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../trayRecentThreads')>()
+  return {
+    ...actual,
+    TrayRecentThreadCatalog: vi.fn().mockImplementation(() => recentThreadCatalogMocks)
+  }
+})
+
 vi.mock('../desktopActivation', () => activationMocks)
 
 vi.mock('../desktopActivationLock', () => desktopActivationLockMocks)
@@ -175,6 +188,7 @@ beforeEach(() => {
   hubClientMocks.listSatellites.mockResolvedValue([])
   hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
   hubClientMocks.shutdownHub.mockResolvedValue(undefined)
+  recentThreadCatalogMocks.refresh.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -730,6 +744,52 @@ describe('trayManager Hub refresh', () => {
 
     expect(workspaceSubmenu()[0]?.label).toBe('No managed workspaces')
     expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
+  })
+
+  it('shows three recent threads directly and puts overflow in More', async () => {
+    recentThreadCatalogMocks.refresh.mockResolvedValue([
+      { id: 'thread-1', displayName: 'First', lastActiveAt: '2026-09-22T09:00:00Z', workspacePath: 'F:/work/one', workspaceName: 'one' },
+      { id: 'thread-2', displayName: 'Second', lastActiveAt: '2026-09-22T08:00:00Z', workspacePath: 'F:/work/two', workspaceName: 'two' },
+      { id: 'thread-3', displayName: null, lastActiveAt: '2026-09-22T07:00:00Z', workspacePath: 'F:/work/three', workspaceName: 'three' },
+      { id: 'thread-4', displayName: 'Fourth', lastActiveAt: '2026-09-22T06:00:00Z', workspacePath: 'F:/work/four', workspaceName: 'four' }
+    ])
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+
+    const menu = lastMenuTemplate()
+    expect(menu.slice(0, 5)).toMatchObject([
+      { label: 'Recent', enabled: false },
+      { label: 'First', sublabel: 'one' },
+      { label: 'Second', sublabel: 'two' },
+      { label: 'New conversation', sublabel: 'three' },
+      { label: 'More', submenu: [{ label: 'Fourth', sublabel: 'four' }] }
+    ])
+  })
+
+  it('opens a recent thread through workspace activation without spawning a new process', async () => {
+    recentThreadCatalogMocks.refresh.mockResolvedValue([
+      { id: 'thread-1', displayName: 'Open me', lastActiveAt: '2026-09-22T09:00:00Z', workspacePath: 'F:/work/one', workspaceName: 'one' }
+    ])
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
+      locked: true,
+      pid: 123,
+      activation: { host: '127.0.0.1', port: 456, token: 'token', protocolVersion: 1 }
+    })
+    activationMocks.requestWorkspaceActivation.mockResolvedValue(true)
+    const { runTrayProcess } = await import('../trayManager')
+
+    await runTrayProcess()
+    const item = lastMenuTemplate().find((entry) => entry.label === 'Open me')
+    ;(item?.click as (() => void) | undefined)?.()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
+      expect.objectContaining({ port: 456, token: 'token' }),
+      { workspacePath: 'F:/work/one', threadId: 'thread-1' }
+    )
+    expect(childProcessMocks.spawn).not.toHaveBeenCalled()
   })
 
   const satelliteLine = (): Record<string, unknown> | undefined =>
