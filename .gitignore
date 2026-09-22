@@ -54,3 +54,4 @@ docs/public/demo/
 /docker/.env
 /docker/workspace/
 /.playwright-mcp
+/.universe
