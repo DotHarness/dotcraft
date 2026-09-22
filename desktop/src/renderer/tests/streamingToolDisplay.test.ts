@@ -35,14 +35,23 @@ describe('getStreamingToolDisplay', () => {
     expect(display.parsedPreview?.planDraft?.plan).toBe('# Ship feature X\n\n## Summary\n\nNot yet')
   })
 
-  it('truncates large SpawnAgent task previews while streaming', () => {
+  it('preserves the complete SpawnAgent task label while streaming', () => {
+    const task = 'Review every formatter used by the conversation tool activity header'
     const display = getStreamingToolDisplay(
       'SpawnAgent',
-      `{"agentPrompt":"${'x'.repeat(1000)}`,
+      `{"agentPrompt":"${task}`,
       'en'
     )
-    expect(display.label.length).toBeLessThan(90)
-    expect(display.label).not.toContain('x'.repeat(200))
+    expect(display.label).toContain(task)
+  })
+
+  it('preserves complete long labels for tools that rely on layout truncation', () => {
+    const command = 'node scripts/verify-desktop.mjs --workspace /workspace/dotcraft-lab --surface conversation --scenario tool-row-width'
+    const pattern = 'tool activity title truncation shared disclosure conversation width'
+
+    expect(getStreamingToolDisplay('Exec', `{"command":"${command}`, 'en').label).toContain(command)
+    expect(getStreamingToolDisplay('GrepFiles', `{"pattern":"${pattern}`, 'en').label).toContain(pattern)
+    expect(getStreamingToolDisplay('SearchTools', `{"query":"${pattern}`, 'en').label).toContain(pattern)
   })
 
   it('does not expose WaitAgent child thread ids', () => {

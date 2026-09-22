@@ -60,22 +60,19 @@ export function formatInvocationDisplay(
   locale: AppLocale
 ): string | null {
   if (toolName === 'WebSearch') {
-    const qRaw = getJsonStringField(args, 'query')
-    if (qRaw === undefined) return null
-    const q = truncate(qRaw, 80)
-    return translate(locale, 'toolCall.webSearch.invocation', { query: q })
+    const query = getJsonStringField(args, 'query')
+    if (query === undefined) return null
+    return translate(locale, 'toolCall.webSearch.invocation', { query })
   }
   if (toolName === 'WebFetch') {
-    const uRaw = getJsonStringField(args, 'url')
-    if (uRaw === undefined) return null
-    const u = truncate(uRaw, 80)
-    return translate(locale, 'toolCall.webFetch.invocation', { url: u })
+    const url = getJsonStringField(args, 'url')
+    if (url === undefined) return null
+    return translate(locale, 'toolCall.webFetch.invocation', { url })
   }
   if (isToolSearchTool(toolName)) {
-    const qRaw = getToolSearchQuery(args)
-    if (qRaw === undefined) return null
-    const q = truncate(qRaw, 60)
-    return translate(locale, 'toolCall.searchTools.invocation', { query: q })
+    const query = getToolSearchQuery(args)
+    if (query === undefined) return null
+    return translate(locale, 'toolCall.searchTools.invocation', { query })
   }
   return null
 }

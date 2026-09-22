@@ -122,12 +122,6 @@ export function extractPartialJsonStringValue(json: string, key: string): string
   return out
 }
 
-function truncateChars(value: string, max: number): string {
-  const arr = Array.from(value)
-  if (arr.length <= max) return value
-  return arr.slice(0, max).join('') + '...'
-}
-
 function getFilename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
@@ -187,10 +181,8 @@ function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function truncateSummary(content: string, maxLen = 28): string {
-  const compact = content.replace(/\s+/g, ' ').trim()
-  if (compact.length <= maxLen) return compact
-  return `${compact.slice(0, maxLen)}...`
+function normalizeSummary(content: string): string {
+  return content.replace(/\s+/g, ' ').trim()
 }
 
 function asObjectArray(value: unknown): Array<Record<string, unknown>> {
@@ -248,7 +240,7 @@ function getTodoWriteSummary(args: ToolArgs, preferStarted: boolean): string | n
 
   const content = typeof candidate.content === 'string' ? candidate.content : ''
   if (!content.trim()) return null
-  return truncateSummary(content)
+  return normalizeSummary(content)
 }
 
 function getUpdateTodosSummary(
@@ -269,7 +261,7 @@ function getUpdateTodosSummary(
   const matched = planTodos.find((todo) => normalizeText(todo?.id) === id)
   const content = normalizeText(matched?.content)
   if (!content) return null
-  return truncateSummary(content)
+  return normalizeSummary(content)
 }
 
 function formatTodoLabel(
@@ -377,8 +369,7 @@ export function formatCollapsedToolLabel(
   if (isShellToolName(toolName)) {
     const cmd = (args?.command as string | undefined) ?? toolName
     const firstLine = cmd.split(/\r?\n/, 1)[0] ?? cmd
-    const short = firstLine.length > 40 ? firstLine.slice(0, 40) + '…' : firstLine
-    return translate(locale, 'toolCall.ran', { cmd: short })
+    return translate(locale, 'toolCall.ran', { cmd: firstLine })
   }
 
   if (toolName === SKILL_MANAGE_TOOL_NAME) {
@@ -493,20 +484,17 @@ export function getStreamingToolDisplay(
     case 'GrepFiles': {
       const pattern = extractPartialJsonStringValue(rawArgs, 'pattern')
       const path = extractPartialJsonStringValue(rawArgs, 'path')
-      const truncatedPattern = pattern ? truncateChars(pattern, 40) : ''
-      if (truncatedPattern && path) {
+      if (pattern && path) {
         return {
           label: translate(locale, 'toolCall.streaming.searchingGrepIn', {
-            pattern: truncatedPattern,
+            pattern,
             path
           })
         }
       }
-      if (truncatedPattern) {
+      if (pattern) {
         return {
-          label: translate(locale, 'toolCall.streaming.searchingGrep', {
-            pattern: truncatedPattern
-          })
+          label: translate(locale, 'toolCall.streaming.searchingGrep', { pattern })
         }
       }
       return { label: translate(locale, 'toolCall.streaming.searchingGeneric') }
@@ -514,20 +502,17 @@ export function getStreamingToolDisplay(
     case 'FindFiles': {
       const pattern = extractPartialJsonStringValue(rawArgs, 'pattern')
       const path = extractPartialJsonStringValue(rawArgs, 'path')
-      const truncatedPattern = pattern ? truncateChars(pattern, 40) : ''
-      if (truncatedPattern && path) {
+      if (pattern && path) {
         return {
           label: translate(locale, 'toolCall.streaming.findingFilesIn', {
-            pattern: truncatedPattern,
+            pattern,
             path
           })
         }
       }
-      if (truncatedPattern) {
+      if (pattern) {
         return {
-          label: translate(locale, 'toolCall.streaming.findingFiles', {
-            pattern: truncatedPattern
-          })
+          label: translate(locale, 'toolCall.streaming.findingFiles', { pattern })
         }
       }
       return { label: translate(locale, 'toolCall.streaming.findingGeneric') }
@@ -537,9 +522,7 @@ export function getStreamingToolDisplay(
       if (command) {
         const firstLine = command.split('\n')[0] ?? command
         return {
-          label: translate(locale, 'toolCall.streaming.runningCommand', {
-            command: truncateChars(firstLine, 80)
-          }),
+          label: translate(locale, 'toolCall.streaming.runningCommand', { command: firstLine }),
           parsedPreview: { command }
         }
       }
@@ -552,9 +535,7 @@ export function getStreamingToolDisplay(
       const query = extractPartialJsonStringValue(rawArgs, 'query')
       if (query) {
         return {
-          label: translate(locale, 'toolCall.streaming.webSearch', {
-            query: truncateChars(query, 80)
-          })
+          label: translate(locale, 'toolCall.streaming.webSearch', { query })
         }
       }
       return { label: translate(locale, 'toolCall.streaming.webSearchGeneric') }
@@ -563,9 +544,7 @@ export function getStreamingToolDisplay(
       const url = extractPartialJsonStringValue(rawArgs, 'url')
       if (url) {
         return {
-          label: translate(locale, 'toolCall.streaming.webFetch', {
-            url: truncateChars(url, 80)
-          })
+          label: translate(locale, 'toolCall.streaming.webFetch', { url })
         }
       }
       return { label: translate(locale, 'toolCall.streaming.webFetchGeneric') }
@@ -577,23 +556,17 @@ export function getStreamingToolDisplay(
       const profile = extractPartialJsonStringValue(rawArgs, 'profile')
       if (label) {
         return {
-          label: translate(locale, 'toolCall.streaming.spawnAgent', {
-            label: truncateChars(label, 60)
-          })
+          label: translate(locale, 'toolCall.streaming.spawnAgent', { label })
         }
       }
       if (task) {
         return {
-          label: translate(locale, 'toolCall.streaming.spawnAgentTask', {
-            task: truncateChars(task, 60)
-          })
+          label: translate(locale, 'toolCall.streaming.spawnAgentTask', { task })
         }
       }
       if (profile) {
         return {
-          label: translate(locale, 'toolCall.streaming.spawnAgentProfile', {
-            profile: truncateChars(profile, 40)
-          })
+          label: translate(locale, 'toolCall.streaming.spawnAgentProfile', { profile })
         }
       }
       return { label: translate(locale, 'toolCall.streaming.spawnAgentGeneric') }
@@ -602,7 +575,7 @@ export function getStreamingToolDisplay(
       const name = extractPartialJsonStringValue(rawArgs, 'name')
       return {
         label: name
-          ? translate(locale, 'toolCall.streaming.workflowNamed', { name: truncateChars(name, 60) })
+          ? translate(locale, 'toolCall.streaming.workflowNamed', { name })
           : translate(locale, 'toolCall.streaming.workflow')
       }
     }
@@ -672,9 +645,7 @@ export function getStreamingToolDisplay(
         ?? extractPartialJsonStringValue(rawArgs, 'q')
       if (query) {
         return {
-          label: translate(locale, 'toolCall.streaming.searchTools', {
-            query: truncateChars(query, 60)
-          })
+          label: translate(locale, 'toolCall.streaming.searchTools', { query })
         }
       }
       return { label: translate(locale, 'toolCall.streaming.searchToolsGeneric') }
@@ -691,9 +662,7 @@ export function getStreamingToolDisplay(
       const title = extractPlanTitle(plan)
       return {
         label: title
-          ? translate(locale, 'toolCall.streaming.draftingPlanTitled', {
-              title: truncateChars(title, 60)
-            })
+          ? translate(locale, 'toolCall.streaming.draftingPlanTitled', { title })
           : translate(locale, 'toolCall.streaming.draftingPlan'),
         parsedPreview: {
           planDraft: { title, plan }

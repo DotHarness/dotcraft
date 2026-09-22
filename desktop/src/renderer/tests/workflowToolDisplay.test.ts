@@ -19,6 +19,10 @@ describe('parseWorkflowRunId', () => {
       .toBe('Started workflow release-review')
     expect(formatWorkflowFailureLabel({ name: 'release-review' }, 'en'))
       .toBe('Could not start workflow release-review')
+
+    const longName = 'release-review-with-complete-desktop-tool-title-geometry-validation'
+    expect(getStreamingToolDisplay('Workflow', `{"name":"${longName}`, 'en').label)
+      .toContain(longName)
   })
 
   it('parses only a successful running launch for auto-open', () => {

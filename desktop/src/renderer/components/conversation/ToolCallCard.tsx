@@ -88,9 +88,7 @@ function formatRunningToolLabel(
   if (rendererFamily === 'shell') {
     const firstLine = shellCommand?.split(/\r?\n/, 1)[0]
     return firstLine
-      ? translate(locale, 'toolCall.streaming.runningCommand', {
-        command: firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine
-      })
+      ? translate(locale, 'toolCall.streaming.runningCommand', { command: firstLine })
       : translate(locale, 'toolCall.runningCommand')
   }
   if (rendererFamily === 'skillManage' && args) {
@@ -476,26 +474,27 @@ export const ToolCallCard = memo(function ToolCallCard({
     const runningResolvedPath = runningFilePath && workspacePath
       ? toAbsoluteWorkspacePath(workspacePath, runningFilePath)
       : runningFilePath ?? undefined
-    const runningTitle = (
+    const runningTitle = runningFilePath && !runningExpanded ? (
+      <ActionTooltip
+        label={runningResolvedPath ?? runningFilePath}
+        wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+      >
+        <span
+          className="tool-running-gradient-text"
+          style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {runningDisplayLabel}
+        </span>
+      </ActionTooltip>
+    ) : (
+      <span className="tool-running-gradient-text">{runningDisplayLabel}</span>
+    )
+    const runningAccessory = (
       <>
-        {runningFilePath && !runningExpanded ? (
-          <ActionTooltip
-            label={runningResolvedPath ?? runningFilePath}
-            wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-          >
-            <span
-              className="tool-running-gradient-text"
-              style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-            >
-              {runningDisplayLabel}
-            </span>
-          </ActionTooltip>
-        ) : (
-          <span className="tool-running-gradient-text">{runningDisplayLabel}</span>
-        )}
         {!runningExpanded && renderableStreamingFileDiff && (
           <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
         )}
+        <span>{runningElapsedLabel}</span>
       </>
     )
 
@@ -506,7 +505,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         expandable={canExpandWhileRunning}
         onHoverChange={setHovered}
         title={remoteToolHostRow?.title ?? runningTitle}
-        trailing={runningElapsedLabel}
+        accessory={runningAccessory}
       >
           <div
             className="dc-tool-panel-surface"
@@ -626,11 +625,11 @@ export const ToolCallCard = memo(function ToolCallCard({
           )}
         </>
       )}
-      {success && !completedExpanded && renderableFileDiff && (
-        <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
-      )}
     </>
   )
+  const completedAccessory = success && !completedExpanded && renderableFileDiff
+    ? <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
+    : undefined
 
   return (
     <ToolDisclosure
@@ -640,6 +639,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       onHoverChange={setHovered}
       tone={success ? undefined : 'error'}
       title={remoteToolHostRow?.title ?? completedTitle}
+      accessory={completedAccessory}
     >
       <div
         data-testid="tool-expanded-content"

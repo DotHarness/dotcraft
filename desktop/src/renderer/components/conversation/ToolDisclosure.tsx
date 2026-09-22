@@ -6,7 +6,7 @@ interface ToolDisclosureProps {
   onToggle: () => void
   expandable?: boolean
   title: ReactNode
-  trailing?: ReactNode
+  accessory?: ReactNode
   tone?: 'error'
   variant?: 'turn'
   onHoverChange?: (hovered: boolean) => void
@@ -23,7 +23,7 @@ export function ToolDisclosure({
   onToggle,
   expandable = true,
   title,
-  trailing,
+  accessory,
   tone,
   variant,
   onHoverChange,
@@ -48,8 +48,8 @@ export function ToolDisclosure({
       <div className="dc-tool-row-static" data-testid="tool-row" data-expandable="false" data-tone={tone} data-variant={variant} {...hoverProps}>
         <span className="dc-tool-row-title" data-testid="tool-row-title-group">
           <span className="dc-tool-row-text">{title}</span>
+          {accessory ? <span className="dc-tool-row-accessory">{accessory}</span> : null}
         </span>
-        {trailing ? <span className="dc-tool-row-trailing">{trailing}</span> : null}
       </div>
     )
   }
@@ -78,9 +78,9 @@ export function ToolDisclosure({
       >
         <span className="dc-tool-row-title" data-testid="tool-row-title-group">
           <span className="dc-tool-row-text">{title}</span>
+          {accessory ? <span className="dc-tool-row-accessory">{accessory}</span> : null}
           <ToolCollapseChevron expanded={expanded} />
         </span>
-        {trailing ? <span className="dc-tool-row-trailing">{trailing}</span> : null}
       </summary>
       <div className="dc-tool-panel">{opened.current ? children : null}</div>
     </details>

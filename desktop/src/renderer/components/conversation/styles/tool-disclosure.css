@@ -1,15 +1,19 @@
 /* `interpolate-size` is what lets the panel's `block-size` transition to `auto`. */
 .dc-tool-row {
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
   interpolate-size: allow-keywords;
 }
 
 .dc-tool-row > summary,
 .dc-tool-row-static {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
+  align-items: center;
+  align-self: flex-start;
   padding: 3px 6px;
   border: none;
   border-radius: 6px;
@@ -67,25 +71,27 @@
 
 .dc-tool-row-title {
   display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 1 auto;
-  min-width: 0;
   max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
 }
 
 .dc-tool-row-text {
   min-width: 0;
+  flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* The elapsed counter ticks at one decimal, so its digits must not reflow. */
-.dc-tool-row-trailing {
+.dc-tool-row-accessory {
+  display: inline-flex;
   flex-shrink: 0;
-  margin-left: auto;
+  align-items: center;
+  gap: 6px;
   color: var(--text-dimmed);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 

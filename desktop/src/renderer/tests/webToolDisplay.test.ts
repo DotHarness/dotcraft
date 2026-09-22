@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatInvocationDisplay,
   invocationNeedsCallingPrefix,
   parseWebSearchResultDisplay,
   truncate
@@ -14,6 +15,17 @@ describe('truncate', () => {
     const s = 'a'.repeat(100)
     expect(truncate(s, 80).length).toBe(81)
     expect(truncate(s, 80).endsWith('…')).toBe(true)
+  })
+})
+
+describe('formatInvocationDisplay', () => {
+  it('preserves complete invocation values for layout-level truncation', () => {
+    const query = 'compare shared tool activity title geometry across commands todo searches workflows and agents'
+    const url = 'https://example.com/reference/tool-activity-disclosure/complete-layout-contract?mode=desktop'
+
+    expect(formatInvocationDisplay('WebSearch', { query }, 'en')).toContain(query)
+    expect(formatInvocationDisplay('WebFetch', { url }, 'en')).toContain(url)
+    expect(formatInvocationDisplay('SearchTools', { query }, 'en')).toContain(query)
   })
 })
 
