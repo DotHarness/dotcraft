@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-/** Bytes read before the viewer shows the truncation notice. */
-export const MAX_READ_BYTES = 5 * 1024 * 1024
+/** Maximum text file size accepted by the viewer. */
+export const MAX_READ_BYTES = 20 * 1024 * 1024
 
 export interface FileTextState {
   status: 'loading' | 'ok' | 'error'

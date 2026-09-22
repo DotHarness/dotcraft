@@ -7,6 +7,7 @@ export function handleFindShortcut(event: KeyboardEvent): boolean {
 
   // A window-wide find opened behind a dialog would search content the user cannot see.
   const target = event.target
+  if (target instanceof Element && target.closest('[data-file-editor]')) return false
   if (target instanceof Element && target.closest('[role="dialog"], [aria-modal="true"]') !== null) {
     return false
   }

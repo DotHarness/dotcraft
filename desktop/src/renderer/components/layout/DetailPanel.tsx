@@ -23,6 +23,8 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
 import { performAddTabAction } from '../../utils/detailTabActions'
 import { IconButton } from '../ui/IconButton'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { useFileEditorStore } from '../../stores/fileEditorStore'
 
 interface DetailPanelProps {
   workspacePath?: string
@@ -49,6 +51,7 @@ export function DetailPanel({
   remoteWorkspace = false
 }: DetailPanelProps): JSX.Element {
   const t = useT()
+  const confirm = useConfirmDialog()
   const locale = useLocale()
   const {
     activeDetailTab,
@@ -76,28 +79,51 @@ export function DetailPanel({
 
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
+  const closingTabs = useRef(new Set<string>())
 
   const activeSystemId = activeDetailTab.kind === 'system' ? activeDetailTab.id : null
   const activeViewerId = activeDetailTab.kind === 'viewer' ? activeDetailTab.id : null
   const isLauncher = activeDetailTab.kind === 'launcher'
 
   const handleCloseViewerTab = (tabId: string): void => {
+    if (closingTabs.current.has(tabId)) return
+    closingTabs.current.add(tabId)
+    void closeViewerTabSafely(tabId).finally(() => closingTabs.current.delete(tabId))
+  }
+
+  const closeViewerTabSafely = async (tabId: string): Promise<void> => {
     if (!currentThreadId) return
     const closing = viewerTabs.find((t) => t.id === tabId)
+    if (closing?.kind === 'file' && closing.contentClass === 'text') {
+      const saved = await useFileEditorStore.getState().save(tabId)
+      if (!saved) {
+        if (useFileEditorStore.getState().sessions.get(tabId)?.review) return
+        const discard = await confirm({
+          title: t('viewer.discardChangesTitle'),
+          message: t('viewer.discardChangesMessage'),
+          cancelLabel: t('viewer.continueViewing'),
+          confirmLabel: t('viewer.discardChanges'),
+          danger: true
+        })
+        if (!discard) return
+      }
+      useFileEditorStore.getState().discard(tabId)
+    }
     if (closing?.kind === 'browser') {
       void window.api.workspace.viewer.browser.destroy({ tabId: closing.id })
     } else if (closing?.kind === 'terminal') {
       void window.api.workspace.viewer.terminal.dispose({ tabId: closing.id })
     }
+    const latestTabs = useViewerTabStore.getState().getThreadState(currentThreadId).tabs
     closeViewerTabInStore(currentThreadId, tabId)
-
-    const remaining = viewerTabs.filter((t) => t.id !== tabId)
-    const wasActive = activeDetailTab.kind === 'viewer' && activeDetailTab.id === tabId
+    if (useViewerTabStore.getState().currentThreadId !== currentThreadId) return
+    const remaining = latestTabs.filter((t) => t.id !== tabId)
+    const latestActive = useUIStore.getState().activeDetailTab
+    const wasActive = latestActive.kind === 'viewer' && latestActive.id === tabId
 
     if (wasActive) {
       if (remaining.length > 0) {
-        // Nearest neighbor was already handled by the store — we need to read it
-        const idx = viewerTabs.findIndex((t) => t.id === tabId)
+        const idx = latestTabs.findIndex((t) => t.id === tabId)
         const newActive = idx > 0
           ? remaining[idx - 1]
           : remaining[0]

@@ -68,7 +68,11 @@ import type {
   BrowserUseOpenPayload,
   BrowserEventPayload,
   TerminalDataEventPayload,
-  TerminalExitEventPayload
+  TerminalExitEventPayload,
+  ReadTextResult,
+  WriteTextParams,
+  WriteTextResult,
+  TextFileChangedPayload
 } from '../shared/viewer/types'
 export type {
   BrowserUseApprovalRequestPayload,
@@ -1114,12 +1118,34 @@ const api = {
         return ipcRenderer.invoke('workspace:viewer:classify', params)
       },
 
-      /** Reads a text file with an optional size limit (default 5 MB). */
+      /** Reads a text file with an optional size limit (default 20 MiB). */
       readText(params: {
         absolutePath: string
         limitBytes?: number
-      }): Promise<{ text: string; truncated: boolean; encoding: string }> {
+      }): Promise<ReadTextResult> {
         return ipcRenderer.invoke('workspace:viewer:read-text', params)
+      },
+
+      writeText(params: WriteTextParams): Promise<WriteTextResult> {
+        return ipcRenderer.invoke('workspace:viewer:write-text', params)
+      },
+
+      async watchText(
+        params: { absolutePath: string },
+        callback: (payload: TextFileChangedPayload) => void
+      ): Promise<() => void> {
+        const { subscriptionId } = await ipcRenderer.invoke('workspace:viewer:watch-text', params)
+        const listener = (
+          _event: Electron.IpcRendererEvent,
+          payload: TextFileChangedPayload & { subscriptionId: string }
+        ): void => {
+          if (payload.subscriptionId === subscriptionId) callback(payload)
+        }
+        ipcRenderer.on('workspace:viewer:text-changed', listener)
+        return () => {
+          ipcRenderer.removeListener('workspace:viewer:text-changed', listener)
+          void ipcRenderer.invoke('workspace:viewer:unwatch-text', { subscriptionId })
+        }
       },
 
       authorizeFile(params: { absolutePath: string }): Promise<{ absolutePath: string }> {

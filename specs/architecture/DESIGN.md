@@ -368,6 +368,40 @@ Use depth instead of color variety.
 - File viewers and docked file lists inherit the surrounding main surface instead
   of introducing a secondary panel fill. Use secondary and tertiary surfaces for
   controls, hover states, and selected rows within them.
+- Editable file viewers keep the same neutral viewer chrome as read-only files.
+  Source, read-only code, and Markdown source share Shiki grammars, paired theme
+  tokens, code font, size, line height, gutter, text origin, indentation, and wrapping.
+  CodeMirror supplies editing mechanics, not a second syntax palette. Focus adds
+  only caret, selection, and current-line feedback. Asynchronous highlighting maps
+  existing spans through edits until the current document's result arrives; stale
+  results never replace current content or reset selection and scroll position.
+- Markdown opens as an editable semantic document using document typography and
+  shared code typography/theme inside code. Syntax-tree decorations cover headings,
+  lists, quotes, emphasis, links, inline/fenced code, GFM tables and strikethrough.
+  Heading markers reveal when the focused selection touches the marker; emphasis,
+  strikethrough, inline-code and link markers reveal within their focused structure.
+  Lists retain source markers. Top-level quote markers stay hidden; nested quotes
+  keep their markers. Tables retain their cell layout, hiding pipe/delimiter syntax;
+  closed code fences retain their rendered boundary and language label during focus.
+  Mermaid reuses the existing renderer. The header owns View source /
+  View preview. Each mode retains its own selection and scroll position, with
+  history restored only for the matching content version.
+- The floating editor toolbar sits 16px from the bottom and right, with compact
+  undo/redo controls, 1px gaps, 4px padding, a neutral border, 8px corners, a 90%
+  elevated surface and backdrop blur. This is a local exception to the opaque
+  ordinary-menu rule, not a new overlay treatment. Source shows undo/redo and
+  reports failed saves through notifications. Semantic Markdown additionally shows
+  icon-labelled Saving… / Save failed. Hide the toolbar when it has no useful state.
+- Focused file editors own their Find shortcut. A top floating find bar contains
+  query, result count, previous/next and close; it does not expose replacement or
+  open the window-wide find overlay simultaneously.
+- Large files keep their corresponding view read-only, with a neutral outlined
+  notice inside the body rather than a yellow warning strip. External-change
+  review is a single-column diff with insertion/deletion highlighting. Its fixed
+  footer orders wrapping, Edit, Reject (danger), Accept (success). Keep the underlying
+  editor session mounted. An over-limit diff shows an unavailable-preview message
+  without removing applicable decisions. Behavior and size limits are specified in
+  [Desktop UX §10.1](../clients/desktop-client.md#101-viewer-panel).
 
 Do not use glow rings, highlighted borders, accent borders, or decorative
 gradients to make ordinary controls "stand out." Use placement, hierarchy,

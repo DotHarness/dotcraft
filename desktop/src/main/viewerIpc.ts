@@ -9,11 +9,14 @@ import type {
   DirEntryWire,
   ListDirResult,
   ReadTextResult,
+  WriteTextParams,
+  WriteTextResult,
   ViewerContentClass
 } from '../shared/viewer/types'
 
 
-const DEFAULT_READ_LIMIT_BYTES = 5 * 1024 * 1024 // 5 MB
+export const EDITABLE_TEXT_LIMIT_BYTES = 10 * 1024 * 1024
+export const MAX_TEXT_OPEN_BYTES = 20 * 1024 * 1024
 
 
 const IMAGE_EXTENSIONS = new Set([
@@ -176,37 +179,92 @@ export async function classifyFile(
 export async function readTextFile(
   absolutePath: string,
   workspaceRoot: string,
-  limitBytes: number = DEFAULT_READ_LIMIT_BYTES
+  limitBytes: number = MAX_TEXT_OPEN_BYTES
 ): Promise<ReadTextResult> {
   // Deep links are allowed to target readable local files outside workspace.
   void workspaceRoot
 
-  const stat = await fs.stat(absolutePath)
-  if (!stat.isFile()) {
-    throw new Error(`Not a file: ${absolutePath}`)
-  }
-
-  const fileSize = stat.size
-  const truncated = fileSize > limitBytes
-
-  let buffer: Buffer
-  if (truncated) {
-    const fh = await fs.open(absolutePath, 'r')
-    try {
-      buffer = Buffer.alloc(limitBytes)
-      const { bytesRead } = await fh.read(buffer, 0, limitBytes, 0)
-      buffer = buffer.subarray(0, bytesRead)
-    } finally {
-      await fh.close()
+  limitBytes = Math.min(Math.max(1, limitBytes), MAX_TEXT_OPEN_BYTES)
+  const handle = await fs.open(absolutePath, 'r')
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const stat = await handle.stat()
+      if (!stat.isFile()) throw new Error(`Not a file: ${absolutePath}`)
+      if (stat.size > MAX_TEXT_OPEN_BYTES) throw new Error('File is larger than the 20 MiB viewer limit')
+      const buffer = Buffer.alloc(Math.min(stat.size, limitBytes))
+      let offset = 0
+      while (offset < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset)
+        if (!bytesRead) break
+        offset += bytesRead
+      }
+      const latest = await handle.stat()
+      if (latest.size !== stat.size || latest.mtimeMs !== stat.mtimeMs) continue
+      const hasUtf8Bom = buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer.subarray(0, offset))
+      return {
+        text,
+        truncated: stat.size > limitBytes,
+        encoding: 'utf-8',
+        sizeBytes: stat.size,
+        mtimeMs: stat.mtimeMs,
+        hasUtf8Bom,
+        lineEnding: detectLineEnding(text),
+        ...(stat.size > EDITABLE_TEXT_LIMIT_BYTES ? { readOnlyReason: 'large-file' as const } : {})
+      }
     }
-  } else {
-    buffer = await fs.readFile(absolutePath)
-  }
+    throw new Error('File changed while reading')
+  } finally { await handle.close() }
+}
 
-  const decoder = new TextDecoder('utf-8', { fatal: false })
-  const text = decoder.decode(buffer)
+const textWrites = new Map<string, Promise<unknown>>()
 
-  return { text, truncated, encoding: 'utf-8' }
+export async function writeTextFile(
+  params: WriteTextParams,
+  workspaceRoot: string,
+  authorize?: (absolutePath: string) => Promise<string>
+): Promise<WriteTextResult> {
+  const validate = authorize ?? (async (target: string) => {
+    await fs.stat(target)
+    if (!await isPathInsideWorkspace(target, workspaceRoot)) throw new Error('Viewer access denied')
+    return fs.realpath(target)
+  })
+  const resolved = await validate(params.absolutePath)
+  const previous = textWrites.get(resolved) ?? Promise.resolve()
+  const task = previous.catch(() => {}).then(async (): Promise<WriteTextResult> => {
+    const currentPath = await validate(params.absolutePath)
+    if (currentPath !== resolved) throw new Error('Viewer file target changed')
+    const handle = await fs.open(resolved, 'r+')
+    try {
+      const stat = await handle.stat()
+      if (!stat.isFile()) throw new Error(`Not a file: ${resolved}`)
+      if (stat.size > MAX_TEXT_OPEN_BYTES) throw new Error('File is larger than the 20 MiB viewer limit')
+      if (stat.mtimeMs !== params.expectedMtimeMs) {
+        return { outcome: 'conflict', current: await readTextFile(resolved, workspaceRoot) }
+      }
+      const normalized = params.text.replace(/\r\n?/g, '\n')
+      const separator = params.lineEnding === 'crlf' ? '\r\n' : params.lineEnding === 'cr' ? '\r' : '\n'
+      const content = Buffer.from(`${params.hasUtf8Bom ? '\uFEFF' : ''}${normalized.replace(/\n/g, separator)}`, 'utf8')
+      if (content.byteLength > MAX_TEXT_OPEN_BYTES) throw new Error('File is larger than the 20 MiB viewer limit')
+      if (await validate(params.absolutePath) !== resolved) throw new Error('Viewer file target changed')
+      const latest = await fs.stat(resolved)
+      if (latest.ino !== stat.ino || latest.dev !== stat.dev || latest.mtimeMs !== stat.mtimeMs) {
+        return { outcome: 'conflict', current: await readTextFile(resolved, workspaceRoot) }
+      }
+      await handle.writeFile(content)
+      await handle.truncate(content.length)
+      const updated = await handle.stat()
+      return { outcome: 'saved', mtimeMs: updated.mtimeMs, sizeBytes: updated.size }
+    } finally { await handle.close() }
+  })
+  textWrites.set(resolved, task)
+  try { return await task } finally { if (textWrites.get(resolved) === task) textWrites.delete(resolved) }
+}
+
+function detectLineEnding(text: string): 'lf' | 'crlf' | 'cr' {
+  if (text.includes('\r\n')) return 'crlf'
+  if (text.includes('\r')) return 'cr'
+  return 'lf'
 }
 
 

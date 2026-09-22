@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
@@ -32,6 +32,7 @@ import {
   handleViewerFileRequest,
   installViewerProtocolHandlerForSession,
   isPathInsideWorkspace,
+  resolveViewerFileForAccess,
   setViewerWorkspaceRoot,
   viewerUrlToPath
 } from '../viewerFileProtocol'
@@ -222,5 +223,25 @@ describe('handleViewerFileRequest external authorization', () => {
 
     expect(response.status).toBe(403)
     expect(netFetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveViewerFileForAccess', () => {
+  it('allows workspace files and only explicitly authorized external files', async () => {
+    const root = createTempDir()
+    const inside = join(root, 'inside.txt')
+    const externalRoot = createTempDir()
+    const external = join(externalRoot, 'outside.txt')
+    const sibling = join(externalRoot, 'sibling.txt')
+    writeFileSync(inside, 'inside')
+    writeFileSync(external, 'outside')
+    writeFileSync(sibling, 'sibling')
+    setViewerWorkspaceRoot(root)
+
+    await expect(resolveViewerFileForAccess(inside, root)).resolves.toBe(realpathSync.native(inside))
+    await expect(resolveViewerFileForAccess(external, root)).rejects.toThrow('denied')
+    await authorizeViewerFile(external)
+    await expect(resolveViewerFileForAccess(external, root)).resolves.toBe(realpathSync.native(external))
+    await expect(resolveViewerFileForAccess(sibling, root)).rejects.toThrow('denied')
   })
 })
