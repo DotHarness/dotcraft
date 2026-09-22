@@ -72,6 +72,10 @@ const desktopActivationLockMocks = vi.hoisted(() => ({
   getDesktopActivationEndpoint: vi.fn(() => null)
 }))
 
+const desktopProcessRegistryMocks = vi.hoisted(() => ({
+  quitRegisteredDesktopProcesses: vi.fn(async () => ({ requested: 0, acknowledged: 0, failed: 0 }))
+}))
+
 const electronMocks = vi.hoisted(() => {
   const show = vi.fn()
   let notificationClickHandler: (() => void) | null = null
@@ -175,6 +179,8 @@ vi.mock('../desktopActivation', () => activationMocks)
 
 vi.mock('../desktopActivationLock', () => desktopActivationLockMocks)
 
+vi.mock('../desktopProcessRegistry', () => desktopProcessRegistryMocks)
+
 vi.mock('fs', () => ({
   existsSync: vi.fn(() => true)
 }))
@@ -188,6 +194,11 @@ beforeEach(() => {
   hubClientMocks.listSatellites.mockResolvedValue([])
   hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
   hubClientMocks.shutdownHub.mockResolvedValue(undefined)
+  desktopProcessRegistryMocks.quitRegisteredDesktopProcesses.mockResolvedValue({
+    requested: 0,
+    acknowledged: 0,
+    failed: 0
+  })
   recentThreadCatalogMocks.refresh.mockResolvedValue([])
 })
 
@@ -744,6 +755,38 @@ describe('trayManager Hub refresh', () => {
 
     expect(workspaceSubmenu()[0]?.label).toBe('No managed workspaces')
     expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
+  })
+
+  it('quits every Desktop process before shutting down Hub and the tray', async () => {
+    const { runTrayProcess } = await import('../trayManager')
+    await runTrayProcess()
+
+    const exit = lastMenuTemplate().find((item) => item.label === 'Exit')
+    ;(exit?.click as (() => void) | undefined)?.()
+
+    await vi.waitFor(() => expect(electronMocks.appQuit).toHaveBeenCalledOnce())
+    expect(desktopProcessRegistryMocks.quitRegisteredDesktopProcesses).toHaveBeenCalledOnce()
+    expect(hubClientMocks.shutdownHub).toHaveBeenCalledOnce()
+    expect(
+      desktopProcessRegistryMocks.quitRegisteredDesktopProcesses.mock.invocationCallOrder[0]
+    ).toBeLessThan(hubClientMocks.shutdownHub.mock.invocationCallOrder[0]!)
+    expect(hubClientMocks.shutdownHub.mock.invocationCallOrder[0]).toBeLessThan(
+      electronMocks.appQuit.mock.invocationCallOrder[0]!
+    )
+  })
+
+  it('still shuts down Hub when a Desktop process cannot be notified', async () => {
+    desktopProcessRegistryMocks.quitRegisteredDesktopProcesses.mockRejectedValueOnce(
+      new Error('registry unavailable')
+    )
+    const { runTrayProcess } = await import('../trayManager')
+    await runTrayProcess()
+
+    const exit = lastMenuTemplate().find((item) => item.label === 'Exit')
+    ;(exit?.click as (() => void) | undefined)?.()
+
+    await vi.waitFor(() => expect(electronMocks.appQuit).toHaveBeenCalledOnce())
+    expect(hubClientMocks.shutdownHub).toHaveBeenCalledOnce()
   })
 
   it('shows three recent threads directly and puts overflow in More', async () => {

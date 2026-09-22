@@ -30,6 +30,7 @@ import { NO_WORKSPACE_ARG } from './workspaceArgs'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
 import { isDefaultChatWorkspace } from './defaultChatWorkspace'
+import { quitRegisteredDesktopProcesses } from './desktopProcessRegistry'
 import {
   DIRECT_RECENT_THREAD_COUNT,
   RECENT_THREAD_TITLE_MAX_LENGTH,
@@ -499,8 +500,11 @@ export async function runTrayProcess(): Promise<void> {
   }
   applyTrayNativeThemeSource(settings)
 
+  let disposed = false
   const lock = await tryAcquireTrayLock(undefined, {
-    onShutdown: () => app.quit()
+    onShutdown: () => {
+      if (!disposed) app.quit()
+    }
   })
   if (!lock) {
     app.quit()
@@ -515,7 +519,6 @@ export async function runTrayProcess(): Promise<void> {
   const recentThreadCatalog = new TrayRecentThreadCatalog()
   let eventAbortController: AbortController | null = null
   let refreshTimer: ReturnType<typeof setInterval> | null = null
-  let disposed = false
   let openRecentInFlight = false
 
   tray.on('click', () => {
@@ -580,6 +583,7 @@ export async function runTrayProcess(): Promise<void> {
   }
 
   async function exitAll(): Promise<void> {
+    if (disposed) return
     disposed = true
     if (refreshTimer) {
       clearInterval(refreshTimer)
@@ -588,6 +592,11 @@ export async function runTrayProcess(): Promise<void> {
     eventAbortController?.abort()
     eventAbortController = null
     recentThreadCatalog.dispose()
+    try {
+      await quitRegisteredDesktopProcesses()
+    } catch {
+      // A stale or unavailable Desktop process must not block Hub shutdown.
+    }
     try {
       await hubClient.shutdownHub()
     } catch {

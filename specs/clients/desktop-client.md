@@ -233,6 +233,11 @@ Ordinary remote initialization uses a fifteen-second timeout. A temporary connec
 - Multiple windows may be open concurrently, including windows whose recent workspace lists overlap.
 - The same workspace may be connected by more than one Desktop process. AppServer multi-client semantics own protocol safety; Desktop must not rely on a process-exclusive workspace lock to prevent concurrent viewing.
 - User actions in one window must not implicitly change thread selection or visible state in another window, except that workspace-level AppServer broadcasts may update shared thread summaries in all connected windows.
+- Each visible Desktop process registers one authenticated loopback control endpoint in the
+  user-scoped Desktop process registry. Tray Exit requests a graceful quit from every live
+  registration before shutting down Hub, regardless of the window's connection mode or workspace
+  state. Closing an individual window keeps its existing client-only meaning and does not stop Hub
+  or other Desktop windows.
 
 ### 3.7 Projects Rail, Thread Navigation, and Secondary Connections
 
