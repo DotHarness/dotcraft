@@ -338,7 +338,11 @@ Tray responsibilities:
 - Show Hub and known workspace status without exposing AppServer terminology in user-facing tray labels.
 - Open recent or running workspaces.
 - Restart or stop Hub-managed AppServers through Hub Protocol.
-- Stop Hub and Hub-managed AppServers on tray Exit.
+- Treat tray Exit as exiting DotCraft Desktop: first ask every registered Desktop window on the
+  current machine to quit through its authenticated local control endpoint, then stop Hub and
+  Hub-managed AppServers, and finally exit the tray process. This applies equally to Local,
+  Remote, disconnected, and workspace-free windows. A failed or stale window registration must
+  not block Hub shutdown.
 - Display OS notifications for Hub `notification.requested` events.
 
 Notification flow:

@@ -149,6 +149,10 @@ import {
   type TopLevelMenuId
 } from '../shared/locales'
 import { ensureTrayProcess, openDesktopWindow, runTrayProcess, stopTrayProcess } from './trayManager'
+import {
+  registerDesktopProcess,
+  type DesktopProcessRegistrationHandle
+} from './desktopProcessRegistry'
 import { configureAppIdentity } from './appIdentity'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { WhatsNewCatalog } from './whatsNewCatalog'
@@ -280,6 +284,7 @@ let whatsNewMediaCache: WhatsNewMediaCache | null = null
 let whatsNewCatalog: WhatsNewCatalog | null = null
 let appUpdateService: AppUpdateService | null = null
 let initialUpdateCheckStarted = false
+let desktopProcessRegistration: DesktopProcessRegistrationHandle | null = null
 const isTrayMode = process.argv.includes('--tray')
 const CHROME_SETTINGS_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10)
 
@@ -3039,6 +3044,16 @@ app.whenReady().then(async () => {
       return
     }
   }
+  try {
+    desktopProcessRegistration = await registerDesktopProcess(() => app.quit())
+    if (isAppQuitting) {
+      desktopProcessRegistration.release()
+      desktopProcessRegistration = null
+      return
+    }
+  } catch (error) {
+    console.warn('[desktop] failed to register Desktop process control', error)
+  }
   startChromeSettingsDeepLinkServer()
 
   installViewerProtocolHandler()
@@ -3259,6 +3274,8 @@ app.on('before-quit', (event) => {
   }
 
   isAppQuitting = true
+  desktopProcessRegistration?.release()
+  desktopProcessRegistration = null
   if (import.meta.env.DEV) {
     void stopTrayProcess()
   }
