@@ -1,3 +1,4 @@
+import { stopBeforeArchive } from '../shared/stopBeforeArchive'
 import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage, nativeTheme } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from './desktopPet'
 import {
@@ -2509,7 +2510,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
       if (!entry || !entry.connected) {
         throw new Error('Workspace connection is not available for archiving.')
       }
-      await entry.client.sendRequest('thread/archive', { threadId: id })
+      await stopBeforeArchive((method, params) => entry.client.sendRequest(method, params), id)
       // Re-fetch the connection's thread list so the archived row drops out of the
       // secondary project group immediately (thread/list omits archived threads).
       await refreshConnectionThreadList(entry)

@@ -1,3 +1,4 @@
+import { archiveWorkspaceThread } from '../../utils/archiveWorkspaceThread'
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
@@ -560,15 +561,6 @@ function pickNextWorkspaceAfterStop(
   return null
 }
 
-async function archiveWorkspaceThread(workspacePath: string, threadId: string): Promise<void> {
-  try {
-    await window.api.workspace.archiveThread(workspacePath, threadId)
-  } catch (err) {
-    // Best-effort: warm secondary connections normally succeed; a rare failure
-    // just leaves the row in place instead of surfacing a modal.
-    console.error('Failed to archive project thread:', err)
-  }
-}
 
 function getProjectActivity(threads: ThreadSummary[]): ProjectActivity {
   if (threads.some(isThreadRunning)) return 'running'
@@ -1882,7 +1874,7 @@ function ReadonlyThreadRow({
               data-testid={`project-thread-archive-${rowProjectKey}-${thread.id}`}
               onClick={(e) => {
                 e.stopPropagation()
-                void archiveWorkspaceThread(project.path, thread.id)
+                void archiveWorkspaceThread(project.path, thread, t)
               }}
               onFocus={() => setArchiveButtonFocused(true)}
               onBlur={() => setArchiveButtonFocused(false)}

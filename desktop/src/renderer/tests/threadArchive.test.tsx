@@ -5,6 +5,10 @@ import { useUIStore } from '../stores/uiStore'
 import type { ThreadSummary } from '../types/thread'
 import { archiveThreadWithUndo } from '../utils/threadArchive'
 import { installDesktopApiMock } from './desktopApiMock'
+import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
+import { archiveWorkspaceThread } from '../utils/archiveWorkspaceThread'
+
+vi.mock('../components/ui/ConfirmDialog', () => ({ requestConfirmDialog: vi.fn() }))
 
 const t = (key: string, vars?: Record<string, string | number>): string =>
   vars ? `${key}:${JSON.stringify(vars)}` : key
@@ -27,6 +31,7 @@ function listedIds(): string[] {
 let sendRequest: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  vi.mocked(requestConfirmDialog).mockReset()
   sendRequest = vi.fn().mockResolvedValue({})
   installDesktopApiMock({ appServer: { sendRequest } })
   useToastStore.setState({ toasts: [] })
@@ -35,6 +40,63 @@ beforeEach(() => {
 })
 
 describe('archiveThreadWithUndo', () => {
+  function setRunning(): void {
+    useThreadStore.getState().setThreadList([{ ...thread('a'), runtime: {
+      running: true, activeTurnId: 'turn-a', waitingOnApproval: false, waitingOnPlanConfirmation: false
+    } }, thread('b')])
+  }
+
+  it('leaves ongoing work untouched when confirmation is cancelled', async () => {
+    setRunning()
+    vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(false), dismiss: vi.fn() })
+    expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
+    expect(sendRequest).not.toHaveBeenCalled()
+    expect(listedIds()).toEqual(['a', 'b'])
+  })
+
+  it('waits for confirmation and interrupts before archive without duplicate requests', async () => {
+    setRunning()
+    let confirm!: (value: boolean) => void
+    vi.mocked(requestConfirmDialog).mockReturnValue({ result: new Promise(resolve => { confirm = resolve }), dismiss: vi.fn() })
+    sendRequest.mockImplementation(async (method: string) => method === 'thread/read'
+      ? { thread: { runtime: { activeTurnId: 'turn-a' } } } : {})
+    const pending = archiveThreadWithUndo({ threadId: 'a', t })
+    expect(sendRequest).not.toHaveBeenCalled()
+    expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
+    confirm(true)
+    expect(await pending).toBe(true)
+    expect(requestConfirmDialog).toHaveBeenCalledOnce()
+    expect(sendRequest.mock.calls.map(call => call[0])).toEqual(['thread/read', 'turn/interrupt', 'thread/archive'])
+    expect(sendRequest).toHaveBeenCalledWith('turn/interrupt', { threadId: 'a', turnId: 'turn-a' })
+    useToastStore.getState().toasts[0].action?.onClick()
+    await vi.waitFor(() => expect(listedIds()).toContain('a'))
+    expect(useThreadStore.getState().threadList.find(thread => thread.id === 'a')?.runtime)
+      .toMatchObject({ running: false, activeTurnId: null })
+  })
+
+  it('does not archive when interruption fails', async () => {
+    setRunning()
+    vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(true), dismiss: vi.fn() })
+    sendRequest.mockResolvedValueOnce({ thread: { runtime: { activeTurnId: 'turn-a' } } })
+      .mockRejectedValueOnce(new Error('offline'))
+    expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
+    expect(sendRequest).not.toHaveBeenCalledWith('thread/archive', expect.anything())
+    expect(listedIds()).toEqual(['a', 'b'])
+  })
+
+  it('requires confirmation before routing a secondary workspace archive', async () => {
+    setRunning()
+    const archiveThread = vi.fn().mockResolvedValue(undefined)
+    installDesktopApiMock({ workspace: { archiveThread } })
+    const target = useThreadStore.getState().threadList[0]
+    vi.mocked(requestConfirmDialog).mockReturnValueOnce({ result: Promise.resolve(false), dismiss: vi.fn() })
+    expect(await archiveWorkspaceThread('/workspace/secondary', target, t)).toBe(false)
+    expect(archiveThread).not.toHaveBeenCalled()
+    vi.mocked(requestConfirmDialog).mockReturnValueOnce({ result: Promise.resolve(true), dismiss: vi.fn() })
+    expect(await archiveWorkspaceThread('/workspace/secondary', target, t)).toBe(true)
+    expect(archiveThread).toHaveBeenCalledWith('/workspace/secondary', 'a')
+  })
+
   it('removes the thread, offers Undo, and restores it through thread/unarchive', async () => {
     useThreadStore.getState().setActiveThreadId('a')
     useUIStore.getState().setActiveMainView('settings')

@@ -282,6 +282,13 @@ For secondary connections, only thread-list and runtime notifications update bac
 | `turn/failed` | The user sees that the turn ended unsuccessfully and is given a path to retry or continue. |
 | `turn/cancelled` | The running state clears and the user sees that the turn was interrupted. |
 
+Archiving a running or waiting conversation from a sidebar or thread header requires
+a Stop and archive confirmation. Cancel, Escape, or clicking outside the dialog leaves
+the work running. Idle conversations retain immediate archive and Undo behavior.
+The confirmed action interrupts the target's current turn before archiving; interruption
+failure prevents archive. Secondary workspace rows use the same confirmation and route
+operations to their owning workspace. Repeated activation while pending is ignored.
+
 Running turns show one activity timing boundary, updated once per second. An explicit
 final-phase assistant message freezes activity duration at its start and enables process
 collapse before the turn completes. Providers without phase metadata retain the completed-turn
