@@ -1,6 +1,5 @@
-/* The robot's arm/antenna/face pieces carry stable dca-part-* classes (see
-   MascotRig.tsx). Each arm's white and blue pieces are separate elements moving in
-   lockstep, so transform-box: view-box resolves one shared origin for both. */
+/* Arm outlines, material clips and held props move in lockstep.
+   transform-box: view-box resolves the same pivot for each layer. */
 .dca-part-eyes,
 .dca-part-glow,
 .dca-part-light,
@@ -40,6 +39,7 @@
    a prop is never left floating. Every rule that ENTERS a posed arm state overrides
    the delay back to 0 so raises stay immediate. */
 .dca-part-arm-l-w,
+.dca-part-arm-l-b,
 .dca-part-arm-l {
   transform-box: view-box;
   transform-origin: 233px 514px;
@@ -103,9 +103,7 @@
 /* Props are always-mounted `dca-part-prop-*` groups inside MascotRobot at opacity 0,
    revealed by these composer root classes. */
 
-/* Mini terminal: the 1200ms transition delay keeps quick turns from flashing it. The
-   arms only tuck inward by pure translate — a rotation would trigger the solid-colour
-   swap and break the gradient's continuity with the torso. */
+/* The 1200ms delay keeps quick turns from flashing the mini terminal. */
 .dca-part-prop-laptop {
   opacity: 0;
   transition: opacity 200ms ease;
@@ -117,6 +115,7 @@
 }
 
 .dca-action-prop-laptop .dca-part-arm-l-w,
+.dca-action-prop-laptop .dca-part-arm-l-b,
 .dca-action-prop-laptop .dca-part-arm-l {
   transform: translate(18px, 0);
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
@@ -164,10 +163,6 @@
 .dca-action-hold-sign .dca-part-arm-r-b {
   transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
   transition-delay: 0ms;
-}
-
-.dca-action-hold-sign .dca-part-arm-r-b {
-  fill: var(--dca-part-raised-arm-right, #7a96fb);
 }
 
 .dca-part-prop-sign {
@@ -242,6 +237,7 @@
 /* The cheer reuses the wave's slide-then-rotate hinge grammar, so the outline wraps
    the band and the colour stays seam-continuous. */
 .dca-action-celebrate .dca-part-arm-l-w,
+.dca-action-celebrate .dca-part-arm-l-b,
 .dca-action-celebrate .dca-part-arm-l {
   transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
   transition-delay: 0ms;
@@ -251,15 +247,4 @@
 .dca-action-celebrate .dca-part-arm-r-b {
   transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
   transition-delay: 0ms;
-}
-
-/* Raised arms swap the body gradient for a solid hinge colour, so a rotated arm has
-   no gradient to diverge from the torso's field. White halo capsules stay white. */
-.dca-action-wave .dca-part-arm-r-b,
-.dca-action-celebrate .dca-part-arm-r-b {
-  fill: var(--dca-part-raised-arm-right, #7a96fb);
-}
-
-.dca-action-celebrate .dca-part-arm-l-b {
-  fill: var(--dca-part-raised-arm-left, #3161f7);
 }

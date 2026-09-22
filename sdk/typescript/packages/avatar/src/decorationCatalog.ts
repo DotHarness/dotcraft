@@ -91,7 +91,7 @@ const copy: Record<ItemId, DecorationCopy> = {
   'orbit-ring': { name: 'Orbit ring', feature: 'Tilted orbit belt with three bodies that circle in front of and behind the robot', colors: ['#b9c4ff', '#f6b500', '#ff9ad9'], mount: 'Belt crosses low around the body; bodies pass in front below the screen' },
   'dragon-wings': { name: 'Dragon wings', feature: 'Two large crimson wings with dark membranes and ember tips that flap', colors: ['#b23a48', '#7f2634', '#ffb347'], mount: 'Wings spread wide from behind the shoulders' },
 
-  stripes: { name: 'Stripes', feature: 'Diagonal light stripes across the body', colors: ['#ffffff'], mount: 'Overlay clipped to the body; reads through every palette' },
+  stripes: { name: 'Stripes', feature: 'Diagonal light stripes across the body and arms', colors: ['#ffffff'], mount: 'One continuous overlay across the body and arms; reads through every palette' },
   chrome: { name: 'Chrome', feature: 'Mirror steel with a horizon line and a sweeping sheen', colors: ['#f4f7fb', '#9aa6b8', '#3c4658'], mount: 'Replaces the body and arm paint; face marks keep the palette' },
   gold: { name: 'Gold', feature: 'Polished gold with a sweeping sheen', colors: ['#f6d365', '#b8862c', '#fff3c4'], mount: 'Replaces the body and arm paint; face marks keep the palette' },
   lava: { name: 'Lava', feature: 'Molten rock whose glow flows between ember red and bright orange', colors: ['#e8451f', '#ffb347', '#4a1208'], mount: 'Replaces the body and arm paint; face marks keep the palette' },

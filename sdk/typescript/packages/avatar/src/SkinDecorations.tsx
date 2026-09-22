@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { SkinId } from './items.js'
 import type { BodyPaint } from './MascotRig.js'
 import { isPaintSkin, paintMaterials, type PaintSkinId } from './paintMaterials.js'
+import { materialBounds } from './RigMaterial.js'
 
 const dots = [[280, 440], [372, 432], [464, 446], [556, 432], [648, 446], [740, 438], [268, 560], [758, 530], [262, 680], [762, 650], [292, 806], [400, 812], [512, 800], [624, 812], [732, 806], [268, 760]]
 const star4 = (r: number) => `M0 ${-r}l${r * .28} ${r * .72}l${r * .72} ${r * .28}l${-r * .72} ${r * .28}l${-r * .28} ${r * .72}l${-r * .28} ${-r * .72}l${-r * .72} ${-r * .28}l${r * .72} ${-r * .28}Z`
@@ -50,6 +51,6 @@ export function SkinPaintSurface({ id }: { id: SkinId }) {
   return <g data-skin-overlay={id}>
     {id !== 'galaxy' && id !== 'lava' && sheen}
     {id === 'galaxy' && <g fill="#fff">{dots.filter((_, index) => index % 2 === 1).map(([cx, cy], index) => <path key={`${cx}-${cy}`} className="dca-fx dca-fx-node" d={star4(index % 2 ? 10 : 15)} transform={`translate(${cx} ${cy})`} style={{ animationDelay: `${(index * .43) % 1.8}s` }} />)}</g>}
-    <rect className="dca-fx dca-skin-energy" x="243" y="408" width="538" height="426" rx="113" fill={paintMaterials[id].accent} opacity="0" />
+    <rect className="dca-fx dca-skin-energy" {...materialBounds} fill={paintMaterials[id].accent} opacity="0" />
   </g>
 }

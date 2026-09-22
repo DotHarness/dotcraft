@@ -71,13 +71,6 @@ test('the orbit ring splits into a behind-body half and an in-front half; flat i
   for (const back of ['halo', 'cape']) assert.ok(!render({ appearance: { ...originalAppearance, back }, size: 64 }).includes('data-back-front='))
 })
 
-test('paint skins keep their material on raised arms instead of a solid hinge color', () => {
-  const chrome = render({ appearance: { ...originalAppearance, skin: 'chrome' }, state: 'done' })
-  assert.match(chrome, /--dca-part-raised-arm-right:url\(#dca-part-blue-[^)]+\)/)
-  const plain = render({ appearance: { ...originalAppearance, palette: 0 }, state: 'done' })
-  assert.match(plain, /--dca-part-raised-arm-right:#[0-9a-f]{6}/)
-})
-
 test('unnamed avatar uses original paint; every specimen renders', () => {
   const plain = renderToStaticMarkup(createElement(Avatar, { name: '', label: 'DotCraft' }))
   assert.ok(plain.includes('#2458f7')); assert.ok(plain.includes('#5f82f7')); assert.ok(plain.includes('#8fa5ff'))

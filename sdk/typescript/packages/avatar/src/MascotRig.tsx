@@ -1,8 +1,7 @@
 import { useId, type CSSProperties, type JSX, type ReactNode } from 'react'
 import { Faces } from './Faces.js'
 import { mascotPaletteOf } from './palette.js'
-
-// Paired arm layers share view-box pivots and paint rules in rig.css.
+import { RigMaterial, RigMaterialClip } from './RigMaterial.js'
 
 export type MascotExpression = 'neutral' | 'happy' | 'operator' | 'sleep'
 
@@ -39,27 +38,6 @@ interface MascotRobotProps {
   avatar?: { palette: number }
 }
 
-function mixHex(a: string, b: string, amount: number): string {
-  const left = parseHex(a)
-  const right = parseHex(b)
-  const ratio = Math.max(0, Math.min(1, amount))
-  const mix = (from: number, to: number): number => Math.round(from + (to - from) * ratio)
-  return `#${toHex(mix(left.r, right.r))}${toHex(mix(left.g, right.g))}${toHex(mix(left.b, right.b))}`
-}
-
-function parseHex(hex: string): { r: number; g: number; b: number } {
-  const normalized = hex.trim().replace(/^#/, '')
-  return {
-    r: Number.parseInt(normalized.slice(0, 2), 16),
-    g: Number.parseInt(normalized.slice(2, 4), 16),
-    b: Number.parseInt(normalized.slice(4, 6), 16)
-  }
-}
-
-function toHex(value: number): string {
-  return value.toString(16).padStart(2, '0')
-}
-
 export function MascotRig({
   expression = 'neutral',
   light = 'default',
@@ -75,7 +53,7 @@ export function MascotRig({
   const softShadow = `dca-part-soft-shadow-${uid}`
   const innerLift = `dca-part-inner-lift-${uid}`
   const laptopClip = `dca-part-laptop-clip-${uid}`
-  const bodyClip = `dca-part-body-clip-${uid}`
+  const materialClip = `dca-part-material-clip-${uid}`
   const lightFill =
     light === 'error' ? 'var(--dca-error, #dc2626)' : light === 'success' ? 'var(--dca-success, #16a34a)' : `url(#${yellow})`
   const glowFill = light === 'error' ? 'var(--dca-error, #dc2626)' : light === 'success' ? 'var(--dca-success, #16a34a)' : '#f6b500'
@@ -89,18 +67,12 @@ export function MascotRig({
   const mark2 = palette.markL
   const softShadowColor = paint?.shadow ?? palette.shadow
   const innerLiftColor = paint?.shadow ?? (avatar ? palette.shadow : '#163a88')
-  // Single-hue gradients need a solid hinge color once an arm rotates; multi-band materials read
-  // as natural reflection changes, so paint skins keep their paint on raised arms.
-  const raisedArmLeft = paint ? `url(#${blue})` : avatar ? mixHex(palette.bodyD, palette.bodyM, 0.22) : '#3161f7'
-  const raisedArmRight = paint ? `url(#${blue})` : avatar ? mixHex(palette.bodyM, palette.bodyL, 0.56) : '#7a96fb'
   const propMark = avatar ? palette.markD : '#3161f7'
   const laptopLine = palette.markL
   const svgStyle = {
     '--dca-held-mark': `url(#${blueMark})`,
     '--dca-held-accent': `url(#${yellow})`,
     '--dca-part-body-paint': `url(#${blue})`,
-    '--dca-part-raised-arm-left': raisedArmLeft,
-    '--dca-part-raised-arm-right': raisedArmRight,
     '--dca-part-shadow-color': softShadowColor,
     overflow: 'visible',
     ...style
@@ -124,9 +96,7 @@ export function MascotRig({
           <stop offset=".46" stopColor={body1} />
           <stop offset="1" stopColor={body2} />
         </linearGradient>}
-        <clipPath id={bodyClip}>
-          <rect x="243" y="408" width="538" height="426" rx="113" />
-        </clipPath>
+        <RigMaterialClip id={materialClip} />
         <linearGradient className="dca-paint-mark" id={blueMark} x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor={mark0} />
           <stop offset=".55" stopColor={mark1} />
@@ -159,21 +129,12 @@ export function MascotRig({
           {!top && <circle className="dca-part-antenna-w" cx="512" cy="229" r="116" fill="#fff" />}
         </g>
 
-        <g filter={`url(#${innerLift})`}>
-          <rect x="243" y="408" width="538" height="426" rx="113" fill={`url(#${blue})`} />
-          <rect className="dca-part-arm-r-b" x="746" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} />
-          {!top && <rect x="479" y="337" width="66" height="119" rx="6" fill={`url(#${blue})`} />}
-        </g>
-
-        {surface && <g className="dca-part-surface" clipPath={`url(#${bodyClip})`}>{surface}</g>}
+        <RigMaterial clipId={materialClip} paintId={blue} shadowId={innerLift} surface={surface} antenna={!top} />
         <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff" />
         {!top && <circle className="dca-part-glow" cx="512" cy="229" r="96" fill={glowFill} />}
         {top ?? <circle className="dca-part-light" cx="512" cy="229" r="73" fill={lightFill} />}
 
-        <g className="dca-part-arm-l">
-          <rect className="dca-part-arm-l-b" x="188" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} filter={`url(#${innerLift})`} />
-          {held}
-        </g>
+        {held && <g className="dca-part-arm-l">{held}</g>}
         {accessory}
         {faceplate?.plate}
         <g className="dca-face-motion">{faceplate ? faceplate.eyes : <Faces baseFace={baseFace} mark={`url(#${blueMark})`} accent={`url(#${yellow})`} />}</g>

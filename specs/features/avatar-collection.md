@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Draft |
-| **Date** | 2026-09-21 |
+| **Date** | 2026-09-22 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
 Purpose: define the shared `@dotcraft/avatar` collection model. It covers the equipment slots an
@@ -90,7 +90,7 @@ host can override one slot without touching the others.
 | `face` | Brow band or a faceplate over the screen | Brow items sit in front of the body behind the face marks; a faceplate replaces the face marks | Brow items never paint on the white screen. A faceplate carries its own expression layers and stays visible at compact size because it defines the head silhouette. |
 | `hand` | Screen-left hand | Inside the left arm group | Shares the arm pivot; stows for laptop and question-sign work props. |
 | `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, and auras. A ring that passes around the body renders its far half behind and its near half in front; bodies on the ring exist in both layers and the shared phase animation shows the matching copy. Flat rings such as the halo stay behind. |
-| `skin` | Body material | Overlay skins paint on the body surface under the screen; paint skins replace the body and arm paint | Face marks keep the palette in both kinds. |
+| `skin` | Body and arm material | One material layer spans the torso and independently moving arms, under the screen and held props | Overlay skins retain the palette paint; paint skins replace it. Face marks keep the palette in both kinds. |
 
 Slot precedence for derivation and conflict resolution is `head > face > hand > back > skin`.
 
@@ -195,7 +195,7 @@ Effects are implemented in the SVG document and driven by CSS so they inherit th
 reduced-motion, and motion-off rules:
 
 - Animated gradient stops on a skin's paint for flowing color (holographic, energy).
-- CSS transforms on overlay groups clipped to the body for sheen sweeps and orbiting parts.
+- CSS transforms on overlay groups clipped to the torso-and-arm silhouette for sheen sweeps.
 - CSS transforms on item groups with a declared pivot for wing flaps, cape sway, and a blade that
   extends and retracts from its emitter; animated `fill` for a blade's color cycle.
 - Opacity keyframes for glow pulses, flames, blinking nodes, and steam.
@@ -216,7 +216,7 @@ the palette accent. A paint skin replaces that gradient, so it owns its own reac
   `mascotPaletteOf(appearance)` substitutes them for the palette values, so the glow, fast echo,
   and profile-transition accent follow the material (gold glows warm, lava orange, galaxy violet)
   while face marks keep the palette.
-- The paint surface carries an energy wash: a body-clipped rectangle in the material accent whose
+- The paint surface carries an energy wash: a silhouette-clipped field in the material accent whose
   opacity pulses at medium (0.16), high (0.26), extraHigh (0.38), and context max (0.30), on the
   same periods as the default body animation.
 - Flowing materials speed up with effort instead of running a fixed loop: lava, galaxy, and
@@ -243,15 +243,20 @@ show the same static paint as before.
   whose lids move on straight or gently curved edges (raised lower lid for happy, lowered upper lid
   for operator, dropped and closed to a line for sleep). Curved "^^" eye arcs on metal are not
   allowed.
-- Paint skins keep their material on raised arms. The solid hinge color exists for single-hue
-  gradients whose direction would otherwise break at the shoulder; multi-band materials read as
-  reflection changes.
+- Palette paint and every skin use one material field in the body's coordinate space. The torso
+  and moving arm shapes form a union clip; the paint, overlay, effects, and inner shadow are
+  composed once, so overlapping parts cannot introduce a color seam or double-painted pattern.
+- Arm outlines and clip shapes retain the existing geometry, pivots, and CSS motion. Held items
+  follow the same arm motion above the material; the screen, face, and work props keep their layers.
+- Material stays fixed relative to the body while arms move through it. The accepted tradeoff is
+  texture sliding across a moving arm. Do not rotate a second material with an arm or substitute a
+  solid hinge color. The antenna retains its own paint and the face marks retain the palette.
 - Hand items meet the left hand at its resting tip and keep their marks upright at rest.
 - Back items stay behind the body and may extend past the body bounds; the avatar canvas is
   `overflow: visible` and hosts reserve headroom already.
-- Overlay skins are clipped to the body rounded rectangle and use translucent white or shadow ink so
-  every palette reads through. Paint skins provide the replacement body paint plus solid colors for
-  the raised-arm rule.
+- Overlay skins use translucent white or shadow ink so every palette reads through. All skin
+  layers, including energy washes, must cover the moving silhouette's bounds before the common
+  clip is applied. New skins inherit this composition without per-skin shoulder corrections.
 
 ---
 
@@ -270,4 +275,6 @@ show the same static paint as before.
 - Faceplates render all four expression layers and no native face marks.
 - Paint skins keep the palette on the face marks, keep their material on raised arms, and overlay
   skins keep the palette body paint.
+- All skins remain continuous at both shoulders at rest, during a full wave, celebration, laptop
+  and sign poses, including pause/resume and animated material/energy phases.
 - Desktop and Universe compile against the package without local artwork or model copies.

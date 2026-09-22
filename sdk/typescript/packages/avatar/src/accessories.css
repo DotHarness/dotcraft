@@ -9,6 +9,6 @@
 .dca-robot[data-gesture='blink'] .dca-part-caret { animation: none !important; }
 
 /* Lift an upright tool beside the face rather than sweeping it across the screen. */
-.dca-robot[data-held-state='holding'] .dca-action-celebrate :is(.dca-part-arm-l-w, .dca-part-arm-l) {
+.dca-robot[data-held-state='holding'] .dca-action-celebrate :is(.dca-part-arm-l-w, .dca-part-arm-l-b, .dca-part-arm-l) {
   transform: translate(30px, -65px) rotate(20deg);
 }
