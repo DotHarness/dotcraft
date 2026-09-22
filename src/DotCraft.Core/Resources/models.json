@@ -10,6 +10,12 @@
     "apertus-8b": {
       "contextWindow": 65536
     },
+    "arrow-2": {
+      "contextWindow": 131072
+    },
+    "arrow-2-telos": {
+      "contextWindow": 1050000
+    },
     "baichuan-m2-32b": {
       "contextWindow": 131072
     },
@@ -367,6 +373,9 @@
     "gemma-3-4b-it": {
       "contextWindow": 131072
     },
+    "gemma-4-12b-it": {
+      "contextWindow": 262144
+    },
     "gemma-4-26b-a4b-it": {
       "contextWindow": 262144
     },
@@ -635,6 +644,9 @@
     "grok-4.6": {
       "contextWindow": 500000
     },
+    "grok-4.7": {
+      "contextWindow": 500000
+    },
     "grok-build-0.1": {
       "contextWindow": 256000
     },
@@ -668,6 +680,12 @@
     "inkling-small": {
       "contextWindow": 1048576
     },
+    "jamba-large": {
+      "contextWindow": 256000
+    },
+    "jamba-mini": {
+      "contextWindow": 256000
+    },
     "kimi-k2-": {
       "contextWindow": 256000
     },
@@ -697,6 +715,9 @@
     },
     "kimi-k2.7-code-highspeed": {
       "contextWindow": 262144
+    },
+    "kimi-k2.8-preview": {
+      "contextWindow": 1048576
     },
     "kimi-k3": {
       "contextWindow": 1048576
@@ -830,7 +851,19 @@
     "mimo-v2.5-pro-ultraspeed": {
       "contextWindow": 1048576
     },
+    "mimo-v2.6-flash": {
+      "contextWindow": 1048576
+    },
+    "mimo-v2.6-pro": {
+      "contextWindow": 1048576
+    },
+    "mimo-v2.6-pro-ultraspeed": {
+      "contextWindow": 1048576
+    },
     "minicpm5-1b": {
+      "contextWindow": 131072
+    },
+    "minicpm5-2b": {
       "contextWindow": 131072
     },
     "minimax-01": {
@@ -962,6 +995,9 @@
     "moonshot-v1-8k": {
       "contextWindow": 8192
     },
+    "motif-3": {
+      "contextWindow": 262144
+    },
     "muse-glimmer-30b": {
       "contextWindow": 131072
     },
@@ -1003,6 +1039,9 @@
     },
     "nemotron-voicechat": {
       "contextWindow": 128000
+    },
+    "nex-n2-pro": {
+      "contextWindow": 262144
     },
     "north-mini-code-1-0": {
       "contextWindow": 256000
@@ -1066,6 +1105,9 @@
     },
     "palmyra-x5": {
       "contextWindow": 1000000
+    },
+    "pareto": {
+      "contextWindow": 262144
     },
     "phi-4-mini": {
       "contextWindow": 128000
@@ -1247,6 +1289,9 @@
     "qwen3.8-max-preview": {
       "contextWindow": 1000000
     },
+    "qwen3.8-omni-flash": {
+      "contextWindow": 1000000
+    },
     "qwq-32b": {
       "contextWindow": 131072
     },
@@ -1316,11 +1361,17 @@
     "step-3.7-flash": {
       "contextWindow": 256000
     },
+    "step-5-preview": {
+      "contextWindow": 1000000
+    },
     "tencent/hunyuan-a13b": {
       "contextWindow": 131072
     },
     "tencent/hunyuan-mt-7b": {
       "contextWindow": 32768
+    },
+    "toast-1": {
+      "contextWindow": 131000
     },
     "trinity-large-preview": {
       "contextWindow": 524288
@@ -1333,6 +1384,18 @@
     },
     "trinity-nano-preview": {
       "contextWindow": 131072
+    },
+    "vision-large": {
+      "contextWindow": 1000000
+    },
+    "vision-medium": {
+      "contextWindow": 1000000
+    },
+    "vision-small": {
+      "contextWindow": 1000000
+    },
+    "viv-fast": {
+      "contextWindow": 1000000
     },
     "voxtral-mini-3b-2507": {
       "contextWindow": 32768
