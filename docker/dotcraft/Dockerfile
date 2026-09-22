@@ -25,6 +25,17 @@ COPY sdk/typescript/scripts ./scripts
 COPY sdk/typescript/src ./src
 RUN npm run build:all
 
+FROM channels-build AS desktop-plugins-build
+WORKDIR /src/desktop
+
+COPY desktop/package.json desktop/package-lock.json ./
+RUN npm ci --ignore-scripts
+
+COPY desktop/scripts/build-bundled-plugins.mjs ./scripts/build-bundled-plugins.mjs
+COPY desktop/src/bundled-plugins ./src/bundled-plugins
+COPY desktop/resources/plugins/dotcraft-bundled/plugins ./resources/plugins/dotcraft-bundled/plugins
+RUN npm run prepare:bundled-plugins
+
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /workspace
 
@@ -52,7 +63,7 @@ COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/manifest.
 COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/package.json /opt/dotcraft/modules/channel-weixin/package.json
 COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/dist /opt/dotcraft/modules/channel-weixin/dist
 
-COPY desktop/resources/plugins/dotcraft-bundled/plugins /opt/dotcraft/plugins
+COPY --from=desktop-plugins-build /src/desktop/resources/plugins/dotcraft-bundled/plugins /opt/dotcraft/plugins
 
 COPY docker/dotcraft/entrypoint.sh /opt/dotcraft/entrypoint.sh
 COPY docker/dotcraft/render-config.mjs /opt/dotcraft/render-config.mjs

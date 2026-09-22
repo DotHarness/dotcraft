@@ -5,7 +5,7 @@ import { Spinner } from '../../../ui/Spinner'
 import { SettingsPageHeader } from '../../SettingsPageHeader'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import { Button } from '../../../ui/Button'
-import { IconButton } from '../../../ui/IconButton'
+import { CatalogToolbarIconButton } from '../../../catalog/CatalogSurface'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
@@ -90,7 +90,6 @@ export function ServerDetail({
             onBack={onBack}
           />
         }
-        description={<span style={{ fontFamily: 'var(--font-mono)' }}>{host.sshTarget}</span>}
         action={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {showReachability && (
@@ -99,19 +98,20 @@ export function ServerDetail({
               </span>
             )}
             <Button
+              size="toolbar"
               disabled={testing}
               onClick={handleTestSsh}
               iconLeft={testing ? <Spinner size={15} /> : <RefreshCw size={15} />}
             >
               {t('settings.servers.test.button')}
             </Button>
-            <IconButton
-              icon={<Pencil size={16} />}
+            <CatalogToolbarIconButton
+              icon={<Pencil size={15} />}
               label={t('settings.servers.detail.editAria')}
               onClick={onEditServer}
             />
-            <IconButton
-              icon={<Trash2 size={16} />}
+            <CatalogToolbarIconButton
+              icon={<Trash2 size={15} />}
               label={t('settings.servers.detail.removeAria')}
               onClick={async () => {
                 const ok = await confirm({

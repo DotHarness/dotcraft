@@ -112,22 +112,10 @@ export function WorkspaceSegment({
         />
 
         {activeRemoteStackConnection && (
-          <SettingsRow orientation="block" label={t('settings.remoteStackManaged.title')}>
-            <div
-              style={{
-                border: '1px solid var(--border-default)',
-                borderLeft: '3px solid var(--accent)',
-                borderRadius: '8px',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)',
-                fontSize: '12px',
-                lineHeight: 1.5,
-                padding: '10px 12px'
-              }}
-            >
-              {t('settings.remoteStackManaged.description')}
-            </div>
-          </SettingsRow>
+          <SettingsRow
+            label={t('settings.remoteStackManaged.title')}
+            description={t('settings.remoteStackManaged.description')}
+          />
         )}
 
         {manualRemoteConnection && (

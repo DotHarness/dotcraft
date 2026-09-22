@@ -6,6 +6,8 @@
 build
 desktop/dist
 desktop/node_modules
+desktop/src/bundled-plugins/*/dist
+desktop/resources/plugins/dotcraft-bundled/plugins/*/desktop/dist
 docs/.vitepress/cache
 docs/.vitepress/dist
 docs/node_modules
