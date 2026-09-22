@@ -51,8 +51,7 @@ export function filterPlugins(
   return plugins.filter((plugin) => {
     if (publisherFilter === 'dotcraft' && !isDotHarnessPlugin(plugin)) return false
     if (publisherFilter === 'marketplaces' && !plugin.marketplaceName) return false
-    if (categoryFilter === 'featured' && !isFeaturedPlugin(plugin)) return false
-    if (categoryFilter !== 'all' && categoryFilter !== 'featured' && pluginCategoryKey(plugin) !== categoryFilter) return false
+    if (categoryFilter !== 'all' && pluginCategoryKey(plugin) !== categoryFilter) return false
     if (!q) return true
     return (
       plugin.id.toLowerCase().includes(q) ||
@@ -81,7 +80,6 @@ export function buildCategoryOptions(
 
   return [
     { value: 'all', label: t('plugins.filter.category.all') },
-    { value: 'featured', label: t('plugins.filter.category.featured') },
     ...orderedCategories.map((category) => ({ value: category, label: categoryLabel(category, t) }))
   ]
 }
@@ -115,10 +113,6 @@ export function buildSections(
     return sections
   }
 
-  if (categoryFilter === 'featured') {
-    return plugins.length > 0 ? [{ key: 'featured', title: t('plugins.section.featured'), plugins }] : []
-  }
-
   if (categoryFilter !== 'all') {
     return plugins.length > 0 ? [{ key: categoryFilter, title: categoryLabel(categoryFilter, t), plugins }] : []
   }
@@ -128,12 +122,6 @@ export function buildSections(
   const sections: PluginSection[] = []
   if (local.length > 0) {
     sections.push({ key: 'local', title: t('plugins.section.local'), plugins: local })
-  }
-
-  const featured = plugins.filter((plugin) => isFeaturedPlugin(plugin) && !seen.has(plugin.id))
-  if (featured.length > 0) {
-    sections.push({ key: 'featured', title: t('plugins.section.featured'), plugins: featured })
-    for (const plugin of featured) seen.add(plugin.id)
   }
 
   const byCategory = new Map<string, PluginEntry[]>()
@@ -162,10 +150,6 @@ export function buildSections(
 
 export function displayCategory(category: string | null | undefined, t: ReturnType<typeof useT>): string {
   return categoryLabel(normalizeCategory(category), t)
-}
-
-function isFeaturedPlugin(plugin: PluginEntry): boolean {
-  return plugin.id === 'browser' || plugin.id === 'chrome'
 }
 
 function isLocalInstalledPlugin(plugin: PluginEntry): boolean {

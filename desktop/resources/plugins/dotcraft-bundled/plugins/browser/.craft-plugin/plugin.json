@@ -11,7 +11,7 @@
     "shortDescription": "Test pages in DotCraft's in-app browser",
     "longDescription": "Browser lets DotCraft navigate, inspect, and interact with local development pages and approved web targets inside the built-in Desktop browser.",
     "developerName": "DotHarness",
-    "category": "Coding",
+    "category": "Engineering",
     "capabilities": ["Interactive", "Read", "Write"],
     "defaultPrompt": "Please test my checkout flow on localhost in the in-app browser.",
     "composerIcon": "./assets/browser-small.svg",

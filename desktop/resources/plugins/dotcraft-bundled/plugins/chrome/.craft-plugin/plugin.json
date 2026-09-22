@@ -22,7 +22,7 @@
     "shortDescription": "Work with your existing Chrome tabs",
     "longDescription": "Chrome connects DotCraft to approved tabs in your existing browser for inspection and interaction while preserving control over navigation and cleanup.",
     "developerName": "DotHarness",
-    "category": "Coding",
+    "category": "Productivity",
     "capabilities": ["Interactive", "Read", "Write", "Browser"],
     "defaultPrompt": "Please inspect the signed-in page I already have open in Chrome.",
     "composerIcon": "./assets/chrome-small.svg",
