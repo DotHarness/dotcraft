@@ -11,6 +11,7 @@
   --dc-token-fallback-dark: #e6edf3;
 
   color-scheme: light dark;
+  tab-size: 4;
 }
 
 html[data-theme="light"] .dc-code {
@@ -21,7 +22,8 @@ html[data-theme="dark"] .dc-code {
   color-scheme: dark;
 }
 
-.dc-code [data-line] span {
+.dc-code [data-line] span,
+.dc-code .dc-code-token {
   color: light-dark(
     var(--dc-token-light, var(--dc-token-fallback-light)),
     var(--dc-token-dark, var(--dc-token-fallback-dark))

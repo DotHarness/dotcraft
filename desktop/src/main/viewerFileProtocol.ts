@@ -132,6 +132,23 @@ async function resolveAuthorizedExternalFile(absolutePath: string): Promise<stri
   }
 }
 
+export async function resolveViewerFileForAccess(
+  absolutePath: string,
+  workspaceRoot: string
+): Promise<string> {
+  if (!path.isAbsolute(absolutePath)) {
+    throw new Error('Viewer access requires an absolute file path')
+  }
+  if (await isPathInsideWorkspace(absolutePath, workspaceRoot)) {
+    return fs.realpath(path.resolve(absolutePath))
+  }
+  const authorized = await resolveAuthorizedExternalFile(absolutePath)
+  if (!authorized) {
+    throw new Error(`Viewer access denied: ${absolutePath}`)
+  }
+  return authorized
+}
+
 /** The path still has to be workspace-scoped or authorized before the handler serves it. */
 export function buildViewerUrl(absolutePath: string): string {
   const normalized = normalizeAbsolutePathForViewerUrl(absolutePath)

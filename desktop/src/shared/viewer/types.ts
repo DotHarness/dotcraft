@@ -126,6 +126,11 @@ export interface ReadTextResult {
   truncated: boolean
   /** Encoding that was used (currently always 'utf-8'). */
   encoding: string
+  sizeBytes: number
+  mtimeMs: number
+  hasUtf8Bom: boolean
+  lineEnding: 'lf' | 'crlf' | 'cr'
+  readOnlyReason?: 'large-file'
 }
 
 /** Parameters for `workspace:viewer:list-files`. */
@@ -144,6 +149,24 @@ export interface ClassifyParams {
 export interface ReadTextParams {
   absolutePath: string
   limitBytes?: number
+}
+
+export interface WriteTextParams {
+  absolutePath: string
+  text: string
+  expectedMtimeMs: number
+  hasUtf8Bom: boolean
+  lineEnding: 'lf' | 'crlf' | 'cr'
+}
+
+export type WriteTextResult =
+  | { outcome: 'saved'; mtimeMs: number; sizeBytes: number }
+  | { outcome: 'conflict'; current: ReadTextResult }
+
+export interface TextFileChangedPayload {
+  absolutePath: string
+  mtimeMs: number
+  sizeBytes: number
 }
 
 /** A single directory entry returned by `workspace:viewer:list-dir`. */

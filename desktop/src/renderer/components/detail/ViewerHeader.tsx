@@ -11,6 +11,8 @@ import { OpenTargetButton } from '../conversation/OpenTargetButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ViewerActionsMenu } from './ViewerActionsMenu'
 import { IconButton } from '../ui/IconButton'
+import { Button } from '../ui/Button'
+import type { FileEditorMode } from '../../stores/fileEditorStore'
 
 interface ViewerHeaderProps {
   absolutePath: string
@@ -19,6 +21,8 @@ interface ViewerHeaderProps {
   isText: boolean
   wordWrap: boolean
   onToggleWordWrap: () => void
+  markdownMode?: FileEditorMode
+  onToggleMarkdownMode?: () => void
 }
 
 /** Splits a relativePath into ordered segments + the forward-slashed abs prefix. */
@@ -39,7 +43,9 @@ export function ViewerHeader({
   relativePath,
   isText,
   wordWrap,
-  onToggleWordWrap
+  onToggleWordWrap,
+  markdownMode,
+  onToggleMarkdownMode
 }: ViewerHeaderProps): JSX.Element {
   const t = useT()
   const explorerVisible = useUIStore((s) => s.explorerVisible)
@@ -91,6 +97,12 @@ export function ViewerHeader({
       </div>
 
       <div style={actionsStyle}>
+        {markdownMode && onToggleMarkdownMode && (
+          <Button size="toolbar" variant="ghost" onClick={onToggleMarkdownMode}>
+            {markdownMode === 'preview' ? t('viewer.viewSource') : t('viewer.viewPreview')}
+          </Button>
+        )}
+
         <ViewerActionsMenu
           absolutePath={absolutePath}
           isText={isText}

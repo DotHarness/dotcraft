@@ -11,12 +11,10 @@ import { ViewerHeader } from './ViewerHeader'
 import { WorkspaceExplorer } from './WorkspaceExplorer'
 import { ExplorerDock } from './ExplorerDock'
 import { IconButton } from '../ui/IconButton'
+import { useFileEditorStore } from '../../stores/fileEditorStore'
 
-const LazyTextViewer = lazy(() =>
-  import('./viewers/TextViewer').then((m) => ({ default: m.TextViewer }))
-)
-const LazyMarkdownViewer = lazy(() =>
-  import('./viewers/MarkdownViewer').then((m) => ({ default: m.MarkdownViewer }))
+const LazyFileEditor = lazy(() =>
+  import('./viewers/FileEditor').then((m) => ({ default: m.FileEditor }))
 )
 const LazyBrowserViewerTab = lazy(() =>
   import('./viewers/BrowserViewerTab').then((m) => ({ default: m.BrowserViewerTab }))
@@ -57,6 +55,8 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const explorerWidth = useUIStore((s) => s.explorerWidth)
   const setExplorerVisible = useUIStore((s) => s.setExplorerVisible)
+  const editorSession = useFileEditorStore((s) => s.sessions.get(tabId))
+  const switchEditorMode = useFileEditorStore((s) => s.switchMode)
 
   const handleExplorerDrag = useCallback((delta: number) => {
     const state = useUIStore.getState()
@@ -141,18 +141,23 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
         onToggleWordWrap={() => {
           if (currentThreadId) setWordWrap(currentThreadId, tab.id, !wordWrap)
         }}
+        markdownMode={markdown ? (editorSession?.mode ?? 'preview') : undefined}
+        onToggleMarkdownMode={markdown ? () => {
+          const currentMode = editorSession?.mode ?? 'preview'
+          void switchEditorMode(tab.id, currentMode === 'preview' ? 'source' : 'preview')
+        } : undefined}
       />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
         <div style={{ flex: '1 1 0', minWidth: 160, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Suspense fallback={suspenseFallback}>
             {tab.contentClass === 'text' && (
-              markdown
-                ? <LazyMarkdownViewer absolutePath={tab.absolutePath} />
-                : <LazyTextViewer
-                    absolutePath={tab.absolutePath}
-                    wordWrap={wordWrap}
-                    navigationHint={tab.navigationHint}
-                  />
+              <LazyFileEditor
+                tabId={tab.id}
+                absolutePath={tab.absolutePath}
+                markdown={markdown}
+                wordWrap={wordWrap}
+                navigationHint={tab.navigationHint}
+              />
             )}
             {tab.contentClass === 'image' && (
               <LazyImageViewer absolutePath={tab.absolutePath} sizeBytes={tab.sizeBytes} />

@@ -52,10 +52,13 @@ import {
 import {
   classifyFile,
   readTextFile,
+  writeTextFile,
   listViewerFiles,
   listDirectory
 } from './viewerIpc'
-import { authorizeViewerFile, buildViewerUrl } from './viewerFileProtocol'
+import { authorizeViewerFile, buildViewerUrl, resolveViewerFileForAccess } from './viewerFileProtocol'
+import { viewerTextWatchManager } from './viewerTextWatch'
+import type { WriteTextParams } from '../shared/viewer/types'
 import {
   clearDesktopPluginModuleRoutes,
   registerDesktopPluginModuleRoute,
@@ -1844,7 +1847,38 @@ export function registerIpcHandlers(
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
       }
-      return readTextFile(params.absolutePath, workspacePath, params.limitBytes)
+      const absolutePath = await resolveViewerFileForAccess(params.absolutePath, workspacePath)
+      return readTextFile(absolutePath, workspacePath, params.limitBytes)
+    }
+  )
+
+  handleSafe(
+    'workspace:viewer:write-text',
+    async (_event, params: WriteTextParams) => {
+      if (!workspacePath) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      const absolutePath = await resolveViewerFileForAccess(params.absolutePath, workspacePath)
+      return writeTextFile({ ...params, absolutePath }, workspacePath,
+        (target) => resolveViewerFileForAccess(target, workspacePath))
+    }
+  )
+
+  handleSafe(
+    'workspace:viewer:watch-text',
+    async (event, params: { absolutePath: string }): Promise<{ subscriptionId: string }> => {
+      if (!workspacePath) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      const absolutePath = await resolveViewerFileForAccess(params.absolutePath, workspacePath)
+      return { subscriptionId: viewerTextWatchManager.subscribe(event.sender, absolutePath) }
+    }
+  )
+
+  handleSafe(
+    'workspace:viewer:unwatch-text',
+    async (event, params: { subscriptionId: string }): Promise<void> => {
+      viewerTextWatchManager.unsubscribe(params.subscriptionId, event.sender.id)
     }
   )
 
@@ -2643,6 +2677,10 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:viewer:list-dir')
   ipcMain.removeHandler('workspace:viewer:classify')
   ipcMain.removeHandler('workspace:viewer:read-text')
+  ipcMain.removeHandler('workspace:viewer:write-text')
+  ipcMain.removeHandler('workspace:viewer:watch-text')
+  ipcMain.removeHandler('workspace:viewer:unwatch-text')
+  viewerTextWatchManager.disposeAll()
   ipcMain.removeHandler('workspace:viewer:authorize-file')
   ipcMain.removeHandler('workspace:viewer:to-viewer-url')
   ipcMain.removeHandler('desktop-plugin:register-module')

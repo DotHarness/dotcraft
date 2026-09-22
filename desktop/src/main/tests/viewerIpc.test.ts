@@ -1,8 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, truncateSync, utimesSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { classifyFile, readTextFile, isPathInsideWorkspace } from '../viewerIpc'
+import {
+  EDITABLE_TEXT_LIMIT_BYTES,
+  MAX_TEXT_OPEN_BYTES,
+  classifyFile,
+  readTextFile,
+  writeTextFile,
+  isPathInsideWorkspace
+} from '../viewerIpc'
 
 
 const tempDirs: string[] = []
@@ -199,6 +206,10 @@ describe('readTextFile', () => {
     expect(result.text).toBe(content)
     expect(result.truncated).toBe(false)
     expect(result.encoding).toBe('utf-8')
+    expect(result.sizeBytes).toBe(Buffer.byteLength(content))
+    expect(result.mtimeMs).toBeGreaterThan(0)
+    expect(result.lineEnding).toBe('lf')
+    expect(result.hasUtf8Bom).toBe(false)
   })
 
   it('truncates content when file exceeds limitBytes', async () => {
@@ -238,5 +249,123 @@ describe('readTextFile', () => {
     const result = await readTextFile(f, root, 5)
     expect(result.truncated).toBe(false)
     expect(result.text).toBe(content)
+  })
+
+  it('keeps the 10 MiB boundary editable and opens the next byte read-only', async () => {
+    const editable = join(root, 'editable.txt')
+    const readOnly = join(root, 'read-only.txt')
+    writeFileSync(editable, '')
+    writeFileSync(readOnly, '')
+    truncateSync(editable, EDITABLE_TEXT_LIMIT_BYTES)
+    truncateSync(readOnly, EDITABLE_TEXT_LIMIT_BYTES + 1)
+
+    await expect(readTextFile(editable, root)).resolves.not.toHaveProperty('readOnlyReason')
+    await expect(readTextFile(readOnly, root)).resolves.toMatchObject({ readOnlyReason: 'large-file' })
+  })
+
+  it('opens the 20 MiB boundary and rejects the next byte', async () => {
+    const maximum = join(root, 'maximum.txt')
+    const tooLarge = join(root, 'too-large.txt')
+    writeFileSync(maximum, '')
+    writeFileSync(tooLarge, '')
+    truncateSync(maximum, MAX_TEXT_OPEN_BYTES)
+    truncateSync(tooLarge, MAX_TEXT_OPEN_BYTES + 1)
+
+    await expect(readTextFile(maximum, root)).resolves.toMatchObject({
+      sizeBytes: MAX_TEXT_OPEN_BYTES,
+      readOnlyReason: 'large-file'
+    })
+    await expect(readTextFile(tooLarge, root)).rejects.toThrow('20 MiB viewer limit')
+  })
+})
+
+describe('writeTextFile', () => {
+  let root: string
+
+  beforeEach(() => {
+    root = createTempDir()
+  })
+
+  it('preserves a UTF-8 BOM and CRLF line endings', async () => {
+    const file = join(root, 'notes.txt')
+    writeFileSync(file, '\uFEFFone\r\ntwo\r\n', 'utf8')
+    const opened = await readTextFile(file, root)
+
+    const result = await writeTextFile({
+      absolutePath: file,
+      text: 'one\nchanged\n',
+      expectedMtimeMs: opened.mtimeMs,
+      hasUtf8Bom: opened.hasUtf8Bom,
+      lineEnding: opened.lineEnding
+    }, root)
+
+    expect(result.outcome).toBe('saved')
+    const reopened = await readTextFile(file, root)
+    expect(reopened.text).toBe('one\r\nchanged\r\n')
+    expect(reopened.hasUtf8Bom).toBe(true)
+    expect(reopened.lineEnding).toBe('crlf')
+  })
+
+  it('returns the current disk version when mtime changed', async () => {
+    const file = join(root, 'notes.txt')
+    writeFileSync(file, 'base', 'utf8')
+    const opened = await readTextFile(file, root)
+    writeFileSync(file, 'disk', 'utf8')
+    utimesSync(file, new Date(), new Date(opened.mtimeMs + 1000))
+
+    const result = await writeTextFile({
+      absolutePath: file,
+      text: 'local',
+      expectedMtimeMs: opened.mtimeMs,
+      hasUtf8Bom: false,
+      lineEnding: 'lf'
+    }, root)
+
+    expect(result).toMatchObject({ outcome: 'conflict', current: { text: 'disk' } })
+  })
+
+  it('does not create a missing file', async () => {
+    const file = join(root, 'missing.txt')
+    await expect(writeTextFile({
+      absolutePath: file,
+      text: 'new',
+      expectedMtimeMs: 0,
+      hasUtf8Bom: false,
+      lineEnding: 'lf'
+    }, root)).rejects.toThrow('ENOENT')
+  })
+
+  it('allows an explicit review write after the disk file crosses 10 MiB', async () => {
+    const file = join(root, 'grown.txt')
+    writeFileSync(file, '')
+    truncateSync(file, EDITABLE_TEXT_LIMIT_BYTES + 1)
+    const disk = await readTextFile(file, root)
+    await expect(writeTextFile({ absolutePath: file, text: 'accepted local version', expectedMtimeMs: disk.mtimeMs,
+      hasUtf8Bom: false, lineEnding: 'lf' }, root)).resolves.toMatchObject({ outcome: 'saved' })
+    expect((await readTextFile(file, root)).text).toBe('accepted local version')
+  })
+
+  it('rejects output beyond 20 MiB without modifying the existing file', async () => {
+    const file = join(root, 'output-limit.txt')
+    writeFileSync(file, 'base')
+    const disk = await readTextFile(file, root)
+    await expect(writeTextFile({ absolutePath: file, text: 'x'.repeat(MAX_TEXT_OPEN_BYTES + 1),
+      expectedMtimeMs: disk.mtimeMs, hasUtf8Bom: false, lineEnding: 'lf' }, root)).rejects.toThrow('20 MiB')
+    expect((await readTextFile(file, root)).text).toBe('base')
+  })
+
+  it('denies external writes unless the exact target is authorized again', async () => {
+    const external = join(createTempDir(), 'external.txt')
+    writeFileSync(external, 'base')
+    const disk = await readTextFile(external, root)
+    const request = { absolutePath: external, text: 'local', expectedMtimeMs: disk.mtimeMs, hasUtf8Bom: false, lineEnding: 'lf' as const }
+    await expect(writeTextFile(request, root)).rejects.toThrow('access denied')
+    let checks = 0
+    await expect(writeTextFile(request, root, async (target) => {
+      checks++
+      if (target !== external || checks > 2) throw new Error('authorization revoked')
+      return target
+    })).rejects.toThrow('authorization revoked')
+    expect((await readTextFile(external, root)).text).toBe('base')
   })
 })

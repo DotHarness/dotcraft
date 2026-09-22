@@ -95,9 +95,9 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
     }
 
     setRenderState({ status: 'loading' })
-    void renderMermaid({
+    void renderMermaidSvg({
       id: idRef.current,
-      source: normalizedSource,
+      source,
       themeMode
     }).then((svg) => {
       if (!cancelled) setRenderState({ status: 'ready', svg })
@@ -175,7 +175,7 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
   )
 }
 
-async function renderMermaid({
+export async function renderMermaidSvg({
   id,
   source,
   themeMode
@@ -188,7 +188,7 @@ async function renderMermaid({
   mermaid.initialize(buildMermaidConfig(themeMode))
   const renderHost = createMermaidRenderHost()
   try {
-    const result = await mermaid.render(id, source, renderHost)
+    const result = await mermaid.render(id, normalizeMermaidSource(source), renderHost)
     return sanitizeMermaidSvg(result.svg)
   } finally {
     renderHost.remove()
