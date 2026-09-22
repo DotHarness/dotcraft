@@ -15,6 +15,14 @@ Included capabilities are browser observation and interaction accuracy, the brow
 
 Task sorting and sidebar changes, general document editing, cross-origin iframe input, AX APIs, account migration, and new browser permission systems are outside this feature.
 
+## Reply text interactions
+
+Reply selections share one active overlay per renderer window. A new selection replaces the previous one. The content-sized action strip offers **Add to chat** and **Comment**, separated by a hairline; the comment editor has its own input width. Only selections contained within one completed reply can become response annotations. The overlay preserves a source/Range snapshot while the editor has focus, uses a viewport-clamped portal above the selection (below when necessary), and follows scrolling and resizing.
+
+Outside pointer-down, Escape, a context menu outside the comment editor, task changes, and source unmount dismiss the overlay. Passive dismissal retains an unfinished comment in window memory keyed by source and selection; explicit cancellation or saving clears that draft. Opening or closing a native menu never clears the text selection or automatically reopens the overlay. The editor retains its own input context menu.
+
+Reply body context menus use Electron native menus through a typed preload boundary scoped to the requesting window. On Windows a nonempty selection offers Search with Google, a separator, Copy (Ctrl+C), and Select All. Without a selection only Select All remains. Search opens an encoded Google query in the system browser; Copy and Select All use the requesting WebContents' native operations. macOS omits Select All in the context menu, following the reference platform convention. The message footer retains whole-message copying, and specialized link, file, input, and embedded-page menus retain their ownership.
+
 ## Runtime and host boundaries
 
 Electron main owns embedded pages, downloads, page selection capture, and browser controls. Renderer code uses typed preload APIs and serializable events. Pages are persistent DOM webview guests. A window-level host retains each node across task and panel switches; main owns the bound guest WebContents. Creation waits for guest readiness before navigation or automation. Menus and find use renderer portals above the live page, without hiding or recreating it. Guest pointer events dismiss application popups through the host bridge. Selecting a page region must not target another page.
@@ -61,7 +69,7 @@ Submission contains a reversible file reference, not automatic expansion of the 
 
 ### Feedback sources
 
-Browser annotation starts from the browser toolbar. The selected element or region stays outlined with a dashed accent outline and a speech-bubble marker at its bottom-right corner. The compact comment editor sits 25px from the selection, preferring the right side, then the left, then below, then above, and keeps 16px from the page edges. Response text selection exposes separate add-to-task and comment actions beside the selected text; it never substitutes a predefined excerpt for an empty selection. Diff editors and comments appear at their corresponding code lines rather than in a detached comments section.
+Browser annotation starts from the browser toolbar. The selected element or region stays outlined with a dashed accent outline and a speech-bubble marker at its bottom-right corner. The compact comment editor sits 25px from the selection, preferring the right side, then the left, then below, then above, and keeps 16px from the page edges. Response text selection exposes separate Add to chat and Comment actions beside the selected text; it never substitutes a predefined excerpt for an empty selection. Diff editors and comments appear at their corresponding code lines rather than in a detached comments section.
 
 The composer summarizes feedback in a compact count entry. Opening it reveals the sources and selected text separately from user comments, with per-entry edit and removal. Pasted text retains its separate file-card presentation. New empty comments expose dictation; populated comments expose a circular 28px primary confirm action with a check glyph, while existing-comment editing has explicit cancel/save controls. Dictation targets the active comment and is discarded with that editor, without replacing the task composer draft. Comments use existing field and action primitives, without a full-width form beneath the source or duplicate selected text in the compact annotation editor.
 

@@ -1,4 +1,6 @@
 import { createPastedTextAttachment, readPastedTextAttachment, restorePastedTextAttachment } from './pastedTextAttachments'
+import { showReplyTextContextMenu } from './replyTextContextMenu'
+import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session, type OpenDialogOptions } from 'electron'
 import { promises as fs, existsSync } from 'fs'
 import { execFile } from 'child_process'
@@ -1398,6 +1400,11 @@ export function registerIpcHandlers(
     await openExternalUrl(url)
   })
 
+  handleSafe('shell:show-reply-text-menu', (event, request: TextContextMenuRequest) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Text menus require the main frame')
+    return showReplyTextContextMenu(event.sender, request, mainLocale(callbacks), openExternalHttpUrl)
+  })
+
   handleSafe('shell:open-app-handoff', async (_event, url: string) => {
     await openAppHandoffUrl(url)
   })
@@ -2593,6 +2600,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('window:get-visibility-state')
   ipcMain.removeHandler('window:get-workspace-path')
   ipcMain.removeHandler('shell:open-external')
+  ipcMain.removeHandler('shell:show-reply-text-menu')
   ipcMain.removeHandler('shell:get-protocol-handler-name')
   ipcMain.removeHandler('editors:list')
   ipcMain.removeHandler('editors:launch')

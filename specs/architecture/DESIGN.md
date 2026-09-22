@@ -941,6 +941,15 @@ The thread sidebar and thread-header overflow menus are the reference treatment
 for ordinary Desktop menus: neutral overlay surface, quiet elevation, no outer
 frame, and borderless rows.
 
+### Reply selection overlays
+
+Reply text selection actions form a content-sized horizontal strip with a subtle
+internal separator and no reserved action slots. Use the existing opaque elevated
+surface, neutral hover treatment, and compact controls. Its comment editor is a
+separate width mode. One active portal per window follows the selected range and
+stays inside the viewport. Reply text context menus use native platform chrome
+and native editing commands.
+
 ### Headings that name a selection
 
 An entry heading may name the place the next action runs and let that name be

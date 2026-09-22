@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { Textarea } from '../ui/Input'
@@ -11,14 +11,20 @@ export function ContextCommentEditor({
   mode = 'create',
   onSave,
   onCancel,
+  onCommentChange,
 }: {
   initialComment?: string
   mode?: 'create' | 'edit'
   onSave: (comment: string) => void
   onCancel: () => void
+  onCommentChange?: (comment: string) => void
 }): JSX.Element {
   const t = useT()
-  const [comment, setComment] = useState(initialComment)
+  const [comment, updateComment] = useState(initialComment)
+  const setComment = useCallback((value: string) => {
+    updateComment(value)
+    onCommentChange?.(value)
+  }, [onCommentChange])
   const input = useRef<HTMLTextAreaElement>(null)
   const voice = useCommentVoice(comment, setComment)
   const hasText = comment.trim().length > 0

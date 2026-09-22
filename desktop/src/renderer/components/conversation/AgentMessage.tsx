@@ -1,10 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { GitBranch } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { addToast } from '../../stores/toastStore'
 import { useTypewriterReveal } from '../../hooks/useTypewriterReveal'
-import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
+import { useResponseSelectionStore } from './responseSelectionStore'
 import { InlineVisualizationMessage } from './InlineVisualizationMessage'
 import { stripInlineVisualizationDirectives } from './inlineVisualizationParser'
 import { ResponseFeedback } from './ResponseFeedback'
@@ -46,8 +46,6 @@ export function AgentMessage({
   const [forkButtonHovered, setForkButtonHovered] = useState(false)
   const [forkButtonFocused, setForkButtonFocused] = useState(false)
   const [forkChoiceOpen, setForkChoiceOpen] = useState(false)
-  const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null)
-  const [selectionText, setSelectionText] = useState('')
   const actionsVisible = hovered || focusedWithin
   const forkButtonChromeVisible = forkButtonHovered || forkButtonFocused
   const forkAvailable = canForkThread(capabilities) && Boolean(threadId && turnId)
@@ -55,21 +53,17 @@ export function AgentMessage({
   const sentTime = formatMessageTime(createdAt)
   const displayText = useTypewriterReveal(text, streaming)
 
-  async function copyText(content: string): Promise<void> {
-    if (content.length === 0) return
-    try {
-      await navigator.clipboard.writeText(content)
-      addToast(t('toast.copied'), 'success', 2000)
-    } catch {
-      // Ignore clipboard failures silently.
-    }
-  }
-
   function handleContextMenu(event: React.MouseEvent<HTMLDivElement>): void {
+    if (event.defaultPrevented || (event.target instanceof Element &&
+      event.target.closest('a, input, textarea, [contenteditable="true"], [role="menu"]'))) return
     event.preventDefault()
-    const selected = window.getSelection()?.toString() ?? ''
-    setSelectionText(selected)
-    setContextMenuPosition({ x: event.clientX, y: event.clientY })
+    event.stopPropagation()
+    useResponseSelectionStore.getState().dismiss()
+    void window.api.shell.showReplyTextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      selectionText: window.getSelection()?.toString() ?? '',
+    }).catch(() => addToast(t('conversation.selection.menuFailed'), 'error'))
   }
 
   function forkInto(mode: ThreadForkMode): void {
@@ -96,25 +90,6 @@ export function AgentMessage({
     }
     setForkChoiceOpen(true)
   }
-
-  const contextItems = useMemo<ContextMenuItem[]>(() => {
-    const items: ContextMenuItem[] = []
-    if (selectionText.trim().length > 0) {
-      items.push({
-        label: t('conversation.copySelection'),
-        onClick: () => {
-          void copyText(selectionText)
-        }
-      })
-    }
-    items.push({
-      label: t('conversation.copyMessage'),
-      onClick: () => {
-        void copyText(stripInlineVisualizationDirectives(text))
-      }
-    })
-    return items
-  }, [selectionText, t, text])
 
   return (
     <div
@@ -231,15 +206,6 @@ export function AgentMessage({
             </ActionTooltip>
           )}
         </div>
-      )}
-      {contextMenuPosition && (
-        <ContextMenu
-          items={contextItems}
-          position={contextMenuPosition}
-          onClose={() => {
-            setContextMenuPosition(null)
-          }}
-        />
       )}
       {forkChoiceOpen && (
         <ForkChoiceDialog

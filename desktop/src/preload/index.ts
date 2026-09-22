@@ -1,3 +1,4 @@
+import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
 import type { PastedTextContext } from '../shared/composerContext'
 import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
@@ -785,6 +786,10 @@ const api = {
   },
 
   shell: {
+    showReplyTextMenu(request: TextContextMenuRequest): Promise<void> {
+      return ipcRenderer.invoke('shell:show-reply-text-menu', request)
+    },
+
     openPath(path: string): Promise<string> {
       return shell.openPath(path)
     },

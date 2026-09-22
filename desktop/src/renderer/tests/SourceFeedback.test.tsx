@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, expect, it } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ResponseFeedback } from '../components/conversation/ResponseFeedback'
 import { DiffViewer } from '../components/detail/DiffViewer'
@@ -11,6 +11,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 import type { FileDiff } from '../types/toolCall'
 
 beforeEach(() => {
+  Range.prototype.getBoundingClientRect = vi.fn(() => ({ left: 0, top: 0, right: 200, bottom: 24, width: 200, height: 24 }) as DOMRect)
   useComposerContextStore.setState({ byThread: {} })
   useThreadStore.setState({ activeThreadId: 'task' })
   useConversationStore.setState({ turns: [] })
@@ -39,19 +40,10 @@ it('captures only the actual selected reply text with its source identity', () =
   const range = document.createRange()
   range.setStart(paragraph.firstChild!, 7)
   range.setEnd(paragraph.firstChild!, 20)
-  range.getBoundingClientRect = () =>
-    ({
-      left: 0,
-      right: 200,
-      top: 0,
-      bottom: 24,
-      width: 200,
-      height: 24,
-    }) as DOMRect
   window.getSelection()!.removeAllRanges()
   window.getSelection()!.addRange(range)
   fireEvent.mouseUp(paragraph)
-  fireEvent.click(screen.getByRole('button', { name: 'Add to task' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
   expect(useComposerContextStore.getState().getContexts('task')).toEqual([
     expect.objectContaining({
       kind: 'responseAnnotation',
