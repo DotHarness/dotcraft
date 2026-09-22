@@ -1,6 +1,14 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ZH_HANS = {
+  "conversation.working": "正在处理",
+  "conversation.workingFor": "正在处理 {{duration}}",
+  "conversation.worked": "已处理",
+  "conversation.workedFor": "已处理 {{duration}}",
+  "conversation.stopped": "你停止了本轮回复",
+  "conversation.stoppedAfter": "你在 {{duration}}后停止了本轮回复",
+  "conversation.interrupted": "本轮回复已中断",
+  "conversation.interruptedAfter": "本轮回复在 {{duration}}后中断",
   "browser.downloads.location": "保存位置",
   "browser.downloads.change": "更改",
   "browser.downloads.history": "下载历史",
@@ -1850,7 +1858,6 @@ export const MESSAGES_ZH_HANS = {
   'threadGroup.prev7Days': '过去 7 天',
   'threadGroup.prev30Days': '过去 30 天',
   'threadGroup.older': '更早',
-  'conversation.turnCollapsed.workedFor': '已工作 {{duration}}',
   'toolCall.explored': '已浏览 {{filename}}',
   'toolCall.exploredFiles': '已浏览文件',
   'toolCall.group.explored': '已浏览 {{count}} 个文件',

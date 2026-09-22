@@ -1,4 +1,5 @@
 import { useConversationStore } from '../stores/conversationStore'
+import { useTurnStopStore } from '../stores/turnStopStore'
 
 interface InterruptTurnOptions {
   threadId: string
@@ -22,10 +23,12 @@ export async function interruptTurn({
   }
 
   state.setInterruptingTurnId(turnId)
+  useTurnStopStore.getState().setRequested(threadId, turnId, true)
   try {
     await window.api.appServer.sendRequest('turn/interrupt', { threadId, turnId })
     return true
   } catch (error) {
+    useTurnStopStore.getState().setRequested(threadId, turnId, false)
     const latest = useConversationStore.getState()
     if (latest.interruptingTurnId === turnId) {
       latest.setInterruptingTurnId(null)

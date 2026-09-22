@@ -91,6 +91,13 @@ rounded:
   identity-hero: "16px"
   full: "999px"
 components:
+  turn-activity-status:
+    color: "{colors.text-secondary}"
+    typography: "conversation body; regular; tabular numerals"
+    padding: "no vertical padding; label inset 6px to align with tool-row text"
+    divider: "full-width 1px border-default; 8px below standalone text, 4px below disclosure text"
+    spacing: "16px from the boundary to activity or final response content"
+    behavior: "Working/worked/stopped share one top boundary before activity; final answer enables collapse; cancellation keeps output expanded"
   primary-action:
     background: "{colors.text-primary}"
     color: "{colors.bg-primary}"

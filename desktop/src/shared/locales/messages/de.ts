@@ -1,6 +1,14 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_DE = {
+  "conversation.working": "In Bearbeitung",
+  "conversation.workingFor": "Seit {{duration}} in Bearbeitung",
+  "conversation.worked": "Bearbeitet",
+  "conversation.workedFor": "{{duration}} lang bearbeitet",
+  "conversation.stopped": "Du hast die Antwort gestoppt",
+  "conversation.stoppedAfter": "Du hast die Antwort nach {{duration}} gestoppt",
+  "conversation.interrupted": "Antwort unterbrochen",
+  "conversation.interruptedAfter": "Antwort nach {{duration}} unterbrochen",
   "browser.downloads.location": "Speicherort",
   "browser.downloads.change": "Ändern",
   "browser.downloads.history": "Downloadverlauf",
@@ -2611,7 +2619,6 @@ export const MESSAGES_DE = {
   'threadSearch.placeholder': 'Threads durchsuchen...',
   'threadSearch.aria': 'Gespräche durchsuchen',
   'threadSearch.clear': 'Suche löschen',
-  'conversation.turnCollapsed.workedFor': '{{duration}} lang gearbeitet',
   'toolCall.explored': 'Erkundet {{filename}}',
   'toolCall.exploredFiles': 'Durchsuchte Dateien',
   'toolCall.group.explored': 'Durchsuchte {{count}}-Dateien',

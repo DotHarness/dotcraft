@@ -1,6 +1,14 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_JA = {
+  "conversation.working": "処理中",
+  "conversation.workingFor": "{{duration}}処理中",
+  "conversation.worked": "処理済み",
+  "conversation.workedFor": "処理時間: {{duration}}",
+  "conversation.stopped": "返信を停止しました",
+  "conversation.stoppedAfter": "{{duration}}後に返信を停止しました",
+  "conversation.interrupted": "返信が中断されました",
+  "conversation.interruptedAfter": "{{duration}}後に返信が中断されました",
   "browser.downloads.location": "保存先",
   "browser.downloads.change": "変更",
   "browser.downloads.history": "ダウンロード履歴",
@@ -2598,7 +2606,6 @@ export const MESSAGES_JA = {
   'threadSearch.placeholder': 'スレッドを検索...',
   'threadSearch.aria': '会話を検索する',
   'threadSearch.clear': '検索をクリア',
-  'conversation.turnCollapsed.workedFor': '{{duration}} 作業しました',
   'toolCall.explored': '{{filename}}を探索しました',
   'toolCall.exploredFiles': '探索されたファイル',
   'toolCall.group.explored': '{{count}} ファイルを調査しました',

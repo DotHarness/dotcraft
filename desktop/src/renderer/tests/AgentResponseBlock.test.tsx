@@ -1294,7 +1294,6 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
 
     expect(screen.queryByText('Thought 4s')).toBeNull()
     expect(screen.queryByText('private reasoning')).toBeNull()
-    expect(screen.queryByText(/Worked for/)).toBeNull()
     expect(screen.getByText('final answer')).toBeInTheDocument()
   })
 
@@ -2753,7 +2752,7 @@ describe('AgentResponseBlock guidance user messages', () => {
     expect(guidanceFlowItem).toHaveAttribute('data-kind', 'user')
   })
 
-  it('does not fold completed turns that contain guidance user messages', () => {
+  it('keeps guidance visible while allowing completed tool history to collapse', () => {
     const turn: ConversationTurn = {
       id: 'turn-guidance-completed',
       threadId: 'thread-1',
@@ -2786,7 +2785,8 @@ describe('AgentResponseBlock guidance user messages', () => {
       </LocaleProvider>
     )
 
-    expect(screen.queryByText(/Worked for/)).toBeNull()
+    expect(screen.queryByText('Called FollowupTool')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { expanded: false }))
     expect(screen.getByText('Called FollowupTool')).toBeInTheDocument()
     expect(screen.getByText('Steered conversation')).toBeInTheDocument()
     expect(screen.getByText('guide the active turn')).toBeInTheDocument()

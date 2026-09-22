@@ -282,6 +282,20 @@ For secondary connections, only thread-list and runtime notifications update bac
 | `turn/failed` | The user sees that the turn ended unsuccessfully and is given a path to retry or continue. |
 | `turn/cancelled` | The running state clears and the user sees that the turn was interrupted. |
 
+Running turns show one activity timing boundary, updated once per second. An explicit
+final-phase assistant message freezes activity duration at its start and enables process
+collapse before the turn completes. Providers without phase metadata retain the completed-turn
+fallback; commentary must not trigger early collapse. Final replies and persistent results
+remain outside the collapsed process, including guidance messages.
+Cancelled turns retain partial replies and tool results, remain expanded, and replace
+that same activity boundary with one neutral stop status rather than adding a footer.
+Only a stop requested by this window is attributed to the user; unknown or external
+interruptions use neutral wording, including after a renderer reload. Attribution is
+window-local and does not change the protocol or persisted turn data. Failed stop
+requests clear that attribution. Duration uses valid completion minus start timestamps
+and never continues ticking; missing or invalid timestamps omit duration. Raw cancellation
+reasons remain data and are not appended to the conversation text.
+
 `Turn.error` is the canonical user-facing Turn failure. If the same failure is also retained as an Error Item, Desktop presents it once. Distinct errors remain independently visible.
 
 While a turn is actively running, the conversation view must always show visible activity. If no live reasoning, non-stalled non-empty streaming assistant text, running tool row, approval wait row, user-input wait row, or system maintenance status row is currently visible, Desktop renders a non-persistent Thinking indicator at the active turn tail until the next visible live item appears. If non-empty assistant text is streaming but no text delta arrives for 2 seconds, Desktop treats that text stream as stalled and shows the same non-persistent Thinking indicator below the current streaming message; the indicator disappears as soon as a new text delta arrives, and the delta continues appending to the same streaming assistant message.

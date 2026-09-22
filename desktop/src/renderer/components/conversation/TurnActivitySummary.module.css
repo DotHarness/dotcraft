@@ -1,0 +1,37 @@
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.status > span {
+  padding-inline: 6px;
+}
+
+.divider {
+  border-top: 1px solid var(--border-default);
+}
+
+.summary :global(.dc-tool-row[data-variant="turn"] > summary) {
+  width: 100%;
+  padding: 0 6px 4px;
+  color: var(--text-secondary);
+  border-bottom-color: var(--border-default);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary :global(.dc-tool-row[data-variant="turn"] > .dc-tool-panel) {
+  margin: var(--conversation-tool-assistant-gap) 0 0;
+  padding-left: 0;
+}
+
+.summary :global(.dc-tool-chevron) {
+  opacity: 1;
+}

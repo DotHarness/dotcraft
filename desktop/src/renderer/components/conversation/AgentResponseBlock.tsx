@@ -5,7 +5,8 @@ import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
-import { CancelledNotice } from './CancelledNotice'
+import { TurnActivitySummary } from './TurnActivitySummary'
+import { getTurnActivityState } from './turnActivityModel'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
@@ -32,7 +33,6 @@ import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
 import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { CapacityRetryRow } from './CapacityRetryRow'
-import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
@@ -308,12 +308,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   }
 
   const collapseSourceItems = trimHistoricalToolContent ? defaultRenderableItems : renderableItems
-  const lastFinalAgentMessageIndex =
-    !isRunning &&
-    turn.status === 'completed' &&
-    !collapseSourceItems.some(isGuidanceUserMessage)
-      ? findLastAgentMessageIndex(collapseSourceItems)
-      : -1
+  const activity = getTurnActivityState(turn, collapseSourceItems, isRunning)
+  const lastFinalAgentMessageIndex = activity.finalIndex
   const lastAgentMessageIndex =
     !isRunning && turn.status === 'completed'
       ? findLastVisibleAgentMessageIndex(renderableItems)
@@ -324,8 +320,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     !trimHistoricalToolContent && turn.status === 'completed'
       ? <TurnCompletionContent turnId={turn.id} />
       : null
-  const shouldCollapseIntermediate = lastFinalAgentMessageIndex > 0
+  const shouldCollapseIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
+  let hasActivitySummary = false
   const streamingMessageStalled = useStreamingMessageStall({
     enabled:
       showIdleThinkingFallback &&
@@ -364,18 +361,18 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem),
         'trimmed-history-trailing'
       )
-      const elapsedMs = getIntermediateElapsedMs(turn, collapseSourceItems[lastFinalAgentMessageIndex])
 
+      hasActivitySummary = true
       renderNodes.push({
         kind: 'other',
         node: (
-          <TurnCollapsedSummary
+          <TurnActivitySummary
             key={`turn-collapsed-${turn.id}`}
-            elapsedMs={elapsedMs}
-            followedByContent={pinnedTrimmedNodes.length + trailingNodes.length > 0}
+            status="worked" threadId={turn.threadId} turnId={turn.id}
+            startedAt={turn.startedAt} completedAt={activity.completedAt}
           >
-            <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" />
-          </TurnCollapsedSummary>
+            {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" /> : null}
+          </TurnActivitySummary>
         )
       })
       renderNodes.push(...pinnedTrimmedNodes)
@@ -407,26 +404,29 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
       const pinnedNodes = renderPinnedSequences(renderableItems, pinnedIndices, 'pinned')
 
-      if (intermediateNodes.length > 0) {
-        const elapsedMs = getIntermediateElapsedMs(turn, renderableItems[lastFinalAgentMessageIndex])
-        renderNodes.push({
-          kind: 'other',
-          node: (
-            <TurnCollapsedSummary
-              key={`turn-collapsed-${turn.id}`}
-              elapsedMs={elapsedMs}
-              followedByContent={pinnedNodes.length + trailingNodes.length > 0}
-            >
-              <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" />
-            </TurnCollapsedSummary>
-          )
-        })
-      }
+      hasActivitySummary = true
+      renderNodes.push({
+        kind: 'other',
+        node: (
+          <TurnActivitySummary
+            key={`turn-collapsed-${turn.id}`}
+            status="worked" threadId={turn.threadId} turnId={turn.id}
+            startedAt={turn.startedAt} completedAt={activity.completedAt}
+          >
+            {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" /> : null}
+          </TurnActivitySummary>
+        )
+      })
 
       renderNodes.push(...pinnedNodes)
       renderNodes.push(...trailingNodes)
     }
   } else {
+    if (activity.status) {
+      renderNodes.push({ kind: 'other', node: <TurnActivitySummary key={`turn-activity-${turn.id}`} status={activity.status}
+        threadId={turn.threadId} turnId={turn.id} startedAt={turn.startedAt} completedAt={activity.completedAt} /> })
+      hasActivitySummary = true
+    }
     renderNodes.push(...renderItemSequence(renderableItems))
   }
 
@@ -435,6 +435,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       kind: 'assistant',
       node: <ThinkingIndicator key={`idle-thinking-${turn.id}`} streaming />
     })
+  }
+
+  if (activity.status && !hasActivitySummary) {
+    renderNodes.push({ kind: 'other', node: <TurnActivitySummary key={`turn-activity-${turn.id}`} status={activity.status}
+      threadId={turn.threadId} turnId={turn.id} startedAt={turn.startedAt} completedAt={activity.completedAt} /> })
   }
 
   const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
@@ -452,10 +457,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
       {isLastTurn && turn.status === 'failed' && turn.providerError === 'serverOverloaded' && (
         <CapacityRetryRow />
-      )}
-
-      {turn.status === 'cancelled' && (
-        <CancelledNotice reason={turn.cancelReason} />
       )}
 
       {/* Fallback for completed turns that have file changes but no visible final message footer. */}
@@ -887,15 +888,6 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
   return isToolExecutionFailure(item)
 }
 
-function findLastAgentMessageIndex(items: ConversationItem[]): number {
-  for (let i = items.length - 1; i >= 0; i--) {
-    if (items[i].type === 'agentMessage') {
-      return i
-    }
-  }
-  return -1
-}
-
 function findLastVisibleAgentMessageIndex(items: ConversationItem[]): number {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]
@@ -956,6 +948,7 @@ function findLastImageGenerationIndexBefore(items: ConversationItem[], beforeInd
 /** Returned ascending so the renderer can split the intermediate run at each pinned boundary. */
 function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex: number): number[] {
   const indices = new Set<number>()
+  items.slice(0, beforeIndex).forEach((item, index) => { if (isGuidanceUserMessage(item)) indices.add(index) })
   const planIndex = findLastPinnedCoreRendererIndexBefore(items, beforeIndex)
   if (planIndex >= 0) indices.add(planIndex)
   const cardIndex = findLastInteractiveCardIndexBefore(items, beforeIndex)
@@ -974,7 +967,7 @@ function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex
 function collectTrimmedPinnedIntermediateIndices(items: ConversationItem[]): Set<number> {
   const indices = new Set<number>()
   items.forEach((item, index) => {
-    if (isCreatePlanItem(item)) indices.add(index)
+    if (isCreatePlanItem(item) || isGuidanceUserMessage(item)) indices.add(index)
   })
   const imageIndex = findLastImageGenerationIndexBefore(items, items.length)
   if (imageIndex >= 0) indices.add(imageIndex)
@@ -1260,24 +1253,4 @@ function computeItemDurationMs(
   const endMs = Date.parse(completedAt)
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return undefined
   return endMs - startMs
-}
-
-function getIntermediateElapsedMs(
-  turn: ConversationTurn,
-  finalAgentMessage: ConversationItem | undefined
-): number {
-  const turnStartMs = Date.parse(turn.startedAt)
-  if (!Number.isFinite(turnStartMs)) return 0
-
-  const finalStartMs = finalAgentMessage?.createdAt ? Date.parse(finalAgentMessage.createdAt) : Number.NaN
-  if (Number.isFinite(finalStartMs) && finalStartMs >= turnStartMs) {
-    return finalStartMs - turnStartMs
-  }
-
-  const turnCompletedMs = turn.completedAt ? Date.parse(turn.completedAt) : Number.NaN
-  if (Number.isFinite(turnCompletedMs) && turnCompletedMs >= turnStartMs) {
-    return turnCompletedMs - turnStartMs
-  }
-
-  return 0
 }

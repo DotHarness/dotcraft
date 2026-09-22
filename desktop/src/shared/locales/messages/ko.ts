@@ -1,6 +1,14 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_KO = {
+  "conversation.working": "작업 중",
+  "conversation.workingFor": "{{duration}} 동안 작업 중",
+  "conversation.worked": "작업 완료",
+  "conversation.workedFor": "{{duration}} 동안 작업함",
+  "conversation.stopped": "응답을 중지했습니다",
+  "conversation.stoppedAfter": "{{duration}} 후 응답을 중지했습니다",
+  "conversation.interrupted": "응답이 중단되었습니다",
+  "conversation.interruptedAfter": "{{duration}} 후 응답이 중단되었습니다",
   "browser.downloads.location": "저장 위치",
   "browser.downloads.change": "변경",
   "browser.downloads.history": "다운로드 기록",
@@ -2599,7 +2607,6 @@ export const MESSAGES_KO = {
   'threadSearch.placeholder': '스레드 검색...',
   'threadSearch.aria': '대화 검색',
   'threadSearch.clear': '검색 지우기',
-  'conversation.turnCollapsed.workedFor': '{{duration}} 동안 작업함',
   'toolCall.explored': '{{filename}}을(를) 탐색했습니다.',
   'toolCall.exploredFiles': '탐색된 파일',
   'toolCall.group.explored': '{{count}} 파일을 탐색했습니다.',
