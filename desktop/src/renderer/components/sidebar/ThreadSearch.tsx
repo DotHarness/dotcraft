@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Monitor, Search } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -15,6 +15,7 @@ import {
   SIDEBAR_NAV_LABEL,
   SIDEBAR_NAV_ROW_OUTER
 } from './sidebarNavRowStyles'
+import { SidebarNavIcon } from './SidebarNavIcon'
 
 interface ThreadSearchProps {
   workspaceName: string
@@ -43,6 +44,7 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
         <button
           className="dotcraft-sidebar-row-radius"
           type="button"
+          data-nav-icon-host=""
           onClick={() => setOpen(true)}
           aria-label={t('threadSearch.open')}
           onFocus={() => setActive(true)}
@@ -61,7 +63,7 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <span style={SIDEBAR_NAV_ICON_SLOT}>
-              <Search size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+              <SidebarNavIcon name="search" />
             </span>
             <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t('threadSearch.open')}

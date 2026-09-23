@@ -10,7 +10,6 @@ import {
   Monitor,
   Puzzle,
   RotateCw,
-  Settings,
   Sparkle,
   SquareTerminal,
   Wrench
@@ -168,8 +167,4 @@ export function TerminalBashIcon({ size = 16 }: { size?: number }): JSX.Element 
 
 export function ClockIcon({ size = 16 }: { size?: number }): JSX.Element {
   return <Clock size={size} strokeWidth={1.8} aria-hidden="true" />
-}
-
-export function SettingsIcon({ size = 16 }: { size?: number }): JSX.Element {
-  return <Settings size={size} strokeWidth={1.8} aria-hidden="true" />
 }

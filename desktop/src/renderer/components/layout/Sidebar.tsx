@@ -27,8 +27,8 @@ import {
   SIDEBAR_NAV_LABEL,
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
-import { SettingsIcon } from '../ui/AppIcons'
-import { Bot, Box, MessageSquare, SquarePen } from 'lucide-react'
+import { SidebarNavIcon } from '../sidebar/SidebarNavIcon'
+import { MessageSquare } from 'lucide-react'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
@@ -87,7 +87,7 @@ export function Sidebar({
           label={t('sidebar.channels')}
           active={activeMainView === 'channels'}
           onClick={() => setActiveMainView('channels')}
-          icon={<ChannelsIcon />}
+          icon={<SidebarNavIcon name="channels" />}
           testId="nav-channels"
         />
         {desktopMainViews.map((entry) => (
@@ -104,7 +104,7 @@ export function Sidebar({
           label={t('sidebar.agents')}
           active={activeMainView === 'agents'}
           onClick={() => setActiveMainView('agents')}
-          icon={<AgentsIcon />}
+          icon={<SidebarNavIcon name="agents" />}
           testId="nav-agents"
         />
         {automationsAvailable && (
@@ -112,7 +112,7 @@ export function Sidebar({
             label={t('sidebar.automations')}
             active={activeMainView === 'automations'}
             onClick={() => setActiveMainView('automations')}
-            icon={<AutomationsIcon />}
+            icon={<SidebarNavIcon name="automations" />}
             testId="nav-automations"
           />
         )}
@@ -120,7 +120,7 @@ export function Sidebar({
           label={t('sidebar.skills')}
           active={activeMainView === 'skills'}
           onClick={() => setActiveMainView('skills')}
-          icon={<SkillsIcon />}
+          icon={<SidebarNavIcon name="skills" />}
           testId="nav-skills"
         />
       </div>
@@ -162,6 +162,7 @@ function SidebarNavRow({
       className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
       type="button"
       data-testid={testId}
+      data-nav-icon-host=""
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       data-active={active ? 'true' : undefined}
@@ -188,42 +189,9 @@ function SidebarNavRow({
   )
 }
 
-function SkillsIcon(): JSX.Element {
-  return <Box size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-}
-
-function ChannelsIcon(): JSX.Element {
-  return <MessageSquare size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-}
-
-function AgentsIcon(): JSX.Element {
-  return <Bot size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-}
-
 function DesktopPluginIcon({ icon }: { icon?: DesktopPluginContributionIcon | null }): JSX.Element {
   const Glyph = resolveDesktopPluginIcon(icon)
   return <Glyph size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-}
-
-function AutomationsIcon(): JSX.Element {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      style={{ display: 'block' }}
-    >
-      <circle cx="12" cy="12" r="9" />
-      <line x1="12" y1="12" x2="12" y2="8" />
-      <line x1="12" y1="12" x2="16" y2="12" />
-    </svg>
-  )
 }
 
 function CollapsedSidebar(): JSX.Element {
@@ -300,7 +268,8 @@ function CollapsedSidebar(): JSX.Element {
       }}
     >
       <IconButton
-        icon={<SquarePen size={16} strokeWidth={1.8} aria-hidden="true" />}
+        data-nav-icon-host=""
+        icon={<SidebarNavIcon name="new-chat" />}
         label={t('sidebar.newThreadLabel')}
         tooltipLabel={t('sidebar.newThreadLabel')}
         shortcut={status === 'connected' ? ACTION_SHORTCUTS.newThread : undefined}
@@ -320,7 +289,8 @@ function CollapsedSidebar(): JSX.Element {
       />
 
       <IconButton
-        icon={<ChannelsIcon />}
+        data-nav-icon-host=""
+        icon={<SidebarNavIcon name="channels" />}
         label={t('sidebar.channels')}
         tooltipLabel={t('sidebar.channels')}
         tooltipPlacement="right"
@@ -348,7 +318,8 @@ function CollapsedSidebar(): JSX.Element {
         )
       })}
       <IconButton
-        icon={<AgentsIcon />}
+        data-nav-icon-host=""
+        icon={<SidebarNavIcon name="agents" />}
         label={t('sidebar.agents')}
         tooltipLabel={t('sidebar.agents')}
         tooltipPlacement="right"
@@ -360,7 +331,8 @@ function CollapsedSidebar(): JSX.Element {
       />
       {collapsedAutomationsAvailable && (
         <IconButton
-          icon={<AutomationsIcon />}
+          data-nav-icon-host=""
+          icon={<SidebarNavIcon name="automations" />}
           label={t('sidebar.automations')}
           tooltipLabel={t('sidebar.automations')}
           tooltipPlacement="right"
@@ -372,7 +344,8 @@ function CollapsedSidebar(): JSX.Element {
         />
       )}
       <IconButton
-        icon={<SkillsIcon />}
+        data-nav-icon-host=""
+        icon={<SidebarNavIcon name="skills" />}
         label={t('sidebar.skills')}
         tooltipLabel={t('sidebar.skills')}
         tooltipPlacement="right"
@@ -482,7 +455,8 @@ function CollapsedSidebar(): JSX.Element {
       </div>
 
       <IconButton
-        icon={<SettingsIcon />}
+        data-nav-icon-host=""
+        icon={<SidebarNavIcon name="settings" />}
         label={t('sidebar.openSettingsAria')}
         tooltipLabel={t('sidebar.openSettingsAria')}
         shortcut={ACTION_SHORTCUTS.settings}

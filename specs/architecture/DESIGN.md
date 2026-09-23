@@ -1,5 +1,5 @@
 ---
-version: "0.25.0"
+version: "0.26.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -105,6 +105,10 @@ components:
   menu-overlay:
     border: "none"
     rowHover: "var(--sidebar-control-hover)"
+  nav-icon-motion:
+    trigger: "hover or keyboard focus on a sidebar destination; plays once"
+    duration: "340-720ms"
+    behavior: "one glyph part moves; starts and ends on the static drawing; the row never moves"
   selection-row:
     border: "none"
     hoverBackground: "var(--bg-tertiary)"
@@ -684,6 +688,33 @@ omit connection counts.
 A visible neutral frame (`bordered`: `var(--bg-secondary)` +
 `1px solid var(--border-default)`) is opt-in and reserved for special or important
 icon controls. Modal close buttons stay borderless with neutral hover feedback.
+
+### Navigation Icon Motion
+
+Sidebar destinations answer hover and keyboard focus with one short glyph motion.
+This covers New chat, Search, Channels, Agents, Automations, Plugins, and Settings,
+in the expanded rows and the collapsed rail alike. The row and its hit target never
+move; one part of the glyph does, for 340–720ms:
+
+| Destination | Motion |
+| --- | --- |
+| New chat | The pen scribbles one small loop about its nib |
+| Search | The lens turns edge-on about its handle and back |
+| Channels | Typing dots rise in a wave inside the bubble |
+| Agents | The eyes glance toward the label and back |
+| Automations | The minute hand sweeps one hour |
+| Plugins | The lid lifts off the box and settles |
+| Settings | The gear advances one tooth |
+
+- Every motion starts and ends on the static drawing, so leaving mid-motion returns
+  the glyph to rest and the shared reduced-motion rule leaves it still.
+- A glyph plays once per hover or focus. Sweeping the pointer across the sidebar
+  moves only the glyph under it, never a row of them.
+- Disabled rows stay still; the current destination still answers.
+- Content rows (projects, threads, Chats) and plugin-contributed destinations keep
+  static icons.
+- Motion moves parts; it does not reshape them. A shape change of a pixel or two,
+  such as a blink, reads as a flicker at 16px.
 
 ### Status Indicators
 

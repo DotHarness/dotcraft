@@ -4,7 +4,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
-import { SquarePen } from 'lucide-react'
+import { SidebarNavIcon } from './SidebarNavIcon'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -31,6 +31,7 @@ export function NewThreadButton(): JSX.Element {
     <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
       <button
         className="dotcraft-sidebar-row-radius"
+        data-nav-icon-host=""
         onClick={handleClick}
         disabled={!isConnected}
         aria-label={t('sidebar.newThread')}
@@ -57,7 +58,7 @@ export function NewThreadButton(): JSX.Element {
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <span style={SIDEBAR_NAV_ICON_SLOT}>
-            <SquarePen size={16} strokeWidth={1.8} aria-hidden="true" style={{ display: 'block' }} />
+            <SidebarNavIcon name="new-chat" />
           </span>
           <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {t('sidebar.newThreadLabel')}

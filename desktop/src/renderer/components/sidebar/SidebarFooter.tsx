@@ -7,7 +7,7 @@ import {
   SIDEBAR_NAV_LABEL,
   SIDEBAR_NAV_ROW_OUTER
 } from './sidebarNavRowStyles'
-import { SettingsIcon } from '../ui/AppIcons'
+import { SidebarNavIcon } from './SidebarNavIcon'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
@@ -34,6 +34,7 @@ export function SidebarFooter(): JSX.Element {
       <button
         className="dotcraft-sidebar-row-radius"
         type="button"
+        data-nav-icon-host=""
         onClick={() => setActiveMainView('settings')}
         aria-label={t('sidebar.openSettingsAria')}
         onFocus={() => setSettingsRowActive(true)}
@@ -56,9 +57,7 @@ export function SidebarFooter(): JSX.Element {
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <span style={SIDEBAR_NAV_ICON_SLOT}>
-            <span style={{ display: 'block', flexShrink: 0 }}>
-              <SettingsIcon />
-            </span>
+            <SidebarNavIcon name="settings" />
           </span>
           <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {t('sidebarFooter.settings')}

@@ -1,0 +1,237 @@
+/* Animate translate and rotate, never transform: Chromium composites transform on
+   SVG children and repaints the adjacent label. */
+
+.dotcraft-sidebar-nav-icon {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.dotcraft-sidebar-nav-icon__pen-tilt {
+  transform-origin: 8.2px 15.8px;
+}
+
+.dotcraft-sidebar-nav-icon__minute,
+.dotcraft-sidebar-nav-icon__gear {
+  transform-origin: 12px 12px;
+}
+
+.dotcraft-sidebar-nav-icon__lid {
+  transform-origin: 21px 8px;
+}
+
+.dotcraft-sidebar-nav-icon__typing,
+.dotcraft-sidebar-nav-icon__rim,
+.dotcraft-sidebar-nav-icon__in-motion {
+  opacity: 0;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--new-chat .dotcraft-sidebar-nav-icon__pen-path {
+  animation: dotcraft-sidebar-nav-icon-pen-path 650ms linear;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--new-chat .dotcraft-sidebar-nav-icon__pen-tilt {
+  animation: dotcraft-sidebar-nav-icon-pen-tilt 650ms cubic-bezier(0.333, 0, 0.667, 1);
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--search .dotcraft-sidebar-nav-icon__lens {
+  animation: dotcraft-sidebar-nav-icon-lens-flip 340ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--channels .dotcraft-sidebar-nav-icon__typing {
+  animation: dotcraft-sidebar-nav-icon-typing 720ms linear;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--channels .dotcraft-sidebar-nav-icon__dot {
+  animation: dotcraft-sidebar-nav-icon-dot-hop 400ms 60ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--channels .dotcraft-sidebar-nav-icon__dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--channels .dotcraft-sidebar-nav-icon__dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--agents .dotcraft-sidebar-nav-icon__eyes {
+  animation: dotcraft-sidebar-nav-icon-eyes-glance 720ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--automations .dotcraft-sidebar-nav-icon__minute {
+  animation: dotcraft-sidebar-nav-icon-minute-sweep 667ms cubic-bezier(0.333, 0, 0, 1);
+}
+
+/* Split paths antialias differently from the single outline, so they replace it
+   only while playing. */
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--skills .dotcraft-sidebar-nav-icon__at-rest {
+  animation: dotcraft-sidebar-nav-icon-held-hidden 700ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--skills .dotcraft-sidebar-nav-icon__in-motion {
+  animation: dotcraft-sidebar-nav-icon-held-shown 700ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--skills .dotcraft-sidebar-nav-icon__lid {
+  animation: dotcraft-sidebar-nav-icon-lid-lift 700ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--skills .dotcraft-sidebar-nav-icon__rim {
+  animation: dotcraft-sidebar-nav-icon-rim 700ms linear;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .dotcraft-sidebar-nav-icon--settings .dotcraft-sidebar-nav-icon__gear {
+  animation: dotcraft-sidebar-nav-icon-gear-turn 640ms;
+}
+
+@keyframes dotcraft-sidebar-nav-icon-pen-path {
+  0% { translate: 0 0; }
+  7.7% { translate: -0.06px -0.1px; }
+  15.4% { translate: -0.2px -0.42px; }
+  23.1% { translate: -0.29px -0.99px; }
+  30.8% { translate: -0.07px -1.69px; }
+  38.5% { translate: 0.64px -2.27px; }
+  46.2% { translate: 1.68px -2.24px; }
+  53.8% { translate: 2.42px -1.48px; }
+  61.5% { translate: 2.54px -0.43px; }
+  69.2% { translate: 1.98px 0.3px; }
+  76.9% { translate: 1.23px 0.53px; }
+  84.6% { translate: 0.56px 0.39px; }
+  92.3% { translate: 0.15px 0.14px; }
+  100% { translate: 0 0; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-pen-tilt {
+  0% { rotate: 0deg; }
+  35.9% { rotate: 6deg; }
+  66.7% { rotate: -6deg; }
+  100% { rotate: 0deg; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-lens-flip {
+  0% {
+    rx: 8px;
+    animation-timing-function: cubic-bezier(1, 0, 1, 1);
+  }
+  51.3% {
+    rx: 0.08px;
+    animation-timing-function: cubic-bezier(0, 0, 0, 1);
+  }
+  100% { rx: 8px; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-typing {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-dot-hop {
+  0% {
+    translate: 0 0;
+    animation-timing-function: cubic-bezier(0.333, 0, 0, 1);
+  }
+  48% {
+    translate: 0 -3px;
+    animation-timing-function: cubic-bezier(1, 0, 0.667, 1);
+  }
+  100% { translate: 0 0; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-eyes-glance {
+  0% {
+    translate: 0 0;
+    animation-timing-function: cubic-bezier(0.333, 0, 0, 1);
+  }
+  24%,
+  62% {
+    translate: 1.5px 0;
+    animation-timing-function: cubic-bezier(0.333, 0, 0.667, 1);
+  }
+  86%,
+  100% { translate: 0 0; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-minute-sweep {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-lid-lift {
+  0% {
+    translate: 0 0;
+    rotate: 0deg;
+    animation-timing-function: cubic-bezier(0.333, 0, 0, 1);
+  }
+  30% {
+    translate: 0 -2.2px;
+    rotate: 6deg;
+    animation-timing-function: cubic-bezier(0.333, 0, 0.667, 1);
+  }
+  46% {
+    translate: 0 -2.4px;
+    rotate: 5deg;
+    animation-timing-function: cubic-bezier(1, 0, 0.667, 1);
+  }
+  68% {
+    translate: 0 0;
+    rotate: 0deg;
+    animation-timing-function: cubic-bezier(0.333, 0, 0, 1);
+  }
+  79% {
+    translate: 0 -0.6px;
+    rotate: 1deg;
+    animation-timing-function: cubic-bezier(1, 0, 0.667, 1);
+  }
+  90%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-held-hidden {
+  from,
+  to { opacity: 0; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-held-shown {
+  from,
+  to { opacity: 1; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-rim {
+  0%,
+  5% { opacity: 0; }
+  12%,
+  57% { opacity: 1; }
+  63%,
+  100% { opacity: 0; }
+}
+
+@keyframes dotcraft-sidebar-nav-icon-gear-turn {
+  0% {
+    rotate: 0deg;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+  }
+  72% {
+    rotate: 67deg;
+    animation-timing-function: cubic-bezier(0.333, 0, 0.667, 1);
+  }
+  100% { rotate: 60deg; }
+}
