@@ -1,6 +1,8 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_DE = {
+  "settings.llm.managedByService": "Vom Modelldienst verwaltet. Verwalten Sie Anbieter und Anmeldung im Dienst.",
+  "settings.llm.serviceAuthenticationRequired": "Melden Sie sich beim Modelldienst an.",
   "conversation.working": "In Bearbeitung",
   "conversation.workingFor": "Seit {{duration}} in Bearbeitung",
   "conversation.worked": "Bearbeitet",

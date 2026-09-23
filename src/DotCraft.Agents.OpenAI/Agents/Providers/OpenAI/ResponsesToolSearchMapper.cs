@@ -307,8 +307,13 @@ internal static partial class ResponsesToolSearchMapper
         };
     }
 
-    internal static void PatchResponsePromptCacheKey(CreateResponseOptions options, string promptCacheKey) =>
-        options.PromptCacheKey = promptCacheKey;
+    internal static void PatchResponsePromptCacheKey(CreateResponseOptions options, string promptCacheKey)
+    {
+        options.PromptCacheKey = ProviderPipelineOptionsScope.Current?.Runtime.CallerNamespace is { Length: > 0 } caller
+            && promptCacheKey != OpenAIResponsesCodexMetadata.ResolveRoutingIdentity().DefaultPromptCacheKey
+                ? OpenAIResponsesCodexMetadata.NamespacedIdentity(caller, promptCacheKey)
+                : promptCacheKey;
+    }
 
     internal static void PatchResponseServiceTier(CreateResponseOptions options, string serviceTier) =>
         PatchValue(options, "$.service_tier", serviceTier);

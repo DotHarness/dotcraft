@@ -101,6 +101,12 @@ whether and when Runtime stops.
 
 ## Application and feature ownership
 
+The optional Model Service hosts credential-backed provider HTTP access without Session Core or
+workspace tools. Its reusable endpoints belong to `DotCraft.ModelService`; its HTTP client belongs
+to `DotCraft.Agents.Remote`, and the transport contract belongs to Agents. `DotCraft.App` owns the
+standalone command and file configuration. Embedded hosts provide their own authorization and
+storage. See [Remote model service](model-service.md).
+
 The official application owns CLI, ACP, AppServer, and Hub entry-point selection. Host factories,
 process policy, web-channel pooling, shared web addresses, logging policy, and exit codes are
 application responsibilities rather than Runtime contracts.

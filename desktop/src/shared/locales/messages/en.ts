@@ -1,4 +1,6 @@
 export const MESSAGES_EN = {
+  "settings.llm.managedByService": "Managed by the model service. Manage providers and sign-in on the service.",
+  "settings.llm.serviceAuthenticationRequired": "Sign-in required on the model service.",
   "conversation.working": "Working",
   "conversation.workingFor": "Working for {{duration}}",
   "conversation.worked": "Worked",

@@ -13,15 +13,18 @@ public sealed partial class OpenAIClientProvider
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
-        var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (!runtime.IsRemote)
+        {
+            var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
         var accountId = ResolveChatGptAccountId(runtime);
         if (!string.IsNullOrWhiteSpace(accountId))
             request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
         request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
-        return await _chatGptHttpClient.SendAsync(
+        return await HttpClientFor(runtime).SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
@@ -58,7 +61,7 @@ public sealed partial class OpenAIClientProvider
         }
 
         request.Content = content;
-        return await _chatGptHttpClient.SendAsync(
+        return await HttpClientFor(runtime).SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
@@ -72,12 +75,15 @@ public sealed partial class OpenAIClientProvider
     {
         if (runtime.IsChatGptOAuth)
         {
-            if (_openAIAuthService is null)
+            if (!runtime.IsRemote && _openAIAuthService is null)
                 throw new InvalidOperationException(
                     "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
 
-            var token = await _openAIAuthService.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (!runtime.IsRemote)
+            {
+                var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
             var accountId = ResolveChatGptAccountId(runtime);
             if (!string.IsNullOrWhiteSpace(accountId))
                 request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
@@ -87,7 +93,7 @@ public sealed partial class OpenAIClientProvider
             if (!string.IsNullOrWhiteSpace(installationId))
                 request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.InstallationIdHeader, installationId);
 
-            var sessionKey = ProviderRequestContextScope.Current?.ConversationIdentity.CurrentThreadId;
+            var sessionKey = OpenAIResponsesCodexMetadata.ResolveRoutingIdentity().SessionId;
             if (!string.IsNullOrWhiteSpace(sessionKey))
             {
                 var trimmed = sessionKey.Trim();
@@ -98,6 +104,8 @@ public sealed partial class OpenAIClientProvider
             return;
         }
 
+        if (runtime.IsRemote)
+            return;
         if (string.IsNullOrWhiteSpace(runtime.ApiKey))
             throw new ArgumentException("API key must be configured.", nameof(runtime));
 

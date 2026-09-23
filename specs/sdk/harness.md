@@ -62,6 +62,11 @@ locations.
 
 ## Runtime composition
 
+Harness supports one optional remote model-service connection for the entire runtime. This selects
+the remote HTTP transport for the built-in providers, preserving their protocol and history
+capabilities. It does not register local credential storage or OAuth refresh for remote providers.
+The client is packaged with Harness; the optional server is packaged as `DotCraft.ModelService`.
+
 The Harness facade registers one Runtime and Session graph together with the built-in model
 providers and the Core configuration schema. Lower-level Runtime and provider registration APIs
 remain available to hosts that need explicit composition.
@@ -88,3 +93,5 @@ managed and native assets remain ordinary NuGet dependencies.
 A consumer installs only `DotCraft.Harness`, supplies its configuration and paths, and uses its own
 Generic Host lifecycle. It does not require a project reference to the DotCraft repository or an
 AppServer process.
+
+Hosts that deliver catalogs through revisions set `RefreshModelServiceCatalog = false`, supply `InitialModelServiceCatalog`, and apply later snapshots with `RemoteModelConfiguration.Apply`. The default Harness refreshes at startup and every 30 seconds.

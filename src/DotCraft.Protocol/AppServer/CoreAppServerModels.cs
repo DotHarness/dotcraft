@@ -3713,7 +3713,7 @@ public sealed class ProviderDeleteResult : ExtensibleJsonObject
 }
 
 /// <summary>Executable wire contract for ProviderInfo.</summary>
-public sealed class ProviderInfo : ExtensibleJsonObject
+public sealed partial class ProviderInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("apiKey")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3783,7 +3783,7 @@ public sealed class ProviderListParams : ExtensibleJsonObject
 }
 
 /// <summary>Executable wire contract for ProviderListResult.</summary>
-public sealed class ProviderListResult : ExtensibleJsonObject
+public sealed partial class ProviderListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("providers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

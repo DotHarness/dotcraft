@@ -52,6 +52,12 @@
     "id": {
       "type": "string"
     },
+    "isAuthenticated": {
+      "type": "boolean"
+    },
+    "managedBy": {
+      "type": "string"
+    },
     "maxOutputTokens": {
       "anyOf": [
         {

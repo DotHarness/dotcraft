@@ -241,3 +241,27 @@ for (const [name, value, allowed] of [
     assert.match(result.stderr, new RegExp(allowed.replaceAll(", ", ".*")));
   });
 }
+
+
+test("remote mode renders client access and keeps model selection", async (t) => {
+  const fixture = await createFixture(t);
+  runRenderer(fixture, {
+    DOTCRAFT_MODEL_MODE: "remote",
+    DOTCRAFT_MODEL_SERVICE_URL: "http://models:8090/model-service",
+    DOTCRAFT_MODEL_SERVICE_TOKEN: "client-test",
+    DOTCRAFT_PROVIDER: "shared",
+    DOTCRAFT_MODEL: "model-test",
+  });
+  const config = await readConfig(path.join(fixture.home, ".craft", "config.json"));
+  assert.deepEqual(config.ModelService, {
+    Endpoint: "http://models:8090/model-service",
+    Token: "$DOTCRAFT_MODEL_SERVICE_TOKEN",
+  });
+  assert.equal(config.ProviderId, "shared");
+  assert.equal(config.ProviderPreferences.shared.model, "model-test");
+  assert.equal(config.Providers, undefined);
+  runRenderer(fixture, { DOTCRAFT_MODEL_MODE: "direct", DOTCRAFT_PROVIDER: "local", DOTCRAFT_API_KEY: "upstream-test" });
+  const direct = await readConfig(path.join(fixture.home, ".craft", "config.json"));
+  assert.equal(direct.ModelService, undefined);
+  assert.equal(direct.Providers.local.ApiKey, "$DOTCRAFT_API_KEY");
+});

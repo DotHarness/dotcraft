@@ -2666,6 +2666,8 @@ export interface ProviderInfo {
   endPoint?: string;
   hasApiKey?: boolean;
   id?: string;
+  isAuthenticated?: boolean;
+  managedBy?: string;
   maxOutputTokens?: number | null;
   networkTimeoutSeconds?: number | null;
   protocol?: string;
@@ -2680,6 +2682,7 @@ export interface ProviderListParams {
 }
 
 export interface ProviderListResult {
+  managedBy?: string;
   providers?: ProviderInfo[];
   [key: string]: unknown;
 }

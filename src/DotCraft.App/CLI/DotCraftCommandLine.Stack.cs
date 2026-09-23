@@ -27,6 +27,8 @@ public static partial class DotCraftCommandLine
         var provider = StringOption("--provider", "Default model provider.");
         var model = StringOption("--model", "Default model id.");
         var apiKey = StringOption("--api-key", "Default provider API key.");
+        var modelServiceUrl = StringOption("--model-service-url", "Remote model service URL.");
+        var modelServiceTokenFile = StringOption("--model-service-token-file", "File containing this Stack's model service client token.");
         var command = new Command("init", "Create a new DotCraft Stack deployment.")
         {
             directory,
@@ -35,7 +37,9 @@ public static partial class DotCraftCommandLine
             version,
             provider,
             model,
-            apiKey
+            apiKey,
+            modelServiceUrl,
+            modelServiceTokenFile
         };
         command.SetAction((parseResult, cancellationToken) => StackCliRunner.InitAsync(
             StackOptions(parseResult, directory, dryRun) with
@@ -44,7 +48,9 @@ public static partial class DotCraftCommandLine
                 Version = parseResult.GetValue(version),
                 Provider = parseResult.GetValue(provider),
                 Model = parseResult.GetValue(model),
-                ApiKey = parseResult.GetValue(apiKey)
+                ApiKey = parseResult.GetValue(apiKey),
+                ModelServiceUrl = parseResult.GetValue(modelServiceUrl),
+                ModelServiceTokenFile = parseResult.GetValue(modelServiceTokenFile)
             },
             parseResult.InvocationConfiguration.Output,
             parseResult.InvocationConfiguration.Error,

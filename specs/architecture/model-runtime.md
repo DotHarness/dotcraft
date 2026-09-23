@@ -22,6 +22,9 @@ while retaining protocol-native request, response, history, and cache behavior.
 
 This specification defines the finished architecture and its behavioral contract.
 
+[Remote model service](model-service.md) defines the optional HTTP transport boundary. Remote
+execution uses these same provider adapters and history contracts on the worker.
+
 ## 2. Goals
 
 - Make Session Core's Thread, Turn, Item, and rollout model the only lifecycle authority.

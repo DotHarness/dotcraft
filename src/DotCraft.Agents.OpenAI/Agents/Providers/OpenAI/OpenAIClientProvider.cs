@@ -47,6 +47,7 @@ public sealed partial class OpenAIClientProvider :
     private readonly IOpenAIUsageService? _openAIUsageService;
     private readonly OpenAIInstallationIdProvider? _installationIdProvider;
     private readonly HttpClient _chatGptHttpClient;
+    private readonly IProviderHttpTransport? _httpTransport;
     private readonly ILogger<OpenAIClientProvider>? _logger;
     private int _accountMismatchWarningLogged;
 
@@ -87,7 +88,7 @@ public sealed partial class OpenAIClientProvider :
         ResolveChatGptAccountId(runtime);
 
     ProviderRuntimeMetadata IProviderRuntimeMetadataResolver.Resolve(EffectiveModelRuntime runtime)
-        => new(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+        => new(runtime.RequestAdaptation?.UseResponsesLite ?? ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             runtime,
             ResolveChatGptAccountId(runtime)));
 
@@ -261,6 +262,8 @@ public sealed partial class OpenAIClientProvider :
         string prompt,
         CancellationToken cancellationToken)
     {
+        using var pipeline = ProviderPipelineOptionsScope.Push(new ProviderPipelineOptions(
+            runtime with { Model = model }, null, null, false, "standard", false, null));
         var result = await GetOpenAIImageClient(runtime, model).GenerateImageAsync(
             prompt,
             new OpenAI.Images.ImageGenerationOptions
@@ -281,6 +284,8 @@ public sealed partial class OpenAIClientProvider :
         IReadOnlyList<ProviderImageReference> images,
         CancellationToken cancellationToken)
     {
+        using var pipeline = ProviderPipelineOptionsScope.Push(new ProviderPipelineOptions(
+            runtime with { Model = model }, null, null, false, "standard", false, null));
         ArgumentNullException.ThrowIfNull(images);
         if (images.Count == 0)
             throw new ArgumentException("At least one reference image is required.", nameof(images));
@@ -319,8 +324,9 @@ public sealed partial class OpenAIClientProvider :
         IOpenAIAuthService? openAIAuthService = null,
         OpenAIInstallationIdProvider? installationIdProvider = null,
         ILogger<OpenAIClientProvider>? logger = null,
-        IOpenAIUsageService? openAIUsageService = null)
-        : this(openAIAuthService, installationIdProvider, chatGptHttpMessageHandler: null, logger, openAIUsageService)
+        IOpenAIUsageService? openAIUsageService = null,
+        IProviderHttpTransport? httpTransport = null)
+        : this(openAIAuthService, installationIdProvider, chatGptHttpMessageHandler: null, logger, openAIUsageService, httpTransport)
     {
     }
 
@@ -344,9 +350,11 @@ public sealed partial class OpenAIClientProvider :
         OpenAIInstallationIdProvider? installationIdProvider,
         HttpMessageHandler? chatGptHttpMessageHandler,
         ILogger<OpenAIClientProvider>? logger = null,
-        IOpenAIUsageService? openAIUsageService = null)
+        IOpenAIUsageService? openAIUsageService = null,
+        IProviderHttpTransport? httpTransport = null)
     {
         _openAIAuthService = openAIAuthService;
+        _httpTransport = httpTransport;
         _openAIUsageService = openAIUsageService;
         _installationIdProvider = installationIdProvider;
         _logger = logger;
@@ -427,7 +435,7 @@ public sealed partial class OpenAIClientProvider :
             images,
             forceRefresh: false,
             timeoutCts.Token).ConfigureAwait(false);
-        if (runtime.IsChatGptOAuth && response.StatusCode == HttpStatusCode.Unauthorized)
+        if (runtime.IsChatGptOAuth && !runtime.IsRemote && response.StatusCode == HttpStatusCode.Unauthorized)
         {
             response.Dispose();
             response = await SendImageEditRequestAsync(
@@ -519,7 +527,7 @@ public sealed partial class OpenAIClientProvider :
     internal string? ResolveChatGptAccountId(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        var tokenAccountId = NormalizeOptional(_openAIAuthService?.GetAccountId());
+        var tokenAccountId = runtime.IsRemote ? null : NormalizeOptional(_openAIAuthService?.GetAccountId());
         var configuredAccountId = NormalizeOptional(runtime.ChatGptAccountId);
         if (!string.IsNullOrEmpty(tokenAccountId))
         {
@@ -547,7 +555,7 @@ public sealed partial class OpenAIClientProvider :
         ArgumentNullException.ThrowIfNull(runtime);
         if (!runtime.IsChatGptOAuth)
             throw new ArgumentException("Provider must use ChatGPT OAuth.", nameof(runtime));
-        if (_openAIAuthService is null)
+        if (!runtime.IsRemote && _openAIAuthService is null)
             throw new InvalidOperationException(
                 "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
         if (string.IsNullOrWhiteSpace(clientVersion))
@@ -562,7 +570,7 @@ public sealed partial class OpenAIClientProvider :
             runtime,
             forceRefresh: false,
             timeoutCts.Token).ConfigureAwait(false);
-        if ((int)response.StatusCode == 401)
+        if (!runtime.IsRemote && (int)response.StatusCode == 401)
         {
             response.Dispose();
             response = await SendChatGptCodexModelsRequestAsync(
@@ -575,177 +583,4 @@ public sealed partial class OpenAIClientProvider :
         return await ReadChatGptCodexModelsResponseAsync(response, timeoutCts.Token).ConfigureAwait(false);
     }
 
-    private OpenAIClient GetOpenAIClient(OpenAIClientKey key)
-    {
-        return _openAIClients.GetOrAdd(key, static (clientKey, provider) =>
-        {
-            var options = CreateClientOptions(
-                clientKey.Endpoint,
-                clientKey.NetworkTimeoutSeconds);
-            if (clientKey.AuthMethod == ModelProviderAuthMethods.ChatGptOAuth)
-            {
-                if (provider._openAIAuthService is null)
-                    throw new InvalidOperationException(
-                        "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
-
-                var installationId = provider._installationIdProvider?.GetInstallationId();
-                options.AddPolicy(
-                    new OpenAIOAuthPipelinePolicy(
-                        provider._openAIAuthService,
-                        clientKey.AccountId,
-                        installationId,
-                        provider._logger),
-                    PipelinePosition.BeforeTransport);
-                if (!string.IsNullOrWhiteSpace(installationId))
-                {
-                    options.AddPolicy(
-                        new OpenAIResponsesClientMetadataPipelinePolicy(installationId, provider._logger),
-                        PipelinePosition.PerCall);
-                }
-                options.AddPolicy(
-                    new OpenAIResponsesRequestCompressionPipelinePolicy(),
-                    PipelinePosition.PerCall);
-
-                // SDK requires a non-empty credential to construct the client; the OAuth policy
-                // overrides Authorization right before transport so the value is ignored.
-                return new OpenAIClient(new ApiKeyCredential("chatgpt-oauth"), options);
-            }
-
-            return new OpenAIClient(new ApiKeyCredential(clientKey.ApiKey), options);
-        }, this);
-    }
-
-    private ResponsesClient GetOpenAIResponsesClient(OpenAIClientKey key) =>
-        _openAIResponsesClients.GetOrAdd(key, static (clientKey, provider) =>
-            provider.GetOpenAIClient(clientKey).GetResponsesClient(), this);
-
-    private OpenAIResponsesLiteChatClient CreateOpenAIResponsesLiteChatClient(OpenAIChatClientKey key)
-    {
-        var context = GetOpenAIResponsesLiteClient(key.Client);
-        return new OpenAIResponsesLiteChatClient(context.Client, key.Model, context.InstallationId);
-    }
-
-    private ResponsesLiteClientContext GetOpenAIResponsesLiteClient(OpenAIClientKey key) =>
-        _openAIResponsesLiteClients.GetOrAdd(key, static (clientKey, provider) =>
-        {
-            if (clientKey.AuthMethod != ModelProviderAuthMethods.ChatGptOAuth)
-                throw new InvalidOperationException("Responses Lite requires ChatGPT OAuth authentication.");
-            if (provider._openAIAuthService is null)
-                throw new InvalidOperationException(
-                    "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
-
-            var installationId = provider.ResolveInstallationId();
-            var options = CreateResponsesLiteClientOptions(
-                clientKey.Endpoint,
-                clientKey.NetworkTimeoutSeconds);
-            options.AddPolicy(
-                new OpenAIOAuthPipelinePolicy(
-                    provider._openAIAuthService,
-                    clientKey.AccountId,
-                    installationId,
-                    provider._logger),
-                PipelinePosition.BeforeTransport);
-            // Capture below OAuth so every physical attempt records final headers and wire bytes.
-            options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.BeforeTransport);
-            var client = new OpenAIClient(new ApiKeyCredential("chatgpt-oauth"), options).GetResponsesClient();
-            return new ResponsesLiteClientContext(client, installationId);
-        }, this);
-
-    private static string NormalizeRequiredModel(string? model)
-    {
-        if (string.IsNullOrWhiteSpace(model))
-            throw new ArgumentException("Model must be configured.", nameof(model));
-
-        return model.Trim();
-    }
-
-    private string ResolveInstallationId()
-    {
-        if (_installationIdProvider is null)
-        {
-            throw new InvalidOperationException(
-                "ChatGPT OAuth provider requested but no OpenAIInstallationIdProvider was registered.");
-        }
-
-        var installationId = _installationIdProvider.GetInstallationId();
-        return string.IsNullOrWhiteSpace(installationId)
-            ? throw new InvalidOperationException("OpenAI installation id provider returned an empty value.")
-            : installationId;
-    }
-
-    private readonly record struct OpenAIClientKey(
-        Uri Endpoint,
-        string ApiKey,
-        int NetworkTimeoutSeconds,
-        string AuthMethod,
-        string? AccountId)
-    {
-        public static OpenAIClientKey From(EffectiveModelRuntime runtime)
-        {
-            var authMethod = ModelProviderAuthMethods.Normalize(runtime.AuthMethod);
-            if (authMethod == ModelProviderAuthMethods.ApiKey &&
-                string.IsNullOrWhiteSpace(runtime.ApiKey))
-            {
-                throw new ArgumentException("API key must be configured.", nameof(runtime));
-            }
-
-            if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
-                throw new ArgumentException("Endpoint must be an absolute URI.", nameof(runtime));
-
-            return new OpenAIClientKey(
-                endpoint,
-                runtime.ApiKey,
-                NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds),
-                authMethod,
-                runtime.ChatGptAccountId);
-        }
-    }
-
-    private readonly record struct OpenAIChatClientKey(
-        OpenAIClientKey Client,
-        string Model,
-        bool UseResponsesLite)
-    {
-        public static OpenAIChatClientKey From(EffectiveModelRuntime runtime) =>
-            new(
-                OpenAIClientKey.From(runtime),
-                NormalizeRequiredModel(runtime.Model),
-                runtime.IsChatGptOAuth && runtime.UseResponsesLite);
-    }
-
-    private sealed record ResponsesLiteClientContext(
-        ResponsesClient Client,
-        string InstallationId);
-
-    private readonly record struct OpenAIImageClientKey(OpenAIClientKey Client, string Model)
-    {
-        public static OpenAIImageClientKey From(EffectiveModelRuntime runtime, string imageModel) =>
-            new(OpenAIClientKey.From(runtime), NormalizeRequiredModel(imageModel));
-    }
-
-    private static int NormalizeNetworkTimeoutSeconds(int seconds) => Math.Max(1, seconds);
-
-    private static string? NormalizeOptional(string? value)
-    {
-        var trimmed = value?.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
-    }
-
-    private static byte[] ExtractImageBytes(GeneratedImage image)
-    {
-        if (image.ImageBytes == null)
-            throw new InvalidOperationException("OpenAI image response did not include image bytes.");
-
-        return image.ImageBytes.ToArray();
-    }
 }
-
-internal sealed record ChatGptCodexModelsHttpResponse(
-    int StatusCode,
-    string Content,
-    string? ETag);
-
-internal sealed record OpenAIImageEditInput(
-    byte[] Bytes,
-    string FileName,
-    string MediaType);

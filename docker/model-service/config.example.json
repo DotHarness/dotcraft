@@ -1,0 +1,9 @@
+{
+  "Providers": {
+    "openai": {
+      "DisplayName": "ChatGPT",
+      "Protocol": "openai-responses",
+      "AuthMethod": "chatgptOAuth"
+    }
+  }
+}

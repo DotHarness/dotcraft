@@ -798,10 +798,12 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
         var auth = new OpenAIAuthManager(store, new HttpClient(new UnexpectedHttpHandler()));
 
         await using var server = RecordingHttpServer.Start(
-            JsonResponse("{}", HttpStatusCode.Unauthorized),
+            JsonResponse("{}", HttpStatusCode.Unauthorized) with
+            {
+                BeforeSend = () => store.Save(CreateAuth("rotated-token", "refresh-2"))
+            },
             JsonResponse(SuccessfulResponseJson));
         var provider = CreateOAuthProvider(installationId, auth);
-        store.Save(CreateAuth("rotated-token", "refresh-2"));
 
         await provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
             .GetResponsesClient()
@@ -1432,6 +1434,7 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
                     var response = _responses.Count > 0
                         ? _responses.Dequeue()
                         : new ResponseSpec(HttpStatusCode.InternalServerError, "application/json", "{}");
+                    response.BeforeSend?.Invoke();
                     await WriteResponseAsync(client.GetStream(), response, _stop.Token);
                 }
             }
@@ -1551,7 +1554,8 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
             HttpStatusCode StatusCode,
             string ContentType,
             string Body,
-            IReadOnlyDictionary<string, string>? Headers = null);
+            IReadOnlyDictionary<string, string>? Headers = null,
+            Action? BeforeSend = null);
     }
 
     private sealed record RecordedHttpRequest(

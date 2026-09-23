@@ -11,9 +11,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using static SmokeAssertions;
 
+if (args is ["--verify-container-isolation"])
+{
+    await RemoteModelSmoke.VerifyContainerAsync();
+    return;
+}
 Ensure(args.Length == 1, "Pass the independently built plugin output directory.");
 var testRoot = Path.Combine(Path.GetTempPath(), $"dotcraft-harness-consumer-{Guid.NewGuid():N}");
 var completed = false;
+await RemoteModelSmoke.RunAsync(Path.Combine(testRoot, "remote-consumer"));
 try
 {
     var declaration = DotCraft.GeneratedTools.Harness.Consumer.GeneratedToolDeclarations.IConsumerDeclarations_Echo_Declaration;

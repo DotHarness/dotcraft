@@ -7,7 +7,7 @@ namespace DotCraft.Auth.OpenAI;
 /// Only reads the payload; signature is not verified (the token issuer is trusted because we
 /// just received it over TLS from auth.openai.com).
 /// </summary>
-internal static class JwtClaimsReader
+public static class JwtClaimsReader
 {
     public static OpenAIIdTokenClaims Parse(string jwt)
     {
@@ -91,7 +91,7 @@ internal static class JwtClaimsReader
     }
 }
 
-internal sealed record OpenAIIdTokenClaims(
+public sealed record OpenAIIdTokenClaims(
     string? AccountId,
     string? PlanType,
     string? UserId,

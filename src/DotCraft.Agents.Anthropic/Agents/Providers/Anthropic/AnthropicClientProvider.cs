@@ -8,7 +8,7 @@ namespace DotCraft.Agents;
 /// <summary>
 /// Creates and caches Anthropic SDK clients for DotCraft runtime paths.
 /// </summary>
-public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvider
+public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTransport = null) : IModelProvider, IModelCatalogProvider
 {
     private static readonly IReadOnlyCollection<string> SupportedProtocols =
         Array.AsReadOnly([ModelProviderProtocols.Anthropic]);
@@ -31,7 +31,8 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
         var catalogPath = string.IsNullOrWhiteSpace(runtime.ProviderStateDirectory)
             ? null
             : Path.Combine(runtime.ProviderStateDirectory, ModelThinkingAdapterCatalog.FileName);
-        var contentAdapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
+        var contentAdapter = runtime.RequestAdaptation is { } adaptation
+            ? adaptation.AnthropicMessageContent : ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
             runtime.EndPoint,
             runtime.Model,
             catalogPath);
@@ -39,7 +40,8 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
             client = new DeepSeekAnthropicReasoningHistoryChatClient(client, contentAdapter);
         client = new AnthropicThinkingChatClient(
             client,
-            ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
+            runtime.RequestAdaptation is { } requestAdaptation
+                ? requestAdaptation.AnthropicThinking : ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
                 runtime.EndPoint,
                 runtime.Model,
                 catalogPath),
@@ -65,7 +67,7 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
         EffectiveModelRuntime runtime,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(runtime.ApiKey))
+        if (!runtime.IsRemote && string.IsNullOrWhiteSpace(runtime.ApiKey))
             return Failure(ModelCatalogErrorCode.MissingApiKey, "API key is not configured.");
         if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
             return Failure(ModelCatalogErrorCode.InvalidEndpoint, "Endpoint is invalid.");
@@ -75,11 +77,13 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
                 new Uri(endpoint.ToString().TrimEnd('/') + "/v1/models?limit=1000"));
-            request.Headers.Add("x-api-key", runtime.ApiKey);
+            if (!runtime.IsRemote)
+                request.Headers.Add("x-api-key", runtime.ApiKey);
             request.Headers.Add("anthropic-version", "2023-06-01");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(runtime.NetworkTimeoutSeconds));
-            using var response = await SharedHttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
+            var httpClient = runtime.IsRemote ? RemoteHttpClient(runtime.ProviderId, endpoint) : SharedHttpClient;
+            using var response = await httpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 return Failure(ModelCatalogErrorCode.Unauthorized, "Request was unauthorized.");
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -176,10 +180,11 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
     }
 
     private AnthropicClient GetAnthropicClient(AnthropicClientKey key) =>
-        _anthropicClients.GetOrAdd(key, static clientKey =>
+        _anthropicClients.GetOrAdd(key, clientKey =>
             new AnthropicClient
             {
-                ApiKey = clientKey.ApiKey,
+                ApiKey = clientKey.IsRemote ? "remote" : clientKey.ApiKey,
+                HttpClient = clientKey.IsRemote ? RemoteHttpClient(clientKey.ProviderId, clientKey.Endpoint) : SharedHttpClient,
                 BaseUrl = clientKey.Endpoint.ToString().TrimEnd('/'),
                 MaxRetries = 0,
                 Timeout = TimeSpan.FromSeconds(clientKey.NetworkTimeoutSeconds)
@@ -193,17 +198,21 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
         return model.Trim();
     }
 
-    private readonly record struct AnthropicClientKey(Uri Endpoint, string ApiKey, int NetworkTimeoutSeconds)
+    private HttpClient RemoteHttpClient(string providerId, Uri endpoint) =>
+        (httpTransport ?? throw new InvalidOperationException("Remote model transport is not registered."))
+            .CreateClient(providerId, endpoint);
+
+    private readonly record struct AnthropicClientKey(string ProviderId, bool IsRemote, Uri Endpoint, string ApiKey, int NetworkTimeoutSeconds)
     {
         public static AnthropicClientKey From(EffectiveModelRuntime runtime)
         {
-            if (string.IsNullOrWhiteSpace(runtime.ApiKey))
+            if (!runtime.IsRemote && string.IsNullOrWhiteSpace(runtime.ApiKey))
                 throw new ArgumentException("API key must be configured.", nameof(runtime));
 
             if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
                 throw new ArgumentException("Endpoint must be an absolute URI.", nameof(runtime));
 
-            return new AnthropicClientKey(endpoint, runtime.ApiKey, NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds));
+            return new AnthropicClientKey(runtime.ProviderId, runtime.IsRemote, endpoint, runtime.ApiKey, NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds));
         }
     }
 

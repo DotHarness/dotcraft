@@ -58,7 +58,7 @@ internal static class OpenAIModelCatalog
                 cancellationToken,
                 openAIClientProvider ?? new OpenAIClientProvider()).ConfigureAwait(false);
 
-        if (string.IsNullOrWhiteSpace(runtime.ApiKey))
+        if (!runtime.IsRemote && string.IsNullOrWhiteSpace(runtime.ApiKey))
         {
             return Failure(
                 OpenAIModelCatalogErrorCode.MissingApiKey,

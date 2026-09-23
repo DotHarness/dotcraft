@@ -60,7 +60,8 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / Editors (ACP)'), link: '/features/entry-points/editors' },
-          { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' }
+          { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' },
+            { text: withIcon('cloud', 'Model service'), link: '/features/self-hosted/model-service' }
         ]
       },
       {
@@ -214,7 +215,8 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / 编辑器（ACP）'), link: '/zh/features/entry-points/editors' },
-          { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' }
+          { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' },
+            { text: withIcon('cloud', '模型服务'), link: '/zh/features/self-hosted/model-service' }
         ]
       },
       {
