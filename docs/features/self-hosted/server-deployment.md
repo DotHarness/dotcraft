@@ -16,6 +16,7 @@ Edit `.env` and fill in your model provider:
 
 ```dotenv
 DOTCRAFT_PROVIDER=openai
+DOTCRAFT_AUTH_METHOD=apiKey
 DOTCRAFT_MODEL=your-model-id
 DOTCRAFT_API_KEY=your-api-key
 ```
@@ -30,6 +31,36 @@ cd /opt/dotcraft-stack
 docker compose up -d
 dotcraft stack doctor --dir /opt/dotcraft-stack
 ```
+
+## Use a ChatGPT subscription
+
+Select ChatGPT subscription authentication in the deployment's `.env` and enter the model ID you want to use:
+
+```dotenv
+DOTCRAFT_PROVIDER=openai
+DOTCRAFT_AUTH_METHOD=chatgptOAuth
+SANDBOX_ENABLED=true
+```
+
+On the computer with your browser, forward the login callback ports through SSH:
+
+```bash
+ssh -N -L 1455:127.0.0.1:1455 -L 1457:127.0.0.1:1457 user@host
+```
+
+On the server, run the login command from the deployment directory:
+
+```bash
+docker compose --profile auth run --rm auth dotcraft auth openai login --no-browser
+```
+
+The command prints an authorization URL. Complete the login in your browser, then start the services:
+
+```bash
+docker compose --profile sandbox up -d
+```
+
+Sign in separately from each deployment directory. Credentials are stored in that directory's `state/dotcraft`; include it in deployment backups or server migrations.
 
 ## Add a project
 

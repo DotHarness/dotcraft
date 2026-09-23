@@ -1,4 +1,6 @@
 using DotCraft.Auth.OpenAI;
+using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Text;
 using Spectre.Console;
@@ -39,6 +41,44 @@ internal static class AuthCliRunner
 
     public static Task<int> StatusAsync(bool noUsage, CancellationToken cancellationToken) =>
         HandleStatusAsync(CreateManager(), noUsage, cancellationToken);
+
+    public static async Task<int> VerifyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var config = AppConfig.Load(InitHelper.GetGlobalConfigPath());
+            var providerId = config.ProviderId;
+            if (string.IsNullOrWhiteSpace(providerId)
+                || !config.Providers.TryGetValue(providerId, out var provider)
+                || provider.AuthMethod != ModelProviderAuthMethods.ChatGptOAuth)
+                throw new InvalidOperationException("The selected provider must use ChatGPT subscription authentication.");
+
+            var model = ModelPreferenceRules.Find(config.ProviderPreferences, providerId)?.Model;
+            if (string.IsNullOrWhiteSpace(model))
+                throw new InvalidOperationException("Select a model for the ChatGPT subscription provider.");
+
+            var auth = CreateManager();
+            await auth.GetAccessTokenAsync(true, cancellationToken);
+            var catalog = await ModelProviderCatalog.FetchAsync(
+                config,
+                new ModelProviderRegistry([new OpenAIClientProvider(auth)]),
+                providerId,
+                ModelCatalogRefreshStrategy.Online,
+                cancellationToken);
+            if (!catalog.Success)
+                throw new InvalidOperationException(catalog.ErrorMessage ?? "Could not load the ChatGPT model catalog.");
+            if (!catalog.Models.Any(entry => string.Equals(entry.Id, model, StringComparison.Ordinal)))
+                throw new InvalidOperationException($"Model '{model}' is not listed in the ChatGPT model catalog.");
+
+            AnsiConsole.MarkupLine("[green]ChatGPT credentials refreshed; selected model is listed in the catalog.[/]");
+            return 0;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AnsiConsole.MarkupLine($"[red]{ex.Message.EscapeMarkup()}[/]");
+            return 1;
+        }
+    }
 
     private static OpenAIAuthManager CreateManager() => new(
         new OpenAITokenStore(HubPaths.ForCurrentUser().CraftHomePath));

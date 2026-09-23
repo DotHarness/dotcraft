@@ -33,6 +33,23 @@ services:
       - ${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft
     restart: unless-stopped
 
+  auth:
+    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
+    profiles:
+      - auth
+    network_mode: host
+    environment:
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      ALL_PROXY: ${ALL_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      all_proxy: ${all_proxy:-}
+      no_proxy: ${no_proxy:-}
+    volumes:
+      - ${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft
+
   oratorio:
     image: ghcr.io/dotharness/oratorio:${DOTCRAFT_VERSION:-latest}
     # To build from this checkout instead of pulling GHCR:

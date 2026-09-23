@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace DotCraft.CLI;
 
@@ -243,7 +244,21 @@ internal static class StackCliRunner
             }
             if (failures > 0) return 1;
 
+            if (!HasPersistedUserDataMount(options.Directory))
+            {
+                await output.WriteLineAsync("[fail] DotCraft user data mount at /root/.craft");
+                failures++;
+            }
+            else
+            {
+                await output.WriteLineAsync("[ok] DotCraft user data mount at /root/.craft");
+            }
+
             var env = await File.ReadAllTextAsync(Path.Combine(options.Directory, ".env"), ct);
+            var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
+            var authMethodValid = authMethod is "apiKey" or "chatgptOAuth";
+            await output.WriteLineAsync($"[{(authMethodValid ? "ok" : "fail")}] DOTCRAFT_AUTH_METHOD");
+            if (!authMethodValid) failures++;
             foreach (var name in new[] { "APPSERVER_TOKEN", "ORATORIO_SERVICE_TOKEN" })
             {
                 var ok = ReadEnv(env, name) is { Length: > 0 };
@@ -281,13 +296,31 @@ internal static class StackCliRunner
 
         internal async Task<int> UpgradeAsync(StackCommandOptions options, CancellationToken ct)
         {
+            RequireDeployment(options.Directory);
+            if (!HasPersistedUserDataMount(options.Directory))
+                throw new InvalidOperationException("DotCraft user data is not mounted at /root/.craft. Update the deployment Compose file before upgrading.");
+            var env = await File.ReadAllTextAsync(Path.Combine(options.Directory, ".env"), ct);
+            var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
+            if (authMethod is not ("apiKey" or "chatgptOAuth"))
+                throw new InvalidOperationException("DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth.");
+            var profile = authMethod == "chatgptOAuth"
+                ? new[] { "--profile", "sandbox" }
+                : Array.Empty<string>();
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would pull and recreate the stack in {options.Directory}.");
                 return 0;
             }
-            var pull = await RunComposeAsync(options.Directory, ["pull"], ct);
-            return pull == 0 ? await RunComposeAsync(options.Directory, ["up", "-d", "--remove-orphans"], ct) : pull;
+            var pull = await RunComposeAsync(options.Directory, [.. profile, "pull"], ct);
+            return pull == 0 ? await RunComposeAsync(options.Directory, [.. profile, "up", "-d", "--remove-orphans"], ct) : pull;
+        }
+
+        private static bool HasPersistedUserDataMount(string directory)
+        {
+            var compose = File.ReadAllText(Path.Combine(directory, ComposeFile)).Replace("\r\n", "\n");
+            var service = Regex.Match(compose, @"(?ms)^  dotcraft:\n(?<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\z)");
+            return service.Success && service.Groups["body"].Value.Contains(
+                "${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft", StringComparison.Ordinal);
         }
 
         internal async Task<int> WebhookStatusAsync(StackCommandOptions options, CancellationToken ct)
@@ -389,6 +422,7 @@ internal static class StackCliRunner
         $"DOTCRAFT_VERSION={options.Version ?? "latest"}\n" +
         "DOTCRAFT_WORKSPACE_DIR=./workspace\nDOTCRAFT_STACK_STATE_DIR=./state\n" +
         $"DOTCRAFT_PROVIDER={options.Provider ?? "openai"}\n" +
+        "DOTCRAFT_AUTH_METHOD=apiKey\n" +
         $"DOTCRAFT_MODEL={options.Model ?? "gpt-5.6"}\n" +
         $"DOTCRAFT_API_KEY={options.ApiKey ?? string.Empty}\n";
 

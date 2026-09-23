@@ -16,6 +16,7 @@ dotcraft stack init --dir /opt/dotcraft-stack --no-start
 
 ```dotenv
 DOTCRAFT_PROVIDER=openai
+DOTCRAFT_AUTH_METHOD=apiKey
 DOTCRAFT_MODEL=your-model-id
 DOTCRAFT_API_KEY=your-api-key
 ```
@@ -30,6 +31,36 @@ cd /opt/dotcraft-stack
 docker compose up -d
 dotcraft stack doctor --dir /opt/dotcraft-stack
 ```
+
+## 使用 ChatGPT 订阅
+
+在部署目录的 `.env` 中选择 ChatGPT 订阅认证，并填写要使用的模型 ID：
+
+```dotenv
+DOTCRAFT_PROVIDER=openai
+DOTCRAFT_AUTH_METHOD=chatgptOAuth
+SANDBOX_ENABLED=true
+```
+
+在打开浏览器的电脑上，通过 SSH 转发登录回调端口：
+
+```bash
+ssh -N -L 1455:127.0.0.1:1455 -L 1457:127.0.0.1:1457 user@host
+```
+
+在服务器的部署目录运行登录命令：
+
+```bash
+docker compose --profile auth run --rm auth dotcraft auth openai login --no-browser
+```
+
+命令会输出授权网址。在浏览器中完成登录后，启动服务：
+
+```bash
+docker compose --profile sandbox up -d
+```
+
+每个部署目录分别登录。凭据保存在该目录的 `state/dotcraft` 中，备份或迁移部署时一并保存。
 
 ## 添加项目
 

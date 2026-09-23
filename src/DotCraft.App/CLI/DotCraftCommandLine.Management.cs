@@ -58,6 +58,9 @@ public static partial class DotCraftCommandLine
         openAi.Subcommands.Add(CreateOpenAiLoginCommand());
         openAi.Subcommands.Add(CreateOpenAiLogoutCommand());
         openAi.Subcommands.Add(CreateOpenAiStatusCommand());
+        var verify = new Command("verify", "Check subscription credentials and selected model.");
+        verify.SetAction((_, cancellationToken) => AuthCliRunner.VerifyAsync(cancellationToken));
+        openAi.Subcommands.Add(verify);
         auth.Subcommands.Add(openAi);
         return auth;
     }

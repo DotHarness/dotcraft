@@ -25,6 +25,10 @@ fi
 
 node /opt/dotcraft/render-config.mjs
 
+if [ "$DOTCRAFT_AUTH_METHOD" = "chatgptOAuth" ]; then
+  dotcraft auth openai verify
+fi
+
 APP_HOST="${APPSERVER_LISTEN_HOST:-0.0.0.0}"
 APP_PORT="${APPSERVER_PORT:-9100}"
 

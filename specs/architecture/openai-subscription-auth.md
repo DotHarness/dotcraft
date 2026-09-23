@@ -441,6 +441,13 @@ provider. The wizard signs in before completion using `auth openai login --no-bi
 saved immediately, while provider configuration is saved only when setup is submitted.
 Login and setup model discovery use the same host-selected user data directory.
 
+The official Docker Stack stores this user data at `/root/.craft`, backed by its
+deployment-local `state/dotcraft`. A headless auth helper uses that same mount
+and a host-network loopback listener for the CLI login flow. Separate Stack
+deployments must not share the directory: they may select different models and
+refresh tokens independently. Subscription-backed automated tools run in a
+sandbox without this mount.
+
 ## AppServer JSON-RPC
 
 | Method | Direction | Purpose |
