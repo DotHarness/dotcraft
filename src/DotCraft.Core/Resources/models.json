@@ -80,12 +80,7 @@
       "contextWindow": 1000000
     },
     "claude-opus-4-7": {
-      "contextWindow": 1000000,
-      "fast": {
-        "protocols": [
-          "anthropic"
-        ]
-      }
+      "contextWindow": 1000000
     },
     "claude-opus-4-8": {
       "contextWindow": 1000000,
@@ -96,6 +91,14 @@
       }
     },
     "claude-opus-5": {
+      "contextWindow": 1000000,
+      "fast": {
+        "protocols": [
+          "anthropic"
+        ]
+      }
+    },
+    "claude-opus-5-5": {
       "contextWindow": 1000000,
       "fast": {
         "protocols": [
@@ -589,6 +592,22 @@
     },
     "gpt-6-astra-fast": {
       "contextWindow": 1050000
+    },
+    "gpt-6-luna": {
+      "contextWindow": 1050000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
+    "gpt-6-sol": {
+      "contextWindow": 1050000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
     },
     "gpt-oss-120b": {
       "contextWindow": 131072

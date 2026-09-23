@@ -2,128 +2,69 @@
   "models": [
     {
       "slug": "gpt-6-astra",
-      "display_name": "GPT-6-Astra",
       "visibility": "list",
       "priority": 1,
-      "minimal_client_version": "0.153.0",
-      "use_responses_lite": true,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
-        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" },
-        { "effort": "max", "description": "Maximum reasoning depth for the hardest problems" },
-        { "effort": "ultra", "description": "Maximum reasoning with automatic task delegation" }
-      ]
+      "use_responses_lite": true
+    },
+    {
+      "slug": "gpt-6-sol",
+      "visibility": "list",
+      "priority": 2,
+      "use_responses_lite": true
+    },
+    {
+      "slug": "gpt-6-luna",
+      "visibility": "list",
+      "priority": 3,
+      "use_responses_lite": true
     },
     {
       "slug": "gpt-5.6-sol",
-      "display_name": "GPT-5.6-Sol",
       "visibility": "list",
-      "priority": 6,
-      "minimal_client_version": "0.144.0",
-      "use_responses_lite": true,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
-        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
-      ]
+      "priority": 4,
+      "use_responses_lite": true
     },
     {
       "slug": "gpt-5.6-terra",
-      "display_name": "GPT-5.6-Terra",
       "visibility": "list",
       "priority": 7,
-      "minimal_client_version": "0.144.0",
-      "use_responses_lite": true,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
-        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": true
     },
     {
       "slug": "gpt-5.6-luna",
-      "display_name": "GPT-5.6-Luna",
       "visibility": "list",
       "priority": 8,
-      "minimal_client_version": "0.144.0",
-      "use_responses_lite": true,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
-        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": true
     },
     {
       "slug": "gpt-5.5",
-      "display_name": "GPT-5.5",
       "visibility": "list",
       "priority": 12,
-      "minimal_client_version": "0.124.0",
-      "use_responses_lite": false,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
-        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": false
     },
     {
       "slug": "gpt-5.4",
-      "display_name": "GPT-5.4",
       "visibility": "list",
       "priority": 16,
-      "minimal_client_version": "0.98.0",
-      "use_responses_lite": false,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
-        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": false
     },
     {
       "slug": "gpt-5.4-mini",
-      "display_name": "GPT-5.4 Mini",
       "visibility": "list",
       "priority": 23,
-      "minimal_client_version": "0.98.0",
-      "use_responses_lite": false,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": false
     },
     {
       "slug": "gpt-5.3-codex",
-      "display_name": "gpt-5.3-codex",
       "visibility": "list",
       "priority": 24,
-      "minimal_client_version": "0.98.0",
-      "use_responses_lite": false,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": false
     },
     {
       "slug": "gpt-5.2",
-      "display_name": "GPT-5.2",
       "visibility": "list",
       "priority": 29,
-      "minimal_client_version": "0.0.1",
-      "use_responses_lite": false,
-      "supported_reasoning_levels": [
-        { "effort": "low", "description": "Fast responses with lighter reasoning" },
-        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
-        { "effort": "high", "description": "Greater reasoning depth for complex problems" }
-      ]
+      "use_responses_lite": false
     }
   ]
 }

@@ -219,11 +219,11 @@ ChatGPT OAuth model metadata describes eligibility for two internal HTTP dialect
 `/models` entry with `use_responses_lite=true` marks a model as Responses Lite capable; `false`, a
 missing field, or an unknown model selects the standard Responses SDK path. The latest matching
 endpoint/account/client-version cache entry takes precedence over the bundled catalog, and catalog
-refresh remains outside the sampling boundary. The bundled catalog marks GPT-6 Astra and GPT-5.6
-Sol, Terra, and Luna as Lite capable. An internal developer gate currently keeps Lite disabled so
-these models retain parallel tool execution through standard Responses. Enabling that gate makes the
-metadata selection effective. This is not a user-configurable setting and never enables Lite for
-API-key Responses runtimes.
+refresh remains outside the sampling boundary. The bundled catalog marks GPT-6 Astra, Sol, and Luna
+and GPT-5.6 Sol, Terra, and Luna as Lite capable. An internal developer gate currently keeps Lite
+disabled so these models retain parallel tool execution through standard Responses. Enabling that
+gate makes the metadata selection effective. This is not a user-configurable setting and never
+enables Lite for API-key Responses runtimes.
 
 Both dialects share the canonical Responses history, OAuth routing headers, `store=false`, encrypted
 reasoning inclusion, stable item IDs, and prompt-cache identity described below. The standard dialect
@@ -359,10 +359,10 @@ model catalog is loaded from the ChatGPT backend with the same OAuth credentials
 `GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>`. DotCraft
 caches the account-scoped response under `~/.craft/model-catalog-cache.json` for five minutes and
 falls back to the bundled model catalog (`src/DotCraft.Agents.OpenAI/Resources/chatgpt-codex-models.json`)
-when the network is unavailable. The `client_version` query uses the highest
-`minimal_client_version` present in the bundled fallback catalog rather than DotCraft's app
-version, because the ChatGPT backend uses that value to decide which models are eligible for the
-client.
+when the network is unavailable. The `client_version` query carries a fixed compatible client
+version rather than DotCraft's app version, because the ChatGPT backend uses that value to decide
+which models are eligible for the client. Supporting a model that requires a newer client version
+means raising that constant.
 
 ## Configuration shape
 

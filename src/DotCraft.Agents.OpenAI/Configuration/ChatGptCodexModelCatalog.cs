@@ -10,6 +10,7 @@ internal static class ChatGptCodexModelCatalog
 {
     private const string BuiltInResourceName = "DotCraft.Resources.chatgpt-codex-models.json";
     private const string CacheFileName = "model-catalog-cache.json";
+    private const string ClientVersion = "0.155.0";
     private const int CacheVersion = 3;
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions CacheJsonOptions = new(JsonSerializerDefaults.Web)
@@ -19,8 +20,6 @@ internal static class ChatGptCodexModelCatalog
     private static readonly Lazy<IReadOnlyList<CodexModelInfo>> BuiltInModels = new(LoadBuiltInModels);
 
     public static string DefaultModel => ModelProviderDefaults.DefaultChatGptCodexModel;
-
-    public static string ClientVersion => ResolveClientVersion(BuiltInModels.Value);
 
     internal static bool ResolveUseResponsesLite(
         EffectiveModelRuntime runtime,
@@ -138,70 +137,23 @@ internal static class ChatGptCodexModelCatalog
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized))).ToLowerInvariant();
     }
 
-    private static string ResolveClientVersion(IReadOnlyList<CodexModelInfo> models)
-    {
-        var best = new Version(0, 0, 0);
-        foreach (var model in models)
-        {
-            if (TryParseVersion(model.MinimalClientVersion, out var version) && version > best)
-                best = version;
-        }
-
-        return $"{best.Major}.{best.Minor}.{best.Build}";
-    }
-
-    private static bool TryParseVersion(string? value, out Version version)
-    {
-        version = new Version(0, 0, 0);
-        if (string.IsNullOrWhiteSpace(value))
-            return false;
-
-        var pieces = value.Trim().Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (pieces.Length < 2 || pieces.Length > 4)
-            return false;
-
-        var numbers = new int[3];
-        for (var i = 0; i < Math.Min(pieces.Length, 3); i++)
-        {
-            if (!int.TryParse(pieces[i], out numbers[i]))
-                return false;
-        }
-
-        version = new Version(numbers[0], numbers[1], numbers[2]);
-        return true;
-    }
-
     private static IReadOnlyList<CodexModelInfo> LoadBuiltInModels()
     {
         var assembly = Assembly.GetExecutingAssembly();
         using var stream = assembly.GetManifestResourceStream(BuiltInResourceName);
         if (stream is null)
-            return HardcodedFallbackModels();
+            return [];
 
         using var reader = new StreamReader(stream);
         try
         {
-            var models = ParseModelsResponse(reader.ReadToEnd());
-            return models.Count > 0 ? models : HardcodedFallbackModels();
+            return ParseModelsResponse(reader.ReadToEnd());
         }
         catch (JsonException)
         {
-            return HardcodedFallbackModels();
+            return [];
         }
     }
-
-    private static IReadOnlyList<CodexModelInfo> HardcodedFallbackModels() =>
-    [
-        new() { Slug = ModelProviderDefaults.DefaultChatGptCodexModel, Visibility = "list", Priority = 1, MinimalClientVersion = "0.153.0", UseResponsesLite = true },
-        new() { Slug = "gpt-5.6-sol", Visibility = "list", Priority = 6, MinimalClientVersion = "0.144.0", UseResponsesLite = true },
-        new() { Slug = "gpt-5.6-terra", Visibility = "list", Priority = 7, MinimalClientVersion = "0.144.0", UseResponsesLite = true },
-        new() { Slug = "gpt-5.6-luna", Visibility = "list", Priority = 8, MinimalClientVersion = "0.144.0", UseResponsesLite = true },
-        new() { Slug = "gpt-5.5", Visibility = "list", Priority = 12, MinimalClientVersion = "0.124.0" },
-        new() { Slug = "gpt-5.4", Visibility = "list", Priority = 16, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.4-mini", Visibility = "list", Priority = 23, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.3-codex", Visibility = "list", Priority = 24, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.2", Visibility = "list", Priority = 29, MinimalClientVersion = "0.0.1" }
-    ];
 
     internal static List<CodexModelInfo> ParseModelsResponse(string json)
     {
@@ -227,7 +179,6 @@ internal static class ChatGptCodexModelCatalog
                 Slug = slug,
                 Visibility = ReadString(modelElement, "visibility") ?? string.Empty,
                 Priority = ReadInt(modelElement, "priority") ?? int.MaxValue,
-                MinimalClientVersion = ReadMinimalClientVersion(modelElement),
                 UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite")
             });
         }
@@ -254,27 +205,6 @@ internal static class ChatGptCodexModelCatalog
     private static bool ReadBoolean(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
-    private static string ReadMinimalClientVersion(JsonElement modelElement)
-    {
-        if (!modelElement.TryGetProperty("minimal_client_version", out var value))
-            return "0.0.0";
-
-        if (value.ValueKind == JsonValueKind.String)
-            return value.GetString() ?? "0.0.0";
-
-        if (value.ValueKind == JsonValueKind.Array)
-        {
-            var numbers = value.EnumerateArray()
-                .Where(item => item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out _))
-                .Select(item => item.GetInt32().ToString())
-                .Take(3)
-                .ToArray();
-            return numbers.Length > 0 ? string.Join('.', numbers) : "0.0.0";
-        }
-
-        return "0.0.0";
-    }
-
     internal sealed class CodexModelInfo
     {
         public string Slug { get; set; } = string.Empty;
@@ -282,8 +212,6 @@ internal static class ChatGptCodexModelCatalog
         public string Visibility { get; set; } = string.Empty;
 
         public int Priority { get; set; } = int.MaxValue;
-
-        public string MinimalClientVersion { get; set; } = "0.0.0";
 
         public bool UseResponsesLite { get; set; }
     }
