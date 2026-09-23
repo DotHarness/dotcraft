@@ -1,3 +1,4 @@
+import { RemoteDesktopPluginControls } from './RemoteDesktopPluginControls'
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { AtSign, Ellipsis, Settings, Tags, Trash2 } from 'lucide-react'
@@ -123,6 +124,7 @@ export function PluginBrowseSurface({
         navigation={<PluginSurfaceTabs value={surface} onChange={onSurfaceChange} />}
         actions={(
           <>
+            <RemoteDesktopPluginControls />
             <CatalogToolbarIconButton
               label={t('plugins.refresh')}
               onClick={onRefresh}

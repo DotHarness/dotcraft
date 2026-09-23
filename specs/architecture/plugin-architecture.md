@@ -390,3 +390,7 @@ Workspace-level MCP configuration continues to use `McpServers`. Plugin-bundled 
 - Session item payloads are defined in [Session Core](session-core.md).
 - External channel adapter handshake, delivery, and `ext/channel/*` requests are defined in [External Channel Adapter](../protocols/external-channel-adapter.md).
 - Desktop user-facing module workflows are defined in [Desktop Client](../clients/desktop-client.md).
+
+### Remote Desktop contribution delivery
+
+A package installed in a remote workspace remains one package managed by that workspace. Desktop may cache its declared Desktop output locally to present its UI, subject to a remembered client-side workspace execution grant. This cache is not a local installation and does not activate the package's other contributions locally. See [Desktop plugins](desktop-plugins.md#runtime-lifecycle).

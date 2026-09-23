@@ -14,6 +14,7 @@ namespace DotCraft.AppServer;
 
 internal sealed partial class PluginRequestHandler(
     IAppServerTransport transport,
+    AppServerConnection connection,
     SkillsLoader? skillsLoader,
     IAppConfigMonitor? appConfigMonitor,
     string? workspaceCraftPath,
@@ -36,6 +37,8 @@ internal sealed partial class PluginRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
+        _ = CloseDesktopArtifactsAsync();
+        table.Map(Protocol.AppServer.AppServerRpc.PluginDesktopRead, HandleDesktopReadAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginSkillRead, HandlePluginSkillReadAsync);
@@ -78,6 +81,7 @@ internal sealed partial class PluginRequestHandler(
         return Task.FromResult(AppServerTypedResult<Contract.PluginListResult>.FromResult(
             new Contract.PluginListResult
             {
+                WorkspacePath = hostWorkspacePath ?? Path.GetDirectoryName(workspaceCraftPath),
                 Plugins = plugins,
                 Marketplaces = BuildMarketplaceList(discovery),
                 Diagnostics = diagnostics.Select(MapPluginDiagnosticToWire).ToList(),

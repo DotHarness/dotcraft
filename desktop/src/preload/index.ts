@@ -905,15 +905,22 @@ const api = {
   },
 
   desktopPlugins: {
+    context(): Promise<import('../shared/desktopPluginSource').DesktopPluginSource> {
+      return ipcRenderer.invoke('desktop-plugin:context')
+    },
+    setTrusted(params: { sourceKey: string; trusted: boolean }): Promise<import('../shared/desktopPluginSource').DesktopPluginSource> {
+      return ipcRenderer.invoke('desktop-plugin:set-trusted', params)
+    },
     registerModule(params: {
       pluginId: string
       version: string
       revision: string
       rootPath: string
+      sourceKey?: string
     }): Promise<{ entryUrl: string; styleUrls: string[] }> {
       return ipcRenderer.invoke('desktop-plugin:register-module', params)
     },
-    removeModule(params: { pluginId: string; revision: string }): Promise<{ ok: boolean }> {
+    removeModule(params: { pluginId: string; revision: string; sourceKey?: string }): Promise<{ ok: boolean }> {
       return ipcRenderer.invoke('desktop-plugin:remove-module', params)
     },
     appSurfaceGetJson(params: {

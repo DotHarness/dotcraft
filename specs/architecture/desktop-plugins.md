@@ -43,7 +43,7 @@ MCP Apps remain a separate sandboxed path for untrusted interactive tool content
 - File watching, hot module replacement, or partial updates inside an active revision.
 - A stable contract for DotCraft's private DOM, CSS selectors, stores, route unions, or feature components.
 - Plugin-provided Electron main-process or preload entry points.
-- Mirroring renderer-only features into .NET or AppServer, or loading executable Desktop code from a remote AppServer.
+- Mirroring renderer-only features into .NET or AppServer, or executing remote Desktop code without a local workspace grant.
 - Giving renderer code host filesystem paths or a general plugin storage API.
 - Providing generated settings UI, secrets, revisions, or conflict resolution for plugin configuration in v1.
 
@@ -156,7 +156,7 @@ The inline `desktop` field is the sole declaration of executable Desktop code. T
 
 ### Bundled assets
 
-An asset imported from plugin source evaluates to the absolute URL of the emitted file. Desktop serves a plugin from `dotcraft-plugin://<id>/<revision>/`, an address that depends on the installed revision and cannot be known while building, so the official preset resolves the emitted path against the importing bundle's own module URL rather than baking in a static public path. Placing the repair in the build keeps the imported value usable at module scope, where an asset URL is normally needed and no Host handle is in reach, and it repairs already-published plugins on their next rebuild without adding API surface.
+An asset imported from plugin source evaluates to the absolute URL of the emitted file. Desktop serves a plugin from `dotcraft-plugin://<id>/source/<source>/<revision>/`, an address that depends on the installed revision and cannot be known while building, so the official preset resolves the emitted path against the importing bundle's own module URL rather than baking in a static public path. Placing the repair in the build keeps the imported value usable at module scope, where an asset URL is normally needed and no Host handle is in reach, and it repairs already-published plugins on their next rebuild without adding API surface.
 
 The imported value is therefore used as it comes, and moving code between the entry bundle and a split chunk does not change it. A stylesheet keeps an ordinary relative `url()`, because a stylesheet already resolves against its own address.
 
@@ -303,7 +303,13 @@ Invalidation withdraws Host-owned resources immediately. A new revision does not
 
 Activation failure reports through existing Desktop logging and toast surfaces and disposes the failed generation, including registrations that were already visible.
 
-With a local AppServer, Desktop resolves the installed plugin root. With a remote AppServer, Desktop loads only matching local packaged code identified by plugin id, version, and Desktop revision. Remote snapshots never provide executable code or filesystem paths.
+With a local AppServer, Desktop resolves the installed plugin root. With a remote AppServer advertising `desktopPluginArtifacts`, Desktop downloads the installed plugin's Desktop output through `plugin/desktop/read`. The package remains installed only in the remote workspace; its other contributions and configuration remain remote. The client cache contains only a minimal manifest and `desktop/dist`, never source, credentials, or managed/MCP executables outside that tree.
+
+Desktop asks once before running downloaded code from a remote workspace. The remembered grant covers subsequent plugin installs and revisions from that source and workspace, independently of server-side .NET trust. Declining leaves remote contributions usable. The plugin page allows retrying, granting, or revoking local execution. Revocation and workspace switching invalidate pending loads and withdraw active contributions.
+
+The main process keys authorization and caches by the stable remote connection identity and server-reported `plugin/list.workspacePath`. SSH identity uses host/stack identity rather than the tunnel port. Downloads use bounded chunks and staging; the client rejects unsafe archive paths and links and recomputes the existing Desktop revision before publishing. Module routes are source-scoped as well as revision-scoped. Only a current, authorized target may activate. Cache failures do not fall back to another revision or a same-named local plugin.
+
+Verified cache entries survive disconnects. Superseded revisions and removed plugins are pruned after active routes release them. When the remote server does not advertise the artifact capability, Desktop does not activate its Desktop contributions and the Plugins page explains that the server must be updated. Other remote plugin contributions remain available. Desktop never substitutes locally packaged code for remote Desktop output. This adds no file watching, HMR, second installation, or Agent plugin-management API.
 
 ## Host and compatibility contract
 

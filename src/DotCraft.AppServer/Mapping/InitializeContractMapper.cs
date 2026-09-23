@@ -62,6 +62,7 @@ internal static class InitializeContractMapper
         BackgroundTerminals = value.BackgroundTerminals,
         SkillsManagement = value.SkillsManagement,
         PluginManagement = value.PluginManagement,
+        DesktopPluginArtifacts = value.DesktopPluginArtifacts,
         PluginConfiguration = value.PluginConfiguration,
         PluginMarketplaces = value.PluginMarketplaces,
         SkillVariants = value.SkillVariants,

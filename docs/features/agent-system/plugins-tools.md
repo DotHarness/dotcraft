@@ -34,6 +34,14 @@ Open **Plugins**, then select **Manage**. Turning a plugin off keeps its files b
 
 If a plugin includes an app, **App Settings** manages its account connection, and the app picker in a conversation decides whether that conversation can use it. See [Connected Apps](./connected-apps).
 
+## Remote plugin interfaces
+
+When connected to a remote workspace, the Plugins page manages that workspace's plugins. If a plugin provides a desktop interface, DotCraft asks whether to allow that workspace to run plugin interfaces on this computer, then downloads and loads the required files. This permission also covers subsequent plugin installs and updates in that workspace.
+
+The plugin remains installed remotely, without a second installation in your local workspace. Switching workspaces switches the plugin interfaces. From the Plugins page, you can stop running remote interfaces or retry a failed interface without uninstalling the remote plugin.
+
+If the remote server needs an update to support plugin interfaces, the Plugins page tells you. The plugin's other remote features still work.
+
 ## Install from disk
 
 Install straight from a folder when you're developing a plugin or someone sent you one. This entry point is available only for local workspaces.

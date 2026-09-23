@@ -3313,6 +3313,10 @@ public sealed class PluginListParams : ExtensibleJsonObject
 /// <summary>Executable wire contract for PluginListResult.</summary>
 public sealed class PluginListResult : ExtensibleJsonObject
 {
+    [JsonPropertyName("workspacePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> WorkspacePath { get; init; }
+
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<PluginDiagnostic>> Diagnostics { get; init; }

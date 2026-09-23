@@ -92,6 +92,7 @@ export interface ClientRequestMethods {
   "model/list": { params: Models.ModelListParams; result: Models.ModelListResult };
   "plugin/config/get": { params: Models.PluginConfigGetParams; result: Models.PluginConfigSnapshot };
   "plugin/config/mutate": { params: Models.PluginConfigMutateParams; result: Models.PluginConfigSnapshot };
+  "plugin/desktop/read": { params: Models.PluginDesktopReadParams; result: Models.PluginDesktopReadResult };
   "plugin/install": { params: Models.PluginInstallParams; result: Models.PluginOperationResult };
   "plugin/installLocal": { params: Models.PluginInstallLocalParams; result: Models.PluginOperationResult };
   "plugin/list": { params: Models.PluginListParams; result: Models.PluginListResult };

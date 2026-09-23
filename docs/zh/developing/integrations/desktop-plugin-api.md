@@ -541,7 +541,7 @@ function Background() {
 }
 ```
 
-Desktop 通过 `dotcraft-plugin://<id>/<revision>/` 提供插件文件，这个地址在构建时无从得知，所以也没有需要手工修补的地方。再用 `new URL(asset, import.meta.url)` 包一层现在只是多余，而不是错误：仍然这么写的插件重新构建后照常工作，因为被包住的值本身已经是绝对 URL。
+Desktop 通过 `dotcraft-plugin://<id>/source/<source>/<revision>/` 提供插件文件，这个地址在构建时无从得知，所以也没有需要手工修补的地方。再用 `new URL(asset, import.meta.url)` 包一层现在只是多余，而不是错误：仍然这么写的插件重新构建后照常工作，因为被包住的值本身已经是绝对 URL。
 
 Builder 会把 `.gif`、`.jpg`、`.jpeg`、`.png`、`.svg`、`.webp` 打包进 `dist/assets/`。在 CSS 里保持普通的相对写法——`url("./assets/aurora.svg")`——样式表会基于自身地址解析它，而那个地址已经在插件路由之下。
 
@@ -593,4 +593,8 @@ Desktop 把整个 content revision 作为一个 generation 激活，并对它调
 
 Revision 是开发迭代的单元。Desktop Plugin 不内置 file watcher、HMR、只重载组件或局部更新 generation 的机制。重新构建后，再刷新或重新启用插件。
 
-Desktop 不会从远程 AppServer 加载可执行插件代码。使用远程 workspace 时，它只激活本地已经打包，并且 plugin id、version 与 Desktop content revision 都和远程 snapshot 一致的代码。
+连接远端工作区后，Desktop 会在你授权该工作区在本机运行插件界面后下载插件的 Desktop 产物，并校验现有 content revision。缓存不是另一份插件安装，配置和服务端贡献仍属于远端工作区。之后安装和更新插件沿用该工作区的授权。可在插件页面撤销授权或重试加载失败的界面。
+
+切换工作区会撤销上一工作区的扩展。远端模块 URL 同时包含来源标识和 revision，插件应继续相对于自身模块 URL 解析资源。
+
+如果远端 AppServer 不支持传送桌面产物，Desktop 不会加载其中的插件界面。更新该服务器后即可启用界面，远端插件的其他功能仍可使用。

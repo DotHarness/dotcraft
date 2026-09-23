@@ -2276,6 +2276,19 @@ export interface PluginDesktopInfo {
   [key: string]: unknown;
 }
 
+export interface PluginDesktopReadParams {
+  id: string;
+  offset: number;
+  revision: string;
+  [key: string]: unknown;
+}
+
+export interface PluginDesktopReadResult {
+  dataBase64: string;
+  totalBytes: number;
+  [key: string]: unknown;
+}
+
 export interface PluginDiagnostic {
   code?: string;
   message?: string;
@@ -2383,6 +2396,7 @@ export interface PluginListResult {
   marketplaces?: MarketplaceInfo[];
   plugins?: PluginInfo[];
   snapshotRevision?: number;
+  workspacePath?: string | null;
   [key: string]: unknown;
 }
 
@@ -2804,6 +2818,7 @@ export interface ServerCapabilities {
   channelStatus?: boolean;
   commandManagement?: boolean;
   configOverride?: boolean;
+  desktopPluginArtifacts?: boolean;
   dreams?: boolean;
   dynamicToolRebind?: boolean;
   extensions?: ServerCapabilityExtensions | null;

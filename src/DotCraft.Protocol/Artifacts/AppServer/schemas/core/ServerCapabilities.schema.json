@@ -37,6 +37,9 @@
     "configOverride": {
       "type": "boolean"
     },
+    "desktopPluginArtifacts": {
+      "type": "boolean"
+    },
     "dreams": {
       "type": "boolean"
     },

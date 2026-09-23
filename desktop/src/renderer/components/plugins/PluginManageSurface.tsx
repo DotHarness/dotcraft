@@ -1,3 +1,4 @@
+import { RemoteDesktopPluginControls } from './RemoteDesktopPluginControls'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useT } from '../../contexts/LocaleContext'
@@ -72,6 +73,7 @@ export function PluginManageSurface({
   return (
     <div style={page}>
       <CatalogTopBar
+        actions={<RemoteDesktopPluginControls />}
         navigation={(
           <CatalogBreadcrumb
             parentLabel={surface === 'plugins' ? t('plugins.pageTitle') : t('skills.pageTitle')}

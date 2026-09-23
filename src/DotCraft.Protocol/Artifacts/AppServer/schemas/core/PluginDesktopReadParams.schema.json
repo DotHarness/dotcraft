@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/PluginDesktopReadParams.schema.json",
+  "title": "PluginDesktopReadParams",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "revision": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "offset",
+    "revision"
+  ]
+}

@@ -9068,6 +9068,48 @@
       },
       "additionalProperties": true
     },
+    "PluginDesktopReadParams": {
+      "title": "PluginDesktopReadParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "offset",
+        "revision"
+      ]
+    },
+    "PluginDesktopReadResult": {
+      "title": "PluginDesktopReadResult",
+      "type": "object",
+      "properties": {
+        "dataBase64": {
+          "type": "string"
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "dataBase64",
+        "totalBytes"
+      ]
+    },
     "PluginDiagnostic": {
       "title": "PluginDiagnostic",
       "type": "object",
@@ -9550,6 +9592,16 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "workspacePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -11174,6 +11226,9 @@
           "type": "boolean"
         },
         "configOverride": {
+          "type": "boolean"
+        },
+        "desktopPluginArtifacts": {
           "type": "boolean"
         },
         "dreams": {

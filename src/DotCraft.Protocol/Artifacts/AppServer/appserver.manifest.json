@@ -11231,6 +11231,67 @@
       "variants": []
     },
     {
+      "id": "core.PluginDesktopReadParams",
+      "name": "PluginDesktopReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginDesktopReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "revision",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginDesktopReadResult",
+      "name": "PluginDesktopReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginDesktopReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "dataBase64",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "totalBytes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginDiagnostic",
       "name": "PluginDiagnostic",
       "module": "core",
@@ -11813,6 +11874,13 @@
           "const": null,
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        {
+          "name": "workspacePath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
         }
       ],
       "variants": []
@@ -13906,6 +13974,13 @@
         },
         {
           "name": "configOverride",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "desktopPluginArtifacts",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -27430,6 +27505,26 @@
         "PluginConfigurationNotDeclared",
         "PluginConfigurationScopeUnavailable",
         "PluginConfigurationWriteFailed"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "plugin/desktop/read",
+      "descriptorMember": "PluginDesktopRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.PluginDesktopReadParams",
+      "resultType": "core.PluginDesktopReadResult",
+      "module": "core",
+      "capability": "desktopPluginArtifacts",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",

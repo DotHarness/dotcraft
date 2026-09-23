@@ -19,6 +19,7 @@ export interface DesktopPluginModuleRequest {
   version: string
   revision: string
   rootPath: string
+  sourceKey?: string
 }
 
 export interface DesktopPluginModuleRoute {
@@ -27,8 +28,7 @@ export interface DesktopPluginModuleRoute {
 }
 
 export interface DesktopPluginModuleRouteOptions {
-  remote?: boolean
-  packagedPluginRoots?: readonly string[]
+  cached?: boolean
 }
 
 interface DesktopPluginManifest {
@@ -81,19 +81,17 @@ export async function registerDesktopPluginModuleRoute(
   if (!request.version) throw new Error('Desktop Plugin version is required.')
   if (!/^[0-9a-f]{64}$/.test(request.revision)) throw new Error('Desktop Plugin revision is invalid.')
 
-  const rootPath = options.remote === true
-    ? await findPackagedPluginRoot(pluginId, options.packagedPluginRoots ?? [])
-    : await resolveLocalPluginRoot(request.rootPath)
+  const rootPath = await resolveLocalPluginRoot(request.rootPath)
   const bundle = await readDesktopPluginBundle(rootPath)
   if (normalizePluginId(bundle.pluginId) !== pluginId) {
     throw new Error('Desktop Plugin root id does not match the snapshot.')
   }
-  if (bundle.version !== request.version) throw new Error('Desktop Plugin version does not match local code.')
+  if (!options.cached && bundle.version !== request.version) throw new Error('Desktop Plugin version does not match local code.')
   if (bundle.revision !== request.revision) throw new Error('Desktop Plugin revision does not match local code.')
 
-  const key = routeKey(pluginId, request.revision)
+  const key = routeKey(pluginId, request.revision, request.sourceKey)
   if (!moduleRoutes.has(key)) {
-    const snapshotRoot = options.remote === true
+    const snapshotRoot = options.cached === true
       ? undefined
       : await materializeDesktopSnapshot(bundle.distRoot, bundle.desktop, request.revision)
     const route = snapshotRoot
@@ -104,14 +102,14 @@ export async function registerDesktopPluginModuleRoute(
     else moduleRoutes.set(key, route)
   }
   return {
-    entryUrl: buildPluginFileUrl(pluginId, request.revision, distRelativePath(bundle.desktop.entry)),
+    entryUrl: buildPluginFileUrl(pluginId, request.revision, distRelativePath(bundle.desktop.entry), request.sourceKey),
     styleUrls: bundle.desktop.styles.map((style) =>
-      buildPluginFileUrl(pluginId, request.revision, distRelativePath(style)))
+      buildPluginFileUrl(pluginId, request.revision, distRelativePath(style), request.sourceKey))
   }
 }
 
-export function removeDesktopPluginModuleRoute(pluginId: string, revision: string): void {
-  const key = routeKey(normalizePluginId(pluginId), revision)
+export function removeDesktopPluginModuleRoute(pluginId: string, revision: string, sourceKey?: string): void {
+  const key = routeKey(normalizePluginId(pluginId), revision, sourceKey)
   const route = moduleRoutes.get(key)
   if (!route) return
   moduleRoutes.delete(key)
@@ -123,13 +121,14 @@ export function clearDesktopPluginModuleRoutes(): void {
   moduleRoutes.clear()
 }
 
-export function buildPluginFileUrl(pluginId: string, revision: string, relativePath: string): string {
+export function buildPluginFileUrl(pluginId: string, revision: string, relativePath: string, sourceKey?: string): string {
   const id = normalizePluginId(pluginId)
   if (!id) throw new Error('Desktop Plugin id is required.')
   if (!/^[0-9a-f]{64}$/.test(revision)) throw new Error('Desktop Plugin revision is invalid.')
   const normalized = normalizeRouteRelativePath(relativePath)
   const encodedPath = normalized.split('/').map((segment) => encodeURIComponent(segment)).join('/')
-  return `${PLUGIN_FILE_SCHEME}://${encodeURIComponent(id)}/${revision}/${encodedPath}`
+  if (sourceKey && !/^[0-9a-f]{64}$/.test(sourceKey)) throw new Error('Invalid plugin source.')
+  return `${PLUGIN_FILE_SCHEME}://${encodeURIComponent(id)}/${sourceKey ? `source/${sourceKey}/` : ''}${revision}/${encodedPath}`
 }
 
 export async function handlePluginFileRequest(request: Request): Promise<Response> {
@@ -138,7 +137,7 @@ export async function handlePluginFileRequest(request: Request): Promise<Respons
     if (!corsOrigin) return new Response(null, { status: 403 })
 
     const target = pluginUrlToRoute(request.url)
-    const route = moduleRoutes.get(routeKey(target.pluginId, target.revision))
+    const route = moduleRoutes.get(routeKey(target.pluginId, target.revision, target.sourceKey))
     if (!route) return new Response(null, { status: 403 })
 
     const resolvedPath = await fs.realpath(path.join(route.distRoot, ...target.relativePath.split('/')))
@@ -164,17 +163,25 @@ export function pluginUrlToRoute(url: string): {
   pluginId: string
   revision: string
   relativePath: string
+  sourceKey?: string
 } {
   const parsed = new URL(url)
   if (parsed.protocol !== `${PLUGIN_FILE_SCHEME}:`) throw new Error('Invalid Desktop Plugin URL scheme.')
   const pluginId = normalizePluginId(decodeURIComponent(parsed.hostname))
   if (!pluginId) throw new Error('Invalid Desktop Plugin URL host.')
   const segments = parsed.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment))
+  let sourceKey: string | undefined
+  if (segments[0] === 'source') {
+    segments.shift()
+    sourceKey = segments.shift()
+  }
+  if (sourceKey !== undefined && !/^[0-9a-f]{64}$/.test(sourceKey)) throw new Error('Invalid plugin source.')
   const revision = segments.shift() ?? ''
   if (!/^[0-9a-f]{64}$/.test(revision)) throw new Error('Invalid Desktop Plugin URL revision.')
   return {
     pluginId,
     revision,
+    ...(sourceKey ? { sourceKey } : {}),
     relativePath: normalizeRouteRelativePath(segments.join('/'))
   }
 }
@@ -231,13 +238,14 @@ export async function computeDesktopPluginRevision(
   return hash.digest('hex')
 }
 
-async function readDesktopPluginBundle(rootPath: string): Promise<{
+export async function readDesktopPluginBundle(rootPath: string): Promise<{
   pluginId: string
   version: string
   desktop: DesktopPluginManifest
   revision: string
   distRoot: string
 }> {
+  rootPath = await resolveLocalPluginRoot(rootPath)
   const manifestPath = path.join(rootPath, '.craft-plugin', 'plugin.json')
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')) as Record<string, unknown>
   const pluginId = typeof manifest.id === 'string' ? manifest.id : ''
@@ -394,20 +402,6 @@ async function resolveLocalPluginRoot(rootPath: string): Promise<string> {
   return fs.realpath(path.resolve(rootPath))
 }
 
-async function findPackagedPluginRoot(pluginId: string, roots: readonly string[]): Promise<string> {
-  for (const root of roots) {
-    if (!root) continue
-    try {
-      const candidate = path.join(root, pluginId)
-      await rejectFilesystemLink(candidate)
-      return await fs.realpath(candidate)
-    } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
-    }
-  }
-  throw new Error(`Desktop Plugin '${pluginId}' is not packaged on this client.`)
-}
-
 function appendLengthPrefixedUtf8(hash: ReturnType<typeof createHash>, value: string): void {
   const bytes = Buffer.from(value, 'utf8')
   const length = Buffer.allocUnsafe(4)
@@ -443,8 +437,8 @@ function normalizeRouteRelativePath(value: string): string {
   return segments.join('/')
 }
 
-function routeKey(pluginId: string, revision: string): string {
-  return `${pluginId}\0${revision}`
+function routeKey(pluginId: string, revision: string, sourceKey = ''): string {
+  return `${sourceKey}\0${pluginId}\0${revision}`
 }
 
 function normalizePluginId(value: string): string {
