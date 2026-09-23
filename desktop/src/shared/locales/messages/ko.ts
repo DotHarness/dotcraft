@@ -1,6 +1,8 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_KO = {
+  "settings.llm.managedByService": "모델 서비스에서 관리합니다. 공급자와 로그인은 서비스에서 관리하세요.",
+  "settings.llm.serviceAuthenticationRequired": "모델 서비스에서 로그인하세요.",
   "conversation.working": "작업 중",
   "conversation.workingFor": "{{duration}} 동안 작업 중",
   "conversation.worked": "작업 완료",

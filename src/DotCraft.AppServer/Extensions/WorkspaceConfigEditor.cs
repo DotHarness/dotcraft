@@ -26,7 +26,15 @@ internal sealed class WorkspaceConfigEditor(IAppConfigMonitor? appConfigMonitor,
     public AppConfig LoadCurrentMergedConfig()
     {
         if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), EffectiveGlobalConfigPath);
+        {
+            var loaded = AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), EffectiveGlobalConfigPath);
+            if (appConfigMonitor?.Current.ModelService is { } connection)
+            {
+                loaded.ModelService = connection;
+                loaded.Providers = appConfigMonitor.Current.Providers;
+            }
+            return loaded;
+        }
 
         return appConfigMonitor?.Current ?? new AppConfig();
     }

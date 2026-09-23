@@ -1,3 +1,4 @@
+import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
@@ -198,33 +199,6 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   defaultApprovalPolicy: null
 }
 
-interface ProviderCapabilitiesWire {
-  streamingChat?: boolean
-  toolCalling?: boolean
-  modelListing?: boolean
-  tokenUsageReporting?: boolean
-  cachedInputUsageReporting?: boolean
-  promptCacheRequestShaping?: boolean
-  extendedThinking?: boolean
-  toolChoiceControls?: boolean
-  rawMetadataPassthrough?: boolean
-}
-
-interface ProviderInfoWire {
-  id: string
-  displayName: string
-  protocol: DesktopProviderProtocol
-  apiKey?: string | null
-  hasApiKey: boolean
-  endPoint: string
-  networkTimeoutSeconds?: number | null
-  supportsHostedImageGeneration?: boolean
-  capabilities?: ProviderCapabilitiesWire
-  authMethod?: 'apiKey' | 'chatgptOAuth'
-  chatGptAccountId?: string | null
-  chatGptPlanType?: string | null
-}
-
 interface ProviderDraft {
   id: string
   displayName: string
@@ -285,41 +259,6 @@ function providerDraftFromInfo(provider: ProviderInfoWire): ProviderDraft {
     supportsHostedImageGeneration: provider.supportsHostedImageGeneration === true,
     supportsHostedImageGenerationTouched: true
   }
-}
-
-function normalizeProviderList(value: unknown): ProviderInfoWire[] {
-  const source = value != null && typeof value === 'object' ? value as { providers?: unknown } : {}
-  if (!Array.isArray(source.providers)) return []
-  return source.providers
-    .map((item): ProviderInfoWire | null => {
-      if (item == null || typeof item !== 'object') return null
-      const raw = item as Partial<ProviderInfoWire>
-      const id = typeof raw.id === 'string' ? raw.id.trim() : ''
-      if (!id) return null
-      const rawAuthMethod = typeof raw.authMethod === 'string' ? raw.authMethod.toLowerCase() : ''
-      return {
-        id,
-        displayName: typeof raw.displayName === 'string' && raw.displayName.trim() !== '' ? raw.displayName : id,
-        protocol: normalizeProviderProtocol(raw.protocol),
-        apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : null,
-        hasApiKey: raw.hasApiKey === true,
-        endPoint: typeof raw.endPoint === 'string' ? raw.endPoint : '',
-        networkTimeoutSeconds:
-          typeof raw.networkTimeoutSeconds === 'number' && Number.isFinite(raw.networkTimeoutSeconds)
-            ? raw.networkTimeoutSeconds
-            : null,
-        supportsHostedImageGeneration: raw.supportsHostedImageGeneration === true,
-        capabilities: raw.capabilities,
-        authMethod: rawAuthMethod === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
-        chatGptAccountId: typeof raw.chatGptAccountId === 'string' && raw.chatGptAccountId.trim() !== ''
-          ? raw.chatGptAccountId
-          : null,
-        chatGptPlanType: typeof raw.chatGptPlanType === 'string' && raw.chatGptPlanType.trim() !== ''
-          ? raw.chatGptPlanType
-          : null
-      }
-    })
-    .filter((item): item is ProviderInfoWire => item != null)
 }
 
 function canConfigureHostedImageGeneration(provider: Pick<ProviderDraft, 'protocol' | 'authMethod'>): boolean {
@@ -986,6 +925,7 @@ export function SettingsView({
     dreamsAutoApply: null,
     defaultApprovalPolicy: null
   })
+  const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
   const [providersLoading, setProvidersLoading] = useState(false)
   const [providerDraft, setProviderDraft] = useState<ProviderDraft>(() => createProviderDraft())
@@ -1209,6 +1149,7 @@ export function SettingsView({
     setProvidersLoading(true)
     try {
       const result = await window.api.appServer.sendRequest('provider/list', {}, 20_000)
+      setProvidersManagedRemotely((result as { managedBy?: string }).managedBy === 'modelService')
       const refreshed = normalizeProviderList(result)
       setProviders(refreshed)
       const editor = refreshed.find((provider) => provider.id === providerEditorIdRef.current)
@@ -3223,7 +3164,7 @@ export function SettingsView({
                   description={
                     providerEditorId === null ? (
                       <SettingsDescriptionWithLearnMore topic="modelProviders" aboutKey="settings.llm.title">
-                        {t('settings.llm.description')}
+                        {t(providersManagedRemotely ? 'settings.llm.managedByService' : 'settings.llm.description')}
                       </SettingsDescriptionWithLearnMore>
                     ) : undefined
                   }
@@ -3241,7 +3182,7 @@ export function SettingsView({
                       <Button
                         variant="primary"
                         onClick={startCreateProvider}
-                        disabled={!providerManagementEnabled}
+                        disabled={!providerManagementEnabled || providersManagedRemotely}
                         iconLeft={<Plus size={14} aria-hidden="true" />}
                       >
                         {t('settings.llm.addProvider')}
@@ -3456,7 +3397,9 @@ export function SettingsView({
                                   }}
                                 >
                                   <span>
-                                    {provider.authMethod === 'chatgptOAuth'
+                                    {provider.managedBy === 'modelService'
+                                      ? t(provider.isAuthenticated ? 'settings.llm.managedByService' : 'settings.llm.serviceAuthenticationRequired')
+                                      : provider.authMethod === 'chatgptOAuth'
                                       ? provider.chatGptPlanType
                                         ? t('settings.llm.providerChatGptStatus', { plan: formatPlanLabel(provider.chatGptPlanType, t) })
                                         : t('settings.llm.providerChatGptNotSignedIn')
@@ -3485,6 +3428,7 @@ export function SettingsView({
                                   icon={<Pencil size={15} />}
                                   label={t('settings.llm.editProviderAria', { name: provider.displayName })}
                                   tooltipLabel={t('settings.llm.editTitle')}
+                                  disabled={providersManagedRemotely}
                                   onClick={() => startEditProvider(provider)}
                                 />
                               </span>
@@ -3682,7 +3626,7 @@ export function SettingsView({
                           providerId={providerDraft.id}
                           providerInfo={providerEditorProvider}
                           selectedProviderId={selectedProviderId || null}
-                          selectedProviderUsable={providers.some((p) => p.id === selectedProviderId && (p.hasApiKey || (p.authMethod === 'chatgptOAuth' && Boolean(p.chatGptAccountId))))}
+                          selectedProviderUsable={providers.some((p) => p.id === selectedProviderId && (p.isAuthenticated ?? (p.hasApiKey || (p.authMethod === 'chatgptOAuth' && Boolean(p.chatGptAccountId)))))}
                           onAfterMutation={reloadProviders}
                           onSignedIn={(id) => {
                             pendingOAuthEditorRef.current = id

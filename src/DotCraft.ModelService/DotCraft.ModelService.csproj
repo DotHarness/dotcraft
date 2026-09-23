@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <Version>0.7.3</Version>
+    <Description>Embeddable DotCraft model HTTP service.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../DotCraft.Harness/DotCraft.Harness.csproj" />
+    <ProjectReference Include="../DotCraft.Agents.Remote/DotCraft.Agents.Remote.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../DotCraft.Agents.OpenAI/DotCraft.Agents.OpenAI.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../DotCraft.Agents.Anthropic/DotCraft.Agents.Anthropic.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../DotCraft.Core/DotCraft.Core.csproj" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

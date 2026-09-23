@@ -13202,6 +13202,20 @@
           "const": null
         },
         {
+          "name": "isAuthenticated",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "managedBy",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "maxOutputTokens",
           "type": "integer",
           "required": false,
@@ -13264,6 +13278,13 @@
       "schema": "schemas/core/ProviderListResult.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "managedBy",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
         {
           "name": "providers",
           "type": "array<core.ProviderInfo>",

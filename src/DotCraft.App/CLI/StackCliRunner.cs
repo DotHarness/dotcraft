@@ -24,6 +24,8 @@ internal sealed record StackCommandOptions
     public string? Provider { get; init; }
     public string? Model { get; init; }
     public string? ApiKey { get; init; }
+    public string? ModelServiceUrl { get; init; }
+    public string? ModelServiceTokenFile { get; init; }
     public string? Project { get; init; }
     public string? Workspace { get; init; }
     public string? Tail { get; init; }
@@ -159,6 +161,7 @@ internal static class StackCliRunner
     {
         internal async Task<int> InitAsync(StackCommandOptions options, CancellationToken ct)
         {
+            StackModelService.ValidateOptions(options);
             var root = options.Directory;
             var planned = new[] { ComposeFile, ".env", "state/dotcraft", "state/oratorio/config.json", "workspace", "secrets" };
             if (options.DryRun)
@@ -172,6 +175,9 @@ internal static class StackCliRunner
             if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
                 throw new InvalidOperationException($"Deployment directory is not empty: {root}");
 
+            var appServerToken = GenerateToken();
+            var oratorioToken = GenerateToken();
+            var env = BuildEnvironment(options, appServerToken, oratorioToken);
             Directory.CreateDirectory(root);
             Directory.CreateDirectory(Path.Combine(root, "workspace"));
             Directory.CreateDirectory(Path.Combine(root, "secrets"));
@@ -179,9 +185,6 @@ internal static class StackCliRunner
             Directory.CreateDirectory(Path.Combine(root, "state", "oratorio"));
             WriteAtomic(Path.Combine(root, ComposeFile), ReadAsset(ComposeFile));
 
-            var appServerToken = GenerateToken();
-            var oratorioToken = GenerateToken();
-            var env = BuildEnvironment(options, appServerToken, oratorioToken);
             WriteAtomic(Path.Combine(root, ".env"), env);
             WriteAtomic(Path.Combine(root, "state", "oratorio", "config.json"), BuildInitialConfiguration());
             WriteAtomic(Path.Combine(root, ".gitignore"), ".env\nsecrets/\nstate/\nworkspace/.craft/\n");
@@ -257,9 +260,17 @@ internal static class StackCliRunner
 
             var env = await File.ReadAllTextAsync(Path.Combine(options.Directory, ".env"), ct);
             var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
-            var authMethodValid = authMethod is "apiKey" or "chatgptOAuth";
+            var remote = ReadEnv(env, "DOTCRAFT_MODEL_MODE") == "remote";
+            var authMethodValid = remote || authMethod is "apiKey" or "chatgptOAuth";
             await output.WriteLineAsync($"[{(authMethodValid ? "ok" : "fail")}] DOTCRAFT_AUTH_METHOD");
             if (!authMethodValid) failures++;
+            if (remote)
+            {
+                await StackModelService.CheckAsync(
+                    ReadEnv(env, "DOTCRAFT_MODEL_SERVICE_URL"), ReadEnv(env, "DOTCRAFT_MODEL_SERVICE_TOKEN"),
+                    ReadEnv(env, "DOTCRAFT_PROVIDER"), ReadEnv(env, "DOTCRAFT_MODEL"), ct);
+                await output.WriteLineAsync("[ok] Model service connection and selected model");
+            }
             foreach (var name in new[] { "APPSERVER_TOKEN", "ORATORIO_SERVICE_TOKEN" })
             {
                 var ok = ReadEnv(env, name) is { Length: > 0 };
@@ -267,6 +278,8 @@ internal static class StackCliRunner
                 if (!ok) failures++;
             }
 
+            if (options.DryRun)
+                return failures == 0 ? 0 : 1;
             failures += await ProbeAsync("docker", ["--version"], options.Directory, "Docker", ct) ? 0 : 1;
             failures += await ProbeAsync("docker", ["compose", "version"], options.Directory, "Docker Compose", ct) ? 0 : 1;
             if (failures == 0)
@@ -302,13 +315,18 @@ internal static class StackCliRunner
                 throw new InvalidOperationException("DotCraft user data is not mounted at /root/.craft. Update the deployment Compose file before upgrading.");
             var env = await File.ReadAllTextAsync(Path.Combine(options.Directory, ".env"), ct);
             var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
-            if (authMethod is not ("apiKey" or "chatgptOAuth"))
+            var remote = ReadEnv(env, "DOTCRAFT_MODEL_MODE") == "remote";
+            if (!remote && authMethod is not ("apiKey" or "chatgptOAuth"))
                 throw new InvalidOperationException("DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth.");
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would pull and recreate the stack in {options.Directory}.");
                 return 0;
             }
+            if (remote)
+                await StackModelService.CheckAsync(
+                    ReadEnv(env, "DOTCRAFT_MODEL_SERVICE_URL"), ReadEnv(env, "DOTCRAFT_MODEL_SERVICE_TOKEN"),
+                    ReadEnv(env, "DOTCRAFT_PROVIDER"), ReadEnv(env, "DOTCRAFT_MODEL"), ct);
             var pull = await RunComposeAsync(options.Directory, ["pull"], ct);
             return pull == 0 ? await RunComposeAsync(options.Directory, ["up", "-d", "--remove-orphans"], ct) : pull;
         }
@@ -459,7 +477,8 @@ internal static class StackCliRunner
         $"DOTCRAFT_PROVIDER={options.Provider ?? "openai"}\n" +
         "DOTCRAFT_AUTH_METHOD=apiKey\n" +
         $"DOTCRAFT_MODEL={options.Model ?? "gpt-5.6"}\n" +
-        $"DOTCRAFT_API_KEY={options.ApiKey ?? string.Empty}\n";
+        $"DOTCRAFT_API_KEY={options.ApiKey ?? string.Empty}\n" +
+        StackModelService.EnvironmentValues(options);
 
     private static string BuildInitialConfiguration() =>
         new JsonObject

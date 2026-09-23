@@ -69,6 +69,8 @@
   <!-- Source Generator Reference -->
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DotCraft.ModelService\DotCraft.ModelService.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" />
   </ItemGroup>
 
   <ItemGroup>

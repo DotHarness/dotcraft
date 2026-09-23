@@ -141,3 +141,40 @@ Host 配置发生变化时，不会改写已有 Thread 的模型快照。
 
 - [配置与路径](./configuration-paths)——应用如何在注册之前准备最终生效的 `AppConfig`。
 - [线程与轮次](./threads-turns)——Thread 在哪一步捕获 Provider 与模型快照。
+
+## 连接模型服务
+
+在 Harness 选项中设置连接，通过普通配置选择 provider ID 和模型。此 Runtime 的所有模型操作都使用这个服务。
+
+```csharp
+using DotCraft.Agents.Remote;
+using DotCraft.Harness;
+
+builder.Services.AddDotCraftHarness(appConfig, options =>
+{
+    options.WorkspacePath = workspacePath;
+    options.UserDataPath = userDataPath;
+    options.ModelService = new ModelServiceConnection(
+        new Uri("https://models.example/model-service/"),
+        Environment.GetEnvironmentVariable("MODEL_SERVICE_TOKEN")!);
+});
+```
+
+Harness 包含远程传输，原生历史、工具、重试和会话持久化由 Runtime 管理。提供商配置和客户端凭据操作见[部署模型服务](../../features/self-hosted/model-service)。
+
+## 嵌入服务
+
+在 ASP.NET Core 宿主中引用 `DotCraft.ModelService`，注册负责调用方授权和上游快照的 `IModelServiceAccess`。文件实现使用与 CLI 相同的状态目录：
+
+```csharp
+using DotCraft.ModelService;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<IModelServiceAccess>(new FileModelServiceAccess("model-state"));
+builder.Services.AddDotCraftModelService();
+var app = builder.Build();
+app.MapDotCraftModelService();
+await app.RunAsync();
+```
+
+服务注册不创建工作区、Session 或工具。通过 `IModelServiceObserver` 接收请求完成和规范化用量，回调失败不改变模型响应。数据库存储的订阅为每个凭据身份绑定一个 `OpenAIAuthManager`，实现 `IOpenAITokenStore`，其中 `TryReplace` 需要原子写入轮换后的令牌。

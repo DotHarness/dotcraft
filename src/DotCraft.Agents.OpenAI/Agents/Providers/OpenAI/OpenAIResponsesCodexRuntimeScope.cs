@@ -246,12 +246,21 @@ internal static class OpenAIResponsesCodexMetadata
                               ?? fallbackThreadId;
         var cacheSessionId = NormalizeOptional(conversationIdentity?.RootThreadId)
                              ?? currentThreadId;
+        if (ProviderPipelineOptionsScope.Current?.Runtime.CallerNamespace is { Length: > 0 } caller)
+        {
+            currentThreadId = NamespacedIdentity(caller, currentThreadId);
+            cacheSessionId = NamespacedIdentity(caller, cacheSessionId);
+        }
         return new OpenAIResponsesRoutingIdentity(
             SessionId: cacheSessionId,
             ThreadId: currentThreadId,
             DefaultPromptCacheKey: cacheSessionId,
             ClientRequestId: currentThreadId);
     }
+
+    internal static string? NamespacedIdentity(string caller, string? identity) =>
+        identity is null ? null : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes(caller + "\0" + identity))).ToLowerInvariant();
 
     internal static IReadOnlyDictionary<string, string> BuildClientMetadata(
         OpenAIResponsesCodexMetadataSnapshot snapshot)

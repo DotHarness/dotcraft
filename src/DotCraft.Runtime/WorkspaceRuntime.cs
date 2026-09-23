@@ -177,6 +177,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             if (_started != null)
                 throw new InvalidOperationException("WorkspaceRuntime has already been started.");
 
+            foreach (var connection in Services.GetServices<IProviderConnectionLifecycle>())
+                await connection.InitializeAsync(ct).ConfigureAwait(false);
+
             if (Config.Skills.IncludeBuiltInSkills)
                 SkillsLoader.DeployBuiltInSkills();
             Services.GetRequiredService<CustomCommandLoader>().DeployBuiltInCommands();

@@ -42,6 +42,7 @@ internal sealed class ProviderRequestHandler(
         var config = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new Contract.ProviderListResult
         {
+            ManagedBy = config.ModelService is null ? default : new Protocol.Optional<string>("modelService"),
             Providers = new Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
                 ProviderContractMapper.BuildProviderInfos(config))
         });
@@ -49,6 +50,7 @@ internal sealed class ProviderRequestHandler(
 
     private Task<object?> HandleProviderCreateAsync(AppServerTypedRequest<Contract.ProviderCreateParams> request, CancellationToken ct)
     {
+        EnsureLocallyManaged();
         _ = ct;
         EnsureProviderManagementAvailable();
         var msg = request.Message;
@@ -110,6 +112,7 @@ internal sealed class ProviderRequestHandler(
 
     private Task<object?> HandleProviderUpdateAsync(AppServerTypedRequest<Contract.ProviderUpdateParams> request, CancellationToken ct)
     {
+        EnsureLocallyManaged();
         _ = ct;
         EnsureProviderManagementAvailable();
         var msg = request.Message;
@@ -202,6 +205,7 @@ internal sealed class ProviderRequestHandler(
 
     private Task<object?> HandleProviderDeleteAsync(AppServerTypedRequest<Contract.ProviderDeleteParams> request, CancellationToken ct)
     {
+        EnsureLocallyManaged();
         _ = ct;
         EnsureProviderManagementAvailable();
         var p = request.Params;
@@ -287,6 +291,7 @@ internal sealed class ProviderRequestHandler(
         }
         else
         {
+            EnsureLocallyManaged();
             var protocol = NormalizeProviderProtocol(ValueOrDefault(p.Protocol));
             ValidateProviderPayload(
                 "__provider_test__",
@@ -347,6 +352,12 @@ internal sealed class ProviderRequestHandler(
     {
         _ = request;
         _ = ct;
+        if (appConfigMonitor?.Current is { ModelService: not null } remote)
+        {
+            var provider = remote.Providers.GetValueOrDefault(remote.ProviderId);
+            return Task.FromResult<object?>(BuildAuthStatusResult(
+                provider?.RemoteAuthentication ?? new ProviderAuthenticationStatus(false), remote.ProviderId));
+        }
         var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
@@ -356,6 +367,7 @@ internal sealed class ProviderRequestHandler(
 
     private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerTypedRequest<Contract.AuthOpenAiLoginParams> request, CancellationToken ct)
     {
+        EnsureLocallyManaged();
         var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
@@ -412,6 +424,7 @@ internal sealed class ProviderRequestHandler(
 
     private async Task<object?> HandleAuthOpenAiLogoutAsync(AppServerTypedRequest<Contract.AuthOpenAiLogoutParams> request, CancellationToken ct)
     {
+        EnsureLocallyManaged();
         var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
@@ -456,6 +469,12 @@ internal sealed class ProviderRequestHandler(
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound("provider/*");
+    }
+
+    private void EnsureLocallyManaged()
+    {
+        if (appConfigMonitor?.Current.ModelService is not null)
+            throw AppServerErrors.InvalidRequest("Providers and subscription authentication are managed by the model service. Use its configuration or CLI.");
     }
 
     private ModelProviderRegistry RequireProviderRegistry() =>

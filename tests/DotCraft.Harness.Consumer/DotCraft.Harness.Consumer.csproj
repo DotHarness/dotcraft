@@ -16,6 +16,8 @@
   <ItemGroup Condition="'$(UseHarnessPackage)' != 'true'">
     <ProjectReference Include="..\..\src\DotCraft.Harness\DotCraft.Harness.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Runtime\DotCraft.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 

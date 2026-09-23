@@ -28,6 +28,16 @@ describe('Settings OAuth editor', () => {
       modules: { list: vi.fn().mockResolvedValue([]) } })
   })
 
+  it.each([true, false])('keeps service-managed providers read-only when providers exist: %s', async (hasProviders) => {
+    const original = sendRequest.getMockImplementation()!
+    sendRequest.mockImplementation(async (method, ...args) => method === 'provider/list'
+      ? { managedBy: 'modelService', providers: hasProviders ? [{ ...existing, managedBy: 'modelService', isAuthenticated: true }] : [] }
+      : original(method, ...args))
+    render(<LocaleProvider><SettingsView workspacePath="C:/test-workspace" /></LocaleProvider>)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'New provider' })).toBeDisabled())
+    if (hasProviders) expect(screen.getByRole('button', { name: /Edit.*Existing subscription/i })).toBeDisabled()
+  })
+
   it('replaces creation with the saved editor and retains an existing OAuth selection', async () => {
     render(<LocaleProvider><SettingsView workspacePath="C:/test-workspace" /></LocaleProvider>)
     fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))

@@ -239,7 +239,7 @@ public sealed class AgentFactory : IAsyncDisposable
         return _compactionPipelines.GetOrAdd(key, static (pipelineKey, state) =>
         {
             var (factory, resolvedConfig, config) = state;
-            var runtime = pipelineKey.ToRuntime();
+            var runtime = pipelineKey.Runtime;
             var baseChatClient = factory._compactionChatClientOverride
                 ?? factory._chatClientOverride
                 ?? factory._chatClientRegistry.GetChatClient(runtime);
@@ -252,9 +252,9 @@ public sealed class AgentFactory : IAsyncDisposable
                     useDefaultReasoning: false),
                 factory._traceCollector,
                 new MaintenanceForkCacheOptions(
-                    pipelineKey.ProviderProtocol,
+                    pipelineKey.Runtime.Protocol,
                     config.PromptCaching,
-                    pipelineKey.Model),
+                    pipelineKey.Runtime.Model),
                 factory._runtimeContext.Contributions,
                 string.IsNullOrEmpty(pipelineKey.SessionKey) ? null : pipelineKey.SessionKey,
                 factory._logger);
@@ -1092,89 +1092,6 @@ public sealed class AgentFactory : IAsyncDisposable
             chatOptions.Instructions = instructions;
 
         return chatOptions;
-    }
-
-    private readonly record struct CompactionPipelineKey(
-        string SessionKey,
-        string ProviderId,
-        string ProviderProtocol,
-        string Model,
-        string EndPoint,
-        string ApiKey,
-        int NetworkTimeoutSeconds,
-        int? MaxOutputTokens,
-        int StreamMaxRetries,
-        int StreamIdleTimeoutMs,
-        string AuthMethod,
-        string? ChatGptAccountId,
-        bool UseResponsesLite,
-        bool AutoCompactEnabled,
-        bool ReactiveCompactEnabled,
-        int ContextWindow,
-        int SummaryReserveTokens,
-        int SummaryMaxOutputTokens,
-        int AutoCompactBufferTokens,
-        int WarningBufferTokens,
-        int ErrorBufferTokens,
-        int ManualCompactBufferTokens,
-        int KeepRecentMinTokens,
-        int KeepRecentMinGroups,
-        int KeepRecentMaxTokens,
-        bool MicrocompactEnabled,
-        int MicrocompactKeepRecent,
-        int MicrocompactGapMinutes,
-        int MaxConsecutiveFailures)
-    {
-        public static CompactionPipelineKey From(
-            string sessionKey,
-            EffectiveModelRuntime runtime,
-            CompactionConfig compaction) =>
-            new(
-                sessionKey,
-                runtime.ProviderId,
-                runtime.Protocol,
-                runtime.Model,
-                runtime.EndPoint,
-                runtime.ApiKey,
-                runtime.NetworkTimeoutSeconds,
-                runtime.MaxOutputTokens,
-                Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
-                Math.Max(1, runtime.StreamIdleTimeoutMs),
-                ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
-                string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
-                runtime.UseResponsesLite,
-                compaction.AutoCompactEnabled,
-                compaction.ReactiveCompactEnabled,
-                compaction.ContextWindow,
-                compaction.SummaryReserveTokens,
-                compaction.SummaryMaxOutputTokens,
-                compaction.AutoCompactBufferTokens,
-                compaction.WarningBufferTokens,
-                compaction.ErrorBufferTokens,
-                compaction.ManualCompactBufferTokens,
-                compaction.KeepRecentMinTokens,
-                compaction.KeepRecentMinGroups,
-                compaction.KeepRecentMaxTokens,
-                compaction.MicrocompactEnabled,
-                compaction.MicrocompactKeepRecent,
-                compaction.MicrocompactGapMinutes,
-                compaction.MaxConsecutiveFailures);
-
-        public EffectiveModelRuntime ToRuntime() => new(
-            ProviderId,
-            Model,
-            ProviderProtocol,
-            DisplayName: ProviderId,
-            ApiKey,
-            EndPoint,
-            NetworkTimeoutSeconds,
-            MaxOutputTokens,
-            ModelProviderCapabilities.ForProtocol(ProviderProtocol),
-            StreamMaxRetries,
-            StreamIdleTimeoutMs,
-            AuthMethod,
-            ChatGptAccountId,
-            UseResponsesLite: UseResponsesLite);
     }
 
     /// <summary>

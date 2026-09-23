@@ -141,3 +141,40 @@ A protocol can have only one `IModelProvider`. Multiple implementations for the 
 
 - [Configuration and paths](./configuration-paths) — how the application prepares the effective `AppConfig` before registration.
 - [Threads and Turns](./threads-turns) — where a Thread captures its provider and model snapshot.
+
+## Connect a model service
+
+Set the connection on Harness options and select the provider ID and model through ordinary configuration. All model operations in this Runtime use this service.
+
+```csharp
+using DotCraft.Agents.Remote;
+using DotCraft.Harness;
+
+builder.Services.AddDotCraftHarness(appConfig, options =>
+{
+    options.WorkspacePath = workspacePath;
+    options.UserDataPath = userDataPath;
+    options.ModelService = new ModelServiceConnection(
+        new Uri("https://models.example/model-service/"),
+        Environment.GetEnvironmentVariable("MODEL_SERVICE_TOKEN")!);
+});
+```
+
+Harness includes the remote transport. Native history, tools, retries, and session persistence remain in the Runtime. See [Deploy a model service](../../features/self-hosted/model-service) for provider configuration and client credentials.
+
+## Embed the service
+
+Reference `DotCraft.ModelService` in an ASP.NET Core host. Register `IModelServiceAccess` to authorize callers and provide upstream snapshots. The file implementation uses the CLI state directory:
+
+```csharp
+using DotCraft.ModelService;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<IModelServiceAccess>(new FileModelServiceAccess("model-state"));
+builder.Services.AddDotCraftModelService();
+var app = builder.Build();
+app.MapDotCraftModelService();
+await app.RunAsync();
+```
+
+Service registration creates no workspace, Session, or tools. Implement `IModelServiceObserver` to receive completion and normalized usage. Observer failures do not change model responses. For database subscriptions, bind one `OpenAIAuthManager` per credential identity and implement `IOpenAITokenStore`, including atomic `TryReplace` for rotation.

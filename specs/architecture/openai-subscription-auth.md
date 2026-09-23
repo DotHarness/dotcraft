@@ -42,6 +42,11 @@ The authorize URL additionally carries `id_token_add_organizations=true` and
 
 ## Credential refresh lifecycle
 
+The OAuth implementation accepts host-owned token storage. The official local host uses
+`auth.json`; an embedded model service may use encrypted database storage. Remote workers obtain
+only provider metadata and authentication status. The model service owns token reads and refresh
+for their requests, as specified in [Remote model service](model-service.md).
+
 Token access is serialized within each process. A normal token read refreshes credentials when any
 of these conditions is true:
 

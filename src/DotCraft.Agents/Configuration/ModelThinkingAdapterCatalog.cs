@@ -498,6 +498,7 @@ public static class ModelThinkingAdapterCatalog
         }
     }
 
+    [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Populate)]
     public sealed class AnthropicThinkingAdapterData
     {
         public HashSet<string> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -542,6 +543,7 @@ public static class ModelThinkingAdapterCatalog
         }
     }
 
+    [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Populate)]
     public sealed class AnthropicMessageContentAdapterData
     {
         public HashSet<string> Models { get; } = new(StringComparer.OrdinalIgnoreCase);

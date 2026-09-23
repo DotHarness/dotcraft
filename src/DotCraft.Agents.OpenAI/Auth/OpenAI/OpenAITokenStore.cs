@@ -2,11 +2,7 @@ using System.Text.Json;
 
 namespace DotCraft.Auth.OpenAI;
 
-/// <summary>
-/// Persists OpenAI OAuth tokens under the host-provided user data directory with file permissions limited to the
-/// current user (Unix mode 0600; Windows ACL granting only the owning SID).
-/// </summary>
-public sealed class OpenAITokenStore
+public sealed class OpenAITokenStore : IOpenAITokenStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -24,10 +20,8 @@ public sealed class OpenAITokenStore
             : Path.Combine(userDataPath, "auth.json");
     }
 
-    /// <summary>Absolute path to the auth.json file.</summary>
     public string? FilePath => _filePath;
 
-    /// <summary>Reads the auth.json from disk, returning null when the file is absent.</summary>
     public AuthDotJson? Load()
     {
         lock (_gate)
@@ -48,37 +42,69 @@ public sealed class OpenAITokenStore
         }
     }
 
-    /// <summary>Writes auth.json atomically and tightens file permissions to the current user.</summary>
     public void Save(AuthDotJson auth)
     {
         ArgumentNullException.ThrowIfNull(auth);
-        if (_filePath is null)
-            throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence.");
-
         lock (_gate)
         {
-            var dir = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrWhiteSpace(dir))
-                Directory.CreateDirectory(dir);
-
-            var tempPath = _filePath + ".tmp";
-            var json = JsonSerializer.Serialize(auth, JsonOptions);
-            File.WriteAllText(tempPath, json);
-            TightenPermissions(tempPath);
-            File.Move(tempPath, _filePath, overwrite: true);
-            TightenPermissions(_filePath);
+            using var fileLock = AcquireFileLock();
+            WriteTokens(auth);
         }
     }
 
-    /// <summary>Deletes auth.json if it exists.</summary>
     public void Delete()
     {
         lock (_gate)
         {
-            if (_filePath is null)
-                throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence.");
-            if (File.Exists(_filePath))
-                File.Delete(_filePath);
+            using var fileLock = AcquireFileLock();
+            File.Delete(_filePath!);
+        }
+    }
+
+    public bool TryReplace(AuthDotJson expected, AuthDotJson? replacement)
+    {
+        lock (_gate)
+        {
+            using var fileLock = AcquireFileLock();
+            if (!HasSameTokens(Load(), expected))
+                return false;
+            if (replacement is null)
+                File.Delete(_filePath!);
+            else
+                WriteTokens(replacement);
+            return true;
+        }
+    }
+
+    private void WriteTokens(AuthDotJson auth)
+    {
+        var temporary = _filePath + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(auth, JsonOptions));
+        TightenPermissions(temporary);
+        File.Move(temporary, _filePath!, overwrite: true);
+    }
+
+    public static bool HasSameTokens(AuthDotJson? left, AuthDotJson? right) =>
+        left?.Tokens?.AccessToken == right?.Tokens?.AccessToken
+        && left?.Tokens?.RefreshToken == right?.Tokens?.RefreshToken
+        && left?.Tokens?.IdToken == right?.Tokens?.IdToken;
+
+    private FileStream AcquireFileLock()
+    {
+        if (_filePath is null)
+            throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence.");
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+        var timeout = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                return new FileStream(_filePath + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException) when (timeout.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                Thread.Sleep(20);
+            }
         }
     }
 

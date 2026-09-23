@@ -1,6 +1,8 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ZH_HANS = {
+  "settings.llm.managedByService": "由模型服务管理。请在服务端管理提供商和登录状态。",
+  "settings.llm.serviceAuthenticationRequired": "请在模型服务端登录。",
   "conversation.working": "正在处理",
   "conversation.workingFor": "正在处理 {{duration}}",
   "conversation.worked": "已处理",

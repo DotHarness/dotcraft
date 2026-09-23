@@ -15,7 +15,7 @@ internal sealed class DeepThinkingChatClient(
     EffectiveModelRuntime runtime)
     : DelegatingChatClient(innerClient)
 {
-    private readonly bool _enabled = ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(
+    private readonly bool _enabled = runtime.RequestAdaptation?.DeepThinking ?? ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(
         runtime.EndPoint,
         runtime.Model);
 

@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
 using DotCraft.Runtime;
 using DotCraft.Workspaces;
@@ -28,22 +29,42 @@ public static class DotCraftHarnessServiceCollectionExtensions
 
         var harnessOptions = new DotCraftHarnessOptions();
         configure(harnessOptions);
+        if (harnessOptions.ModelService is { } connection)
+            appConfig.ModelService = new AppConfig.ModelServiceConfig { Endpoint = connection.Endpoint.ToString(), Token = connection.Token };
+        if (harnessOptions.InitialModelServiceCatalog is { } catalog)
+            RemoteModelConfiguration.Apply(appConfig, catalog);
+        else if (appConfig.ModelService is not null)
+            appConfig.Providers.Clear();
         var runtimeOptions = CreateRuntimeOptions(appConfig, harnessOptions);
         var paths = DotCraftPathResolver.Resolve(runtimeOptions);
-        return AddDotCraftHarness(services, runtimeOptions, paths);
+        return AddDotCraftHarness(services, runtimeOptions, paths, harnessOptions.RefreshModelServiceCatalog);
     }
 
     internal static IServiceCollection AddDotCraftHarness(
         this IServiceCollection services,
         DotCraftRuntimeOptions runtimeOptions,
-        DotCraftPaths paths)
+        DotCraftPaths paths,
+        bool refreshModelServiceCatalog = true)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(runtimeOptions);
         ArgumentNullException.ThrowIfNull(paths);
 
         services.TryAddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider());
-        services.AddOpenAIModelProvider(paths.UserData.RootPath);
+        if (runtimeOptions.Config.ModelService is { } connection)
+        {
+            if (connection.CallerId is null)
+                runtimeOptions.Config.Providers.Clear();
+            services.AddSingleton(new ModelServiceConnection(new Uri(connection.Endpoint), connection.Token));
+            services.AddSingleton<RemoteProviderTransport>();
+            services.AddSingleton<IProviderHttpTransport>(sp => sp.GetRequiredService<RemoteProviderTransport>());
+            if (refreshModelServiceCatalog)
+            {
+                services.AddSingleton<RemoteModelRuntimeConnection>();
+                services.AddSingleton<IProviderConnectionLifecycle>(sp => sp.GetRequiredService<RemoteModelRuntimeConnection>());
+            }
+        }
+        services.AddOpenAIModelProvider(paths.UserData.RootPath, localAuthentication: runtimeOptions.Config.ModelService is null);
         services.AddAnthropicModelProvider();
         services.AddDotCraftRuntime(runtimeOptions, paths);
         return services;

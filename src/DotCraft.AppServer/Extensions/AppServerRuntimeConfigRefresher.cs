@@ -19,8 +19,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
         if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
             return;
 
-        var configPath = Path.Combine(workspaceCraftPath, "config.json");
-        var mergedConfig = AppConfig.LoadWithGlobalFallback(configPath, workspaceConfig.EffectiveGlobalConfigPath);
+        var mergedConfig = workspaceConfig.LoadCurrentMergedConfig();
         appConfigMonitor.Current.ProviderId = mergedConfig.ProviderId;
         appConfigMonitor.Current.ProviderPreferences = mergedConfig.ProviderPreferences.ToDictionary(
             pair => pair.Key,

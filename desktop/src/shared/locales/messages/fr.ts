@@ -1,6 +1,8 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_FR = {
+  "settings.llm.managedByService": "Géré par le service de modèles. Gérez les fournisseurs et la connexion sur le service.",
+  "settings.llm.serviceAuthenticationRequired": "Connectez-vous sur le service de modèles.",
   "conversation.working": "En cours",
   "conversation.workingFor": "En cours depuis {{duration}}",
   "conversation.worked": "Travail terminé",

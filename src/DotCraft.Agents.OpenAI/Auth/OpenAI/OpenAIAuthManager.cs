@@ -9,15 +9,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Auth.OpenAI;
 
-/// <summary>
-/// Owns the lifecycle of OpenAI / ChatGPT OAuth tokens: PKCE login, refresh, revocation, and
-/// thread-safe access for HTTP pipeline policies. One instance per process.
-/// </summary>
 public sealed class OpenAIAuthManager : IOpenAIAuthService
 {
-    private readonly OpenAITokenStore _store;
+    private readonly IOpenAITokenStore _store;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAIAuthManager> _logger;
+    private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private AuthDotJson? _cached;
@@ -26,13 +23,15 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
     public event Action? LoggedOut;
 
     public OpenAIAuthManager(
-        OpenAITokenStore? store = null,
+        IOpenAITokenStore? store = null,
         HttpClient? httpClient = null,
-        ILogger<OpenAIAuthManager>? logger = null)
+        ILogger<OpenAIAuthManager>? logger = null,
+        TimeProvider? clock = null)
     {
         _store = store ?? new OpenAITokenStore();
         _httpClient = httpClient ?? CreateDefaultHttpClient();
         _logger = logger ?? NullLogger<OpenAIAuthManager>.Instance;
+        _clock = clock ?? TimeProvider.System;
         _cached = _store.Load();
     }
 
@@ -45,23 +44,51 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         return client;
     }
 
-    public bool IsAuthenticated => _cached?.Tokens?.AccessToken is { Length: > 0 };
+    public bool IsAuthenticated => _store.Load()?.Tokens?.AccessToken is { Length: > 0 };
+
+    public static OpenAIAuthorization CreateAuthorization(string redirectUri)
+    {
+        var verifier = Pkce.CreateCodeVerifier();
+        var state = Base64Url.Encode(RandomNumberGenerator.GetBytes(32));
+        return new OpenAIAuthorization(
+            BuildAuthorizeUrl(redirectUri, Pkce.CreateS256Challenge(verifier), state),
+            state, verifier, redirectUri);
+    }
+
+    public async Task<OpenAIAuthStatus> CompleteLoginAsync(
+        string authorizationCode,
+        OpenAIAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await CompleteLoginLockedAsync(
+                authorizationCode, authorization.CodeVerifier, authorization.RedirectUri, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 
     public string? GetAccountId() => GetClaimsSafe()?.AccountId ?? _cached?.Tokens?.AccountId;
 
     public OpenAIAuthStatus GetStatus()
     {
-        if (_cached?.Tokens is null)
+        var current = _store.Load();
+        if (current?.Tokens is null)
             return new OpenAIAuthStatus(false, null, null, null, null, null);
 
-        var claims = GetClaimsSafe();
+        var claims = GetClaimsSafe(current);
         return new OpenAIAuthStatus(
             LoggedIn: true,
-            AccountId: claims?.AccountId ?? _cached.Tokens.AccountId,
+            AccountId: claims?.AccountId ?? current.Tokens.AccountId,
             PlanType: claims?.PlanType,
             Email: claims?.Email,
-            LastRefresh: _cached.LastRefresh,
-            AccessTokenExpiresAt: JwtClaimsReader.TryParseExpiration(_cached.Tokens.AccessToken));
+            LastRefresh: current.LastRefresh,
+            AccessTokenExpiresAt: JwtClaimsReader.TryParseExpiration(current.Tokens.AccessToken));
     }
 
     public async Task<OpenAIAuthStatus> LoginAsync(
@@ -73,48 +100,50 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         try
         {
             using var server = LoopbackOAuthServer.Start();
-            var verifier = Pkce.CreateCodeVerifier();
-            var challenge = Pkce.CreateS256Challenge(verifier);
-            var state = RandomUrlSafeToken(32);
-
-            var authorizeUrl = BuildAuthorizeUrl(server.RedirectUri, challenge, state);
-            onAuthorizationUrl?.Invoke(authorizeUrl);
+            var authorization = CreateAuthorization(server.RedirectUri);
+            onAuthorizationUrl?.Invoke(authorization.Url);
             if (openBrowser)
-                TryOpenBrowser(authorizeUrl);
+                TryOpenBrowser(authorization.Url);
 
-            var callbackTask = server.AwaitCallbackAsync(state, cancellationToken);
-            var result = await callbackTask.ConfigureAwait(false);
+            var result = await server.AwaitCallbackAsync(authorization.State, cancellationToken).ConfigureAwait(false);
             if (!result.Success || string.IsNullOrEmpty(result.AuthorizationCode))
             {
                 var detail = result.ErrorDescription ?? result.Error ?? "Sign-in was not completed.";
                 throw new OpenAIAuthException(OpenAIAuthFailureReason.Unknown, detail);
             }
 
-            var tokenResponse = await ExchangeCodeForTokensAsync(
-                result.AuthorizationCode, verifier, server.RedirectUri, cancellationToken).ConfigureAwait(false);
-
-            var claims = JwtClaimsReader.Parse(tokenResponse.IdToken);
-            var auth = new AuthDotJson
-            {
-                Tokens = new OpenAITokenSet
-                {
-                    IdToken = tokenResponse.IdToken,
-                    AccessToken = tokenResponse.AccessToken,
-                    RefreshToken = tokenResponse.RefreshToken,
-                    AccountId = claims.AccountId
-                },
-                LastRefresh = DateTimeOffset.UtcNow
-            };
-            _store.Save(auth);
-            _cached = auth;
-            var status = GetStatus();
-            RaiseLoggedIn(status);
-            return status;
+            return await CompleteLoginLockedAsync(
+                result.AuthorizationCode, authorization.CodeVerifier, authorization.RedirectUri, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    private async Task<OpenAIAuthStatus> CompleteLoginLockedAsync(
+        string authorizationCode, string verifier, string redirectUri, CancellationToken cancellationToken)
+    {
+        var tokenResponse = await ExchangeCodeForTokensAsync(
+            authorizationCode, verifier, redirectUri, cancellationToken).ConfigureAwait(false);
+
+        var claims = JwtClaimsReader.Parse(tokenResponse.IdToken);
+        var auth = new AuthDotJson
+        {
+            Tokens = new OpenAITokenSet
+            {
+                IdToken = tokenResponse.IdToken,
+                AccessToken = tokenResponse.AccessToken,
+                RefreshToken = tokenResponse.RefreshToken,
+                AccountId = claims.AccountId
+            },
+            LastRefresh = _clock.GetUtcNow()
+        };
+        _store.Save(auth);
+        _cached = auth;
+        var status = GetStatus();
+        RaiseLoggedIn(status);
+        return status;
     }
 
     private void RaiseLoggedIn(OpenAIAuthStatus status)
@@ -134,35 +163,13 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            _cached = _store.Load();
             var refreshToken = _cached?.Tokens?.RefreshToken;
             if (!string.IsNullOrEmpty(refreshToken))
-            {
-                try
-                {
-                    using var request = new HttpRequestMessage(HttpMethod.Post, OpenAIAuthConstants.RevokeUrl)
-                    {
-                        Content = JsonContent.Create(new
-                        {
-                            token = refreshToken,
-                            token_type_hint = "refresh_token",
-                            client_id = OpenAIAuthConstants.ClientId
-                        })
-                    };
-                    using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                        _logger.LogWarning("Failed to revoke OpenAI refresh token at {Url}: {Status} {Body}",
-                            OpenAIAuthConstants.RevokeUrl, response.StatusCode, body);
-                    }
-                }
-                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-                {
-                    _logger.LogWarning(ex, "Revoke request to {Url} failed; proceeding with local logout.", OpenAIAuthConstants.RevokeUrl);
-                }
-            }
+                await RevokeAsync(refreshToken, cancellationToken).ConfigureAwait(false);
 
-            _store.Delete();
+            if (_cached is { } signedOut)
+                _store.TryReplace(signedOut, null);
             _cached = null;
         }
         finally
@@ -172,19 +179,41 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         RaiseLoggedOut();
     }
 
+    public async Task RevokeAsync(string refreshToken, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, OpenAIAuthConstants.RevokeUrl)
+            {
+                Content = JsonContent.Create(new
+                {
+                    token = refreshToken,
+                    token_type_hint = "refresh_token",
+                    client_id = OpenAIAuthConstants.ClientId
+                })
+            };
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to revoke OpenAI refresh token: {Status}", response.StatusCode);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogWarning(ex, "Revoke request to {Url} failed.", OpenAIAuthConstants.RevokeUrl);
+        }
+    }
+
     public async Task<string> GetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_cached?.Tokens is null)
-                throw new OpenAIAuthException(OpenAIAuthFailureReason.NotSignedIn,
-                    "Not signed in to ChatGPT. Run `dotcraft auth openai login` or use the Desktop settings.");
-
-            if (forceRefresh && ReloadCachedCredentialsIfChangedLocked())
+            var changed = ReloadCachedCredentialsIfChangedLocked();
+            if (forceRefresh && changed)
                 return _cached!.Tokens!.AccessToken;
 
-            var shouldRefresh = forceRefresh || NeedsRefresh(_cached);
+            var shouldRefresh = forceRefresh || NeedsRefresh(_cached!);
             if (shouldRefresh)
             {
                 await RefreshLockedAsync(cancellationToken).ConfigureAwait(false);
@@ -213,25 +242,31 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         }
     }
 
+    public async Task<string> RecoverUnauthorizedAsync(string rejectedToken, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ReloadCachedCredentialsIfChangedLocked();
+            if (_cached!.Tokens!.AccessToken == rejectedToken)
+                await RefreshLockedAsync(cancellationToken).ConfigureAwait(false);
+            return _cached!.Tokens!.AccessToken;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private bool ReloadCachedCredentialsIfChangedLocked()
     {
         var stored = _store.Load();
         if (stored?.Tokens is null)
         {
+            _cached = null;
             throw new OpenAIAuthException(
                 OpenAIAuthFailureReason.NotSignedIn,
                 "ChatGPT credentials are no longer available. Please sign in again.");
-        }
-
-        var cachedAccountId = GetAccountId(_cached);
-        var storedAccountId = GetAccountId(stored);
-        if (!string.IsNullOrEmpty(cachedAccountId) &&
-            !string.IsNullOrEmpty(storedAccountId) &&
-            !string.Equals(cachedAccountId, storedAccountId, StringComparison.Ordinal))
-        {
-            throw new OpenAIAuthException(
-                OpenAIAuthFailureReason.NotSignedIn,
-                "The signed-in ChatGPT account changed. Please retry the request.");
         }
 
         var changed = _cached?.Tokens is null ||
@@ -244,10 +279,7 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
 
     private async Task RefreshLockedAsync(CancellationToken cancellationToken)
     {
-        if (_cached?.Tokens is null)
-            throw new OpenAIAuthException(OpenAIAuthFailureReason.NotSignedIn, "Not signed in to ChatGPT.");
-
-        var refreshToken = _cached.Tokens.RefreshToken;
+        var refreshToken = _cached!.Tokens!.RefreshToken;
         if (string.IsNullOrEmpty(refreshToken))
             throw new OpenAIAuthException(OpenAIAuthFailureReason.NotSignedIn, "Refresh token missing — please sign in again.");
 
@@ -266,7 +298,7 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         {
             response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
             throw new OpenAIAuthException(OpenAIAuthFailureReason.Network,
                 "Network error while refreshing the ChatGPT access token.", ex);
@@ -306,10 +338,12 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
                 {
                     OpenAIApiKey = _cached.OpenAIApiKey,
                     Tokens = newTokens,
-                    LastRefresh = DateTimeOffset.UtcNow
+                    LastRefresh = _clock.GetUtcNow()
                 };
-                _store.Save(newAuth);
-                _cached = newAuth;
+                if (_store.TryReplace(_cached, newAuth))
+                    _cached = newAuth;
+                else
+                    ReloadCachedCredentialsIfChangedLocked();
                 return;
             }
 
@@ -321,12 +355,18 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
                 if (ReloadCachedCredentialsIfChangedLocked())
                     return;
 
-                _logger.LogWarning("OpenAI refresh failed permanently: {Status} {Body}", response.StatusCode, body);
+                _logger.LogWarning("OpenAI refresh failed permanently: {Status} {Reason}", response.StatusCode, reason);
+                if (!_store.TryReplace(_cached!, null))
+                {
+                    ReloadCachedCredentialsIfChangedLocked();
+                    return;
+                }
+                _cached = null;
                 throw new OpenAIAuthException(reason,
                     "ChatGPT credentials are no longer valid. Please sign in again.");
             }
 
-            _logger.LogWarning("OpenAI refresh failed transiently: {Status} {Body}", response.StatusCode, body);
+            _logger.LogWarning("OpenAI refresh failed transiently: {Status}", response.StatusCode);
             throw new OpenAIAuthException(OpenAIAuthFailureReason.Network,
                 $"Failed to refresh ChatGPT access token (HTTP {(int)response.StatusCode}).");
         }
@@ -336,19 +376,16 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         }
     }
 
-    private static bool NeedsRefresh(AuthDotJson auth)
+    private bool NeedsRefresh(AuthDotJson auth)
     {
-        if (auth.Tokens is null)
-            return false;
-
         if (auth.LastRefresh is null)
             return true;
 
-        if (DateTimeOffset.UtcNow - auth.LastRefresh.Value >= OpenAIAuthConstants.RefreshInterval)
+        if (_clock.GetUtcNow() - auth.LastRefresh.Value >= OpenAIAuthConstants.RefreshInterval)
             return true;
 
-        var expiry = JwtClaimsReader.TryParseExpiration(auth.Tokens.AccessToken);
-        if (expiry is not null && expiry.Value - DateTimeOffset.UtcNow <= TimeSpan.FromMinutes(5))
+        var expiry = JwtClaimsReader.TryParseExpiration(auth.Tokens!.AccessToken);
+        if (expiry is not null && expiry.Value - _clock.GetUtcNow() <= TimeSpan.FromMinutes(5))
             return true;
 
         return false;
@@ -393,24 +430,6 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         catch (JsonException)
         {
             return OpenAIAuthFailureReason.Unknown;
-        }
-    }
-
-    private static string? GetAccountId(AuthDotJson? auth)
-    {
-        if (auth?.Tokens is null)
-            return null;
-
-        if (!string.IsNullOrWhiteSpace(auth.Tokens.AccountId))
-            return auth.Tokens.AccountId;
-
-        try
-        {
-            return JwtClaimsReader.Parse(auth.Tokens.IdToken).AccountId;
-        }
-        catch (Exception ex) when (ex is FormatException or JsonException)
-        {
-            return null;
         }
     }
 
@@ -464,9 +483,8 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             throw new OpenAIAuthException(OpenAIAuthFailureReason.Unknown,
-                $"Authorization code exchange failed (HTTP {(int)response.StatusCode}). {Truncate(body, 256)}");
+                $"Authorization code exchange failed (HTTP {(int)response.StatusCode}).");
         }
 
         var parsed = await response.Content.ReadFromJsonAsync<TokenExchangeResponse>(
@@ -479,28 +497,20 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         return parsed;
     }
 
-    private OpenAIIdTokenClaims? GetClaimsSafe()
+    private OpenAIIdTokenClaims? GetClaimsSafe(AuthDotJson? auth = null)
     {
-        if (_cached?.Tokens?.IdToken is null)
+        auth ??= _cached;
+        if (auth?.Tokens?.IdToken is null)
             return null;
         try
         {
-            return JwtClaimsReader.Parse(_cached.Tokens.IdToken);
+            return JwtClaimsReader.Parse(auth.Tokens.IdToken);
         }
         catch (Exception ex) when (ex is FormatException or JsonException)
         {
             _logger.LogDebug(ex, "Failed to parse cached id_token claims.");
             return null;
         }
-    }
-
-    private static string RandomUrlSafeToken(int byteCount)
-    {
-        Span<byte> bytes = stackalloc byte[64];
-        if (byteCount > bytes.Length)
-            throw new ArgumentOutOfRangeException(nameof(byteCount));
-        RandomNumberGenerator.Fill(bytes[..byteCount]);
-        return Base64Url.Encode(bytes[..byteCount]);
     }
 
     private static void TryOpenBrowser(string url)
@@ -518,12 +528,6 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         {
             // Caller is responsible for printing the URL when the browser cannot be launched.
         }
-    }
-
-    private static string Truncate(string value, int max)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        return value.Length <= max ? value : value[..max] + "...";
     }
 
     private sealed class TokenExchangeResponse

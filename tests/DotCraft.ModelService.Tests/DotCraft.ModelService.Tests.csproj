@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.10" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <ProjectReference Include="../../src/DotCraft.ModelService/DotCraft.ModelService.csproj" />
+    <ProjectReference Include="../../src/DotCraft.Agents.Remote/DotCraft.Agents.Remote.csproj" />
+    <ProjectReference Include="../../src/DotCraft.Agents.OpenAI/DotCraft.Agents.OpenAI.csproj" />
+    <ProjectReference Include="../../src/DotCraft.Agents.Anthropic/DotCraft.Agents.Anthropic.csproj" />
+  </ItemGroup>
+</Project>

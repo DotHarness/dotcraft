@@ -37,6 +37,12 @@ The image supplies the official plugin marketplace through `DOTCRAFT_DEFAULT_PLU
 
 ## Authentication and configuration
 
+A Stack can connect to an independently deployed DotCraft Model Service. Remote mode supplies a
+service address and Stack-specific inference credential plus the selected provider and model.
+The Stack mounts only its own user and workspace state. Upstream credentials and login belong to
+the model-service deployment and its dedicated authentication helper. Remote startup and doctor
+check the service and model rather than local OAuth state; dry-run does not invoke Docker.
+
 The deployment `.env` contains independent high-entropy `APPSERVER_TOKEN` and `ORATORIO_SERVICE_TOKEN` values. DotCraft consumes the first; Oratorio consumes both, using the AppServer token for SDK calls and the service token for its protected API.
 
 Secrets are never printed by status, doctor, logs, or dry-run. A newly generated secret may be printed once by an explicit mutating initialization or webhook-enable operation. Oratorio Settings remain writable through the authenticated local or tunneled API and use the same revision/secret semantics as Desktop local mode.

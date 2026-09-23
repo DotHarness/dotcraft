@@ -19,7 +19,7 @@ using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 namespace DotCraft.Configuration;
 
 [ConfigSection("", DisplayName = "Core", Order = 0)]
-public sealed class AppConfig
+public sealed partial class AppConfig
 {
     /// <summary>
     /// Workspace-selected provider id. Empty means no model provider is selected.
@@ -500,96 +500,6 @@ public sealed class AppConfig
                 Output = Output
             };
         }
-    }
-
-    public sealed class ModelProviderConfig
-    {
-        /// <summary>
-        /// User-facing label for this provider.
-        /// </summary>
-        public string DisplayName { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Provider protocol. Supported values are "openai-chat-completions",
-        /// "openai-responses", and "anthropic".
-        /// </summary>
-        public string Protocol { get; set; } = ModelProviderProtocols.OpenAIChatCompletions;
-
-        /// <summary>
-        /// Provider credential or secret reference.
-        /// </summary>
-        [ConfigField(Sensitive = true)]
-        public string ApiKey { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Authentication mechanism. <c>"apiKey"</c> (default) uses the static <see cref="ApiKey"/>;
-        /// <c>"chatgptOAuth"</c> uses the OpenAI Sign-in with ChatGPT flow with tokens persisted in
-        /// the configured user data directory. Only meaningful for OpenAI protocols.
-        /// </summary>
-        [ConfigField(Hint = "Authentication method: 'apiKey' or 'chatgptOAuth' (OpenAI subscription).")]
-        public string AuthMethod { get; set; } = ModelProviderAuthMethods.ApiKey;
-
-        /// <summary>
-        /// ChatGPT account id (populated by the OAuth flow). Read-only metadata for UI display.
-        /// </summary>
-        [ConfigField(Hint = "Populated by Sign in with ChatGPT; do not edit manually.")]
-        public string ChatGptAccountId { get; set; } = string.Empty;
-
-        /// <summary>
-        /// ChatGPT plan tier extracted from the id_token (free, plus, pro, business, enterprise, edu).
-        /// </summary>
-        [ConfigField(Hint = "Populated by Sign in with ChatGPT; do not edit manually.")]
-        public string ChatGptPlanType { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Provider base URL. Empty values use the protocol's official default endpoint.
-        /// </summary>
-        public string EndPoint { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Optional provider-specific timeout in seconds.
-        /// </summary>
-        public int? NetworkTimeoutSeconds { get; set; }
-
-        /// <summary>
-        /// Optional provider-specific maximum output token default.
-        /// </summary>
-        [ConfigField(Min = 1, Hint = "Default max output tokens for provider requests when the request does not override it.")]
-        public int? MaxOutputTokens { get; set; }
-
-        /// <summary>
-        /// Optional provider-specific maximum stream reconnection attempts.
-        /// </summary>
-        [ConfigField(Min = 0, Hint = "Maximum stream reconnection attempts. 0 disables stream retry.")]
-        public int? StreamMaxRetries { get; set; }
-
-        /// <summary>
-        /// Optional provider-specific streaming idle timeout in milliseconds.
-        /// </summary>
-        [ConfigField(Min = 1, Hint = "Streaming idle timeout in milliseconds.")]
-        public int? StreamIdleTimeoutMs { get; set; }
-
-        /// <summary>
-        /// Provider-specific support flag for hosted OpenAI Responses image generation.
-        /// When omitted, official OpenAI Responses providers and ChatGPT OAuth default to enabled.
-        /// </summary>
-        public bool? SupportsHostedImageGeneration { get; set; }
-
-        public ModelProviderConfig Clone() => new()
-        {
-            DisplayName = DisplayName,
-            Protocol = Protocol,
-            ApiKey = ApiKey,
-            AuthMethod = AuthMethod,
-            ChatGptAccountId = ChatGptAccountId,
-            ChatGptPlanType = ChatGptPlanType,
-            EndPoint = EndPoint,
-            NetworkTimeoutSeconds = NetworkTimeoutSeconds,
-            MaxOutputTokens = MaxOutputTokens,
-            StreamMaxRetries = StreamMaxRetries,
-            StreamIdleTimeoutMs = StreamIdleTimeoutMs,
-            SupportsHostedImageGeneration = SupportsHostedImageGeneration
-        };
     }
 
     [ConfigSection("PromptCaching", DisplayName = "Prompt Caching", Order = 11)]

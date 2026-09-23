@@ -5508,6 +5508,12 @@ Clients must check `capabilities.channelStatus` before calling `channel/status`.
 
 These methods expose personal model provider management and provider model discovery. Provider records are personal configuration; workspace configuration only selects a provider id and model id.
 
+With a remote model service, provider records come from that service. They carry
+`managedBy: "modelService"` and `isAuthenticated`, and expose no upstream credentials.
+Listing, testing an existing provider, and selecting models remain available. Provider
+creation, mutation, draft testing, and subscription login/logout return an InvalidRequest
+with the management location. Clients show the service-managed state and disable these actions.
+
 Clients must check `capabilities.providerManagement` before calling any `provider/*` method and `capabilities.modelCatalogManagement` before calling `model/list`. If absent or `false`, the server returns `-32601` (Method not found).
 
 ### 21.2 `ProviderInfo` Wire DTO
@@ -5539,6 +5545,8 @@ Clients must check `capabilities.providerManagement` before calling any `provide
 | `protocol` | string | Provider protocol. Supported values are `openai-chat-completions`, `openai-responses`, and `anthropic`. |
 | `apiKey` | string? | Redacted secret marker when a key is present; raw secrets are never returned. |
 | `hasApiKey` | boolean | Whether the provider has an API key configured. |
+| `managedBy` | string? | `modelService` for providers administered by the remote service. |
+| `isAuthenticated` | boolean? | Credential availability reported by the remote service. |
 | `endPoint` | string | Configured provider base URL. Empty means the protocol's official default endpoint. |
 | `networkTimeoutSeconds` | integer? | Provider-specific timeout override. |
 | `streamMaxRetries` | integer? | Provider-specific maximum stream reconnection attempts. Defaults to `5`; valid range is `0`-`100`. |
@@ -8024,3 +8032,5 @@ Profile `id` references carry the canonical `name`: trim plus Unicode NFC, ordin
 `InputPart` supports `contextRef` with a typed `context` record (`pastedText`, `pageReference`, `responseAnnotation`, or `diffAnnotation`). Context identity, source snapshot, comment and owned image reference are persisted in native input; materialization expands the record into text/image parts once. Preview data URLs are not part of context records.
 
 `turn/start`, `turn/enqueue`, and `turn/steer` accept `clientUserMessageId`. Desktop supplies a fresh UUID for each submission; queue updates retain the existing ID. User-message payloads and queued inputs return that ID so live clients correlate acknowledgements without content matching. Channels without optimistic presentation may omit it.
+
+`provider/list` reports `managedBy: "modelService"` at the result level, including when no provider is currently available.

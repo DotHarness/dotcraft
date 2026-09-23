@@ -2,6 +2,8 @@
 
 用官方 Docker Compose stack，在一台 Linux 服务器上同时运行 DotCraft AppServer 和 [Oratorio](../oratorio)。两个服务共用同一个工作区目录。Oratorio 派发的任务，你在 Desktop 里可以直接打开对应的会话和 worktree。
 
+使用[模型服务](./model-service)，让多个 Stack 共用提供商，并将上游凭据保存在独立部署中。
+
 ## 初始化 stack
 
 安装 DotCraft CLI，然后创建部署目录：
@@ -56,7 +58,7 @@ docker compose --profile auth run --rm auth dotcraft auth openai login --no-brow
 命令会输出授权网址。在浏览器中完成登录后，启动服务：
 
 ```bash
-docker compose --profile sandbox up -d
+docker compose up -d
 ```
 
 每个部署目录分别登录。凭据保存在该目录的 `state/dotcraft` 中，备份或迁移部署时一并保存。

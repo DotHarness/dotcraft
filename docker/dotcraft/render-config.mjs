@@ -164,8 +164,16 @@ async function renderGlobalConfig(authMethod) {
   const configuredProviderId = trim(env.DOTCRAFT_PROVIDER);
   const providerId = first(configuredProviderId, trim(config.ProviderId));
   const apiKey = first(env.DOTCRAFT_API_KEY, "");
+  if (trim(env.DOTCRAFT_MODEL_MODE) !== "remote") delete config.ModelService;
 
-  if (configuredProviderId) {
+  if (trim(env.DOTCRAFT_MODEL_MODE) === "remote") {
+    config.ModelService = {
+      Endpoint: trim(env.DOTCRAFT_MODEL_SERVICE_URL),
+      Token: "$DOTCRAFT_MODEL_SERVICE_TOKEN",
+    };
+    delete config.Providers;
+    if (configuredProviderId) config.ProviderId = configuredProviderId;
+  } else if (configuredProviderId) {
     config.ProviderId = configuredProviderId;
 
     const providers = objectAt(config, "Providers");
@@ -314,10 +322,16 @@ async function renderWeixin() {
 }
 
 async function main() {
+  const mode = trim(env.DOTCRAFT_MODEL_MODE) || "direct";
+  if (mode !== "direct" && mode !== "remote")
+    throw new Error("DOTCRAFT_MODEL_MODE must be direct or remote.");
   const authMethod = trim(env.DOTCRAFT_AUTH_METHOD);
-  if (authMethod !== "apiKey" && authMethod !== "chatgptOAuth")
+  if (mode === "remote") {
+    for (const key of ["DOTCRAFT_MODEL_SERVICE_URL", "DOTCRAFT_MODEL_SERVICE_TOKEN", "DOTCRAFT_PROVIDER", "DOTCRAFT_MODEL"])
+      if (!trim(env[key])) throw new Error(`${key} is required in remote model mode.`);
+  } else if (authMethod !== "apiKey" && authMethod !== "chatgptOAuth")
     throw new Error("DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth.");
-  if (authMethod === "chatgptOAuth") {
+  if (mode === "direct" && authMethod === "chatgptOAuth") {
     if (!trim(env.DOTCRAFT_PROVIDER) || !trim(env.DOTCRAFT_MODEL))
       throw new Error("ChatGPT subscription mode requires DOTCRAFT_PROVIDER and DOTCRAFT_MODEL.");
   }

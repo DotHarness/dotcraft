@@ -23,6 +23,8 @@ public static class ProviderContractMapper
         return new Contract.ProviderInfo
         {
             Id = id,
+            ManagedBy = provider.RemoteAuthentication is null ? default : "modelService",
+            IsAuthenticated = provider.RemoteAuthentication is null ? default : provider.RemoteAuthentication.IsAuthenticated,
             DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? id : provider.DisplayName.Trim(),
             Protocol = protocol,
             ApiKey = string.IsNullOrWhiteSpace(provider.ApiKey) ? null : "********",

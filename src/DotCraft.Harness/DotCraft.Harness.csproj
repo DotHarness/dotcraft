@@ -52,6 +52,7 @@
     <ProjectReference Include="..\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
@@ -78,6 +79,7 @@
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.dll" TargetPath="DotCraft.Agents.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.dll" TargetPath="DotCraft.Agents.OpenAI.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.dll" TargetPath="DotCraft.Agents.Anthropic.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Remote.dll" TargetPath="DotCraft.Agents.Remote.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.xml" TargetPath="DotCraft.Runtime.xml" Condition="Exists('$(OutputPath)DotCraft.Runtime.xml')" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.xml" TargetPath="DotCraft.RemoteTools.xml" Condition="Exists('$(OutputPath)DotCraft.RemoteTools.xml')" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.xml" TargetPath="DotCraft.Core.xml" Condition="Exists('$(OutputPath)DotCraft.Core.xml')" />

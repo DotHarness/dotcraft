@@ -2,6 +2,8 @@
 
 Run DotCraft AppServer and [Oratorio](../oratorio) together on one Linux server with the official Docker Compose stack. Both services share the same workspace directory. Work that Oratorio dispatches opens in Desktop as an ordinary thread and worktree.
 
+Use a [model service](./model-service) to share provider access across Stacks while keeping upstream credentials in a separate deployment.
+
 ## Initialize the stack
 
 Install the DotCraft CLI, then create a deployment directory:
@@ -56,7 +58,7 @@ docker compose --profile auth run --rm auth dotcraft auth openai login --no-brow
 The command prints an authorization URL. Complete the login in your browser, then start the services:
 
 ```bash
-docker compose --profile sandbox up -d
+docker compose up -d
 ```
 
 Sign in separately from each deployment directory. Credentials are stored in that directory's `state/dotcraft`; include it in deployment backups or server migrations.

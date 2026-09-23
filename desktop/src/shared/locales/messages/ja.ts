@@ -1,6 +1,8 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_JA = {
+  "settings.llm.managedByService": "モデルサービスで管理されています。プロバイダーとログインはサービス側で管理してください。",
+  "settings.llm.serviceAuthenticationRequired": "モデルサービスでログインしてください。",
   "conversation.working": "処理中",
   "conversation.workingFor": "{{duration}}処理中",
   "conversation.worked": "処理済み",

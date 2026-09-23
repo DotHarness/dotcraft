@@ -39,6 +39,7 @@ public static partial class DotCraftCommandLine
         root.Subcommands.Add(CreateStackCommand());
         root.Subcommands.Add(CreateToolHostCommand());
         root.Subcommands.Add(CreateModelCatalogCommand());
+        root.Subcommands.Add(CreateModelServiceCommand());
         root.Subcommands.Add(CreateWorkflowWorkerCommand());
         return root;
     }

@@ -155,7 +155,10 @@ public sealed record EffectiveModelRuntime(
     string? ChatGptAccountId = null,
     bool SupportsHostedImageGeneration = false,
     bool UseResponsesLite = false,
-    string? ProviderStateDirectory = null)
+    string? ProviderStateDirectory = null,
+    bool IsRemote = false,
+    string? CallerNamespace = null,
+    DotCraft.Agents.ProviderRequestAdaptation? RequestAdaptation = null)
 {
     public bool IsOpenAICompatible => ModelProviderProtocols.IsOpenAIProtocol(Protocol);
     public bool IsOpenAIResponses => ModelProviderProtocols.IsOpenAIResponses(Protocol);

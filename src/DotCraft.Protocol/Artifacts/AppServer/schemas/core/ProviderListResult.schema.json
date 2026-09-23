@@ -4,6 +4,9 @@
   "title": "ProviderListResult",
   "type": "object",
   "properties": {
+    "managedBy": {
+      "type": "string"
+    },
     "providers": {
       "type": "array",
       "items": {

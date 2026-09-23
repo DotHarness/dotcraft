@@ -19,7 +19,12 @@ public static class ModelProviderResolver
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Model must be configured.", nameof(config));
 
-        return provider with { Model = model.Trim() };
+        var modelId = model.Trim();
+        return provider with
+        {
+            Model = modelId,
+            RequestAdaptation = config.Providers[provider.ProviderId].RemoteModels?.GetValueOrDefault(modelId)
+        };
     }
 
     public static EffectiveModelRuntime ResolveConsolidation(
@@ -187,7 +192,7 @@ public static class ModelProviderResolver
 
             // API key is irrelevant in OAuth mode; the OpenAIClientProvider injects a placeholder so
             // the SDK still constructs a client.
-            var apiKey = authMethod == ModelProviderAuthMethods.ChatGptOAuth
+            var apiKey = config.ModelService is not null || authMethod == ModelProviderAuthMethods.ChatGptOAuth
                 ? string.Empty
                 : provider.ApiKey?.Trim() ?? string.Empty;
 
@@ -208,7 +213,9 @@ public static class ModelProviderResolver
                 supportsHostedImageGeneration,
                 ProviderStateDirectory: string.IsNullOrWhiteSpace(config.GlobalConfigPath)
                     ? null
-                    : Path.GetDirectoryName(config.GlobalConfigPath));
+                    : Path.GetDirectoryName(config.GlobalConfigPath),
+                IsRemote: config.ModelService is not null,
+                CallerNamespace: config.ModelService?.CallerId);
             return true;
         }
 
