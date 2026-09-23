@@ -2,6 +2,8 @@ services:
   model-service:
     image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
     command: ["dotcraft", "model-service", "--state", "/state", "serve", "--listen", "http://0.0.0.0:8090"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - ./state:/state
     ports:

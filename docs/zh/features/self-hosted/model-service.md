@@ -26,7 +26,13 @@ cp config.example.json state/config.json
 }
 ```
 
-通过 Compose 环境变量将 `OPENAI_API_KEY` 传入 model-service 容器。上游凭据保存在模型服务的部署目录中。
+在该部署的 `.env` 中填写密钥：
+
+```dotenv
+OPENAI_API_KEY=your-openai-api-key
+```
+
+Compose 模板会将 `OPENAI_API_KEY` 传入 model-service 容器。其他提供商使用的环境变量，需要在 `docker-compose.yml` 中该服务的 `environment` 下添加对应条目。
 
 使用 ChatGPT 时，在有浏览器的电脑上转发回调端口：
 

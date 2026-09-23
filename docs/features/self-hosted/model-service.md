@@ -26,7 +26,13 @@ The example configures a ChatGPT provider named `openai`. To use an API key, edi
 }
 ```
 
-Pass `OPENAI_API_KEY` to the model-service container through its Compose environment. Keep upstream credentials in this service's deployment directory.
+Set the key in this deployment's `.env`:
+
+```dotenv
+OPENAI_API_KEY=your-openai-api-key
+```
+
+The Compose template passes `OPENAI_API_KEY` to the model-service container. For other provider environment variables, add matching entries under the service's `environment` in `docker-compose.yml`.
 
 For ChatGPT, forward the callback ports from the computer with your browser:
 
