@@ -309,7 +309,7 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread workspace updates are not supported by this session service.");
 
-    /// <summary>Updates a Thread's source-control write target.</summary>
+    /// <summary>Updates a Thread's source-control target.</summary>
     Task<SessionThread> UpdateThreadSourceControlTargetAsync(
         string threadId,
         ThreadSourceControlTarget? target,

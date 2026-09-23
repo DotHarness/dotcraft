@@ -11,7 +11,6 @@ using DotCraft.Dreams;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Security;
-using DotCraft.SourceControl;
 using DotCraft.Skills;
 using DotCraft.Logging;
 using DotCraft.Tools;
@@ -6067,8 +6066,6 @@ public sealed partial class SessionService(
                 await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
         }
 
-        toolContext.SourceControlWriteCoordinator = CreateSourceControlWriteCoordinator(currentConfig, toolContext.WorkspacePath, thread);
-
         toolContext.DeferredToolActivationIndex = null;
         var capabilityPolicy = new ThreadCapabilityPolicyEvaluator(config, toolContext);
         toolDispatchPolicyRegistry?.Bind(thread.Id, config, toolContext);
@@ -6224,42 +6221,6 @@ public sealed partial class SessionService(
         }
 
         return baseContext.ChatClientRegistry.GetChatClient(runtime);
-    }
-
-    private static ISourceControlWriteCoordinator? CreateSourceControlWriteCoordinator(
-        AppConfig config,
-        string workspacePath,
-        SessionThread thread)
-    {
-        var sourceControl = config.SourceControl;
-        var effective = SourceControlResolver.ResolveEffectiveProvider(sourceControl, workspacePath);
-        if (!string.Equals(effective, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase)
-            || !sourceControl.Perforce.Online)
-        {
-            return null;
-        }
-
-        var perforce = sourceControl.Perforce;
-        var timeoutSeconds = perforce.TimeoutSeconds > 0 ? perforce.TimeoutSeconds : 30;
-        var executable = string.IsNullOrWhiteSpace(perforce.P4ExecutablePath) ? "p4" : perforce.P4ExecutablePath.Trim();
-        var env = new Dictionary<string, string>(StringComparer.Ordinal);
-        var mode = SourceControlConnectionModes.Normalize(sourceControl.ConnectionMode);
-        if (mode == SourceControlConnectionModes.P4Config && !string.IsNullOrWhiteSpace(perforce.P4ConfigName))
-            env["P4CONFIG"] = perforce.P4ConfigName.Trim();
-
-        var runner = new DefaultPerforceCommandRunner(executable, workspacePath, TimeSpan.FromSeconds(timeoutSeconds), env);
-        return new PerforceFileWriteCoordinator(
-            runner,
-            new PerforceWorkspaceCommandOptions
-            {
-                WorkspacePath = workspacePath,
-                ConnectionMode = mode,
-                Port = perforce.Port,
-                Client = perforce.Client,
-                User = perforce.User,
-                Charset = perforce.Charset
-            },
-            () => ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata).Changelist);
     }
 
     private static AgentRuntimeContext CloneContextWithChatClient(

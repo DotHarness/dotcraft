@@ -1,7 +1,7 @@
 namespace DotCraft.Sessions;
 
 /// <summary>
-/// Thread-scoped source-control write target selected by a client.
+/// Thread-scoped source-control target selected by a client.
 /// </summary>
 public sealed record ThreadSourceControlTarget
 {

@@ -13,7 +13,6 @@ using DotCraft.Skills;
 using DotCraft.Lsp;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.SourceControl;
 using Microsoft.Extensions.AI;
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 
@@ -85,7 +84,6 @@ public sealed class AgentRuntimeContext
         AcpExtensionProxy = source.AcpExtensionProxy;
         NodeReplProxy = source.NodeReplProxy;
         AgentFileSystem = source.AgentFileSystem;
-        SourceControlWriteCoordinator = source.SourceControlWriteCoordinator;
     }
 
     /// <summary>
@@ -391,9 +389,4 @@ public sealed class AgentRuntimeContext
         get => field ??= new HostAgentFileSystem(WorkspacePath);
         set;
     }
-
-    /// <summary>
-    /// Optional source-control write coordinator used by file tools before and after mutations.
-    /// </summary>
-    public ISourceControlWriteCoordinator? SourceControlWriteCoordinator { get; set; }
 }

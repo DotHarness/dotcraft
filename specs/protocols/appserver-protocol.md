@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-09-15 |
+| **Date** | 2026-09-24 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -7134,7 +7134,7 @@ Semantics:
 
 ### 25A.1 Scope
 
-These methods bind a workspace to a source control provider, validate provider connectivity, and expose the Perforce pending-changelist workflow. They cover **selection, connection configuration, connectivity testing, workspace binding, thread-scoped Perforce write target selection, pending changelist creation, and changelist preparation**. They do **not** submit, shelve, or implement a general-purpose version control console.
+These methods bind a workspace to a source control provider, validate provider connectivity, and expose the Perforce pending-changelist workflow. They cover **selection, connection configuration, connectivity testing, workspace binding, thread-scoped Perforce changelist target selection, pending changelist creation, and changelist preparation**. They do **not** submit, shelve, or implement a general-purpose version control console.
 
 Connectivity testing runs in the **AppServer environment** with the workspace path as the working directory, so results reflect the machine, PATH, and credential context that actually owns the workspace (correct for both local and remote AppServers). Clients never execute `p4` locally.
 
@@ -7308,7 +7308,7 @@ New and ordinary threads default to `{ provider: "perforce", changelist: "defaul
 
 ### 25A.6 `sourceControl/threadTarget/get` and `sourceControl/threadTarget/update`
 
-Read or update the current thread's Perforce write target.
+Read or update the current thread's Perforce changelist target.
 
 `sourceControl/threadTarget/get`
 
@@ -7398,17 +7398,11 @@ Result:
 
 Prepare semantics:
 
+- Changelist membership is established only by `sourceControl/changelist/prepare`, which moves the thread's opened files into the target. File tools do not open files for edit or add them to a Perforce changelist; automatic `p4 edit`/`p4 add` around `WriteFile`/`EditFile` is left to `PreToolUse`/`PostToolUse` hooks configured by the user ([Lifecycle Hooks](../features/lifecycle-hooks.md)).
 - If target is `"default"`, the server creates a numbered pending changelist and moves this thread's opened files into it. On success it updates the thread target to the new id and emits `thread/updated`.
 - If target is a numbered changelist, the server confirms it exists, moves every supplied opened file that is not already in the target into it, and then updates its description when provided. Files already opened in a different pending changelist are moved because `sourceControl/changelist/prepare` is an explicit user checkout/prepare action. If moving files succeeds but the description update fails, the result is an error that still reports the target changelist and moved paths.
 - Files that are already in the target changelist are left as-is. Files that are not opened are ignored for movement unless Perforce reports an error while reading opened state.
 - Stable result/error codes include `Prepared`, `Created`, `NoFiles`, `Timeout`, `LoginRequired`, `ChangelistNotFound`, `FileAlreadyInOtherChangelist`, `P4ExecutableNotFound`, and `P4CommandFailed`.
-
-Tool write coordination:
-
-- When the effective workspace provider is `perforce` and source control is online, AppServer file tools coordinate writes against the current thread target.
-- Existing mapped files are opened for edit in the target changelist before `WriteFile`/`EditFile` writes. New files are added to the target changelist after a successful write.
-- If the target is a numbered changelist that no longer exists, the write fails with a stable source-control error and the client should ask the user to choose another target.
-- Files already opened in a different pending numbered changelist are not reopened by ordinary write coordination; the write may continue with a warning so user-owned changelist membership is preserved. Explicit `sourceControl/changelist/prepare` may move them into the selected target.
 
 ### 25A.9 Status and Error Taxonomy
 
