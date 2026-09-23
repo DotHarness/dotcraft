@@ -384,8 +384,7 @@ public sealed class AgentRuntimeContext
 
     /// <summary>
     /// File system abstraction for channel tools that need host-local file access.
-    /// Defaults to <see cref="HostAgentFileSystem"/>; overridden to sandbox implementation
-    /// when sandbox mode is enabled (see <c>SandboxToolProvider</c>).
+    /// Defaults to <see cref="HostAgentFileSystem"/>.
     /// </summary>
     public IAgentFileSystem AgentFileSystem
     {

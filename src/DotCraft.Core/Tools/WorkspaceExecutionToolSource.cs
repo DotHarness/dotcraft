@@ -32,9 +32,6 @@ public sealed class WorkspaceExecutionToolSource(
     /// <inheritdoc />
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        if (config.Tools.Sandbox.Enabled)
-            return [];
-
         var tools = new List<AIFunction>();
         var requireOutside = context.RequireApprovalOutsideWorkspace
             ?? config.Tools.File.RequireApprovalOutsideWorkspace;

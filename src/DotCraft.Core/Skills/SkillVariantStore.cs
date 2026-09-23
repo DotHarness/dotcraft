@@ -56,7 +56,6 @@ public sealed class SkillVariantStore(string craftPath)
     public static SkillVariantTarget CreateTarget(
         string? model,
         string? workspacePath,
-        bool sandboxEnabled,
         string? approvalPolicy,
         IReadOnlyCollection<string>? toolNames)
     {
@@ -77,7 +76,6 @@ public sealed class SkillVariantStore(string craftPath)
             Model = model?.Trim() ?? string.Empty,
             Os = os,
             Shell = shell,
-            Sandbox = sandboxEnabled ? "sandbox" : "host",
             ApprovalPolicy = approvalPolicy?.Trim() ?? string.Empty,
             WorkspaceHash = HashText(Path.GetFullPath(workspacePath ?? string.Empty).ToLowerInvariant()),
             ToolProfileHash = HashText(normalizedTools)
@@ -219,7 +217,6 @@ public sealed class SkillVariantStore(string craftPath)
         string.Equals(variant.Model, current.Model, StringComparison.OrdinalIgnoreCase)
         && string.Equals(variant.Os, current.Os, StringComparison.OrdinalIgnoreCase)
         && string.Equals(variant.Shell, current.Shell, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(variant.Sandbox, current.Sandbox, StringComparison.OrdinalIgnoreCase)
         && string.Equals(variant.WorkspaceHash, current.WorkspaceHash, StringComparison.Ordinal);
 
     private static SkillVariantManifest? TryReadManifest(string path)

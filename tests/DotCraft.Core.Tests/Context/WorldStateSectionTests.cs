@@ -9,7 +9,7 @@ namespace DotCraft.Tests.Context;
 public sealed class WorldStateSectionTests
 {
     private const string AgentAction =
-        "Agent mode is active. You may use read, write, shell, and other configured tools when appropriate under the normal approval and sandbox policy. Use task tools only when the work genuinely benefits from structured tracking. Do not call CreatePlan in Agent mode.";
+        "Agent mode is active. You may use read, write, shell, and other configured tools when appropriate under the normal approval policy. Use task tools only when the work genuinely benefits from structured tracking. Do not call CreatePlan in Agent mode.";
 
     private const string PlanAction =
         "Plan mode is active. You must not edit files, run mutating commands, change configuration, commit, push, or otherwise modify the workspace. Do not call goal tools in Plan mode. Read, search, reason, and call CreatePlan when the implementation plan is ready. When a user decision is needed for the plan, use `RequestUserInput` if available instead of plain text questions.";
@@ -18,7 +18,7 @@ public sealed class WorldStateSectionTests
         "Follow the active or approved plan. Before starting each planned task, update its progress when task tracking is active. After completing each task, mark it completed. Use workspace-changing tools when appropriate and continue until the planned work is complete or blocked. Do not call CreatePlan in Agent mode.";
 
     private const string SavedPlanAction =
-        "Agent mode is active and a saved plan is available. Follow the plan when it applies, keep task progress current for non-trivial work, and use workspace-changing tools when appropriate under the normal approval and sandbox policy. Do not call CreatePlan in Agent mode.";
+        "Agent mode is active and a saved plan is available. Follow the plan when it applies, keep task progress current for non-trivial work, and use workspace-changing tools when appropriate under the normal approval policy. Do not call CreatePlan in Agent mode.";
 
     [Fact]
     public void EnvironmentSection_RendersDateZoneAndWorkingDirectory()
@@ -78,7 +78,7 @@ public sealed class WorldStateSectionTests
 
         Assert.Equal(
             "## Mode\nCurrentMode: Agent\nModeTransition: PlanToAgent\n\n"
-            + "## Mode Transition\nYou have exited plan mode for this turn. You now have full workspace access subject to the normal approval and sandbox policy.\n\n"
+            + "## Mode Transition\nYou have exited plan mode for this turn. You now have full workspace access subject to the normal approval policy.\n\n"
             + $"## Mode Action\n{TransitionAction}",
             text);
     }

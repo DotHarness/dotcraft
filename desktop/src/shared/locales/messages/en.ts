@@ -3169,9 +3169,6 @@ export const MESSAGES_EN = {
   'settings.servers.stack.appServerPort': 'App server port',
   'settings.servers.stack.oratorioPort': 'Oratorio port',
   'settings.servers.stack.dashboardPort': 'Dashboard port',
-  'settings.servers.stack.runtime': 'Runtime',
-  'settings.servers.stack.sandbox': 'Sandbox',
-  'settings.servers.stack.sandboxHint': 'Run the optional sandbox service alongside this instance',
   'settings.servers.stack.tokenNote':
     "DotCraft reads this instance's sign-in token automatically when you connect. You never enter or store it here.",
   'settings.servers.stack.addButton': 'Add instance',

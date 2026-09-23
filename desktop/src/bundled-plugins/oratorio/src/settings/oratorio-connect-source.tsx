@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, CircleAlert, Pencil } from 'lucide-react'
 import { Button, IconButton, SettingsBreadcrumb, SettingsGroup, SettingsPanelShell, SettingsRow } from '../ui'
-import { oratorioClient } from '../oratorio-client'
+import { describeOratorioError, oratorioClient } from '../oratorio-client'
 import { oratorioHost, showOratorioToast } from '../runtime'
 import { useOratorioConnectT } from './oratorio-connect-i18n'
 import {
@@ -9,22 +9,24 @@ import {
   buildConnectTransaction,
   connectStepIssues,
   createConnectDraft,
-  providerInstance,
   scheduleSeconds,
+  shouldDetectGitHubInstallation,
   type ConnectContext,
   type ConnectDraft,
   type WorkspaceListState
 } from './oratorio-connect-model'
-import { ProviderGlyph, StepHeading, providerName } from './oratorio-connect-parts'
+import { ProviderGlyph, StepHeading, providerName, useGitLabTokenKindLabel } from './oratorio-connect-parts'
 import { AutomationStep, ProjectStep, SourceStep, WorkspaceStep } from './oratorio-connect-steps'
-import type { OratorioSettingsConfig, SourceProvider } from './oratorio-settings-model'
+import type { ConnectionSave } from './oratorio-settings-controller'
+import { projectOwner, providerInstance, type OratorioProjectConfig, type OratorioSettingsConfig, type SourceProvider } from './oratorio-settings-model'
 import type { LoadedOratorioSettings } from './oratorio-settings-service'
 import '../oratorio-connect-source.css'
 
 export interface ConnectController {
   draft: OratorioSettingsConfig
   snapshot(): OratorioSettingsConfig
-  commit(settings: OratorioSettingsConfig, options: { detectGitHubInstallations: boolean; schedule: { provider: SourceProvider; intervalSeconds: number | null } }): Promise<LoadedOratorioSettings>
+  saveConnection<T extends ConnectionSave>(build: (snapshot: OratorioSettingsConfig) => T): Promise<{ loaded: LoadedOratorioSettings; built: T }>
+  saveSchedule(provider: SourceProvider, intervalSeconds: number | null): Promise<void>
 }
 
 type ConnectPhase = 'idle' | 'pending' | 'success' | 'error'
@@ -32,7 +34,15 @@ type ConnectResult =
   | { kind: 'synced'; issues: number; requests: number }
   | { kind: 'running' }
   | { kind: 'detection' }
-  | { kind: 'failed'; message: string }
+  | { kind: 'saveFailed'; message: string }
+  | { kind: 'syncFailed'; message: string }
+
+/** What a successful save already committed, so a retry resumes after it instead of saving the connection twice. */
+interface SavedConnection {
+  draft: ConnectDraft
+  project: OratorioProjectConfig
+  scheduleSaved: boolean
+}
 
 const POLL_INTERVAL_MS = 1500
 const POLL_WINDOW_MS = 45_000
@@ -50,13 +60,17 @@ function useLocalProjects(): { projects: readonly { path: string; name: string; 
   return { projects, state: loading ? 'loading' : projects.length === 0 ? 'empty' : 'ready' }
 }
 
+function sameDraft(left: ConnectDraft, right: ConnectDraft): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 export function OratorioConnectSource({ controller, provider, readOnly, onExit, onOpenBoard, onConnected }: {
   controller: ConnectController
   provider: SourceProvider
   readOnly: boolean
   onExit: () => void
   onOpenBoard: () => void
-  onConnected: (projectId: string) => void
+  onConnected: (project: OratorioProjectConfig) => void
 }): JSX.Element {
   const t = useOratorioConnectT()
   const workspaces = useLocalProjects()
@@ -64,6 +78,8 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
   const [step, setStep] = useState(0)
   const [phase, setPhase] = useState<ConnectPhase>('idle')
   const [result, setResult] = useState<ConnectResult | null>(null)
+  const [saved, setSaved] = useState<SavedConnection | null>(null)
+  const savedRef = useRef<SavedConnection | null>(null)
 
   useEffect(() => {
     if (draft.workspacePath || workspaces.state !== 'ready') return
@@ -71,7 +87,7 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
     if (foreground) setDraft((current) => ({ ...current, workspacePath: foreground.path }))
   }, [draft.workspacePath, workspaces])
 
-  const context: ConnectContext = useMemo(() => ({ settings: controller.draft, workspaces: workspaces.state, readOnly }), [controller.draft, readOnly, workspaces.state])
+  const context: ConnectContext = useMemo(() => ({ settings: controller.draft, workspaces: workspaces.state, readOnly, connectedProjectKey: saved?.project.projectKey }), [controller.draft, readOnly, saved, workspaces.state])
   const stepId = CONNECT_STEPS[step]
   const issues = useMemo(() => connectStepIssues(stepId, draft, context), [context, draft, stepId])
   const last = step === CONNECT_STEPS.length - 1
@@ -81,22 +97,50 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
   const goTo = (index: number): void => { setStep(index); if (phase !== 'pending') setPhase('idle') }
   const stepLabels = [t('stepSource'), t('stepProject'), t('stepWorkspace'), t('stepAutomation'), t('stepConnect')]
 
+  function remember(next: SavedConnection | null): void {
+    savedRef.current = next
+    setSaved(next)
+  }
+
+  function saveDraft() {
+    return controller.saveConnection((snapshot) => ({
+      ...buildConnectTransaction(snapshot, draft),
+      detectGitHubInstallations: shouldDetectGitHubInstallation(snapshot, draft)
+    }))
+  }
+
   async function connect(): Promise<void> {
     setPhase('pending')
     setResult(null)
-    try {
-      const { settings, project } = buildConnectTransaction(controller.snapshot(), draft)
-      const detect = draft.provider === 'github' && !draft.github.installationId.trim()
-      const loaded = await controller.commit(settings, { detectGitHubInstallations: detect, schedule: { provider: draft.provider, intervalSeconds: scheduleSeconds(draft) } })
+    let connection = savedRef.current && sameDraft(savedRef.current.draft, draft) ? savedRef.current : null
+    if (!connection) {
+      let saveResult: Awaited<ReturnType<typeof saveDraft>>
+      try {
+        saveResult = await saveDraft()
+      } catch (error) {
+        setResult({ kind: 'saveFailed', message: describeOratorioError(error) })
+        setPhase('error')
+        return
+      }
+      const { loaded, built } = saveResult
+      connection = { draft, project: built.project, scheduleSaved: false }
+      remember(connection)
       showOratorioToast({ message: t('configurationSaved'), tone: 'success' })
-      onConnected(project.id)
-      const owner = project.projectKey.split('/')[0]?.toLowerCase()
-      if (detect && loaded.gitHubInstallationWarnings.some((warning) => warning.owner.toLowerCase() === owner)) {
+      onConnected(built.project)
+      const owner = projectOwner(built.project.projectKey).toLowerCase()
+      if (built.detectGitHubInstallations && loaded.gitHubInstallationWarnings.some((warning) => warning.owner.toLowerCase() === owner)) {
         setResult({ kind: 'detection' })
         setPhase('error')
         return
       }
-      const job = await oratorioClient.sync(draft.provider, 'incremental', [project.projectKey])
+    }
+    try {
+      if (!connection.scheduleSaved) {
+        await controller.saveSchedule(draft.provider, scheduleSeconds(draft))
+        connection = { ...connection, scheduleSaved: true }
+        remember(connection)
+      }
+      const job = await oratorioClient.sync(draft.provider, 'incremental', [connection.project.projectKey])
       const settled = await pollSyncJob(draft.provider, job.jobId, job.status)
       if (!settled) {
         setResult({ kind: 'running' })
@@ -108,11 +152,11 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
         setResult({ kind: 'synced', issues: settled.issuesImported ?? 0, requests: settled.reviewTargetsImported ?? 0 })
         setPhase('success')
       } else {
-        setResult({ kind: 'failed', message: settled.errorMessage ?? settled.errorCode ?? status })
+        setResult({ kind: 'syncFailed', message: settled.errorMessage ?? settled.errorCode ?? status })
         setPhase('error')
       }
     } catch (error) {
-      setResult({ kind: 'failed', message: error instanceof Error ? error.message : String(error) })
+      setResult({ kind: 'syncFailed', message: describeOratorioError(error) })
       setPhase('error')
     }
   }
@@ -147,7 +191,7 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
           {stepId === 'project' ? <ProjectStep draft={draft} settings={controller.draft} issues={issues} readOnly={readOnly} update={update} /> : null}
           {stepId === 'workspace' ? <WorkspaceStep draft={draft} settings={controller.draft} issues={issues} readOnly={readOnly} update={update} projects={workspaces.projects} workspaces={workspaces.state} /> : null}
           {stepId === 'automation' ? <AutomationStep draft={draft} settings={controller.draft} issues={issues} readOnly={readOnly} update={update} /> : null}
-          {stepId === 'connect' ? <ConnectSummary draft={draft} phase={phase} result={result} onChange={goTo} onRetry={() => void connect()} onOpenBoard={onOpenBoard} onExit={onExit} onConnectAnother={() => { setDraft(createConnectDraft(controller.snapshot(), draft.provider)); setResult(null); setPhase('idle'); setStep(0) }} /> : null}
+          {stepId === 'connect' ? <ConnectSummary draft={draft} phase={phase} result={result} onChange={goTo} onOpenBoard={onOpenBoard} onExit={onExit} onConnectAnother={() => { setDraft(createConnectDraft(controller.snapshot(), draft.provider)); remember(null); setResult(null); setPhase('idle'); setStep(0) }} /> : null}
         </div>
         <div className="ora-connect__footer">
           {phase === 'success' ? <><span className="ora-connect__footer-spacer" /><Button variant="secondary" onClick={onExit}>{t('done')}</Button></> : <>
@@ -174,22 +218,22 @@ async function pollSyncJob(provider: SourceProvider, jobId: string, initialStatu
   return null
 }
 
-function ConnectSummary({ draft, phase, result, onChange, onRetry, onOpenBoard, onExit, onConnectAnother }: {
+function ConnectSummary({ draft, phase, result, onChange, onOpenBoard, onExit, onConnectAnother }: {
   draft: ConnectDraft
   phase: ConnectPhase
   result: ConnectResult | null
   onChange: (step: number) => void
-  onRetry: () => void
   onOpenBoard: () => void
   onExit: () => void
   onConnectAnother: () => void
 }): JSX.Element {
   const t = useOratorioConnectT()
+  const tokenKindLabel = useGitLabTokenKindLabel()
   const github = draft.provider === 'github'
   const change = (step: number, section: string): JSX.Element | undefined => phase === 'pending' || phase === 'success' ? undefined : <IconButton icon={<Pencil size={16} />} label={t('changeSection', { section })} tooltipLabel={t('change')} onClick={() => onChange(step)} />
   const schedule = draft.schedule === 'off' ? t('manualSync') : draft.schedule === '15m' ? t('every15') : draft.schedule === '1h' ? t('everyHour') : t('everyMinutes', { n: draft.customMinutes })
-  const access = github ? t('accessGitHub', { id: draft.github.appId.trim() }) : `${draft.gitlab.tokenKind === 'personalAccessToken' ? t('personalAccessToken') : draft.gitlab.tokenKind === 'groupAccessToken' ? t('groupAccessToken') : t('projectAccessToken')} · ••••••••`
-  const detection = result?.kind === 'detection'
+  const access = github ? t('accessGitHub', { id: draft.github.appId.trim() }) : `${tokenKindLabel(draft.gitlab.tokenKind)} · ••••••••`
+  const failure = phase === 'error' && result && result.kind !== 'synced' && result.kind !== 'running' ? result : null
   return (
     <div className="ora-connect__step">
       <StepHeading title={phase === 'success' ? t('connectedTitle') : t('connectTitle')} description={phase === 'success' ? t('connectedDescription') : t('connectDescription')} />
@@ -211,13 +255,12 @@ function ConnectSummary({ draft, phase, result, onChange, onRetry, onOpenBoard, 
           </span>
         </div>
       ) : null}
-      {phase === 'error' && result ? (
+      {failure ? (
         <div className="ora-connect__result" data-tone="error" role="alert">
-          <span className="ora-connect__result-line"><CircleAlert size={15} aria-hidden="true" /><strong>{t('syncFailedTitle')}</strong></span>
-          <p>{detection ? t('detectionWarning') : result.kind === 'failed' ? result.message : null} {t('savedNote')}</p>
+          <span className="ora-connect__result-line"><CircleAlert size={15} aria-hidden="true" /><strong>{failure.kind === 'saveFailed' ? t('saveFailedTitle') : t('syncFailedTitle')}</strong></span>
+          <p>{failure.kind === 'detection' ? t('detectionWarning') : failure.message} {failure.kind === 'saveFailed' ? t('notSavedNote') : t('savedNote')}</p>
           <span className="ora-connect__result-actions">
-            <Button variant="primary" onClick={onRetry}>{t('retry')}</Button>
-            <Button variant="secondary" onClick={() => onChange(detection ? 1 : 0)}>{detection ? t('enterInstallationId') : t('backToAccess')}</Button>
+            <Button variant="secondary" onClick={() => onChange(failure.kind === 'detection' ? 1 : 0)}>{failure.kind === 'detection' ? t('enterInstallationId') : t('backToAccess')}</Button>
           </span>
         </div>
       ) : null}

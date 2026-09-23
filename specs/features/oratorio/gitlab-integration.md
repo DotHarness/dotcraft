@@ -580,13 +580,15 @@ Credential UX rules:
 - profile secrets are submitted once and never echoed back;
 - profile token, webhook secret, and signing token fields use one-shot replace,
   clear, and unchanged semantics;
-- removing a configured GitLab project removes its profile secrets from the next
-  Configuration Overlay save;
+- a project profile, including its secrets, persists while its project is
+  configured or has a workspace route on the current GitLab instance, so a
+  routed project can leave the configured list and return without re-entering
+  its token; a project that is neither configured nor routed loses its profile
+  secrets on the next Configuration Overlay save;
 - changing the GitLab endpoint host clears old project profiles and requires
   new profiles for the new instance;
 - write capability is separate from read capability;
-- saved configuration changes require an Oratorio server restart unless a
-  later hot-reload contract is added.
+- saved configuration changes apply without an Oratorio server restart.
 
 Review and automation UX:
 

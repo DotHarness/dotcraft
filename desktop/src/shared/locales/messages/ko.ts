@@ -1228,9 +1228,6 @@ export const MESSAGES_KO = {
   'settings.servers.stack.appServerPort': 'App server 포트',
   'settings.servers.stack.oratorioPort': 'Oratorio 포트',
   'settings.servers.stack.dashboardPort': 'Dashboard 포트',
-  'settings.servers.stack.runtime': '런타임',
-  'settings.servers.stack.sandbox': 'Sandbox',
-  'settings.servers.stack.sandboxHint': '선택적 sandbox 서비스를 이 인스턴스와 함께 실행합니다',
   'settings.servers.stack.tokenNote':
     '연결할 때 DotCraft가 이 인스턴스의 로그인 토큰을 자동으로 읽습니다. 여기에서 입력하거나 저장하지 않습니다.',
   'settings.servers.stack.addButton': '인스턴스 추가',

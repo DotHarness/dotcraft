@@ -1228,9 +1228,6 @@ export const MESSAGES_DE = {
   'settings.servers.stack.appServerPort': 'App server Port',
   'settings.servers.stack.oratorioPort': 'Oratorio-Port',
   'settings.servers.stack.dashboardPort': 'Dashboard Port',
-  'settings.servers.stack.runtime': 'Runtime',
-  'settings.servers.stack.sandbox': 'Sandbox',
-  'settings.servers.stack.sandboxHint': 'Optionalen sandbox-Dienst zusammen mit dieser Instanz ausführen',
   'settings.servers.stack.tokenNote':
     'DotCraft liest das Anmeldetoken dieser Instanz automatisch, wenn Sie eine Verbindung herstellen. Sie geben es hier nie ein und speichern es nicht.',
   'settings.servers.stack.addButton': 'Instanz hinzufügen',

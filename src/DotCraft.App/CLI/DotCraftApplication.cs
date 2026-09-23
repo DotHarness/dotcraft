@@ -10,7 +10,6 @@ using DotCraft.Text;
 using DotCraft.Modules;
 using DotCraft.Logging;
 using DotCraft.DynamicWorkflows;
-using DotCraft.OpenSandbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -274,7 +273,6 @@ internal static class DotCraftApplication
                     .AddSingleton(moduleRegistry)
                     .AddSingleton(cliArgs)
                     .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
-                    .AddOpenSandboxProvider(config.Tools.Sandbox)
                     .AddDotCraftHarness(config, options =>
                     {
                         options.WorkspacePath = workspacePath;

@@ -5,6 +5,7 @@ import {
   createConnectDraft,
   hasConfiguredSource,
   scheduleSeconds,
+  shouldDetectGitHubInstallation,
   type ConnectContext
 } from './oratorio-connect-model'
 import { createDefaultOratorioSettings, type OratorioSettingsConfig } from './oratorio-settings-model'
@@ -99,13 +100,13 @@ describe('Oratorio connect-a-source model', () => {
         webhookSigningToken: { configured: false, mode: 'unchanged', value: null }
       }
     }])
-    expect(project).toEqual({ id: 'gitlab-group-sub-project', provider: 'gitlab', projectKey: 'Group/Sub/Project', workspacePath: '/workspaces/project', profileId: 'gitlab:gitlab.com:Group/Sub/Project', enabled: true })
+    expect(project).toEqual({ id: 'gitlab:Group/Sub/Project', provider: 'gitlab', projectKey: 'Group/Sub/Project', workspacePath: '/workspaces/project', profileId: 'gitlab:gitlab.com:Group/Sub/Project', enabled: true })
     expect(next.projects).toEqual([project])
     expect(next.autoReview).toEqual(['gitlab:gitlab.com/group/sub/project'])
     expect(settings.projects).toEqual([])
   })
 
-  it('derives a detected GitHub owner profile and replaces credentials only when provided', () => {
+  it('leaves GitHub installation profiles to server detection unless an installation ID is typed', () => {
     const settings = settingsWithGitHubApp()
     const draft = createConnectDraft(settings, 'github')
     Object.assign(draft, { projectKey: 'acme/example', workspacePath: '/workspaces/example', autoReview: false })
@@ -115,14 +116,35 @@ describe('Oratorio connect-a-source model', () => {
     expect(next.github.appId).toBe('184203')
     expect(next.github.secrets.privateKey.mode).toBe('unchanged')
     expect(next.github.secrets.privateKeyPath.mode).toBe('unchanged')
-    expect(next.github.profiles).toEqual([{ id: 'github:github.com:acme', instance: 'github.com', owner: 'acme', installationId: '', source: 'detected' }])
+    expect(next.github.profiles).toEqual([])
+    expect(shouldDetectGitHubInstallation(settings, draft)).toBe(true)
     expect(next.autoReview).toEqual([])
 
     draft.github.installationId = '48213377'
     draft.github.keyMode = 'path'
     draft.github.privateKeyPath = '/keys/app.pem'
     const manual = buildConnectTransaction(settings, draft).settings
-    expect(manual.github.profiles[0]).toMatchObject({ installationId: '48213377', source: 'manual' })
+    expect(manual.github.profiles).toEqual([{ id: 'github:github.com:acme', instance: 'github.com', owner: 'acme', installationId: '48213377', source: 'manual' }])
     expect(manual.github.secrets.privateKeyPath).toEqual({ configured: true, mode: 'replace', value: '/keys/app.pem' })
+    expect(shouldDetectGitHubInstallation(manual, { ...draft, github: { ...draft.github, installationId: '' } })).toBe(false)
+  })
+
+  it('upserts instead of duplicating when a saved connection is applied again', () => {
+    const draft = createConnectDraft(createDefaultOratorioSettings(), 'gitlab')
+    Object.assign(draft, { projectKey: 'group/app', workspacePath: '/workspaces/app' })
+    draft.gitlab.token = 'first-token'
+    const saved = buildConnectTransaction(createDefaultOratorioSettings(), draft).settings
+    saved.gitlab.profiles[0].secrets.webhookSecret = { configured: true, mode: 'unchanged', value: null }
+
+    draft.gitlab.token = 'second-token'
+    const { settings: again } = buildConnectTransaction(saved, { ...draft, projectKey: 'Group/App' })
+
+    expect(again.projects).toHaveLength(1)
+    expect(again.gitlab.profiles).toHaveLength(1)
+    expect(again.gitlab.profiles[0].secrets.token).toEqual({ configured: true, mode: 'replace', value: 'second-token' })
+    expect(again.gitlab.profiles[0].secrets.webhookSecret.configured).toBe(true)
+    expect(again.autoReview).toEqual(['gitlab:gitlab.com/group/app'])
+    expect(connectStepIssues('project', draft, context(again, { connectedProjectKey: 'group/app' }))).toEqual([])
+    expect(connectStepIssues('project', draft, context(again))).toEqual(['duplicate'])
   })
 })

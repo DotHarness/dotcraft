@@ -1,6 +1,6 @@
-# Security & Sandbox
+# Security
 
-DotCraft holds the agent inside four layers of guardrails: a file blacklist, the workspace boundary, tool capability switches, and sandbox isolation. A personal local project needs the defaults plus a few sensitive paths. Once DotCraft is exposed through external channels or the public internet, work through the strict deployment checklist below.
+DotCraft holds the agent inside four layers of guardrails: a file blacklist, the workspace boundary, and tool capability switches. A personal local project needs the defaults plus a few sensitive paths. Once DotCraft is exposed through external channels or the public internet, work through the strict deployment checklist below.
 
 ![DotCraft security guardrails overview](/security-guardrails-overview.svg)
 
@@ -12,9 +12,8 @@ In a freshly created workspace:
 - Shell commands that force-delete files or open a URL ask before running. Other commands inside the workspace run without a prompt.
 - The blacklist is empty, so add the credential and secret directories that matter on your machine.
 - Every built-in tool is available until you narrow the tool surface.
-- Sandbox isolation is off until you turn it on.
 
-Field names, defaults, and JSON examples for all of these live in [Tools, Security, and Sandbox](../../developing/configuration#tools-security-and-sandbox).
+Field names, defaults, and JSON examples for all of these live in [Tools and Security](../../developing/configuration#tools-and-security).
 
 ## File blacklist
 
@@ -42,11 +41,11 @@ Each choice remembers a different amount:
 - **Allow for this session** skips the prompt for this exact command, in this directory, for the rest of the conversation.
 - **Always allow** writes a rule that allows commands starting with the same words. Dangerous commands and unreadable scripts are an exception: they're remembered exactly, never as a rule.
 
-Rules you write yourself decide a command before any other check. Each rule names the leading words of a command and whether to allow it, ask, or refuse it, so `git push` can always ask and `rm` can always be refused. The field format is in [Tools, Security, and Sandbox](../../developing/configuration#tools-security-and-sandbox).
+Rules you write yourself decide a command before any other check. Each rule names the leading words of a command and whether to allow it, ask, or refuse it, so `git push` can always ask and `rm` can always be refused. The field format is in [Tools and Security](../../developing/configuration#tools-and-security).
 
 ## Tool capability switches
 
-Tool policies decide which built-in tools the agent can see, whether outside-workspace file and shell actions need approval, how much content file and web responses may return, and whether LSP and sandbox tools are enabled. When you need a precise allow-list, a web-search provider, a timeout, or an output limit, look up the field in [Tools, Security, and Sandbox](../../developing/configuration#tools-security-and-sandbox).
+Tool policies decide which built-in tools the agent can see, whether outside-workspace file and shell actions need approval, how much content file and web responses may return, and whether LSP tools are enabled. When you need a precise allow-list, a web-search provider, a timeout, or an output limit, look up the field in [Tools and Security](../../developing/configuration#tools-and-security).
 
 ## Hooks
 
@@ -59,12 +58,6 @@ When writing a Hook:
 - Never put secrets in a Hook — use environment variables or global config.
 - Write command paths relative to the workspace — cwd differs across entry points.
 
-## Sandbox (OpenSandbox)
-
-[OpenSandbox](https://github.com/alibaba/OpenSandbox) runs Shell and File tool execution inside a Docker container. This layer matters most when a workspace is exposed through a bot, a shared server, or an untrusted task queue.
-
-It needs an OpenSandbox service. Prerequisites and every sandbox field are in [Tools, Security, and Sandbox](../../developing/configuration#tools-security-and-sandbox).
-
 ## Strict deployment checklist
 
 When DotCraft is exposed through external channels or the public internet, enable these together:
@@ -75,7 +68,6 @@ When DotCraft is exposed through external channels or the public internet, enabl
 | Blacklist | Deny secret and credential directories |
 | Tool surface | Keep only the tools the deployment needs |
 | AppServer | Use a strong random WebSocket token for remote access |
-| Sandbox | Enable OpenSandbox when further isolation is needed |
 | Subagents | Keep recursive delegation bounded unless you explicitly need it |
 
 ## Scenarios

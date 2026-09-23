@@ -303,8 +303,10 @@ maximum follow-up rounds). Tokens,
 webhook secrets, and private keys are writable only through one-shot
 replace/clear semantics and must be stored encrypted. Auto-start commands and
 process arguments are never writable through Settings. Writes create a durable
-redacted configuration change audit entry and return a restart-required
-signature; they do not hot-apply by reloading the configuration root.
+redacted configuration change audit entry and apply without a restart: the
+server reloads the configuration overlay before the write responds, so
+subsequent reads and dependent operations such as sync schedules and sync jobs
+observe the saved values immediately.
 
 Repository workspace routes are declarative configuration. Configuration writes
 validate each canonical source project key and require a syntactically valid,

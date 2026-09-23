@@ -20,6 +20,7 @@ public sealed class ServerConfigurationService(
     OratorioDbContext db,
     IClock clock,
     IWebHostEnvironment environment,
+    IConfiguration appConfiguration,
     IOptionsMonitor<GitHubOptions> gitHubOptions,
     IOptionsMonitor<GitLabOptions> gitLabOptions,
     IOptionsMonitor<DotCraftOptions> dotCraftOptions,
@@ -258,6 +259,8 @@ public sealed class ServerConfigurationService(
         }
 
         await PersistOverlayAsync(nextConfiguration, overlayPath, ct);
+        // The overlay file watcher reloads asynchronously; reload now so the next request reads this write.
+        ((IConfigurationRoot)appConfiguration).Reload();
 
         var newRevision = ComputeRevision(overlayPath);
         var savedConfiguration = BuildSavedConfiguration(nextConfiguration, before.GitHub.Secrets, before.GitLab.ProjectProfiles);
@@ -330,7 +333,7 @@ public sealed class ServerConfigurationService(
                 gitLab.EffectiveEndpoint,
                 gitLab.EffectiveApiBaseUrl,
                 gitLab.Projects,
-                BuildGitLabProjectProfiles(gitLab),
+                BuildGitLabProjectProfiles(gitLab, dotCraft),
                 gitLab.AllowLocalDevelopmentUnsafeWebhooks),
             new DotCraftServerConfigurationDto(
                 dotCraft.RepositoryWorkspaceRoutes
@@ -473,7 +476,6 @@ public sealed class ServerConfigurationService(
             .Cast<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var configuredGitLabProjects = gitLabProjects.ToHashSet(StringComparer.OrdinalIgnoreCase);
         return configuration with
         {
             GitLab = configuration.GitLab with
@@ -482,7 +484,10 @@ public sealed class ServerConfigurationService(
                 ProjectProfiles = NormalizeGitLabProjectProfiles(
                     configuration.GitLab.ProjectProfiles,
                     gitLabInstance,
-                    configuredGitLabProjects)
+                    KnownGitLabProjects(
+                        gitLabProjects,
+                        configuration.DotCraft.RepositoryWorkspaceRoutes.Select(route => route.Project),
+                        gitLabInstance))
             }
         };
     }
@@ -515,14 +520,9 @@ public sealed class ServerConfigurationService(
     private static string ProfileKey(GitHubInstallationProfileDto profile) =>
         $"{profile.Instance}/{profile.Owner}";
 
-    private static IReadOnlyList<GitLabProjectProfileDto> BuildGitLabProjectProfiles(GitLabOptions options)
+    private static IReadOnlyList<GitLabProjectProfileDto> BuildGitLabProjectProfiles(GitLabOptions options, DotCraftOptions dotCraft)
     {
         var endpointInstance = SourceProjectKey.ResolveGitLabInstance(options.Endpoint);
-        var configuredProjects = (options.Projects ?? [])
-            .Select(SourceProjectKey.NormalizeGitLabProjectPath)
-            .Where(project => !string.IsNullOrWhiteSpace(project))
-            .Cast<string>()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return NormalizeGitLabProjectProfiles(
             (options.ProjectProfiles ?? [])
                 .Select(profile => new GitLabProjectProfileDto(
@@ -534,13 +534,40 @@ public sealed class ServerConfigurationService(
                         SecretStatus(profile.WebhookSecret),
                         SecretStatus(profile.WebhookSigningToken)))),
             endpointInstance,
-            configuredProjects);
+            KnownGitLabProjects(
+                options.Projects ?? [],
+                dotCraft.RepositoryWorkspaceRoutes.Select(route => route.Project),
+                endpointInstance));
+    }
+
+    private static IReadOnlySet<string> KnownGitLabProjects(
+        IEnumerable<string> projects,
+        IEnumerable<string> routedProjectKeys,
+        string endpointInstance)
+    {
+        var known = projects
+            .Select(SourceProjectKey.NormalizeGitLabProjectPath)
+            .Where(project => !string.IsNullOrWhiteSpace(project))
+            .Cast<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var routedProjectKey in routedProjectKeys)
+        {
+            if (SourceProjectKey.TryParse(routedProjectKey, out var key) &&
+                string.Equals(key.Provider, "gitlab", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(key.Instance, endpointInstance, StringComparison.OrdinalIgnoreCase) &&
+                SourceProjectKey.NormalizeGitLabProjectPath(key.ProjectPath) is { } projectPath)
+            {
+                known.Add(projectPath);
+            }
+        }
+
+        return known;
     }
 
     private static IReadOnlyList<GitLabProjectProfileDto> NormalizeGitLabProjectProfiles(
         IEnumerable<GitLabProjectProfileDto> profiles,
         string endpointInstance,
-        IReadOnlySet<string> configuredProjects)
+        IReadOnlySet<string> knownProjects)
     {
         var normalized = new List<GitLabProjectProfileDto>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -548,7 +575,7 @@ public sealed class ServerConfigurationService(
         {
             var projectPath = SourceProjectKey.NormalizeGitLabProjectPath(profile.ProjectPath);
             if (string.IsNullOrWhiteSpace(projectPath) ||
-                configuredProjects.Count > 0 && !configuredProjects.Contains(projectPath))
+                knownProjects.Count > 0 && !knownProjects.Contains(projectPath))
             {
                 continue;
             }

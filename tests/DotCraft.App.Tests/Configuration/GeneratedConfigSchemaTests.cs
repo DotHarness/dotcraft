@@ -123,7 +123,6 @@ public sealed class GeneratedConfigSchemaTests
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.Contains("DashBoard.Password", paths);
-        Assert.Contains("Tools.Sandbox.ApiKey", paths);
         Assert.Contains("AppServer.WebSocket.Token", paths);
     }
 }

@@ -141,8 +141,8 @@ install markers, are excluded. A changed fingerprint makes a previously current 
 ### 5.2 Target signatures
 
 The persisted target records the DotCraft harness and version, model, operating system, shell,
-sandbox posture, available-tool hash, approval policy, and workspace hash. Current variant
-selection compares model, operating system, shell, sandbox posture, and workspace hash. Matching is
+available-tool hash, approval policy, and workspace hash. Current variant
+selection compares model, operating system, shell, and workspace hash. Matching is
 case-insensitive except for the workspace hash.
 
 ### 5.3 Resolution

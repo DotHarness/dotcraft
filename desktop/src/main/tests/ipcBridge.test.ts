@@ -1333,7 +1333,6 @@ describe('registerIpcHandlers', () => {
         appServerPort: 9100,
         oratorioPort: 5087,
         dashboardPort: 8080,
-        sandboxProfile: false
       }]
     }
 
@@ -1449,7 +1448,6 @@ describe('registerIpcHandlers', () => {
         workspaceDir: '/srv/dotcraft/chatops/deploy/workspace',
         appServerPort: 9100,
         dashboardPort: 8080,
-        sandboxProfile: false
       }]
     }
     const readCoreConfig = vi.spyOn(getRemoteServersManager(), 'readCoreConfig').mockResolvedValue({

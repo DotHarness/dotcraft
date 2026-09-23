@@ -16,6 +16,9 @@ type OratorioRequest = { method?: string; path: string; body?: any }
 
 let pluginHost: DesktopPluginHost
 let requests: OratorioRequest[]
+let jobStatuses: string[]
+let currentJobStatus: string
+let rejectNextSave: string | null
 
 function localProjects() {
   return {
@@ -34,16 +37,24 @@ function serverRequest(request: OratorioRequest): { status: number; data: unknow
   requests.push(request)
   if (request.path === '/api/v1/sources/sync-schedules') return { status: 200, data: { schedules: [] } }
   if (request.path === '/api/v1/settings/server-configuration') {
+    if (request.method === 'PUT' && rejectNextSave) {
+      const message = rejectNextSave
+      rejectNextSave = null
+      throw new Error(message)
+    }
     if (request.method === 'PUT') {
       return { status: 200, data: { configuration: { revision: '2', restartRequired: false, configuration: request.body.configuration }, gitHubInstallationWarnings: [] } }
     }
     return { status: 200, data: { revision: '1', restartRequired: false, configuration: {} } }
   }
   if (request.path === '/api/v1/sources/gitlab/sync-jobs') {
-    return { status: 200, data: { jobId: 'job-1', provider: 'gitlab', status: 'succeeded', mode: 'incremental', createdAt: '', updatedAt: '' } }
+    currentJobStatus = jobStatuses.shift() ?? 'succeeded'
+    return { status: 200, data: { jobId: 'job-1', provider: 'gitlab', status: currentJobStatus, mode: 'incremental', createdAt: '', updatedAt: '' } }
   }
   if (request.path === '/api/v1/sources/sync-jobs/job-1?provider=gitlab') {
-    return { status: 200, data: { jobId: 'job-1', provider: 'gitlab', status: 'succeeded', mode: 'incremental', createdAt: '', updatedAt: '', projectsFailed: 0, issuesImported: 12, reviewTargetsImported: 3 } }
+    return currentJobStatus === 'failed'
+      ? { status: 200, data: { jobId: 'job-1', provider: 'gitlab', status: 'failed', mode: 'incremental', createdAt: '', updatedAt: '', projectsFailed: 1, errorMessage: 'The project token was refused (401).' } }
+      : { status: 200, data: { jobId: 'job-1', provider: 'gitlab', status: 'succeeded', mode: 'incremental', createdAt: '', updatedAt: '', projectsFailed: 0, issuesImported: 12, reviewTargetsImported: 3 } }
   }
   if (request.path.startsWith('/api/v1/tasks')) return { status: 200, data: { tasks: [], nextCursor: null } }
   return { status: 200, data: {} }
@@ -55,6 +66,9 @@ describe('Oratorio connect-a-source', () => {
     useToastStore.setState({ toasts: [] })
     useWorkspaceProjectsStore.getState().reset()
     requests = []
+    jobStatuses = []
+    currentJobStatus = 'succeeded'
+    rejectNextSave = null
     installDesktopApiMock({
       platform: 'win32',
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
@@ -70,35 +84,7 @@ describe('Oratorio connect-a-source', () => {
   })
 
   it('connects a GitLab project through the guided flow with one configuration save and a confirmed sync', async () => {
-    render(
-      <LocaleProvider>
-        <OratorioSettingsPluginSurface host={pluginHost} contributionId="oratorio" />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect a source' }))
-    const next = () => fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    const onStep = (step: string) => waitFor(() => expect(screen.getByRole('button', { name: step })).toHaveAttribute('aria-current', 'step'))
-
-    await onStep('Source')
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
-
-    fireEvent.click(screen.getByRole('radio', { name: /GitLab/ }))
-    fireEvent.change(screen.getByLabelText('Token'), { target: { value: 'token-value' } })
-    next()
-
-    await onStep('Project')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Project' }), { target: { value: 'group/demo' } })
-    next()
-
-    await onStep('Workspace')
-    await waitFor(() => expect(screen.getByRole('radio', { name: /Current/ })).toBeChecked())
-    next()
-
-    await onStep('Automation')
-    next()
-
-    await onStep('Connect')
+    await driveGitLabWizardToConnect()
     fireEvent.click(screen.getByRole('button', { name: 'Connect and sync' }))
     expect(await screen.findByText('Read access confirmed')).toBeInTheDocument()
     expect(screen.getByText('12 issues and 3 merge requests synced from group/demo.')).toBeInTheDocument()
@@ -120,6 +106,33 @@ describe('Oratorio connect-a-source', () => {
     expect(useToastStore.getState().toasts.map((toast) => toast.message)).toContain('Configuration saved')
   })
 
+  it('resumes a saved connection whose first sync failed without saving it again', async () => {
+    jobStatuses = ['failed']
+    await driveGitLabWizardToConnect()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and sync' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    const calls = () => requests.map((request) => `${request.method ?? 'GET'} ${request.path}`)
+    await waitFor(() => expect(calls().filter((call) => call === 'POST /api/v1/sources/gitlab/sync-jobs')).toHaveLength(2))
+    expect(calls().filter((call) => call === 'PUT /api/v1/settings/server-configuration')).toHaveLength(1)
+    expect(calls().filter((call) => call === 'PUT /api/v1/sources/gitlab/sync-schedule')).toHaveLength(1)
+  })
+
+  it('reports a rejected save without announcing a saved configuration', async () => {
+    rejectNextSave = 'Server configuration validation failed.'
+    await driveGitLabWizardToConnect()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect and sync' }))
+
+    await screen.findByRole('alert')
+    expect(useToastStore.getState().toasts.some((toast) => toast.type === 'success')).toBe(false)
+    expect(requests.some((request) => request.path === '/api/v1/sources/gitlab/sync-schedule')).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(requests.some((request) => request.path === '/api/v1/sources/gitlab/sync-jobs')).toBe(true))
+    expect(requests.filter((request) => request.method === 'PUT' && request.path === '/api/v1/settings/server-configuration')).toHaveLength(2)
+  })
+
   it('shows the Board onboarding state until a source exists and routes into the wizard', async () => {
     const openSettingsPage = vi.fn()
     pluginHost = installOratorioTestHost({
@@ -139,3 +152,35 @@ describe('Oratorio connect-a-source', () => {
     expect(consumeOratorioNavigation()).toEqual({ kind: 'settings', section: 'connect', provider: 'gitlab' })
   })
 })
+
+async function driveGitLabWizardToConnect(): Promise<void> {
+  render(
+    <LocaleProvider>
+      <OratorioSettingsPluginSurface host={pluginHost} contributionId="oratorio" />
+    </LocaleProvider>
+  )
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Connect a source' }))
+  const next = () => fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+  const onStep = (step: string) => waitFor(() => expect(screen.getByRole('button', { name: step })).toHaveAttribute('aria-current', 'step'))
+
+  await onStep('Source')
+  expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+  fireEvent.click(screen.getByRole('radio', { name: /GitLab/ }))
+  fireEvent.change(screen.getByLabelText('Token'), { target: { value: 'token-value' } })
+  next()
+
+  await onStep('Project')
+  fireEvent.change(screen.getByRole('textbox', { name: 'Project' }), { target: { value: 'group/demo' } })
+  next()
+
+  await onStep('Workspace')
+  await waitFor(() => expect(screen.getByRole('radio', { name: /Current/ })).toBeChecked())
+  next()
+
+  await onStep('Automation')
+  next()
+
+  await onStep('Connect')
+}

@@ -33,6 +33,7 @@ function runRenderer(fixture, overrides = {}) {
       ...environment,
       HOME: fixture.home,
       DOTCRAFT_WORKSPACE: fixture.workspace,
+      DOTCRAFT_AUTH_METHOD: "apiKey",
       ENABLED_CHANNELS: "",
       ...overrides,
     },
@@ -175,6 +176,42 @@ test("creates capability-safe fallback values without a catalog", async (t) => {
   });
 });
 
+test("subscription mode removes API credentials and keeps the model preference", async (t) => {
+  const fixture = await createFixture(t);
+  await writeFile(
+    path.join(fixture.home, ".craft", "config.json"),
+    JSON.stringify({ Providers: { openai: { ApiKey: "old", EndPoint: "https://old.example" } } }),
+  );
+  runRenderer(fixture, {
+    DOTCRAFT_PROVIDER: "openai",
+    DOTCRAFT_AUTH_METHOD: "chatgptOAuth",
+    DOTCRAFT_MODEL: "gpt-test",
+    DOTCRAFT_API_KEY: "unused",
+    DOTCRAFT_PROVIDER_ENDPOINT: "https://unused.example",
+  });
+  const config = await readConfig(path.join(fixture.home, ".craft", "config.json"));
+  assert.equal(config.Providers.openai.AuthMethod, "chatgptOAuth");
+  assert.equal(config.Providers.openai.Protocol, "openai-responses");
+  assert.equal(config.Providers.openai.ApiKey, undefined);
+  assert.equal(config.Providers.openai.EndPoint, undefined);
+  assert.equal(config.ProviderPreferences.openai.model, "gpt-test");
+});
+
+test("requires an explicit authentication method", async (t) => {
+  const fixture = await createFixture(t);
+  const result = spawnSync(process.execPath, [renderer], {
+    encoding: "utf8",
+    env: {
+      HOME: fixture.home,
+      DOTCRAFT_WORKSPACE: fixture.workspace,
+      DOTCRAFT_PROVIDER: "openai",
+      DOTCRAFT_MODEL: "gpt-test",
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth/);
+});
+
 for (const [name, value, allowed] of [
   ["DOTCRAFT_REASONING_EFFORT", "ultra", "off, low, medium, high, extraHigh"],
   ["DOTCRAFT_REASONING_OUTPUT", "verbose", "none, summary, full"],
@@ -193,6 +230,7 @@ for (const [name, value, allowed] of [
         HOME: fixture.home,
         DOTCRAFT_WORKSPACE: fixture.workspace,
         DOTCRAFT_PROVIDER: "openai",
+        DOTCRAFT_AUTH_METHOD: "apiKey",
         DOTCRAFT_MODEL: "gpt-test",
         ENABLED_CHANNELS: "",
         [name]: value,

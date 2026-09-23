@@ -32,7 +32,7 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
         await using var transport = new InMemoryTransport();
         var assets = new InlineVisualizationAssetStore(
             new DotCraftPaths(_root, Path.Combine(_root, ".craft"), userDataPath: null));
-        var runtime = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
+        var runtime = new InlineVisualizationRuntimeRegistry(assets);
         Assert.True(runtime.BindThread(thread, transport, connection));
         var directory = runtime.TryGetAuthoringDirectory(thread.Id, out var authoringDirectory)
             ? authoringDirectory

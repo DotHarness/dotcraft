@@ -8,13 +8,12 @@ using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Manages restricted subagent execution for native and sandbox runtimes.
+/// Manages restricted subagent execution.
 /// </summary>
 /// <remarks>
 /// Subagents have restricted tool access for security.
@@ -32,13 +31,7 @@ public sealed class SubAgentManager
 
     private readonly SemaphoreSlim _concurrencyGate;
 
-    private readonly SandboxShellTools? _sandboxShellTools;
-
-    private readonly SandboxFileTools? _sandboxFileTools;
-
     private readonly WebTools _webTools;
-
-    private readonly bool _useSandbox;
 
     private readonly AppConfig.ReasoningConfig _reasoningConfig;
 
@@ -86,7 +79,6 @@ public sealed class SubAgentManager
         string? model = null,
         string? providerProtocol = null,
         PathBlacklist? blacklist = null,
-        SandboxSessionManager? sandboxManager = null,
         IApprovalService? approvalService = null,
         TraceCollector? traceCollector = null,
         string? ripgrepPath = null,
@@ -103,7 +95,6 @@ public sealed class SubAgentManager
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _workspaceRoots = workspaceRoots ?? [_workspaceRoot];
         _concurrencyGate = new SemaphoreSlim(maxConcurrency, maxConcurrency);
-        _useSandbox = sandboxManager != null;
         _reasoningConfig = reasoningConfig ?? config?.Reasoning ?? new AppConfig.ReasoningConfig();
         _promptCachingConfig = promptCachingConfig ?? config?.PromptCaching ?? new AppConfig.PromptCachingConfig();
         _config = config ?? new AppConfig { Reasoning = _reasoningConfig, PromptCaching = _promptCachingConfig };
@@ -120,16 +111,7 @@ public sealed class SubAgentManager
         _ripgrepPath = ripgrepPath;
         _fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, _config.Tools.File.SearchTimeoutSeconds));
 
-        if (sandboxManager != null)
-        {
-            // Sandbox mode: subagents execute inside containers
-            _sandboxShellTools = new SandboxShellTools(new SandboxCommandClient(sandboxManager), shellTimeout);
-            _sandboxFileTools = new SandboxFileTools(sandboxManager);
-        }
-        else
-        {
-            ArgumentNullException.ThrowIfNull(backgroundTerminalService);
-        }
+        ArgumentNullException.ThrowIfNull(backgroundTerminalService);
 
         _webTools = new WebTools(
             maxChars: 50000,  // Limit web content size for subagents
@@ -235,46 +217,34 @@ public sealed class SubAgentManager
 
         var tools = new List<AITool>();
 
-        if (_useSandbox && _sandboxFileTools != null && _sandboxShellTools != null)
-        {
-            tools.Add(GeneratedToolFunctions.SandboxFileTools_ReadFile(_sandboxFileTools));
-            tools.Add(GeneratedToolFunctions.SandboxFileTools_WriteFile(_sandboxFileTools));
-            tools.Add(GeneratedToolFunctions.SandboxFileTools_GrepFiles(_sandboxFileTools));
-            tools.Add(GeneratedToolFunctions.SandboxFileTools_FindFiles(_sandboxFileTools));
-            tools.Add(GeneratedToolFunctions.SandboxShellTools_Exec(_sandboxShellTools));
-        }
-        else
-        {
-            var fileTools = new FileTools(
-                workspaceRoot: _workspaceRoot,
-                requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
-                maxFileSize: SubAgentFileMaxSize,
-                approvalService: approvalService,
-                blacklist: _blacklist,
-                ripgrepPath: _ripgrepPath,
-                searchTimeout: _fileSearchTimeout,
-                workspaceRoots: _workspaceRoots
-            );
+        var fileTools = new FileTools(
+            workspaceRoot: _workspaceRoot,
+            requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
+            maxFileSize: SubAgentFileMaxSize,
+            approvalService: approvalService,
+            blacklist: _blacklist,
+            ripgrepPath: _ripgrepPath,
+            searchTimeout: _fileSearchTimeout,
+            workspaceRoots: _workspaceRoots
+        );
 
-            var shellTools = new ShellTools(
-                workingDirectory: _workspaceRoot,
-                backgroundTerminals: _backgroundTerminalService!,
-                timeoutSeconds: _shellTimeout,
-                requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
-                maxOutputLength: 10000,
-                approvalService: approvalService,
-                blacklist: _blacklist,
-                workspaceRoots: _workspaceRoots,
-                policy: _shellPolicy
-            );
+        var shellTools = new ShellTools(
+            workingDirectory: _workspaceRoot,
+            backgroundTerminals: _backgroundTerminalService!,
+            timeoutSeconds: _shellTimeout,
+            requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
+            maxOutputLength: 10000,
+            approvalService: approvalService,
+            blacklist: _blacklist,
+            workspaceRoots: _workspaceRoots,
+            policy: _shellPolicy
+        );
 
-            tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
-            tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
-            tools.Add(GeneratedToolFunctions.FileTools_GrepFiles(fileTools));
-            tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
-            tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
-        }
-
+        tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_GrepFiles(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
+        tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         tools.Add(GeneratedToolFunctions.WebTools_WebSearch(_webTools));
         tools.Add(GeneratedToolFunctions.WebTools_WebFetch(_webTools));
 

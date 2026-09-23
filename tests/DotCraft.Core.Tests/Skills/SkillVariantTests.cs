@@ -16,7 +16,6 @@ public sealed class SkillVariantTests : IDisposable
         _target = SkillVariantStore.CreateTarget(
             "test-model",
             _tempRoot,
-            sandboxEnabled: false,
             approvalPolicy: "default",
             toolNames: ["SkillView", "SkillManage"]);
     }

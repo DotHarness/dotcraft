@@ -112,8 +112,6 @@ Active skills shown above are already loaded. Follow them without loading them a
         sb.Append('|');
         sb.Append(target.Shell);
         sb.Append('|');
-        sb.Append(target.Sandbox);
-        sb.Append('|');
         sb.Append(target.ToolProfileHash);
         sb.Append('|');
         sb.Append(target.ApprovalPolicy);

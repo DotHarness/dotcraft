@@ -32,7 +32,6 @@ internal sealed class SkillVariantContext(
         return SkillVariantStore.CreateTarget(
             model,
             hostWorkspacePath ?? workspaceCraftPath ?? string.Empty,
-            config.Tools.Sandbox.Enabled,
             config.Permissions.DefaultApprovalPolicy.ToString(),
             toolNames: null);
     }

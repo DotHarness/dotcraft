@@ -1,10 +1,16 @@
 import {
   cloneSettings,
+  githubInstallationForOwner,
+  gitlabProfileForProject,
   normalizeProjectKey,
   projectKeyIsValid,
+  projectOwner,
+  providerInstance,
+  sameProjectKey,
   validateEndpoint,
-  type GitHubInstallationProfile,
-  type GitLabProjectProfile,
+  withGitHubInstallation,
+  withGitLabProfile,
+  type GitLabTokenKind,
   type OratorioProjectConfig,
   type OratorioSettingsConfig,
   type SourceProvider
@@ -15,7 +21,6 @@ export const CONNECT_STEPS: readonly ConnectStepId[] = ['source', 'project', 'wo
 
 export type SchedulePreset = 'off' | '15m' | '1h' | 'custom'
 export type KeyMode = 'paste' | 'path'
-export type GitLabTokenKind = 'accessToken' | 'personalAccessToken' | 'groupAccessToken'
 export type WorkspaceListState = 'ready' | 'loading' | 'empty'
 export type ConnectIssueField = 'readOnly' | 'endpoint' | 'credentials' | 'token' | 'projectKey' | 'projectFormat' | 'duplicate' | 'installationId' | 'workspace' | 'customMinutes'
 
@@ -46,6 +51,8 @@ export interface ConnectContext {
   settings: OratorioSettingsConfig
   workspaces: WorkspaceListState
   readOnly: boolean
+  /** The project this wizard already saved, which its own later steps must not report as a duplicate. */
+  connectedProjectKey?: string
 }
 
 export const DOCS_BASE_URL = 'https://www.dotcraft.net'
@@ -78,15 +85,6 @@ export function createConnectDraft(settings: OratorioSettingsConfig, provider: S
   }
 }
 
-export function providerInstance(provider: SourceProvider, endpoint: string): string {
-  try {
-    const hostname = new URL(endpoint).hostname.toLowerCase()
-    return provider === 'github' && hostname === 'api.github.com' ? 'github.com' : hostname
-  } catch {
-    return provider === 'github' ? 'github.com' : 'gitlab.com'
-  }
-}
-
 export function canonicalConnectProjectKey(draft: ConnectDraft): string {
   return `${draft.provider}:${providerInstance(draft.provider, draft.endpoint)}/${normalizeProjectKey(draft.projectKey).toLowerCase()}`
 }
@@ -106,9 +104,10 @@ export function connectStepIssues(step: ConnectStepId, draft: ConnectDraft, cont
   }
   if (step === 'project') {
     const key = normalizeProjectKey(draft.projectKey)
+    const ownProject = context.connectedProjectKey !== undefined && sameProjectKey(context.connectedProjectKey, key)
     if (!key) issues.push('projectKey')
     else if (!projectKeyIsValid(draft.projectKey)) issues.push('projectFormat')
-    else if (context.settings.projects.some((item) => item.provider === draft.provider && item.projectKey.toLowerCase() === key.toLowerCase())) issues.push('duplicate')
+    else if (!ownProject && context.settings.projects.some((item) => item.provider === draft.provider && sameProjectKey(item.projectKey, key))) issues.push('duplicate')
     if (draft.provider === 'github' && draft.github.installationId.trim() && !/^\d+$/.test(draft.github.installationId.trim())) issues.push('installationId')
   }
   if (step === 'workspace' && (context.workspaces !== 'ready' || !draft.workspacePath)) issues.push('workspace')
@@ -123,31 +122,22 @@ export function scheduleSeconds(draft: ConnectDraft): number | null {
   return draft.customMinutes * 60
 }
 
-/** Settings re-links profiles to projects by owner prefix (GitHub) or exact path (GitLab), so deriving from the project path keeps the link across reloads. */
-export function deriveConnectProfile(draft: ConnectDraft): GitHubInstallationProfile | GitLabProjectProfile {
-  const projectPath = normalizeProjectKey(draft.projectKey)
-  const instance = providerInstance(draft.provider, draft.endpoint)
-  if (draft.provider === 'github') {
-    const owner = projectPath.split('/')[0] ?? ''
-    const installationId = draft.github.installationId.trim()
-    return { id: `github:${instance}:${owner}`, instance, owner, installationId, source: installationId ? 'manual' : 'detected' }
-  }
-  const unchanged = { configured: false, mode: 'unchanged' as const, value: null }
-  return {
-    id: `gitlab:${instance}:${projectPath}`,
-    instance,
-    projectPath,
-    tokenKind: draft.gitlab.tokenKind,
-    secrets: { token: { configured: true, mode: 'replace', value: draft.gitlab.token }, webhookSecret: unchanged, webhookSigningToken: unchanged }
-  }
+/** Detection only runs for an owner the server has no installation for; a typed installation ID wins. */
+export function shouldDetectGitHubInstallation(settings: OratorioSettingsConfig, draft: ConnectDraft): boolean {
+  return draft.provider === 'github' && !draft.github.installationId.trim() && !githubInstallationForOwner(settings, projectOwner(draft.projectKey))?.installationId
 }
 
+/**
+ * Upserts the connection so running it again after a save, a failed first sync, or a corrected
+ * installation ID never duplicates the project or its profile.
+ */
 export function buildConnectTransaction(snapshot: OratorioSettingsConfig, draft: ConnectDraft): { settings: OratorioSettingsConfig; project: OratorioProjectConfig } {
   const settings = cloneSettings(snapshot)
   const projectKey = normalizeProjectKey(draft.projectKey)
-  const profile = deriveConnectProfile(draft)
   settings[draft.provider].endpoint = draft.endpoint.trim()
   settings[draft.provider].writesEnabled = draft.allowWrites
+  const instance = providerInstance(draft.provider, draft.endpoint)
+  let profileId: string
   if (draft.provider === 'github') {
     const github = settings.github
     if (draft.github.appId.trim() !== github.appId || draft.github.privateKey.trim() || draft.github.privateKeyPath.trim()) {
@@ -155,22 +145,29 @@ export function buildConnectTransaction(snapshot: OratorioSettingsConfig, draft:
       if (draft.github.keyMode === 'paste' && draft.github.privateKey.trim()) github.secrets.privateKey = { configured: true, mode: 'replace', value: draft.github.privateKey }
       if (draft.github.keyMode === 'path' && draft.github.privateKeyPath.trim()) github.secrets.privateKeyPath = { configured: true, mode: 'replace', value: draft.github.privateKeyPath.trim() }
     }
-    const githubProfile = profile as GitHubInstallationProfile
-    const existing = github.profiles.find((item) => item.id === githubProfile.id)
-    if (!existing) github.profiles.push(githubProfile)
-    else if (githubProfile.installationId) Object.assign(existing, { installationId: githubProfile.installationId, source: 'manual' })
+    const owner = projectOwner(projectKey)
+    const installationId = draft.github.installationId.trim()
+    if (installationId) github.profiles = withGitHubInstallation(settings, owner, installationId)
+    profileId = githubInstallationForOwner(settings, owner)?.id ?? `github:${instance}:${owner}`
   } else {
     const gitlab = settings.gitlab
     gitlab.enabled = true
     gitlab.apiBaseUrl = `${draft.endpoint.trim().replace(/\/+$/, '')}/api/v4`
-    gitlab.profiles = [...gitlab.profiles.filter((item) => item.id !== profile.id), profile as GitLabProjectProfile]
+    gitlab.profiles = withGitLabProfile(settings, projectKey, (profile) => ({
+      ...profile,
+      tokenKind: draft.gitlab.tokenKind,
+      secrets: { ...profile.secrets, token: { configured: true, mode: 'replace', value: draft.gitlab.token } }
+    }))
+    profileId = gitlabProfileForProject(settings, projectKey)!.id
   }
-  const idBase = `${draft.provider}-${projectKey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-  let id = idBase
-  for (let suffix = 2; settings.projects.some((item) => item.id === id); suffix += 1) id = `${idBase}-${suffix}`
-  const project: OratorioProjectConfig = { id, provider: draft.provider, projectKey, workspacePath: draft.workspacePath, profileId: profile.id, enabled: true }
-  settings.projects.push(project)
+  const existing = settings.projects.find((item) => item.provider === draft.provider && sameProjectKey(item.projectKey, projectKey))
+  const project: OratorioProjectConfig = existing
+    ? Object.assign(existing, { workspacePath: draft.workspacePath, profileId, enabled: true })
+    : { id: `${draft.provider}:${projectKey}`, provider: draft.provider, projectKey, workspacePath: draft.workspacePath, profileId, enabled: true }
+  if (!existing) settings.projects.push(project)
   const canonical = canonicalConnectProjectKey(draft)
-  if (draft.autoReview && !settings.autoReview.some((value) => value.toLowerCase() === canonical)) settings.autoReview.push(canonical)
-  return { settings, project }
+  const reviewed = settings.autoReview.some((value) => value.toLowerCase() === canonical)
+  if (draft.autoReview && !reviewed) settings.autoReview.push(canonical)
+  if (!draft.autoReview && reviewed) settings.autoReview = settings.autoReview.filter((value) => value.toLowerCase() !== canonical)
+  return { settings, project: { ...project } }
 }

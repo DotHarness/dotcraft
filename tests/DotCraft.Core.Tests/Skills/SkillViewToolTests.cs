@@ -20,7 +20,7 @@ public sealed class SkillViewToolTests : IDisposable
         Directory.CreateDirectory(_tempRoot);
         _skillsLoader = new SkillsLoader(_tempRoot);
         _target = SkillVariantStore.CreateTarget(
-            "test-model", _tempRoot, sandboxEnabled: false, approvalPolicy: "default", toolNames: ["SkillView"]);
+            "test-model", _tempRoot, approvalPolicy: "default", toolNames: ["SkillView"]);
     }
 
     [Fact]

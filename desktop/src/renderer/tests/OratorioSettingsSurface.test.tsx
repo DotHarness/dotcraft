@@ -257,68 +257,6 @@ describe('OratorioSettingsSurface', () => {
     expect(screen.queryByText('cancelled-label')).not.toBeInTheDocument()
   })
 
-  it('adds a project with one back action and syncs after saving', async () => {
-    render(
-      <LocaleProvider>
-        <OratorioSettingsSurface />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Add project' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add project' })
-    expect(dialog).not.toHaveTextContent('Cancel')
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
-    const projectInput = screen.getByRole('textbox', { name: 'Project' })
-    expect(projectInput).toHaveValue('')
-    expect(projectInput).toHaveAttribute('placeholder', 'owner/repository')
-    fireEvent.change(projectInput, { target: { value: 'example-org/new-project' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-
-    expect(dialog).not.toHaveTextContent('Sync now')
-    const workspaceSelect = await screen.findByRole('combobox', { name: 'DotCraft Workspace' })
-    expect(workspaceSelect).toHaveTextContent('C:\\workspaces\\current')
-    fireEvent.click(workspaceSelect)
-    expect(screen.getByRole('option', { name: 'C:\\workspaces\\other' })).toBeInTheDocument()
-    expect(screen.queryByText('C:\\workspaces\\secondary')).not.toBeInTheDocument()
-    expect(screen.queryByText('remote://stack/project')).not.toBeInTheDocument()
-    expect(screen.queryByText('C:\\workspaces\\chats')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: 'C:\\workspaces\\current' }))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Add project' }))
-
-    await waitFor(() => {
-      expect(requestMock).toHaveBeenCalledWith(expect.objectContaining({
-        method: 'POST',
-        path: '/api/v1/sources/github/sync-jobs'
-      }))
-    }, { timeout: 2000 })
-    const calls = requestMock.mock.calls.map(([request]) => `${request.method ?? 'GET'} ${request.path}`)
-    expect(calls.indexOf('PUT /api/v1/settings/server-configuration')).toBeLessThan(calls.indexOf('POST /api/v1/sources/github/sync-jobs'))
-  })
-
-  it('blocks project creation when DotCraft has no local Workspace', async () => {
-    workspaceProjectsMock.mockResolvedValue({
-      foregroundWorkspacePath: '',
-      foregroundProjectId: '',
-      secondaryLimit: 8,
-      projects: [{ projectId: 'remote-project', kind: 'remote', path: 'remote://stack/project', name: 'Remote', state: 'foreground', running: true, loaded: true, threadCount: 0, threads: [], pinned: false }]
-    })
-
-    render(
-      <LocaleProvider>
-        <OratorioSettingsSurface />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Add project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Project' }), { target: { value: 'example-org/new-project' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-
-    expect(await screen.findByText('Open a local Workspace in DotCraft before adding this project.')).toBeInTheDocument()
-    expect(within(screen.getByRole('dialog', { name: 'Add project' })).getByRole('button', { name: 'Add project' })).toBeDisabled()
-  })
-
   it('preserves an unavailable saved Workspace until the project is rebound', async () => {
     render(
       <LocaleProvider>
@@ -477,26 +415,13 @@ describe('OratorioSettingsSurface', () => {
     }, { timeout: 2000 })
   })
 
-  it.each([
-    { provider: 'GitHub', expectedInstance: 'github.com' },
-    { provider: 'GitLab', expectedInstance: 'gitlab.company.test' }
-  ])('derives a new $provider profile instance from its configured endpoint', async ({ provider, expectedInstance }) => {
+  it('shows a retryable load failure instead of editable defaults', async () => {
+    let failLoad = true
     requestMock.mockImplementation(async (request: { method?: string; path: string; body?: any }) => {
-      if (request.path === '/api/v1/sources/sync-schedules') {
-        return { status: 200, data: { schedules: [] } }
-      }
+      if (request.path === '/api/v1/sources/sync-schedules') return { status: 200, data: { schedules: [] } }
       if (request.path === '/api/v1/settings/server-configuration') {
-        return {
-          status: 200,
-          data: {
-            revision: '1',
-            restartRequired: false,
-            configuration: {
-              gitHub: { endpoint: 'https://api.github.com', repositories: [], installationProfiles: [] },
-              gitLab: { endpoint: 'https://gitlab.company.test', projects: [], projectProfiles: [] }
-            }
-          }
-        }
+        if (failLoad) throw new Error('unavailable')
+        return { status: 200, data: { revision: '1', restartRequired: false, configuration: { gitHub: { repositories: ['example-org/sample-app'] } } } }
       }
       return { status: 200, data: {} }
     })
@@ -507,15 +432,57 @@ describe('OratorioSettingsSurface', () => {
       </LocaleProvider>
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Add project' }))
-    if (provider === 'GitLab') {
-      const providerSelect = screen.getByRole('combobox', { name: 'Source providers' })
-      fireEvent.click(providerSelect)
-      fireEvent.click(screen.getByRole('option', { name: 'GitLab' }))
-    }
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const retry = await screen.findByRole('button', { name: 'Retry' })
+    expect(screen.queryByRole('switch', { name: 'Managed Worktrees' })).not.toBeInTheDocument()
+    failLoad = false
+    fireEvent.click(retry)
 
-    expect(screen.getByDisplayValue(expectedInstance)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'example-org/sample-app Manage' })).toBeInTheDocument()
+    expect(requestMock.mock.calls.some(([request]) => request.method === 'PUT')).toBe(false)
+  })
+
+  it('stores a GitLab project token together with its kind from the project page', async () => {
+    render(
+      <LocaleProvider>
+        <OratorioSettingsSurface />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'example-group/demo-project Manage' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Access token Set' }))
+    const dialog = screen.getByRole('dialog', { name: 'Access token' })
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Token kind' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Group access token' }))
+    fireEvent.change(within(dialog).getByLabelText('Token'), { target: { value: 'group-token-value' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      const save = requestMock.mock.calls
+        .map(([request]) => request)
+        .find((request) => request.method === 'PUT' && request.path === '/api/v1/settings/server-configuration')
+      expect(save?.body.configuration.gitLab.projectProfiles).toEqual([{
+        instance: 'gitlab.com',
+        projectPath: 'example-group/demo-project',
+        tokenKind: 'groupAccessToken',
+        secrets: expect.objectContaining({ token: { configured: true, mode: 'replace', value: 'group-token-value' } })
+      }])
+    }, { timeout: 2000 })
+  })
+
+  it('saves a pending change when the page is left before the save delay', async () => {
+    const view = render(
+      <LocaleProvider>
+        <OratorioSettingsSurface />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Managed Worktrees' }))
+    view.unmount()
+
+    await waitFor(() => {
+      const save = requestMock.mock.calls.map(([request]) => request).find((request) => request.method === 'PUT')
+      expect(save?.body.configuration.runtime.managedWorktreesEnabled).toBe(false)
+    })
   })
 
   it('shows restart-required independently of Diagnostics', async () => {

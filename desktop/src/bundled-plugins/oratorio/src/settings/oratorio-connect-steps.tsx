@@ -2,16 +2,14 @@ import { Button, Input, PillSwitch, SegmentedControl, Select, SettingsGroup, Set
 import { useOratorioConnectT } from './oratorio-connect-i18n'
 import {
   githubAppConfigured,
-  providerInstance,
   type ConnectDraft,
   type ConnectIssueField,
-  type GitLabTokenKind,
   type KeyMode,
   type SchedulePreset,
   type WorkspaceListState
 } from './oratorio-connect-model'
-import { ChoiceCard, ConnectField, LearnMore, ProviderGlyph, QuietRow, StepHeading, providerName } from './oratorio-connect-parts'
-import type { OratorioSettingsConfig, SourceProvider } from './oratorio-settings-model'
+import { ChoiceCard, ConnectField, LearnMore, ProviderGlyph, QuietRow, StepHeading, providerName, useGitLabTokenKindOptions } from './oratorio-connect-parts'
+import { providerInstance, type GitLabTokenKind, type OratorioSettingsConfig, type SourceProvider } from './oratorio-settings-model'
 
 export interface StepProps {
   draft: ConnectDraft
@@ -77,11 +75,12 @@ function GitHubAccess({ draft, settings, readOnly, update }: Omit<StepProps, 'is
 function GitLabAccess({ draft, readOnly, update }: Omit<StepProps, 'issues' | 'settings'>): JSX.Element {
   const t = useOratorioConnectT()
   const gitlab = draft.gitlab
+  const tokenKinds = useGitLabTokenKindOptions()
   const patch = (value: Partial<ConnectDraft['gitlab']>): void => update({ gitlab: { ...gitlab, ...value } })
   return (
     <div className="ora-connect__field-row">
       <ConnectField label={t('tokenKind')}>
-        <Select<GitLabTokenKind> ariaLabel={t('tokenKind')} value={gitlab.tokenKind} disabled={readOnly} options={[{ value: 'accessToken', label: t('projectAccessToken') }, { value: 'personalAccessToken', label: t('personalAccessToken') }, { value: 'groupAccessToken', label: t('groupAccessToken') }]} onValueChange={(tokenKind) => patch({ tokenKind })} />
+        <Select<GitLabTokenKind> ariaLabel={t('tokenKind')} value={gitlab.tokenKind} disabled={readOnly} options={tokenKinds} onValueChange={(tokenKind) => patch({ tokenKind })} />
       </ConnectField>
       <ConnectField label={t('token')} hint={<>{t('tokenHint')} <LearnMore provider="gitlab" /></>}>
         <Input type="password" value={gitlab.token} placeholder={t('tokenPlaceholder')} disabled={readOnly} autoComplete="off" aria-label={t('token')} onChange={(event) => patch({ token: event.target.value })} />

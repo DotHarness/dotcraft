@@ -50,9 +50,8 @@ Before putting a bot in a group or public chat:
 - Limit the channel to trusted users, groups, or chats where the platform supports it.
 - Set a strong random AppServer WebSocket token when you run an adapter yourself.
 - Serve production deployments over HTTPS when the platform calls back into DotCraft.
-- Turn on [OpenSandbox](../self-hosted/security#sandbox-opensandbox) when you need stronger tool isolation.
 
-The exact field names are in the [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
+The exact field names are in the [Configuration Reference](../../developing/configuration#tools-and-security).
 
 ## Related docs
 

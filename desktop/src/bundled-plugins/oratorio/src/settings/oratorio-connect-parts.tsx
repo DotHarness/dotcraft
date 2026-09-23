@@ -1,12 +1,29 @@
-import { Children, cloneElement, isValidElement, useId, type ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, useId, useMemo, type ReactNode } from 'react'
 import { GithubGlyph, GitlabGlyph } from '../ProviderGlyphs'
 import { oratorioHost } from '../runtime'
-import { useOratorioConnectT } from './oratorio-connect-i18n'
+import { useOratorioConnectT, type OratorioConnectMessageKey } from './oratorio-connect-i18n'
 import { connectDocsUrl } from './oratorio-connect-model'
-import type { SourceProvider } from './oratorio-settings-model'
+import { GITLAB_TOKEN_KINDS, type GitLabTokenKind, type SourceProvider } from './oratorio-settings-model'
 
 export function providerName(provider: SourceProvider): string {
   return provider === 'github' ? 'GitHub' : 'GitLab'
+}
+
+const TOKEN_KIND_LABELS: Record<GitLabTokenKind, OratorioConnectMessageKey> = {
+  accessToken: 'projectAccessToken',
+  personalAccessToken: 'personalAccessToken',
+  groupAccessToken: 'groupAccessToken'
+}
+
+export function useGitLabTokenKindOptions(): Array<{ value: GitLabTokenKind; label: string }> {
+  const t = useOratorioConnectT()
+  return useMemo(() => GITLAB_TOKEN_KINDS.map((kind) => ({ value: kind, label: t(TOKEN_KIND_LABELS[kind]) })), [t])
+}
+
+/** Stored kinds are free-form labels on the server, so an unknown one reads as the project token it defaults to. */
+export function useGitLabTokenKindLabel(): (kind: string) => string {
+  const t = useOratorioConnectT()
+  return useMemo(() => (kind: string) => t(TOKEN_KIND_LABELS[kind as GitLabTokenKind] ?? 'projectAccessToken'), [t])
 }
 
 export function ProviderGlyph({ provider, size = 15 }: { provider: SourceProvider; size?: number }): JSX.Element {

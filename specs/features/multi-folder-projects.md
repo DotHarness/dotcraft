@@ -13,9 +13,8 @@ remaining folders are secondary. The Desktop owns Project editing and persistenc
 Core owns the thread-scoped execution projection described here.
 
 This feature does not change remote Projects. A remote Project continues to expose one folder.
-It also does not make a Project folder list a sandbox policy: runtime roots inform context,
-first-party tool boundaries, and sandbox construction, while the configured approval and
-sandbox policies remain authoritative.
+Runtime roots inform context and first-party tool boundaries, while the
+configured approval policy remains authoritative.
 
 ## 2. Design Principles
 
@@ -114,7 +113,7 @@ nearest `.git` root through that cwd, so a worktree reads the files from its own
 - Git/worktree defaults.
 
 Secondary folders are runtime content roots. First-party file, search, shell working-directory,
-LSP, approval-boundary, and sandbox construction code must treat a path inside any runtime root
+LSP, and approval-boundary code must treat a path inside any runtime root
 as inside the workspace. Relative paths continue to resolve against `cwd`.
 
 Changing `cwd` later does not relocate persisted project state, but it does replace the stable
@@ -131,11 +130,11 @@ The C# backend shall:
 2. expose resolved `cwd` and `runtimeWorkspaceRoots` on thread wire objects;
 3. accept sticky overrides on `thread/start`, `thread/resume`, `thread/fork`, and `turn/start`;
 4. rebuild the thread agent/tool snapshot for queued and future Turns when either value changes, without changing a running Turn's captured snapshot;
-5. pass the effective roots to first-party file, shell, LSP, approval, and sandbox boundaries;
+5. pass the effective roots to first-party file, shell, LSP, and approval boundaries;
 6. retain `WorkspacePath` as the state and lookup key; no SQLite thread schema migration is
    required.
 
-Sandbox resources are versioned by the resolved cwd and ordered runtime roots. A workspace change creates a new generation for future Turns. The previous generation remains available to a running Turn and is released when that Turn ends; idle-thread changes release the previous generation immediately. Archive, delete, and host disposal release every remaining generation. Workspace changes do not revoke connection-owned Runtime Dynamic Tool bindings.
+Workspace changes do not revoke connection-owned Runtime Dynamic Tool bindings.
 
 The Desktop Project editor, Project persistence, folder picker, and localization are explicitly
 outside this backend change.

@@ -12,7 +12,6 @@ const stack: RemoteStack = {
   appServerPort: 9100,
   oratorioPort: 5087,
   dashboardPort: 8080,
-  sandboxProfile: false
 }
 
 const STATUS_OK =

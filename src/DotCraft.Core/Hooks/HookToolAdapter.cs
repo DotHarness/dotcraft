@@ -73,7 +73,7 @@ internal static class HookToolAdapter
         var name = nativeName.Trim();
         return name switch
         {
-            "Exec" or "ShellTools_Exec" or "SandboxShellTools_Exec" => "Bash",
+            "Exec" or "ShellTools_Exec" => "Bash",
             "WriteFile" or "FileTools_WriteFile" => "Write",
             "EditFile" or "FileTools_EditFile" => "Edit",
             _ when name.Contains("ShellTools_Exec", StringComparison.OrdinalIgnoreCase) => "Bash",

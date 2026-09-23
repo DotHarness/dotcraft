@@ -120,7 +120,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             new SkillsLoader(_craftDir),
             _craftDir,
             _tempDir,
-            sandboxEnabled: false,
             deferredMcpServerNames: ["example"],
             toolNamesProvider: () => toolNames);
 
@@ -130,7 +129,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             new SkillsLoader(_craftDir),
             _craftDir,
             _tempDir,
-            sandboxEnabled: false,
             deferredMcpServerNames: ["example"],
             toolNamesProvider: () => toolNames,
             roleInstructions: roleInstructions,

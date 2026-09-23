@@ -157,7 +157,7 @@ function listenHost(name, fallback) {
   return first(env[name], fallback);
 }
 
-async function renderGlobalConfig() {
+async function renderGlobalConfig(authMethod) {
   const filePath = path.join(userCraftDir, "config.json");
   const config = await readJson(filePath);
 
@@ -171,9 +171,17 @@ async function renderGlobalConfig() {
     const providers = objectAt(config, "Providers");
     const provider = objectAt(providers, configuredProviderId);
     provider.DisplayName = first(env.DOTCRAFT_PROVIDER_DISPLAY_NAME, configuredProviderId);
-    provider.Protocol = first(env.DOTCRAFT_PROVIDER_PROTOCOL, "openai-chat-completions");
-    if (apiKey) provider.ApiKey = "$DOTCRAFT_API_KEY";
-    if (trim(env.DOTCRAFT_PROVIDER_ENDPOINT)) provider.EndPoint = trim(env.DOTCRAFT_PROVIDER_ENDPOINT);
+    provider.AuthMethod = authMethod;
+    provider.Protocol = authMethod === "chatgptOAuth"
+      ? "openai-responses"
+      : first(env.DOTCRAFT_PROVIDER_PROTOCOL, "openai-chat-completions");
+    if (authMethod === "chatgptOAuth") {
+      delete provider.ApiKey;
+      delete provider.EndPoint;
+    } else {
+      if (apiKey) provider.ApiKey = "$DOTCRAFT_API_KEY";
+      if (trim(env.DOTCRAFT_PROVIDER_ENDPOINT)) provider.EndPoint = trim(env.DOTCRAFT_PROVIDER_ENDPOINT);
+    }
   }
 
   setProviderPreference(config, providerId);
@@ -208,17 +216,6 @@ async function renderWorkspaceConfig(enabledChannels) {
     Enabled: boolEnv("DASHBOARD_ENABLED", true),
     Host: listenHost("DASHBOARD_LISTEN_HOST", "0.0.0.0"),
     Port: intEnv("DASHBOARD_PORT", 8080),
-  };
-
-  const tools = objectAt(config, "Tools");
-  tools.Sandbox = {
-    ...(isObject(tools.Sandbox) ? tools.Sandbox : {}),
-    Enabled: boolEnv("SANDBOX_ENABLED", false),
-    Domain: first(env.SANDBOX_DOMAIN, "opensandbox:5880"),
-    UseHttps: boolEnv("SANDBOX_USE_HTTPS", false),
-    Image: first(env.SANDBOX_IMAGE, "ubuntu:latest"),
-    NetworkPolicy: first(env.SANDBOX_NETWORK_POLICY, "allow"),
-    SyncWorkspace: boolEnv("SANDBOX_SYNC_WORKSPACE", true),
   };
 
   const externalChannels = objectAt(config, "ExternalChannels");
@@ -317,11 +314,18 @@ async function renderWeixin() {
 }
 
 async function main() {
+  const authMethod = trim(env.DOTCRAFT_AUTH_METHOD);
+  if (authMethod !== "apiKey" && authMethod !== "chatgptOAuth")
+    throw new Error("DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth.");
+  if (authMethod === "chatgptOAuth") {
+    if (!trim(env.DOTCRAFT_PROVIDER) || !trim(env.DOTCRAFT_MODEL))
+      throw new Error("ChatGPT subscription mode requires DOTCRAFT_PROVIDER and DOTCRAFT_MODEL.");
+  }
   await mkdir(craftDir, { recursive: true });
   await mkdir(userCraftDir, { recursive: true });
 
   const enabledChannels = parseChannels();
-  await renderGlobalConfig();
+  await renderGlobalConfig(authMethod);
   await renderWorkspaceConfig(enabledChannels);
 
   const errors = [];

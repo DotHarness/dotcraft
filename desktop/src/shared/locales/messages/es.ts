@@ -1227,9 +1227,6 @@ export const MESSAGES_ES = {
   'settings.servers.stack.appServerPort': 'Puerto del App server',
   'settings.servers.stack.oratorioPort': 'Puerto de Oratorio',
   'settings.servers.stack.dashboardPort': 'Puerto del Dashboard',
-  'settings.servers.stack.runtime': 'Runtime',
-  'settings.servers.stack.sandbox': 'Sandbox',
-  'settings.servers.stack.sandboxHint': 'Ejecuta el servicio sandbox opcional junto a esta instancia',
   'settings.servers.stack.tokenNote':
     'DotCraft lee automáticamente el token de inicio de sesión de esta instancia cuando te conectas. Nunca lo introduces ni lo guardas aquí.',
   'settings.servers.stack.addButton': 'Agregar instancia',

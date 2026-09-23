@@ -70,8 +70,7 @@ public static class BuiltInToolCatalog
                 if (tool == null)
                     continue;
 
-                // First declaration of a given tool name wins; identical tool methods may be
-                // declared on more than one class (e.g. host vs sandbox variants).
+                // First declaration of a given tool name wins.
                 if (byName.ContainsKey(method.Name))
                     continue;
 

@@ -6,6 +6,12 @@ import { oratorioHost } from './runtime'
 
 type Body = Record<string, unknown>
 
+/** Drops Electron's IPC wrapper so the server's own message is what the user reads. */
+export function describeOratorioError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, '')
+}
+
 async function request<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, body?: Body): Promise<T> {
   const response = await oratorioHost().oratorio.request<T>({ method, path, body })
   return response.data

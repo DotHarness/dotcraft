@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using YamlDotNet.RepresentationModel;
 
 namespace DotCraft.CLI;
 
@@ -243,7 +245,21 @@ internal static class StackCliRunner
             }
             if (failures > 0) return 1;
 
+            if (!HasPersistedUserDataMount(options.Directory))
+            {
+                await output.WriteLineAsync("[fail] DotCraft user data mount at /root/.craft");
+                failures++;
+            }
+            else
+            {
+                await output.WriteLineAsync("[ok] DotCraft user data mount at /root/.craft");
+            }
+
             var env = await File.ReadAllTextAsync(Path.Combine(options.Directory, ".env"), ct);
+            var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
+            var authMethodValid = authMethod is "apiKey" or "chatgptOAuth";
+            await output.WriteLineAsync($"[{(authMethodValid ? "ok" : "fail")}] DOTCRAFT_AUTH_METHOD");
+            if (!authMethodValid) failures++;
             foreach (var name in new[] { "APPSERVER_TOKEN", "ORATORIO_SERVICE_TOKEN" })
             {
                 var ok = ReadEnv(env, name) is { Length: > 0 };
@@ -281,6 +297,13 @@ internal static class StackCliRunner
 
         internal async Task<int> UpgradeAsync(StackCommandOptions options, CancellationToken ct)
         {
+            RequireDeployment(options.Directory);
+            if (!HasPersistedUserDataMount(options.Directory))
+                throw new InvalidOperationException("DotCraft user data is not mounted at /root/.craft. Update the deployment Compose file before upgrading.");
+            var env = await File.ReadAllTextAsync(Path.Combine(options.Directory, ".env"), ct);
+            var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
+            if (authMethod is not ("apiKey" or "chatgptOAuth"))
+                throw new InvalidOperationException("DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth.");
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would pull and recreate the stack in {options.Directory}.");
@@ -289,6 +312,51 @@ internal static class StackCliRunner
             var pull = await RunComposeAsync(options.Directory, ["pull"], ct);
             return pull == 0 ? await RunComposeAsync(options.Directory, ["up", "-d", "--remove-orphans"], ct) : pull;
         }
+
+        private static bool HasPersistedUserDataMount(string directory)
+        {
+            using var reader = File.OpenText(Path.Combine(directory, ComposeFile));
+            var yaml = new YamlStream();
+            yaml.Load(reader);
+            if (yaml.Documents[0].RootNode is not YamlMappingNode root
+                || !TryGetMap(root, "services", out var services)
+                || !TryGetMap(services, "dotcraft", out var dotcraft)
+                || !dotcraft.Children.TryGetValue(new YamlScalarNode("volumes"), out var volumes)
+                || volumes is not YamlSequenceNode mounts)
+                return false;
+
+            return mounts.Children.Any(mount => mount switch
+            {
+                YamlScalarNode shortMount => IsWritableShortMount(shortMount.Value),
+                YamlMappingNode longMount => Scalar(longMount, "target") == "/root/.craft"
+                    && Scalar(longMount, "type") is "bind" or "volume"
+                    && !string.IsNullOrWhiteSpace(Scalar(longMount, "source"))
+                    && Scalar(longMount, "read_only") != "true",
+                _ => false
+            });
+        }
+
+        private static bool IsWritableShortMount(string? value)
+        {
+            var mount = Regex.Match(value ?? string.Empty, @"^.+:/root/\.craft(?::(?<options>[^:]*))?$");
+            return mount.Success
+                && !mount.Groups["options"].Value.Split(',').Contains("ro", StringComparer.Ordinal);
+        }
+
+        private static bool TryGetMap(YamlMappingNode parent, string key, out YamlMappingNode map)
+        {
+            map = null!;
+            if (!parent.Children.TryGetValue(new YamlScalarNode(key), out var value)
+                || value is not YamlMappingNode mapping)
+                return false;
+            map = mapping;
+            return true;
+        }
+
+        private static string? Scalar(YamlMappingNode parent, string key) =>
+            parent.Children.TryGetValue(new YamlScalarNode(key), out var value)
+                ? (value as YamlScalarNode)?.Value
+                : null;
 
         internal async Task<int> WebhookStatusAsync(StackCommandOptions options, CancellationToken ct)
         {
@@ -389,6 +457,7 @@ internal static class StackCliRunner
         $"DOTCRAFT_VERSION={options.Version ?? "latest"}\n" +
         "DOTCRAFT_WORKSPACE_DIR=./workspace\nDOTCRAFT_STACK_STATE_DIR=./state\n" +
         $"DOTCRAFT_PROVIDER={options.Provider ?? "openai"}\n" +
+        "DOTCRAFT_AUTH_METHOD=apiKey\n" +
         $"DOTCRAFT_MODEL={options.Model ?? "gpt-5.6"}\n" +
         $"DOTCRAFT_API_KEY={options.ApiKey ?? string.Empty}\n";
 

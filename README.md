@@ -104,7 +104,6 @@ Special thanks to:
 - [HKUDS/nanobot](https://github.com/HKUDS/nanobot)
 - [openai/codex](https://github.com/openai/codex)
 - [microsoft/agent-framework](https://github.com/microsoft/agent-framework)
-- [alibaba/OpenSandbox](https://github.com/alibaba/OpenSandbox)
 - [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)
 - [openai/symphony](https://github.com/openai/symphony)
 

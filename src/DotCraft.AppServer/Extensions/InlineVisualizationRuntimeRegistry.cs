@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.AppServer;
 using SessionThread = DotCraft.Sessions.SessionThread;
@@ -8,8 +7,7 @@ namespace DotCraft.InlineVisualizations;
 
 /// <summary>Tracks thread-scoped Desktop visualization capabilities and authoring roots.</summary>
 public sealed class InlineVisualizationRuntimeRegistry(
-    InlineVisualizationAssetStore assets,
-    AppConfig config) : IThreadSystemPromptContextProvider
+    InlineVisualizationAssetStore assets) : IThreadSystemPromptContextProvider
 {
     private readonly ConcurrentDictionary<string, Binding> _bindings = new(StringComparer.Ordinal);
 
@@ -24,7 +22,7 @@ public sealed class InlineVisualizationRuntimeRegistry(
         IAppServerTransport transport,
         AppServerConnection connection)
     {
-        if (!connection.SupportsInlineVisualizations || config.Tools.Sandbox.Enabled)
+        if (!connection.SupportsInlineVisualizations)
             return false;
 
         string directory;

@@ -86,7 +86,6 @@ const stackHost: RemoteHost = {
       composeDir: '~/sample-stack/docker',
       appServerPort: 9100,
       dashboardPort: 8080,
-      sandboxProfile: false
     }
   ]
 }
@@ -215,7 +214,6 @@ describe('ServersPanel', () => {
         composeProjectName: 'deploy',
         appServerPort: 9100,
         dashboardPort: 8080,
-        sandboxProfile: false
       }
     ])
 

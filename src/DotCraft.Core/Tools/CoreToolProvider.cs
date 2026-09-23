@@ -124,11 +124,6 @@ public sealed class CoreToolSource(
     /// <inheritdoc />
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        // When sandbox mode is enabled, SandboxToolProvider supplies shell/file/agent tools.
-        // CoreToolProvider only provides web tools in that case to avoid duplication.
-        if (config.Tools.Sandbox.Enabled)
-            return [];
-
         var tools = new List<AIFunction>();
         var requireOutside = RequiresApprovalOutsideWorkspace(context);
         var fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds));
@@ -254,7 +249,6 @@ public sealed class CoreToolSource(
         var target = SkillVariantStore.CreateTarget(
             context.EffectiveMainModel,
             context.WorkspacePath,
-            config.Tools.Sandbox.Enabled,
             config.Permissions.DefaultApprovalPolicy.ToString(),
             tools.Select(t => t.Name).ToArray());
         var selfLearning = config.Skills.SelfLearning;

@@ -13,7 +13,7 @@ Prefer a Project Access Token so its authority stays inside one project. Grant t
 | **Publish notes and review status** | API access |
 | **Deliver a merge request** | Repository write and API access |
 
-Each connected project uses its own profile and token.
+Each connected project uses its own token.
 
 ## Connect the project
 
@@ -34,7 +34,7 @@ Webhooks are optional, but they make source changes appear on the board sooner. 
 https://your-oratorio-host/api/v1/sources/gitlab/webhook
 ```
 
-Save the same webhook secret or signing token in the GitLab project profile, then enable issue, merge request, and note events. Keep the endpoint private unless your [deployment](../self-hosted/server-deployment) provides an authenticated ingress boundary.
+In Oratorio settings, open the project and save the same webhook secret or signing token under **Access**, then enable issue, merge request, and note events. Keep the endpoint private unless your [deployment](../self-hosted/server-deployment) provides an authenticated ingress boundary.
 
 A local-only Desktop normally can't receive GitLab cloud webhooks. Use manual or scheduled sync when no reachable endpoint exists.
 

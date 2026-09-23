@@ -38,7 +38,7 @@ Use `WebFetch` with `extractMode` `markdown` so the VitePress chrome does not co
 | Subagents | `/features/agent-system/subagents` |
 | Moving work between workspaces, context export | `/features/agent-system/workspace-handoff` |
 | Observability | `/features/self-hosted/observability` |
-| Security and sandbox | `/features/self-hosted/security` |
+| Security | `/features/self-hosted/security` |
 
 ### Entry points and channels
 

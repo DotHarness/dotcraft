@@ -63,8 +63,6 @@ public sealed class SkillVariantTarget
 
     public string Shell { get; set; } = string.Empty;
 
-    public string Sandbox { get; set; } = string.Empty;
-
     public string ToolProfileHash { get; set; } = string.Empty;
 
     public string ApprovalPolicy { get; set; } = string.Empty;

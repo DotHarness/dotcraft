@@ -227,7 +227,7 @@ A role may define:
 
 Native child tools use the normal session tool-construction path. The child inherits the parent's tool
 allow/deny boundary, then applies role restrictions. Role restrictions narrow authority and cannot
-bypass the parent's approval service, approval context, sandbox, or workspace policy.
+bypass the parent's approval service, approval context, or workspace policy.
 
 Role instructions are stored as a thread context item after inherited history and before the initial
 task. Invocation-specific task data belongs in the task input rather than stable base instructions.

@@ -3079,9 +3079,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.servers.stack.appServerPort': 'App server 端口',
   'settings.servers.stack.oratorioPort': 'Oratorio 端口',
   'settings.servers.stack.dashboardPort': 'Dashboard 端口',
-  'settings.servers.stack.runtime': '运行时',
-  'settings.servers.stack.sandbox': 'Sandbox',
-  'settings.servers.stack.sandboxHint': '在此实例中同时运行可选的 sandbox 服务',
   'settings.servers.stack.tokenNote':
     '连接时 DotCraft 会自动读取此实例的登录 token。你无需在这里输入或保存它。',
   'settings.servers.stack.addButton': '添加实例',

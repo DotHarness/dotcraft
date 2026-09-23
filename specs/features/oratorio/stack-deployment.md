@@ -15,7 +15,6 @@ The official DotCraft Stack runs DotCraft AppServer and Oratorio as one deployme
 
 - `dotcraft`: AppServer and Dashboard.
 - `oratorio`: headless sync, automation, review, delivery, settings API, and realtime stream.
-- `opensandbox`: optional Compose profile.
 - `webhook-gateway`: optional overlay exposing only declared webhook paths.
 
 AppServer, Dashboard, and Oratorio host ports bind to loopback by default. Remote Desktop access uses independent SSH tunnels. The webhook overlay is the only component intended for public ingress.
@@ -44,6 +43,26 @@ Secrets are never printed by status, doctor, logs, or dry-run. A newly generated
 
 Each dispatchable GitHub or GitLab project has an explicit source key and `/workspace/...` route in `state/oratorio/config.json`. There is no fallback Workspace.
 
+The stack selects model authentication with `DOTCRAFT_AUTH_METHOD=apiKey|chatgptOAuth`.
+This setting is required. In `chatgptOAuth` mode, the renderer binds the configured
+OpenAI provider to subscription authentication and ignores API-key endpoint fields.
+The DotCraft service uses the `state/dotcraft` mount and requires a signed-in
+account and selected model before AppServer starts. It must not silently use an
+API key when subscription credentials are missing or expired.
+
+For headless Linux hosts, an opt-in Compose auth helper shares that stack's
+`state/dotcraft` directory and uses the host network only during login. The
+operator forwards loopback OAuth callback ports 1455 and 1457 over SSH, then
+runs `dotcraft auth openai login --no-browser` in the helper and completes the
+browser flow locally. The helper receives no AppServer token or model API key.
+Each deployment has its own credential directory, even if both log in to the
+same ChatGPT account. Authorization URLs may be displayed to the operator;
+authorization codes and token bundles must not enter CLI arguments or logs.
+
+Subscription-backed automated work executes file and shell tools in the DotCraft
+container. That container mounts `state/dotcraft`, so these tools can access the
+persisted authentication file.
+
 ## `dotcraft stack` contract
 
 `dotcraft stack` is the only supported deployment CLI:
@@ -62,6 +81,9 @@ All commands accept `--dir`. Mutating commands accept `--dry-run`; dry-run perfo
 - Invalid providers, source keys, Workspace paths, ports, and missing required values fail before writes.
 - Partial writes use same-directory temporary files and atomic replacement where supported.
 - Lifecycle failures return a non-zero exit code and preserve bounded, redacted diagnostics.
+- Doctor reports a missing or read-only DotCraft user-data mount before an image-only upgrade
+  can be mistaken for a complete deployment update. Existing Compose files are
+  migrated explicitly; upgrade does not rewrite locally customized Compose.
 - Disabling webhook ingress preserves the base stack, state, secrets, and certificate volumes.
 
 ## Acceptance
@@ -70,6 +92,8 @@ All commands accept `--dir`. Mutating commands accept `--dry-run`; dry-run perfo
 - A fresh Workspace lists every bundled plugin as uninstalled and installable, and installing one plugin copies only that plugin into `/workspace/.craft/plugins`.
 - The official marketplace is available by default, and user marketplace configuration and cache survive container replacement.
 - Headless workers start independently of Desktop.
+- In subscription mode, login survives DotCraft container recreation and a
+  missing credential fails before AppServer starts.
 - Remote Board, Settings, stream, and Thread navigation use the same persisted data as headless operation.
 - CLI dry-run is non-mutating, lifecycle commands are allow-listed, and secret output follows this specification.
 - Webhook routing exposes only the documented provider endpoint and passes signature headers unchanged.

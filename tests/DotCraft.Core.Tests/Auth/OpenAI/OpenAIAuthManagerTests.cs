@@ -61,6 +61,37 @@ public sealed class OpenAIAuthManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task SeparateUserDataDirectoriesRefreshIndependently()
+    {
+        var first = new OpenAITokenStore(Path.Combine(_tempDir, "first"));
+        var second = new OpenAITokenStore(Path.Combine(_tempDir, "second"));
+        first.Save(CreateAuth("first-refresh"));
+        second.Save(CreateAuth("second-refresh"));
+
+        var firstManager = new OpenAIAuthManager(first, new HttpClient(new RecordingHandler(_ => TokenResponse("first-new"))));
+        var secondManager = new OpenAIAuthManager(second, new HttpClient(new RecordingHandler(_ => TokenResponse("second-new"))));
+        await firstManager.GetAccessTokenAsync(true, CancellationToken.None);
+        Assert.Equal("first-new", first.Load()!.Tokens!.RefreshToken);
+        Assert.Equal("second-refresh", second.Load()!.Tokens!.RefreshToken);
+
+        await secondManager.GetAccessTokenAsync(true, CancellationToken.None);
+        Assert.Equal("first-new", first.Load()!.Tokens!.RefreshToken);
+        Assert.Equal("second-new", second.Load()!.Tokens!.RefreshToken);
+
+        static AuthDotJson CreateAuth(string refreshToken) => new()
+        {
+            Tokens = new OpenAITokenSet { IdToken = "id", AccessToken = "access", RefreshToken = refreshToken },
+            LastRefresh = DateTimeOffset.UtcNow
+        };
+
+        static HttpResponseMessage TokenResponse(string refreshToken) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent($"{{\"access_token\":\"access-new\",\"refresh_token\":\"{refreshToken}\"}}",
+                System.Text.Encoding.UTF8, "application/json")
+        };
+    }
+
+    [Fact]
     public async Task GetAccessTokenRefreshesWhenLastRefreshIsOld()
     {
         var store = new OpenAITokenStore(_tempDir);
