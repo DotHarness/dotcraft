@@ -8,6 +8,9 @@
 .dca-fx-orbit-c { transform: translate(0, 104px); }
 .dca-fx-orbit-back { opacity: 0; }
 .dca-fx-sparkle > path { transform-box: fill-box; transform-origin: center; }
+.dca-fx-spray { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.dca-fx-glint-rise { transform: translateY(-720px); }
+.dca-fx-glint-flow { transform: translateX(-1200px); }
 
 @keyframes dca-fx-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 @keyframes dca-fx-flare { 0%, 100% { opacity: .8; } 12% { opacity: 1; } 20% { opacity: .7; } 28% { opacity: 1; } 60% { opacity: .9; } }
@@ -52,6 +55,13 @@
   0% { stop-color: #ff8ad4; } 20% { stop-color: #ffd28a; } 40% { stop-color: #c9ff8a; }
   60% { stop-color: #8ad8ff; } 80% { stop-color: #c98aff; } 100% { stop-color: #ff8ad4; }
 }
+@keyframes dca-fx-lean { 0%, 100% { transform: rotate(-2.4deg); } 50% { transform: rotate(3.2deg); } }
+@keyframes dca-fx-swell { 0%, 100% { transform: translateY(10px) rotate(1.2deg); } 50% { transform: translateY(-10px) rotate(-1.2deg); } }
+@keyframes dca-fx-reach { 0%, 100% { transform: scale(.8); } 40% { transform: scale(1.05); } }
+@keyframes dca-fx-foam { 0%, 100% { opacity: .55; } 40% { opacity: 1; } }
+@keyframes dca-fx-spray { 0% { opacity: 0; transform: translate(0, 10px) scale(.4); } 25% { opacity: 1; transform: translate(10px, -12px) scale(1); } 100% { opacity: 0; transform: translate(44px, -76px) scale(.2); } }
+@keyframes dca-fx-glint-rise { 0%, 22% { transform: translateY(0); } 52%, 100% { transform: translateY(-720px); } }
+@keyframes dca-fx-glint-flow { 0% { transform: translateX(0); } 30%, 100% { transform: translateX(-1200px); } }
 @keyframes dca-fx-orbit {
   0% { transform: translate(450px, 0); } 8.33% { transform: translate(390px, 52px); } 16.67% { transform: translate(225px, 90px); }
   25% { transform: translate(0, 104px); } 33.33% { transform: translate(-225px, 90px); } 41.67% { transform: translate(-390px, 52px); }
@@ -105,6 +115,13 @@
 .dca-robot[data-effects='live'] .dca-fx-prism-echo { animation-name: dca-fx-prism-echo; }
 .dca-robot[data-effects='live'] .dca-fx-orbit-front { animation: dca-fx-orbit 8s linear infinite, dca-fx-orbit-show-front 8s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-orbit-back { animation: dca-fx-orbit 8s linear infinite, dca-fx-orbit-show-back 8s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-lean { animation: dca-fx-lean 8.4s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-swell { animation: dca-fx-swell 6s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-reach { animation: dca-fx-reach 5.6s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-foam { animation: dca-fx-foam 5.6s ease-in-out infinite; animation-delay: inherit; }
+.dca-robot[data-effects='live'] .dca-fx-spray { animation: dca-fx-spray 4.8s ease-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-glint-rise { animation: dca-fx-glint-rise 8.4s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-glint-flow { animation: dca-fx-glint-flow 8.4s linear infinite; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop { animation: dca-fx-holo 6s linear infinite; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop:nth-child(2) { animation-delay: -1.2s; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop:nth-child(3) { animation-delay: -2.4s; }

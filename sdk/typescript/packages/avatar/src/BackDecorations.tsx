@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { BackId } from './items.js'
-import { Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
+import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
 
 const mirrored = (art: ReactNode) => <>{art}<g transform="matrix(-1 0 0 1 1024 0)">{art}</g></>
 
@@ -146,33 +146,6 @@ const teslaArc = 'M212 186L246 142L296 160L330 104L384 124L420 76L470 96L512 58L
 
 const dragonTail = 'M313 773 275 795 241 809 211 815 184 815 161 810 140 799 121 782 106 759 94 729 88 693 88 651 94 605 58 595 44 645 38 694 40 739 49 782 66 820 92 854 125 880 165 898 211 905 260 903 313 890 367 867Z'
 
-
-
-const sea = { deep: '#1e3f8f', band: '#5fb3ec', foam: '#fff8e6' }
-// A foam finger rooted at (x, y), reaching len along deg and curling bend×len to its right.
-function claw(x: number, y: number, deg: number, len: number, w: number, bend = .35) {
-  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a), h = w / 2, b = len * bend
-  const p = (u: number, v: number) => `${(x + u * c - v * s).toFixed(0)} ${(y + u * s + v * c).toFixed(0)}`
-  return `M${p(-h, 0)}C${p(-h, -h)} ${p(len * .55, -h * 1.1)} ${p(len, b)}C${p(len * .55, b * .45 + h * .5)} ${p(h * .2, h)} ${p(-h, 0)}Z`
-}
-// Foam gets a rim of the water colour so cream never touches the white outline, and a light backing so the flare shimmers instead of greying.
-function Sea({ body, band, foam, rim = 12, fill = sea.deep }: { body?: string; band?: ReactNode; foam?: string; rim?: number; fill?: string }) {
-  return <g strokeLinejoin="round">
-    {body && <path d={body} stroke="#fff" strokeWidth="18" />}
-    {foam && <path d={foam} fill="#fff" stroke="#fff" strokeWidth={2 * rim + 18} />}
-    {body && <path d={body} fill={fill} />}
-    {foam && <path d={foam} fill={fill} stroke={fill} strokeWidth={2 * rim} />}
-    {band}
-    {foam && <path d={foam} fill={sea.band} />}
-    {foam && <g className="dca-fx-flare"><path d={foam} fill={sea.foam} /></g>}
-  </g>
-}
-const wave = {
-  body: 'M230 270C300 270 350 296 352 330C354 356 330 366 306 356C270 340 230 330 200 350C170 370 160 420 164 470C170 580 180 680 200 740C230 800 280 840 360 858C460 872 640 870 760 858C810 852 840 856 856 868C874 886 862 924 800 930C600 940 400 940 230 934C100 928 24 886 12 796C0 660 10 520 44 420C80 320 150 270 230 270Z',
-  band: 'M430 896C300 890 170 836 110 716C70 616 70 480 110 400C150 330 220 310 270 330',
-  foam: [claw(60, 420, -70, 96, 50, .9), claw(116, 326, -34, 100, 50, .95), claw(196, 280, 0, 104, 50, 1), claw(284, 286, 38, 100, 50, .95), claw(344, 336, 88, 72, 42, .8)].join(''),
-}
-
 type Pt = readonly [number, number]
 const jade = '#2f9e7a', mint = '#a7e8cf', gold = '#f6b500', ink = '#16302a'
 const n0 = (v: number) => Math.round(v)
@@ -229,6 +202,63 @@ function Plane({ d, fill, contour = 20 }: { d: string[]; fill: string; contour?:
 function Antlers({ d, width = 22 }: { d: string; width?: number }) {
   return <g strokeLinecap="round" strokeLinejoin="round"><path d={d} stroke="#fff" strokeWidth={width + 20} /><path d={d} stroke={gold} strokeWidth={width} /></g>
 }
+const sea = { deep: '#1e3f8f', band: '#5fb3ec', foam: '#fff8e6' }
+function claw(x: number, y: number, deg: number, len: number, w: number, bend = .35) {
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a), h = w / 2, b = len * bend
+  const p = (u: number, v: number) => `${(x + u * c - v * s).toFixed(0)} ${(y + u * s + v * c).toFixed(0)}`
+  return `M${p(-h, 0)}C${p(-h, -h)} ${p(len * .55, -h * 1.1)} ${p(len, b)}C${p(len * .55, b * .45 + h * .5)} ${p(h * .2, h)} ${p(-h, 0)}Z`
+}
+type Claw = Parameters<typeof claw>
+type Drop = readonly [x: number, y: number, r: number]
+interface WaterMass { motion: string; pivot: string; body: string; band: string; claws: Claw[]; stagger: number; glint: { className: string; d: string }; spray: Drop[] }
+const swing = (points: Pt[]) => points.slice(1).map(([x, y], i) => { const [px, py] = points[i], k = (x - px) * .36; return `C${n0(px + k)} ${py} ${n0(x - k)} ${y} ${x} ${y}` }).join('')
+const rim = 12
+
+function Foam({ mass, paint }: { mass: WaterMass; paint: (d: string) => ReactNode }) {
+  return <>{mass.claws.map((c, i) => <g key={i} className="dca-fx-reach" style={{ transformOrigin: `${c[0]}px ${c[1]}px`, animationDelay: `${(mass.stagger + i * .45).toFixed(2)}s` }}>{paint(claw(...c))}</g>)}</>
+}
+function Glint({ clip: shape, className, d }: { clip: string; className: string; d: string }) {
+  const clip = useClipId()
+  return <><defs><clipPath id={clip}><path d={shape} /></clipPath></defs><g clipPath={`url(#${clip})`}><path className={`dca-fx ${className}`} d={d} fill="#f4fbff" opacity=".92" /></g></>
+}
+function Spray({ drops }: { drops: Drop[] }) {
+  return <g className="dca-fx">{drops.map(([x, y, r], i) => <g key={i} className="dca-fx-spray" style={{ animationDelay: `${(-i * 4.8 / drops.length).toFixed(2)}s` }}>
+    <circle cx={x} cy={y} r={r + 9} fill="#fff" /><circle cx={x} cy={y} r={r} fill={sea.band} /><circle cx={x - r * .25} cy={y - r * .25} r={r * .55} fill={sea.foam} />
+  </g>)}</g>
+}
+// All contours are drawn before all fills so masses on different clocks overlap without seams; foam keeps a water-coloured rim off the white outline.
+function Water({ masses }: { masses: WaterMass[] }) {
+  return <g strokeLinejoin="round">
+    {masses.map((m, i) => <g key={`c${i}`} className={m.motion} style={{ transformOrigin: m.pivot }}>
+      <path d={m.body} stroke="#fff" strokeWidth="18" />
+      <Foam mass={m} paint={d => <path d={d} fill="#fff" stroke="#fff" strokeWidth={2 * rim + 18} />} />
+    </g>)}
+    {masses.map((m, i) => <g key={`f${i}`} className={m.motion} style={{ transformOrigin: m.pivot }}>
+      <path d={m.body} fill={sea.deep} />
+      <Foam mass={m} paint={d => <path d={d} fill={sea.deep} stroke={sea.deep} strokeWidth={2 * rim} />} />
+      <Detail><path d={m.band} fill={sea.band} /><Glint clip={m.band} {...m.glint} /></Detail>
+      <Foam mass={m} paint={d => <><path d={d} fill={sea.band} /><path className="dca-fx-foam" d={d} fill={sea.foam} /></>} />
+      <Spray drops={m.spray} />
+    </g>)}
+  </g>
+}
+const curl: WaterMass = {
+  motion: 'dca-fx-lean', pivot: '170px 900px', stagger: -3,
+  body: 'M230 270C300 270 350 296 352 330C354 356 330 366 306 356C270 340 230 330 200 350C170 370 160 420 164 470C170 580 180 680 200 740C222 806 262 846 330 870L330 880L56 880C38 866 30 836 30 796C20 660 28 520 60 420C92 324 156 270 230 270Z',
+  band: tube([[330, 904], [200, 872], [122, 790], [94, 660], [98, 520], [130, 420], [184, 358], [240, 336], [284, 340]], t => 56 - 28 * t),
+  claws: [[60, 420, -70, 96, 50, .9], [116, 326, -34, 100, 50, .95], [196, 280, 0, 104, 50, 1], [284, 286, 38, 100, 50, .95], [344, 336, 88, 72, 42, .8]],
+  glint: { className: 'dca-fx-glint-rise', d: 'M-40 900L400 830V960L-40 1030Z' },
+  spray: [[150, 248, 13], [226, 220, 15], [298, 228, 12], [352, 270, 10], [96, 316, 10]],
+}
+const swell: WaterMass = {
+  motion: 'dca-fx-swell', pivot: '512px 900px', stagger: -5.4,
+  body: `M30 886C28 856 44 838 64 836C96 834 124 846 170 850${swing([[170, 850], [300, 834], [430, 858], [560, 836], [700, 852]])}C750 846 776 796 812 786C846 776 880 762 910 770C942 780 964 812 964 848C964 886 950 906 924 914${swing([[924, 914], [810, 944], [690, 916], [570, 944], [450, 916], [330, 944], [210, 916], [90, 944]])}C60 944 32 922 30 886Z`,
+  band: tube([[900, 862], [820, 906], [700, 894], [580, 912], [460, 894], [340, 912], [240, 900], [180, 866], [134, 806]], t => 16 + 26 * t ** 2),
+  claws: [[58, 846, -84, 58, 36, .8], [96, 842, -54, 60, 36, .85], [134, 850, -26, 54, 34, .8], [870, 776, -40, 64, 38, .9], [914, 772, 6, 66, 38, .95], [950, 806, 56, 54, 34, .8]],
+  glint: { className: 'dca-fx-glint-flow', d: 'M1000 760H1120L1060 980H940Z' },
+  spray: [[944, 730, 11], [984, 774, 9]],
+}
+
 const profileBody: Pt[] = [[280, 262], [322, 186], [400, 128], [512, 106], [630, 118], [730, 176], [810, 266], [880, 370], [920, 500], [935, 640], [925, 760], [948, 850], [992, 856], [1000, 790]]
 const profileWidth = (t: number) => 108 - 70 * t
 const profileHead = 'M50-30C46-80 10-110-36-108C-62-106-84-96-92-78C-96-68-104-62-116-62C-130-62-138-70-146-84C-160-106-196-100-198-70C-200-52-192-40-180-36C-192-30-204-18-196-4L-86 0C-60 30 10 44 40 20C60 4 60-16 50-30Z'
@@ -416,9 +446,7 @@ export function BackDecoration({ id }: { id: BackId }) {
         <path d={teslaArc} stroke="#fff" strokeWidth="6" />
       </g>
     </>
-    case 'great-wave': return <g className="dca-fx-sway" style={{ transformOrigin: '300px 960px' }}>
-      <Sea body={wave.body} foam={wave.foam} band={<path d={wave.band} stroke={sea.band} strokeWidth="50" strokeLinecap="round" />} />
-    </g>
+    case 'great-wave': return <Water masses={[curl, swell]} />
     case 'cloud-dragon': return <CloudDragon />
     default: return null
   }
