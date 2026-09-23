@@ -2302,6 +2302,8 @@ export const MESSAGES_ES = {
   'plugins.section.local': 'Instalado localmente',
   'plugins.tab.plugins': 'Complementos',
   'plugins.tab.skills': 'Habilidades',
+  'plugins.currentWorkspace': 'Espacio de trabajo actual',
+  'plugins.workspaceScope': 'Espacio de trabajo: {{name}}',
   'skills.manage.searchPlaceholder': 'Buscar habilidades instaladas',
   'skills.pageTitle': 'Habilidades',
   'skills.updateFailed': 'No se pudo actualizar la habilidad',

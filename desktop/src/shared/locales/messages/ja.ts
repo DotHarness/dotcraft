@@ -2297,6 +2297,8 @@ export const MESSAGES_JA = {
   'plugins.section.local': 'ローカルにインストール',
   'plugins.tab.plugins': 'プラグイン',
   'plugins.tab.skills': 'スキル',
+  'plugins.currentWorkspace': '現在のワークスペース',
+  'plugins.workspaceScope': 'ワークスペース: {{name}}',
   'skills.manage.searchPlaceholder': 'インストールされているスキルを検索する',
   'skills.pageTitle': 'スキル',
   'skills.updateFailed': 'スキルの更新に失敗しました',

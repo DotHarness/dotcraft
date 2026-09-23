@@ -289,7 +289,7 @@ export function setupPluginsViewTest(): void {
   settingsGet.mockResolvedValue({ locale: 'en' })
   useConnectionStore.getState().reset()
   useAppBindingStore.getState().reset()
-  useConversationStore.setState({ remoteWorkspaceActive: false })
+  useConversationStore.setState({ remoteWorkspaceActive: false, workspacePath: '' })
   useThreadStore.getState().reset()
   useToastStore.setState({ toasts: [] })
   useConnectionStore.getState().setStatus({

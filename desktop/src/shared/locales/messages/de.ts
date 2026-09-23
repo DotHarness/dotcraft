@@ -2304,6 +2304,8 @@ export const MESSAGES_DE = {
   'plugins.section.local': 'Lokal installiert',
   'plugins.tab.plugins': 'Plugins',
   'plugins.tab.skills': 'Fähigkeiten',
+  'plugins.currentWorkspace': 'Aktueller Arbeitsbereich',
+  'plugins.workspaceScope': 'Arbeitsbereich: {{name}}',
   'skills.manage.searchPlaceholder': 'Installierte Fähigkeiten durchsuchen',
   'skills.pageTitle': 'Fähigkeiten',
   'skills.updateFailed': 'Der Skill konnte nicht aktualisiert werden',

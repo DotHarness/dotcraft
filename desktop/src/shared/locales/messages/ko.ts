@@ -2301,6 +2301,8 @@ export const MESSAGES_KO = {
   'plugins.section.local': '로컬로 설치됨',
   'plugins.tab.plugins': '플러그인',
   'plugins.tab.skills': '스킬',
+  'plugins.currentWorkspace': '현재 작업공간',
+  'plugins.workspaceScope': '작업공간: {{name}}',
   'skills.manage.searchPlaceholder': '설치된 스킬 검색',
   'skills.pageTitle': '스킬',
   'skills.updateFailed': '스킬 업데이트 실패',

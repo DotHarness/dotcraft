@@ -2303,6 +2303,8 @@ export const MESSAGES_FR = {
   'plugins.section.local': 'Installé localement',
   'plugins.tab.plugins': 'Plugins',
   'plugins.tab.skills': 'Compétences',
+  'plugins.currentWorkspace': 'Espace de travail actuel',
+  'plugins.workspaceScope': 'Espace de travail : {{name}}',
   'skills.manage.searchPlaceholder': 'Rechercher les compétences installées',
   'skills.pageTitle': 'Compétences',
   'skills.updateFailed': 'Échec de la mise à jour de la compétence',

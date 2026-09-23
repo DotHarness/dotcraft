@@ -31,6 +31,19 @@ describe('PluginsView catalog', () => {
     expect(screen.getByRole('button', { name: 'Filter plugins' })).toBeInTheDocument()
   })
 
+  it('labels the plugin navigation with the active workspace', async () => {
+    useConversationStore.setState({ workspacePath: 'X:\\fixtures\\project-alpha' })
+    appServerSendRequest.mockResolvedValue({
+      plugins: [browserUsePlugin],
+      diagnostics: [],
+      snapshotRevision: 1
+    })
+
+    renderPluginsView()
+
+    expect(await screen.findByTitle('Workspace: project-alpha')).toBeInTheDocument()
+  })
+
   it('installs a plugin from a picked disk folder via plugin/installLocal', async () => {
     appServerSendRequest.mockImplementation((method: string) => {
       if (method === 'plugin/installLocal') {

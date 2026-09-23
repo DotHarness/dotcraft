@@ -1598,6 +1598,8 @@ export const MESSAGES_ZH_HANS = {
   'plugins.pageTitle': '插件',
   'plugins.tab.plugins': '插件',
   'plugins.tab.skills': '技能',
+  'plugins.currentWorkspace': '当前工作区',
+  'plugins.workspaceScope': '工作区：{{name}}',
   'plugins.heroTitle': '让 DotCraft 拥有你需要的能力',
   'plugins.searchPlaceholder': '搜索插件',
   'plugins.manage.searchPlaceholder': '搜索已安装插件',

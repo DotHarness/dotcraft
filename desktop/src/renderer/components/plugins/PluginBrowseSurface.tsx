@@ -5,6 +5,7 @@ import { AtSign, Ellipsis, Settings, Tags, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { MarketplaceEntry, PluginDiagnosticEntry, PluginEntry } from '../../stores/pluginStore'
 import type { PluginCatalogSurface } from '../../stores/uiStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import {
   CatalogFilterButton,
   CatalogScrollArea,
@@ -24,6 +25,7 @@ import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import { AddMarketplaceDialog } from './AddMarketplaceDialog'
 import { PluginCatalogItem } from './PluginCatalogItem'
 import { PluginDiagnosticsBanner } from './PluginDiagnosticsBanner'
+import { workspacePathName } from '../sidebar/ThreadEntryDetails'
 import {
   marketplaceTitle,
   type CategoryFilter,
@@ -41,16 +43,26 @@ export function PluginSurfaceTabs({
   onChange: (value: Surface) => void
 }): JSX.Element {
   const t = useT()
+  const workspacePath = useConversationStore((state) => state.workspacePath)
+  const workspaceName = workspacePathName(workspacePath) ?? t('plugins.currentWorkspace')
   return (
-    <CatalogTabs
-      inTopBar
-      value={value}
-      onChange={onChange}
-      items={[
-        { value: 'plugins', label: t('plugins.tab.plugins') },
-        { value: 'skills', label: t('plugins.tab.skills') }
-      ]}
-    />
+    <div style={surfaceNavigation}>
+      <span
+        style={workspaceScope}
+        title={t('plugins.workspaceScope', { name: workspaceName })}
+      >
+        {t('plugins.workspaceScope', { name: workspaceName })}
+      </span>
+      <CatalogTabs
+        inTopBar
+        value={value}
+        onChange={onChange}
+        items={[
+          { value: 'plugins', label: t('plugins.tab.plugins') },
+          { value: 'skills', label: t('plugins.tab.skills') }
+        ]}
+      />
+    </div>
   )
 }
 
@@ -302,6 +314,22 @@ function MarketplaceSectionHeader({
 }
 
 const page: CSSProperties = catalogStyles.page
+const surfaceNavigation: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  minWidth: 0
+}
+const workspaceScope: CSSProperties = {
+  color: 'var(--text-secondary)',
+  fontSize: 'var(--type-hint-size)',
+  lineHeight: 'var(--type-hint-line-height)',
+  maxWidth: '18rem',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}
 const browseHeader: CSSProperties = catalogStyles.browseHeader
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const searchRow: CSSProperties = catalogStyles.searchRow

@@ -1642,6 +1642,8 @@ export const MESSAGES_EN = {
   'plugins.pageTitle': 'Plugins',
   'plugins.tab.plugins': 'Plugins',
   'plugins.tab.skills': 'Skills',
+  'plugins.currentWorkspace': 'Current workspace',
+  'plugins.workspaceScope': 'Workspace: {{name}}',
   'plugins.heroTitle': 'Give DotCraft the ability you need',
   'plugins.searchPlaceholder': 'Search plugins',
   'plugins.manage.searchPlaceholder': 'Search installed plugins',
