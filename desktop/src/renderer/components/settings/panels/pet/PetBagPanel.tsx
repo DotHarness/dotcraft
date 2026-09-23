@@ -5,7 +5,7 @@ import { decorationName, itemOf, rarityMeta, slots, type ItemId, type Slot } fro
 import type { MessageKey } from '../../../../../shared/locales'
 import type { PetSettings } from '../../../../../shared/pet'
 import { useT } from '../../../../contexts/LocaleContext'
-import { bagEntries, bagTotal, isWorn } from '../../../../pet/petModel'
+import { bagEntries, isWorn } from '../../../../pet/petModel'
 import { Button } from '../../../ui/Button'
 
 interface PetBagPanelProps {
@@ -28,16 +28,9 @@ export function PetBagPanel({ settings, onToggle, onTryOn }: PetBagPanelProps): 
   const [filter, setFilter] = useState<BagFilter>('all')
   const { bag, outfit } = settings
   const entries = bagEntries(bag).filter((entry) => filter === 'all' || (filter === 'wearing' ? isWorn(outfit, entry.id) : itemOf(entry.id).slot === filter))
-  const hint = bagTotal(bag) === 0
-    ? t('settings.pet.bag.empty')
-    : entries.length === 0 ? t(filter === 'wearing' ? 'settings.pet.bag.nothingWorn' : 'settings.pet.bag.nothingForSlot') : null
   const slots = Math.max(ROWS * COLUMNS, Math.ceil(entries.length / COLUMNS) * COLUMNS)
   return (
     <div className="pet-settings-bag">
-      <div className="pet-settings-bag-head">
-        <span className="pet-settings-eyebrow">{t('settings.pet.bag.title')}</span>
-        {hint && <span className="pet-settings-bag-hint">{hint}</span>}
-      </div>
       <div className="pet-settings-filters" role="group" aria-label={t('settings.pet.bag.filter')}>
         {FILTERS.map((option) => (
           <Button key={option} size="sm" variant={filter === option ? 'secondary' : 'ghost'} aria-pressed={filter === option} onClick={() => setFilter(option)}>
