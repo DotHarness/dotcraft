@@ -81,10 +81,15 @@ test('rim items keep the native face, hide at compact size and combine with brim
 })
 
 test('orbiting items split into a behind-body half and an in-front half; flat items stay behind', () => {
-  for (const back of ['orbit-ring', 'koi-orbit']) {
-    const orbit = render({ appearance: { ...originalAppearance, back }, size: 64 })
-    const backIndex = orbit.indexOf(`data-back="${back}"`), frontIndex = orbit.indexOf(`data-back-front="${back}"`), faceIndex = orbit.indexOf('data-profile-face=')
+  const split = back => {
+    const html = render({ appearance: { ...originalAppearance, back }, size: 64 })
+    const backIndex = html.indexOf(`data-back="${back}"`), frontIndex = html.indexOf(`data-back-front="${back}"`), faceIndex = html.indexOf('data-profile-face=')
     assert.ok(backIndex > 0 && frontIndex > 0 && backIndex < faceIndex && faceIndex < frontIndex)
+    return html
+  }
+  split('donut-floatie')
+  for (const back of ['orbit-ring', 'koi-orbit']) {
+    const orbit = split(back)
     const bodies = (orbit.match(/dca-fx-orbit-front/g) ?? []).length
     assert.ok(bodies > 0 && bodies === (orbit.match(/dca-fx-orbit-back/g) ?? []).length)
   }

@@ -16,6 +16,10 @@ export const paintMaterials = {
   terminal: { shadow: '#020604', accent: '#7dff8a' },
   patina: { shadow: '#123a33', accent: '#58b39a' },
   thermal: { shadow: '#12072e', accent: '#ff7a1f' },
+  candy: { shadow: '#2a0309', accent: '#ff4d63' },
+  racer: { shadow: '#1f4f73', accent: '#f28a1c' },
+  prism: { shadow: '#151830', accent: '#a276ff' },
+  void: { shadow: '#030206', accent: '#8b5cf6' },
 } as const satisfies Partial<Record<SkinId, PaintMaterial>>
 
 export type PaintSkinId = keyof typeof paintMaterials

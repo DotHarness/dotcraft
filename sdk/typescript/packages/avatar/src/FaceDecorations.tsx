@@ -2,10 +2,22 @@ import { useId, type ReactNode } from 'react'
 import type { FaceId, Zone } from './items.js'
 import { itemOf } from './items.js'
 import type { Faceplate } from './MascotRig.js'
-import { Silhouette as S, useClipId } from './DecorationShapes.js'
+import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
 
 const heartLens = 'c-31-11-52-22-52-34 0-10 15-16 29-16 10 0 19 3 23 8 4-5 13-8 23-8 14 0 29 6 29 16 0 12-21 23-52 34Z'
 const snorkelTube = 'M792 458V372q0-30 28-40'
+const mark = 'var(--dca-held-mark, #3161f7)'
+const melon = (x: number, rx: number, ry: number) => `M${x - rx} 414h${rx * 2}a${rx} ${ry} 0 0 1-${rx * 2} 0Z`
+function star(cx: number, cy: number) {
+  return `M${Array.from({ length: 10 }, (_, i) => {
+    const angle = (i * 36 - 90) * Math.PI / 180, r = i % 2 ? .52 : 1
+    return `${(cx + 46 * r * Math.cos(angle)).toFixed(1)} ${(cy + 27 * r * Math.sin(angle)).toFixed(1)}`
+  }).join('L')}Z`
+}
+const rosettePoint = (r: number, i: number) => `${(512 + r * Math.cos(i * Math.PI / 5)).toFixed(1)} ${(834 + r * Math.sin(i * Math.PI / 5)).toFixed(1)}`
+const rosette = `M${rosettePoint(40, 0)}${Array.from({ length: 10 }, (_, i) => `A13 13 0 0 1 ${rosettePoint(40, i + 1)}`).join('')}Z`
+const pleats = Array.from({ length: 10 }, (_, i) => `M${rosettePoint(30, i)}L${rosettePoint(42, i)}`).join('')
+const crystal = 'M512 814c12 14 26 28 26 40a26 26 0 0 1-52 0c0-12 14-26 26-40Z'
 
 export function FaceDecoration({ id }: { id: FaceId }) {
   switch (id) {
@@ -59,6 +71,70 @@ export function FaceDecoration({ id }: { id: FaceId }) {
       <path d="M712 420 752 398v44Z" fill="#e0ad84" />
       <path d="M860 398h14a14 14 0 0 1 14 14v16a14 14 0 0 1-14 14h-14Z" fill="#f2a0b4" />
     </g>
+    case 'watermelon-glasses': return <>
+      <path d="M488 424q24-8 48 0" stroke="#4fae6a" strokeWidth="12" strokeLinecap="round" fill="none" />
+      <S d={melon(430, 58, 48) + melon(594, 58, 48)} fill="#4fae6a" stroke={12} />
+      <path d={melon(430, 50, 34) + melon(594, 50, 34)} fill="#eaf7d9" />
+      <path d={melon(430, 46, 29) + melon(594, 46, 29)} fill="#e8654f" />
+      <Detail><g fill="#2b2f3a">
+        <ellipse cx="410" cy="424" rx="4" ry="6" /><ellipse cx="432" cy="433" rx="4" ry="6" /><ellipse cx="454" cy="424" rx="4" ry="6" />
+        <ellipse cx="574" cy="424" rx="4" ry="6" /><ellipse cx="596" cy="433" rx="4" ry="6" /><ellipse cx="618" cy="424" rx="4" ry="6" />
+      </g></Detail>
+    </>
+    case 'star-glasses': return <>
+      <path d="M484 430h56" stroke="#e09a00" strokeWidth="12" strokeLinecap="round" />
+      <S d={star(440, 438) + star(584, 438)} fill="#ffd970" stroke={12} />
+      <path d={star(440, 438) + star(584, 438)} stroke="#e09a00" strokeWidth="7" strokeLinejoin="round" />
+      <path className="dca-fx dca-fx-sparkle-solo" d="M596 424l4 8 8 4-8 4-4 8-4-8-8-4 8-4Z" fill="#fff" />
+    </>
+    case 'sticky-note': return <g className="dca-part-temple" transform="rotate(12 796 416)">
+      <S d="M752 372h88v60l-28 28h-60Z" fill="#f6d365" stroke={14} />
+      <path d="M840 432h-22q-6 0-6 6v22Z" fill="#e8b93a" />
+      <Detail><path d="M766 398h58M766 420h40" stroke="#c9a13a" strokeWidth="6" strokeLinecap="round" /></Detail>
+    </g>
+    case 'lanyard-badge': return <>
+      <path d="M406 796 500 808M618 796 524 808" stroke="#fff" strokeWidth="28" strokeLinecap="round" />
+      <path d="M406 796 500 808M618 796 524 808" stroke="#f6b500" strokeWidth="14" strokeLinecap="round" />
+      <rect x="461" y="800" width="102" height="78" rx="12" fill={mark} stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+      <rect x="471" y="830" width="82" height="40" rx="6" fill="#fff" />
+      <rect x="501" y="790" width="22" height="20" rx="5" fill="#8b95a5" />
+      <rect x="478" y="837" width="26" height="26" rx="5" fill="#3c4658" />
+      <Detail><path d="M513 845h30M513 859h20" stroke="#a7b1c0" strokeWidth="7" strokeLinecap="round" /></Detail>
+    </>
+    case 'prize-rosette': return <>
+      <S d="M505 828 519 848 459 884 462 870 445 864ZM519 828 505 848 565 884 562 870 579 864Z" fill="#3161f7" stroke={12} />
+      <S d={rosette} fill="#4f7cf6" stroke={12} />
+      <Detail><path d={pleats} stroke="#3161f7" strokeWidth="5" strokeLinecap="round" /></Detail>
+      <circle cx="512" cy="834" r="23" fill="#f6b500" stroke="#dbe6ff" strokeWidth="8" />
+    </>
+    case 'cherry-charm': return <g className="dca-part-temple">
+      <path d="M764 422q4-24 26-30 18 4 34 20" stroke="#fff" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M764 422q4-24 26-30 18 4 34 20" stroke="#5b887a" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <S d="M790 392q10-22 36-22-6 24-36 22Z" fill="#89b875" stroke={10} />
+      <S d="M737 448a27 27 0 1 1 54 0a27 27 0 1 1-54 0ZM797 438a27 27 0 1 1 54 0a27 27 0 1 1-54 0Z" fill="#e8654f" stroke={12} />
+      <Detail><path d="M750 440q2-9 10-11M810 430q2-9 10-11" stroke="#fff4ef" strokeWidth="6" strokeLinecap="round" fill="none" /><path d="M768 466q14 6 18-9M828 456q14 6 18-9" stroke="#b94f50" strokeWidth="6" strokeLinecap="round" fill="none" /></Detail>
+    </g>
+    case 'songbird': return <g className="dca-part-temple" strokeLinecap="round">
+      <path d="M782 408l-2 10M794 414l-1 16" stroke="#2b2f3a" strokeWidth="6" />
+      <S d="M828 376 864 362 860 398 830 396Z" fill="#3161f7" stroke={12} />
+      <S d="M770 386a32 32 0 1 1 64 0a32 32 0 1 1-64 0Z" fill="#4f7cf6" stroke={12} />
+      <path d="M772 375A32 32 0 0 0 818 414Q812 390 772 375Z" fill="#ed985f" />
+      <path d="M808 374q26 0 30 24-20 6-32-8Z" fill="#3b63d6" />
+      <g className="dca-fx-swing" style={{ transformOrigin: '788px 372px' }}>
+        <path d="M762 348 740 358 762 368Z" fill="#f6b500" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
+        <S d="M758 358a21 21 0 1 1 42 0a21 21 0 1 1-42 0Z" fill="#4f7cf6" stroke={12} />
+        <circle cx="772" cy="354" r="5" fill="#2b2f3a" />
+      </g>
+    </g>
+    case 'amulet': return <>
+      <path d="M404 792q108 36 216 0" stroke="#fff" strokeWidth="24" strokeLinecap="round" fill="none" />
+      <path d="M404 792q108 36 216 0" stroke="#3c4658" strokeWidth="10" strokeLinecap="round" fill="none" />
+      <Glow blur={14} className="dca-fx-pulse"><path d={crystal} fill="#5eead4" stroke="#5eead4" strokeWidth="18" opacity=".9" /></Glow>
+      <S d={crystal} fill="#5eead4" stroke={12} />
+      <path d="M512 814c12 14 26 28 26 40a26 26 0 0 1-26 26Z" fill="#2cc5b0" />
+      <circle cx="512" cy="812" r="8" fill="#efc65c" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
+      <Detail><path d="M500 842q-7 10-3 22" stroke="#ccfbf1" strokeWidth="7" strokeLinecap="round" fill="none" /></Detail>
+    </>
     default: return null
   }
 }
@@ -212,6 +288,36 @@ function MechaEyes() {
   </>
 }
 
+function codeRain() {
+  const glyphs: string[] = [], heads: string[] = []
+  for (let column = 0; column < 13; column++) {
+    const x = 318 + column * 32
+    for (const [start, length] of [[column * 197 % 560, 3 + column * 5 % 5], [(column * 197 + 290) % 560, 2 + column * 3 % 4]]) {
+      for (let row = 0; row < length; row++) {
+        const width = (row + column) % 3 ? 14 : 8, y = (start + row * 24) % 560
+        // Each glyph repeats one scanline travel (560) apart, so the looping fall never shows a seam.
+        for (const top of [y - 84, y + 476]) (row === length - 1 ? heads : glyphs).push(`M${x + (14 - width) / 2} ${top}h${width}v16h-${width}Z`)
+      }
+    }
+  }
+  return { glyphs: glyphs.join(''), heads: heads.join('') }
+}
+const rain = codeRain()
+const rainSockets = 'M390 596a28 28 0 0 1 28-28h24a28 28 0 0 1 28 28v44a28 28 0 0 1-28 28h-24a28 28 0 0 1-28-28ZM554 596a28 28 0 0 1 28-28h24a28 28 0 0 1 28 28v44a28 28 0 0 1-28 28h-24a28 28 0 0 1-28-28Z'
+function CodeRainEyes() {
+  const glow = useGlowFilter()
+  return <>
+    {glow.defs}
+    <path d={rainSockets} fill="#020805" stroke="#1c3a26" strokeWidth="4" />
+    <Light name="neutral" filter={glow.id} glow="#7dff8a" core="#d9ffe0"><rect x="398" y="576" width="64" height="84" rx="22" /><rect x="562" y="576" width="64" height="84" rx="22" /></Light>
+    <Light name="happy" filter={glow.id} glow="#7dff8a" core="#f0fff2" glowOpacity={1} effect="dca-fx-flare">
+      <path d="M398 598a22 22 0 0 1 22-22h20a22 22 0 0 1 22 22v36q-32-22-64 0Z" /><path d="M562 598a22 22 0 0 1 22-22h20a22 22 0 0 1 22 22v36q-32-22-64 0Z" />
+    </Light>
+    <Light name="operator" filter={glow.id} glow="#7dff8a" core="#d9ffe0" glowOpacity={.75} effect="dca-fx-none"><rect x="398" y="614" width="64" height="46" rx="12" /><rect x="562" y="614" width="64" height="46" rx="12" /></Light>
+    <Light name="sleep" filter={glow.id} glow="#7dff8a" core="#7dff8a" glowOpacity={.3} coreOpacity={.4} effect="dca-fx-breathe"><rect x="398" y="648" width="64" height="10" rx="5" /><rect x="562" y="648" width="64" height="10" rx="5" /></Light>
+  </>
+}
+
 function PixelEyes() {
   const glow = useGlowFilter()
   const block = (x: number, y: number, w = 48, h = 48) => <rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} />
@@ -254,6 +360,9 @@ export function FaceplatePlate({ id }: { id: FaceId }) {
       <path d="M478 660h68l40 107H438Z" fill="#2f4543" />
       <path d="M476 718q14-14 32-6-10 16-32 6ZM548 718q-14-14-32-6 10 16 32 6Z" fill="#0f1616" />
     </Plate></g>
+    case 'code-rain': return <g data-faceplate={id}><Plate fill="#0b1410">
+      <g className="dca-fx dca-fx-scanline" opacity=".35"><path d={rain.glyphs} fill="#7dff8a" /><path d={rain.heads} fill="#d9ffe0" /></g>
+    </Plate></g>
     default: return null
   }
 }
@@ -268,6 +377,7 @@ export function FaceplateEyes({ id }: { id: FaceId }) {
     case 'knight-visor': return <KnightEyes />
     case 'porthole-helmet': return <g transform="translate(512 622) scale(.75) translate(-512 -618)"><NeonEyes /></g>
     case 'dragon-visor': return <DragonEyes />
+    case 'code-rain': return <CodeRainEyes />
     default: return null
   }
 }

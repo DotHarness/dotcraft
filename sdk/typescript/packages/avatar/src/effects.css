@@ -1,6 +1,7 @@
 .dca-robot[data-effects='off'] .dca-fx { display: none; }
 
 .dca-fx-sheen { transform: translateX(120px); }
+.dca-fx-prism { transform: translateX(-40px); }
 .dca-fx-scanline { transform: translateY(260px); }
 .dca-fx-orbit-a { transform: translate(450px, 0); }
 .dca-fx-orbit-b { transform: translate(-450px, 0); }
@@ -22,6 +23,11 @@
 @keyframes dca-fx-hover { 0% { transform: translateY(0); } 100% { transform: translateY(-14px); } }
 @keyframes dca-fx-wave { 0% { transform: skewY(-6deg); } 100% { transform: skewY(6deg); } }
 @keyframes dca-fx-rotate { to { transform: rotate(360deg); } }
+@keyframes dca-fx-void-hot { from { transform: rotate(0deg); fill: #9fdcff; } to { transform: rotate(360deg); fill: #9fdcff; } }
+@keyframes dca-fx-sonar {
+  0% { transform: scale(1); } 25% { transform: scale(1.157); } 50% { transform: scale(1.339); } 75% { transform: scale(1.549); } 100% { transform: scale(1.793); }
+}
+@keyframes dca-fx-tide { 0% { transform: translateY(70px); } 100% { transform: translateY(-150px); } }
 @keyframes dca-fx-lava {
   0%, 100% { stop-color: #4a1208; } 20% { stop-color: #e8451f; } 40% { stop-color: #ffb347; } 60% { stop-color: #ff6a2a; } 80% { stop-color: #7a1f0e; }
 }
@@ -41,6 +47,7 @@
 @keyframes dca-fx-flame { 0% { transform: scaleY(.82) scaleX(.94); opacity: .85; } 100% { transform: scaleY(1.12) scaleX(1.04); opacity: 1; } }
 @keyframes dca-fx-node { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
 @keyframes dca-fx-sheen { 0% { transform: translateX(-440px); } 55% { transform: translateX(740px); } 100% { transform: translateX(740px); } }
+@keyframes dca-fx-prism-echo { 0%, 45% { transform: translateX(-440px); } 100% { transform: translateX(740px); } }
 @keyframes dca-fx-holo {
   0% { stop-color: #ff8ad4; } 20% { stop-color: #ffd28a; } 40% { stop-color: #c9ff8a; }
   60% { stop-color: #8ad8ff; } 80% { stop-color: #c98aff; } 100% { stop-color: #ff8ad4; }
@@ -70,6 +77,8 @@
 .dca-robot[data-effects='live'] .dca-fx-hover { animation: dca-fx-hover 2.2s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-fx-wave { animation: dca-fx-wave 1.1s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-fx-rotate { animation: dca-fx-rotate 28s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-rotate-fast { animation: dca-fx-rotate 6s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-spin-flat-slow { animation: dca-fx-spin-flat 2.4s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-flap-slow { animation: dca-fx-flap 2.6s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-skin-lava stop { animation: dca-fx-lava 7s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-skin-galaxy stop { animation: dca-fx-galaxy 9s ease-in-out infinite; }
@@ -81,6 +90,9 @@
 .dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-aurora, .dca-skin-thermal) stop:nth-child(5) { animation-delay: -5.6s; }
 .dca-robot[data-effects='live'] .dca-skin-patina stop:nth-child(3) { animation: dca-fx-patina 12s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-fx-pinwheel { animation: dca-fx-rotate 24s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-sonar { animation: dca-fx-sonar 3.6s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-tide { animation: dca-fx-tide 7s ease-in-out infinite alternate; }
+.dca-robot[data-effects='live'] .dca-fx-void { animation: dca-fx-rotate 12s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-scanline { animation: dca-fx-scanline 3.6s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-scan { animation: dca-fx-scan 2.4s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
 .dca-robot[data-effects='live'] .dca-fx-steam { animation: dca-fx-steam 2.6s ease-out infinite; }
@@ -90,6 +102,7 @@
 .dca-robot[data-effects='live'] .dca-fx-flame { animation: dca-fx-flame .42s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-fx-node { animation: dca-fx-node 1.8s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-fx-sheen { animation: dca-fx-sheen 4.8s cubic-bezier(.5, .05, .5, .95) infinite; }
+.dca-robot[data-effects='live'] .dca-fx-prism-echo { animation-name: dca-fx-prism-echo; }
 .dca-robot[data-effects='live'] .dca-fx-orbit-front { animation: dca-fx-orbit 8s linear infinite, dca-fx-orbit-show-front 8s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-orbit-back { animation: dca-fx-orbit 8s linear infinite, dca-fx-orbit-show-back 8s linear infinite; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop { animation: dca-fx-holo 6s linear infinite; }

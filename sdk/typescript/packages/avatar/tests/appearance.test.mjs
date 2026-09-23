@@ -3,10 +3,10 @@ import test from 'node:test'
 import { deriveAppearance, originalAppearance, items, itemsOf, slots, rarities, rarityWeights, slotPresence, hasConflicts, conflicts, equip, canEquip, appearanceWall } from '../dist/index.js'
 
 test('name identities are deterministic, normalized and cover every slot', () => {
-  assert.deepEqual(deriveAppearance('Reviewer'), { version: 1, palette: 10, baseFace: 4, head: 'wizard-hat', face: 'none', hand: 'wrench', back: 'none', skin: 'split' })
-  assert.deepEqual(deriveAppearance('Explorer'), { version: 1, palette: 10, baseFace: 1, head: 'cowboy-hat', face: 'none', hand: 'firefly-jar', back: 'solar-panels', skin: 'none' })
-  assert.deepEqual(deriveAppearance('Fixture 29'), { version: 1, palette: 9, baseFace: 1, head: 'traffic-cone', face: 'heart-glasses', hand: 'megaphone', back: 'surfboard', skin: 'split' })
-  assert.deepEqual(deriveAppearance('Fixture 55'), { version: 1, palette: 1, baseFace: 0, head: 'cat-ears', face: 'none', hand: 'shield', back: 'cape', skin: 'terminal' })
+  assert.deepEqual(deriveAppearance('Reviewer'), { version: 1, palette: 10, baseFace: 4, head: 'pirate-hat', face: 'none', hand: 'coffee-mug', back: 'none', skin: 'split' })
+  assert.deepEqual(deriveAppearance('Explorer'), { version: 1, palette: 10, baseFace: 1, head: 'satellite-dish', face: 'none', hand: 'pickaxe', back: 'solar-panels', skin: 'none' })
+  assert.deepEqual(deriveAppearance('Fixture 29'), { version: 1, palette: 9, baseFace: 1, head: 'sprout', face: 'watermelon-glasses', hand: 'lollipop', back: 'peeking-cat', skin: 'split' })
+  assert.deepEqual(deriveAppearance('Fixture 55'), { version: 1, palette: 1, baseFace: 0, head: 'mushroom', face: 'none', hand: 'magnifier', back: 'cape', skin: 'patina' })
   assert.deepEqual(deriveAppearance('  Reviewer \n'), deriveAppearance('Reviewer'))
   assert.deepEqual(deriveAppearance('cafe\u0301'), deriveAppearance('café'))
   assert.notDeepEqual(deriveAppearance('reviewer'), deriveAppearance('Reviewer'))

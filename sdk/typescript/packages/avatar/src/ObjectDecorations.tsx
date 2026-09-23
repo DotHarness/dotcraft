@@ -67,6 +67,123 @@ function PhoenixPerch() {
   </>
 }
 
+function SatelliteDish() {
+  return <>
+    <S d="M472 404v-12q0-14 14-14h12v-72h28v72h12q14 0 14 14v12Z" fill="#8b95a5" />
+    <g transform="translate(512 306) rotate(26)">
+      <S d="M-150-76A150 34 0 0 1 150-76A150 76 0 0 1-150-76Z" fill="#8b95a5" />
+      <ellipse cy="-76" rx="150" ry="34" fill="#dce8f4" />
+      <path d="M0-76v-84" stroke="#fff" strokeWidth="30" strokeLinecap="round" /><path d="M0-76v-84" stroke="#8b95a5" strokeWidth="14" strokeLinecap="round" />
+      <circle cy="-168" r="24" fill="#f6b500" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+    </g>
+  </>
+}
+
+function WindUpKey() {
+  return <>
+    <S d="M497 380V256h30v124Z" fill="#c99139" />
+    <S d="M478 404v-14q0-14 14-14h40q14 0 14 14v14Z" fill="#c99139" />
+    <g className="dca-fx-spin-flat-slow" style={{ transformOrigin: '512px 236px' }}>
+      <path d="M494 212h36a70 70 0 1 1 0 48h-36a70 70 0 1 1 0-48ZM400 236a30 30 0 1 0 60 0a30 30 0 1 0-60 0ZM564 236a30 30 0 1 0 60 0a30 30 0 1 0-60 0Z" fill="#efc65c" fillRule="evenodd" stroke="#fff" strokeWidth="18" strokeLinejoin="round" paintOrder="stroke fill" />
+    </g>
+  </>
+}
+
+const crabLegs = 'M436 354 400 366 388 404M458 370 434 382 428 406M588 354 624 366 636 404M566 370 590 382 596 406'
+const crabClaw = (x: number, flip: number) => <g transform={`translate(${x} 238) scale(${flip} 1) rotate(-14)`}>
+  <path d="M14 90 0 18" stroke="#fff" strokeWidth="42" strokeLinecap="round" /><path d="M14 90 0 18" stroke="#e8654f" strokeWidth="24" strokeLinecap="round" />
+  <S d="M-34-6C-68-44-60-98-16-116C-28-84-26-58 0-36Z" fill="#e8654f" />
+  <g className="dca-fx-swing" style={{ transformOrigin: '0px -8px' }}><S d="M26-20C50-44 48-80 22-100C16-74 10-58-8-40Z" fill="#e8654f" /></g>
+  <S d="M-38 0a38 38 0 1 1 76 0a38 38 0 1 1-76 0Z" fill="#e8654f" />
+</g>
+function Crab() {
+  return <>
+    <g fill="none" strokeLinecap="round" strokeLinejoin="round"><path d={crabLegs} stroke="#fff" strokeWidth="30" /><path d={crabLegs} stroke="#c24a3a" strokeWidth="14" /></g>
+    {crabClaw(404, 1)}{crabClaw(620, -1)}
+    <S d="M404 330a108 54 0 1 1 216 0a108 54 0 1 1-216 0Z" fill="#e8654f" />
+    <path d="M408 344c36 28 172 28 208 0-10 24-52 40-104 40s-94-16-104-40Z" fill="#c24a3a" />
+    <g stroke="#fff" strokeWidth="10" paintOrder="stroke fill"><circle cx="484" cy="300" r="15" fill="#fff4ef" /><circle cx="540" cy="300" r="15" fill="#fff4ef" /></g>
+    <g fill="#2b2f3a"><circle cx="486" cy="301" r="7" /><circle cx="542" cy="301" r="7" /></g>
+  </>
+}
+
+function Cupcake() {
+  return <>
+    <S d="M499 236v-62a13 13 0 0 1 26 0v62Z" fill="#7fc7d9" />
+    <g className="dca-fx-flame" style={{ transformOrigin: '512px 166px' }}>
+      <S d="M512 116c13 15 19 25 19 35a19 19 0 0 1-38 0c0-10 6-20 19-35Z" fill="#ffb347" stroke={12} />
+      <path d="M512 136c6 8 9 13 9 18a9 9 0 0 1-18 0c0-5 3-10 9-18Z" fill="#ffe08a" />
+    </g>
+    <S d="M414 328h196l-24 76H438Z" fill="#7fc7d9" />
+    <Detail><path d="M466 342l5 50M512 342v52M558 342l-5 50" stroke="#5aa6ba" strokeWidth="11" strokeLinecap="round" /></Detail>
+    <S d="M422 296h180a28 28 0 0 1 0 56H422a28 28 0 0 1 0-56ZM448 256h128a26 26 0 0 1 0 52H448a26 26 0 0 1 0-52ZM476 222h72a22 22 0 0 1 0 44h-72a22 22 0 0 1 0-44Z" fill="#f2a0b4" />
+    <path d="M394 324a28 28 0 0 0 28 28h180a28 28 0 0 0 28-28c-34 13-202 13-236 0Z" fill="#e07f99" />
+  </>
+}
+
+const cog = (cx: number, cy: number, teeth: number, pitch: number, phase: number) => {
+  const outer = pitch + 13, root = pitch - 13
+  const at = (r: number, deg: number) => `${(cx + r * Math.cos(deg * Math.PI / 180)).toFixed(1)} ${(cy + r * Math.sin(deg * Math.PI / 180)).toFixed(1)}`
+  const tip = 11 / outer * 180 / Math.PI, base = 15 / root * 180 / Math.PI
+  return `M${Array.from({ length: teeth }, (_, k) => {
+    const a = phase + k * 360 / teeth
+    return [at(root, a - base), at(outer, a - tip), at(outer, a + tip), at(root, a + base)].join('L')
+  }).join('L')}Z`
+}
+// Both cogs rest on a tooth tip; the offset centers and 51° phase keep the 8- and 6-tooth cogs meshed at a 6:4.5s turn.
+function Gears() {
+  return <>
+    <g className="dca-fx-rotate-fast" style={{ transformOrigin: '417px 291px' }}>
+      <S d={cog(417, 291, 8, 96, 0)} fill="#8b95a5" />
+      <circle cx="417" cy="291" r="32" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+    </g>
+    <g className="dca-fx-rotate-fast" style={{ transformOrigin: '583px 317px', animationDirection: 'reverse', animationDuration: '4.5s' }}>
+      <S d={cog(583, 317, 6, 72, 51)} fill="#a7b1c0" />
+      <circle cx="583" cy="317" r="25" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+    </g>
+  </>
+}
+
+const raindrop = 'M0-24C6-12 14-2 14 8A14 14 0 0 1-14 8C-14-2-6-12 0-24Z'
+const rain: [number, number, string][] = [[446, 312, '0s'], [446, 362, '-1.3s'], [512, 326, '-.6s'], [512, 372, '-1.9s'], [578, 308, '-1s'], [578, 358, '-2.2s']]
+const cloud = 'M404 218h216a36 36 0 0 1 0 72H404a36 36 0 0 1 0-72ZM396 208a50 50 0 1 1 100 0a50 50 0 1 1-100 0ZM466 186a64 64 0 1 1 128 0a64 64 0 1 1-128 0ZM570 222a44 44 0 1 1 88 0a44 44 0 1 1-88 0Z'
+function RainCloud() {
+  const clip = useClipId()
+  return <>
+    <path d="M446 260V386M512 260V386M578 260V386" stroke="#4f7cf6" strokeOpacity=".35" strokeWidth="28" strokeLinecap="round" />
+    <g fill="#4f7cf6" stroke="#fff" strokeWidth="8" paintOrder="stroke fill">
+      {rain.map(([x, y, delay]) => <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}><path className="dca-fx dca-fx-steam" d={raindrop} style={{ animationDirection: 'reverse', animationDelay: delay }} /></g>)}
+    </g>
+    <g className="dca-fx-hover">
+      <defs><clipPath id={clip}><path d={cloud} /></clipPath></defs>
+      <S d={cloud} fill="#dfe5ee" />
+      <path d={cloud} transform="translate(10 16)" fill="#9aa6b8" clipPath={`url(#${clip})`} />
+    </g>
+  </>
+}
+
+function ManekiNeko() {
+  const clip = useClipId()
+  const body = 'M408 404c-10-60 10-104 48-124h112c38 20 58 64 48 124ZM412 232a100 84 0 1 1 200 0a100 84 0 1 1-200 0Z'
+  return <>
+    <defs><clipPath id={clip}><path d={body} /></clipPath></defs>
+    <Glow blur={24} className="dca-fx-pulse"><ellipse cx="530" cy="270" rx="150" ry="136" fill="#ffd970" opacity=".55" /></Glow>
+    <g className="dca-fx-swing" style={{ transformOrigin: '588px 316px' }}>
+      <path d="M588 316 630 214" stroke="#fff" strokeWidth="76" strokeLinecap="round" /><path d="M588 316 630 214" stroke="#efc65c" strokeWidth="58" strokeLinecap="round" />
+      <S d="M596 194a38 38 0 1 1 76 0a38 38 0 1 1-76 0Z" fill="#efc65c" />
+      <circle cx="634" cy="198" r="15" fill="#fff3c4" />
+    </g>
+    <S d="M424 196 436 116 490 160ZM600 196 588 116 534 160Z" fill="#efc65c" />
+    <S d={body} fill="#efc65c" />
+    <path d="M440 172 446 138 474 160ZM584 172 578 138 550 160Z" fill="#e8654f" />
+    <path d="M430 300c40 22 124 22 164 0v24c-40 22-124 22-164 0Z" fill="#e8654f" />
+    <circle cx="512" cy="338" r="15" fill="#f6b500" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
+    <path d="M470 232q14-16 28 0M526 232q14-16 28 0" stroke="#6e4a2e" strokeWidth="10" strokeLinecap="round" fill="none" />
+    <path d="M504 254h16l-8 9Z" fill="#e8654f" />
+    <g clipPath={`url(#${clip})`}><g transform="translate(520 0) scale(.3 1)"><g className="dca-fx dca-fx-sheen" fill="#fff"><path d="M70 100h110L30 420H-80Z" opacity=".5" /></g></g></g>
+  </>
+}
+
 export function ObjectDecoration({ id }: { id: HeadId }) {
   switch (id) {
     case 'ringed-planet': return <RingedPlanet />
@@ -169,6 +286,16 @@ export function ObjectDecoration({ id }: { id: HeadId }) {
       <path d="M512 128c29 17 48 44 58 78H454c10-34 29-61 58-78Z" fill="#e8654f" />
       <Detail><circle cx="512" cy="258" r="26" fill="#3c4658" /></Detail>
     </>
+    case 'satellite-dish': return <SatelliteDish />
+    case 'cursor-arrow': return <g transform="translate(540 400) scale(1.15 -1.15)">
+      <S d="M0 0V176L44 136 74 200 104 186 74 124H132Z" fill="#2b2f3a" stroke={20} /><path d="M0 0 74 124H132Z" fill="#5b6577" />
+    </g>
+    case 'wind-up-key': return <WindUpKey />
+    case 'crab': return <Crab />
+    case 'cupcake': return <Cupcake />
+    case 'gears': return <Gears />
+    case 'rain-cloud': return <RainCloud />
+    case 'maneki-neko': return <ManekiNeko />
     default: return null
   }
 }

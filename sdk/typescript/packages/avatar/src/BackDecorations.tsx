@@ -120,6 +120,141 @@ function cometTail(width: number) {
 
 const halo = { cx: 512, cy: 229, r: 168 }
 
+const oval = (cx: number, cy: number, rx: number, ry = rx) => `M${cx - rx} ${cy}a${rx} ${ry} 0 1 0 ${2 * rx} 0a${rx} ${ry} 0 1 0 ${-2 * rx} 0Z`
+
+function Floatie({ side }: { side: 'front' | 'back' }) {
+  const arc = (dy: number) => `M${-orbit.rx} ${dy}A${orbit.rx} ${orbit.ry} 0 0 ${side === 'back' ? 1 : 0} ${orbit.rx} ${dy}`
+  return <g className="dca-fx-hover"><g transform="translate(512 790) rotate(-6)">
+    <path d={arc(0)} stroke="#fff" strokeWidth="138" />
+    <path d={arc(0)} stroke="#dbab70" strokeWidth="120" />
+    <path d={arc(-16)} stroke="#f2a0b4" strokeWidth="84" />
+    {side === 'front' && <path d="M384 32l-18 10M252 66l-20 4M76 84l20 4M-110 82l-18 8M-282 62l20 6M-400 24l-14 12" stroke="#fff" strokeWidth="12" strokeLinecap="round" />}
+  </g></g>
+}
+
+function TeslaCoil() {
+  return <>
+    <path d="M300 470 212 410" stroke="#fff" strokeWidth="46" strokeLinecap="round" />
+    <path d="M300 470 212 410" stroke="#8b95a5" strokeWidth="24" strokeLinecap="round" />
+    <rect x="180" y="226" width="64" height="190" rx="14" fill="#c9d2ff" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+    <path d="M180 270h64M180 306h64M180 342h64M180 378h64" stroke="#8b95a5" strokeWidth="12" />
+    <ellipse cx="212" cy="212" rx="84" ry="36" fill="#8b95a5" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+    <ellipse cx="212" cy="204" rx="46" ry="13" fill="#5b6577" />
+  </>
+}
+const teslaArc = 'M212 186L246 142L296 160L330 104L384 124L420 76L470 96L512 58L556 92L604 72L642 122L694 104L728 156L776 138L812 186'
+
+const dragonTail = 'M313 773 275 795 241 809 211 815 184 815 161 810 140 799 121 782 106 759 94 729 88 693 88 651 94 605 58 595 44 645 38 694 40 739 49 782 66 820 92 854 125 880 165 898 211 905 260 903 313 890 367 867Z'
+
+
+
+const sea = { deep: '#1e3f8f', band: '#5fb3ec', foam: '#fff8e6' }
+// A foam finger rooted at (x, y), reaching len along deg and curling bend×len to its right.
+function claw(x: number, y: number, deg: number, len: number, w: number, bend = .35) {
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a), h = w / 2, b = len * bend
+  const p = (u: number, v: number) => `${(x + u * c - v * s).toFixed(0)} ${(y + u * s + v * c).toFixed(0)}`
+  return `M${p(-h, 0)}C${p(-h, -h)} ${p(len * .55, -h * 1.1)} ${p(len, b)}C${p(len * .55, b * .45 + h * .5)} ${p(h * .2, h)} ${p(-h, 0)}Z`
+}
+// Foam gets a rim of the water colour so cream never touches the white outline, and a light backing so the flare shimmers instead of greying.
+function Sea({ body, band, foam, rim = 12, fill = sea.deep }: { body?: string; band?: ReactNode; foam?: string; rim?: number; fill?: string }) {
+  return <g strokeLinejoin="round">
+    {body && <path d={body} stroke="#fff" strokeWidth="18" />}
+    {foam && <path d={foam} fill="#fff" stroke="#fff" strokeWidth={2 * rim + 18} />}
+    {body && <path d={body} fill={fill} />}
+    {foam && <path d={foam} fill={fill} stroke={fill} strokeWidth={2 * rim} />}
+    {band}
+    {foam && <path d={foam} fill={sea.band} />}
+    {foam && <g className="dca-fx-flare"><path d={foam} fill={sea.foam} /></g>}
+  </g>
+}
+const wave = {
+  body: 'M230 270C300 270 350 296 352 330C354 356 330 366 306 356C270 340 230 330 200 350C170 370 160 420 164 470C170 580 180 680 200 740C230 800 280 840 360 858C460 872 640 870 760 858C810 852 840 856 856 868C874 886 862 924 800 930C600 940 400 940 230 934C100 928 24 886 12 796C0 660 10 520 44 420C80 320 150 270 230 270Z',
+  band: 'M430 896C300 890 170 836 110 716C70 616 70 480 110 400C150 330 220 310 270 330',
+  foam: [claw(60, 420, -70, 96, 50, .9), claw(116, 326, -34, 100, 50, .95), claw(196, 280, 0, 104, 50, 1), claw(284, 286, 38, 100, 50, .95), claw(344, 336, 88, 72, 42, .8)].join(''),
+}
+
+type Pt = readonly [number, number]
+const jade = '#2f9e7a', mint = '#a7e8cf', gold = '#f6b500', ink = '#16302a'
+const n0 = (v: number) => Math.round(v)
+const cr = (a: number, b: number, c: number, d: number, t: number) => .5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t * t * t)
+const dcr = (a: number, b: number, c: number, d: number, t: number) => .5 * ((c - a) + 2 * (2 * a - 5 * b + 4 * c - d) * t + 3 * (3 * b - a - 3 * c + d) * t * t)
+function along(spine: Pt[], t: number) {
+  const seg = spine.length - 1, u = Math.min(Math.max(t, 0), 1) * seg, k = Math.min(Math.floor(u), seg - 1), f = u - k
+  const p = (i: number) => spine[Math.min(Math.max(i, 0), seg)]
+  const a = p(k - 1), b = p(k), c = p(k + 1), d = p(k + 2)
+  const tx = dcr(a[0], b[0], c[0], d[0], f), ty = dcr(a[1], b[1], c[1], d[1], f), len = Math.hypot(tx, ty) || 1
+  return { x: cr(a[0], b[0], c[0], d[0], f), y: cr(a[1], b[1], c[1], d[1], f), tx: tx / len, ty: ty / len }
+}
+function smooth(points: Pt[]) {
+  const mid = (i: number) => { const a = points[(i + points.length) % points.length], b = points[(i + 1) % points.length]; return `${n0((a[0] + b[0]) / 2)} ${n0((a[1] + b[1]) / 2)}` }
+  return `M${mid(-1)}${points.map((p, i) => `Q${n0(p[0])} ${n0(p[1])} ${mid(i)}`).join('')}Z`
+}
+// A tapered band along a Catmull-Rom spine; offset and share place it across the width (positive = the spine's outer normal).
+function tube(spine: Pt[], width: (t: number) => number, from = 0, to = 1, offset = 0, share = 1, steps = 36) {
+  const left: Pt[] = [], right: Pt[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = from + ((to - from) * i) / steps, s = along(spine, t), w = width(t), c = offset * w, h = (share * w) / 2
+    left.push([s.x - s.ty * (c + h), s.y + s.tx * (c + h)]); right.push([s.x - s.ty * (c - h), s.y + s.tx * (c - h)])
+  }
+  return smooth([...left, ...right.reverse()])
+}
+function ridge(spine: Pt[], width: (t: number) => number, from: number, to: number, count: number, height: number, side = 1, lean = .5) {
+  let d = ''
+  for (let i = 0; i < count; i++) {
+    const t = from + ((to - from) * (i + .5)) / count, s = along(spine, t), w = width(t), e = w * .4 * side, h = height * w / 100, b = h * .6
+    const bx = s.x - s.ty * e, by = s.y + s.tx * e, nx = -s.ty * side, ny = s.tx * side
+    d += `M${n0(bx - s.tx * b)} ${n0(by - s.ty * b)}L${n0(bx + nx * h + s.tx * lean * h)} ${n0(by + ny * h + s.ty * lean * h)}L${n0(bx + s.tx * b)} ${n0(by + s.ty * b)}Z`
+  }
+  return d
+}
+function tuft(x: number, y: number, angle: number, len: number, w: number, curl = 1) {
+  const a = (angle * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a)
+  const p = (u: number, v: number) => `${n0(x + u * c - v * curl * s)} ${n0(y + u * s + v * curl * c)}`
+  return `M${p(0, -w / 2)}C${p(len * .4, -w * .7)} ${p(len * .8, -w * .5)} ${p(len, -w * .1)}C${p(len * .7, w * .05)} ${p(len * .35, w * .45)} ${p(0, w / 2)}Z`
+}
+// A tapered flame lock from (x, y) toward angle; bend curls the tip clockwise when positive.
+function lock(x: number, y: number, angle: number, len: number, w: number, bend = .4) {
+  const a = (angle * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a)
+  const at = (u: number, v: number): Pt => [x + u * c - v * s, y + u * s + v * c]
+  return tube([at(0, 0), at(len * .35, -bend * len * .1), at(len * .7, bend * len * .06), at(len, bend * len * .32)], t => w * (1 - t) + 3, 0, 1, 0, 1, 14)
+}
+function talon(x: number, y: number, angle: number, len: number, w: number, curl = 1) {
+  const a = (angle * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a)
+  const p = (u: number, v: number) => `${n0(x + u * c - v * curl * s)} ${n0(y + u * s + v * curl * c)}`
+  return `M${p(0, -w / 2)}Q${p(len * .7, -w * .6)} ${p(len, w * .35)}Q${p(len * .45, w * .2)} ${p(0, w / 2)}Z`
+}
+function Plane({ d, fill, contour = 20 }: { d: string[]; fill: string; contour?: number }) {
+  return <>{d.map((p, i) => <path key={`o${i}`} d={p} stroke="#fff" strokeWidth={contour} strokeLinejoin="round" />)}{d.map((p, i) => <path key={i} d={p} fill={fill} />)}</>
+}
+function Antlers({ d, width = 22 }: { d: string; width?: number }) {
+  return <g strokeLinecap="round" strokeLinejoin="round"><path d={d} stroke="#fff" strokeWidth={width + 20} /><path d={d} stroke={gold} strokeWidth={width} /></g>
+}
+const profileBody: Pt[] = [[280, 262], [322, 186], [400, 128], [512, 106], [630, 118], [730, 176], [810, 266], [880, 370], [920, 500], [935, 640], [925, 760], [948, 850], [992, 856], [1000, 790]]
+const profileWidth = (t: number) => 108 - 70 * t
+const profileHead = 'M50-30C46-80 10-110-36-108C-62-106-84-96-92-78C-96-68-104-62-116-62C-130-62-138-70-146-84C-160-106-196-100-198-70C-200-52-192-40-180-36C-192-30-204-18-196-4L-86 0C-60 30 10 44 40 20C60 4 60-16 50-30Z'
+function CloudDragon() {
+  return <g className="dca-fx-sway" style={{ transformOrigin: '262px 380px' }}>
+    <Plane d={[tube([[925, 740], [905, 830], [872, 896]], t => 58 - 12 * t), oval(862, 906, 36, 28)]} fill={jade} />
+    <Plane d={[talon(836, 916, 150, 32, 18), talon(858, 928, 118, 30, 18), talon(884, 926, 80, 28, 18)]} fill={gold} contour={12} />
+    <Plane d={[tube(profileBody, profileWidth), ridge(profileBody, profileWidth, .03, .9, 24, 48, -1)]} fill={jade} />
+    <path d={tube(profileBody, profileWidth, .03, .93, .24, .34)} fill={mint} />
+    <Plane d={[lock(998, 810, -84, 120, 60, -.5), lock(994, 816, -124, 90, 44, .5)]} fill={mint} />
+    <Plane d={[tube([[310, 320], [252, 398], [172, 424]], t => 68 - 18 * t), oval(152, 424, 38, 32)]} fill={jade} />
+    <Plane d={[talon(124, 402, -150, 40, 22, -1), talon(116, 426, 176, 42, 22, -1), talon(126, 450, 150, 36, 22, -1), talon(156, 396, -100, 30, 18)]} fill={gold} contour={12} />
+    <g transform="translate(254 256) rotate(-4)">
+      <g transform="translate(-20 -100) scale(.88) translate(20 100)"><Antlers width={26} d="M-30-104C-20-160 30-206 110-226M4-166C-8-190-4-212 10-230M58-204C66-222 82-236 102-244M10-96C34-140 80-168 150-176M90-162C100-184 118-196 140-202" /></g>
+      <Plane d={[lock(30, -70, -40, 130, 50), lock(56, -30, -12, 160, 58), lock(56, 14, 14, 170, 58), lock(34, 44, 40, 150, 54), lock(-10, 60, 70, 120, 48), lock(-150, 70, 60, 90, 36, .3)]} fill={mint} />
+      <path d="M-86 0-196-4-172 56-70 14Z" fill={ink} />
+      <Plane d={['M-76 12C-110 24-150 44-172 56C-184 64-178 80-164 80C-120 80-60 70-16 50Z']} fill={mint} />
+      <Plane d={[profileHead, tuft(20, -70, -30, 56, 30)]} fill={jade} />
+      <path d="M-188-2l8 26 8-24ZM-162-1l8 16 8-16ZM-138 0l8 16 8-16ZM-114 0l8 14 8-14ZM-162 50l10-22 8 20Z" fill="#fff" />
+      <path d={lock(-96, -86, -24, 120, 26, -.5)} fill={mint} />
+      <path d="M-92-66Q-72-86-48-74Q-70-58-92-66Z" fill={ink} />
+      <path d={tube([[-190, -30], [-236, -10], [-246, 40], [-220, 84], [-170, 100]], t => 22 - 16 * t)} fill={mint} stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+    </g>
+  </g>
+}
+
 export function BackDecoration({ id }: { id: BackId }) {
   switch (id) {
     case 'cape': return <g className="dca-fx-sway" style={{ transformOrigin: '512px 452px' }}>
@@ -229,6 +364,62 @@ export function BackDecoration({ id }: { id: BackId }) {
       <OrbitBodies side="back" />
     </g>
     case 'koi-orbit': return <g transform={koiOrbit}><KoiBodies side="back" /></g>
+    case 'peeking-cat': return <g transform="translate(786 376) rotate(24) scale(1.1)">
+      <S d="M-100 14C-100-46-58-84 0-84S100-46 100 14 60 96 0 96-100 74-100 14ZM-92-24-86-138-22-76ZM92-24 86-138 22-76Z" fill="#ed985f" />
+      <path d="M-78-52-75-112-40-80ZM78-52 75-112 40-80Z" fill="#c96c43" />
+      <path d="M-26-80v24M0-84v30M26-80v24" stroke="#c96c43" strokeWidth="12" strokeLinecap="round" />
+      <ellipse cx="-38" cy="6" rx="13" ry="18" fill="#3c4658" /><ellipse cx="38" cy="6" rx="13" ry="18" fill="#3c4658" />
+      <ellipse cx="0" cy="50" rx="44" ry="26" fill="#fff1dc" /><path d="M-10 32h20l-10 12Z" fill="#e8654f" />
+    </g>
+    case 'donut-floatie': return <Floatie side="back" />
+    case 'ladybug': return <g transform="translate(232 386) rotate(-34) scale(1.05)" strokeLinecap="round">
+      <path d="M-18-92c-10-22-26-34-44-38M18-92c10-22 26-34 44-38" stroke="#fff" strokeWidth="30" fill="none" /><path d="M-18-92c-10-22-26-34-44-38M18-92c10-22 26-34 44-38" stroke="#2b2f3a" strokeWidth="12" fill="none" />
+      <S d={`${oval(0, -70, 36, 30)}${oval(0, 26, 72, 92)}`} fill="#e8654f" />
+      <path d={oval(0, -70, 36, 30)} fill="#2b2f3a" /><path d="M0-44V118" stroke="#2b2f3a" strokeWidth="10" />
+      <g fill="#2b2f3a"><circle cx="-30" cy="-6" r="13" /><circle cx="30" cy="4" r="13" /><circle cx="-24" cy="56" r="13" /><circle cx="28" cy="66" r="12" /><circle cx="-36" cy="-42" r="9" /><circle cx="38" cy="-36" r="9" /></g>
+      <circle cx="-12" cy="-76" r="6" fill="#fff" /><circle cx="12" cy="-76" r="6" fill="#fff" />
+    </g>
+    case 'dragon-tail': return <g className="dca-fx-sway" style={{ transformOrigin: '250px 830px' }}>
+      <S d={`M172 892 117 931 118 871ZM106 857 42 868 68 817ZM63 797 2 783 45 748ZM47 721-5 689 45 670Z${dragonTail}`} fill="#7f2634" />
+      <g transform="translate(76 600) rotate(16) scale(1.1)"><S d="M0-96C20-70 52-44 50-12 48 8 26 16 10 4L0 20-10 4C-26 16-48 8-50-12-52-44-20-70 0-96Z" fill="#b23a48" /></g>
+      <path d={dragonTail} fill="#b23a48" />
+    </g>
+    case 'drone-buddy': return <>
+      {tether('M170 256C176 360 226 424 262 500')}
+      <g className="dca-fx-hover"><g transform="translate(170 236) scale(1.4)" strokeLinecap="round">
+        {[[-50, -20, -64, 45, 10], [50, -20, -64, 45, 10], [-86, -2, -36, 54, 12], [86, -2, -36, 54, 12]].map(([x, base, top, rx, ry]) => <g key={x}>
+          <path d={`M${x} ${base}V${top}`} stroke="#fff" strokeWidth="32" /><path d={`M${x} ${base}V${top}`} stroke="#3c4658" strokeWidth="16" />
+          <g transform={`translate(${x} ${top})`}><g className="dca-fx-spin-flat" style={{ transformOrigin: '0px 0px' }}>
+            <ellipse rx={rx} ry={ry} fill="#8b95a5" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+          </g></g>
+        </g>)}
+        <path d="M-86 0-30 12M86 0 30 12" stroke="#fff" strokeWidth="36" /><path d="M-86 0-30 12M86 0 30 12" stroke="#3c4658" strokeWidth="18" />
+        <S d={oval(0, 8, 60, 42)} fill="#f4f6fb" />
+        <rect x="-54" y="2" width="108" height="22" rx="11" fill="#3c4658" />
+        <circle cy="13" r="25" fill="#3c4658" stroke="#fff" strokeWidth="9" paintOrder="stroke fill" />
+        <circle cy="13" r="13" fill="#4de3ff" /><circle cx="-4" cy="8" r="4.5" fill="#fff" />
+      </g></g>
+    </>
+    case 'shade-tree': return <>
+      <S d="M380 380C404 330 426 290 440 240h144c14 50 36 90 60 140Z" fill="#805840" />
+      <g className="dca-fx-sway" style={{ transformOrigin: '512px 320px' }}>
+        <S d={[[512, 180, 142], [352, 224, 104], [672, 224, 104], [428, 122, 84], [596, 122, 84]].map(([x, y, r]) => oval(x, y, r)).join('')} fill="#3f8f4f" />
+        <path d={[[500, 160, 114], [342, 206, 76], [660, 206, 76], [418, 108, 62], [586, 108, 62]].map(([x, y, r]) => oval(x, y, r)).join('')} fill="#6fbf73" />
+      </g>
+    </>
+    case 'tesla-coils': return <>
+      {mirrored(<TeslaCoil />)}
+      <Glow blur={14} className="dca-fx-node"><path d={teslaArc} stroke="#4de3ff" strokeWidth="44" strokeLinejoin="round" /></Glow>
+      <g className="dca-fx-node" strokeLinejoin="round" strokeLinecap="round">
+        <path d={teslaArc} stroke="#fff" strokeWidth="34" />
+        <path d={teslaArc} stroke="#4de3ff" strokeWidth="20" />
+        <path d={teslaArc} stroke="#fff" strokeWidth="6" />
+      </g>
+    </>
+    case 'great-wave': return <g className="dca-fx-sway" style={{ transformOrigin: '300px 960px' }}>
+      <Sea body={wave.body} foam={wave.foam} band={<path d={wave.band} stroke={sea.band} strokeWidth="50" strokeLinecap="round" />} />
+    </g>
+    case 'cloud-dragon': return <CloudDragon />
     default: return null
   }
 }
@@ -240,7 +431,8 @@ export function BackFrontDecoration({ id }: { id: BackId }) {
       <OrbitBodies side="front" />
     </g>
     case 'koi-orbit': return <g data-back-front={id} transform={koiOrbit}><KoiBodies side="front" /></g>
+    case 'donut-floatie': return <g data-back-front={id}><Floatie side="front" /></g>
     default: return null
   }
 }
-export function hasFrontPart(id: BackId): boolean { return id === 'orbit-ring' || id === 'koi-orbit' }
+export function hasFrontPart(id: BackId): boolean { return id === 'orbit-ring' || id === 'koi-orbit' || id === 'donut-floatie' }

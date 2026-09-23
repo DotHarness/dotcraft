@@ -22,6 +22,15 @@ export function SkinOverlay({ id }: { id: SkinId }) {
     case 'pinwheel': return <g fill="#fff" opacity=".3" data-skin-overlay={id}>
       <g className="dca-fx-pinwheel" style={{ transformOrigin: '512px 621px' }}>{[45, 135, 225, 315].map(deg => <path key={deg} d={ray(deg, 45)} />)}</g>
     </g>
+    case 'quartered': return <path d="M512 0H1024V600H512ZM0 600H512V1024H0Z" fill="#fff" opacity=".34" data-skin-overlay={id} />
+    case 'bowtie': return <path d={`${ray(0, 90)}${ray(180, 90)}`} fill="#fff" opacity=".34" data-skin-overlay={id} />
+    // Each ring is 1.793x the one inside it, the end scale of dca-fx-sonar, so the loop hands every ring to the next.
+    case 'sonar': return <g fill="none" stroke="#fff" opacity=".34" data-skin-overlay={id}>
+      <g className="dca-fx-sonar" style={{ transformOrigin: '512px 621px' }}>
+        {[[98, 28], [175.5, 51], [314.5, 91]].map(([r, width]) => <circle key={r} cx="512" cy="621" r={r} strokeWidth={width} />)}
+      </g>
+    </g>
+    case 'tide': return <path className="dca-fx-tide" d={`M-17 630q50-100 100 0${'t100 0'.repeat(10)}V1400H-17Z`} fill="var(--dca-part-shadow-color, #0b1020)" opacity=".4" data-skin-overlay={id} />
     default: return null
   }
 }
@@ -35,7 +44,14 @@ const scanline = <g className="dca-fx dca-fx-scanline" fill="#7dff8a">
   <rect y="250" width="1024" height="110" opacity=".14" />
   <rect y="320" width="1024" height="40" opacity=".6" />
 </g>
-const effects: Partial<Record<PaintSkinId, ReactNode>> = { chrome: sheen, holographic: sheen, gold: sheen, galaxy: stars, terminal: scanline }
+const rainbow = (className: string, opacity?: string) => <g className={`dca-fx dca-fx-sheen ${className}`} opacity={opacity}>
+  {['#ff5f6d', '#ffa53a', '#ffe066', '#6ee07a', '#4fb4ff', '#a276ff'].map((fill, k) => <path key={fill} d={`M${60 + 25 * k} 834 L${360 + 25 * k} 408 h25 L${85 + 25 * k} 834Z`} fill={fill} opacity=".75" />)}
+</g>
+const prism = <>{rainbow('dca-fx-prism')}{rainbow('dca-fx-prism-echo', '0')}</>
+const accretion = <g className="dca-fx dca-fx-void" fill="#ffb04a" style={{ transformOrigin: '512px 621px' }}>
+  {[[0, .9], [-18, .6], [-36, .35], [-54, .15]].map(([deg, opacity]) => <path key={deg} d={ray(deg, 18)} opacity={opacity} />)}
+</g>
+const effects: Partial<Record<PaintSkinId, ReactNode>> = { chrome: sheen, holographic: sheen, gold: sheen, candy: sheen, galaxy: stars, terminal: scanline, prism, void: accretion }
 
 const sweep = (skin: string, stops: ReactNode) => (id: string) => <linearGradient id={id} className={`dca-skin-paint dca-skin-${skin}`} x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">{stops}</linearGradient>
 const gradients: Record<PaintSkinId, (id: string) => ReactNode> = {
@@ -77,6 +93,21 @@ const gradients: Record<PaintSkinId, (id: string) => ReactNode> = {
     <stop offset="0" stopColor="#1a0b5e" /><stop offset=".3" stopColor="#5b1fa8" /><stop offset=".55" stopColor="#c02a6b" />
     <stop offset=".8" stopColor="#ff7a1f" /><stop offset="1" stopColor="#3b1488" />
   </>),
+  candy: sweep('candy', <>
+    <stop offset="0" stopColor="#2a0309" /><stop offset=".3" stopColor="#7d0a1c" /><stop offset=".55" stopColor="#c8102e" />
+    <stop offset=".8" stopColor="#ff4d63" /><stop offset="1" stopColor="#a30c24" />
+  </>),
+  racer: id => <linearGradient id={id} className="dca-skin-paint dca-skin-racer" x1="0" y1="408" x2="0" y2="834" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stopColor="#7cbbe3" /><stop offset=".45" stopColor="#66a9d8" /><stop offset=".45" stopColor="#f28a1c" />
+    <stop offset=".73" stopColor="#f28a1c" /><stop offset=".73" stopColor="#5a9fd0" /><stop offset="1" stopColor="#4f94c6" />
+  </linearGradient>,
+  prism: sweep('prism', <>
+    <stop offset="0" stopColor="#2b2f4f" /><stop offset=".5" stopColor="#4f5580" /><stop offset="1" stopColor="#7b82b0" />
+  </>),
+  void: id => <radialGradient id={id} className="dca-skin-paint dca-skin-void" cx="512" cy="621" r="345" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stopColor="#030206" /><stop offset=".55" stopColor="#06040d" /><stop offset=".72" stopColor="#140a2a" />
+    <stop offset=".88" stopColor="#3a1a78" /><stop offset="1" stopColor="#6a3fd0" />
+  </radialGradient>,
 }
 export function skinPaint(id: SkinId): BodyPaint | undefined {
   return isPaintSkin(id) ? { render: gradients[id], shadow: paintMaterials[id].shadow } : undefined

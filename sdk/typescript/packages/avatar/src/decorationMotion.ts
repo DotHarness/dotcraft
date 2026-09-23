@@ -20,6 +20,8 @@ export const decorationMotionProfiles: Record<HeadId, MotionProfile> = {
   'traffic-cone': { kind: 'rock', x: 512, y: 399, height: 0, angle: 2.5, shadow: 0 },
   'fried-egg': { kind: 'squish', x: 512, y: 400, height: 0, angle: 0, shadow: 0 },
   sprout: { kind: 'sprout', x: 512, y: 399, height: 0, angle: 6, shadow: 0 },
+  'satellite-dish': fitted(), 'cursor-arrow': bounce(540), 'viking-helmet': fitted(), 'wind-up-key': fitted(),
+  crab: bounce(), cupcake: bounce(), gears: fitted(), 'rain-cloud': { ...lift(512, 290), shadow: 110 }, 'maneki-neko': lift(),
 }
 export const motionKindLabels: Record<MotionKind, string> = {
   lift: 'Gentle lift', fitted: 'Fitted sway', bounce: 'Bounce and settle', rock: 'Rocking response', squish: 'Soft wobble', sprout: 'Nod and unfurl',

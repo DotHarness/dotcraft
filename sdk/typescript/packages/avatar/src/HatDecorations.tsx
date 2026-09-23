@@ -97,6 +97,14 @@ export function HatDecoration({ id }: { id: HeadId }) {
       <path d="M312 392c56-22 344-22 400 0-64 36-336 36-400 0Z" fill="#3c4658" />
       <circle cx="512" cy="300" r="28" fill="#fff" /><circle cx="501" cy="296" r="5" fill="#2b2f3a" /><circle cx="523" cy="296" r="5" fill="#2b2f3a" />
     </>
+    case 'viking-helmet': return <>
+      <S d="M396 344C330 344 300 290 330 150C352 222 372 262 410 280ZM628 344C694 344 724 290 694 150C672 222 652 262 614 280Z" fill="#f6e6c6" />
+      <path d="M330 150C352 222 372 262 410 280L402 300C360 282 336 240 330 150ZM694 150C672 222 652 262 614 280L622 300C664 282 688 240 694 150Z" fill="#dcc08a" />
+      <S d="M376 344c0-96 58-156 136-156s136 60 136 156Z" fill="#a7b1c0" />
+      <path d="M540 190c70 12 108 72 108 154h-46c0-72-20-124-62-154Z" fill="#8b95a5" />
+      <rect x="360" y="336" width="304" height="66" rx="20" fill="#c49b5e" />
+      <Detail><path d="M406 316c4-44 24-76 52-92" stroke="#d3dae4" strokeWidth="14" strokeLinecap="round" /></Detail>
+    </>
     default: return null
   }
 }

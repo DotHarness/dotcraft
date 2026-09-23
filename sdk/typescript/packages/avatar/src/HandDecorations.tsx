@@ -1,5 +1,5 @@
 import type { HandId } from './items.js'
-import { Glow } from './DecorationShapes.js'
+import { Glow, useClipId } from './DecorationShapes.js'
 
 const mark = 'var(--dca-held-mark, #3161f7)'
 const accent = 'var(--dca-held-accent, #f6b500)'
@@ -199,5 +199,133 @@ export function HandDecoration({ id }: { id: HandId }) {
         <path d="M806 490l4 9 9 4-9 4-4 9-4-9-9-4 9-4Z" style={{ animationDelay: '1.1s' }} />
       </g>
     </g>}
+    {id === 'walkie-talkie' && <g transform="translate(233 640) scale(1.05) translate(-800 -695)">
+      <g fill="#fff" stroke="#fff" strokeWidth="30"><rect x="814" y="572" width="26" height="72" rx="13" /><rect x="760" y="600" width="28" height="28" rx="8" /><rect x="752" y="624" width="96" height="164" rx="26" /></g>
+      <rect x="814" y="572" width="26" height="72" rx="13" fill="#3c4658" />
+      <rect x="760" y="600" width="28" height="28" rx="8" fill={accent} />
+      <rect x="752" y="624" width="96" height="164" rx="26" fill="#fff" stroke={mark} strokeWidth="11" />
+      <rect x="772" y="648" width="56" height="66" rx="12" fill={mark} />
+      <path d="M786 666h28M786 681h28M786 696h28" stroke="#fff" strokeWidth="7" />
+      <circle cx="800" cy="748" r="13" fill={mark} />
+    </g>}
+    {id === 'potion' && <g transform="translate(233 640) scale(1.1) translate(-800 -640)">
+      <g fill="#fff" stroke="#fff" strokeWidth="26"><rect x="780" y="578" width="40" height="34" rx="10" /><rect x="784" y="606" width="32" height="52" rx="6" /><circle cx="800" cy="690" r="52" /></g>
+      <rect x="784" y="606" width="32" height="52" rx="6" fill="#f4f8ff" stroke="#a9b8cc" strokeWidth="8" />
+      <circle cx="800" cy="690" r="52" fill="#f4f8ff" stroke="#a9b8cc" strokeWidth="8" />
+      <path d="M756.7 682A44 44 0 1 0 843.3 682Z" fill="#e05aa8" />
+      <g fill="#f7b8d9"><circle cx="786" cy="712" r="6" /><circle cx="816" cy="698" r="4" /></g>
+      <path d="M766 670c4-10 12-18 22-22" stroke="#fff" strokeWidth="9" />
+      <rect x="780" y="578" width="40" height="34" rx="10" fill="#c49b5e" />
+    </g>}
+    {id === 'genie-lamp' && <g transform="translate(233 650) scale(1.12) translate(-800 -650)">
+      <path d="M804 640c30-20 56 0 50 22-4 18-26 22-48 12" stroke="#fff" strokeWidth="38" />
+      <path d="M804 640c30-20 56 0 50 22-4 18-26 22-48 12" stroke="#c99139" strokeWidth="16" />
+      <g fill="#efc65c" stroke="#fff" strokeWidth="14" paintOrder="stroke fill">
+        <path d="M743 686h32l9 16h-50Z" />
+        <path d="M718 648C706 648 698 638 692 620l-14 8c6 24 20 42 44 50Z" />
+        <ellipse cx="759" cy="656" rx="50" ry="32" />
+        <path d="M731 632c2-18 12-30 28-30s26 12 28 30Z" />
+        <circle cx="759" cy="592" r="10" />
+      </g>
+      <path d="M711 662q48 20 96 0" stroke="#c99139" strokeWidth="9" />
+      <path d="M733 640q26-8 52 0" stroke="#fff3c4" strokeWidth="7" />
+    </g>}
+    {id === 'lollipop' && <g transform="translate(233 640) rotate(-6) translate(-800 -800)">
+      <rect x="791" y="640" width="18" height="240" rx="9" fill="#fff" stroke="#fff" strokeWidth="26" />
+      <rect x="791" y="640" width="18" height="240" rx="9" fill="#fff" stroke="#c9d1dd" strokeWidth="5" />
+      <circle cx="800" cy="639" r="80" fill="#f2a0b4" stroke="#fff" strokeWidth="16" paintOrder="stroke fill" />
+      <path d="M800 639a10 10 0 0 1 20 0a20 20 0 0 1-40 0a30 30 0 0 1 60 0a40 40 0 0 1-80 0a50 50 0 0 1 100 0a60 60 0 0 1-120 0" stroke="#e8654f" strokeWidth="15" />
+      <path d="M752 596c10-12 24-20 40-22" stroke="#fff" strokeWidth="10" opacity=".8" />
+    </g>}
+    {id === 'pickaxe' && <g transform="translate(233 640) rotate(-12) scale(.85) translate(-800 -800)">
+      <rect x="789" y="548" width="22" height="318" rx="11" fill="#e0ad84" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <rect x="786" y="796" width="28" height="60" rx="8" fill="#f6b500" />
+      <path d="M696 600C712 540 754 506 800 506S888 540 904 600C874 574 838 562 800 562S726 574 696 600Z" fill="#8b95a5" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <path d="M726 562c20-24 46-38 74-38s54 14 74 38" stroke="#c3cad6" strokeWidth="9" />
+      <rect x="778" y="504" width="44" height="62" rx="10" fill="#5d6778" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+    </g>}
+    {id === 'bug-net' && <g transform="translate(233 640) translate(-800 -640)">
+      <path d="M836 432 791 690" stroke="#fff" strokeWidth="34" />
+      <path d="M836 432 791 690" stroke={mark} strokeWidth="18" />
+      <path d="M697 440C694 500 716 552 750 562S812 540 826 500C832 482 836 460 838 424Z" fill="#fff" fillOpacity=".9" stroke="#fff" strokeWidth="14" strokeLinejoin="round" />
+      <path d="M720 446C722 500 736 540 750 556M752 440C754 500 754 540 752 560M784 438C784 500 774 540 758 558M812 434C810 490 792 530 766 556M704 482Q765 502 832 472M714 522Q760 538 818 514" stroke="#b9c2d1" strokeWidth="4" />
+      <g className="dca-fx-swing" style={{ transformOrigin: '760px 518px' }}>
+        <path d="M752 492c-4-10-12-14-20-12M768 492c4-10 12-14 20-12M742 512h-16M742 528h-16M778 512h16M778 528h16" stroke="#2b2f3a" strokeWidth="6" />
+        <circle cx="760" cy="498" r="11" fill="#2b2f3a" />
+        <ellipse cx="760" cy="522" rx="20" ry="24" fill="#2b2f3a" />
+        <path d="M760 502v44" stroke="#5b6577" strokeWidth="4" />
+        <ellipse cx="752" cy="514" rx="4" ry="7" fill="#fff" opacity=".7" />
+      </g>
+      <ellipse cx="767" cy="432" rx="72" ry="30" transform="rotate(-8 767 432)" stroke="#fff" strokeWidth="32" />
+      <ellipse cx="767" cy="432" rx="72" ry="30" transform="rotate(-8 767 432)" stroke={mark} strokeWidth="14" />
+    </g>}
+    {id === 'hot-pepper' && <g transform="translate(233 640) scale(1.1) translate(-800 -640)">
+      <Glow blur={12} className="dca-fx-pulse"><ellipse cx="744" cy="452" rx="34" ry="44" fill="#ffb347" opacity=".8" /></Glow>
+      <g className="dca-fx dca-fx-flame" style={{ transformOrigin: '742px 488px' }}>
+        <path d="M742 488C712 476 706 446 722 420c4 14 12 20 20 20-4-22 6-40 24-50-4 24 10 38 12 58 2 22-14 36-36 40Z" fill="#ffb347" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+        <path d="M744 480c-14-6-18-22-10-36 4 8 10 10 14 10 0-12 4-22 12-28-2 14 6 24 6 36s-8 20-22 18Z" fill="#ffe08a" />
+      </g>
+      <path d="M808 656c4 16 14 26 30 28" stroke="#fff" strokeWidth="28" />
+      <path d="M808 656c4 16 14 26 30 28" stroke="#3f8f4f" strokeWidth="12" />
+      <path d="M762 640C742 604 732 566 736 530c2-20 0-32-6-44-4-8 4-14 12-8 22 14 40 44 52 72 14 32 34 54 46 80Z" fill="#e8654f" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <path d="M776 612c-12-24-20-50-22-80" stroke="#fff" strokeWidth="9" opacity=".55" />
+      <path d="M756 648c-2-18 16-30 44-30s48 12 46 30c-14 12-76 12-90 0Z" fill="#4fae6a" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+    </g>}
+    {id === 'plasma-globe' && <g transform="translate(233 640) translate(-800 -640)">
+      <path d="M756 684h88l-10-62h-68Z" fill="#1d2433" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <rect x="772" y="602" width="56" height="22" rx="6" fill="#3c4658" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+      <circle cx="800" cy="540" r="70" fill="#34245c" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <Glow blur={14} className="dca-fx-pulse"><circle cx="800" cy="540" r="40" fill="#c084fc" opacity=".8" /></Glow>
+      {['M800 540l-14-22 12-8-18-26', 'M800 540l24-10 2-16 24-8', 'M800 540l-26 6 4 14-28 8', 'M800 540l14 22 16-4 10 22'].map((d, index) =>
+        <g key={d} className="dca-fx dca-fx-node" fill="none" style={index ? { animationDelay: `${index * .45}s` } : undefined}>
+          <path d={d} stroke="#c084fc" strokeWidth="12" /><path d={d} stroke="#f5d0fe" strokeWidth="5" />
+        </g>)}
+      <circle cx="800" cy="540" r="15" fill="#f5d0fe" />
+      <path d="M752 508c8-16 22-28 40-32" stroke="#fff" strokeWidth="9" opacity=".7" />
+    </g>}
+    {id === 'master-key' && <MasterKey />}
+    {id === 'pet-dragon' && <PetDragon />}
+  </g>
+}
+
+function MasterKey() {
+  const clip = useClipId()
+  const shape = 'M728 422H818V712H782V508H728V486H746V470H728V452H750V436H728Z'
+  const bow = 'M800 718a54 54 0 1 1 0 108 54 54 0 1 1 0-108Zm0 34a20 20 0 1 0 0 40 20 20 0 1 0 0-40Z'
+  return <g transform="translate(233 640) rotate(-12) scale(.9) translate(-800 -760)">
+    <defs><clipPath id={clip}><path d={shape} /><path d={bow} /></clipPath></defs>
+    <Glow blur={16} className="dca-fx-pulse"><path d="M772 410h56v326h-56ZM716 412h70v108h-70Z" fill="#ffd970" opacity=".8" /></Glow>
+    <path d={shape} fill="#efc65c" stroke="#fff" strokeWidth="16" strokeLinejoin="round" paintOrder="stroke fill" />
+    <path d={bow} fill="#efc65c" fillRule="evenodd" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <path d="M812 432v270" stroke="#c99139" strokeWidth="7" />
+    <rect x="774" y="700" width="52" height="26" rx="8" fill="#c99139" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+    <g clipPath={`url(#${clip})`}><g transform="translate(800 740) rotate(-90) scale(.45 1)"><g className="dca-fx dca-fx-sheen" fill="#fff3c4"><path d="M3-80h67l-73 160h-67Z" opacity=".9" /></g></g></g>
+  </g>
+}
+
+const dragonWing = 'M0 0C-10-60-50-110-100-128Q-84-104-92-80Q-72-86-60-66Q-40-66-30-40Q-14-30 0 0Z'
+const dragonFarWing = 'M0 0C-4-60-20-110-42-138Q-40-112-54-92Q-40-88-34-66Q-22-62-18-40Q-8-26 0 0Z'
+function PetDragon() {
+  return <g transform="translate(233 640) translate(-800 -640)">
+    {[{ at: 'translate(790 552)', d: dragonWing }, { at: 'translate(814 552) scale(-1 1)', d: dragonFarWing }].map(wing =>
+      <g key={wing.at} transform={wing.at}><g className="dca-fx-flap-slow" style={{ transformOrigin: '0px 0px' }}>
+        <path d={wing.d} fill="#2f7a4f" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" />
+      </g></g>)}
+    <path d="M824 604C852 636 852 688 820 710c-10 6-18-2-10-10 22-20 22-50 2-78Z" fill="#4fae6a" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+    <path d="M812 700l-26 6 18 18Z" fill="#2f7a4f" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
+    <path d="M806 532c34 0 48 34 46 64-2 34-24 54-50 54s-40-20-38-54c2-30 14-64 42-64Z" fill="#4fae6a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <ellipse cx="786" cy="600" rx="16" ry="34" fill="#f6e3a1" />
+    <path d="M788 644v14M812 646v14" stroke="#fff" strokeWidth="22" />
+    <path d="M788 644v14M812 646v14" stroke="#2f7a4f" strokeWidth="10" />
+    <path d="M812 464 840 424 826 468ZM796 460 806 416 786 460Z" fill="#e0ad84" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
+    <path d="M826 490c0-22-16-38-38-38-18 0-32 8-40 20-10 4-18 10-18 20 0 10 10 16 24 16 14 10 30 14 46 12 16-4 26-14 26-30Z" fill="#4fae6a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <circle cx="794" cy="480" r="7" fill="#202124" /><circle cx="740" cy="490" r="3" fill="#202124" />
+    <g transform="translate(728 496) rotate(-80)">
+      <Glow blur={10} className="dca-fx-pulse"><ellipse cy="-30" rx="18" ry="32" fill="#ffb347" opacity=".75" /></Glow>
+      <g className="dca-fx dca-fx-flame" style={{ transformOrigin: '0px 0px' }}>
+        <path d="M0 0C-16-6-22-24-14-40c2 10 8 14 14 14-4-14 2-28 12-36-4 16 6 26 6 40S10 0 0 0Z" fill="#ffb347" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
+        <path d="M1-8c-8-4-10-14-6-20 2 4 6 6 8 6 0-8 2-14 6-18 0 10 4 16 4 22s-4 12-12 10Z" fill="#ffe08a" />
+      </g>
+    </g>
   </g>
 }
