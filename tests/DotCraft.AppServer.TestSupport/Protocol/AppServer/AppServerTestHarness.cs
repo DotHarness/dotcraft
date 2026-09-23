@@ -130,6 +130,9 @@ public sealed class AppServerTestHarness : IDisposable
                     promptCommandProviders: null,
                     contributions: contributions),
                 WorkspaceCraftPath = workspaceCraftPath,
+                WorkspaceTempPath = string.IsNullOrWhiteSpace(workspaceCraftPath)
+                    ? null
+                    : DotCraft.Workspaces.DotCraftPaths.CreateForExecutionHost(_tempDir, workspaceCraftPath).WorkspaceTempPath,
                 HostWorkspacePath = _tempDir,
                 MemoryStore = memoryStore,
                 ProtocolExtensions = protocolExtensions,

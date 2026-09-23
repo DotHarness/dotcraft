@@ -331,7 +331,7 @@ Installed built-ins carry a `.builtin` marker:
 - `.builtin` stores a fingerprint of the source directory. Directories with `.builtin` are owned by DotCraft and can be refreshed or removed by DotCraft lifecycle operations.
 - Directories without `.builtin` are treated as user-owned and are not overwritten or removed by DotCraft.
 
-`plugin/remove` removes an installed workspace plugin directory under `.craft/plugins/<pluginId>` when that directory is controlled by the current workspace plugin manager. Managed built-ins and registry-installed plugins carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but workspace-local user plugins may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins and registry plugins are absent from runtime discovery but remain visible in the installable catalog when their source is configured, while disabled installed plugins remain on disk and can be re-enabled.
+`plugin/remove` removes an installed workspace plugin directory under `<DataPath>/plugins/<pluginId>` when that directory is controlled by the current workspace plugin manager. It first renames the directory into `<DataPath>/tmp` on the same volume, then cleans up the moved directory on a best-effort basis. A failure before the rename leaves the installed directory intact. Managed built-ins and registry-installed plugins carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but workspace-local user plugins may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins and registry plugins are absent from runtime discovery but remain visible in the installable catalog when their source is configured, while disabled installed plugins remain on disk and can be re-enabled.
 
 Registry catalog entries are source paths inside a registry snapshot. `plugin/install` validates the marketplace entry, validates the target plugin manifest id, then copies the registry plugin directory into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a registry URL; Desktop loads only the locally installed extension bundle. The public registry process for these curated source entries is defined in [Plugin Registry](plugin-registry.md).
 
@@ -390,3 +390,7 @@ Workspace-level MCP configuration continues to use `McpServers`. Plugin-bundled 
 - Session item payloads are defined in [Session Core](session-core.md).
 - External channel adapter handshake, delivery, and `ext/channel/*` requests are defined in [External Channel Adapter](../protocols/external-channel-adapter.md).
 - Desktop user-facing module workflows are defined in [Desktop Client](../clients/desktop-client.md).
+
+### Remote Desktop contribution delivery
+
+A package installed in a remote workspace remains one package managed by that workspace. Desktop may cache its declared Desktop output locally to present its UI, subject to a remembered client-side workspace execution grant. This cache is not a local installation and does not activate the package's other contributions locally. See [Desktop plugins](desktop-plugins.md#runtime-lifecycle).

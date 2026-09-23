@@ -7,6 +7,9 @@ internal static class PluginDesktopRevision
 {
     private static readonly byte[] Domain = "DotCraft.PluginDesktopRevision\0v1\0"u8.ToArray();
 
+    internal static string Copy(string pluginRoot, string destination, string entry, IReadOnlyList<string> styles) =>
+        PluginContentTree.CopyAndFingerprint(Path.Combine(pluginRoot, "desktop", "dist"), destination, BuildPrefix(entry, styles));
+
     public static string Compute(
         string pluginRoot,
         string entry,

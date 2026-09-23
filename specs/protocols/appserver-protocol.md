@@ -4068,7 +4068,8 @@ Clients must check `capabilities.skillsManagement` before calling any `skills/*`
 Clients must check `capabilities.pluginManagement` before calling the `plugin/*` methods in this
 section or relying on `plugin/snapshot/updated`. It does not gate `plugin/config/*`, which answers to
 `capabilities.pluginConfiguration` alone (18B.2); the two are independent switches, and a server may
-offer either without the other. These methods expose local plugin discovery, workspace enablement state,
+offer either without the other. `plugin/desktop/read` additionally requires
+`capabilities.desktopPluginArtifacts`. These methods expose local plugin discovery, workspace enablement state,
 in-process .NET runtime state, and serialized lifecycle mutations for Desktop and other UI clients.
 Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are
 defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle,
@@ -4224,6 +4225,17 @@ An uninstalled catalog entry never has an accepted runtime snapshot, so its `dot
 omitted. `dotnet` and `dependencies` still come from the same read-only, non-executing manifest
 inspection used before install, so a client can disclose that installing the entry means running
 in-process code before the user commits to it. Listing or viewing a plugin never loads plugin code.
+
+#### `plugin/desktop/read`
+
+The optional `desktopPluginArtifacts` server capability enables `plugin/desktop/read`.
+`plugin/list.workspacePath` is the server's absolute workspace path, used together with the client's stable remote source identity for local execution grants and cache ownership. It never authorizes reading that path on the client.
+
+`plugin/desktop/read` takes `{ id, revision, offset }` and returns `{ totalBytes, dataBase64 }`. Offset zero opens/replaces the connection's current download; subsequent offsets must read that same plugin and revision in order. Each chunk contains at most 1 MiB of binary data. The final chunk closes the transfer. A negative offset cancels the matching transfer and returns an empty result. Requests use the existing authenticated transport, not a separate download URL.
+
+Only installed, enabled plugins with Desktop output may be exported. The server resolves the root from its own discovery, checks the requested revision, and makes an immutable temporary ZIP containing `.craft-plugin/plugin.json` (schemaVersion, id, displayName, version, desktop entry/styles) and the complete `desktop/dist` tree including directory entries. Copying validates the existing content limits and revision. Transfer reads do not hold the workspace mutation gate across network delivery; reads check the plugin snapshot clock and removal, and revalidate eligibility and revision after a mutation and before completing the transfer, without rehashing the complete tree for every chunk. Changes, cancellation, replacement, and disconnect dispose the temporary artifact. Errors include a stable `data.code` and English fallback message.
+
+Desktop validates archive paths, duplicates, links, declared outputs and existing tree limits, then verifies the revision before publishing a cache entry. No remote path is treated as local. An authorized current workspace target is required to execute the cached module. Old clients may ignore these additive fields and methods.
 
 #### `plugin/skill/read`
 

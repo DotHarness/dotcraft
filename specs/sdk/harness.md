@@ -56,6 +56,10 @@ optional features consume the resolved paths rather than reconstructing `.craft`
 operating-system profile directories. When user data is disabled, Harness does not implicitly
 discover or persist user-level DotCraft state.
 
+`DotCraftPaths.WorkspaceTempPath` resolves to `<DataPath>/tmp` for general workspace-scoped temporary
+files. Operating-system temporary files and purpose-specific staging directories retain their own
+locations.
+
 ## Runtime composition
 
 The Harness facade registers one Runtime and Session graph together with the built-in model

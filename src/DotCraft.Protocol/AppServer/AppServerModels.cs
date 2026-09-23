@@ -301,6 +301,10 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginManagement { get; init; }
 
+    [JsonPropertyName("desktopPluginArtifacts")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool DesktopPluginArtifacts { get; init; }
+
     [JsonPropertyName("pluginConfiguration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginConfiguration { get; init; }

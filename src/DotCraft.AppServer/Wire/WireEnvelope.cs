@@ -285,6 +285,8 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginManagement { get; set; }
 
+    public bool DesktopPluginArtifacts { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginConfiguration { get; set; }
 

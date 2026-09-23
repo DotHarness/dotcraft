@@ -30,6 +30,9 @@ public sealed class DotCraftPaths
     /// <summary>Gets the required workspace-owned data root.</summary>
     public DotCraftPathRoot Data { get; }
 
+    /// <summary>Gets the workspace-owned temporary directory path.</summary>
+    public string WorkspaceTempPath => Data.Resolve("tmp");
+
     /// <summary>Gets the optional user-owned data root.</summary>
     public OptionalDotCraftPathRoot UserData { get; }
 }

@@ -51,6 +51,7 @@ internal sealed class InitializeRequestHandler(
             BackgroundTerminals = services.BackgroundTerminalService != null,
             SkillsManagement = services.SkillsLoader != null,
             PluginManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
+            DesktopPluginArtifacts = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             PluginConfiguration = services.PluginConfigStore != null,
             PluginMarketplaces = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             SkillVariants = services.SkillsLoader != null && skillVariants.IsVariantModeEnabled(),

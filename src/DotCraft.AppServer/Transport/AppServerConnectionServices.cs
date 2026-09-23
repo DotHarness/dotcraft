@@ -52,6 +52,9 @@ public sealed record AppServerConnectionServices
     /// <summary>Resolved workspace data path bound to this connection.</summary>
     public string? WorkspaceCraftPath { get; init; }
 
+    /// <summary>Resolved workspace temporary path bound to this connection.</summary>
+    public string? WorkspaceTempPath { get; init; }
+
     /// <summary>
     /// When the wire client omits or sends an empty <c>identity.workspacePath</c>, substitute this
     /// AppServer host workspace root.

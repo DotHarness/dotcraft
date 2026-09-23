@@ -15,6 +15,7 @@ using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
 using DotCraft.Tools;
+using DotCraft.Workspaces;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
@@ -37,6 +38,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     private static readonly ModelProviderRegistry EmptyModelProviders = new([]);
     private static readonly ChatClientRegistry EmptyChatClients = new(EmptyModelProviders);
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "ExternalChannelDeliveryTests_" + Guid.NewGuid().ToString("N")[..8]);
+    private DotCraftPaths WorkspacePaths =>
+        DotCraftPaths.CreateForExecutionHost(_tempDir, Path.Combine(_tempDir, ".craft"));
 
     public ExternalChannelDeliveryTests()
     {
@@ -53,9 +56,51 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
+    public async Task ExternalChannelHost_UsesResolvedWorkspaceTempPathForMedia()
+    {
+        var paths = DotCraftPaths.CreateForExecutionHost(_tempDir, Path.Combine(_tempDir, ".agents"));
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "telegram",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Websocket
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            paths,
+            EmptyChatClients,
+            EmptyModelProviders);
+        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
+        AttachFakeAdapter(host, transport, CreateAdapterConnection(
+            structuredDelivery: true,
+            fileConstraints: new ChannelMediaConstraintSnapshot { SupportsHostPath = true }));
+
+        var result = await host.DeliverAsync("group:1", new ChannelDeliveryMessage
+        {
+            Kind = "file",
+            FileName = "report.txt",
+            Source = new ChannelDeliveryMediaSource
+            {
+                Kind = "dataBase64",
+                DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
+            }
+        });
+
+        Assert.True(result.Delivered);
+        var sent = JsonSerializer.SerializeToElement(transport.LastParams, SessionWireJsonOptions.Default);
+        var temporaryFile = sent.GetProperty("message").GetProperty("source").GetProperty("hostPath").GetString();
+        Assert.NotNull(temporaryFile);
+        Assert.Equal(paths.WorkspaceTempPath, Path.GetDirectoryName(temporaryFile));
+        Assert.False(File.Exists(temporaryFile));
+        Assert.False(Directory.Exists(Path.Combine(_tempDir, ".craft", "external-channel-media")));
+    }
+
+    [Fact]
     public async Task ChannelMediaResolver_RejectsTextMessageWithSource()
     {
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
@@ -75,7 +120,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ChannelMediaResolver_RejectsSourceWithMultipleFields()
     {
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
@@ -98,7 +143,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var path = Path.Combine(_tempDir, "report.txt");
         await File.WriteAllTextAsync(path, "report");
 
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
 
         var first = await resolver.ResolveAsync(new ChannelDeliveryMessage
@@ -135,7 +180,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             var outsidePath = Path.Combine(outsideDir, "secret.txt");
             await File.WriteAllTextAsync(outsidePath, "secret");
 
-            var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+            var store = new InMemoryChannelMediaArtifactStore();
             var approvalService = new RecordingApprovalService(approve: false);
             var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
 
@@ -170,7 +215,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             var outsidePath = Path.Combine(outsideDir, "approved.txt");
             await File.WriteAllTextAsync(outsidePath, "approved");
 
-            var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+            var store = new InMemoryChannelMediaArtifactStore();
             var approvalService = new RecordingApprovalService(approve: true);
             var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
 
@@ -200,7 +245,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var blockedPath = Path.Combine(_tempDir, "blocked.txt");
         await File.WriteAllTextAsync(blockedPath, "blocked");
 
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir, blacklist: new PathBlacklist([blockedPath]));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
@@ -241,7 +286,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedUrlSource()
     {
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport();
@@ -274,7 +319,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelMessageDispatcher_RejectsUrlSource_WhenMaxBytesCannotBeValidated()
     {
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport();
@@ -309,7 +354,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     public async Task ExternalChannelMessageDispatcher_CleansUpTemporaryBase64Artifact()
     {
         var mediaRoot = Path.Combine(_tempDir, "media");
-        var store = new FileSystemChannelMediaArtifactStore(mediaRoot);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, mediaRoot);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
@@ -344,7 +389,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     public async Task ExternalChannelMessageDispatcher_TextDelivery_RequiresUnifiedSendCapabilities()
     {
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = false });
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var connection = CreateAdapterConnection(structuredDelivery: false, fileConstraints: null);
@@ -370,7 +415,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     public async Task ExternalChannelMessageDispatcher_TextDelivery_IsRejectedWithoutStructuredCapabilities()
     {
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var connection = CreateAdapterConnection(structuredDelivery: false, fileConstraints: null);
@@ -396,7 +441,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     public async Task ExternalChannelMessageDispatcher_StructuredAdapter_UsesSendForText()
     {
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
@@ -424,7 +469,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedMediaKind_BeforeDispatch()
     {
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: null);
@@ -465,7 +510,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             service,
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             wireRuntimeAdditionalContextProvider: runtimeContextProvider);
@@ -513,7 +558,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders);
 
@@ -548,7 +593,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             deliveryDependenciesFactory: null,
@@ -613,7 +658,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             deliveryDependenciesFactory: null,
@@ -695,7 +740,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             deliveryDependenciesFactory: null,
@@ -733,7 +778,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             deliveryDependenciesFactory: null,
@@ -946,7 +991,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders);
         Assert.Equal(ExternalChannelTransport.Websocket, websocket.Transport);
@@ -963,7 +1008,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders);
         Assert.Equal(ExternalChannelTransport.ManagedWebsocket, managedWebsocket.Transport);
@@ -993,7 +1038,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry);
@@ -1028,7 +1073,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry);
@@ -1062,7 +1107,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry,
@@ -1097,7 +1142,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry);
@@ -1127,7 +1172,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry,
@@ -1159,7 +1204,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry,
@@ -1190,7 +1235,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             [],
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders,
             registry: registry);
@@ -1276,7 +1321,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             sessionService ?? new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir,
+            WorkspacePaths,
             EmptyChatClients,
             EmptyModelProviders);
 

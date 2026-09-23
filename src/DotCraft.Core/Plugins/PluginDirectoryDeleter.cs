@@ -2,20 +2,15 @@ namespace DotCraft.Plugins;
 
 public static class PluginDirectoryDeleter
 {
-    public static void Delete(string pluginRoot)
+    public static void Delete(string pluginRoot, string workspaceTempPath)
     {
         if (!Directory.Exists(pluginRoot))
             return;
 
-        var pluginsRoot = Path.GetDirectoryName(pluginRoot)
-                          ?? throw new InvalidOperationException("The plugin root has no parent directory.");
-        var craftRoot = Path.GetDirectoryName(pluginsRoot)
-                        ?? throw new InvalidOperationException("The plugins root has no parent directory.");
-        var trashRoot = Path.Combine(craftRoot, ".plugin-trash");
-        Directory.CreateDirectory(trashRoot);
+        Directory.CreateDirectory(workspaceTempPath);
         var tombstone = Path.Combine(
-            trashRoot,
-            $"{Path.GetFileName(pluginRoot)}.{Guid.NewGuid():N}.removed");
+            workspaceTempPath,
+            $"plugin-remove.{Path.GetFileName(pluginRoot)}.{Guid.NewGuid():N}.removed");
 
         // The same-volume rename is the removal commit; tombstone cleanup is not part of it.
         Directory.Move(pluginRoot, tombstone);

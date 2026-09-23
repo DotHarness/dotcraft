@@ -99,6 +99,7 @@ export interface VoiceSettings {
 }
 
 export interface AppSettings {
+  remoteDesktopPluginGrants?: string[]
   /** Desktop follow-up behavior during an active turn; omitted defaults to steer. */
   followUpQueueMode?: FollowUpQueueMode
   lastWorkspacePath?: string

@@ -14,9 +14,11 @@ namespace DotCraft.AppServer;
 
 internal sealed partial class PluginRequestHandler(
     IAppServerTransport transport,
+    AppServerConnection connection,
     SkillsLoader? skillsLoader,
     IAppConfigMonitor? appConfigMonitor,
     string? workspaceCraftPath,
+    string? workspaceTempPath,
     string? hostWorkspacePath,
     IReadOnlyList<string>? builtInPluginSourceRoots,
     AppServerMcpConfigService mcpConfig,
@@ -36,6 +38,8 @@ internal sealed partial class PluginRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
+        _ = CloseDesktopArtifactsAsync();
+        table.Map(Protocol.AppServer.AppServerRpc.PluginDesktopRead, HandleDesktopReadAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginSkillRead, HandlePluginSkillReadAsync);
@@ -78,6 +82,7 @@ internal sealed partial class PluginRequestHandler(
         return Task.FromResult(AppServerTypedResult<Contract.PluginListResult>.FromResult(
             new Contract.PluginListResult
             {
+                WorkspacePath = hostWorkspacePath ?? Path.GetDirectoryName(workspaceCraftPath),
                 Plugins = plugins,
                 Marketplaces = BuildMarketplaceList(discovery),
                 Diagnostics = diagnostics.Select(MapPluginDiagnosticToWire).ToList(),
@@ -412,7 +417,9 @@ internal sealed partial class PluginRequestHandler(
 
         try
         {
-            PluginDirectoryDeleter.Delete(pluginRoot);
+            var temporaryRoot = workspaceTempPath
+                ?? throw new InvalidOperationException("Workspace temporary path is required for plugin removal.");
+            PluginDirectoryDeleter.Delete(pluginRoot, temporaryRoot);
         }
         catch
         {

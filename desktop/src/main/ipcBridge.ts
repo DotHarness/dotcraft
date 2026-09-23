@@ -59,12 +59,8 @@ import {
 import { authorizeViewerFile, buildViewerUrl, resolveViewerFileForAccess } from './viewerFileProtocol'
 import { viewerTextWatchManager } from './viewerTextWatch'
 import type { WriteTextParams } from '../shared/viewer/types'
-import {
-  clearDesktopPluginModuleRoutes,
-  registerDesktopPluginModuleRoute,
-  removeDesktopPluginModuleRoute,
-  type DesktopPluginModuleRequest
-} from './pluginFileProtocol'
+import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
+import { registerDesktopPluginModuleIpc, unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { BROWSER_FEEDBACK_CHANNELS, registerBrowserFeedbackIpc } from './browserFeedbackIpc'
 import { viewerTerminalManager } from './viewerTerminal'
@@ -121,7 +117,6 @@ import {
   type ConnectionSettingsDraft
 } from '../shared/remoteConnection'
 import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
-import { resolveBundledBuiltInPluginRoot } from './ripgrepRuntime'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { AppServerRequestMethod } from '../shared/appServerBoundary'
 import type { AppListResult } from '@dotcraft/sdk/contracts'
@@ -1918,27 +1913,7 @@ export function registerIpcHandlers(
     })
   }
 
-  handleSafe(
-    'desktop-plugin:register-module',
-    async (_event, params: DesktopPluginModuleRequest) => {
-      const settings = callbacks?.getSettings()
-      const remote = settings?.connectionMode === 'remote'
-      return registerDesktopPluginModuleRoute(params, {
-        remote,
-        packagedPluginRoots: remote
-          ? resolveBundledBuiltInPluginRoot().split(path.delimiter).filter(Boolean)
-          : []
-      })
-    }
-  )
-
-  handleSafe(
-    'desktop-plugin:remove-module',
-    async (_event, params: { pluginId: string; revision: string }): Promise<{ ok: boolean }> => {
-      removeDesktopPluginModuleRoute(params.pluginId, params.revision)
-      return { ok: true }
-    }
-  )
+  registerDesktopPluginModuleIpc(getWireClient, callbacks, workspacePath)
 
   const requestDesktopPluginAppSurface = async (
     params: {
@@ -2683,8 +2658,7 @@ export function unregisterIpcHandlers(): void {
   viewerTextWatchManager.disposeAll()
   ipcMain.removeHandler('workspace:viewer:authorize-file')
   ipcMain.removeHandler('workspace:viewer:to-viewer-url')
-  ipcMain.removeHandler('desktop-plugin:register-module')
-  ipcMain.removeHandler('desktop-plugin:remove-module')
+  unregisterDesktopPluginModuleIpc()
   ipcMain.removeHandler('desktop-plugin:app-surface-get-json')
   ipcMain.removeHandler('desktop-plugin:app-surface-post-json')
   ipcMain.removeHandler('desktop-plugin:app-connection-status')

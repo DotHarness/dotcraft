@@ -137,6 +137,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<PluginConfigMutateParams, PluginConfigSnapshot> PluginConfigMutate = new("plugin/config/mutate", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginConfiguration", errors: PluginConfigErrors);
 
+    public static readonly RpcRequest<PluginDesktopReadParams, PluginDesktopReadResult> PluginDesktopRead = new("plugin/desktop/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "desktopPluginArtifacts", errors: CommonErrors);
+
     public static readonly RpcRequest<PluginListParams, PluginListResult> PluginList = new("plugin/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<PluginRemoveParams, PluginOperationResult> PluginRemove = new("plugin/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);

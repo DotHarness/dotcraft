@@ -197,34 +197,6 @@ describe('Desktop Plugin module protocol', () => {
     })).rejects.toThrow('id is invalid')
   })
 
-  it('ignores a remote-supplied root and requires an exact packaged plugin', async () => {
-    const packagedRoot = mkdtempSync(join(tmpdir(), 'desktop-plugin-packaged-'))
-    tempDirs.push(packagedRoot)
-    writePluginRoot(join(packagedRoot, 'fixture.desktop'))
-
-    await expect(registerDesktopPluginModuleRoute({
-      pluginId: 'fixture.desktop',
-      version: '1.0.0',
-      revision: revisionFixture.expectedRevision,
-      rootPath: 'Z:\\untrusted\\remote-path'
-    }, {
-      remote: true,
-      packagedPluginRoots: [packagedRoot]
-    })).resolves.toMatchObject({
-      entryUrl: `${PLUGIN_FILE_SCHEME}://fixture.desktop/${revisionFixture.expectedRevision}/index.mjs`
-    })
-
-    await expect(registerDesktopPluginModuleRoute({
-      pluginId: 'missing.desktop',
-      version: '1.0.0',
-      revision: revisionFixture.expectedRevision,
-      rootPath: createPluginRoot()
-    }, {
-      remote: true,
-      packagedPluginRoots: [packagedRoot]
-    })).rejects.toThrow('is not packaged')
-  })
-
   it('rejects links inside desktop/dist instead of serving their targets', async () => {
     const root = createPluginRoot()
     const outside = mkdtempSync(join(tmpdir(), 'desktop-plugin-outside-'))

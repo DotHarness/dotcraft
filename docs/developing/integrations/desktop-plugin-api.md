@@ -547,7 +547,7 @@ function Background() {
 }
 ```
 
-Desktop serves a plugin from `dotcraft-plugin://<id>/<revision>/`, an address that no build can know in advance, so there is nothing to repair by hand. Wrapping the import in `new URL(asset, import.meta.url)` is now redundant rather than wrong: a plugin that still does it keeps working after a rebuild, because the value it wraps is already absolute.
+Desktop serves a plugin from `dotcraft-plugin://<id>/source/<source>/<revision>/`, an address that no build can know in advance, so there is nothing to repair by hand. Wrapping the import in `new URL(asset, import.meta.url)` is now redundant rather than wrong: a plugin that still does it keeps working after a rebuild, because the value it wraps is already absolute.
 
 The builder bundles `.gif`, `.jpg`, `.jpeg`, `.png`, `.svg`, and `.webp` into `dist/assets/`. In CSS, keep the ordinary relative form — `url("./assets/aurora.svg")` — because a stylesheet resolves it against its own address, which is already under the plugin route.
 
@@ -599,4 +599,8 @@ Disabling or replacing a revision withdraws Host-owned registrations immediately
 
 The revision is the development iteration unit. Desktop Plugins do not have a built-in file watcher, HMR, component-only reload, or partial-generation update. Rebuild, then refresh or re-enable the plugin.
 
-Desktop never loads executable plugin code from a remote AppServer. With a remote workspace, it activates only locally packaged code whose plugin id, version, and Desktop content revision match the remote snapshot.
+With a remote workspace, Desktop downloads the installed plugin's Desktop output after you authorize that workspace to run plugin interfaces on this computer. It verifies the existing content revision before loading. The cache is not another plugin installation: configuration and server-side contributions remain in the remote workspace. Future installs and updates use the remembered workspace grant. Revoke it or retry a failed interface from the Plugins page.
+
+Switching workspaces withdraws the previous workspace's extensions. Remote module URLs include a source scope as well as the revision, so plugins must continue resolving assets relative to their own module URL.
+
+If the remote AppServer does not support Desktop artifact delivery, Desktop does not load its plugin interfaces. Update that server to enable them; other remote plugin contributions remain available.
