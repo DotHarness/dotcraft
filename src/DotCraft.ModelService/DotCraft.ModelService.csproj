@@ -7,6 +7,10 @@
     <Version>0.7.3</Version>
     <Description>Embeddable DotCraft model HTTP service.</Description>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../DotCraft.Harness/DotCraft.Harness.csproj" />
