@@ -2300,6 +2300,7 @@ export const MESSAGES_KO = {
   'plugins.uninstallSuccess': '{{name}} 제거됨',
   'plugins.searchPlaceholder': '검색 플러그인',
   'plugins.section.local': '로컬로 설치됨',
+  'plugins.section.installedIn': '{{name}}에 설치됨',
   'plugins.tab.plugins': '플러그인',
   'plugins.tab.skills': '스킬',
   'skills.manage.searchPlaceholder': '설치된 스킬 검색',

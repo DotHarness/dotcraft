@@ -1691,6 +1691,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.filter.category.research': '研究',
   'plugins.filter.category.uncategorized': '其他',
   'plugins.section.local': '本地已安装',
+  'plugins.section.installedIn': '已安装到 {{name}}',
   'plugins.diagnostics.title': '需要处理',
   'plugins.diagnostics.sourceMissing': '插件市场“{{name}}”的文件夹已被删除或移动。',
   'plugins.diagnostics.snapshotMissing': '插件市场“{{name}}”尚未拉取，刷新后才能安装其中的插件。',

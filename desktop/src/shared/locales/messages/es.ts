@@ -2301,6 +2301,7 @@ export const MESSAGES_ES = {
   'plugins.uninstallSuccess': '{{name}} desinstalado',
   'plugins.searchPlaceholder': 'Complementos de búsqueda',
   'plugins.section.local': 'Instalado localmente',
+  'plugins.section.installedIn': 'Instalado en {{name}}',
   'plugins.tab.plugins': 'Complementos',
   'plugins.tab.skills': 'Habilidades',
   'skills.manage.searchPlaceholder': 'Buscar habilidades instaladas',

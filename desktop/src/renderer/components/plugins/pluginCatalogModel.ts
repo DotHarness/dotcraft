@@ -90,7 +90,8 @@ export function buildSections(
   publisherFilter: PublisherFilter,
   t: ReturnType<typeof useT>,
   marketplaces: MarketplaceEntry[],
-  marketplaceNotices: ReadonlyMap<string, string>
+  marketplaceNotices: ReadonlyMap<string, string>,
+  workspaceName: string | null
 ): PluginSection[] {
   // Grouping by marketplace answers only "where did this come from": no
   // installed-state group, though the category filter still narrows each group.
@@ -121,7 +122,11 @@ export function buildSections(
   const seen = new Set(local.map((plugin) => plugin.id))
   const sections: PluginSection[] = []
   if (local.length > 0) {
-    sections.push({ key: 'local', title: t('plugins.section.local'), plugins: local })
+    sections.push({
+      key: 'local',
+      title: workspaceName ? t('plugins.section.installedIn', { name: workspaceName }) : t('plugins.section.local'),
+      plugins: local
+    })
   }
 
   const byCategory = new Map<string, PluginEntry[]>()

@@ -10,11 +10,13 @@ import {
 } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { projectLabel, useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
 import { SkillsView, filterLocalSkills } from '../skills/SkillsView'
 import { SkillDetailDialog } from '../skills/SkillDetailDialog'
 import { stageSkillTryInChat } from '../skills/skillDraft'
@@ -56,6 +58,9 @@ export function PluginsView(): JSX.Element {
   const pluginManagement = capabilities?.pluginManagement === true
   const pluginMarketplaces = capabilities?.pluginMarketplaces === true
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
+  const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
+  const { selectedProject, foregroundIsChat } = useWorkspaceProjectChoices(foregroundWorkspacePath)
+  const workspaceName = !foregroundIsChat && selectedProject ? projectLabel(selectedProject) : null
   const {
     plugins,
     marketplaces,
@@ -138,8 +143,8 @@ export function PluginsView(): JSX.Element {
   const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
   const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
   const sections = useMemo(
-    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices),
-    [browsePlugins, categoryFilter, marketplaceNotices, marketplaces, publisherFilter, t]
+    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices, workspaceName),
+    [browsePlugins, categoryFilter, marketplaceNotices, marketplaces, publisherFilter, t, workspaceName]
   )
   // The dialog owns installed/app state for its own session and takes the live trust state from
   // the store, so completing the trust step advances the dialog without reopening it.

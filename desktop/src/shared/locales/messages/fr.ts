@@ -2302,6 +2302,7 @@ export const MESSAGES_FR = {
   'plugins.uninstallSuccess': '{{name}} désinstallé',
   'plugins.searchPlaceholder': 'Plugins de recherche',
   'plugins.section.local': 'Installé localement',
+  'plugins.section.installedIn': 'Installé dans {{name}}',
   'plugins.tab.plugins': 'Plugins',
   'plugins.tab.skills': 'Compétences',
   'skills.manage.searchPlaceholder': 'Rechercher les compétences installées',

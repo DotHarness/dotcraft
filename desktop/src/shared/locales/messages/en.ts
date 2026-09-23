@@ -1735,6 +1735,7 @@ export const MESSAGES_EN = {
   'plugins.filter.category.research': 'Research',
   'plugins.filter.category.uncategorized': 'Other',
   'plugins.section.local': 'Installed locally',
+  'plugins.section.installedIn': 'Installed in {{name}}',
   'plugins.diagnostics.title': 'Needs attention',
   'plugins.diagnostics.sourceMissing': 'The folder for marketplace "{{name}}" was deleted or moved.',
   'plugins.diagnostics.snapshotMissing': 'Marketplace "{{name}}" has not been fetched yet. Refresh it to install its plugins.',

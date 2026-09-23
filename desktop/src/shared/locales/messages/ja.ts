@@ -2296,6 +2296,7 @@ export const MESSAGES_JA = {
   'plugins.uninstallSuccess': '{{name}} をアンインストールしました',
   'plugins.searchPlaceholder': '検索プラグイン',
   'plugins.section.local': 'ローカルにインストール',
+  'plugins.section.installedIn': '{{name}} にインストール済み',
   'plugins.tab.plugins': 'プラグイン',
   'plugins.tab.skills': 'スキル',
   'skills.manage.searchPlaceholder': 'インストールされているスキルを検索する',

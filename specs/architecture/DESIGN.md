@@ -309,6 +309,10 @@ Desktop surfaces should favor dense but organized operational layouts.
   for records the user already owns. Every row is a borderless `8px` box with a
   `40px` leading mark, a `--type-ui` title and one truncating `--type-secondary`
   line, and fills with `--bg-tertiary` on hover rather than gaining a border.
+- The Plugins browse page names the active workspace in the title of its installed
+  group (`Installed in <workspace>`), because that group is the state that changes
+  with the workspace. The band's tabs and breadcrumb and the hero above the search
+  row never carry workspace scope.
 - Catalog browse and manage pages separate their controls and groups with space
   and heading weight, not with rules: no rule under the hero/search header or
   manage toolbar, and none above a group. A rule above the first group is a frame
