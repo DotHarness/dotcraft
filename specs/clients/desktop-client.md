@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.20.0 |
+| **Version** | 0.22.0 |
 | **Status** | Living |
-| **Date** | 2026-09-23 |
+| **Date** | 2026-09-24 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md) |
 
@@ -541,7 +541,13 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 
 ### 5.8 View Changes, Plans, and Tool Output
 
-- File changes produced during a thread remain discoverable until reverted or superseded.
+- The Changes panel shows only the most recent turn that changed files: a "Last turn" header with that turn's added and removed line totals, then each changed file with its counts and a collapsible diff. A file too large to render inline says so instead of showing a diff. The panel offers no revert; a file's own actions copy its workspace-relative path and open its containing folder. The panel's badge counts that turn's files.
+- While a turn is running, the panel reflects the server's live turn diff. After a thread is reopened, a turn's files are rebuilt from the per-edit diffs recorded with each file tool result, so a file edited several times in one turn appears once per edit.
+- A completed turn that changed files ends with a card titled with the edited file's name, or the number of edited files, above the turn's line totals. When more than one file changed, the card lists up to three and can show the rest; each listed file expands to its diff, and its name opens the Changes panel. Review opens the Changes panel.
+- The card's Undo reverts the turn's recorded diff through the workspace's Git repository, newest edit first, without asking for confirmation, and then becomes Reapply. Files too large to render are left as they are. Success, partial success, and failure are each reported; a failed file stays as it was and stops the remaining ones.
+- Outside a Git repository, Undo explains that it needs one and changes nothing. Undo works through the Git repository on this computer, so it cannot change a remote workspace's files; the attempt fails and is reported.
+- Threads recorded before per-edit diffs were persisted show no entries in Changes; their tool cards show text only.
+- Commit and changelist actions use the files still applied across the loaded turns.
 - Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received.
 - When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the normal composer with the plan-confirmation composer. Later tool calls or assistant output in the same Turn, including SubAgent cleanup, do not suppress confirmation. The confirmation remains recoverable after switching threads or restarting Desktop and is cleared when the next Turn starts.
 - Tool output remains readable in-thread and must remain distinguishable from agent conversational text.

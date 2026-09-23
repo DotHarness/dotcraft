@@ -2160,6 +2160,16 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'turn/diff/updated': {
+            const tid = (p.threadId as string | undefined) ?? ''
+            if (!tid || !shouldUpdateActiveConversation(tid) || shouldDeferActiveConversationUpdate(tid)) break
+            conv.onTurnDiffUpdated({
+              turnId: (p.turnId as string | undefined) ?? '',
+              diff: typeof p.diff === 'string' ? p.diff : ''
+            })
+            break
+          }
+
           case 'item/approval/resolved': {
             const resolved = extractApprovalResolvedParams(p)
             if (shouldUpdateActiveConversation(resolved.threadId)) {
@@ -2410,10 +2420,12 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const changedFilesSize = useConversationStore((s) => s.changedFiles.size)
+  const activeTurnFileCount = useConversationStore((s) =>
+    s.activeTurnId ? (s.turnDiffs.get(s.activeTurnId)?.files.length ?? 0) : 0
+  )
   const activeTurnIdForAutoShow = useConversationStore((s) => s.activeTurnId)
   useEffect(() => {
-    if (changedFilesSize === 0) return
+    if (activeTurnFileCount === 0) return
     const uiState = useUIStore.getState()
     const currentTurnId = activeTurnIdForAutoShow
     if (!currentTurnId) return
@@ -2423,7 +2435,7 @@ export function App(): JSX.Element {
       useUIStore.getState().setActiveDetailTab('changes')
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [changedFilesSize])
+  }, [activeTurnFileCount])
 
   const streamingPlanItemId = useConversationStore(selectStreamingPlanItemId)
   useEffect(() => {
@@ -2552,7 +2564,6 @@ export function App(): JSX.Element {
       }
 
       if (ctrl && e.shiftKey && e.key === 'G') {
-        if (remoteWorkspaceActiveRef.current) return
         e.preventDefault()
         performAddTabAction('newChanges', {
           threadId: useThreadStore.getState().activeThreadId,

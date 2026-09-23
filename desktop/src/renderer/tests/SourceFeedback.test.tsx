@@ -58,8 +58,6 @@ it('captures only the actual selected reply text with its source identity', () =
 
 const diff: FileDiff = {
   filePath: '/workspace/a.ts',
-  turnId: 'turn',
-  turnIds: ['turn'],
   additions: 1,
   deletions: 1,
   status: 'written',

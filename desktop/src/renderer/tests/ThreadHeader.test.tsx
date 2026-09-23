@@ -10,6 +10,17 @@ import { useSourceControlStore } from '../stores/sourceControlStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { Thread } from '../types/thread'
 
+function seedWrittenFile(filePath: string): void {
+  const diff = { filePath, additions: 2, deletions: 1, diffHunks: [], status: 'written' as const, isNewFile: false }
+  useConversationStore.setState({
+    turnDiffs: new Map([['turn-1', {
+      turnId: 'turn-1',
+      source: 'history' as const,
+      files: [{ key: 'turn-1::item-1', turnId: 'turn-1', diff, patchText: '', truncated: false }]
+    }]])
+  })
+}
+
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
 const gitCommit = vi.fn()
@@ -85,16 +96,7 @@ function setupOnlinePerforceThread(workspacePath = 'C:\\workspace\\sample-app'):
       }
     }
   })
-  useConversationStore.getState().upsertChangedFile({
-    filePath: `${workspacePath}\\src\\a.ts`,
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
-    additions: 2,
-    deletions: 1,
-    diffHunks: [],
-    status: 'written',
-    isNewFile: false
-  })
+  seedWrittenFile('src/a.ts')
 }
 
 describe('ThreadHeader', () => {
@@ -199,16 +201,7 @@ describe('ThreadHeader', () => {
         }
       }
     })
-    useConversationStore.getState().upsertChangedFile({
-      filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
-      turnId: 'turn-1',
-      turnIds: ['turn-1'],
-      additions: 2,
-      deletions: 1,
-      diffHunks: [],
-      status: 'written',
-      isNewFile: false
-    })
+    seedWrittenFile('src/a.ts')
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'sourceControl/changelist/prepare') {
         return {
@@ -456,16 +449,7 @@ describe('ThreadHeader', () => {
       status: 'offline',
       perforceChangelist: false
     })
-    useConversationStore.getState().upsertChangedFile({
-      filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
-      turnId: 'turn-1',
-      turnIds: ['turn-1'],
-      additions: 2,
-      deletions: 1,
-      diffHunks: [],
-      status: 'written',
-      isNewFile: false
-    })
+    seedWrittenFile('src/a.ts')
 
     renderHeader(true, workspacePath)
 
@@ -506,16 +490,7 @@ describe('ThreadHeader', () => {
       status: 'connected',
       perforceChangelist: true
     })
-    useConversationStore.getState().upsertChangedFile({
-      filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
-      turnId: 'turn-1',
-      turnIds: ['turn-1'],
-      additions: 2,
-      deletions: 1,
-      diffHunks: [],
-      status: 'written',
-      isNewFile: false
-    })
+    seedWrittenFile('src/a.ts')
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'sourceControl/changelist/list') {
         return new Promise(() => {})

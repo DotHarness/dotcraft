@@ -50,6 +50,7 @@ export interface ServerNotificationMethods {
   "thread/updated": { params: Models.ThreadNotification; result: Models.RpcEmpty };
   "turn/cancelled": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/completed": { params: Models.TurnNotification; result: Models.RpcEmpty };
+  "turn/diff/updated": { params: Models.TurnDiffUpdatedNotification; result: Models.RpcEmpty };
   "turn/failed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/started": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "workflow/run/updated": { params: Models.WorkflowRunUpdatedNotification; result: Models.RpcEmpty };

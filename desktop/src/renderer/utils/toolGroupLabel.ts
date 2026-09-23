@@ -9,19 +9,11 @@ function getPathArgument(item: ConversationItem): string {
   return typeof args?.path === 'string' ? args.path : ''
 }
 
-function lookupChangedFile(path: string, changedFiles: Map<string, FileDiff>): FileDiff | undefined {
-  return (
-    changedFiles.get(path)
-    ?? changedFiles.get(path.replace(/\\/g, '/'))
-    ?? changedFiles.get(path.replace(/\//g, '\\'))
-  )
-}
-
 function normalizePathKey(path: string): string {
   return path.trim().replace(/\\/g, '/')
 }
 
-function getWriteCounts(items: ConversationItem[], changedFiles: Map<string, FileDiff>): {
+function getWriteCounts(items: ConversationItem[], itemDiffs: ReadonlyMap<string, FileDiff>): {
   createdCount: number
   modifiedCount: number
 } {
@@ -47,10 +39,8 @@ function getWriteCounts(items: ConversationItem[], changedFiles: Map<string, Fil
     }
 
     if (operation === 'write') {
-      const path = getPathArgument(item)
-      const diff = path ? lookupChangedFile(path, changedFiles) : undefined
       const key = getPathKey(item)
-      if (diff?.isNewFile === true) {
+      if (itemDiffs.get(item.id)?.isNewFile === true) {
         createdPaths.add(key)
         modifiedPaths.delete(key)
       } else {
@@ -75,7 +65,7 @@ export function formatToolGroupLabel(
   category: ToolGroupCategory,
   items: ConversationItem[],
   locale: AppLocale,
-  changedFiles: Map<string, FileDiff>
+  itemDiffs: ReadonlyMap<string, FileDiff>
 ): string {
   const count = items.length
 
@@ -107,7 +97,7 @@ export function formatToolGroupLabel(
     return translate(locale, 'toolCall.group.spawnedAgents', { count })
   }
 
-  const { createdCount, modifiedCount } = getWriteCounts(items, changedFiles)
+  const { createdCount, modifiedCount } = getWriteCounts(items, itemDiffs)
   if (createdCount > 0 && modifiedCount > 0) {
     return translate(locale, 'toolCall.group.createdAndModified', {
       created: createdCount,

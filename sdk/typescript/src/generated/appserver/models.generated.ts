@@ -4465,6 +4465,13 @@ export interface ToolSourceProvenancePayload {
   [key: string]: unknown;
 }
 
+export interface TurnDiffUpdatedNotification {
+  diff: string;
+  threadId: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
 export interface TurnEnqueueParams {
   clientUserMessageId?: string | null;
   input: InputPart[];

@@ -168,6 +168,8 @@ public sealed class SubAgentManager
                 using var approvalContextScope = approvalContext != null
                     ? ApprovalContextScope.Set(approvalContext)
                     : null;
+                // The child's file tools must not attach their changes to the parent tool call's result.
+                using var attachmentScope = ToolResultAttachmentScope.Suppress();
                 var subagent = CreateSubAgent(task, progressEntry, effectiveApprovalService);
                 var result = await subagent.RunAsync(task, cancellationToken);
                 return result.Text;

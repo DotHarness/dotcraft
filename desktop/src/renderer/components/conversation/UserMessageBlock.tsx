@@ -18,6 +18,7 @@ import { parseUserMessageSegments, segmentsFromNativeInputParts } from './parseU
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../../types/conversation'
 import { openConversationLink, openImagePathInViewer } from '../../utils/conversationDeepLink'
 import { stripSystemReminderBlocks } from '../../utils/systemReminderText'
+import { formatMessageTime } from '../../utils/messageTime'
 import { resolveLocalReferencePath, resolveSkillReferencePath } from '../../utils/referencePaths'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -461,31 +462,6 @@ export function UserMessageBlock({
       )}
     </>
   )
-}
-
-function formatMessageTime(createdAt?: string): { label: string; title: string } | null {
-  if (!createdAt) return null
-  const date = new Date(createdAt)
-  if (!Number.isFinite(date.getTime())) return null
-
-  return {
-    label: new Intl.DateTimeFormat(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      hourCycle: 'h23'
-    }).format(date),
-    title: new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-      hourCycle: 'h23'
-    }).format(date)
-  }
 }
 
 function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {

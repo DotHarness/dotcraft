@@ -153,6 +153,32 @@ public sealed class SessionWireModelsTests
     }
 
     [Fact]
+    public void ToWire_TurnDiffUpdated_MapsMethodAndRoundTripsPayload()
+    {
+        var payload = new TurnDiffUpdatedPayload { Diff = "diff --git a/a.txt b/a.txt\n" };
+        var evt = new SessionEvent
+        {
+            EventId = "e1",
+            EventType = SessionEventType.TurnDiffUpdated,
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = payload
+        };
+
+        Assert.Equal("turn/diff/updated", evt.ToWireMethodName());
+        var wire = evt.ToWire();
+        Assert.Equal("turnDiffUpdated", wire.PayloadKind);
+
+        var payloadJson = JsonSerializer.Serialize(wire.Payload, SessionWireJsonOptions.Default);
+        using var doc = JsonDocument.Parse(payloadJson);
+        var property = Assert.Single(doc.RootElement.EnumerateObject());
+        Assert.Equal("diff", property.Name);
+        Assert.Equal(payload.Diff, property.Value.GetString());
+        Assert.Equal(payload, JsonSerializer.Deserialize<TurnDiffUpdatedPayload>(payloadJson, SessionWireJsonOptions.Default));
+    }
+
+    [Fact]
     public void SessionWireJsonOptions_ReadsReasoningConfigurationStrings()
     {
         const string json = """

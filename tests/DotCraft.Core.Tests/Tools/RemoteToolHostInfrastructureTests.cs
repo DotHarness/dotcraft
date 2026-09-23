@@ -353,6 +353,48 @@ public sealed class RemoteToolHostInfrastructureTests
         Assert.False(client.TryGetConnectionSnapshot("child-thread", out _));
     }
 
+    [Fact]
+    public async Task RemoteRoundTrip_WriteFile_KeepsFileChangeStructuredContent()
+    {
+        using var hostDirectory = new TemporaryDirectory();
+        using var workspace = new TemporaryDirectory();
+        var storage = new RemoteToolHostStorage(hostDirectory.Path, new MemoryCredentialStore());
+        RemoteToolHostTestHost.Setup(
+            storage,
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path },
+            hostId: "rth_file_change");
+
+        await using var server = new RemoteToolHostTestServer(storage);
+        await using var client = server.CreateClient();
+
+        var config = new AppConfig();
+        await using var terminals = new BackgroundTerminalService(
+            Path.Combine(hostDirectory.Path, "agent-terminals"),
+            config.Tools.Shell.Background);
+        var source = new WorkspaceExecutionToolSource(config, terminals);
+        var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
+            "agent-thread", null, workspace.Path, hostDirectory.Path, "agent", null, [], 1,
+            workspaceRoots: [workspace.Path]));
+        client.UpdateRemoteToolSnapshot("agent-thread", new EffectiveToolSnapshotBuilder().Build(registrations, 1), "agent");
+        var connected = await client.ConnectAsync("agent-thread", server.PeerId, "repo");
+
+        var write = registrations.Single(item => item.Definition.Name.Name == "WriteFile");
+        var result = await client.InvokeAsync(
+            connected.Route,
+            write.Definition,
+            RemoteToolContractHasher.Compute(write.Definition),
+            new ToolInvocationContext(
+                "agent-thread", "turn", "write-call", ToolInvocationAudience.Model,
+                write.Definition.Name, write.Definition.Id, write.Binding.Id, 1, DateTimeOffset.UtcNow,
+                WorkspacePath: workspace.Path),
+            new JsonObject { ["path"] = "created.txt", ["content"] = "created" });
+
+        Assert.True(result.Success, result.Error?.Message);
+        var structured = Assert.IsType<JsonElement>(result.StructuredContent);
+        Assert.Equal("fileChange", structured.GetProperty("kind").GetString());
+        Assert.Single(structured.GetProperty("changes").EnumerateArray());
+    }
+
 
     private static RemoteToolHubPeer NewPeer(string peerId) => new()
     {

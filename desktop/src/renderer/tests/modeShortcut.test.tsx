@@ -64,7 +64,7 @@ describe('mode shortcut', () => {
       detailPanelVisible: true,
       detailPanelWidth: 400,
       activeDetailTab: 'changes',
-      selectedChangedFile: null,
+      selectedChangeKey: null,
       autoShowTriggeredForTurn: null,
       composerPrefill: null,
       pendingWelcomeTurn: null,

@@ -65,8 +65,6 @@ describe('diff tokenization', () => {
     const current = 'var a = 1;\n/* remark\n   about a\n*/\nvar b = 2;\n'
     const diff: FileDiff = {
       filePath: 'F:/work/Sample.cs',
-      turnId: 't',
-      turnIds: ['t'],
       additions: 1,
       deletions: 1,
       status: 'written',

@@ -5,8 +5,6 @@ import type { FileDiff } from '../types/toolCall'
 
 const baseDiff: FileDiff = {
   filePath: 'src/deep/AgentTools.cs',
-  turnId: 'turn-1',
-  turnIds: ['turn-1'],
   additions: 1,
   deletions: 1,
   diffHunks: [

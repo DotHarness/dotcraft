@@ -5,19 +5,21 @@ import { PerforcePrepareDialog } from '../components/detail/PerforcePrepareDialo
 import { useConversationStore } from '../stores/conversationStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
+function seedWrittenFile(filePath: string): void {
+  const diff = { filePath, additions: 2, deletions: 1, diffHunks: [], status: 'written' as const, isNewFile: false }
+  useConversationStore.setState({
+    turnDiffs: new Map([['turn-1', {
+      turnId: 'turn-1',
+      source: 'history' as const,
+      files: [{ key: 'turn-1::item-1', turnId: 'turn-1', diff, patchText: '', truncated: false }]
+    }]])
+  })
+}
+
 const settingsGet = vi.fn()
 
 function renderDialog(onPrepare = vi.fn(), onClose = vi.fn()): ReturnType<typeof vi.fn> {
-  useConversationStore.getState().upsertChangedFile({
-    filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
-    additions: 2,
-    deletions: 1,
-    diffHunks: [],
-    status: 'written',
-    isNewFile: false
-  })
+  seedWrittenFile('src/a.ts')
 
   render(
     <LocaleProvider>

@@ -9,7 +9,7 @@ const first: AppNavigationLocation = {
   threadId: null,
   detailVisible: false,
   activeDetailTab: { kind: 'launcher' },
-  selectedChangedFile: null
+  selectedChangeKey: null
 }
 
 function shortcut(key: '[' | ']', target?: HTMLElement, isComposing = false): KeyboardEvent {

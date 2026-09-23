@@ -435,8 +435,6 @@ describe('ToolCallCard shell rendering', () => {
     }
     const streamingDiff: FileDiff = {
       filePath: 'src/live.ts',
-      turnId: 'turn-1',
-      turnIds: ['turn-1'],
       additions: 1,
       deletions: 0,
       diffHunks: [
@@ -497,8 +495,6 @@ describe('ToolCallCard shell rendering', () => {
     }
     const streamingDiff: FileDiff = {
       filePath: 'README.md',
-      turnId: 'turn-1',
-      turnIds: ['turn-1'],
       additions: 2,
       deletions: 0,
       diffHunks: [

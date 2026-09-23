@@ -11,7 +11,7 @@ const first: AppNavigationLocation = {
   threadId: null,
   detailVisible: false,
   activeDetailTab: { kind: 'launcher' },
-  selectedChangedFile: null
+  selectedChangeKey: null
 }
 
 beforeEach(() => {

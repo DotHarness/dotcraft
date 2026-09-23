@@ -313,7 +313,7 @@ describe('ConversationWelcome composer', () => {
       detailPanelVisible: true,
       detailPanelWidth: 400,
       activeDetailTab: 'changes',
-      selectedChangedFile: null,
+      selectedChangeKey: null,
       autoShowTriggeredForTurn: null,
       autoShowPlanForItem: null,
       composerPrefill: null,

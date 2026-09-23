@@ -242,6 +242,21 @@ public sealed class SessionEventChannelTests
         Assert.Equal("provider unavailable", payload.Message);
     }
 
+    [Fact]
+    public async Task EmitTurnDiffUpdated_IsTurnScopedWithDiffPayload()
+    {
+        var channel = MakeChannel();
+
+        channel.EmitTurnDiffUpdated("diff --git a/a.txt b/a.txt\n");
+        channel.Complete();
+
+        var evt = Assert.Single(await CollectAsync(channel));
+        Assert.Equal(SessionEventType.TurnDiffUpdated, evt.EventType);
+        Assert.Equal(TestTurnId, evt.TurnId);
+        Assert.Null(evt.ItemId);
+        Assert.Equal("diff --git a/a.txt b/a.txt\n", evt.TurnDiffUpdatedPayload?.Diff);
+    }
+
     // -------------------------------------------------------------------------
     // Snapshot semantics (spec appserver-protocol.md §6.3)
     // -------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+.label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.reverted {
+  flex-shrink: 0;
+  margin-left: 6px;
+  color: var(--text-dimmed);
+  font-size: 10px;
+}
+
+.truncatedNote {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}

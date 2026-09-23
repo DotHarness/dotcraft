@@ -838,6 +838,120 @@ describe('registerIpcHandlers', () => {
     expect(commitCall?.[1]).not.toContain('src/already-staged.ts')
   })
 
+  const crlfPatch = [
+    'diff --git a/notes.txt b/notes.txt',
+    'index 3b18e51..a9c7f3d 100644',
+    '--- a/notes.txt',
+    '+++ b/notes.txt',
+    '@@ -1 +1 @@',
+    '-hello\r',
+    '+hello world\r',
+    ''
+  ].join('\n')
+  const tempPatchFile = expect.stringMatching(/dotcraft-patch-.*\.diff$/)
+  const exactBytesApply = ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'apply', '--whitespace=nowarn']
+
+  it('git:applyPatch applies the patch from a temp file at the repository root', async () => {
+    vi.mocked(fs.rm).mockResolvedValue(undefined)
+    mockGitCommands((args) => {
+      if (args[0] === 'rev-parse') return { stdout: '\n' }
+      if (args.includes('apply')) return { stdout: '' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: false })).resolves.toEqual({ ok: true })
+
+    const gitCalls = execFileMock.mock.calls.map(([, args]) => args as string[])
+    expect(gitCalls).toEqual([
+      ['rev-parse', '--show-prefix'],
+      [...exactBytesApply, tempPatchFile]
+    ])
+    const patchFile = gitCalls[1].at(-1)
+    expect(fs.writeFile).toHaveBeenCalledWith(patchFile, crlfPatch, 'utf8')
+    expect(fs.rm).toHaveBeenCalledWith(patchFile, { force: true })
+    expect(vi.mocked(fs.rm).mock.invocationCallOrder[0])
+      .toBeGreaterThan(execFileMock.mock.invocationCallOrder[1])
+  })
+
+  it('git:applyPatch re-roots workspace-relative paths when the workspace is a repository subdirectory', async () => {
+    vi.mocked(fs.rm).mockResolvedValue(undefined)
+    mockGitCommands((args) => (args[0] === 'rev-parse' ? { stdout: 'sub/\n' } : { stdout: '' }))
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: false })).resolves.toEqual({ ok: true })
+
+    expect(execFileMock.mock.calls[1][1]).toEqual([...exactBytesApply, '--directory=sub/', tempPatchFile])
+  })
+
+  it('git:applyPatch reverses the patch after re-rooting its paths', async () => {
+    vi.mocked(fs.rm).mockResolvedValue(undefined)
+    mockGitCommands((args) => (args[0] === 'rev-parse' ? { stdout: 'sub/\n' } : { stdout: '' }))
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: true })).resolves.toEqual({ ok: true })
+
+    expect(execFileMock.mock.calls[1][1]).toEqual([...exactBytesApply, '--directory=sub/', '-R', tempPatchFile])
+  })
+
+  it('git:applyPatch reports a workspace outside git without applying anything', async () => {
+    mockGitCommands(() => ({
+      error: gitError(128),
+      stderr: 'fatal: not a git repository (or any of the parent directories): .git\n'
+    }))
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: false })).resolves.toEqual({
+      ok: false,
+      code: 'not-git-repo',
+      message: 'fatal: not a git repository (or any of the parent directories): .git'
+    })
+    expect(execFileMock.mock.calls.map(([, args]) => args)).toEqual([['rev-parse', '--show-prefix']])
+    expect(fs.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('git:applyPatch returns git\'s error and still removes the temp file when the patch does not apply', async () => {
+    vi.mocked(fs.rm).mockResolvedValue(undefined)
+    mockGitCommands((args) => (args[0] === 'rev-parse'
+      ? { stdout: '\n' }
+      : { error: gitError(1), stderr: 'error: patch failed: notes.txt:1\nerror: notes.txt: patch does not apply\n' }))
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: true })).resolves.toEqual({
+      ok: false,
+      code: 'apply-failed',
+      message: 'error: patch failed: notes.txt:1\nerror: notes.txt: patch does not apply'
+    })
+    expect(fs.rm).toHaveBeenCalledWith(execFileMock.mock.calls[1][1].at(-1), { force: true })
+  })
+
+  it('git:applyPatch rejects a blank patch without running git', async () => {
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(applyPatch({}, '/workspace', ' \n', { reverse: false })).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid-patch'
+    })
+    expect(execFileMock).not.toHaveBeenCalled()
+    expect(fs.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('git:applyPatch rejects requests for a different workspace path', async () => {
+    const handlers = registerHandlersForTest()
+    const applyPatch = handlers.get('git:applyPatch')!
+
+    await expect(
+      applyPatch({}, '/other-workspace', crlfPatch, { reverse: false })
+    ).rejects.toThrow('Workspace path mismatch')
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
+
   it('git:branch reads linked worktree branch through git commands', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }

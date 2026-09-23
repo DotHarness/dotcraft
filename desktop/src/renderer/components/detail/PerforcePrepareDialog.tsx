@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, ListChecks } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { threadFileSummaries } from '../../stores/turnDiffs'
 import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
@@ -28,8 +29,8 @@ export function PerforcePrepareDialog({
   onClose
 }: PerforcePrepareDialogProps): JSX.Element {
   const t = useT()
-  const changedFiles = useConversationStore((s) => s.changedFiles)
-  const allFiles = Array.from(changedFiles.values())
+  const turnDiffs = useConversationStore((s) => s.turnDiffs)
+  const allFiles = useMemo(() => threadFileSummaries(turnDiffs), [turnDiffs])
   const writtenFiles = allFiles.filter((f) => f.status === 'written')
   const revertedCount = allFiles.length - writtenFiles.length
   const [description, setDescription] = useState('')

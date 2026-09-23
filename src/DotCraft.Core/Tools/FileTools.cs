@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DotCraft.Lsp;
 using DotCraft.Security;
+using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -119,20 +120,18 @@ public sealed class FileTools(
             if (await FileContentClassifier.LooksBinaryFileAsync(fullPath))
                 return ReadFileTextResult(FileContentClassifier.FormatBinaryUnsupportedMessage(path, fullPath, fileInfo.Length, detectedFromSample: true));
 
-            var encoding = DetectFileEncoding(fullPath);
-
             if (TextFileReadLimiter.IsPagedRead(offset, limit))
                 return ReadFileTextResult(await WithSharingViolationRetryAsync(
-                    () => TextFileReadLimiter.ReadPageAsync(fullPath, encoding, offset, limit, cancellationToken),
+                    () => TextFileReadLimiter.ReadPageAsync(fullPath, path, offset, limit, cancellationToken),
                     cancellationToken));
 
             if (fileInfo.Length > TextFileReadLimiter.MaxUnpaginatedTextBytes)
                 return ReadFileTextResult(TextFileReadLimiter.FormatUnpaginatedTooLarge(path, fileInfo.Length));
 
-            var content = await WithSharingViolationRetryAsync(
-                () => File.ReadAllTextAsync(fullPath, encoding, cancellationToken),
+            var (content, _, error) = await WithSharingViolationRetryAsync(
+                () => TextFileEncoding.ReadAsync(fullPath, path, cancellationToken),
                 cancellationToken);
-            return ReadFileTextResult(TextFileReadLimiter.FormatInMemory(content, offset, limit));
+            return ReadFileTextResult(error ?? TextFileReadLimiter.FormatInMemory(content!, offset, limit));
         }
         catch (OperationCanceledException)
         {
@@ -183,18 +182,15 @@ public sealed class FileTools(
                     Directory.CreateDirectory(directory);
 
                 var existedBefore = File.Exists(fullPath);
-                var encoding = existedBefore ? DetectFileEncoding(fullPath) : Utf8NoBom;
-                if (existedBefore)
-                {
-                    var existing = await File.ReadAllTextAsync(fullPath, encoding);
-                    content = RestoreLineEndings(NormalizeToLf(content), UsesCrLf(existing));
-                }
-                else
-                {
-                    content = NormalizeToLf(content);
-                }
+                var (before, encoding, error) = existedBefore
+                    ? await TextFileEncoding.ReadAsync(fullPath, path)
+                    : (null, Utf8NoBom, null);
+                if (error != null)
+                    return error;
+                content = RestoreLineEndings(NormalizeToLf(content), before != null && UsesCrLf(before));
 
                 await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
+                ReportFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content);
 
                 await NotifyLspFileChangedAsync(fullPath, content);
                 var lineCount = content.Split('\n').Length;
@@ -241,13 +237,16 @@ public sealed class FileTools(
                 if (!File.Exists(fullPath))
                     return $"Error: File not found: {path}";
 
-                var encoding = DetectFileEncoding(fullPath);
-                var content = await File.ReadAllTextAsync(fullPath, encoding);
-                var prepared = PrepareSearchReplaceEdit(path, content, oldText, newText, replaceAll);
+                var (content, encoding, error) = await TextFileEncoding.ReadAsync(fullPath, path);
+                if (error != null)
+                    return error;
+
+                var prepared = PrepareSearchReplaceEdit(path, content!, oldText, newText, replaceAll);
                 if (prepared.WrittenContent == null)
                     return prepared.Result;
 
-                await File.WriteAllTextAsync(fullPath, prepared.WrittenContent, encoding);
+                await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
+                ReportFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent);
                 result = prepared.Result;
                 writtenContent = prepared.WrittenContent;
             }
@@ -336,7 +335,8 @@ public sealed class FileTools(
                         if (IsBinaryFile(filePath))
                             continue;
 
-                        var lines = await File.ReadAllLinesAsync(filePath, DetectFileEncoding(filePath), fallbackCancellationToken);
+                        // Lenient on purpose, like ripgrep: a legacy-encoded file still yields its ASCII matches.
+                        var lines = await File.ReadAllLinesAsync(filePath, fallbackCancellationToken);
                         for (var i = 0; i < lines.Length; i++)
                         {
                             fallbackCancellationToken.ThrowIfCancellationRequested();
@@ -465,42 +465,6 @@ public sealed class FileTools(
 
     #region Private Helpers
 
-    /// <summary>
-    /// Detect file encoding by inspecting the BOM (Byte Order Mark).
-    /// Falls back to UTF-8 without BOM when no BOM is found.
-    /// </summary>
-    private static Encoding DetectFileEncoding(string filePath)
-    {
-        Span<byte> bom = stackalloc byte[4];
-        int bytesRead;
-        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-        {
-            bytesRead = fs.Read(bom);
-        }
-
-        // UTF-32 BE: 00 00 FE FF (check before UTF-16 BE)
-        if (bytesRead >= 4 && bom[0] == 0x00 && bom[1] == 0x00 && bom[2] == 0xFE && bom[3] == 0xFF)
-            return new UTF32Encoding(bigEndian: true, byteOrderMark: true);
-
-        // UTF-32 LE: FF FE 00 00 (check before UTF-16 LE)
-        if (bytesRead >= 4 && bom[0] == 0xFF && bom[1] == 0xFE && bom[2] == 0x00 && bom[3] == 0x00)
-            return new UTF32Encoding(bigEndian: false, byteOrderMark: true);
-
-        // UTF-8 BOM: EF BB BF
-        if (bytesRead >= 3 && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF)
-            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-
-        // UTF-16 LE: FF FE
-        if (bytesRead >= 2 && bom[0] == 0xFF && bom[1] == 0xFE)
-            return Encoding.Unicode;
-
-        // UTF-16 BE: FE FF
-        if (bytesRead >= 2 && bom[0] == 0xFE && bom[1] == 0xFF)
-            return Encoding.BigEndianUnicode;
-
-        return Utf8NoBom;
-    }
-
     private static string FormatDirectoryListing(string fullPath, string originalPath)
     {
         var items = Directory.GetFileSystemEntries(fullPath)
@@ -621,6 +585,18 @@ public sealed class FileTools(
         }
     }
 
+    private void ReportFileChange(string fullPath, FileChangeKind kind, string? before, string after)
+    {
+        var relative = Path.GetRelativePath(_workspaceRoot, fullPath).Replace('\\', '/');
+        var insideWorkspace = !Path.IsPathRooted(relative)
+            && relative != ".."
+            && !relative.StartsWith("../", StringComparison.Ordinal);
+        var displayPath = insideWorkspace ? relative : fullPath.Replace('\\', '/');
+        var change = new FileChangeRecord(fullPath, displayPath, kind, before, after);
+        ToolResultAttachmentScope.Current?.SetStructuredContent(FileChangeStructuredContent.Build(change));
+        TurnDiffTrackerScope.Current?.Track(change);
+    }
+
     private static (string Result, string? WrittenContent) PrepareSearchReplaceEdit(
         string displayPath, string content, string oldText, string newText, bool replaceAll)
     {
@@ -649,7 +625,7 @@ public sealed class FileTools(
     {
         try
         {
-            await File.WriteAllTextAsync(fullPath, content, encoding);
+            await TextFileEncoding.WriteAsync(fullPath, content, encoding);
         }
         catch (DirectoryNotFoundException)
         {
@@ -657,7 +633,7 @@ public sealed class FileTools(
             if (!string.IsNullOrEmpty(directory))
                 Directory.CreateDirectory(directory);
 
-            await File.WriteAllTextAsync(fullPath, content, encoding);
+            await TextFileEncoding.WriteAsync(fullPath, content, encoding);
         }
     }
 

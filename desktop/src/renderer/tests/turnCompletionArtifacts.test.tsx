@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { translate } from '../../shared/locales'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { TurnArtifacts } from '../components/conversation/TurnArtifacts'
 import { TurnCompletionSummary } from '../components/conversation/TurnCompletionSummary'
+import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useConversationStore } from '../stores/conversationStore'
+import { useToastStore } from '../stores/toastStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useUIStore } from '../stores/uiStore'
 import type { FileDiff } from '../types/toolCall'
+import type { TurnFileChange } from '../types/turnDiff'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
@@ -16,14 +20,11 @@ const launchEditor = vi.fn()
 const classify = vi.fn()
 const toViewerUrl = vi.fn()
 const browserCreate = vi.fn()
-const writeFile = vi.fn()
-const deleteFile = vi.fn()
+const applyPatch = vi.fn()
 
 function makeDiff(filePath: string, overrides: Partial<FileDiff> = {}): FileDiff {
   return {
     filePath,
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
     additions: 1,
     deletions: 1,
     status: 'written',
@@ -46,15 +47,36 @@ function makeDiff(filePath: string, overrides: Partial<FileDiff> = {}): FileDiff
   }
 }
 
+function seedTurn(...filePaths: string[]): void {
+  const files: TurnFileChange[] = filePaths.map((filePath) => ({
+    key: `turn-1::${filePath}`,
+    turnId: 'turn-1',
+    diff: makeDiff(filePath),
+    patchText: `diff --git a/${filePath} b/${filePath}`,
+    truncated: false
+  }))
+  useConversationStore.setState({ turnDiffs: new Map([['turn-1', { turnId: 'turn-1', source: 'history', files }]]) })
+}
+
 function renderWithLocale(ui: JSX.Element): void {
   render(<LocaleProvider>{ui}</LocaleProvider>)
 }
 
+function renderSummary(): void {
+  renderWithLocale(<><ConfirmDialogHost /><TurnCompletionSummary turnId="turn-1" /></>)
+}
+
+const statuses = (): string[] =>
+  useConversationStore.getState().turnDiffs.get('turn-1')?.files.map((row) => row.diff.status) ?? []
+
+const appliedPatches = (): Array<[string, { reverse: boolean }]> =>
+  applyPatch.mock.calls.map(([, patchText, options]) => [patchText, options])
+
 function resetStores(): void {
+  useToastStore.setState({ toasts: [] })
   useConversationStore.getState().reset()
   useConversationStore.setState({
-    workspacePath: 'F:/workspace',
-    changedFiles: new Map()
+    workspacePath: 'F:/workspace'
   })
   useViewerTabStore.setState({
     byThread: new Map(),
@@ -86,12 +108,11 @@ describe('turn completion artifacts', () => {
       canGoForward: false,
       loading: false
     })
-    writeFile.mockResolvedValue(undefined)
-    deleteFile.mockResolvedValue(undefined)
+    applyPatch.mockResolvedValue({ ok: true })
     installDesktopApiMock({
       settings: { get: settingsGet, set: settingsSet },
+      git: { applyPatch },
       shell: { listEditors, launchLocalPathInEditor: launchEditor },
-      file: { writeFile, deleteFile },
       workspace: {
         viewer: {
           classify,
@@ -103,33 +124,8 @@ describe('turn completion artifacts', () => {
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = undefined
   })
 
-  it('renders Markdown and HTML artifact cards', async () => {
-    useConversationStore.setState({
-      changedFiles: new Map([
-        ['README.md', makeDiff('README.md')],
-        ['site/index.html', makeDiff('site/index.html')]
-      ])
-    })
-
-    renderWithLocale(<TurnArtifacts turnId="turn-1" />)
-
-    expect(screen.getByText('README.md')).toBeInTheDocument()
-    expect(screen.getByText('Document · MD')).toBeInTheDocument()
-    expect(screen.getByText('index.html')).toBeInTheDocument()
-    expect(screen.getByText('Web page · HTML')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Choose how to open file' })).toBeEnabled())
-  })
-
   it('does not render inline visualization HTML as a regular artifact', () => {
-    useConversationStore.setState({
-      changedFiles: new Map([
-        [
-          'visualization',
-          makeDiff('.craft/visualizations/thread-test/chart.html')
-        ],
-        ['site/index.html', makeDiff('site/index.html')]
-      ])
-    })
+    seedTurn('.craft/visualizations/thread-test/chart.html', 'site/index.html')
 
     renderWithLocale(<TurnArtifacts turnId="turn-1" />)
 
@@ -138,9 +134,7 @@ describe('turn completion artifacts', () => {
   })
 
   it('opens Markdown artifact card bodies in the internal file viewer', async () => {
-    useConversationStore.setState({
-      changedFiles: new Map([['README.md', makeDiff('README.md')]])
-    })
+    seedTurn('README.md')
 
     renderWithLocale(<TurnArtifacts turnId="turn-1" />)
     fireEvent.click(screen.getByRole('button', { name: 'Open README.md in DotCraft viewer' }))
@@ -165,9 +159,7 @@ describe('turn completion artifacts', () => {
   })
 
   it('opens HTML artifacts in the internal browser', async () => {
-    useConversationStore.setState({
-      changedFiles: new Map([['site/index.html', makeDiff('site/index.html')]])
-    })
+    seedTurn('site/index.html')
 
     renderWithLocale(<TurnArtifacts turnId="turn-1" />)
     fireEvent.click(screen.getByRole('button', { name: 'Preview index.html in DotCraft browser' }))
@@ -181,28 +173,70 @@ describe('turn completion artifacts', () => {
     })
   })
 
-  it('expands turn file diffs inline and can undo written files', async () => {
-    useConversationStore.setState({
-      changedFiles: new Map([['src/App.tsx', makeDiff('src/App.tsx')]])
-    })
-    ;(window as Window & { __confirmDialog?: (opts: unknown) => Promise<boolean> }).__confirmDialog = vi.fn()
-      .mockResolvedValue(true)
+  it('undoes the turn through git newest first without confirming, then re-applies it', async () => {
+    seedTurn('src/a.ts', 'src/b.ts')
 
-    renderWithLocale(<TurnCompletionSummary turnId="turn-1" />)
+    renderSummary()
+    fireEvent.click(await screen.findByRole('button', { name: translate('en', 'turnChanges.undo') }))
 
-    fireEvent.click(screen.getAllByRole('button', { name: /src\/App\.tsx/ })[0]!)
-    expect(screen.queryByTestId('file-result-header')).toBeNull()
-    expect(screen.queryByText('@@ -1,1 +1,1 @@')).toBeNull()
-    expect(screen.getByText('old')).toBeInTheDocument()
-    expect(screen.getByText('new')).toBeInTheDocument()
+    const reapply = await screen.findByRole('button', { name: translate('en', 'turnChanges.reapply') })
+    await waitFor(() => expect(reapply).toBeEnabled())
+    expect(appliedPatches()).toEqual([
+      ['diff --git a/src/b.ts b/src/b.ts', { reverse: true }],
+      ['diff --git a/src/a.ts b/src/a.ts', { reverse: true }]
+    ])
+    expect(applyPatch).toHaveBeenCalledWith('F:/workspace', expect.any(String), { reverse: true })
+    expect(statuses()).toEqual(['reverted', 'reverted'])
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(useToastStore.getState().toasts.map((toast) => toast.type)).toEqual(['success'])
 
-    const undoButton = screen.getByRole('button', { name: 'Undo' })
-    expect(undoButton).toHaveAttribute('data-variant', 'ghost')
-    expect(undoButton).toHaveAttribute('data-size', 'sm')
-    fireEvent.click(undoButton)
-    await waitFor(() => {
-      expect(writeFile).toHaveBeenCalledWith('F:/workspace/src/App.tsx', 'old\n')
-    })
-    expect(useConversationStore.getState().changedFiles.get('src/App.tsx')?.status).toBe('reverted')
+    applyPatch.mockClear()
+    fireEvent.click(reapply)
+
+    const undo = await screen.findByRole('button', { name: translate('en', 'turnChanges.undo') })
+    await waitFor(() => expect(undo).toBeEnabled())
+    expect(appliedPatches()).toEqual([
+      ['diff --git a/src/a.ts b/src/a.ts', { reverse: false }],
+      ['diff --git a/src/b.ts b/src/b.ts', { reverse: false }]
+    ])
+    expect(statuses()).toEqual(['written', 'written'])
+  })
+
+  it('explains that Undo needs a Git repository and leaves the files as they are', async () => {
+    applyPatch.mockResolvedValue({ ok: false, code: 'not-git-repo', message: 'not a git repository' })
+    seedTurn('src/a.ts', 'src/b.ts')
+
+    renderSummary()
+    fireEvent.click(await screen.findByRole('button', { name: translate('en', 'turnChanges.undo') }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(applyPatch).toHaveBeenCalledTimes(1)
+    expect(statuses()).toEqual(['written', 'written'])
+    expect(screen.getByRole('button', { name: translate('en', 'turnChanges.undo') })).toBeEnabled()
+  })
+
+  it('lists at most three files and reveals the rest on request', async () => {
+    seedTurn('src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts', 'src/e.ts')
+
+    renderSummary()
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    const toggle = screen.getByRole('button', { name: translate('en', 'turnChanges.showMoreFiles.other', { count: 2 }) })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(toggle)
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('opens the Changes panel at the first file from Review', () => {
+    seedTurn('src/a.ts', 'src/b.ts')
+
+    renderSummary()
+    fireEvent.click(screen.getByRole('button', { name: translate('en', 'turnChanges.review') }))
+
+    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
+    expect(useUIStore.getState().selectedChangeKey).toBe('turn-1::src/a.ts')
   })
 })

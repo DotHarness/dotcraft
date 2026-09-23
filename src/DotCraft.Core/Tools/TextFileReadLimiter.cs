@@ -16,11 +16,12 @@ internal static class TextFileReadLimiter
 
     public static async Task<string> ReadPageAsync(
         string fullPath,
-        Encoding encoding,
+        string displayPath,
         int offset,
         int limit,
         CancellationToken cancellationToken)
     {
+        var encoding = TextFileEncoding.Detect(fullPath);
         var startLine = NormalizeOffset(offset);
         var readLimit = NormalizeLimit(limit);
         var lines = new List<string>();
@@ -39,7 +40,16 @@ internal static class TextFileReadLimiter
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync(cancellationToken);
+            string? line;
+            try
+            {
+                line = await reader.ReadLineAsync(cancellationToken);
+            }
+            catch (DecoderFallbackException)
+            {
+                return TextFileEncoding.InvalidTextError(displayPath, encoding);
+            }
+
             if (line == null)
                 break;
 

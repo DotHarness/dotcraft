@@ -214,6 +214,8 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
             {
                 Context = new Dictionary<object, object?> { [typeof(ToolInvocationContext)] = context }
             };
+            var attachments = new ToolResultAttachments();
+            using var attachmentScope = ToolResultAttachmentScope.Set(attachments);
             var result = await _function.InvokeAsync(functionArguments, cancellationToken)
                 .ConfigureAwait(false);
             if (result is ToolExecutionResult executionResult)
@@ -223,9 +225,12 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
                 var contentItems = richContent.ToArray();
                 return ToolExecutionResult.Succeeded(
                     EnsureModelText(ToModelText(contentItems)),
+                    structuredContent: attachments.StructuredContent,
                     contentItems: contentItems);
             }
-            return ToolExecutionResult.Succeeded(EnsureModelText(ToModelText(result)));
+            return ToolExecutionResult.Succeeded(
+                EnsureModelText(ToModelText(result)),
+                structuredContent: attachments.StructuredContent);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

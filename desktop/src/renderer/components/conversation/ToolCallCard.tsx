@@ -62,7 +62,7 @@ import {
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginToolRendererOutlet } from '../desktopPlugins/DesktopPluginToolRenderer'
-import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
+import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { FileDiffStats } from './FileDiffStats'
 import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
 
@@ -276,7 +276,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   )
   const planTodos = useConversationStore((s) => s.plan?.todos)
   const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
-  const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
+  const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
   const remoteToolHostRow = useRemoteToolHostRow({

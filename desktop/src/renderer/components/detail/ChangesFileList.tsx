@@ -11,24 +11,26 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import type { FileDiff } from '../../types/toolCall'
+import type { TurnFileChange } from '../../types/turnDiff'
 
 interface ChangesFileListProps {
-  files: FileDiff[]
+  changes: TurnFileChange[]
   workspacePath: string
-  selectedPath: string | null
-  onSelect: (filePath: string) => void
+  selectedKey: string | null
+  onSelect: (key: string) => void
 }
 
 interface FileRow {
+  key: string
   diff: FileDiff
   relativePath: string
   name: string
 }
 
 export function ChangesFileList({
-  files,
+  changes,
   workspacePath,
-  selectedPath,
+  selectedKey,
   onSelect
 }: ChangesFileListProps): JSX.Element {
   const t = useT()
@@ -36,12 +38,12 @@ export function ChangesFileList({
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
 
   const rows = useMemo<FileRow[]>(() => {
-    return files.map((diff) => {
+    return changes.map(({ key, diff }) => {
       const relativePath = toRelativePath(diff.filePath, workspacePath)
       const name = relativePath.split('/').pop() ?? relativePath
-      return { diff, relativePath, name }
+      return { key, diff, relativePath, name }
     })
-  }, [files, workspacePath])
+  }, [changes, workspacePath])
 
   const q = filter.trim().toLowerCase()
   const visible = q ? rows.filter((row) => row.relativePath.toLowerCase().includes(q)) : rows
@@ -67,12 +69,12 @@ export function ChangesFileList({
           ? <div style={placeholderStyle}>{t('viewer.explorerNoMatch')}</div>
           : visible.map((row) => {
               const isReverted = row.diff.status === 'reverted'
-              const selected = selectedPath === row.diff.filePath
+              const selected = selectedKey === row.key
               return (
-                <ActionTooltip key={row.diff.filePath} label={row.relativePath} wrapperStyle={{ display: 'block', minWidth: 0, flexShrink: 1 }}>
+                <ActionTooltip key={row.key} label={row.relativePath} wrapperStyle={{ display: 'block', minWidth: 0, flexShrink: 1 }}>
                 <div
                   role="listitem"
-                  onClick={() => onSelect(row.diff.filePath)}
+                  onClick={() => onSelect(row.key)}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     event.stopPropagation()

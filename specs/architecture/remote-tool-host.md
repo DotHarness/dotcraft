@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.6.0 |
+| Version | 0.6.1 |
 | Status | Draft |
-| Date | 2026-09-11 |
+| Date | 2026-09-23 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 | Related Specs | [Hub Architecture](hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](../clients/satellite.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
@@ -366,6 +366,12 @@ result was materialized. The Agent Host preserves this safe provenance and does 
 preview into its local workspace. The Host does not create Session items or run the Agent Host's
 common hooks. The Agent Host performs final result validation and normalization, terminalizes the
 original Session projection, and runs terminal hooks exactly once.
+
+Remote `WriteFile` and `EditFile` results carry the `fileChange` `structuredContent` defined in
+[Session Core](session-core.md#toolresult) unchanged, with paths relative to the remote workspace
+root. The Agent Host never receives the file text, so a remote edit invalidates its aggregated Turn
+diff for that Turn: `turn/diff/updated` carries an empty diff and clients rely on the per-call
+diffs.
 
 Host deny policy is authoritative. Owner authorization reuses `IApprovalService` through a local
 Satellite presenter, never remote MCP elicitation as a substitute. Workspace-preferred permits

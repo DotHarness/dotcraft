@@ -11,6 +11,7 @@ internal static class PluginHostAssemblies
 
     private static readonly FrozenSet<string> SharedPackages = new[]
     {
+        "DiffPlex",
         "Microsoft.Extensions.AI",
         "Microsoft.Extensions.AI.Abstractions",
         "Microsoft.Extensions.DependencyInjection",

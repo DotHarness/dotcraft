@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { writtenFileSummaries } from '../../stores/turnDiffs'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -44,7 +45,7 @@ export function ThreadHeader({
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const changedFiles = useConversationStore((s) => s.changedFiles)
+  const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
   const detailPanelPreferredVisible = useUIStore((s) => s.detailPanelPreferredVisible)
   const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel)
   const activeThread = useThreadStore((s) => s.activeThread)
@@ -89,8 +90,6 @@ export function ThreadHeader({
     void usePerforceChangelistStore.getState().ensure(threadId)
   }, [canPreparePerforce, threadId])
 
-  const writtenFiles = Array.from(changedFiles.values()).filter((f) => f.status === 'written')
-  const hasWrittenFiles = writtenFiles.length > 0
   const activeThreadIsSubAgent = activeThread ? isSubAgentThread(activeThread) : false
   const pinned = pinnedThreadIds.includes(threadId)
   const canFork = canForkThread(capabilities)
@@ -161,9 +160,7 @@ export function ThreadHeader({
       addToast(t('threadHeader.remoteLocalGitUnavailable'), 'warning')
       return
     }
-    const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
-      (f) => f.status === 'written'
-    )
+    const files = writtenFileSummaries(useConversationStore.getState().turnDiffs)
     if (files.length === 0) return
 
     addToast(t('commit.committing'), 'info', 60_000)
@@ -209,9 +206,7 @@ export function ThreadHeader({
       addToast(t('perforcePrepare.toast.offline'), 'warning')
       return
     }
-    const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
-      (f) => f.status === 'written'
-    )
+    const files = writtenFileSummaries(useConversationStore.getState().turnDiffs)
     if (files.length === 0) return
 
     addToast(t('perforcePrepare.preparing'), 'info', 60_000)

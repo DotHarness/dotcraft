@@ -2,7 +2,8 @@ import { translate, type AppLocale } from '../../../shared/locales'
 import type { PetDecision, PetLineTone, PetStatus, PetStatusInfo } from '../../../shared/desktopPet'
 import { isToolLikeItemType, type ConversationTurn, type ItemType } from '../../types/conversation'
 import type { PendingApproval, PendingUserInputRequest } from '../../stores/conversationStore'
-import type { FileDiff } from '../../types/toolCall'
+import { turnPatchTotals } from '../../stores/turnDiffs'
+import type { TurnDiff } from '../../types/turnDiff'
 import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalRequest'
 import { formatCollapsedToolLabel, getStreamingToolDisplay } from '../../utils/toolCallDisplay'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
@@ -39,7 +40,7 @@ export interface PetActivityInput {
   pendingUserInput: PendingUserInputRequest | null
   streamingMessage: string
   streamingReasoning: string
-  changedFiles: Map<string, FileDiff>
+  turnDiffs: ReadonlyMap<string, TurnDiff>
   /** Last finished turn the person has already looked at; a newer one reads as Ready. */
   readTurnId: string | null
 }
@@ -167,15 +168,7 @@ export function derivePetActivity(input: PetActivityInput): PetStatusInfo {
   if (stopping) info.stopping = true
   if (decision) info.decision = petDecisionOf(decision, input.locale)
 
-  let additions = 0
-  let deletions = 0
-  let files = 0
-  for (const diff of input.changedFiles.values()) {
-    if (!turnId || !diff.turnIds?.includes(turnId)) continue
-    additions += diff.additions
-    deletions += diff.deletions
-    files += 1
-  }
-  if (files > 0) info.patch = { additions, deletions, files }
+  const patch = turnPatchTotals(input.turnDiffs.get(turnId)?.files ?? [])
+  if (patch.files > 0) info.patch = patch
   return info
 }

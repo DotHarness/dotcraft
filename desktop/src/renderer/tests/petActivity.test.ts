@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { derivePetActivity, flattenPetLine, type PetActivityInput } from '../components/desktopPet/petActivity'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { PendingApproval } from '../stores/conversationStore'
+import type { TurnDiff, TurnFileChange } from '../types/turnDiff'
 
 let counter = 0
 function item(partial: Partial<ConversationItem> & { type: ConversationItem['type'] }): ConversationItem {
@@ -19,7 +20,7 @@ function input(partial: Partial<PetActivityInput>): PetActivityInput {
   return {
     locale: 'en', threadId: 't1', threadTitle: 'Fix the build', turns: [], turnStatus: 'idle', activeTurnId: null,
     interruptingTurnId: null, approval: null, pendingUserInput: null, streamingMessage: '', streamingReasoning: '',
-    changedFiles: new Map(), readTurnId: null, ...partial
+    turnDiffs: new Map(), readTurnId: null, ...partial
   }
 }
 const running = (items: ConversationItem[], extra: Partial<PetActivityInput> = {}): PetActivityInput =>
@@ -97,14 +98,19 @@ describe('derivePetActivity', () => {
     expect(derivePetActivity(running([], { interruptingTurnId: 'turn-1' }))).toMatchObject({ canStop: false, stopping: true })
   })
   it('carries patch totals for the current turn and a clipped title', () => {
-    const diff = { diffHunks: [], status: 'written' as const, isNewFile: false }
-    const changedFiles = new Map([
-      ['a.ts', { ...diff, filePath: 'a.ts', turnId: 'turn-1', turnIds: ['turn-1'], additions: 7, deletions: 2 }],
-      ['b.ts', { ...diff, filePath: 'b.ts', turnId: 'turn-0', turnIds: ['turn-0'], additions: 5, deletions: 5 }],
-      ['c.ts', { ...diff, filePath: 'c.ts', turnId: 'turn-1', additions: 1, deletions: 1 } as never]
+    const row = (turnId: string, key: string, filePath: string, additions: number, deletions: number): TurnFileChange => ({
+      key,
+      turnId,
+      patchText: '',
+      truncated: false,
+      diff: { filePath, additions, deletions, diffHunks: [], status: 'written', isNewFile: false }
+    })
+    const turnDiffs = new Map<string, TurnDiff>([
+      ['turn-0', { turnId: 'turn-0', source: 'history', files: [row('turn-0', 'turn-0::x', 'b.ts', 5, 5)] }],
+      ['turn-1', { turnId: 'turn-1', source: 'history', files: [row('turn-1', 'turn-1::a', 'a.ts', 7, 2), row('turn-1', 'turn-1::b', 'a.ts', 1, 1)] }]
     ])
-    const info = derivePetActivity(running([item({ type: 'agentMessage', text: 'On it.' })], { changedFiles, threadTitle: 'x'.repeat(60) }))
-    expect(info.patch).toEqual({ additions: 7, deletions: 2, files: 1 })
+    const info = derivePetActivity(running([item({ type: 'agentMessage', text: 'On it.' })], { turnDiffs, threadTitle: 'x'.repeat(60) }))
+    expect(info.patch).toEqual({ additions: 8, deletions: 3, files: 1 })
     expect(Array.from(info.title)).toHaveLength(48)
     expect(info.title.endsWith('…')).toBe(true)
   })

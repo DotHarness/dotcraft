@@ -160,6 +160,7 @@ export type { EditorId, EditorInfo } from '../shared/externalEditors'
 import type { ChromeSetupStatus } from '../shared/chromeSetup'
 export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 import type { GitHeadInspection } from '../shared/gitHead'
+import type { GitApplyPatchOptions, GitApplyPatchResult } from '../shared/gitApply'
 import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
 import type { OratorioApi, OratorioRequest, OratorioResponse, OratorioServiceContext, OratorioServiceEvent } from '../shared/oratorio'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
@@ -870,10 +871,6 @@ const api = {
       return ipcRenderer.invoke('file:read', absPath)
     },
 
-    deleteFile(absPath: string): Promise<void> {
-      return ipcRenderer.invoke('file:delete', absPath)
-    },
-
     exists(absPath: string): Promise<boolean> {
       return ipcRenderer.invoke('file:exists', absPath)
     }
@@ -882,6 +879,9 @@ const api = {
   git: {
     commit(workspacePath: string, files: string[], message: string): Promise<string> {
       return ipcRenderer.invoke('git:commit', workspacePath, files, message)
+    },
+    applyPatch(workspacePath: string, patchText: string, options: GitApplyPatchOptions): Promise<GitApplyPatchResult> {
+      return ipcRenderer.invoke('git:applyPatch', workspacePath, patchText, options)
     },
     /** Falls back to the detached short SHA, or null when unavailable. */
     getBranch(workspacePath: string): Promise<string | null> {

@@ -191,7 +191,7 @@ describe('uiStore responsive panel preferences', () => {
       responsiveLayout: 'full',
       activeDetailTab: { kind: 'system', id: 'changes' },
       lastActiveSystemTab: 'changes',
-      selectedChangedFile: null,
+      selectedChangeKey: null,
       autoShowReasons: new Set<string>()
     })
   })
@@ -236,7 +236,7 @@ describe('uiStore responsive panel preferences', () => {
     useUIStore.getState().setDetailPanelVisible(false)
     useUIStore.getState().setResponsiveLayout('no-detail')
 
-    useUIStore.getState().showChangesForFile('src/foo.ts')
+    useUIStore.getState().showChangesForKey('src/foo.ts')
 
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
     expect(useUIStore.getState().detailPanelVisible).toBe(false)
@@ -244,7 +244,7 @@ describe('uiStore responsive panel preferences', () => {
     useUIStore.getState().setResponsiveLayout('full')
 
     expect(useUIStore.getState().detailPanelVisible).toBe(true)
-    expect(useUIStore.getState().selectedChangedFile).toBe('src/foo.ts')
+    expect(useUIStore.getState().selectedChangeKey).toBe('src/foo.ts')
   })
 
   it('records one-shot auto-show reasons', () => {

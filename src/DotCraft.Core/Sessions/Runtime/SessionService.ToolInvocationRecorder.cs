@@ -235,6 +235,7 @@ public sealed partial class SessionService
                 turn.Items.Add(resultItem);
                 channel.EmitItemStarted(resultItem);
                 channel.EmitItemCompleted(resultItem);
+                RecordTurnDiff(context, result, turnRuntime, channel);
                 break;
             default:
                 throw new InvalidOperationException($"Unknown tool projection shape '{registration.ProjectionShape}'.");

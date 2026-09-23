@@ -2577,6 +2577,7 @@ public sealed partial class SessionService(
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
 
+                FlushTurnDiff(turnRuntime, eventChannel);
                 await RestoreUndrainedGuidanceAsync(
                     () => FailTurn(turn, eventChannel, errorMsg, classifiedProviderFailure));
                 await AccountGoalUsageAsync(
@@ -2950,6 +2951,7 @@ public sealed partial class SessionService(
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
                         SupportsToolExecutionLifecycle = supportsToolExecutionLifecycle
                     });
+                using var turnDiffScope = TurnDiffTrackerScope.Set(turnRuntime.DiffTracker);
                 if (turnRuntime != null)
                     turnRuntime.NextToolItemSequence = NextItemSeq;
                 using var goalToolScope = GoalsEnabled
@@ -3722,6 +3724,7 @@ public sealed partial class SessionService(
                 RecordTurnTokenUsage(thread, turn);
                 RecordTurnDurationTrace(threadId, turn);
                 await PersistCurrentTurnCommitAsync();
+                FlushTurnDiff(turnRuntime, eventChannel);
                 eventChannel.EmitTurnCompleted(turn);
 
                 _ = TryScheduleMemoryConsolidation(
@@ -3770,6 +3773,7 @@ public sealed partial class SessionService(
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                 });
                 await PersistCancelledTurnAsync();
+                FlushTurnDiff(turnRuntime, eventChannel);
                 eventChannel.EmitTurnCancelled(turn, "Cancelled by request");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             }
@@ -3784,6 +3788,7 @@ public sealed partial class SessionService(
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                 });
                 await PersistCancelledTurnAsync();
+                FlushTurnDiff(turnRuntime, eventChannel);
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             }
@@ -3804,6 +3809,7 @@ public sealed partial class SessionService(
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                 });
                 await PersistCancelledTurnAsync();
+                FlushTurnDiff(turnRuntime, eventChannel);
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             }
@@ -3835,6 +3841,7 @@ public sealed partial class SessionService(
                 turn.Items.Add(errorItem);
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
+                FlushTurnDiff(turnRuntime, eventChannel);
                 FailTurn(turn, eventChannel, ex.Message);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
             }

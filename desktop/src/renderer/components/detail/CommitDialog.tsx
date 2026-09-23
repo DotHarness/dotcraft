@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { threadFileSummaries } from '../../stores/turnDiffs'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
 import { Textarea } from '../ui/Input'
@@ -21,9 +22,9 @@ interface CommitDialogProps {
 /** A blank message means autogenerate; the dialog hands off and closes. Spec §16.5. */
 export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogProps): JSX.Element {
   const t = useT()
-  const changedFiles = useConversationStore((s) => s.changedFiles)
+  const turnDiffs = useConversationStore((s) => s.turnDiffs)
 
-  const allFiles = Array.from(changedFiles.values())
+  const allFiles = useMemo(() => threadFileSummaries(turnDiffs), [turnDiffs])
   const writtenFiles = allFiles.filter((f) => f.status === 'written')
   const revertedCount = allFiles.length - writtenFiles.length
 

@@ -256,6 +256,16 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
+    case 'turn/diff/updated': {
+      const threadId = (p.threadId as string | undefined) ?? ''
+      if (!threadId || !shouldUpdateActiveConversation(threadId)) break
+      conv.onTurnDiffUpdated({
+        turnId: (p.turnId as string | undefined) ?? '',
+        diff: typeof p.diff === 'string' ? p.diff : ''
+      })
+      break
+    }
+
     case 'item/approval/resolved': {
       const resolved = extractApprovalResolvedParams(p)
       if (shouldUpdateActiveConversation(resolved.threadId)) {
@@ -356,6 +366,15 @@ const s = () => useConversationStore.getState()
 
 const NOW = new Date().toISOString()
 const workspaceConfigChangedDedupe = new Map<string, number>()
+const TURN_DIFF = [
+  'diff --git a/a.txt b/a.txt',
+  '--- a/a.txt',
+  '+++ b/a.txt',
+  '@@ -1 +1 @@',
+  '-before',
+  '+after',
+  ''
+].join('\n')
 
 function makeTurnPayload(id: string, status = 'running'): Record<string, unknown> {
   return { id, threadId: 'thread-1', status, items: [], startedAt: NOW }
@@ -1168,68 +1187,6 @@ describe('notification dispatch payload format', () => {
     expect(editItem?.streamingFileContent).toBe('## title\ncontent')
   })
 
-  it('merges finalized toolCall arguments on completion so WriteFile diff is generated', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({
-      method: 'item/started',
-      params: {
-        turnId: 'turn_1',
-        item: {
-          id: 'tool_write_2',
-          type: 'toolCall',
-          payload: {
-            callId: 'write-2',
-            toolName: 'WriteFile'
-          }
-        }
-      }
-    })
-    dispatch({
-      method: 'item/completed',
-      params: {
-        turnId: 'turn_1',
-        item: {
-          id: 'tool_write_2',
-          type: 'toolCall',
-          payload: {
-            callId: 'write-2',
-            toolName: 'WriteFile',
-            arguments: {
-              path: 'a.txt',
-              content: 'line1\nline2'
-            }
-          }
-        }
-      }
-    })
-    dispatch({
-      method: 'item/completed',
-      params: {
-        turnId: 'turn_1',
-        item: {
-          id: 'tool_result_2',
-          type: 'toolResult',
-          payload: {
-            callId: 'write-2',
-            success: true,
-            result: 'Successfully wrote 11 bytes (2 lines) to a.txt'
-          }
-        }
-      }
-    })
-
-    const item = s().turns[0].items.find((i) => i.id === 'tool_write_2')
-    expect(item?.type).toBe('toolCall')
-    expect(item?.status).toBe('completed')
-    expect(item?.arguments?.path).toBe('a.txt')
-    expect(item?.arguments?.content).toBe('line1\nline2')
-
-    const itemDiff = s().itemDiffs.get('tool_write_2')
-    expect(itemDiff).toBeDefined()
-    expect(itemDiff?.filePath).toBe('a.txt')
-    expect(itemDiff?.additions).toBe(2)
-  })
-
   it('updates the existing Exec toolCall instead of requiring a standalone terminal block', () => {
     vi.useFakeTimers()
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
@@ -1733,6 +1690,37 @@ describe('notification dispatch payload format', () => {
     expect(s().plan?.todos[0].content).toBe('Show this task')
     expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
     expect(useUIStore.getState().detailPanelVisible).toBe(true)
+  })
+
+  it('ignores turn/diff/updated from non-active threads', () => {
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
+    dispatch({
+      method: 'turn/diff/updated',
+      params: { threadId: 'thread-2', turnId: 'turn_1', diff: TURN_DIFF }
+    })
+
+    expect(s().turnDiffs.size).toBe(0)
+  })
+
+  it('ignores turn/diff/updated without a threadId', () => {
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
+    dispatch({ method: 'turn/diff/updated', params: { turnId: 'turn_1', diff: TURN_DIFF } })
+
+    expect(s().turnDiffs.size).toBe(0)
+  })
+
+  it('applies turn/diff/updated for the active thread as the live turn diff', () => {
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
+    dispatch({
+      method: 'turn/diff/updated',
+      params: { threadId: 'thread-1', turnId: 'turn_1', diff: TURN_DIFF }
+    })
+
+    const entry = s().turnDiffs.get('turn_1')
+    expect(entry?.source).toBe('live')
+    expect(entry?.files.map((row) => [row.diff.filePath, row.diff.additions, row.diff.deletions])).toEqual([
+      ['a.txt', 1, 1]
+    ])
   })
 
   it('ignores unknown notification methods without throwing', () => {

@@ -1,227 +1,224 @@
-import { memo, useMemo, useState, type CSSProperties, type MouseEvent } from 'react'
-import { ChevronDown, ChevronUp, Undo2 } from 'lucide-react'
-import { useLocale, useT } from '../../contexts/LocaleContext'
+import { memo, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { ChevronDown, ChevronUp, Redo2, Undo2 } from 'lucide-react'
+import type { MessageKey } from '../../../shared/locales'
+import { useT } from '../../contexts/LocaleContext'
+import { useTurnDiffActions, type TurnPatchOutcome } from '../../hooks/useTurnDiffActions'
 import { useConversationStore } from '../../stores/conversationStore'
+import { showToast, type ToastType } from '../../stores/toastStore'
+import { turnPatchTotals } from '../../stores/turnDiffs'
 import { useUIStore } from '../../stores/uiStore'
-import { useFileChangeActions } from '../../hooks/useFileChangeActions'
-import { useConfirmDialog } from '../ui/ConfirmDialog'
-import type { FileDiff } from '../../types/toolCall'
-import { InlineDiffView } from './InlineDiffView'
+import type { TurnFileChange } from '../../types/turnDiff'
+import { basename } from '../../utils/path'
+import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
+import { ChangePath } from '../detail/changes/ChangePath'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { FileDiffStats } from './FileDiffStats'
+import { InlineDiffView } from './InlineDiffView'
+import styles from './TurnCompletionSummary.module.css'
 
 interface TurnCompletionSummaryProps {
   turnId: string
 }
 
+const NO_ROWS: TurnFileChange[] = []
+const COLLAPSED_ROW_LIMIT = 3
+
 export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnId }: TurnCompletionSummaryProps): JSX.Element | null {
   const t = useT()
-  const locale = useLocale()
-  const changedFiles = useConversationStore((s) => s.changedFiles)
+  const rows = useConversationStore((s) => s.turnDiffs.get(turnId)?.files ?? NO_ROWS)
   const workspacePath = useConversationStore((s) => s.workspacePath)
-  const confirm = useConfirmDialog()
-  const { revertFileDiffs } = useFileChangeActions(workspacePath)
+  const totals = useMemo(() => turnPatchTotals(rows), [rows])
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  const [showAll, setShowAll] = useState(false)
 
-  const turnFiles = useMemo(() => {
-    return Array.from(changedFiles.values()).filter((f) => turnIncludesFile(f, turnId))
-  }, [changedFiles, turnId])
+  if (rows.length === 0) return null
 
-  if (turnFiles.length === 0) return null
-
-  const writtenFiles = turnFiles.filter((file) => file.status === 'written')
-  const totalAdd = turnFiles.reduce((sum, f) => sum + f.additions, 0)
-  const totalDel = turnFiles.reduce((sum, f) => sum + f.deletions, 0)
-  const hasReverted = writtenFiles.length === 0
-
-  function toggleFile(filePath: string): void {
+  function toggleRow(key: string): void {
     setExpanded((current) => {
       const next = new Set(current)
-      if (next.has(filePath)) next.delete(filePath)
-      else next.add(filePath)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
 
-  async function handleUndo(): Promise<void> {
-    if (writtenFiles.length === 0) return
-    const confirmed = await confirm({
-      title: t('turnChanges.undoTitle'),
-      message: t('turnChanges.undoMessage', {
-        count: writtenFiles.length,
-        plural: locale === 'zh-Hans' ? '' : writtenFiles.length === 1 ? '' : 's'
-      }),
-      confirmLabel: t('turnChanges.undoConfirm'),
-      danger: true
-    })
-    if (!confirmed) return
-    try {
-      await revertFileDiffs(writtenFiles)
-    } catch (err) {
-      console.error('Undo turn changes failed:', err)
-    }
-  }
+  const title = totals.files === 1
+    ? t('turnChanges.editedFile', { file: basename(rows[0].diff.filePath) })
+    : t('turnChanges.editedFiles', { count: totals.files })
+  const visibleRows = showAll ? rows : rows.slice(0, COLLAPSED_ROW_LIMIT)
+  const hiddenCount = rows.length - visibleRows.length
 
   return (
-    <div
-      style={{
-        borderRadius: '8px',
-        border: '1px solid var(--border-default)',
-        background: 'var(--bg-primary)',
-        overflow: 'hidden',
-        marginTop: '8px',
-        fontSize: '13px'
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '9px 12px',
-          background: 'var(--bg-secondary)',
-          color: 'var(--text-primary)'
-        }}
-      >
-        <span style={{ flex: 1 }}>
-          {t('turnChanges.summaryLine', {
-            count: turnFiles.length,
-            plural: locale === 'zh-Hans' ? '' : turnFiles.length === 1 ? '' : 's'
-          })}
-        </span>
-        <span style={{ display: 'inline-flex', gap: '6px', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-          {totalAdd > 0 && <span style={{ color: 'var(--success)' }}>+{totalAdd}</span>}
-          {totalDel > 0 && <span style={{ color: 'var(--error)' }}>-{totalDel}</span>}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={hasReverted}
-          aria-label={hasReverted ? t('turnChanges.reverted') : t('turnChanges.undo')}
-          onClick={() => { void handleUndo() }}
-        >
-          {hasReverted ? t('turnChanges.reverted') : t('turnChanges.undo')}
-          {!hasReverted && <Undo2 size={14} strokeWidth={1.8} aria-hidden />}
-        </Button>
+    <section className={styles.card} aria-label={title}>
+      <div className={styles.header}>
+        <div className={styles.heading}>
+          <span className={styles.title}>{title}</span>
+          <span className={styles.stats}>
+            <FileDiffStats additions={totals.additions} deletions={totals.deletions} />
+          </span>
+        </div>
+        <div className={styles.actions}>
+          <TurnPatchButton turnId={turnId} rows={rows} workspacePath={workspacePath} />
+          <Button variant="ghost" size="sm" onClick={() => useUIStore.getState().showChangesForKey(rows[0].key)}>
+            {t('turnChanges.review')}
+          </Button>
+        </div>
       </div>
 
-      {turnFiles.map((file, idx) => {
-        const isExpanded = expanded.has(file.filePath)
-        return (
-          <div key={file.filePath}>
-            <div
-              role="button"
-              tabIndex={0}
-              aria-expanded={isExpanded}
-              onClick={() => toggleFile(file.filePath)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  toggleFile(file.filePath)
-                }
-              }}
-              style={{
-                width: '100%',
-                minHeight: '42px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                border: 'none',
-                borderTop: idx === 0 ? 'none' : '1px solid var(--border-default)',
-                background: isExpanded ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontSize: '13px'
-              }}
-            >
-              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <FilePathLink filePath={file.filePath} />
-                {file.isNewFile && (
-                  <NewFileDot label={t('diffViewer.newFile')} />
-                )}
-              </span>
-              <FileDiffStats
-                additions={file.additions}
-                deletions={file.deletions}
-                tone={file.status === 'reverted' ? 'dimmed' : 'semantic'}
+      {totals.files > 1 && (
+        <>
+          <div role="list">
+            {visibleRows.map((row) => (
+              <TurnFileRow
+                key={row.key}
+                row={row}
+                workspacePath={workspacePath}
+                expanded={expanded.has(row.key)}
+                onToggle={() => toggleRow(row.key)}
               />
-              <span style={{ color: 'var(--text-secondary)', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>
-                {isExpanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
-              </span>
-            </div>
-            {isExpanded && (
-              <div style={{ borderTop: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
-                <InlineDiffView diff={file} variant="embedded" presentation="body-only" />
-              </div>
-            )}
+            ))}
           </div>
-        )
-      })}
-    </div>
+          {rows.length > COLLAPSED_ROW_LIMIT && (
+            <button
+              type="button"
+              className={styles.moreToggle}
+              aria-expanded={showAll}
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll
+                ? t('turnChanges.collapseFiles')
+                : t(hiddenCount === 1 ? 'turnChanges.showMoreFiles.one' : 'turnChanges.showMoreFiles.other', { count: hiddenCount })}
+            </button>
+          )}
+        </>
+      )}
+    </section>
   )
 })
 
-interface FilePathLinkProps {
-  filePath: string
+function outcomeToast(outcome: Exclude<TurnPatchOutcome, 'not-git-repo'>, undo: boolean): { key: MessageKey; type: ToastType } {
+  switch (outcome) {
+    case 'reverted': return { key: 'turnChanges.toast.reverted', type: 'success' }
+    case 'reapplied': return { key: 'turnChanges.toast.reapplied', type: 'success' }
+    case 'partial': return { key: undo ? 'turnChanges.toast.revertPartial' : 'turnChanges.toast.reapplyPartial', type: 'warning' }
+    case 'failed': return { key: undo ? 'turnChanges.toast.revertFailed' : 'turnChanges.toast.reapplyFailed', type: 'error' }
+  }
 }
 
-function FilePathLink({ filePath }: FilePathLinkProps): JSX.Element {
-  function handleClick(event: MouseEvent<HTMLButtonElement>): void {
-    event.stopPropagation()
-    useUIStore.getState().showChangesForFile(filePath)
+function TurnPatchButton({
+  turnId,
+  rows,
+  workspacePath
+}: {
+  turnId: string
+  rows: TurnFileChange[]
+  workspacePath: string
+}): JSX.Element {
+  const t = useT()
+  const confirm = useConfirmDialog()
+  const { revertTurn, reapplyTurn } = useTurnDiffActions(workspacePath)
+  const [pending, setPending] = useState(false)
+  // Truncated rows are never applied, so only the rest decide between Undo and Reapply.
+  const applicable = rows.filter((row) => !row.truncated)
+  const undo = applicable.some((row) => row.diff.status === 'written')
+
+  async function handleClick(): Promise<void> {
+    setPending(true)
+    const outcome = await (undo ? revertTurn(turnId) : reapplyTurn(turnId))
+    setPending(false)
+    if (outcome === 'not-git-repo') {
+      void confirm({
+        title: t(undo ? 'turnChanges.notGitRepo.undoTitle' : 'turnChanges.notGitRepo.reapplyTitle'),
+        message: t('turnChanges.notGitRepo.message'),
+        confirmLabel: t('common.close'),
+        alert: true
+      })
+      return
+    }
+    const toast = outcomeToast(outcome, undo)
+    showToast({ message: t(toast.key), type: toast.type, key: 'turn-patch' })
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      style={{
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        color: 'var(--text-primary)',
-        cursor: 'pointer',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '12px',
-        textAlign: 'left',
-        maxWidth: '100%',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        verticalAlign: 'bottom'
-      }}
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={pending || applicable.length === 0}
+      onClick={() => { void handleClick() }}
     >
-      {filePath}
-    </button>
+      {undo ? t('turnChanges.undo') : t('turnChanges.reapply')}
+      {undo
+        ? <Undo2 size={14} strokeWidth={1.8} aria-hidden />
+        : <Redo2 size={14} strokeWidth={1.8} aria-hidden />}
+    </Button>
+  )
+}
+
+function TurnFileRow({
+  row,
+  workspacePath,
+  expanded,
+  onToggle
+}: {
+  row: TurnFileChange
+  workspacePath: string
+  expanded: boolean
+  onToggle: () => void
+}): JSX.Element {
+  const t = useT()
+  const file = row.diff
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onToggle()
+  }
+
+  function openInChanges(event: MouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation()
+    useUIStore.getState().showChangesForKey(row.key)
+  }
+
+  return (
+    <div role="listitem" className={styles.item}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        className={styles.row}
+        onClick={onToggle}
+        onKeyDown={handleKeyDown}
+      >
+        <span className={styles.path}>
+          <button type="button" className={styles.pathLink} onClick={openInChanges}>
+            <ChangePath path={toWorkspaceRelativePath(workspacePath, file.filePath)} />
+          </button>
+          {file.isNewFile && <NewFileDot label={t('diffViewer.newFile')} />}
+        </span>
+        <FileDiffStats
+          additions={file.additions}
+          deletions={file.deletions}
+          tone={file.status === 'reverted' ? 'dimmed' : 'semantic'}
+        />
+        <span className={styles.chevron}>
+          {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
+        </span>
+      </div>
+      {expanded && (
+        <div className={styles.diff}>
+          <InlineDiffView diff={file} variant="embedded" presentation="body-only" />
+        </div>
+      )}
+    </div>
   )
 }
 
 function NewFileDot({ label }: { label: string }): JSX.Element {
   return (
     <ActionTooltip label={label}>
-      <span
-        role="img"
-        aria-label={label}
-        style={newFileDotStyle}
-      />
+      <span role="img" aria-label={label} className={styles.newFileDot} />
     </ActionTooltip>
   )
-}
-
-const newFileDotStyle: CSSProperties = {
-  display: 'inline-block',
-  width: '7px',
-  height: '7px',
-  marginLeft: '6px',
-  borderRadius: '999px',
-  background: 'var(--success)',
-  verticalAlign: 'middle'
-}
-
-function turnIncludesFile(file: FileDiff, turnId: string): boolean {
-  const ids = file.turnIds?.length ? file.turnIds : [file.turnId]
-  return ids.includes(turnId)
 }

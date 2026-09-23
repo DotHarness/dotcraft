@@ -848,8 +848,8 @@ function GroupedToolCallRow({
   shellRuntimeScope
 }: GroupedToolCallRowProps): JSX.Element {
   const locale = useLocale()
-  const changedFiles = useConversationStore((s) => s.changedFiles)
-  const label = formatToolGroupLabel(category, items, locale, changedFiles)
+  const itemDiffs = useConversationStore((s) => s.itemDiffs)
+  const label = formatToolGroupLabel(category, items, locale, itemDiffs)
   const hasFailedItems = items.some(isGroupedItemFailed)
   const [expanded, setExpanded] = useState(false)
 

@@ -47,8 +47,6 @@ export function FileReview({
     })
     return {
       filePath: path,
-      turnId: tabId,
-      turnIds: [tabId],
       status: 'written',
       isNewFile: false,
       additions: lines.filter((line) => line.type === 'add').length,

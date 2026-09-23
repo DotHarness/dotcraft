@@ -477,6 +477,13 @@ public sealed class AppServerEventDispatcher
                     ThreadContractMapper.ToContract(usage.ContextUsage))
         },
 
+        SessionEventType.TurnDiffUpdated when evt.TurnDiffUpdatedPayload is { } turnDiff => new Contract.TurnDiffUpdatedNotification
+        {
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId ?? throw new InvalidOperationException("turn/diff/updated requires a turn id."),
+            Diff = turnDiff.Diff
+        },
+
         // System event notification (spec Section 6.7)
         SessionEventType.SystemEvent when evt.SystemEventPayload is { } sysEvt => new Contract.SystemEventNotification
         {

@@ -59,7 +59,7 @@ export function DetailPanelLauncher({
       description: t('detailPanel.launcherReviewDesc'),
       icon: <FilePlus2 size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
-      enabled: !remoteWorkspace
+      enabled: true
     },
     {
       action: 'newPlan',

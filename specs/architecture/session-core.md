@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.9.0 |
 | **Status** | Living |
-| **Date** | 2026-09-08 |
+| **Date** | 2026-09-23 |
 | **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
@@ -726,6 +726,46 @@ text or JSON. Provider-specific compatibility projection may replace historical
 tool media with the textual fallback. It never serializes `structuredContent`
 or `_meta` into provider history.
 
+A successful `WriteFile` or `EditFile` call attaches its exact file change as
+`structuredContent`. The model-visible `result` is unchanged, and a call that does
+not write the file attaches nothing:
+
+```
+{
+  "kind": "fileChange",
+  "changes": [
+    {
+      "path": string,       // Display path of the written file
+      "kind": string,       // "add" | "update"
+      "diff": string,       // Git-style unified diff of this call; omitted when truncated
+      "additions": number,  // Added line count
+      "deletions": number,  // Removed line count
+      "truncated": boolean  // Present and true when the diff exceeded the per-call cap
+    }
+  ]
+}
+```
+
+- `path` is workspace-relative with `/` separators when the file is under the
+  tool's workspace root, and otherwise the absolute path with `/` separators. A
+  Remote Tool Host uses its own workspace root.
+- `kind` is `add` when `WriteFile` created a file that did not exist, and
+  `update` for every overwrite and every `EditFile` call. No native file tool
+  deletes or renames files, so there are no delete or move kinds.
+- `diff` covers the whole file from before to after this call:
+  `diff --git a/<path> b/<path>`, `new file mode 100644` for an add,
+  `index <oid>..<oid>` with git blob SHA-1 ids (all zeros for the missing side),
+  `--- a/<path>` or `--- /dev/null`, `+++ b/<path>`, and `@@ -l,c +l,c @@` hunks
+  with three context lines and `\ No newline at end of file` markers. It
+  reproduces the exact text, including line endings.
+- When the rendered diff exceeds 128 KiB, `diff` is omitted and `truncated` is
+  `true`. `additions` and `deletions` are always present.
+
+`additions`, `deletions`, and `truncated` exist only so a truncated change still
+reports its size. Like all `structuredContent`, the payload never enters model
+context during history reconstruction. It is the durable per-edit record; the
+aggregated Turn diff in [Turn Diff Events](#turn-diff-events) is live-only.
+
 `ToolResult` repeats the complete immutable invocation identity used by its matching `ToolCall`; clients do not join against current registry state to recover provenance or presentation. Standard tool projection appends exactly one terminal `ToolResult` for a call. Specialized `McpToolCall` and `DynamicToolCall` projections instead update their single item to exactly one terminal state and do not create `ToolResult`. All projections use one atomic terminal guard across completion, rejection, cancellation, timeout, and failure races. If an untrusted provider callback names an invalid, unknown, or unavailable function, the result is a recoverable tool failure with `success = false` and stable `errorCode = "tool_not_found"`; the same failure is returned to the model without escalating it to a Turn-level exception.
 
 #### CommandExecution
@@ -1387,6 +1427,25 @@ historical detail.
     - The event is a sideband signal — it may interleave with `item/started`, `item/delta`, and `item/completed` events. This is expected behavior.
   - **Relationship to Turn.TokenUsage**: The sum of all `usage/delta` events for a Turn's main agent equals the main-agent portion of `Turn.TokenUsage`. SubAgent tokens are reported separately via `subagent/progress` and are added to `Turn.TokenUsage` at turn completion.
   - **Adapters**: Adapters that display real-time token consumption should consume `usage/delta` events to maintain a running total. Adapters that only need final totals may ignore this event type or opt out via `optOutNotificationMethods`.
+
+#### Turn Diff Events
+
+- **`turn/diff/updated`**
+  - Emitted when the Turn's aggregated diff of `WriteFile` and `EditFile` edits changes. Each emission carries the **complete latest snapshot**, not a delta.
+  - Payload: `{ diff: string }` (git-style unified diff in the per-call `fileChange` format; may be empty).
+  - **Tracking rules**:
+    - Session Core creates one turn diff tracker with each user Turn and drops it when the Turn ends.
+    - On the first edit of a path in the Turn, the tracker records the file's pre-edit text as that path's baseline; later edits replace only its current text. A path that did not exist before its first edit has no baseline.
+    - The aggregate renders each path from its baseline to its current text, sorted by display path. A file created and then edited in the same Turn renders as one add, an overwrite of an existing file renders as an update against the pre-existing content, and a path whose current text equals its baseline renders nothing.
+    - Each path's rendered diff is reused while neither its baseline nor its current content revision changes. Path keys are case-insensitive on Windows.
+    - Edits made during the Turn by in-process SubAgents are included, although they produce no item in this Thread, so the live aggregate is the complete change set of the Turn.
+    - Files changed by `Exec` or other shell commands are not tracked and do not invalidate the tracker.
+    - The tracker is invalidated for the rest of the Turn when an edit's exact before and after text is unknown to it, in particular an edit executed on a Remote Tool Host, where the Agent Host receives only that call's diff. An aggregate over 1 MiB invalidates it as well. While the tracker is invalid, emissions carry an empty `diff`; an invalidation is emitted only if a non-empty aggregate was emitted before it.
+  - **Emission rules**:
+    - Emitted immediately after the `item/completed` of the `ToolResult` that changed the aggregate, and flushed once more before `turn/completed` or `turn/cancelled` when the aggregate changed since the last emission.
+    - A snapshot identical to the previous emission is not re-sent.
+    - The event is not persisted. The thread event broker retains it among recent events, so `thread/subscribe` replay can deliver it. After reload, a Turn's changes are rebuilt from the per-call `fileChange` diffs recorded on [ToolResult](#toolresult).
+  - **Adapters**: Adapters that render a live Turn diff consume this event and fall back to per-call `fileChange` diffs when `diff` is empty. Adapters that do not need it may ignore this event type or opt out via `optOutNotificationMethods`.
 
 ### 6.4 Event Delivery Semantics
 

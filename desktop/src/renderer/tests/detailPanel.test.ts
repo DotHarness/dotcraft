@@ -13,7 +13,6 @@ import {
   PlanTodoStatusIcon,
   type PlanTodoStatusIconStatus
 } from '../components/plan/PlanTodoStatusIcon'
-import type { FileDiff } from '../types/toolCall'
 import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/detail/ViewerTab', () => ({
@@ -23,20 +22,6 @@ vi.mock('../components/detail/ViewerTab', () => ({
 const cs = () => useConversationStore.getState()
 const ui = () => useUIStore.getState()
 
-function makeDiff(overrides: Partial<FileDiff> = {}): FileDiff {
-  return {
-    filePath: 'src/test.ts',
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
-    additions: 10,
-    deletions: 2,
-    diffHunks: [],
-    status: 'written',
-    isNewFile: false,
-    ...overrides
-  }
-}
-
 beforeEach(() => {
   cs().reset()
   useUIStore.setState({
@@ -44,7 +29,7 @@ beforeEach(() => {
     sidebarCollapsed: false,
     detailPanelPreferredVisible: true,
     detailPanelPreferredVisibleByThread: {},
-    selectedChangedFile: null,
+    selectedChangeKey: null,
     autoShowTriggeredForTurn: null,
     autoShowPlanForItem: null,
     activeDetailTab: { kind: 'system', id: 'changes' },
@@ -93,39 +78,6 @@ beforeEach(() => {
     })
 })
 
-describe('commit file filter', () => {
-  it('excludes reverted files from the commit list', () => {
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts', status: 'written' }))
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/b.ts', status: 'written' }))
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/c.ts', status: 'reverted' }))
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/d.ts', status: 'reverted' }))
-
-    const allFiles = Array.from(cs().changedFiles.values())
-    const writtenFiles = allFiles.filter((f) => f.status === 'written')
-
-    expect(writtenFiles).toHaveLength(2)
-    expect(writtenFiles.map((f) => f.filePath)).toEqual(
-      expect.arrayContaining(['src/a.ts', 'src/b.ts'])
-    )
-    expect(writtenFiles.map((f) => f.filePath)).not.toContain('src/c.ts')
-    expect(writtenFiles.map((f) => f.filePath)).not.toContain('src/d.ts')
-  })
-
-  it('shows 0 files when all are reverted', () => {
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts', status: 'reverted' }))
-    const written = Array.from(cs().changedFiles.values()).filter((f) => f.status === 'written')
-    expect(written).toHaveLength(0)
-  })
-
-  it('shows all files when none are reverted', () => {
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts' }))
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/b.ts' }))
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/c.ts' }))
-    const written = Array.from(cs().changedFiles.values()).filter((f) => f.status === 'written')
-    expect(written).toHaveLength(3)
-  })
-})
-
 describe('terminal command badge data', () => {
   it('counts commandExecution items instead of completed Exec tool calls', () => {
     cs().onTurnStarted({
@@ -158,19 +110,19 @@ describe('terminal command badge data', () => {
   })
 })
 
-describe('showChangesForFile', () => {
-  it('sets detail panel visible, switches to changes tab, selects file', () => {
+describe('showChangesForKey', () => {
+  it('sets detail panel visible, switches to changes tab, selects the row', () => {
     useUIStore.setState({
       detailPanelVisible: false,
       activeDetailTab: { kind: 'system', id: 'plan' },
-      selectedChangedFile: null
+      selectedChangeKey: null
     })
 
-    ui().showChangesForFile('src/foo.ts')
+    ui().showChangesForKey('turn-1::a')
 
     expect(ui().detailPanelVisible).toBe(true)
     expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
-    expect(ui().selectedChangedFile).toBe('src/foo.ts')
+    expect(ui().selectedChangeKey).toBe('turn-1::a')
   })
 
   it('works when panel is already visible', () => {
@@ -179,10 +131,10 @@ describe('showChangesForFile', () => {
       activeDetailTab: { kind: 'system', id: 'plan' }
     })
 
-    ui().showChangesForFile('src/bar.ts')
+    ui().showChangesForKey('turn-2::b')
 
     expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
-    expect(ui().selectedChangedFile).toBe('src/bar.ts')
+    expect(ui().selectedChangeKey).toBe('turn-2::b')
   })
 })
 

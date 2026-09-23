@@ -9,6 +9,7 @@ export interface ConfirmDialogOptions {
   confirmLabel?: string
   cancelLabel?: string
   danger?: boolean
+  alert?: boolean
 }
 
 interface ConfirmDialogProps extends ConfirmDialogOptions {
@@ -22,14 +23,15 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   danger = false,
+  alert = false,
   onConfirm,
   onCancel
 }: ConfirmDialogProps): JSX.Element {
-  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const initialFocusRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    // Focus cancel button by default for safety
-    cancelButtonRef.current?.focus()
+    // Focus cancel by default for safety; an alert has only its confirm button.
+    initialFocusRef.current?.focus()
 
     function handleKeyDown(e: KeyboardEvent): void {
       if (e.key === 'Escape') onCancel()
@@ -90,14 +92,17 @@ export function ConfirmDialog({
           {message}
         </p>
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          {!alert && (
+            <Button
+              ref={initialFocusRef}
+              onClick={onCancel}
+              variant="secondary"
+            >
+              {cancelLabel}
+            </Button>
+          )}
           <Button
-            ref={cancelButtonRef}
-            onClick={onCancel}
-            variant="secondary"
-          >
-            {cancelLabel}
-          </Button>
-          <Button
+            ref={alert ? initialFocusRef : undefined}
             onClick={onConfirm}
             autoFocus={false}
             variant={danger ? 'danger' : 'primary'}

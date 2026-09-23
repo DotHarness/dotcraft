@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
 | **Date** | 2026-09-24 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -1989,6 +1989,36 @@ the process that owned a non-terminal Turn has exited. Cold-load recovery uses r
 
 **Params**: `{ "turn": Turn, "reason": "<description>" }`
 
+#### `turn/diff/updated`
+
+Emitted when the Turn's aggregated diff of tool-mediated file edits changes. Each notification carries the **complete latest snapshot** of that diff, not a delta.
+
+**Direction**: server → client (notification)
+
+**Params**:
+
+```json
+{
+  "threadId": "thread_...",
+  "turnId": "turn_001",
+  "diff": "diff --git a/src/Foo.cs b/src/Foo.cs\nindex c60197f3c83e5005f2d073825d880966155dbcf3..9dc664dceb23e7903886b7e0b17403150a1a655a\n--- a/src/Foo.cs\n+++ b/src/Foo.cs\n@@ -1,3 +1,4 @@\n using System;\n+using System.Linq;\n \n namespace Demo;\n"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Parent thread. |
+| `turnId` | string | Turn whose file edits the diff aggregates. |
+| `diff` | string | Git-style unified diff from each touched file's content before its first edit in the Turn to its current content. May be empty. |
+
+**Emission rules**:
+
+- Only `WriteFile` and `EditFile` edits are tracked, including edits made during the Turn by in-process SubAgents. Files changed by `Exec` or other shell commands are not tracked and do not affect the diff.
+- Emitted right after the `item/completed` of the `toolResult` that changed the aggregate, and once more before `turn/completed` or `turn/cancelled` when the aggregate changed since the last emission. A snapshot identical to the previous one is not re-sent.
+- An empty `diff` means the Turn's edits cancel out or the aggregate is unavailable: an edit ran on a Remote Tool Host, the aggregate exceeded its size cap, or tracking was invalidated for the Turn. Clients then fall back to the per-call `fileChange` diffs in `toolResult.structuredContent` ([Session Core, ToolResult](../architecture/session-core.md#toolresult)).
+- The notification is not persisted. A client that reloads a thread rebuilds each Turn's changes from the per-call `fileChange` diffs in history. Recent emissions are included in `thread/subscribe` replay like other turn events.
+- Clients that do not render aggregated Turn diffs can opt out via `optOutNotificationMethods: ["turn/diff/updated"]` during `initialize`.
+
 #### `thread/queue/updated`
 
 Emitted whenever a thread queue changes because input was enqueued, removed, dequeued, or restored after a failed dequeue start.
@@ -2054,7 +2084,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
 | `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, stable error fields, and optional normalized `mcpAppResourceUri`. It has no companion `toolResult`. View handles, HTML, CSP, and availability are never persisted in the item. |
 | `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, canonical local tool name, required `providerFlatName`, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
-| `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. |
+| `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. Successful `WriteFile` and `EditFile` results carry `structuredContent` of kind `fileChange` with the call's file diff; its shape is defined in [Session Core, ToolResult](../architecture/session-core.md#toolresult). |
 | `approvalRequest` | Approval payload uses the canonical fields plus wire enum/string serialization rules from this spec. |
 | `approvalResponse` | Response payload uses the canonical fields; decision values are serialized as wire strings. |
 | `userInputRequest` | Plan Mode question request payload. The item is paired with a server-to-client `item/tool/requestUserInput` request and puts the turn in `waitingInput`. |
@@ -2605,6 +2635,7 @@ This rule applies to all turn-scoped notifications:
 | `turn/completed` | yes |
 | `turn/failed` | yes |
 | `turn/cancelled` | yes |
+| `turn/diff/updated` | yes |
 | `item/started` | yes |
 | `item/agentMessage/delta` | yes |
 | `item/reasoning/delta` | yes |
@@ -2948,6 +2979,7 @@ Clients can suppress specific notification methods per connection by listing exa
 | `thread/deleted` | Client does not need thread list sync when threads are removed elsewhere (e.g. polls `thread/list` only). |
 | `thread/statusChanged` | Client manages thread status locally. |
 | `thread/runtimeChanged` | Client does not display per-thread live activity indicators (e.g. batch runner, headless integration). |
+| `turn/diff/updated` | Client does not render aggregated Turn diffs; per-call file changes remain in `toolResult.structuredContent`. |
 | `subagent/progress` | Client does not display SubAgent real-time progress. |
 | `item/usage/delta` | Client does not need real-time token consumption display; will use `turn/completed.tokenUsage` for final totals. |
 | `system/event` | Client does not need system maintenance status (compaction, consolidation). |

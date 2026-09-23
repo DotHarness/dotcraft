@@ -13,18 +13,14 @@ export interface DiffHunk {
 
 export interface FileDiff {
   filePath: string
-  /** Last turn id that contributed an edit (same as last element of turnIds when present) */
-  turnId: string
-  /** All turn ids that contributed edits to this file (cross-turn accumulation) */
-  turnIds: string[]
   additions: number
   deletions: number
   diffHunks: DiffHunk[]
   status: 'written' | 'reverted'
   isNewFile: boolean
-  /** Full file content before any agent edit (when known — enables correct revert after multi-edit) */
+  /** Full file content before the edit, when known; lets the viewer highlight whole files. */
   originalContent?: string
-  /** Full file content after all accumulated edits (when known) */
+  /** Full file content after the edit, when known */
   currentContent?: string
 }
 
