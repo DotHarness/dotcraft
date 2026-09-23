@@ -23,6 +23,7 @@ import type { ShortcutSpec } from '../ui/shortcutKeys'
 import { useDocumentThemeMode } from '../../utils/theme'
 import { useDesktopPet } from '../desktopPet/useDesktopPet'
 import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
+import { usePetStore } from '../../pet/petStore'
 
 export interface ComposerMascotBubble {
   tone?: MascotBubbleTone
@@ -123,6 +124,7 @@ export function ComposerShell({
   petSurface
 }: ComposerShellProps): JSX.Element {
   const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
+  const petAppearance = usePetStore((state) => state.appearance)
   const petRoot = useRef<HTMLDivElement>(null)
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
   const canChat = !desktopPluginSurfaceContext.awaitingApproval && mascotInteraction?.hold !== 'sign'
@@ -212,6 +214,7 @@ export function ComposerShell({
           speed={mascotSpeed}
           contextMax={mascotContextMax}
           name={mascotName}
+          appearance={petAppearance}
           onNameRendered={setRenderedMascotAvatar}
           anchorOffset={Math.max(topAccessoryHeight, overlayLift)}
           anchorPushSignal={topAccessoryPushSignal}

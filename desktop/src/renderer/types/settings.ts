@@ -4,6 +4,7 @@ export type SettingsTab =
   | 'profile'
   | 'general'
   | 'appearance'
+  | 'pet'
   | 'voice'
   | 'personalization'
   | 'dreams'

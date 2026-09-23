@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { Appearance } from '../appearanceModel.js'
 export type MascotExpression = 'neutral' | 'happy' | 'operator' | 'sleep'
 export type MascotLight = 'default' | 'error' | 'success'
 export interface ComposerMascotContext {
@@ -14,6 +15,8 @@ export interface ComposerMascotContext {
 }
 export interface ComposerMascotProps {
   name?: string
+  /** What the default companion wears; ignored while a name is rendered, which keeps deriving its own look. */
+  appearance?: Appearance
   motion?: 'system' | 'on' | 'off'
   theme?: 'light' | 'dark'
   focused?: boolean

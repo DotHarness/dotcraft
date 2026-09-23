@@ -175,3 +175,25 @@ html[data-theme="light"] .dc-toast__surface[data-tone] {
   background: color-mix(in srgb, var(--dc-toast-tone) 16%, transparent);
   color: inherit;
 }
+
+.dc-toast__surface[data-art] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: 4px;
+  width: 100%;
+}
+
+.dc-toast__surface[data-art] .dc-toast__head {
+  display: contents;
+}
+
+.dc-toast__art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-right: 6px;
+  line-height: 0;
+}

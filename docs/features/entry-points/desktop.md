@@ -34,6 +34,10 @@ The model you pick here only sets the default for new threads. An existing threa
 
 **Settings → Profile** shows a token activity chart that spreads daily usage across every thread in the current workspace, GitHub-contribution style, alongside lifetime tokens, single-day peak, and usage streaks. Enable tracing for the workspace first, or the chart has nothing to plot.
 
+## Meet your pet
+
+The companion in the composer is your pet. It finds things to wear while you work: every so often, after enough agent activity, a new item lands in its bag and a notification shows what arrived. Select **Wear it** on the notification, or open **Settings → Pet** to change its colour, dress it from the bag, and trade ten items of one rarity for one of the next. Turning pet customization off there brings back the classic blue companion and pauses finds; the bag keeps everything for later.
+
 ## Run locally or connect to a server
 
 By default Desktop starts or takes over the AppServer for the current workspace on this machine, and other entries share that same process without any work from you. Threads you start here aren't locked to Desktop either — pick one up from another [entry point](./).

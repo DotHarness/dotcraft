@@ -14,6 +14,8 @@ import {
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
 import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
+import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
+import { showFindToast } from './pet/findToast'
 import { useViewerTabStore } from './stores/viewerTabStore'
 import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
@@ -1309,6 +1311,7 @@ export function App(): JSX.Element {
         applyTheme(resolveTheme(s.theme))
         useUIStore.getState().setShowThinkingContent(s.showThinkingContent === true)
         useComposerPreferencesStore.getState().hydrate(s)
+        usePetStore.getState().hydrate(s)
         useUIStore.setState({
           projectsSectionCollapsed: s.projectsSectionCollapsed === true,
           pinnedSectionCollapsed: s.pinnedSectionCollapsed === true,
@@ -1316,6 +1319,14 @@ export function App(): JSX.Element {
         })
       })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const clock = window.setInterval(() => {
+      const found = usePetStore.getState().advance(PET_CLOCK_MS, 0)
+      if (found) showFindToast(found)
+    }, PET_CLOCK_MS)
+    return () => window.clearInterval(clock)
   }, [])
 
   const activeConversationWorkspacePath =
@@ -2061,11 +2072,13 @@ export function App(): JSX.Element {
           }
 
           case 'item/usage/delta': {
+            const input = (p.inputTokens as number) ?? 0
+            const output = (p.outputTokens as number) ?? 0
+            const petFind = usePetStore.getState().advance(0, input + output)
+            if (petFind) showFindToast(petFind)
             const tid = (p.threadId as string | undefined) ?? ''
             if (!shouldUpdateActiveConversation(tid)) break
             if (shouldDeferActiveConversationUpdate(tid)) break
-            const input = (p.inputTokens as number) ?? 0
-            const output = (p.outputTokens as number) ?? 0
             const totalInput = typeof p.totalInputTokens === 'number' ? (p.totalInputTokens as number) : null
             const totalOutput = typeof p.totalOutputTokens === 'number' ? (p.totalOutputTokens as number) : null
             const contextUsage = typeof p.contextUsage === 'object' && p.contextUsage !== null

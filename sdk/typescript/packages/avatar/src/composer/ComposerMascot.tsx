@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent, type CSSProperties } from 'react'
-import { Avatar } from '../Avatar.js'
+import { AppearanceAvatar } from '../Avatar.js'
 import { deriveAppearance, mascotPaletteOf, type AvatarPose } from '../index.js'
 import { useComposerAvatarBehavior } from './useComposerAvatarBehavior.js'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff.js'
@@ -8,9 +8,10 @@ import { useComposerMotion } from './useComposerMotion.js'
 import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_SPARKLES } from './constants.js'
 import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
-export function ComposerMascot({ name, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', contextMax = false, anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+export function ComposerMascot({ name, appearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', contextMax = false, anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
   const reduced = !useComposerMotion(motion)
   const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced)
+  const look = appearance && !avatar ? appearance : deriveAppearance(avatar ?? '')
   useEffect(() => { onNameRendered?.(avatar) }, [avatar, onNameRendered])
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [ambientSleeping, setSleeping] = useState(false)
@@ -86,7 +87,7 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
     reducedMotion: reduced
   })
   clearGestureRef.current = avatarBehavior.clearGesture
-  const mascotPalette = mascotPaletteOf(deriveAppearance(avatar ?? ''))
+  const mascotPalette = mascotPaletteOf(look)
   const activity: ComposerMascotContext["activity"] = light === 'error'
     ? 'error'
     : light === 'success'
@@ -316,7 +317,7 @@ export function ComposerMascot({ name, motion = 'system', theme = 'dark', focuse
       .filter(Boolean)
       .join(' ') || undefined
 
-  const character = <Avatar name={avatar ?? ''} size={MASCOT_SIZE} state={avatarBehavior.pose}
+  const character = <AppearanceAvatar appearance={look} size={MASCOT_SIZE} state={avatarBehavior.pose}
     expression={avatarBehavior.expression} gesture={avatarBehavior.gesture}
     gestureSequence={avatarBehavior.gestureSequence} onGestureComplete={avatarBehavior.completeGesture}
     eventSequence={bounceSignal + greetingSequence} motion={reduced ? 'off' : 'on'} />

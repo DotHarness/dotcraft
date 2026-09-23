@@ -17,6 +17,7 @@ describe('buildSettingsTabs', () => {
       'general',
       'profile',
       'appearance',
+      'pet',
       'personalization',
       'voice',
       'usage',
@@ -31,7 +32,7 @@ describe('buildSettingsTabs', () => {
       'archivedThreads'
     ])
     expect(tabs.map(({ group }) => group)).toEqual([
-      ...Array(6).fill('personal'),
+      ...Array(7).fill('personal'),
       ...Array(3).fill('integrations'),
       ...Array(5).fill('coding'),
       'archived'

@@ -1,17 +1,18 @@
-# Avatar Collection
+# Avatar System
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Draft |
-| **Date** | 2026-09-22 |
+| **Date** | 2026-09-23 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
-Purpose: define the shared `@dotcraft/avatar` collection model. It covers the equipment slots an
-avatar exposes, the item registry with rarity and series, zone-based compatibility, the
-deterministic name derivation, size-tier degradation, and the boundaries for item-level visual
-effects. The design catalog in the DotCraft design repository owns the review surfaces; this spec
-owns the model that every host renders.
+Purpose: define the shared `@dotcraft/avatar` system. It covers the equipment slots an avatar
+exposes, the item registry with rarity and series, zone-based compatibility, the deterministic
+name derivation, size-tier degradation, the boundaries for item-level visual effects, and the
+Desktop pet built on top of it: the dressed default companion, its finds, bag, and exchange. The
+design catalog in the DotCraft design repository owns the review surfaces; this spec owns the model
+that every host renders.
 
 ---
 
@@ -26,9 +27,8 @@ owns the model that every host renders.
 
 Out of scope for this version:
 
-- Unlocking, drops, inventories, persistence, or any user-equipped state. Phase two adds an
-  equipped-appearance source for the default mascot; the record shape below already carries it.
-- Trading, exchange, or limited-time availability.
+- Trading between people, limited-time availability, cloud or custom pets, and any server-side
+  state. The Desktop pet in section 12 lives entirely in the settings file of one machine.
 - Per-host localization of item names. The package ships English catalog copy; hosts localize
   when they surface it in product UI.
 
@@ -74,8 +74,9 @@ interface Appearance {
 ```
 
 `originalAppearance` is `palette: -1`, `baseFace: 0`, and every slot `'none'`. An empty
-normalized name derives it; Desktop's default composer mascot renders it until phase two supplies
-an equipped appearance.
+normalized name derives it; Desktop's default composer mascot renders it unless the person has
+dressed the companion (section 12), in which case `ComposerMascot` receives the equipped record as
+`appearance`.
 
 Slot IDs are stable kebab-case strings and are serialized as-is. Slots are independent fields so a
 host can override one slot without touching the others.
@@ -278,3 +279,89 @@ show the same static paint as before.
 - All skins remain continuous at both shoulders at rest, during a full wave, celebration, laptop
   and sign poses, including pause/resume and animated material/energy phases.
 - Desktop and Universe compile against the package without local artwork or model copies.
+
+---
+
+## 12. Desktop Pet
+
+The default companion, the mascot that lives in the Desktop composer and can be detached onto the
+desktop, can be coloured and dressed with items from this collection. Agent Profile mascots keep
+their name-derived look; only the default companion is dressed. The Desktop surfaces that edit it
+are described in [Desktop Client §6.13](../clients/desktop-client.md#613-desktop-pet) and drawn
+under [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
+
+### 12.1 Settings Record
+
+```ts
+interface PetSettings {
+  customization: boolean          // default true
+  palette: number                 // -1 original brand paint, 0–11 role palettes; default -1
+  outfit: Record<Slot, ItemId | 'none'>
+  bag: Record<ItemId, number>     // copies owned, including the worn one
+  drops: {
+    runtimeMs: number             // app runtime since the last find
+    tokens: number                // tokens agents used since the last find
+    found: number                 // finds so far
+    last: ItemId | null
+  }
+}
+```
+
+The record is Desktop-local personal state stored under `pet` in `settings.json`. Main normalizes
+the shape on load and save with `resolvePetSettings`: invalid fields fall back to their defaults,
+counts are clamped to positive integers, unknown keys are dropped, and a record equal to the
+defaults is not written. The renderer drops ids the registry does not know and re-equips the outfit
+through `equip` so a persisted outfit never carries a zone conflict.
+
+### 12.2 Appearance Source
+
+`appearanceOf(pet)` is the single derivation: customization off yields `originalAppearance`; on
+yields `{ version: 1, palette, baseFace: 0, ...outfit }`. The composer mascot receives it as the
+`appearance` prop of `ComposerMascot`, which the package uses only while no profile name is
+rendered. The detached pet receives it in its snapshot; the owner window omits it while the mascot
+represents a named profile, and the pet window then derives from the name as before. The paint
+palette behind the composer's energy and glow effects follows the same record through
+`mascotPaletteOf`.
+
+Only items in the bag can be worn. Wearing follows `equip` and clears any slot whose item shares a
+zone; taking an item off leaves it in the bag.
+
+### 12.3 Finds
+
+A find is one item from the whole registry, drawn by rarity with the weights in section 7 and then
+uniformly within the rarity. Two gates must both pass before the next find:
+
+| Gate | Value | Counting |
+|------|-------|----------|
+| Runtime | 30 minutes | Wall-clock time the app has been running since the last find, advanced by the main window in one-minute steps; a step never adds more than its own interval, so sleep and suspend do not count. |
+| Tokens | 1 000 000 | Input plus output tokens from every `item/usage/delta` the main window receives since the last find, across all threads and workspaces. |
+
+When both gates pass the find happens on its own: the item is added to the bag, both counters reset
+to zero, `found` increments, `last` records the item, and the record persists so a restart
+continues where it left off. Customization off pauses both counters. Nothing about timing, odds, or
+progress is a setting or is shown in settings.
+
+The find is announced through the Desktop toast stack with key `pet-find`, so a second find
+replaces the first card: message `New find: <item>`, description the rarity label, the item's art in
+the card's art slot, and one inline action, `Wear it`, which equips the item.
+
+### 12.4 Bag and Exchange
+
+- The bag lists every owned item with its copy count, filtered by all, wearing, or a slot. Hovering
+  a tile tries the item on the companion; selecting wears it or, when it is worn, takes it off.
+- The exchange trades exactly ten spare items of one rarity for one random item of the next rarity.
+  A worn copy is never a spare, legendary items cannot be traded up, and a fill action picks
+  duplicates first so single finds stay in the bag when possible; the person may remove items from
+  the tray before trading. When a trade spends the last copy of a worn item, the item comes off.
+
+### 12.5 Acceptance Checklist
+
+- `resolvePetSettings` returns the defaults for missing or corrupt input, clamps the palette and
+  counts, and drops unknown fields; the renderer drops unknown item ids before rendering or
+  persisting.
+- The composer mascot and the detached pet render the same appearance for the default companion and
+  keep name-derived appearances for Agent Profiles.
+- A find needs both gates, resets both counters, adds exactly one item, and survives a restart.
+- The exchange consumes exactly ten spares of one rarity, never the worn copy, and yields the next
+  rarity.
+- Turning customization off restores the original paint and pauses finds without touching the bag.

@@ -87,6 +87,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [6.10 Remote Servers](#610-remote-servers)
   - [6.11 Satellites](#611-satellites)
   - [6.12 Agent Builder](#612-agent-builder)
+  - [6.13 Desktop Pet](#613-desktop-pet)
 - [7. Keyboard Accessibility and Localization](#7-keyboard-accessibility-and-localization)
   - [7.1 Keyboard Expectations](#71-keyboard-expectations)
   - [7.2 Accessibility](#72-accessibility)
@@ -962,6 +963,7 @@ Required behavior:
   - When `sourceControl/get.capabilities.perforceChangelist = true`, Desktop replaces the Git branch footer selector with a Perforce changelist selector and changes the Thread Header commit action to `Checkout`.
   - `Checkout` calls `sourceControl/changelist/prepare` and never falls back to a local Git commit; when the description is blank, Desktop first calls `workspace/commitMessage/suggest` with `provider = "perforce"` to generate a changelist description from AppServer-side Perforce context. The Checkout dialog lets users choose the current target, another pending changelist, or `New Changelist`; `New Changelist` sends `target = "default"` so AppServer creates a numbered pending changelist during prepare. The dialog and toast copy must avoid submit/commit semantics. Desktop does not expose Perforce submit or shelve.
   - A successful `Checkout` may move files that are already opened in another pending changelist into the selected target; Desktop treats the selected thread target as the user's explicit prepare intent.
+- Desktop exposes a personal `Pet` tab after Appearance for the default companion's colour, outfit, bag, and exchange (§6.13).
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
 - Desktop groups Personalization settings into Conversation, Learning, Memory, and Dreams cards when the corresponding capabilities are available. Empty groups are hidden.
 - Toggling personalized welcome suggestions applies immediately for the active workspace. On success, the client reacts to the resulting `workspace/configChanged` notification and updates the welcome surface without requiring manual refresh or app restart.
@@ -1108,6 +1110,18 @@ The Agent Builder edits an Agent Profile as a document beside the conversation, 
 - Each builder tool call renders in the transcript as a profile-change row rather than generic tool output: the change stated in words, the value as an inline reference, and whatever the title cannot carry — instructions, long lists, model details, rejected names — behind the row's disclosure. A failed edit shows its reason. A value merely named by a row is inert and not a control.
 
 Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md).
+
+---
+
+### 6.13 Desktop Pet
+
+The default companion can be coloured and dressed with items from the [Avatar System](../features/avatar-system.md#12-desktop-pet), which owns the settings record, the appearance source, the find rule, and the bag and exchange rules. This section owns only what the Desktop surface does with them.
+
+- The `Pet` tab sits in the Personal group after Appearance. It holds the `Pet customization` switch, `Your pet` (the companion inside the colour ring with its bag beside it), and `Exchange`. Hovering a ring segment previews the colour on the companion and selecting keeps it; selecting the companion plays a random pose, and one-shot poses return to idle on their own. With customization off only the switch remains: `Your pet` and `Exchange` are hidden until it is turned back on.
+- Finds arrive on their own and are announced through the toast stack with the `pet-find` key, item art in the card's art slot, the rarity as the description, and one inline `Wear it` action. The main window advances the runtime gate once a minute and counts every `item/usage/delta` it receives toward the token gate; nothing about timing or odds is a setting.
+- All tab, card, and toast copy is client-owned and localized; item names are the collection's English catalog copy, which the Avatar System spec leaves to a later per-host localization.
+
+Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
 
 ---
 

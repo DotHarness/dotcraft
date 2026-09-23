@@ -132,7 +132,7 @@ export function ToastCard({
     zIndex: 1000 - index
   }
 
-  const stackedAction = toast.action != null && toast.description != null
+  const stackedAction = toast.action != null && toast.description != null && toast.art == null
   // An element that renders nothing still costs Button its icon span and gap.
   const actionIcon = toastActionIcon(toast.action?.icon)
   const actionButton = toast.action ? (
@@ -155,15 +155,19 @@ export function ToastCard({
       data-leaving={leaving ? 'true' : undefined}
       style={cardStyle}
     >
-      <div className="dc-toast__surface" data-tone={toast.type === 'info' ? undefined : toast.type}>
+      <div className="dc-toast__surface" data-tone={toast.type === 'info' ? undefined : toast.type} data-art={toast.art ? 'true' : undefined}>
         <div className="dc-toast__head">
-          <span className="dc-toast__icon" data-mark={toast.leading ? 'true' : undefined} aria-hidden>
-            {toast.leading ? (
-              <IdentityMark role="compact" size={20} src={toast.leading.src} fallback={toast.leading.fallback} />
-            ) : (
-              toast.icon ?? <ToastIcon type={toast.type} />
-            )}
-          </span>
+          {toast.art ? (
+            <span className="dc-toast__art" aria-hidden>{toast.art}</span>
+          ) : (
+            <span className="dc-toast__icon" data-mark={toast.leading ? 'true' : undefined} aria-hidden>
+              {toast.leading ? (
+                <IdentityMark role="compact" size={20} src={toast.leading.src} fallback={toast.leading.fallback} />
+              ) : (
+                toast.icon ?? <ToastIcon type={toast.type} />
+              )}
+            </span>
+          )}
           <div className="dc-toast__body">
             {toast.markdown ? (
               <div className="dc-toast__markdown">

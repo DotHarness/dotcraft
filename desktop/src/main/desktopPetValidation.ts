@@ -3,6 +3,7 @@ import {
   type PetDecision, type PetPoint, type PetRect, type PetSnapshot, type PetStatusInfo
 } from '../shared/desktopPet'
 import { SUPPORTED_LOCALE_VALUES } from '../shared/locales/types'
+import { PET_SLOTS } from '../shared/pet'
 
 // Renderer payloads cross a trust boundary here: the owner caps content for the product,
 // these bounds only stop a runaway or hostile renderer.
@@ -63,9 +64,19 @@ export function validDecisionCommand(command: { id?: unknown; value?: unknown },
     && text(command.value, 64) && decision.options.some((option) => option.value === command.value)
 }
 
+/** Shape only; the pet window resolves ids against the registry before drawing. */
+function validAppearance(value: unknown): boolean {
+  const appearance = value as Record<string, unknown> | null
+  return !!appearance && typeof appearance === 'object' && appearance.version === 1
+    && typeof appearance.palette === 'number' && Number.isInteger(appearance.palette) && appearance.palette >= -1 && appearance.palette <= 11
+    && typeof appearance.baseFace === 'number' && Number.isInteger(appearance.baseFace) && appearance.baseFace >= 0 && appearance.baseFace <= 4
+    && PET_SLOTS.every((slot) => text(appearance[slot], 40))
+}
+
 export function validSnapshot(value: unknown): value is PetSnapshot {
   const snapshot = value as PetSnapshot | null
   return !!snapshot && text(snapshot.name, 1000) && text(snapshot.text, 100000)
+    && (snapshot.appearance === undefined || validAppearance(snapshot.appearance))
     && (snapshot.theme === 'dark' || snapshot.theme === 'light')
     && SUPPORTED_LOCALE_VALUES.includes(snapshot.locale)
     && typeof snapshot.reducedMotion === 'boolean' && typeof snapshot.canChat === 'boolean'

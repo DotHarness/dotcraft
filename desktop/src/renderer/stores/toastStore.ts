@@ -20,7 +20,7 @@ export interface Toast {
   message: string
   type: ToastType
   duration: number
-  description?: string
+  description?: ReactNode
   /** Showing another toast with the same key replaces this one instead of stacking. */
   key?: string
   markdown?: boolean
@@ -28,6 +28,7 @@ export interface Toast {
   leading?: ToastLeading
   /** Glyph for a subject that has no identity mark of its own, such as a machine. */
   icon?: ReactNode
+  art?: ReactNode
   /** Fired once if the toast goes without the action being taken: timeout, close, or replacement. */
   onExpire?: () => void
 }
@@ -118,12 +119,13 @@ export interface ShowToastOptions {
   message: string
   type?: ToastType
   durationMs?: number
-  description?: string
+  description?: ReactNode
   key?: string
   markdown?: boolean
   action?: ToastAction
   leading?: ToastLeading
   icon?: ReactNode
+  art?: ReactNode
   onExpire?: () => void
 }
 
@@ -148,6 +150,7 @@ export const showToast = (options: ShowToastOptions): string =>
     ...(options.action ? { action: options.action } : {}),
     ...(options.leading ? { leading: options.leading } : {}),
     ...(options.icon ? { icon: options.icon } : {}),
+    ...(options.art ? { art: options.art } : {}),
     ...(options.onExpire ? { onExpire: options.onExpire } : {})
   })
 

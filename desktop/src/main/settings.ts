@@ -20,6 +20,7 @@ import {
   type ReduceMotionMode
 } from '../shared/appearance'
 import { normalizeThemeSeeds, type ThemeSeedOverrides, type ThemeVariant } from '../shared/themeSeed'
+import { normalizePetSetting, type PetSettings } from '../shared/pet'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -162,6 +163,8 @@ export interface AppSettings {
   createdSatelliteInviteIds?: CreatedSatelliteInvite[]
   screenViewDockWidth?: number
   screenViewDockPosition?: { x: number; y: number }
+  /** Omitted while it equals the defaults. */
+  pet?: PetSettings
 }
 
 const MAX_RECENT = 20
@@ -570,6 +573,7 @@ export function loadSettings(): AppSettings {
       raw.satelliteRouteByThread = normalizeSatelliteRouteByThread(raw)
       raw.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(raw)
       raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
+      raw.pet = normalizePetSetting(raw.pet)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
       } else {
@@ -623,6 +627,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
     settings.satelliteRouteByThread = normalizeSatelliteRouteByThread(settings)
     settings.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(settings)
+    settings.pet = normalizePetSetting(settings.pet)
     settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {

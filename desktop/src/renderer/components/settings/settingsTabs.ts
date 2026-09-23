@@ -19,6 +19,7 @@ import type { DesktopPluginIconComponent } from '@dotcraft/plugin'
 import type { MessageKey } from '../../../shared/locales'
 import type { SettingsTab } from '../../types/settings'
 import { McpIcon } from './McpIcon'
+import { PetIcon } from './panels/pet/PetIcon'
 
 type Translate = (key: MessageKey) => string
 
@@ -43,7 +44,8 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   const tabs: SettingsTabDefinition[] = [
     { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon, group: 'personal' },
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
-    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' }
+    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
+    { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' }
   ]
 
   if (options.personalizationAvailable) {

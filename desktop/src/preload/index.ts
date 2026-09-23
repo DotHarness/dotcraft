@@ -61,6 +61,7 @@ import {
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
 } from '../shared/titleBarOverlay'
 import type { TopLevelMenuId } from '../shared/locales/types'
+import type { PetSettings } from '../shared/pet'
 import type {
   BrowserUseApprovalResponseAction,
   BrowserUseApprovalRequestPayload,
@@ -1516,6 +1517,7 @@ const api = {
       createdSatelliteInviteIds?: CreatedSatelliteInvite[]
       screenViewDockWidth?: number
       screenViewDockPosition?: ScreenViewDockPosition
+      pet?: PetSettings
     }> {
       return ipcRenderer.invoke('settings:get')
     },
@@ -1576,6 +1578,7 @@ const api = {
       createdSatelliteInviteIds?: CreatedSatelliteInvite[]
       screenViewDockWidth?: number
       screenViewDockPosition?: ScreenViewDockPosition
+      pet?: PetSettings
     }): Promise<void> {
       return ipcRenderer.invoke('settings:set', partial)
     },

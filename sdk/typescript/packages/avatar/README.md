@@ -38,7 +38,7 @@ Effects belong to items: paint skins such as `chrome` and `holographic` replace 
 glow items pulse, and orbit moons circle. Effects animate only at 44px and above with motion
 enabled; smaller avatars render their static frame, and avatars at 20px and below drop face, hand,
 overlay-skin, and effect layers entirely. The model is specified in
-[specs/features/avatar-collection.md](../../../../specs/features/avatar-collection.md).
+[specs/features/avatar-system.md](../../../../specs/features/avatar-system.md).
 
 See the [TypeScript SDK reference](https://www.dotcraft.net/developing/sdks/typescript) for the
 available entry points.

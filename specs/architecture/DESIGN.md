@@ -442,7 +442,7 @@ while retaining the head and back silhouettes. Item effects animate only at `44p
 motion enabled. A left-side hold owns the left hand. Native work props take priority
 over decorative hand poses when both are requested. Rarity is catalog and settings chrome; it
 never paints onto an avatar in product lists. See
-[Avatar Collection](../features/avatar-collection.md).
+[Avatar System](../features/avatar-system.md).
 
 | Role | Standard size / radius | Use |
 | --- | --- | --- |
@@ -1326,6 +1326,46 @@ selected state alone and carry no status pill. An inline notice uses the shared
 banner geometry — 14px padding, 12px gap, a 20px glyph, a 13px/600 title with an
 optional secondary line — in the level's own colour, and has no dismiss control:
 its height follows its content, and the header's refresh is the retry.
+
+### Pet
+
+The Pet settings tab dresses the one default companion; its rules keep the
+neutral posture above while letting the collection's own colour show.
+
+- The dial is a 232px open ring around the companion at 120px: thirteen colour
+  segments over 300° with the gap at the bottom, Original first at the lower left
+  and the twelve role palettes clockwise over the top, each painted in its
+  palette's mid body tone at 72% opacity. The pointer, keyboard focus, and the
+  selected segment go to full opacity; the selected segment pops 5px outward and
+  carries a 3px white dot. The current colour's name sits in the ring's gap in
+  `--type-secondary`; while a colour is being previewed the name is
+  `--text-secondary`. With customization off the whole group is hidden.
+- Rarity is chrome, never paint on the companion. On a bag tile it is a radial
+  glow behind the item art in the rarity colour that grows with the tier
+  (uncommon 22%, rare 30%, epic 38%, legendary 46%; common has none) and, from
+  rare up, a 1px inset frame in the rarity colour at 55%. There are no rarity
+  badges, dots, or pills anywhere. Where a card names the rarity, it is one word
+  in the rarity colour at weight 500.
+- Bag tiles are `--bg-tertiary`, radius 8, at least 92px wide, art centred with
+  the name in `--type-hint` beneath and a `×n` copy count at the top right in
+  `--text-secondary`. A worn tile carries a 1.5px inset ring in `--text-primary`
+  and a check bubble on the art. The bag is a fixed grid of five columns showing two
+  rows: owned items fill it from the first slot and the remaining slots stay visible as
+  dashed `--border-default` outlines like the tray's, so an empty or filtered bag never
+  collapses and never moves the dial; longer collections scroll. The empty and filtered
+  hints sit beside the `Bag` eyebrow in `--type-hint`.
+- The exchange tray is ten 44px slots: empty slots are dashed
+  `--border-default` outlines; a filled slot drops the outline and shows the item
+  over its rarity glow. The result replaces the tray in place with 112px art over
+  the glow, the item name in `--type-heading`, its slot and feature in
+  `--type-secondary`, the rarity word, and the primary and ghost actions.
+- The find toast is the shared toast card with art: it fills the stack width and
+  keeps one row of art, text, action, and close. The art slot is 36px with the
+  item over a stronger glow (uncommon 40%, rare 50%, epic 58%, legendary 66%)
+  and no frame, the title is `New find: <item>`, the description is the rarity
+  word, and the card stays neutral so a legendary never reads as a warning.
+- The tab icon is the companion's head at Lucide weight: antenna light, rounded
+  body, and the terminal prompt as its face, matching the logo mark.
 
 ### Interactive Tool UI
 

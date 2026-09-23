@@ -1,6 +1,7 @@
 import { normalizeLocale } from '../../../shared/locales'
 import { petPose, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../../../shared/desktopPet'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
+import { usePetStore } from '../../pet/petStore'
 import { findPetEditor } from './editorBridge'
 import { decidePetApproval, stopPetTurn } from './petOwnerActions'
 import type { PetActivityHandle } from './usePetActivity'
@@ -156,6 +157,7 @@ function snapshotOf(binding: PetSourceBinding, editRevision: number): PetSnapsho
     activity: petPose(status?.status ?? 'idle'),
     status,
     name: binding.name(),
+    appearance: binding.name() ? undefined : usePetStore.getState().appearance,
     text: editor?.getText() ?? '',
     editRevision,
     theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',

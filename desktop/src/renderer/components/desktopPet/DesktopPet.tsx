@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Avatar, MascotIdleStage } from '@dotcraft/avatar/react'
+import { AppearanceAvatar, MascotIdleStage } from '@dotcraft/avatar/react'
+import { deriveAppearance } from '@dotcraft/avatar'
+import { safeAppearance } from '../../pet/petModel'
 import { MessageSquare, PanelTop } from 'lucide-react'
 import { PetActivitySurface } from './PetActivitySurface'
 import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
@@ -97,6 +99,7 @@ export function DesktopPet(): JSX.Element | null {
     void api.command({ type: 'interactive', value: !!hit })
   }, [api, tripping])
   if (!snapshot) return null
+  const look = snapshot.appearance ? safeAppearance(snapshot.appearance) : deriveAppearance(snapshot.name)
   return <>
     <div className={idle.idleClassName ? `desktop-pet-character ${idle.idleClassName}` : 'desktop-pet-character'} {...idle.idleAttributes}
       data-pet-interactive data-dragging={reaction.dragging} data-motion={snapshot.reducedMotion ? 'off' : 'on'}
@@ -134,7 +137,7 @@ export function DesktopPet(): JSX.Element | null {
             if (drag.current) { drag.current = false; reaction.land(); void api.command({ type: 'drag', stage: 'end' }) }
           }}>
           <span ref={gaze} className="desktop-pet-reaction" data-gaze={gazeEnabled} style={{ transform: `rotate(${reaction.tilt}deg) scale(${reaction.dragging && !snapshot.reducedMotion ? 1.04 : 1})` }}>
-            <Avatar name={snapshot.name} size={position.size} state={reaction.dragging ? 'idle' : reaction.state !== 'idle' ? reaction.state : idle.pose} eventSequence={reaction.sequence}
+            <AppearanceAvatar appearance={look} size={position.size} state={reaction.dragging ? 'idle' : reaction.state !== 'idle' ? reaction.state : idle.pose} eventSequence={reaction.sequence}
               expression={reaction.dragging ? 'operator' : reaction.state === 'greeting' ? 'happy' : undefined}
               gesture={reaction.dragging ? reaction.direction : idle.gesture} gestureSequence={reaction.dragging ? reaction.sequence : idle.gestureSequence}
               onGestureComplete={idle.completeGesture}

@@ -1,3 +1,4 @@
+import type { Appearance } from '@dotcraft/avatar'
 import type { AppLocale } from './locales/types'
 
 export interface PetPoint { x: number; y: number }
@@ -55,6 +56,8 @@ export interface PetSnapshot {
   activity?: PetActivity
   status?: PetStatusInfo
   name: string
+  /** Absent while the mascot is a named profile, whose look derives from `name`. */
+  appearance?: Appearance
   text: string
   theme: 'dark' | 'light'
   locale: AppLocale

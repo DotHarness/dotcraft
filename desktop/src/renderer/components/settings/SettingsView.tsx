@@ -139,6 +139,7 @@ import {
 declare const __APP_VERSION__: string | undefined
 
 const AppearancePanel = coreSettingsPanels.appearance
+const PetPanel = coreSettingsPanels.pet
 const VoicePanel = coreSettingsPanels.voice
 const ConnectionsPanel = coreSettingsPanels.connections
 const SourceControlPanel = coreSettingsPanels.sourceControl
@@ -3086,6 +3087,8 @@ export function SettingsView({
             )}
 
             {activeSettingsTab === 'appearance' && <AppearancePanel />}
+
+            {activeSettingsTab === 'pet' && <PetPanel />}
 
             {activeSettingsTab === 'voice' && <VoicePanel />}
 
