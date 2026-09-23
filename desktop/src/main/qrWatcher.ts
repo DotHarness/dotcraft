@@ -1,6 +1,7 @@
 import { promises as fs, watch, type FSWatcher } from 'fs'
 import * as path from 'path'
 import type { QrUpdatePayload } from '../shared/channelModules'
+import { workspaceTempPath } from './workspaceTempPath'
 export type { QrUpdatePayload } from '../shared/channelModules'
 
 const DIR_POLL_INTERVAL_MS = 500
@@ -19,7 +20,7 @@ interface QrWatchState {
 }
 
 function moduleQrDir(workspacePath: string, moduleId: string): string {
-  return path.join(workspacePath, '.craft', 'tmp', moduleId)
+  return path.join(workspaceTempPath(workspacePath), moduleId)
 }
 
 function moduleQrPath(workspacePath: string, moduleId: string): string {

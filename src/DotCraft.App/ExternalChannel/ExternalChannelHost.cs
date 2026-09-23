@@ -2,6 +2,7 @@ using System.Diagnostics;
 using DotCraft.Channels;
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
+using DotCraft.Workspaces;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Modules;
@@ -86,7 +87,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ISessionService sessionService,
         string serverVersion,
         ModuleRegistry moduleRegistry,
-        string hostWorkspacePath,
+        DotCraftPaths paths,
         ChatClientRegistry chatClientRegistry,
         ModelProviderRegistry modelProviderRegistry,
         PathBlacklist? pathBlacklist = null,
@@ -107,7 +108,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             sessionService,
             serverVersion,
             moduleRegistry,
-            hostWorkspacePath,
+            paths,
             chatClientRegistry,
             modelProviderRegistry,
             pathBlacklist,
@@ -132,7 +133,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ISessionService sessionService,
         string serverVersion,
         ModuleRegistry moduleRegistry,
-        string hostWorkspacePath,
+        DotCraftPaths paths,
         ChatClientRegistry chatClientRegistry,
         ModelProviderRegistry modelProviderRegistry,
         Func<string, object>? deliveryDependenciesFactory,
@@ -155,7 +156,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             sessionService,
             serverVersion,
             moduleRegistry,
-            hostWorkspacePath,
+            paths,
             chatClientRegistry,
             modelProviderRegistry,
             pathBlacklist: null,
@@ -183,7 +184,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ISessionService sessionService,
         string serverVersion,
         ModuleRegistry moduleRegistry,
-        string hostWorkspacePath,
+        DotCraftPaths paths,
         ChatClientRegistry chatClientRegistry,
         ModelProviderRegistry modelProviderRegistry,
         PathBlacklist? pathBlacklist,
@@ -208,8 +209,14 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ArgumentNullException.ThrowIfNull(sessionService);
         ArgumentNullException.ThrowIfNull(serverVersion);
         ArgumentNullException.ThrowIfNull(moduleRegistry);
-        _hostWorkspacePath = hostWorkspacePath ?? throw new ArgumentNullException(nameof(hostWorkspacePath));
-        _delivery = CreateDeliveryDependencies(_hostWorkspacePath, pathBlacklist, approvalService, deliveryDependenciesFactory);
+        ArgumentNullException.ThrowIfNull(paths);
+        _hostWorkspacePath = paths.WorkspacePath;
+        _delivery = CreateDeliveryDependencies(
+            paths.WorkspaceTempPath,
+            _hostWorkspacePath,
+            pathBlacklist,
+            approvalService,
+            deliveryDependenciesFactory);
         _managedChildProcessFactory = managedChildProcessFactory ?? throw new ArgumentNullException(nameof(managedChildProcessFactory));
         _appConfigMonitor = appConfigMonitor;
         _threadAgentRefreshService = sessionService as IThreadAgentRefreshService;
@@ -1161,6 +1168,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     }
 
     private static ExternalChannelDeliveryDependencies CreateDeliveryDependencies(
+        string workspaceTempPath,
         string hostWorkspacePath,
         PathBlacklist? pathBlacklist,
         IApprovalService? approvalService,
@@ -1169,14 +1177,13 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         if (deliveryDependenciesFactory?.Invoke(hostWorkspacePath) is ExternalChannelDeliveryDependencies provided)
             return provided;
 
-        var mediaRoot = Path.Combine(hostWorkspacePath, ".craft", "external-channel-media");
-        var artifactStore = new FileSystemChannelMediaArtifactStore(mediaRoot);
+        var artifactStore = new InMemoryChannelMediaArtifactStore();
         var fileAccessGuard = new FileAccessGuard(
             hostWorkspacePath,
             requireApprovalOutsideWorkspace: true,
             approvalService,
             pathBlacklist);
-        var resolver = new ChannelMediaResolver(artifactStore, Path.Combine(mediaRoot, "tmp"), fileAccessGuard);
+        var resolver = new ChannelMediaResolver(artifactStore, workspaceTempPath, fileAccessGuard);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, artifactStore);
         return new ExternalChannelDeliveryDependencies(artifactStore, resolver, dispatcher);
     }

@@ -326,6 +326,7 @@ public sealed class AppServerHost(
                 SkillsLoader = runtime.SkillsLoader,
                 MemoryStore = runtime.MemoryStore,
                 WorkspaceCraftPath = runtime.Paths.Data.RootPath,
+                WorkspaceTempPath = runtime.Paths.WorkspaceTempPath,
                 HostWorkspacePath = runtime.Paths.WorkspacePath,
                 AutomationsHandler = _services.GetService<IAutomationsRequestHandler>(),
                 CommitMessageSuggest = runtime.CommitMessageSuggestService,

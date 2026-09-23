@@ -261,7 +261,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
     public async Task Remove_WhenDirectoryDeleteFails_BroadcastsRecoveredGeneration()
     {
         WriteBrowserFixture(Path.Combine(WorkspaceCraftPath, "plugins", "browser"));
-        File.WriteAllText(Path.Combine(WorkspaceCraftPath, ".plugin-trash"), "blocks trash directory creation");
+        File.WriteAllText(Path.Combine(WorkspaceCraftPath, "tmp"), "blocks temporary directory creation");
         var runtime = new RecoveringPluginRuntimeCoordinator();
         var managementState = new AppServerPluginManagementState();
         var broadcaster = new OrderedSnapshotBroadcaster();

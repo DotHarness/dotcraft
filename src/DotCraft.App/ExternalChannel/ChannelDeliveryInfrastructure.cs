@@ -70,7 +70,7 @@ internal sealed record ExternalChannelDeliveryDependencies(
     IChannelMediaResolver MediaResolver,
     IChannelMessageDispatcher MessageDispatcher);
 
-internal sealed class FileSystemChannelMediaArtifactStore(string rootPath) : IChannelMediaArtifactStore
+internal sealed class InMemoryChannelMediaArtifactStore : IChannelMediaArtifactStore
 {
     private readonly ConcurrentDictionary<string, ChannelMediaArtifact> _artifacts = new(StringComparer.Ordinal);
 
@@ -83,7 +83,6 @@ internal sealed class FileSystemChannelMediaArtifactStore(string rootPath) : ICh
     public Task RegisterAsync(ChannelMediaArtifact artifact, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(rootPath);
         _artifacts[artifact.Id] = artifact;
         return Task.CompletedTask;
     }

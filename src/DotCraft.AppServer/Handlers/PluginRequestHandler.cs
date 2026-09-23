@@ -18,6 +18,7 @@ internal sealed partial class PluginRequestHandler(
     SkillsLoader? skillsLoader,
     IAppConfigMonitor? appConfigMonitor,
     string? workspaceCraftPath,
+    string? workspaceTempPath,
     string? hostWorkspacePath,
     IReadOnlyList<string>? builtInPluginSourceRoots,
     AppServerMcpConfigService mcpConfig,
@@ -416,7 +417,9 @@ internal sealed partial class PluginRequestHandler(
 
         try
         {
-            PluginDirectoryDeleter.Delete(pluginRoot);
+            var temporaryRoot = workspaceTempPath
+                ?? throw new InvalidOperationException("Workspace temporary path is required for plugin removal.");
+            PluginDirectoryDeleter.Delete(pluginRoot, temporaryRoot);
         }
         catch
         {

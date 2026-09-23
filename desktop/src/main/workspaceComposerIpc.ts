@@ -5,6 +5,7 @@ import * as path from 'path'
 import { translate, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { watch as fsWatch, type FSWatcher } from 'fs'
 import { resolveBundledRipgrepPath } from './ripgrepRuntime'
+import { workspaceTempPath } from './workspaceTempPath'
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
@@ -861,7 +862,7 @@ export async function readImageAsDataUrl(
   const resolvedRoot = path.resolve(workspaceRoot)
   const resolvedPath = path.resolve(absPath)
   const attachmentsDir = path.join(resolvedRoot, '.craft', 'attachments', 'images')
-  const legacyTmpDir = path.join(resolvedRoot, '.craft', 'tmp', 'images')
+  const legacyTmpDir = path.join(workspaceTempPath(resolvedRoot), 'images')
   const allowed =
     isPathWithin(attachmentsDir, resolvedPath) ||
     isPathWithin(legacyTmpDir, resolvedPath)

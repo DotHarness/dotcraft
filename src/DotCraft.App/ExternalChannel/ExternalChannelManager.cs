@@ -9,6 +9,7 @@ using DotCraft.Modules;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Agents;
+using DotCraft.Workspaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -44,7 +45,7 @@ public sealed class ExternalChannelManager
     /// <param name="sessionService">Shared session service for all external channels.</param>
     /// <param name="nativeChannelNames">Names of native channels (for conflict detection).</param>
     /// <param name="moduleRegistry">Registered DotCraft modules (for <c>channel/list</c> discovery).</param>
-    /// <param name="hostWorkspacePath">Host workspace root; passed to wire handlers for empty <c>identity.workspacePath</c>.</param>
+    /// <param name="paths">Resolved workspace paths used by channel hosts.</param>
     /// <param name="chatClientRegistry">Workspace-scoped chat client registry shared with the main AppServer.</param>
     /// <param name="modelProviderRegistry">Workspace-scoped model provider registry shared with the main AppServer.</param>
     /// <param name="registry">
@@ -55,7 +56,7 @@ public sealed class ExternalChannelManager
         ISessionService sessionService,
         IReadOnlyCollection<string> nativeChannelNames,
         ModuleRegistry moduleRegistry,
-        string hostWorkspacePath,
+        DotCraftPaths paths,
         ChatClientRegistry chatClientRegistry,
         ModelProviderRegistry modelProviderRegistry,
         PathBlacklist? pathBlacklist = null,
@@ -128,7 +129,7 @@ public sealed class ExternalChannelManager
                 sessionService,
                 serverVersion,
                 moduleRegistry,
-                hostWorkspacePath,
+                paths,
                 chatClientRegistry,
                 modelProviderRegistry,
                 pathBlacklist,

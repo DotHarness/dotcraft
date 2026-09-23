@@ -19,12 +19,12 @@ public sealed class PluginDirectoryDeleterTests
             Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
             File.WriteAllText(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"), "{}");
 
-            PluginDirectoryDeleter.Delete(pluginRoot);
+            var workspaceTempPath = Path.Combine(craftRoot, "tmp");
+            PluginDirectoryDeleter.Delete(pluginRoot, workspaceTempPath);
 
             Assert.False(Directory.Exists(pluginRoot));
-            var trashRoot = Path.Combine(craftRoot, ".plugin-trash");
-            Assert.True(Directory.Exists(trashRoot));
-            Assert.Empty(Directory.EnumerateDirectories(trashRoot));
+            Assert.True(Directory.Exists(workspaceTempPath));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(workspaceTempPath));
         }
         finally
         {
