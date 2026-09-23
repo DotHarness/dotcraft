@@ -274,7 +274,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 }
 ```
 
-## Tools security and sandbox
+## Tools and security
 
 | Field | Description | Default |
 |---|---|---|
@@ -307,19 +307,6 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.ImageGeneration.Enabled` | Allows supported OpenAI Responses providers to generate images in conversation | `true` |
 | `Tools.ImageGeneration.Model` | Reserved for image-client integrations; conversation image generation uses the active Responses model | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | Reserved for image-client integrations that accept reference images | `5` |
-| `Tools.Sandbox.Enabled` | Enable sandbox | `false` |
-| `Tools.Sandbox.Domain` | OpenSandbox service address | `localhost:5880` |
-| `Tools.Sandbox.ApiKey` | OpenSandbox API key | Empty |
-| `Tools.Sandbox.UseHttps` | Use HTTPS | `false` |
-| `Tools.Sandbox.Image` | Container Docker image | `ubuntu:latest` |
-| `Tools.Sandbox.TimeoutSeconds` | Sandbox timeout in seconds | `600` |
-| `Tools.Sandbox.Cpu` | Container CPU limit | `1` |
-| `Tools.Sandbox.Memory` | Container memory limit | `512Mi` |
-| `Tools.Sandbox.NetworkPolicy` | `deny` / `allow` / `custom` | `allow` |
-| `Tools.Sandbox.AllowedEgressDomains` | Custom allowed egress domains | `[]` |
-| `Tools.Sandbox.IdleTimeoutSeconds` | Idle timeout in seconds | `300` |
-| `Tools.Sandbox.SyncWorkspace` | Sync workspace into container | `true` |
-| `Tools.Sandbox.SyncExclude` | Workspace-relative paths excluded from that sync, matched as path prefixes. The defaults keep sensitive `.craft/` runtime data out of the container, so extend the list instead of replacing it | `[".craft/config.json", ".craft/sessions", ".craft/memory", ".craft/dashboard", ".craft/security", ".craft/logs"]` |
 
 Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. When connected to a remote computer, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the conversation still displays the generated image and reports the storage failure.
 
@@ -362,22 +349,6 @@ Tool allow-list example:
 ```json
 {
   "EnabledTools": ["ReadFile", "GrepFiles", "WebSearch"]
-}
-```
-
-OpenSandbox example:
-
-```json
-{
-  "Tools": {
-    "Sandbox": {
-      "Enabled": true,
-      "Domain": "localhost:5880",
-      "Image": "ubuntu:latest",
-      "NetworkPolicy": "allow",
-      "SyncWorkspace": true
-    }
-  }
 }
 ```
 

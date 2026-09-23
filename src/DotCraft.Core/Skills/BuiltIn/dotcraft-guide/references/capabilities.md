@@ -30,7 +30,7 @@ Each line is a starting page, not a summary to recite. Fetch before quoting.
 **Channels and bots.** QQ, WeCom, Feishu, Telegram, and Weixin adapters, configured through Desktop > Channels.
 `/features/channels/`
 
-**Self-hosted.** Server deployment, observability, security and sandboxing.
+**Self-hosted.** Server deployment, observability, and security.
 `/features/self-hosted/server-deployment`
 
 **Building on DotCraft.** TypeScript and .NET SDKs, in-process hosting, the AppServer JSON-RPC protocol, and the plugin APIs. Route these to `$dotcraft-api`.

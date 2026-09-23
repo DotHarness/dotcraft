@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using YamlDotNet.RepresentationModel;
 
 namespace DotCraft.CLI;
 
@@ -303,25 +304,59 @@ internal static class StackCliRunner
             var authMethod = ReadEnv(env, "DOTCRAFT_AUTH_METHOD");
             if (authMethod is not ("apiKey" or "chatgptOAuth"))
                 throw new InvalidOperationException("DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth.");
-            var profile = authMethod == "chatgptOAuth"
-                ? new[] { "--profile", "sandbox" }
-                : Array.Empty<string>();
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would pull and recreate the stack in {options.Directory}.");
                 return 0;
             }
-            var pull = await RunComposeAsync(options.Directory, [.. profile, "pull"], ct);
-            return pull == 0 ? await RunComposeAsync(options.Directory, [.. profile, "up", "-d", "--remove-orphans"], ct) : pull;
+            var pull = await RunComposeAsync(options.Directory, ["pull"], ct);
+            return pull == 0 ? await RunComposeAsync(options.Directory, ["up", "-d", "--remove-orphans"], ct) : pull;
         }
 
         private static bool HasPersistedUserDataMount(string directory)
         {
-            var compose = File.ReadAllText(Path.Combine(directory, ComposeFile)).Replace("\r\n", "\n");
-            var service = Regex.Match(compose, @"(?ms)^  dotcraft:\n(?<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\z)");
-            return service.Success && service.Groups["body"].Value.Contains(
-                "${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft", StringComparison.Ordinal);
+            using var reader = File.OpenText(Path.Combine(directory, ComposeFile));
+            var yaml = new YamlStream();
+            yaml.Load(reader);
+            if (yaml.Documents[0].RootNode is not YamlMappingNode root
+                || !TryGetMap(root, "services", out var services)
+                || !TryGetMap(services, "dotcraft", out var dotcraft)
+                || !dotcraft.Children.TryGetValue(new YamlScalarNode("volumes"), out var volumes)
+                || volumes is not YamlSequenceNode mounts)
+                return false;
+
+            return mounts.Children.Any(mount => mount switch
+            {
+                YamlScalarNode shortMount => IsWritableShortMount(shortMount.Value),
+                YamlMappingNode longMount => Scalar(longMount, "target") == "/root/.craft"
+                    && Scalar(longMount, "type") is "bind" or "volume"
+                    && !string.IsNullOrWhiteSpace(Scalar(longMount, "source"))
+                    && Scalar(longMount, "read_only") != "true",
+                _ => false
+            });
         }
+
+        private static bool IsWritableShortMount(string? value)
+        {
+            var mount = Regex.Match(value ?? string.Empty, @"^.+:/root/\.craft(?::(?<options>[^:]*))?$");
+            return mount.Success
+                && !mount.Groups["options"].Value.Split(',').Contains("ro", StringComparer.Ordinal);
+        }
+
+        private static bool TryGetMap(YamlMappingNode parent, string key, out YamlMappingNode map)
+        {
+            map = null!;
+            if (!parent.Children.TryGetValue(new YamlScalarNode(key), out var value)
+                || value is not YamlMappingNode mapping)
+                return false;
+            map = mapping;
+            return true;
+        }
+
+        private static string? Scalar(YamlMappingNode parent, string key) =>
+            parent.Children.TryGetValue(new YamlScalarNode(key), out var value)
+                ? (value as YamlScalarNode)?.Value
+                : null;
 
         internal async Task<int> WebhookStatusAsync(StackCommandOptions options, CancellationToken ct)
         {

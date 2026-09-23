@@ -44,8 +44,7 @@ const stack: RemoteStack = {
   composeDir: '~/sample-stack/docker',
   appServerPort: 9100,
   oratorioPort: 5087,
-  dashboardPort: 8080,
-  sandboxProfile: false
+  dashboardPort: 8080
 }
 
 describe('validation', () => {
@@ -72,7 +71,7 @@ describe('validation', () => {
   it('validates identity files and service names', () => {
     expect(isValidIdentityFile('~/.ssh/id_ed25519')).toBe(true)
     expect(isValidIdentityFile('-i')).toBe(false)
-    expect(isValidServiceName('opensandbox')).toBe(true)
+    expect(isValidServiceName('oratorio')).toBe(true)
     expect(isValidServiceName('app server')).toBe(false)
   })
 
@@ -117,7 +116,7 @@ describe('normalizeRemoteHosts', () => {
           stacks: [
             { name: 'prod', composeDir: '~/sample-stack/docker' },
             { name: 'bad', composeDir: 'relative' }, // dropped: invalid path
-            { id: 's_x', name: 'sandbox', composeDir: '/srv/sb', sandboxProfile: true, appServerPort: 70000 }
+            { id: 's_x', name: 'secondary', composeDir: '/srv/secondary', appServerPort: 70000 }
           ]
         },
         { name: 'NoTarget', sshTarget: '-bad' }, // dropped: invalid target
@@ -137,12 +136,10 @@ describe('normalizeRemoteHosts', () => {
     expect(prod.appServerPort).toBe(DEFAULT_APP_SERVER_PORT)
     expect(prod.oratorioPort).toBe(DEFAULT_ORATORIO_PORT)
     expect(prod.dashboardPort).toBe(DEFAULT_DASHBOARD_PORT)
-    expect(prod.sandboxProfile).toBe(false)
 
-    const sb = host.stacks[1]
-    expect(sb.id).toBe('s_x') // preserved
-    expect(sb.sandboxProfile).toBe(true)
-    expect(sb.appServerPort).toBe(DEFAULT_APP_SERVER_PORT) // 70000 invalid → default
+    const secondary = host.stacks[1]
+    expect(secondary.id).toBe('s_x') // preserved
+    expect(secondary.appServerPort).toBe(DEFAULT_APP_SERVER_PORT) // 70000 invalid → default
   })
 
   it('returns [] for non-array input', () => {
@@ -176,17 +173,17 @@ describe('ssh argv', () => {
 })
 
 describe('compose command builders', () => {
-  it('builds the compose prefix with project + sandbox profile', () => {
+  it('builds the compose prefix with project', () => {
     expect(composePrefix(stack)).toBe('docker compose')
-    expect(composePrefix({ ...stack, composeProjectName: 'sample-project', sandboxProfile: true })).toBe(
-      "docker compose -p 'sample-project' --profile sandbox"
+    expect(composePrefix({ ...stack, composeProjectName: 'sample-project' })).toBe(
+      "docker compose -p 'sample-project'"
     )
   })
 
   it('clamps log tail and only includes a valid service filter', () => {
     expect(buildLogsCommand(stack, undefined, 99999)).toContain(`--tail ${MAX_LOG_TAIL}`)
     expect(buildLogsCommand(stack, 'app server')).not.toContain('app server') // invalid → dropped
-    expect(buildLogsCommand(stack, 'opensandbox')).toContain("'opensandbox'")
+    expect(buildLogsCommand(stack, 'oratorio')).toContain("'oratorio'")
   })
 
   it('status command carries markers and the quoted compose dir', () => {
@@ -262,7 +259,7 @@ describe('parseStatusOutput', () => {
 
   it('derives partial when not all services are up (JSON array)', () => {
     const out = parseStatusOutput(
-      wrap('[{"Service":"dotcraft","State":"running"},{"Service":"opensandbox","State":"exited"}]'),
+      wrap('[{"Service":"dotcraft","State":"running"},{"Service":"oratorio","State":"exited"}]'),
       's_1'
     )
     expect(out.health).toBe('partial')
@@ -338,19 +335,9 @@ describe('parseDiscoverStacksOutput', () => {
         }
       }
     }
-    const sandbox = {
-      Config: {
-        Image: 'ghcr.io/open-webui/open-webui:latest',
-        Labels: {
-          'com.docker.compose.project': 'deploy',
-          'com.docker.compose.service': 'opensandbox',
-          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/docker'
-        }
-      }
-    }
 
     const stacks = parseDiscoverStacksOutput(
-      `DISCOVER_BEGIN\n${JSON.stringify(dotcraft)}\n${JSON.stringify(sandbox)}\nDISCOVER_END`
+      `DISCOVER_BEGIN\n${JSON.stringify(dotcraft)}\nDISCOVER_END`
     )
 
     expect(stacks).toHaveLength(1)
@@ -362,11 +349,9 @@ describe('parseDiscoverStacksOutput', () => {
       composeProjectName: 'deploy',
       appServerPort: 9100,
       dashboardPort: 18080,
-      sandboxProfile: true,
-      hasSandbox: true,
       image: 'ghcr.io/dotharness/dotcraft:latest'
     })
-    expect(stacks[0].services).toEqual(['dotcraft', 'opensandbox'])
+    expect(stacks[0].services).toEqual(['dotcraft'])
   })
 
   it('ignores non-DotCraft compose projects and malformed JSON', () => {

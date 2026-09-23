@@ -732,7 +732,7 @@ or `_meta` into provider history.
   "callId": string,               // Correlates to the underlying Exec-style tool call
   "command": string,              // Shell command text
   "workingDirectory": string,     // Effective working directory
-  "source": string,               // "host" or "sandbox"
+  "source": string,               // "host"
   "status": string,               // "inProgress", "completed", "failed", "cancelled", "backgrounded", "killed", or "lost"
   "aggregatedOutput": string,     // Full accumulated output shown to the user
   "sessionId": string | null,     // Background terminal id when the command continues after tool return

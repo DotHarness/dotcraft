@@ -5,7 +5,7 @@ namespace DotCraft.Tools;
 
 /// <summary>
 /// Shared search/replace application with multi-tier fuzzy matching (exact, line-trimmed,
-/// indentation-flexible, whitespace-collapsed, unicode-normalized). Used by FileTools and SandboxFileTools.
+/// indentation-flexible, whitespace-collapsed, unicode-normalized). Used by FileTools.
 /// </summary>
 internal static class FileEditSearchReplace
 {

@@ -795,95 +795,6 @@ public sealed class AppConfig
         public string SearchProvider { get; set; } = WebSearchProvider.Exa;
     }
 
-    [ConfigSection("Tools.Sandbox", DisplayName = "Tools > Sandbox", Order = 23)]
-    public sealed class SandboxConfig
-    {
-        /// <summary>
-        /// Enable sandbox mode. When enabled, shell and file tools execute
-        /// inside an isolated OpenSandbox container instead of the host machine.
-        /// Requires a running OpenSandbox server.
-        /// </summary>
-        public bool Enabled { get; set; }
-
-        /// <summary>
-        /// OpenSandbox server address (host:port).
-        /// </summary>
-        public string Domain { get; set; } = "localhost:5880";
-
-        /// <summary>
-        /// OpenSandbox API key (optional, depends on server configuration).
-        /// </summary>
-        [ConfigField(Sensitive = true)]
-        public string ApiKey { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Use HTTPS to connect to the OpenSandbox server.
-        /// </summary>
-        public bool UseHttps { get; set; }
-
-        /// <summary>
-        /// Docker image used for sandbox containers.
-        /// </summary>
-        public string Image { get; set; } = "ubuntu:latest";
-
-        /// <summary>
-        /// Sandbox auto-termination timeout in seconds (server-side TTL).
-        /// </summary>
-        [ConfigField(Min = 0)]
-        public int TimeoutSeconds { get; set; } = 600;
-
-        /// <summary>
-        /// CPU resource limit for the sandbox container.
-        /// </summary>
-        public string Cpu { get; set; } = "1";
-
-        /// <summary>
-        /// Memory resource limit for the sandbox container.
-        /// </summary>
-        public string Memory { get; set; } = "512Mi";
-
-        /// <summary>
-        /// Network policy: "deny" (block all egress), "allow" (no restrictions),
-        /// "custom" (allow only domains listed in AllowedEgressDomains).
-        /// </summary>
-        [ConfigField(FieldType = "select", Options = ["allow", "deny", "custom"])]
-        public string NetworkPolicy { get; set; } = "allow";
-
-        /// <summary>
-        /// Domains allowed for outbound network access when NetworkPolicy is "custom".
-        /// </summary>
-        [ConfigField(Hint = "JSON array of domain strings")]
-        public List<string> AllowedEgressDomains { get; set; } = [];
-
-        /// <summary>
-        /// Seconds of inactivity before an idle sandbox is automatically destroyed.
-        /// Set to 0 to disable idle cleanup.
-        /// </summary>
-        [ConfigField(Min = 0)]
-        public int IdleTimeoutSeconds { get; set; } = 300;
-
-        /// <summary>
-        /// Whether to sync the host workspace into the sandbox on creation.
-        /// </summary>
-        public bool SyncWorkspace { get; set; } = true;
-
-        /// <summary>
-        /// Relative paths (from workspace root) to exclude when syncing the workspace into the sandbox.
-        /// Entries are matched as path prefixes: a pattern of "foo/bar" excludes the file "foo/bar"
-        /// and everything inside the directory "foo/bar/".
-        /// Defaults protect sensitive DotCraft runtime data from leaking into the sandbox.
-        /// </summary>
-        [ConfigField(Hint = "JSON array of relative paths to exclude from workspace sync (prefix matching). Default covers all sensitive .craft/ runtime data. Extend rather than replace.")]
-        public List<string> SyncExclude { get; set; } =
-        [
-            ".craft/config.json",   // API keys and all runtime settings
-            ".craft/sessions",      // full conversation history
-            ".craft/memory",        // long-term user/project facts
-            ".craft/dashboard",     // LLM trace data and token usage records
-            ".craft/security",      // persisted approval records (authorized paths/commands)
-            ".craft/logs",          // ACP communication debug logs
-        ];
-    }
 
     [ConfigSection("Tools.Lsp", DisplayName = "Tools > LSP", Order = 24)]
     public sealed class LspToolsConfig
@@ -966,7 +877,6 @@ public sealed class AppConfig
 
         public WebToolsConfig Web { get; set; } = new();
 
-        public SandboxConfig Sandbox { get; set; } = new();
 
         public LspToolsConfig Lsp { get; set; } = new();
 

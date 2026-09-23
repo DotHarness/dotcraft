@@ -84,7 +84,6 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         var target = SkillVariantStore.CreateTarget(
             harness.Monitor.Current.ProviderPreferences[harness.Monitor.Current.ProviderId].Model,
             harness.Identity.WorkspacePath,
-            sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
             toolNames: null);
         var applier = new VariantSkillMutationApplier(new WorkspaceFileSkillMutationApplier(loader), loader, target);
@@ -115,7 +114,6 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         var target = SkillVariantStore.CreateTarget(
             harness.Monitor.Current.ProviderPreferences[harness.Monitor.Current.ProviderId].Model,
             harness.Identity.WorkspacePath,
-            sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
             toolNames: null);
         var applier = new VariantSkillMutationApplier(new WorkspaceFileSkillMutationApplier(loader), loader, target);
@@ -148,7 +146,6 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         var target = SkillVariantStore.CreateTarget(
             harness.Monitor.Current.ProviderPreferences[harness.Monitor.Current.ProviderId].Model,
             harness.Identity.WorkspacePath,
-            sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
             toolNames: null);
         var applier = new VariantSkillMutationApplier(new WorkspaceFileSkillMutationApplier(loader), loader, target);
@@ -275,7 +272,6 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         var target = SkillVariantStore.CreateTarget(
             harness.Monitor.Current.ProviderPreferences[harness.Monitor.Current.ProviderId].Model,
             harness.Identity.WorkspacePath,
-            sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
             toolNames: null);
         var applier = new VariantSkillMutationApplier(new WorkspaceFileSkillMutationApplier(loader), loader, target);

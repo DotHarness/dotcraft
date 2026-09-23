@@ -40,7 +40,6 @@ export function StackFormPage({
   const [appServerPort, setAppServerPort] = useState(String(stack?.appServerPort ?? 9100))
   const [oratorioPort, setOratorioPort] = useState(String(stack?.oratorioPort ?? 5087))
   const [dashboardPort, setDashboardPort] = useState(String(stack?.dashboardPort ?? 8080))
-  const [sandbox, setSandbox] = useState(stack?.sandboxProfile ?? false)
   const [discoveredStacks, setDiscoveredStacks] = useState<DiscoveredStack[]>([])
   const [discoveryRan, setDiscoveryRan] = useState(false)
 
@@ -60,7 +59,6 @@ export function StackFormPage({
     setAppServerPort(String(candidate.appServerPort || 9100))
     setOratorioPort(String(candidate.oratorioPort || 5087))
     setDashboardPort(String(candidate.dashboardPort || 8080))
-    setSandbox(candidate.sandboxProfile)
   }
 
   const discoveryKey = (candidate: Pick<DiscoveredStack, 'composeDir' | 'composeProjectName'>): string =>
@@ -90,8 +88,7 @@ export function StackFormPage({
       composeProjectName: composeProjectName.trim() || undefined,
       appServerPort: Number(appServerPort) || 9100,
       oratorioPort: Number(oratorioPort) || 5087,
-      dashboardPort: Number(dashboardPort) || 8080,
-      sandboxProfile: sandbox
+      dashboardPort: Number(dashboardPort) || 8080
     }
     const stacks = editing
       ? host.stacks.map((st) => (st.id === stack!.id ? next : st))
@@ -225,43 +222,6 @@ export function StackFormPage({
             <label style={s.fieldLabel}>{t('settings.servers.stack.dashboardPort')}</label>
             {portInput(dashboardPort, setDashboardPort)}
           </div>
-        </div>
-      </SettingsGroup>
-
-      <SettingsGroup title={t('settings.servers.stack.runtime')} flush>
-        <div style={s.switchRow}>
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{t('settings.servers.stack.sandbox')}</div>
-            <div style={{ ...s.fieldHint, marginTop: 3 }}>{t('settings.servers.stack.sandboxHint')}</div>
-          </div>
-          <button
-            role="switch"
-            aria-checked={sandbox}
-            onClick={() => setSandbox((v) => !v)}
-            style={{
-              width: 38,
-              height: 22,
-              borderRadius: 999,
-              position: 'relative',
-              cursor: 'pointer',
-              border: sandbox ? '1px solid var(--accent)' : '1px solid var(--border-default)',
-              background: sandbox ? 'var(--accent)' : 'var(--bg-active)'
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: 2,
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: sandbox ? 'var(--on-accent)' : 'var(--text-secondary)',
-                transform: sandbox ? 'translateX(16px)' : 'translateX(0)',
-                transition: 'transform 120ms ease'
-              }}
-            />
-          </button>
         </div>
       </SettingsGroup>
 

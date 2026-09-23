@@ -445,8 +445,8 @@ The official Docker Stack stores this user data at `/root/.craft`, backed by its
 deployment-local `state/dotcraft`. A headless auth helper uses that same mount
 and a host-network loopback listener for the CLI login flow. Separate Stack
 deployments must not share the directory: they may select different models and
-refresh tokens independently. Subscription-backed automated tools run in a
-sandbox without this mount.
+refresh tokens independently. Automated tools run in the DotCraft container,
+which also mounts this user data directory.
 
 ## AppServer JSON-RPC
 

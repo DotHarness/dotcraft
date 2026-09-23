@@ -15,7 +15,6 @@ The official DotCraft Stack runs DotCraft AppServer and Oratorio as one deployme
 
 - `dotcraft`: AppServer and Dashboard.
 - `oratorio`: headless sync, automation, review, delivery, settings API, and realtime stream.
-- `opensandbox`: optional Compose profile.
 - `webhook-gateway`: optional overlay exposing only declared webhook paths.
 
 AppServer, Dashboard, and Oratorio host ports bind to loopback by default. Remote Desktop access uses independent SSH tunnels. The webhook overlay is the only component intended for public ingress.
@@ -60,10 +59,9 @@ Each deployment has its own credential directory, even if both log in to the
 same ChatGPT account. Authorization URLs may be displayed to the operator;
 authorization codes and token bundles must not enter CLI arguments or logs.
 
-Subscription-backed automated work requires sandbox tools. The sandbox does
-not mount `state/dotcraft`, and the stack rejects subscription mode when the
-sandbox is disabled. `stack upgrade` includes the sandbox profile in this
-mode. Agent file and shell tools must not read `auth.json`.
+Subscription-backed automated work executes file and shell tools in the DotCraft
+container. That container mounts `state/dotcraft`, so these tools can access the
+persisted authentication file.
 
 ## `dotcraft stack` contract
 
@@ -83,7 +81,7 @@ All commands accept `--dir`. Mutating commands accept `--dry-run`; dry-run perfo
 - Invalid providers, source keys, Workspace paths, ports, and missing required values fail before writes.
 - Partial writes use same-directory temporary files and atomic replacement where supported.
 - Lifecycle failures return a non-zero exit code and preserve bounded, redacted diagnostics.
-- Doctor reports a missing DotCraft user-data mount before an image-only upgrade
+- Doctor reports a missing or read-only DotCraft user-data mount before an image-only upgrade
   can be mistaken for a complete deployment update. Existing Compose files are
   migrated explicitly; upgrade does not rewrite locally customized Compose.
 - Disabling webhook ingress preserves the base stack, state, secrets, and certificate volumes.
@@ -94,8 +92,8 @@ All commands accept `--dir`. Mutating commands accept `--dry-run`; dry-run perfo
 - A fresh Workspace lists every bundled plugin as uninstalled and installable, and installing one plugin copies only that plugin into `/workspace/.craft/plugins`.
 - The official marketplace is available by default, and user marketplace configuration and cache survive container replacement.
 - Headless workers start independently of Desktop.
-- In subscription mode, login survives DotCraft container recreation, a missing
-  credential fails before AppServer starts, and sandbox tools cannot read it.
+- In subscription mode, login survives DotCraft container recreation and a
+  missing credential fails before AppServer starts.
 - Remote Board, Settings, stream, and Thread navigation use the same persisted data as headless operation.
 - CLI dry-run is non-mutating, lifecycle commands are allow-listed, and secret output follows this specification.
 - Webhook routing exposes only the documented provider endpoint and passes signature headers unchanged.

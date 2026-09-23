@@ -218,17 +218,6 @@ async function renderWorkspaceConfig(enabledChannels) {
     Port: intEnv("DASHBOARD_PORT", 8080),
   };
 
-  const tools = objectAt(config, "Tools");
-  tools.Sandbox = {
-    ...(isObject(tools.Sandbox) ? tools.Sandbox : {}),
-    Enabled: boolEnv("SANDBOX_ENABLED", false),
-    Domain: first(env.SANDBOX_DOMAIN, "opensandbox:5880"),
-    UseHttps: boolEnv("SANDBOX_USE_HTTPS", false),
-    Image: first(env.SANDBOX_IMAGE, "ubuntu:latest"),
-    NetworkPolicy: first(env.SANDBOX_NETWORK_POLICY, "allow"),
-    SyncWorkspace: boolEnv("SANDBOX_SYNC_WORKSPACE", true),
-  };
-
   const externalChannels = objectAt(config, "ExternalChannels");
   for (const name of knownChannels) {
     if (enabledChannels.includes(name)) {
@@ -331,8 +320,6 @@ async function main() {
   if (authMethod === "chatgptOAuth") {
     if (!trim(env.DOTCRAFT_PROVIDER) || !trim(env.DOTCRAFT_MODEL))
       throw new Error("ChatGPT subscription mode requires DOTCRAFT_PROVIDER and DOTCRAFT_MODEL.");
-    if (!boolEnv("SANDBOX_ENABLED", false))
-      throw new Error("ChatGPT subscription mode requires SANDBOX_ENABLED=true.");
   }
   await mkdir(craftDir, { recursive: true });
   await mkdir(userCraftDir, { recursive: true });

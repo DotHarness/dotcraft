@@ -14,7 +14,7 @@ public sealed record CommandExecutionPayload
     public string WorkingDirectory { get; init; } = string.Empty;
 
     /// <summary>
-    /// "host" or "sandbox".
+    /// "host".
     /// </summary>
     public string Source { get; init; } = "host";
 

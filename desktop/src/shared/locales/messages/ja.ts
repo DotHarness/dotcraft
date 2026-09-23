@@ -1224,9 +1224,6 @@ export const MESSAGES_JA = {
   'settings.servers.stack.appServerPort': 'App server ポート',
   'settings.servers.stack.oratorioPort': 'Oratorio ポート',
   'settings.servers.stack.dashboardPort': 'Dashboard ポート',
-  'settings.servers.stack.runtime': 'ランタイム',
-  'settings.servers.stack.sandbox': 'Sandbox',
-  'settings.servers.stack.sandboxHint': '任意の sandbox サービスをこのインスタンスと一緒に実行します',
   'settings.servers.stack.tokenNote':
     '接続時に DotCraft がこのインスタンスのサインイントークンを自動的に読み取ります。ここで入力または保存する必要はありません。',
   'settings.servers.stack.addButton': 'インスタンスを追加',

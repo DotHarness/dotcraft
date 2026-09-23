@@ -23,7 +23,7 @@ It replaces string and regular-expression heuristics with one kernel: resolve th
 
 ## 2. Non-goals
 
-- Process isolation. The kernel reasons about command text; it does not confine what an approved process can touch. Sandbox mode keeps the container boundary as its authority and does not use this gate.
+- Process isolation. The kernel reasons about command text; it does not confine what an approved process can touch.
 - Proving that an interpreter argument is harmless. `python -c`, `node -e`, and similar arguments are code; the kernel treats them as opaque words.
 - Parsing `cmd.exe` scripts. Cmd scripts are opaque and only scanned for dangerous literals.
 - Proving where a script leaves the shell. Directory tracking follows the changes it can read and assumes each one ran and succeeded. It cannot see a `cd` that failed, a branch the shell skipped, or a subshell, so a deliberately built chain can make the kernel check a later command against a directory the shell is not in. Tracking narrows accidents; it is not a boundary against crafted input.

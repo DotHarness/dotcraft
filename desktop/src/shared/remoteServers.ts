@@ -43,8 +43,6 @@ export interface RemoteStack {
   appServerPort: number
   oratorioPort: number
   dashboardPort: number
-  /** When true, operations pass `--profile sandbox`. */
-  sandboxProfile: boolean
 }
 
 /** A saved SSH target with its DotCraft stacks. */
@@ -95,8 +93,6 @@ export interface DiscoveredStack {
   appServerPort: number
   oratorioPort: number
   dashboardPort: number
-  sandboxProfile: boolean
-  hasSandbox?: boolean
   image?: string
   services?: string[]
 }
@@ -302,8 +298,7 @@ function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefin
     composeProjectName,
     appServerPort: isValidPort(raw.appServerPort) ? (raw.appServerPort as number) : DEFAULT_APP_SERVER_PORT,
     oratorioPort: isValidPort(raw.oratorioPort) ? (raw.oratorioPort as number) : DEFAULT_ORATORIO_PORT,
-    dashboardPort: isValidPort(raw.dashboardPort) ? (raw.dashboardPort as number) : DEFAULT_DASHBOARD_PORT,
-    sandboxProfile: raw.sandboxProfile === true
+    dashboardPort: isValidPort(raw.dashboardPort) ? (raw.dashboardPort as number) : DEFAULT_DASHBOARD_PORT
   }
 }
 
@@ -437,12 +432,11 @@ export function buildReadCoreConfigCommand(stack: RemoteStack): string {
   ].join(' ')
 }
 
-/** `docker compose [-p name] [--profile sandbox]` prefix for a stack. */
+/** `docker compose [-p name]` prefix for a stack. */
 export function composePrefix(stack: RemoteStack): string {
   const parts = ['docker', 'compose']
   const project = stack.composeProjectName?.trim()
   if (project) parts.push('-p', shellSingleQuote(project))
-  if (stack.sandboxProfile) parts.push('--profile', 'sandbox')
   return parts.join(' ')
 }
 
@@ -782,8 +776,6 @@ interface DiscoveryGroup {
   appServerPort: number
   oratorioPort: number
   dashboardPort: number
-  sandboxProfile: boolean
-  hasSandbox: boolean
   image?: string
   services: Set<string>
   dotcraft: boolean
@@ -822,8 +814,6 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
         appServerPort: DEFAULT_APP_SERVER_PORT,
         oratorioPort: DEFAULT_ORATORIO_PORT,
         dashboardPort: DEFAULT_DASHBOARD_PORT,
-        sandboxProfile: false,
-        hasSandbox: false,
         services: new Set<string>(),
         dotcraft: false
       }
@@ -834,11 +824,6 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
     if (service) group.services.add(service)
 
     const lowerService = service.toLowerCase()
-    if (lowerService.includes('sandbox')) {
-      group.hasSandbox = true
-      group.sandboxProfile = true
-    }
-
     if (lowerService === 'oratorio') {
       group.workspaceDir ??= workspaceMount(container)
       group.oratorioPort = hostBoundPort(container, DEFAULT_ORATORIO_PORT, DEFAULT_ORATORIO_PORT)
@@ -866,8 +851,6 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
       appServerPort: group.appServerPort,
       oratorioPort: group.oratorioPort,
       dashboardPort: group.dashboardPort,
-      sandboxProfile: group.sandboxProfile,
-      hasSandbox: group.hasSandbox,
       image: group.image,
       services: [...group.services].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     }))

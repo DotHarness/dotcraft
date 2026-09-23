@@ -16,7 +16,6 @@ using DotCraft.Skills;
 using DotCraft.Persistence;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Tools.Sandbox;
 using DotCraft.Tracing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -226,25 +225,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 contextPageManager,
                 Paths.UserData.RootPath,
                 contributionRegistry), ContributionOrigin.Builtin));
-            if (Config.Tools.Sandbox.Enabled)
-            {
-                var sandboxProvider = Services.GetService<ISandboxProvider>()
-                    ?? throw new InvalidOperationException(
-                        "Sandbox is enabled, but no ISandboxProvider is registered. Register a sandbox backend before starting the workspace runtime.");
-                toolSources.Add(new CollectedToolSource(new SandboxToolSource(
-                    Config,
-                    sandboxProvider,
-                    chatClientRegistry,
-                    SkillsLoader,
-                    scopedApproval,
-                    Path.GetFileName(Paths.Data.RootPath),
-                    PathBlacklist,
-                    traceCollector,
-                    Services.GetService<ISkillMutationApplier>(),
-                    contextPageManager,
-                    Services.GetService<ILoggerFactory>(),
-                    contributionRegistry), ContributionOrigin.Builtin));
-            }
             if (nodeReplProxy != null)
             {
                 toolSources.Add(new CollectedToolSource(

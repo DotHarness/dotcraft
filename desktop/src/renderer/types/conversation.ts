@@ -140,7 +140,7 @@ export interface ConversationItem {
   toolCallId?: string
   command?: string
   workingDirectory?: string
-  commandSource?: 'host' | 'sandbox'
+  commandSource?: 'host'
   aggregatedOutput?: string
   exitCode?: number | null
   executionStatus?: 'inProgress' | 'completed' | 'failed' | 'cancelled'
@@ -666,8 +666,8 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.command as string | undefined),
     workingDirectory: (raw.workingDirectory as string | undefined)
       ?? (payload.workingDirectory as string | undefined),
-    commandSource: (raw.commandSource as 'host' | 'sandbox' | undefined)
-      ?? (payload.source as 'host' | 'sandbox' | undefined),
+    commandSource: (raw.commandSource as 'host' | undefined)
+      ?? (payload.source as 'host' | undefined),
     aggregatedOutput: (raw.aggregatedOutput as string | undefined)
       ?? (payload.aggregatedOutput as string | undefined),
     exitCode: (raw.exitCode as number | null | undefined)

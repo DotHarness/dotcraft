@@ -26,7 +26,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     public void BindThread_ProvidesThreadScopedPromptWithoutCreatingDirectory()
     {
         var assets = CreateAssetStore();
-        var registry = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(assets);
         var connection = CapableConnection();
         var transport = new InMemoryTransport();
         var thread = Thread("thread_a");
@@ -46,7 +46,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     public async Task FirstAssetWrite_CreatesDirectoryAndProducesReadableFragment()
     {
         var assets = CreateAssetStore();
-        var registry = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(assets);
         var thread = Thread("thread_a");
         var now = DateTimeOffset.UtcNow;
         var item = new SessionItem
@@ -88,7 +88,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     [Fact]
     public void Binding_IsConnectionAndTransportScoped()
     {
-        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore());
         var owner = CapableConnection();
         var other = CapableConnection();
         var transport = new InMemoryTransport();
@@ -101,22 +101,17 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     }
 
     [Fact]
-    public void BindThread_DoesNotEnableSandboxOrIncapableClients()
+    public void BindThread_DoesNotEnableIncapableClients()
     {
-        var sandboxConfig = new AppConfig();
-        sandboxConfig.Tools.Sandbox.Enabled = true;
-        var sandboxRegistry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), sandboxConfig);
         var thread = Thread("thread_a");
-
-        Assert.False(sandboxRegistry.BindThread(thread, new InMemoryTransport(), CapableConnection()));
-        Assert.False(new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig())
+        Assert.False(new InlineVisualizationRuntimeRegistry(CreateAssetStore())
             .BindThread(thread, new InMemoryTransport(), new AppServerConnection()));
     }
 
     [Fact]
     public void BindThread_DoesNotEnableAnUnavailableWorkspace()
     {
-        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore());
         var thread = Thread("thread_missing");
         thread.WorkspacePath = Path.Combine(_root, "missing");
 
@@ -142,7 +137,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
         {
             return;
         }
-        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore());
         var thread = Thread("thread_a");
 
         Assert.False(registry.BindThread(thread, new InMemoryTransport(), CapableConnection()));

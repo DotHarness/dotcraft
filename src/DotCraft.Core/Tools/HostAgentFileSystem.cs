@@ -2,7 +2,7 @@
 namespace DotCraft.Tools;
 
 /// <summary>
-/// Host-mode implementation of <see cref="IAgentFileSystem"/>.
+/// Local implementation of <see cref="IAgentFileSystem"/>.
 /// Resolves paths directly on the local filesystem, relative to the workspace root.
 /// </summary>
 public sealed class HostAgentFileSystem(string workspacePath) : IAgentFileSystem

@@ -32,8 +32,6 @@ internal sealed class PromptSectionSources
 
     internal CustomCommandLoader? CustomCommandLoader { get; init; }
 
-    /// <summary>Gets a value indicating whether tools execute inside the Linux sandbox.</summary>
-    internal bool SandboxEnabled { get; init; }
 
     /// <summary>Gets the MCP servers whose tools are discovered on demand.</summary>
     internal IReadOnlyList<string>? DeferredMcpServerNames { get; init; }

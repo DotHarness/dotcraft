@@ -87,14 +87,13 @@ public sealed partial class SessionService
             return null;
 
         var requestedWorkingDirectory = arguments["workingDir"]?.GetValue<string>();
-        var isSandbox = string.Equals(definition.Id.SourceId, "sandbox-native", StringComparison.Ordinal);
         var workingDirectory = !string.IsNullOrWhiteSpace(requestedWorkingDirectory)
-            ? isSandbox ? requestedWorkingDirectory : Path.GetFullPath(requestedWorkingDirectory)
-            : isSandbox ? "/workspace" : context.WorkspacePath;
+            ? Path.GetFullPath(requestedWorkingDirectory)
+            : context.WorkspacePath;
         if (string.IsNullOrWhiteSpace(workingDirectory))
             return null;
 
-        var source = isSandbox ? "sandbox" : "host";
+        var source = "host";
         var shellRegistration = new PendingShellExecutionRegistration
         {
             CallId = context.CallId,
@@ -145,7 +144,7 @@ public sealed partial class SessionService
     private static bool IsTrustedShellExec(ToolDefinition definition) =>
         definition.Id.Kind == ToolSourceKind.CoreNative
         && string.Equals(definition.Id.SourceToolId.Value, "Exec", StringComparison.Ordinal)
-        && definition.Id.SourceId is "core-native" or "sandbox-native";
+        && definition.Id.SourceId == "core-native";
 
     /// <inheritdoc />
     public async ValueTask RecordTerminalAsync(

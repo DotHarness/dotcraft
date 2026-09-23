@@ -36,7 +36,7 @@ public class ToolAttribute : Attribute
 
     /// <summary>
     /// Whether this runtime implementation should be listed in the global built-in tool catalog.
-    /// Alternate implementations such as sandbox tools can opt out while preserving runtime metadata.
+    /// Alternate implementations can opt out while preserving runtime metadata.
     /// </summary>
     public bool CatalogVisible { get; set; } = true;
 }

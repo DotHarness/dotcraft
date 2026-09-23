@@ -16,7 +16,6 @@ using DotCraft.Skills;
 using DotCraft.Logging;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Tools.Sandbox;
 using DotCraft.Tracing;
 using DotCraft.Workspaces;
 using Microsoft.Extensions.AI;
@@ -6108,8 +6107,7 @@ public sealed partial class SessionService(
         }
 
         var exposesNativeSpawnAgent = snapshotSources.Any(source =>
-            source is SandboxToolSource
-            || (source is CoreToolSource && !currentConfig.Tools.Sandbox.Enabled));
+            source is CoreToolSource);
         if (exposesNativeSpawnAgent && config.SubAgentModelCatalogSnapshot == null)
         {
             config.SubAgentModelCatalogSnapshot = await SubAgentModelCatalogSnapshots.CreateAsync(

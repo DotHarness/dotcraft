@@ -20,7 +20,6 @@ services:
       QQ_PORT: ${QQ_PORT:-6700}
       WECOM_LISTEN_HOST: ${WECOM_LISTEN_HOST:-0.0.0.0}
       WECOM_PORT: ${WECOM_PORT:-9000}
-      SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
     ports:
       - "${APPSERVER_PUBLISH_HOST:-127.0.0.1}:${APPSERVER_PORT:-9100}:${APPSERVER_PORT:-9100}"
       - "${DASHBOARD_PUBLISH_HOST:-127.0.0.1}:${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
@@ -84,18 +83,3 @@ services:
       - ${DOTCRAFT_STACK_STATE_DIR:-./state}/oratorio:/data/oratorio
       - ./secrets:/secrets:ro
     restart: unless-stopped
-
-  opensandbox:
-    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
-    profiles:
-      - sandbox
-    entrypoint: ["/opt/dotcraft/opensandbox-entrypoint.sh"]
-    environment:
-      SANDBOX_PORT: 5880
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - opensandbox-config:/etc/opensandbox
-    restart: unless-stopped
-
-volumes:
-  opensandbox-config:

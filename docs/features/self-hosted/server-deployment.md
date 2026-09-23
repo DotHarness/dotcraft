@@ -39,7 +39,6 @@ Select ChatGPT subscription authentication in the deployment's `.env` and enter 
 ```dotenv
 DOTCRAFT_PROVIDER=openai
 DOTCRAFT_AUTH_METHOD=chatgptOAuth
-SANDBOX_ENABLED=true
 ```
 
 On the computer with your browser, forward the login callback ports through SSH:

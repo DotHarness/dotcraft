@@ -270,7 +270,7 @@ Deep-thinking adapter 文件：
 }
 ```
 
-## Tools Security 与 Sandbox
+## Tools 与 Security
 
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
@@ -303,19 +303,6 @@ Deep-thinking adapter 文件：
 | `Tools.ImageGeneration.Enabled` | 允许支持的 OpenAI Responses 提供商在对话中生成图片 | `true` |
 | `Tools.ImageGeneration.Model` | 预留给图片客户端集成。对话生图使用当前 Responses 模型 | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | 预留给支持参考图的图片客户端集成 | `5` |
-| `Tools.Sandbox.Enabled` | 是否启用沙箱模式 | `false` |
-| `Tools.Sandbox.Domain` | OpenSandbox 服务地址 | `localhost:5880` |
-| `Tools.Sandbox.ApiKey` | OpenSandbox API Key | 空 |
-| `Tools.Sandbox.UseHttps` | 是否使用 HTTPS | `false` |
-| `Tools.Sandbox.Image` | 沙箱容器 Docker 镜像 | `ubuntu:latest` |
-| `Tools.Sandbox.TimeoutSeconds` | 沙箱超时时间（秒） | `600` |
-| `Tools.Sandbox.Cpu` | 容器 CPU 限制 | `1` |
-| `Tools.Sandbox.Memory` | 容器内存限制 | `512Mi` |
-| `Tools.Sandbox.NetworkPolicy` | 网络策略：`deny` / `allow` / `custom` | `allow` |
-| `Tools.Sandbox.AllowedEgressDomains` | 自定义允许出站域名列表 | `[]` |
-| `Tools.Sandbox.IdleTimeoutSeconds` | 空闲超时（秒） | `300` |
-| `Tools.Sandbox.SyncWorkspace` | 是否同步 workspace 到容器 | `true` |
-| `Tools.Sandbox.SyncExclude` | 同步时排除的工作区相对路径，按路径前缀匹配。默认值用于避免敏感的 `.craft/` 运行数据进入容器，建议在默认值上追加而不是整体替换 | `[".craft/config.json", ".craft/sessions", ".craft/memory", ".craft/dashboard", ".craft/security", ".craft/logs"]` |
 
 生成的图片默认保存在 Agent 数据目录的 `generated_images/<threadId>/<callId>.png`。连接远程电脑后，文件改为保存在远端工作区的 `.craft/generated_images/<threadId>/<callId>.png`。如果保存失败，对话仍会显示已生成的图片，并提示文件保存失败。
 
@@ -358,22 +345,6 @@ hosted `image_generation` tool 由两个开关共同决定，两者都为真才�
 ```json
 {
   "EnabledTools": ["ReadFile", "GrepFiles", "WebSearch"]
-}
-```
-
-OpenSandbox 示例：
-
-```json
-{
-  "Tools": {
-    "Sandbox": {
-      "Enabled": true,
-      "Domain": "localhost:5880",
-      "Image": "ubuntu:latest",
-      "NetworkPolicy": "allow",
-      "SyncWorkspace": true
-    }
-  }
 }
 ```
 

@@ -50,9 +50,8 @@
 - 平台支持时，把渠道限制到可信的用户、群或聊天。
 - 自己运行适配器时，给 AppServer WebSocket 设一个强随机 token。
 - 平台需要回调 DotCraft 时，生产部署走 HTTPS。
-- 需要更强的工具隔离时，开启 [OpenSandbox](../self-hosted/security#沙箱-opensandbox)。
 
-对应的准确字段名见[配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
+对应的准确字段名见[配置完整参考](../../developing/configuration#tools-与-security)。
 
 ## 相关文档
 

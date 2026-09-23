@@ -12,7 +12,6 @@ public sealed class SessionServiceToolInvocationRecorderTests
 {
     [Theory]
     [InlineData("core-native", "host", null)]
-    [InlineData("sandbox-native", "sandbox", "/workspace")]
     public void RegisterCommandExecutionForInvocation_PreregistersExecOnceWithProviderCallId(
         string sourceId,
         string expectedSource,

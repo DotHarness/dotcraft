@@ -9,7 +9,6 @@ using DotCraft.Memory;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.AI;
 using Xunit;
 using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
@@ -219,15 +218,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var builderMethods = CreateAgentBuilderMethods("schema-builder");
         var skillView = new SkillViewTool(new SkillsLoader(_tempRoot), variantModeEnabled: false, new SkillVariantTarget());
         var skillManage = CreateSkillManageTool();
-        var sandboxManager = new SandboxSessionManager(
-            new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 },
-            new StubSandboxProvider(),
-            _tempRoot,
-            ".craft");
-        _asyncDisposables.Add(sandboxManager);
-        var sandboxFileTools = new SandboxFileTools(sandboxManager);
-        var sandboxShellTools = new SandboxShellTools(new StubSandboxCommandClient());
-
         return
         [
             Pair(GeneratedToolFunctions.FileTools_ReadFile(fileTools), AIFunctionFactory.Create(fileTools.ReadFile)),
@@ -271,13 +261,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentApproval(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentApproval)),
             Pair(GeneratedToolFunctions.SkillViewTool_SkillView(skillView), AIFunctionFactory.Create(skillView.SkillView)),
             Pair(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManage), AIFunctionFactory.Create(skillManage.SkillManage)),
-            Pair(GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest(), AIFunctionFactory.Create(CommitSuggestMethods.CommitSuggest)),
-            Pair(GeneratedToolFunctions.SandboxFileTools_ReadFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.ReadFile)),
-            Pair(GeneratedToolFunctions.SandboxFileTools_WriteFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.WriteFile)),
-            Pair(GeneratedToolFunctions.SandboxFileTools_EditFile(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.EditFile)),
-            Pair(GeneratedToolFunctions.SandboxFileTools_GrepFiles(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.GrepFiles)),
-            Pair(GeneratedToolFunctions.SandboxFileTools_FindFiles(sandboxFileTools), AIFunctionFactory.Create(sandboxFileTools.FindFiles)),
-            Pair(GeneratedToolFunctions.SandboxShellTools_Exec(sandboxShellTools), AIFunctionFactory.Create(sandboxShellTools.Exec))
+            Pair(GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest(), AIFunctionFactory.Create(CommitSuggestMethods.CommitSuggest))
         ];
     }
 

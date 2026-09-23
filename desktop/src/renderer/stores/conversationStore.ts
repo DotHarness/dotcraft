@@ -785,7 +785,7 @@ function mergeTerminalIntoExecToolCall(
     ...item,
     command: (terminal.command as string | undefined) ?? item.command,
     workingDirectory: (terminal.workingDirectory as string | undefined) ?? item.workingDirectory,
-    commandSource: (terminal.source as 'host' | 'sandbox' | undefined) ?? item.commandSource,
+    commandSource: (terminal.source as 'host' | undefined) ?? item.commandSource,
     aggregatedOutput,
     executionStatus: status ?? item.executionStatus,
     exitCode: (terminal.exitCode as number | null | undefined) ?? item.exitCode,
@@ -2065,8 +2065,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         command: (item?.command as string | undefined) ?? (itemPayload.command as string | undefined) ?? '',
         workingDirectory: (item?.workingDirectory as string | undefined)
           ?? (itemPayload.workingDirectory as string | undefined),
-        commandSource: (item?.source as 'host' | 'sandbox' | undefined)
-          ?? (itemPayload.source as 'host' | 'sandbox' | undefined),
+        commandSource: (item?.source as 'host' | undefined)
+          ?? (itemPayload.source as 'host' | undefined),
         aggregatedOutput: (item?.aggregatedOutput as string | undefined)
           ?? (itemPayload.aggregatedOutput as string | undefined)
           ?? '',
@@ -2612,8 +2612,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                       workingDirectory: (item?.workingDirectory as string | undefined)
                         ?? (itemPayload.workingDirectory as string | undefined)
                         ?? i.workingDirectory,
-                      commandSource: (item?.source as 'host' | 'sandbox' | undefined)
-                        ?? (itemPayload.source as 'host' | 'sandbox' | undefined)
+                      commandSource: (item?.source as 'host' | undefined)
+                        ?? (itemPayload.source as 'host' | undefined)
                         ?? i.commandSource,
                       aggregatedOutput: (item?.aggregatedOutput as string | undefined)
                         ?? (itemPayload.aggregatedOutput as string | undefined)

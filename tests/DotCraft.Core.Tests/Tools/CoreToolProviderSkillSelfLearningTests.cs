@@ -77,14 +77,6 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
         {
             SelfLearning = selfLearning
         };
-        config.Tools = new AppConfig.ToolsConfig
-        {
-            Sandbox = new AppConfig.SandboxConfig
-            {
-                Enabled = false,
-                IdleTimeoutSeconds = 0
-            }
-        };
         var skillsLoader = new SkillsLoader(_tempRoot);
         var chatClientRegistry = TestModelProviderRegistry.Create();
         var source = new CoreToolSource(

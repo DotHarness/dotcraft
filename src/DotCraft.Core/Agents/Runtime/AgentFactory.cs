@@ -742,7 +742,6 @@ public sealed class AgentFactory : IAsyncDisposable
             var skillVariantTarget = SkillVariantStore.CreateTarget(
                 ctx.EffectiveMainModel,
                 ctx.WorkspacePath,
-                ctx.Config.Tools.Sandbox.Enabled,
                 ctx.Config.Permissions.DefaultApprovalPolicy.ToString(),
                 toolNames);
 
@@ -767,7 +766,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 ctx.WorkspacePath,
                 () => promptInputs.ToolNames,
                 _customCommandLoader,
-                sandboxEnabled: _config.Tools.Sandbox.Enabled,
                 deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
                 subAgentProfilesSection: promptInputs.SubAgentProfilesSection,
                 skillVariantModeEnabled: promptInputs.SkillVariantModeEnabled,

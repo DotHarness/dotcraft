@@ -75,7 +75,7 @@ If you accidentally call a tool that the execution policy rejects, read the deni
 
 ### Agent Mode
 
-Agent mode may execute approved workspace changes according to the normal approval and sandbox policy. When an active plan exists or the latest runtime context includes ModeTransition: PlanToAgent, follow the plan and keep progress state current for non-trivial work.
+Agent mode may execute approved workspace changes according to the normal approval policy. When an active plan exists or the latest runtime context includes ModeTransition: PlanToAgent, follow the plan and keep progress state current for non-trivial work.
 
 ### Task State
 

@@ -1,6 +1,6 @@
-# 安全与沙箱
+# 安全
 
-DotCraft 用四层护栏约束 Agent 能碰到什么：文件黑名单、工作区边界、工具能力开关和沙箱隔离。本地个人项目用默认策略再补几条敏感路径就够了。要把 DotCraft 暴露给外部渠道或公网，照下面的严格部署清单逐项过一遍。
+DotCraft 用四层护栏约束 Agent 能碰到什么：文件黑名单、工作区边界和工具能力开关。本地个人项目用默认策略再补几条敏感路径就够了。要把 DotCraft 暴露给外部渠道或公网，照下面的严格部署清单逐项过一遍。
 
 ![DotCraft 安全护栏示意图](/security-guardrails-overview.svg)
 
@@ -12,9 +12,8 @@ DotCraft 用四层护栏约束 Agent 能碰到什么：文件黑名单、工作�
 - 强制删除文件或打开网址的 Shell 命令先问再跑。工作区内的其他命令直接执行，不弹提示。
 - 黑名单是空的，你机器上的凭据和密钥目录得自己加。
 - 内置工具全部可用，除非你主动收紧。
-- 沙箱隔离关闭，需要时再开。
 
-这几项对应的字段名、默认值和 JSON 示例都在 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
+这几项对应的字段名、默认值和 JSON 示例都在 [Tools 与 Security](../../developing/configuration#tools-与-security)。
 
 ## 文件黑名单
 
@@ -42,11 +41,11 @@ DotCraft 用四层护栏约束 Agent 能碰到什么：文件黑名单、工作�
 - **本会话允许**在这次对话剩余时间里，对同一目录下的同一条命令不再询问。
 - **永久允许**会写入一条规则，放行以相同开头词起始的命令。危险命令和读不懂的脚本例外，它们只按原样记住，不会变成规则。
 
-你自己写的规则先于其他检查生效。每条规则给出命令的开头词，并指定放行、询问还是拒绝，比如让 `git push` 总是询问、让 `rm` 一律拒绝。字段格式见 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
+你自己写的规则先于其他检查生效。每条规则给出命令的开头词，并指定放行、询问还是拒绝，比如让 `git push` 总是询问、让 `rm` 一律拒绝。字段格式见 [Tools 与 Security](../../developing/configuration#tools-与-security)。
 
 ## 工具能力开关
 
-工具策略决定哪些内置工具对 Agent 可见、工作区外的文件和 Shell 操作是否需要审批、文件和 Web 响应最多返回多少内容，以及是否启用 LSP 和沙箱工具。需要精确的 allow-list、Web 搜索 provider、超时或输出上限时，在 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox) 里查字段。
+工具策略决定哪些内置工具对 Agent 可见、工作区外的文件和 Shell 操作是否需要审批、文件和 Web 响应最多返回多少内容，以及是否启用 LSP 工具。需要精确的 allow-list、Web 搜索 provider、超时或输出上限时，在 [Tools 与 Security](../../developing/configuration#tools-与-security) 里查字段。
 
 ## Hooks
 
@@ -59,12 +58,6 @@ Hooks 把安全检查变成会话生命周期上的关卡：命令执行前先�
 - 不要把密钥写进 Hook，用环境变量或全局配置。
 - 命令路径写成工作区相对路径，不同入口的 cwd 并不一致。
 
-## 沙箱（OpenSandbox）
-
-[OpenSandbox](https://github.com/alibaba/OpenSandbox) 把 Shell 和 File 工具的执行放进 Docker 容器。工作区要暴露给 bot、共享服务器或不可信的任务队列时，这一层最有用。
-
-它需要一个 OpenSandbox 服务，前置条件和全部沙箱字段见 [Tools, Security 与 Sandbox](../../developing/configuration#tools-security-与-sandbox)。
-
 ## 严格部署清单
 
 DotCraft 暴露给外部渠道或公网时，这些策略建议一起开：
@@ -75,7 +68,6 @@ DotCraft 暴露给外部渠道或公网时，这些策略建议一起开：
 | 黑名单 | 禁止访问密钥和凭据目录 |
 | 工具表面积 | 只保留部署所需工具 |
 | AppServer | 远程访问使用强随机 WebSocket token |
-| 沙箱 | 需要进一步隔离时启用 OpenSandbox |
 | Subagents | 除非明确需要，否则限制递归委派 |
 
 ## 使用场景

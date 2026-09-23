@@ -85,8 +85,74 @@ public sealed class StackCliRunnerTests
         }
     }
 
+    [Theory]
+    [InlineData("      - ./saved-dotcraft:/root/.craft")]
+    [InlineData("      - '/srv/dotcraft/config:/root/.craft:rw'")]
+    [InlineData("      - type: bind\n        source: ./saved-dotcraft\n        target: /root/.craft")]
+    [InlineData("      - type: volume\n        source: dotcraft-data\n        target: /root/.craft")]
+    public async Task CustomPersistedUserDataMountPassesDoctorAndUpgrade(string mount)
+    {
+        var path = NewPath();
+        try
+        {
+            await StackCliRunner.InitAsync(
+                new StackCommandOptions { Directory = path, NoStart = true },
+                new StringWriter(), new StringWriter(), CancellationToken.None, new FakeRunner());
+            var compose = Path.Combine(path, "docker-compose.yml");
+            var content = await File.ReadAllTextAsync(compose);
+            content = content.Replace(
+                "      - ${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft",
+                mount,
+                StringComparison.Ordinal);
+            await File.WriteAllTextAsync(compose, content);
+
+            var runner = new FakeRunner();
+            Assert.Equal(0, await StackCliRunner.DoctorAsync(
+                new StackCommandOptions { Directory = path },
+                new StringWriter(), new StringWriter(), CancellationToken.None, runner));
+            runner.Calls.Clear();
+            Assert.Equal(0, await StackCliRunner.UpgradeAsync(
+                new StackCommandOptions { Directory = path },
+                new StringWriter(), new StringWriter(), CancellationToken.None, runner));
+        }
+        finally
+        {
+            TryDelete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData("      - ./saved-dotcraft:/root/.craft:ro")]
+    [InlineData("      - type: bind\n        source: ./saved-dotcraft\n        target: /root/.craft\n        read_only: true")]
+    public async Task ReadOnlyUserDataMountBlocksUpgrade(string mount)
+    {
+        var path = NewPath();
+        try
+        {
+            await StackCliRunner.InitAsync(
+                new StackCommandOptions { Directory = path, NoStart = true },
+                new StringWriter(), new StringWriter(), CancellationToken.None, new FakeRunner());
+            var compose = Path.Combine(path, "docker-compose.yml");
+            var content = await File.ReadAllTextAsync(compose);
+            await File.WriteAllTextAsync(compose, content.Replace(
+                "      - ${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft",
+                mount,
+                StringComparison.Ordinal));
+
+            var runner = new FakeRunner();
+            Assert.Equal(1, await StackCliRunner.UpgradeAsync(
+                new StackCommandOptions { Directory = path },
+                new StringWriter(), new StringWriter(), CancellationToken.None, runner));
+            Assert.Empty(runner.Calls);
+        }
+        finally
+        {
+            TryDelete(path);
+        }
+    }
+
     [Fact]
-    public async Task SubscriptionUpgradeStartsSandboxProfile()
+    public async Task SubscriptionUpgradeUsesBaseStack()
     {
         var path = NewPath();
         try
@@ -103,8 +169,8 @@ public sealed class StackCliRunnerTests
                 new StackCommandOptions { Directory = path },
                 new StringWriter(), new StringWriter(), CancellationToken.None, runner));
             Assert.Collection(runner.Calls,
-                call => Assert.EndsWith("--profile sandbox pull", string.Join(' ', call.Arguments), StringComparison.Ordinal),
-                call => Assert.EndsWith("--profile sandbox up -d --remove-orphans", string.Join(' ', call.Arguments), StringComparison.Ordinal));
+                call => Assert.EndsWith("-f docker-compose.yml pull", string.Join(' ', call.Arguments), StringComparison.Ordinal),
+                call => Assert.EndsWith("-f docker-compose.yml up -d --remove-orphans", string.Join(' ', call.Arguments), StringComparison.Ordinal));
         }
         finally
         {

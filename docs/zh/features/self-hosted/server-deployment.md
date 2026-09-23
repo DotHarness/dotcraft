@@ -39,7 +39,6 @@ dotcraft stack doctor --dir /opt/dotcraft-stack
 ```dotenv
 DOTCRAFT_PROVIDER=openai
 DOTCRAFT_AUTH_METHOD=chatgptOAuth
-SANDBOX_ENABLED=true
 ```
 
 在打开浏览器的电脑上，通过 SSH 转发登录回调端口：

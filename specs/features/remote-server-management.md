@@ -36,7 +36,7 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 
 ## 2. Design Principles
 
-1. **DotCraft-shaped, not Docker-generic.** Every operation assumes the `docker` Compose layout from the deployment docs: a `dotcraft` service, an optional `opensandbox` profile, a mounted `./workspace`, a rendered `.env`, and a generated `workspace/.craft/appserver.token`.
+1. **DotCraft-shaped, not Docker-generic.** Every operation assumes the `docker` Compose layout from the deployment docs: a `dotcraft` service, a mounted `./workspace`, a rendered `.env`, and a generated `workspace/.craft/appserver.token`.
 2. **SSH-first.** Use the system `ssh` executable rather than bundling an SSH library, so the feature inherits `~/.ssh/config`, `ProxyJump`, `ssh-agent`, hardware keys, and editor-style host aliases for free.
 3. **Fixed allow-list.** Remote commands are a closed set of parameterized operations. The renderer chooses an operation and a target stack; it never supplies a command string.
 4. **No protocol changes.** Reuse the existing remote AppServer connection contract from [Desktop Client §3.1.1](../clients/desktop-client.md). Tunnels make a remote endpoint look like a local `127.0.0.1` endpoint to the existing probe/connect path.
@@ -89,7 +89,6 @@ Saved servers live in Desktop client settings (not workspace config), because th
       "appServerPort": 9100,        // remote AppServer port inside the stack
       "oratorioPort": 5087,         // remote Oratorio API port
       "dashboardPort": 8080,        // remote Dashboard port
-      "sandboxProfile": false       // when true, operations pass --profile sandbox
     }
   ]
 }
@@ -147,7 +146,7 @@ The main process may push progress for long operations (update, logs streaming, 
 
 ## 6. Compose Operations
 
-All operations run in the stack's `composeDir`, use the stack's `composeProjectName` when set, and pass `--profile sandbox` when `sandboxProfile` is true. Output is bounded and redacted before it leaves the main process. The display `name` is never passed to Docker Compose.
+All operations run in the stack's `composeDir` and use the stack's `composeProjectName` when set. Output is bounded and redacted before it leaves the main process. The display `name` is never passed to Docker Compose.
 
 ### 6.1 Status
 
@@ -259,7 +258,7 @@ Per the visual spec's "at most one primary action per decision area," each stack
 
 ### 9.6 Add / Edit Stack
 
-- A modal collects: display name, compose directory, optional workspace directory (defaulting to `<composeDir>/workspace`), optional Compose project name override, AppServer port (default `9100`), Dashboard port (default `8080`), and a sandbox-profile toggle. The Compose project field is technical, is populated by discovery when possible, and is never presented as the stack's display name.
+- A modal collects: display name, compose directory, optional workspace directory (defaulting to `<composeDir>/workspace`), optional Compose project name override, AppServer port (default `9100`), and Dashboard port (default `8080`). The Compose project field is technical, is populated by discovery when possible, and is never presented as the stack's display name.
 - The AppServer token is never entered. The UI shows token presence as "present / missing" only.
 
 ### 9.7 Logs Presentation
@@ -308,7 +307,7 @@ These are the v1 defaults; they are intended to be revisited in design review an
 ### 11.4 Manual validation
 
 - A local Linux VM or test server with `docker`.
-- One stack without sandbox; one stack with the sandbox profile.
+- Two independent stacks.
 - AppServer and Dashboard reachable only through the SSH tunnel.
 - Update from an older image/tag to latest, verifying volumes (`./workspace`, `.craft/`) survive.
 

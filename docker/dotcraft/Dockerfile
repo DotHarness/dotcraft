@@ -42,8 +42,7 @@ WORKDIR /workspace
 # Git and ripgrep are part of the baseline agent environment for repository
 # inspection. Keep project-specific compilers and SDKs out of this image.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git libicu72 python3 python3-pip ripgrep tini \
-    && pip3 install --break-system-packages --no-cache-dir opensandbox-server \
+    && apt-get install -y --no-install-recommends ca-certificates git libicu72 python3 ripgrep tini \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=dotcraft-build /out/dotcraft/dotcraft /opt/dotcraft/bin/dotcraft
@@ -67,9 +66,8 @@ COPY --from=desktop-plugins-build /src/desktop/resources/plugins/dotcraft-bundle
 
 COPY docker/dotcraft/entrypoint.sh /opt/dotcraft/entrypoint.sh
 COPY docker/dotcraft/render-config.mjs /opt/dotcraft/render-config.mjs
-COPY docker/dotcraft/opensandbox-entrypoint.sh /opt/dotcraft/opensandbox-entrypoint.sh
 
-RUN chmod +x /opt/dotcraft/bin/dotcraft /opt/dotcraft/entrypoint.sh /opt/dotcraft/opensandbox-entrypoint.sh
+RUN chmod +x /opt/dotcraft/bin/dotcraft /opt/dotcraft/entrypoint.sh
 
 ENV PATH="/opt/dotcraft/bin:${PATH}" \
     DOTCRAFT_NODE_BIN="/usr/local/bin/node" \

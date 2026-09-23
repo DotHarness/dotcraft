@@ -11,11 +11,9 @@ internal static class IdentityPromptSection
     internal static string Build(SystemPromptSectionContext context)
     {
         var sources = context.RequireSources();
-        var workspace = sources.SandboxEnabled ? "/workspace" : sources.WorkspacePath;
+        var workspace = sources.WorkspacePath;
         var craftPath = sources.CraftPath;
-        var envSection = sources.SandboxEnabled
-            ? GetSandboxEnvironmentSection()
-            : GetHostEnvironmentSection();
+        var envSection = GetHostEnvironmentSection();
         var workspaceRootsSection = GetWorkspaceRootsSection(sources);
         var identity = GetIdentityLine();
 
@@ -63,17 +61,7 @@ Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
             return string.Empty;
         }
 
-        var rendered = string.Join(
-            Environment.NewLine,
-            roots.Select((root, index) =>
-            {
-                if (!sources.SandboxEnabled)
-                    return $"- {root}";
-                var sandboxPath = string.Equals(root, sources.WorkspacePath, StringComparison.OrdinalIgnoreCase)
-                    ? "/workspace"
-                    : $"/workspace-roots/{index}";
-                return $"- {sandboxPath}";
-            }));
+        var rendered = string.Join(Environment.NewLine, roots.Select(root => $"- {root}"));
         return
 $"""
 ## Workspace Roots
@@ -116,13 +104,4 @@ $$"""
 """;
     }
 
-    private static string GetSandboxEnvironmentSection()
-    {
-        return
-"""
-## Environment
-- OS: Linux (sandbox container)
-- Default shell: Bash (/bin/bash)
-""";
-    }
 }

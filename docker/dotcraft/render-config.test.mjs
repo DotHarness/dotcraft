@@ -188,7 +188,6 @@ test("subscription mode removes API credentials and keeps the model preference",
     DOTCRAFT_MODEL: "gpt-test",
     DOTCRAFT_API_KEY: "unused",
     DOTCRAFT_PROVIDER_ENDPOINT: "https://unused.example",
-    SANDBOX_ENABLED: "true",
   });
   const config = await readConfig(path.join(fixture.home, ".craft", "config.json"));
   assert.equal(config.Providers.openai.AuthMethod, "chatgptOAuth");
@@ -196,23 +195,6 @@ test("subscription mode removes API credentials and keeps the model preference",
   assert.equal(config.Providers.openai.ApiKey, undefined);
   assert.equal(config.Providers.openai.EndPoint, undefined);
   assert.equal(config.ProviderPreferences.openai.model, "gpt-test");
-});
-
-test("subscription mode requires sandbox execution", async (t) => {
-  const fixture = await createFixture(t);
-  const result = spawnSync(process.execPath, [renderer], {
-    encoding: "utf8",
-    env: {
-      HOME: fixture.home,
-      DOTCRAFT_WORKSPACE: fixture.workspace,
-      DOTCRAFT_PROVIDER: "openai",
-      DOTCRAFT_AUTH_METHOD: "chatgptOAuth",
-      DOTCRAFT_MODEL: "gpt-test",
-      SANDBOX_ENABLED: "false",
-    },
-  });
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /SANDBOX_ENABLED=true/);
 });
 
 test("requires an explicit authentication method", async (t) => {
