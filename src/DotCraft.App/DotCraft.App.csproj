@@ -62,6 +62,7 @@
     <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\DotCraft.Automations\DotCraft.Automations.csproj" />
     <ProjectReference Include="..\DotCraft.DynamicWorkflows\DotCraft.DynamicWorkflows.csproj" />
+    <ProjectReference Include="..\DotCraft.SessionImport\DotCraft.SessionImport.csproj" />
     <ProjectReference Include="..\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" />
   </ItemGroup>
 

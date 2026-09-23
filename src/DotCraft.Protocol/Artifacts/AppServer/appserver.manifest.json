@@ -30,6 +30,10 @@
     {
       "name": "node-repl",
       "stability": "stable"
+    },
+    {
+      "name": "session-import",
+      "stability": "stable"
     }
   ],
   "types": [
@@ -7452,6 +7456,425 @@
       "variants": []
     },
     {
+      "id": "core.ImportSessionCandidate",
+      "name": "ImportSessionCandidate",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionCandidate.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cwd",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sourceId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sourcePath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "updatedAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionOutcome",
+      "name": "ImportSessionOutcome",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionOutcome.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "error",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "errorCode",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sourceId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionsCompletedNotification",
+      "name": "ImportSessionsCompletedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionsCompletedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "completedAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outcomes",
+          "type": "array<core.ImportSessionOutcome>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "startedAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "trigger",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionsDetectParams",
+      "name": "ImportSessionsDetectParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionsDetectParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "sources",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionsDetectResult",
+      "name": "ImportSessionsDetectResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionsDetectResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "sources",
+          "type": "array<core.ImportSourceDetection>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionsProgressNotification",
+      "name": "ImportSessionsProgressNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionsProgressNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "completed",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "total",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionsRunParams",
+      "name": "ImportSessionsRunParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionsRunParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "sessionIds",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sources",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSessionsRunResult",
+      "name": "ImportSessionsRunResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSessionsRunResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSettings",
+      "name": "ImportSettings",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSettings.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "lastSyncAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sources",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "syncEnabled",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "syncIntervalMinutes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspaceOptOut",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSettingsResult",
+      "name": "ImportSettingsResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSettingsResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "settings",
+          "type": "core.ImportSettings",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSettingsSetParams",
+      "name": "ImportSettingsSetParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSettingsSetParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "sources",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "syncEnabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ImportSourceDetection",
+      "name": "ImportSourceDetection",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ImportSourceDetection.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "available",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "importableCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sessions",
+          "type": "array<core.ImportSessionCandidate>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.InitializeParams",
       "name": "InitializeParams",
       "module": "core",
@@ -14269,6 +14692,13 @@
           "required": false,
           "nullable": true,
           "const": null
+        },
+        {
+          "name": "sessionImport",
+          "type": "core.SessionImportCapabilities",
+          "required": false,
+          "nullable": true,
+          "const": null
         }
       ],
       "variants": []
@@ -14346,6 +14776,31 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SessionImportCapabilities",
+      "name": "SessionImportCapabilities",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SessionImportCapabilities.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "sources",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -26633,6 +27088,126 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "import/sessions/completed",
+      "descriptorMember": "ImportSessionsCompleted",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ImportSessionsCompletedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "session-import",
+      "capability": "extensions.sessionImport",
+      "scope": "workspace",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "import/sessions/detect",
+      "descriptorMember": "ImportSessionsDetect",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ImportSessionsDetectParams",
+      "resultType": "core.ImportSessionsDetectResult",
+      "module": "session-import",
+      "capability": "extensions.sessionImport",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "import_busy",
+        "import_source_unavailable"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "import/sessions/progress",
+      "descriptorMember": "ImportSessionsProgress",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ImportSessionsProgressNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "session-import",
+      "capability": "extensions.sessionImport",
+      "scope": "workspace",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "import/sessions/run",
+      "descriptorMember": "ImportSessionsRun",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ImportSessionsRunParams",
+      "resultType": "core.ImportSessionsRunResult",
+      "module": "session-import",
+      "capability": "extensions.sessionImport",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "import_busy",
+        "import_source_unavailable"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "import/settings/get",
+      "descriptorMember": "ImportSettingsGet",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.RpcEmpty",
+      "resultType": "core.ImportSettingsResult",
+      "module": "session-import",
+      "capability": "extensions.sessionImport",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "import_busy",
+        "import_source_unavailable"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "import/settings/set",
+      "descriptorMember": "ImportSettingsSet",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ImportSettingsSetParams",
+      "resultType": "core.ImportSettingsResult",
+      "module": "session-import",
+      "capability": "extensions.sessionImport",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "import_busy",
+        "import_source_unavailable"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",

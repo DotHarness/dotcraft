@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
+import { isSessionImportAvailable } from '../../utils/sessionImport'
 import {
   resolveDesktopPluginLabel,
   useDesktopPluginRegistry
@@ -36,7 +37,8 @@ export function SettingsSidebar(): JSX.Element {
     sourceControlEnabled: capabilities?.sourceControlManagement === true,
     mcpEnabled: capabilities?.mcpManagement === true,
     hooksEnabled: capabilities?.hooksManagement === true,
-    subAgentEnabled: capabilities?.subAgentManagement === true
+    subAgentEnabled: capabilities?.subAgentManagement === true,
+    sessionImportEnabled: isSessionImportAvailable(capabilities)
   })
   const pluginTabs = useDesktopPluginRegistry((state) => state.settingsPages).map((entry) => ({
     id: entry.settingsKey,

@@ -66,6 +66,10 @@ export interface ClientRequestMethods {
   "hooks/list": { params: Models.HooksListParams; result: Models.HooksListResult };
   "hooks/setState": { params: Models.HooksSetStateParams; result: Models.HooksSetStateResult };
   "hooks/trustPlugin": { params: Models.HooksTrustPluginParams; result: Models.HooksTrustPluginResult };
+  "import/sessions/detect": { params: Models.ImportSessionsDetectParams; result: Models.ImportSessionsDetectResult };
+  "import/sessions/run": { params: Models.ImportSessionsRunParams; result: Models.ImportSessionsRunResult };
+  "import/settings/get": { params: Models.RpcEmpty; result: Models.ImportSettingsResult };
+  "import/settings/set": { params: Models.ImportSettingsSetParams; result: Models.ImportSettingsResult };
   "initialize": { params: Models.InitializeParams; result: Models.InitializeResult };
   "item/widget-state/set": { params: Models.ItemWidgetStateSetParams; result: Models.ItemWidgetStateSetResult };
   "marketplace/add": { params: Models.MarketplaceAddParams; result: Models.MarketplaceAddResult };

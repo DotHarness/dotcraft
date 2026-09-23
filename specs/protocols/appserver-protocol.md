@@ -457,6 +457,10 @@ When Dynamic Workflows are available, `capabilities.extensions.dynamicWorkflows`
 Clients MUST check this capability before using `workflow/run/*`. Capability presence does not expose
 an AppServer method for starting arbitrary scripts; Workflow launch remains model-tool-owned.
 
+When Session Import is available, `capabilities.extensions.sessionImport` is
+`{ "version": 1, "sources": ["claude-code", "codex", "cursor"] }` and the `import/*` methods of
+Section 11.7 are served.
+
 ### 3.3 `initialized`
 
 **Direction**: client → server (notification, no `id`)
@@ -3484,6 +3488,130 @@ data where applicable, and English `fallbackText`:
 
 Malformed identifiers, limits, cursors, or arguments use `invalid_params`. Failed control requests do
 not mutate the run or emit an invalidation notification.
+
+### 11.7 Session Import
+
+The bundled Session Import module exposes detection, import, and sync settings under `import/*` for
+the connected workspace. Detection rules, conversion, thread creation, the ledger, and sync semantics
+are defined in [Session Import](../features/session-import.md). All methods have workspace scope and
+require `capabilities.extensions.sessionImport`.
+
+#### Shared DTOs
+
+`ImportSourceId` is one of `claude-code`, `codex`, or `cursor`.
+
+`ImportSessionCandidate` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | `ImportSourceId` | yes | Owning source. |
+| `sourceId` | string | yes | Source session identity. |
+| `sourcePath` | string | yes | Absolute path of the primary source file. |
+| `title` | string | yes | Title derived by the source rules. |
+| `cwd` | string | yes | Session working directory after normalization. |
+| `updatedAt` | timestamp | yes | Source modification time. |
+| `turnCount` | integer | yes | Import turns the session currently yields. |
+| `state` | string | yes | `new`, `changed`, `deferred`, or `current`. |
+
+`ImportSourceDetection` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | `ImportSourceId` | yes | Source. |
+| `available` | boolean | yes | Whether the source root exists on the server machine. |
+| `sessions` | `ImportSessionCandidate[]` | yes | Candidates that belong to this workspace, newest first. |
+| `importableCount` | integer | yes | Number of candidates whose state is `new` or `changed`. |
+
+`ImportSettings` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `syncEnabled` | boolean | yes | Whether periodic sync runs for this workspace. |
+| `sources` | `ImportSourceId[]` | yes | Sources included in sync. |
+| `syncIntervalMinutes` | integer | yes | Configured interval. |
+| `lastSyncAt` | timestamp | no | Start time of the last completed sync pass in this workspace. |
+| `workspaceOptOut` | boolean | yes | True when the workspace configuration disables sync regardless of the user setting. |
+
+`ImportSessionOutcome` fields: required `source`, `sourceId`, `status` (`imported`, `appended`,
+`deferred`, `skipped`, or `failed`), optional `threadId`, `title`, and `error` (English fallback text
+with a stable `errorCode`).
+
+#### `import/sessions/detect`
+
+**Direction**: client → server (request)
+
+**Params**: `{ "sources": ["claude-code", …] }` — optional; omitted means every supported source,
+regardless of the sync selection.
+
+**Result**: `{ "sources": [/* ImportSourceDetection */] }`
+
+Detection reads the source stores synchronously and never writes threads. It updates the ledger only
+to record a recomputed hash or a refreshed modification time. Sessions the ledger already holds
+unchanged may be omitted from `sessions`.
+
+#### `import/sessions/run`
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sources` | `ImportSourceId[]` | yes | Sources to import. |
+| `sessionIds` | string[] | no | Restrict the pass to these source ids; omitted imports every importable candidate of the listed sources. |
+
+**Result**: `{ "importId": "imp_…" }`
+
+The pass runs in the background. Requests while a pass is running return `import_busy`.
+
+#### `import/settings/get`
+
+**Direction**: client → server (request)
+
+**Params**: `{}`
+
+**Result**: `{ "settings": /* ImportSettings */ }`
+
+#### `import/settings/set`
+
+**Direction**: client → server (request)
+
+**Params**: `{ "syncEnabled": true, "sources": ["claude-code"] }` — both optional; omitted fields keep
+their value.
+
+**Result**: `{ "settings": /* ImportSettings */ }`
+
+The server persists the values in the user configuration file's `SessionImport` object. A workspace
+opt-out cannot be changed through this method.
+
+#### `import/sessions/progress`
+
+**Direction**: server → client (notification)
+
+**Params**: `{ "importId": "imp_…", "source": "claude-code", "completed": 3, "total": 12 }`
+
+#### `import/sessions/completed`
+
+**Direction**: server → client (notification)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `importId` | string | yes | Pass identity; sync passes use a server-generated id. |
+| `trigger` | string | yes | `manual` or `sync`. |
+| `startedAt` | timestamp | yes | Pass start. |
+| `completedAt` | timestamp | yes | Pass end. |
+| `outcomes` | `ImportSessionOutcome[]` | yes | One entry per processed candidate. |
+
+Initialized trusted clients receive both notifications unless they opt out.
+
+#### Errors
+
+| `errorCode` | Meaning |
+|-------------|---------|
+| `import_busy` | An import pass is already running in this workspace. |
+| `import_source_unavailable` | A requested source root does not exist on the server machine. |
 
 ---
 

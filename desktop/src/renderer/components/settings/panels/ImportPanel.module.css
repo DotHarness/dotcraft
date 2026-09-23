@@ -1,0 +1,43 @@
+.headerStatus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.status {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dimmed);
+  font-size: var(--type-hint-size);
+  line-height: var(--type-hint-line-height);
+}
+
+.placeholder {
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.status[data-tone="error"],
+.placeholder[data-tone="error"],
+.error {
+  color: var(--error);
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sourceText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}

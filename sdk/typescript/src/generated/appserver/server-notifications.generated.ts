@@ -10,6 +10,8 @@ export interface ServerNotificationMethods {
   "auth/openai/usageChanged": { params: Models.AuthOpenAiUsageResult; result: Models.RpcEmpty };
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
+  "import/sessions/completed": { params: Models.ImportSessionsCompletedNotification; result: Models.RpcEmpty };
+  "import/sessions/progress": { params: Models.ImportSessionsProgressNotification; result: Models.RpcEmpty };
   "item/agentMessage/delta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
   "item/approval/resolved": { params: Models.ItemNotification; result: Models.RpcEmpty };
   "item/commandExecution/outputDelta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };

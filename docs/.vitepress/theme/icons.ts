@@ -124,6 +124,7 @@ const SOURCES = {
   boxes: { type: 'lucide', name: 'boxes' },
   waypoints: { type: 'lucide', name: 'waypoints' },
   share: { type: 'lucide', name: 'share-2' },
+  download: { type: 'lucide', name: 'download' },
   sliders: { type: 'lucide', name: 'sliders-horizontal' },
   fileJson: { type: 'lucide', name: 'file-json' },
   scrollText: { type: 'lucide', name: 'scroll-text' },

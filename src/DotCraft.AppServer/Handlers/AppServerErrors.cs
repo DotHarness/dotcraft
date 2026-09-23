@@ -115,6 +115,7 @@ public static class AppServerErrors
     public const int PluginConfigurationErrorCode = -32099;
     public const int RemoteToolHostUnavailableCode = -32100;
     public const int RemoteToolWorkspaceBusyCode = -32101;
+    public const int SessionImportErrorCode = -32102;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int AutomationNotFoundCode = -32051;
@@ -209,6 +210,9 @@ public static class AppServerErrors
 
     public static AppServerException WorkflowRun(string code, string fallbackText, string? detail = null) =>
         Create(WorkflowRunErrorCode, code, $"errors.dynamicWorkflows.{code}", fallbackText, detail: detail);
+
+    public static AppServerException SessionImport(string code, string fallbackText) =>
+        Create(SessionImportErrorCode, code, $"errors.sessionImport.{code}", fallbackText);
 
     public static AppServerException ThreadNotActive(string threadId) =>
         Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));

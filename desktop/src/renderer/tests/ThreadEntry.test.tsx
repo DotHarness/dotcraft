@@ -10,6 +10,7 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useGitHeadStore } from '../stores/gitHeadStore'
 import type { ThreadSummary } from '../types/thread'
 import { buildWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
+import { translate } from '../../shared/locales'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -521,6 +522,18 @@ describe('ThreadEntry', () => {
 
     expect(within(card).getByLabelText('Origin channel: qq')).toBeInTheDocument()
     expect(screen.queryByText('qq')).not.toBeInTheDocument()
+  })
+
+  it('names the source app on the badge of an imported thread', async () => {
+    renderThreadEntry(makeThread({
+      originChannel: 'session-import',
+      metadata: { 'dotcraft.import.source': 'claude-code' }
+    }))
+    const card = await openDetailsCard()
+
+    expect(
+      within(card).getByLabelText(translate('en', 'channel.sessionImportFrom', { source: 'Claude Code' }))
+    ).toBeInTheDocument()
   })
 
   it('shows pending approval badge over pending confirmation badge for inactive thread', () => {

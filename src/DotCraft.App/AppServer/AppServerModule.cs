@@ -9,6 +9,7 @@ using DotCraft.Automations.DashBoard;
 using DotCraft.Automations.Protocol;
 using DotCraft.Automations;
 using DotCraft.DynamicWorkflows;
+using DotCraft.SessionImport;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -40,6 +41,8 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IOrchestratorSnapshotProvider, AutomationsDashboardSnapshotProvider>());
         }
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, DynamicWorkflowProtocolExtension>());
+        if (context.Config.GetSection<SessionImportConfig>("SessionImport").Enabled)
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, SessionImportProtocolExtension>());
 
         // AppServer owns channel routing, external channels, automation delivery, and channel tool discovery.
         services.TryAddSingleton<IChannelRuntimeRegistry, ChannelRuntimeRegistry>();

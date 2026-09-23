@@ -48,6 +48,7 @@ export const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'Subagents'), link: '/features/agent-system/subagents' },
           { text: withIcon('share', 'Workspace Handoff'), link: '/features/agent-system/workspace-handoff' },
+          { text: withIcon('download', 'Import From Other Agents'), link: '/features/agent-system/session-import' },
           { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
           { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
         ]
@@ -201,6 +202,7 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('bot', 'Agent 预设'), link: '/zh/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'Subagents'), link: '/zh/features/agent-system/subagents' },
           { text: withIcon('share', '外部 Agent 协作'), link: '/zh/features/agent-system/workspace-handoff' },
+          { text: withIcon('download', '从其他 Agent 导入'), link: '/zh/features/agent-system/session-import' },
           { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
           { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
         ]

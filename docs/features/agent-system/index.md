@@ -14,7 +14,7 @@ At the center of DotCraft is one agent that keeps growing with your project. The
 
 ## Build your agent team and delegate work
 
-[Agent Profiles](./agent-profiles) gives reusable specialists their own instructions, tools, skills, and model defaults, while Agent Builder lets you shape them through conversation. [Subagents](./subagents) run focused assignments in their own context, keeping the main conversation clean. [Dynamic Workflows](./dynamic-workflows) turns repeatable orchestration into scripts that can run several subagents in parallel. When a coding agent outside DotCraft should take over, [Workspace Handoff](./workspace-handoff) exports the conversation as a handoff document.
+[Agent Profiles](./agent-profiles) gives reusable specialists their own instructions, tools, skills, and model defaults, while Agent Builder lets you shape them through conversation. [Subagents](./subagents) run focused assignments in their own context, keeping the main conversation clean. [Dynamic Workflows](./dynamic-workflows) turns repeatable orchestration into scripts that can run several subagents in parallel. When a coding agent outside DotCraft should take over, [Workspace Handoff](./workspace-handoff) exports the conversation as a handoff document. In the other direction, [Import From Other Agents](./session-import) brings the chats Claude Code, ChatGPT, and Cursor recorded for the same project into DotCraft.
 
 ## Run unattended
 

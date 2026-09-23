@@ -13,6 +13,16 @@
           "type": "null"
         }
       ]
+    },
+    "sessionImport": {
+      "anyOf": [
+        {
+          "$ref": "./SessionImportCapabilities.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true

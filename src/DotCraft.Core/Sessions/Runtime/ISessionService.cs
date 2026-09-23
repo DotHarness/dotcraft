@@ -108,6 +108,18 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread recovery restore is not supported by this session service.");
 
+    /// <summary>Creates a Thread with imported history, or returns the existing Thread with the requested id unchanged.</summary>
+    Task<ThreadImportResult> ImportThreadAsync(
+        ThreadImportRequest request,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread import is not supported by this session service.");
+
+    /// <summary>Appends imported turns to a Thread that contains only imported turns; refuses a thread continued locally.</summary>
+    Task<ThreadImportResult> AppendImportedTurnsAsync(
+        ThreadImportAppendRequest request,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread import append is not supported by this session service.");
+
     /// <summary>Pauses an active Thread.</summary>
     Task PauseThreadAsync(string threadId, CancellationToken ct = default);
 

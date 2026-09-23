@@ -6181,6 +6181,293 @@
         "status"
       ]
     },
+    "ImportSessionCandidate": {
+      "title": "ImportSessionCandidate",
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "sourcePath": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "turnCount": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "cwd",
+        "source",
+        "sourceId",
+        "sourcePath",
+        "state",
+        "title",
+        "turnCount",
+        "updatedAt"
+      ]
+    },
+    "ImportSessionOutcome": {
+      "title": "ImportSessionOutcome",
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "errorCode": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "source",
+        "sourceId",
+        "status"
+      ]
+    },
+    "ImportSessionsCompletedNotification": {
+      "title": "ImportSessionsCompletedNotification",
+      "type": "object",
+      "properties": {
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "importId": {
+          "type": "string"
+        },
+        "outcomes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportSessionOutcome"
+          }
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "trigger": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "completedAt",
+        "importId",
+        "outcomes",
+        "startedAt",
+        "trigger"
+      ]
+    },
+    "ImportSessionsDetectParams": {
+      "title": "ImportSessionsDetectParams",
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ImportSessionsDetectResult": {
+      "title": "ImportSessionsDetectResult",
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportSourceDetection"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "sources"
+      ]
+    },
+    "ImportSessionsProgressNotification": {
+      "title": "ImportSessionsProgressNotification",
+      "type": "object",
+      "properties": {
+        "completed": {
+          "type": "integer"
+        },
+        "importId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "completed",
+        "importId",
+        "source",
+        "total"
+      ]
+    },
+    "ImportSessionsRunParams": {
+      "title": "ImportSessionsRunParams",
+      "type": "object",
+      "properties": {
+        "sessionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "sources"
+      ]
+    },
+    "ImportSessionsRunResult": {
+      "title": "ImportSessionsRunResult",
+      "type": "object",
+      "properties": {
+        "importId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "importId"
+      ]
+    },
+    "ImportSettings": {
+      "title": "ImportSettings",
+      "type": "object",
+      "properties": {
+        "lastSyncAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "syncEnabled": {
+          "type": "boolean"
+        },
+        "syncIntervalMinutes": {
+          "type": "integer"
+        },
+        "workspaceOptOut": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "sources",
+        "syncEnabled",
+        "syncIntervalMinutes",
+        "workspaceOptOut"
+      ]
+    },
+    "ImportSettingsResult": {
+      "title": "ImportSettingsResult",
+      "type": "object",
+      "properties": {
+        "settings": {
+          "$ref": "#/$defs/ImportSettings"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "settings"
+      ]
+    },
+    "ImportSettingsSetParams": {
+      "title": "ImportSettingsSetParams",
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "syncEnabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ImportSourceDetection": {
+      "title": "ImportSourceDetection",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "importableCount": {
+          "type": "integer"
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportSessionCandidate"
+          }
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "available",
+        "importableCount",
+        "sessions",
+        "source"
+      ]
+    },
     "InitializeParams": {
       "title": "InitializeParams",
       "type": "object",
@@ -11372,6 +11659,16 @@
               "type": "null"
             }
           ]
+        },
+        "sessionImport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionImportCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -11445,6 +11742,26 @@
       "required": [
         "channelName",
         "userId"
+      ]
+    },
+    "SessionImportCapabilities": {
+      "title": "SessionImportCapabilities",
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "sources",
+        "version"
       ]
     },
     "SessionItem": {

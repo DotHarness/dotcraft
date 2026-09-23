@@ -1492,6 +1492,95 @@ export interface ImageGenerationPayload {
   [key: string]: unknown;
 }
 
+export interface ImportSessionCandidate {
+  cwd: string;
+  source: string;
+  sourceId: string;
+  sourcePath: string;
+  state: string;
+  title: string;
+  turnCount: number;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+export interface ImportSessionOutcome {
+  error?: string;
+  errorCode?: string;
+  source: string;
+  sourceId: string;
+  status: string;
+  threadId?: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
+export interface ImportSessionsCompletedNotification {
+  completedAt: string;
+  importId: string;
+  outcomes: ImportSessionOutcome[];
+  startedAt: string;
+  trigger: string;
+  [key: string]: unknown;
+}
+
+export interface ImportSessionsDetectParams {
+  sources?: string[];
+  [key: string]: unknown;
+}
+
+export interface ImportSessionsDetectResult {
+  sources: ImportSourceDetection[];
+  [key: string]: unknown;
+}
+
+export interface ImportSessionsProgressNotification {
+  completed: number;
+  importId: string;
+  source: string;
+  total: number;
+  [key: string]: unknown;
+}
+
+export interface ImportSessionsRunParams {
+  sessionIds?: string[];
+  sources: string[];
+  [key: string]: unknown;
+}
+
+export interface ImportSessionsRunResult {
+  importId: string;
+  [key: string]: unknown;
+}
+
+export interface ImportSettings {
+  lastSyncAt?: string;
+  sources: string[];
+  syncEnabled: boolean;
+  syncIntervalMinutes: number;
+  workspaceOptOut: boolean;
+  [key: string]: unknown;
+}
+
+export interface ImportSettingsResult {
+  settings: ImportSettings;
+  [key: string]: unknown;
+}
+
+export interface ImportSettingsSetParams {
+  sources?: string[];
+  syncEnabled?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ImportSourceDetection {
+  available: boolean;
+  importableCount: number;
+  sessions: ImportSessionCandidate[];
+  source: string;
+  [key: string]: unknown;
+}
+
 export interface InitializeParams {
   capabilities?: ClientCapabilities | null;
   clientInfo: ClientInfo;
@@ -2862,6 +2951,7 @@ export interface ServerCapabilities {
 
 export interface ServerCapabilityExtensions {
   dynamicWorkflows?: DynamicWorkflowCapabilities | null;
+  sessionImport?: SessionImportCapabilities | null;
   [key: string]: unknown;
 }
 
@@ -2878,6 +2968,12 @@ export interface SessionIdentity {
   channelName: string;
   userId: string;
   workspacePath?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionImportCapabilities {
+  sources: string[];
+  version: number;
   [key: string]: unknown;
 }
 

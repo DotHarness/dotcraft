@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using DotCraft.DynamicWorkflows;
+using DotCraft.SessionImport;
 
 namespace DotCraft.AppServer;
 
@@ -29,6 +30,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
     private IAppServerChannelRunner? _channelRunner;
     private IAppServerAutomationRuntime? _automationRuntime;
     private IDynamicWorkflowService? _dynamicWorkflowService;
+    private SessionImportSyncRuntime? _sessionImportSync;
     private bool _started;
 
     public IChannelStatusProvider? ChannelStatusProvider => _channelRunner;
@@ -70,6 +72,9 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             _dynamicWorkflowService = services.GetService<IDynamicWorkflowService>();
             if (_dynamicWorkflowService != null)
                 await _dynamicWorkflowService.StartAsync(ct);
+
+            _sessionImportSync = services.GetService<SessionImportSyncRuntime>();
+            _sessionImportSync?.Start();
 
             _channelRunner?.BeginChannelLoops(ct);
             _started = true;
@@ -131,6 +136,22 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             finally
             {
                 _dynamicWorkflowService = null;
+            }
+        }
+
+        if (_sessionImportSync != null)
+        {
+            try
+            {
+                await _sessionImportSync.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+            finally
+            {
+                _sessionImportSync = null;
             }
         }
 
