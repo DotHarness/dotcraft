@@ -13,7 +13,7 @@
 | **发布 note 与审阅状态** | API access |
 | **交付 merge request** | Repository write 与 API access |
 
-每个接入的项目用自己的 profile 和 Token。
+每个接入的项目用自己的 Token。
 
 ## 接入项目
 
@@ -34,7 +34,7 @@ Webhook 不是必需的，但它能让来源的变化更快出现在看板上。
 https://your-oratorio-host/api/v1/sources/gitlab/webhook
 ```
 
-在 GitLab project profile 里保存同一个 webhook secret 或 signing token，然后启用 issue、merge request 和 note 事件。除非你的[部署](../self-hosted/server-deployment)提供了带认证的 ingress 边界，否则请让这个 endpoint 保持私有。
+在 Oratorio 设置中打开该项目，在 **访问凭据** 里保存同一个 webhook secret 或 signing token，然后启用 issue、merge request 和 note 事件。除非你的[部署](../self-hosted/server-deployment)提供了带认证的 ingress 边界，否则请让这个 endpoint 保持私有。
 
 本地 Desktop 通常收不到 GitLab 云端的 Webhook。没有可访问的 endpoint 时，用手动同步或定时同步。
 

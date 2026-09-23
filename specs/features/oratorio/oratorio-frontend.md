@@ -564,12 +564,13 @@ Allowed Settings content:
   path, and workspace/AppServer health. Workspace bindings are selected only
   from local Projects already registered with DotCraft Desktop; Chat workspaces,
   remote Projects, secondary folders, and arbitrary folder picking are excluded;
-- GitHub installation profiles grouped by GitHub instance and owner inside
-  Project routing, with detected/manual status, retry detection, and manual
-  installation ID override;
-- GitLab project profiles inside Project routing, keyed by canonical
-  `gitlab:<instance>/<group[/subgroup]/project>` project keys, with token kind,
-  token, webhook secret, signing token, and missing-profile status;
+- GitHub installations listed per owner on the GitHub page, with detected/manual
+  status and a manual installation ID override;
+- an Access group on each project's page: for GitLab, the project's token
+  (its kind and whether it is set), webhook secret, and signing token, each
+  showing configured or not set; for GitHub, the installation that covers the
+  repository's owner. The token kind is chosen from project, personal, or group
+  access token together with a new token, never edited as free text;
 - A provider page header per source that shows read/write/webhook health as a
   compact status line, a primary `Sync now`, scheduled incremental sync with next
   run, and `Full repair` plus failed-sync retry in an overflow menu;
@@ -592,12 +593,12 @@ Settings must never render stored token, webhook secret, private key, or private
 key path values. It may render write-only inputs whose typed values are cleared
 after the save response. Empty secret inputs leave existing values unchanged.
 Auto-start command and process argument inputs are not Settings content.
-GitHub installation IDs appear only as owner profiles in Project routing.
-GitLab instance connection settings (endpoint, read sync, write enablement,
-webhook verification) live in the GitLab section's Connection; per-project
-GitLab tokens, webhook secrets, and signing tokens appear only on that section's
-project-routing cards. Changing the GitLab endpoint host clears project profiles
-from the draft with restart/impact copy.
+GitHub installation IDs appear only as owner installations. GitLab instance
+connection settings (endpoint, read sync, write enablement, webhook
+verification) live on the GitLab page; per-project GitLab tokens, webhook
+secrets, and signing tokens appear only in that project's Access group, and the
+GitLab page does not list per-project profiles. Changing the GitLab endpoint
+host clears project profiles from the draft with restart/impact copy.
 
 Configuration saves that require process restart show a pending restart banner at
 the top of Settings. Desktop builds offer a restart button through the desktop
@@ -605,11 +606,18 @@ bridge when available; test or preview contexts without the bridge show the
 manual restart requirement. Saving settings must not use a native confirmation
 dialog.
 
-Asynchronous Settings failures use DotCraft Desktop's shared toast system. Initial
-configuration loading, automatic saves, provider/project synchronization, and
-sync-schedule saves do not insert transient error rows into the form. Failed saves
-and explicit synchronization actions offer a toast-level retry, and repeated
-failures in this surface replace the preceding Settings error toast. Local input
+Until the configuration first loads, Settings shows a loading state instead of
+default values, and a load failure replaces the form with a page-level retry;
+nothing is editable, and so nothing can be saved over the server's
+configuration, before the server has answered.
+Other asynchronous Settings failures use DotCraft Desktop's shared toast system.
+Automatic saves, provider/project synchronization, and sync-schedule saves do
+not insert transient error rows into the form. Failed saves and explicit
+synchronization actions offer a toast-level retry, and repeated failures in this
+surface replace the preceding Settings error toast. The server's answer to a
+save is authoritative, so Settings shows what the server stored, keeping only
+edits made after the request was sent. Leaving Settings saves edits still
+waiting for their save delay instead of dropping them. Local input
 validation such as duplicate labels, malformed URLs, and numeric range errors
 remains next to the affected field. Persistent service-unavailable, remote
 read-only, restart-required, and provider health states remain in the page.
@@ -659,11 +667,8 @@ and complete project path. Configuration values and save payloads continue to
 use their canonical source project keys.
 
 Repository Settings must not expose a fallback workspace. Every AppServer run
-must resolve its workspace from the item repository's configured mapping. Add
-Project starts with an empty source project field and defaults its binding to the
-foreground local DotCraft Project. If there are no registered local Projects,
-the dialog explains that a Workspace must first be opened in DotCraft and cannot
-submit. A saved binding that is no longer registered remains visible as an
+must resolve its workspace from the item repository's configured mapping. A
+saved binding that is no longer registered remains visible as an
 unavailable value until the user explicitly rebinds or removes it. An unavailable
 binding does not block unrelated Settings saves. Removing a source project is one
 atomic configuration change: it removes the provider's synchronized project, its
@@ -681,8 +686,9 @@ Back/Next footer), never a modal, and it uses plain fields and inline
 lists. Two entry points open it: the Board renders a "no source connected" state
 with `Connect GitHub` and `Connect GitLab` actions while no provider has
 credentials, profiles, or projects and no tasks exist; and the Settings root
-carries a `Connect a source` page action. The existing Add project dialog stays
-for users who already hold provider credentials.
+carries a `Connect a source` page action. It is the only way to add a project:
+running it again adds another project and reuses an already configured GitHub
+App.
 
 The five steps are Source (provider choice, endpoint, and the provider's
 credentials: GitHub App ID plus private key or key path, or a GitLab token kind
@@ -697,19 +703,24 @@ automatic review, and provider write enablement, all defaulting to a local
 Desktop: 15 minutes, review on, writes off), and Connect (a read-only summary
 with per-row `Change` actions and the single primary `Connect and sync`).
 
-The wizard never shows a profile. It derives the GitHub owner profile (or the
-GitLab project profile carrying the token) from the project path, so the derived
-association matches how Settings re-links profiles to projects on load. Connect
-commits one atomic configuration change through the settings API with GitHub
-installation detection requested, saves the provider sync schedule, reports the
-saved configuration through the shared toast, then enqueues a sync for the new
-project and polls that job. A succeeded job with no failed project shows read
-access confirmed with imported counts; a failed or partially failed job, or a
-detection warning for the new owner, shows the failure with `Retry` and a way
-back to the step that owns the fix; the configuration remains saved in both
-cases. A job still running after the polling window reports that the first sync
-continues in the background. Remote read-only mode disables every field and the
-primary action and explains why. Enter inside a field advances a valid step.
+The wizard never shows a profile. It upserts the GitLab project profile that
+carries the token, keyed by the project path, and records a GitHub owner
+installation only when an installation ID is typed; without one, and with no
+installation already known for the owner, the save requests server-side
+detection. Applying a connection again updates its project and profile instead
+of adding duplicates. Connect commits one atomic configuration change through the
+settings API, saves the provider sync schedule, reports the saved configuration
+through the shared toast, then enqueues a sync for the new project and polls
+that job. A succeeded job with no failed project shows read access confirmed
+with imported counts. A rejected save shows the server's reason and states that
+nothing was saved. Once the configuration is saved, a failed schedule save, a
+failed or partially failed job, or a detection warning for the new owner shows
+the failure, states that the configuration is saved, and offers a way back to
+the step that owns the fix. `Retry` resumes after the saved configuration and
+submits it again only when the user has changed the connection since. A job
+still running after the polling window reports that the first sync continues in
+the background. Remote read-only mode disables every field and the primary
+action and explains why. Enter inside a field advances a valid step.
 
 ---
 

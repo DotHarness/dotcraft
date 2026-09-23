@@ -69,6 +69,24 @@ describe('OratorioProvider', () => {
     expect(ensureManagedService).toHaveBeenCalledTimes(2)
   })
 
+  it('carries configuration validation reasons in the error that crosses IPC', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: 'configurationValidationFailed',
+        message: 'Server configuration validation failed.',
+        details: { 'gitlab.projects.group/app': 'Project entries must be unique.', 'gitlab.projects.group/api': 'Project entries must be unique.' }
+      }
+    }), { status: 400 })))
+    const provider = new OratorioProvider(
+      () => ({ ensureManagedService: vi.fn().mockResolvedValue({ state: 'running', endpoint: 'http://127.0.0.1:5010', accessToken: 'secret' }) } as never),
+      () => null,
+      () => 'F:/oratorio.exe'
+    )
+
+    await expect(provider.request({ method: 'PUT', path: '/api/v1/settings/server-configuration', body: {} }))
+      .rejects.toThrow('Server configuration validation failed. Project entries must be unique.')
+  })
+
   it('resolves desktop-service handoffs in Main without returning AppServer credentials to Renderer', async () => {
     const ensureManagedService = vi.fn().mockResolvedValue({
       serviceId: 'oratorio', state: 'running', pid: 42,

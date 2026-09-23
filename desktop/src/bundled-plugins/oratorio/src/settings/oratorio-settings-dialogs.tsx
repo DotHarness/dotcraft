@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { FolderGit2, KeyRound, Plus, ShieldCheck } from 'lucide-react'
+import { KeyRound, ShieldCheck } from 'lucide-react'
 import { ActionTooltip, Button, Checkbox, Input, ModalHeader, Select } from '../ui'
-import { GithubGlyph, GitlabGlyph } from '../ProviderGlyphs'
+import { useOratorioConnectT } from './oratorio-connect-i18n'
+import { useGitLabTokenKindOptions } from './oratorio-connect-parts'
 import { useOratorioSettingsT } from './oratorio-settings-i18n'
-import { normalizeProjectKey, projectKeyIsValid, type GitHubInstallationProfile, type GitLabProjectProfile, type OratorioProjectConfig, type ReviewListKey, type SourceProvider } from './oratorio-settings-model'
+import { GITLAB_TOKEN_KINDS, type GitHubAppSecretKey, type GitLabProjectSecretKey, type GitLabTokenKind, type OratorioProjectConfig, type ReviewListKey } from './oratorio-settings-model'
 import { buildOratorioProjectDisplayOptions, projectValueMatchesOption, selectedOratorioProjectValue } from './oratorio-project-display'
 
 export interface WorkspaceBindingOption {
@@ -13,66 +14,13 @@ export interface WorkspaceBindingOption {
   disabled?: boolean
 }
 
-export function AddProjectDialog({ existing, profileOptions, workspaceOptions, workspaceLoading, providerInstances, onClose, onSubmit }: {
-  existing: OratorioProjectConfig[]
-  profileOptions: Record<SourceProvider, Array<{ value: string; label: string }>>
-  workspaceOptions: WorkspaceBindingOption[]
-  workspaceLoading: boolean
-  providerInstances: Record<SourceProvider, string>
-  onClose: () => void
-  onSubmit: (project: OratorioProjectConfig, profile: GitHubInstallationProfile | GitLabProjectProfile | null) => void
-}) {
-  const t = useOratorioSettingsT()
-  const [step, setStep] = useState(0)
-  const [provider, setProvider] = useState<SourceProvider>('github')
-  const [project, setProject] = useState('')
-  const [workspace, setWorkspace] = useState(workspaceOptions[0]?.value ?? '')
-  const [profileId, setProfileId] = useState(profileOptions.github[0]?.value ?? '')
-  const [githubProfile, setGithubProfile] = useState<GitHubInstallationProfile>({ id: 'github-new-project', instance: providerInstances.github, owner: '', installationId: '', source: 'manual' })
-  const [gitlabProfile, setGitlabProfile] = useState<GitLabProjectProfile>({ id: 'gitlab-new-project', instance: providerInstances.gitlab, projectPath: '', tokenKind: 'accessToken', secrets: { token: { configured: false, mode: 'unchanged', value: null }, webhookSecret: { configured: false, mode: 'unchanged', value: null }, webhookSigningToken: { configured: false, mode: 'unchanged', value: null } } })
-  const normalized = normalizeProjectKey(project)
-  const valid = projectKeyIsValid(project) && !existing.some((item) => item.provider === provider && item.projectKey.toLocaleLowerCase() === normalized.toLocaleLowerCase())
-  const needsProfile = profileOptions[provider].length === 0
-  const inlineGitlabProjectPath = gitlabProfile.projectPath || normalized
-  const inlineProfile = provider === 'github' ? githubProfile : { ...gitlabProfile, projectPath: inlineGitlabProjectPath }
-  const inlineProfileValid = provider === 'github'
-    ? Boolean(githubProfile.instance.trim() && githubProfile.owner.trim() && githubProfile.installationId.trim())
-    : Boolean(gitlabProfile.instance.trim() && projectKeyIsValid(inlineGitlabProjectPath) && gitlabProfile.tokenKind.trim())
-
-  useEffect(() => {
-    if (workspaceOptions.some((option) => option.value === workspace)) return
-    setWorkspace(workspaceOptions[0]?.value ?? '')
-  }, [workspace, workspaceOptions])
-
-  function submit(): void {
-    const idBase = `${provider}-${normalized.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-    let id = idBase; let suffix = 2
-    while (existing.some((item) => item.id === id)) { id = `${idBase}-${suffix}`; suffix += 1 }
-    const resolvedProfile = needsProfile ? { ...inlineProfile, id: `${provider}-${normalized.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')}-profile` } : null
-    onSubmit({
-      id,
-      provider,
-      projectKey: normalized,
-      workspacePath: workspace,
-      profileId: resolvedProfile?.id ?? profileId,
-      enabled: true,
-    }, resolvedProfile)
-  }
-
-  return <DialogFrame ariaLabel={t('addProject')} onClose={onClose}>
-    <ModalHeader icon={<FolderGit2 size={18} />} title={t('addProject')} description={step === 0 ? t('providersDescription') : step === 1 ? t('projectsDescription') : t('capturedForRun')} onClose={onClose} closeLabel={t('close')} />
-    <div className="ora-dialog-progress" role="progressbar" aria-label={`${step + 1} / 3`} aria-valuemin={1} aria-valuemax={3} aria-valuenow={step + 1}><span data-active={step >= 0} /><span data-active={step >= 1} /><span data-active={step >= 2} /></div>
-    <div className="oratorio-project-dialog__form">
-      {step === 0 ? <Field label={t('providers')}><Select<SourceProvider> ariaLabel={t('providers')} value={provider} onValueChange={(value) => { setProvider(value); setProfileId(profileOptions[value][0]?.value ?? '') }} options={[{ value: 'github', label: <span className="ora-settings__label"><GithubGlyph />GitHub</span> }, { value: 'gitlab', label: <span className="ora-settings__label"><GitlabGlyph />GitLab</span> }]} /></Field> : null}
-      {step === 1 ? <><Field label={t('project')}><Input autoFocus value={project} placeholder={provider === 'github' ? 'owner/repository' : 'group/project'} invalid={project.length > 0 && !valid} mono onChange={(event) => setProject(event.target.value)} aria-label={t('project')} /></Field>{!needsProfile ? <Field label={t('profile')}><Select ariaLabel={t('profile')} value={profileId} onValueChange={setProfileId} options={profileOptions[provider]} /></Field> : <div className="ora-provider-setup"><strong>{t('configureProvider')}</strong><Field label={t('instance')}><Input mono value={inlineProfile.instance} onChange={(event) => provider === 'github' ? setGithubProfile({ ...githubProfile, instance: event.target.value }) : setGitlabProfile({ ...gitlabProfile, instance: event.target.value })} /></Field>{provider === 'github' ? <><Field label={t('owner')}><Input mono value={githubProfile.owner} onChange={(event) => setGithubProfile({ ...githubProfile, owner: event.target.value })} /></Field><Field label={t('installationId')}><Input mono value={githubProfile.installationId} onChange={(event) => setGithubProfile({ ...githubProfile, installationId: event.target.value })} /></Field></> : <><Field label={t('project')}><Input mono value={gitlabProfile.projectPath || normalized} onChange={(event) => setGitlabProfile({ ...gitlabProfile, projectPath: event.target.value })} /></Field><Field label={t('tokenKind')}><Input mono value={gitlabProfile.tokenKind} onChange={(event) => setGitlabProfile({ ...gitlabProfile, tokenKind: event.target.value })} /></Field></>}</div>}</> : null}
-      {step === 2 ? <Field label={t('workspace')}>{workspaceLoading ? <div className="ora-dialog-workspace-state" role="status">{t('workspaceLoading')}</div> : workspaceOptions.length > 0 ? <Select ariaLabel={t('workspace')} value={workspace} onValueChange={setWorkspace} options={workspaceOptions} /> : <div className="ora-dialog-workspace-state" role="status">{t('workspaceEmpty')}</div>}</Field> : null}
-    </div>
-    <DialogFooter onClose={onClose} showCancel={false}>
-      {step > 0 ? <Button variant="secondary" onClick={() => setStep((value) => value - 1)}>{t('back')}</Button> : null}
-      {step < 2 ? <Button variant="primary" disabled={step === 1 && (!valid || (needsProfile ? !inlineProfileValid : !profileId))} onClick={() => setStep((value) => value + 1)}>{t('next')}</Button> : <Button variant="primary" iconLeft={<Plus size={14} />} disabled={workspaceLoading || !valid || !workspace || (needsProfile ? !inlineProfileValid : !profileId)} onClick={submit}>{t('addProject')}</Button>}
-    </DialogFooter>
-  </DialogFrame>
-}
+export type SettingsDialog =
+  | { kind: 'allowlist'; listKey: ReviewListKey }
+  | { kind: 'appSecret'; secretKey: GitHubAppSecretKey; secretName: string }
+  | { kind: 'projectSecret'; projectKey: string; secretKey: GitLabProjectSecretKey; secretName: string }
+  | { kind: 'token'; projectKey: string }
+  | { kind: 'installation'; owner: string }
+  | null
 
 export function AllowlistDialog({ listKey, values, projects, onClose, onApply }: {
   listKey: ReviewListKey
@@ -94,38 +42,63 @@ export function AllowlistDialog({ listKey, values, projects, onClose, onApply }:
   </DialogFrame>
 }
 
-export function SecretDialog({ providerName, secretName, onClose, onApply }: {
-  providerName: string
+export function SecretDialog({ secretName, context, configured, onClose, onApply }: {
   secretName: string
+  context: string
+  configured: boolean
   onClose: () => void
   onApply: (action: 'replace' | 'clear', value: string | null) => void
 }) {
   const t = useOratorioSettingsT()
-  const [mode, setMode] = useState<'replace' | 'clear'>('replace')
   const [secret, setSecret] = useState('')
-  const title = `${providerName} · ${secretName}`
-  return <DialogFrame ariaLabel={title} onClose={onClose}>
-    <ModalHeader icon={<KeyRound size={18} />} title={title} description={t('storedSecret')} onClose={onClose} closeLabel={t('close')} />
+  return <DialogFrame ariaLabel={secretName} onClose={onClose}>
+    <ModalHeader icon={<KeyRound size={18} />} title={secretName} description={context} onClose={onClose} closeLabel={t('close')} />
     <div className="oratorio-project-dialog__form">
-      <Select ariaLabel={title} value={mode} onValueChange={setMode} options={[{ value: 'replace', label: t('replaceSecret') }, { value: 'clear', label: t('clearSecret') }]} />
-      {mode === 'replace' ? <Input autoFocus type="password" value={secret} onChange={(event) => setSecret(event.target.value)} aria-label={title} /> : null}
+      <Field label={configured ? t('newValue') : t('value')} hint={t('storedSecret')}><Input autoFocus type="password" autoComplete="off" value={secret} onChange={(event) => setSecret(event.target.value)} /></Field>
     </div>
-    <DialogFooter onClose={onClose}><Button variant={mode === 'clear' ? 'danger' : 'primary'} disabled={mode === 'replace' && !secret.trim()} onClick={() => onApply(mode, mode === 'replace' ? secret : null)}>{mode === 'clear' ? t('clearSecret') : t('replaceSecret')}</Button></DialogFooter>
+    <DialogFooter onClose={onClose} start={configured ? <Button variant="danger" onClick={() => onApply('clear', null)}>{t('clearSecret')}</Button> : undefined}>
+      <Button variant="primary" disabled={!secret.trim()} onClick={() => onApply('replace', secret)}>{configured ? t('replaceSecret') : t('save')}</Button>
+    </DialogFooter>
   </DialogFrame>
 }
 
-export function ProfileDialog({ provider, value, onClose, onApply }: { provider: SourceProvider; value: GitHubInstallationProfile | GitLabProjectProfile; onClose: () => void; onApply: (value: GitHubInstallationProfile | GitLabProjectProfile) => void }) {
+export function TokenDialog({ projectKey, tokenKind, onClose, onApply }: {
+  projectKey: string
+  tokenKind: string
+  onClose: () => void
+  onApply: (tokenKind: GitLabTokenKind, token: string) => void
+}) {
   const t = useOratorioSettingsT()
-  const [draft, setDraft] = useState(value)
-  const github = provider === 'github'; const providerName = github ? 'GitHub' : 'GitLab'
-  const valid = github ? Boolean((draft as GitHubInstallationProfile).instance.trim() && (draft as GitHubInstallationProfile).owner.trim() && (draft as GitHubInstallationProfile).installationId.trim()) : Boolean((draft as GitLabProjectProfile).instance.trim() && projectKeyIsValid((draft as GitLabProjectProfile).projectPath) && (draft as GitLabProjectProfile).tokenKind.trim())
-  return <DialogFrame ariaLabel={`${providerName} ${t('manage')}`} onClose={onClose}>
-    <ModalHeader icon={<ShieldCheck size={18} />} title={`${providerName} ${t('manage')}`} description={t('providersDescription')} onClose={onClose} closeLabel={t('close')} />
+  const ct = useOratorioConnectT()
+  const kinds = useGitLabTokenKindOptions()
+  const [kind, setKind] = useState<GitLabTokenKind>(GITLAB_TOKEN_KINDS.includes(tokenKind as GitLabTokenKind) ? tokenKind as GitLabTokenKind : 'accessToken')
+  const [token, setToken] = useState('')
+  return <DialogFrame ariaLabel={t('accessToken')} onClose={onClose}>
+    <ModalHeader icon={<KeyRound size={18} />} title={t('accessToken')} description={projectKey} onClose={onClose} closeLabel={t('close')} />
     <div className="oratorio-project-dialog__form">
-      <Field label={t('instance')}><Input autoFocus mono value={draft.instance} onChange={(event) => setDraft({ ...draft, instance: event.target.value })} /></Field>
-      {github ? <><Field label={t('owner')}><Input mono value={(draft as GitHubInstallationProfile).owner} onChange={(event) => setDraft({ ...(draft as GitHubInstallationProfile), owner: event.target.value })} /></Field><Field label={t('installationId')}><Input mono value={(draft as GitHubInstallationProfile).installationId} onChange={(event) => setDraft({ ...(draft as GitHubInstallationProfile), installationId: event.target.value })} /></Field><Field label={t('source')}><Select ariaLabel={t('source')} value={(draft as GitHubInstallationProfile).source} onValueChange={(source) => setDraft({ ...(draft as GitHubInstallationProfile), source })} options={[{ value: 'manual', label: t('manual') }, { value: 'detected', label: t('detected') }]} /></Field></> : <><Field label={t('project')}><Input mono value={(draft as GitLabProjectProfile).projectPath} onChange={(event) => setDraft({ ...(draft as GitLabProjectProfile), projectPath: event.target.value })} /></Field><Field label={t('tokenKind')}><Input mono value={(draft as GitLabProjectProfile).tokenKind} onChange={(event) => setDraft({ ...(draft as GitLabProjectProfile), tokenKind: event.target.value })} /></Field></>}
+      <Field label={ct('tokenKind')}><Select<GitLabTokenKind> ariaLabel={ct('tokenKind')} value={kind} options={kinds} onValueChange={setKind} /></Field>
+      <Field label={ct('token')} hint={ct('tokenHint')}><Input autoFocus type="password" autoComplete="off" value={token} placeholder={ct('tokenPlaceholder')} onChange={(event) => setToken(event.target.value)} /></Field>
     </div>
-    <DialogFooter onClose={onClose}><Button variant="primary" disabled={!valid} onClick={() => onApply(draft)}>{t('apply')}</Button></DialogFooter>
+    <DialogFooter onClose={onClose}><Button variant="primary" disabled={!token.trim()} onClick={() => onApply(kind, token)}>{t('save')}</Button></DialogFooter>
+  </DialogFrame>
+}
+
+export function InstallationDialog({ owner, installationId, onClose, onApply }: {
+  owner: string
+  installationId: string
+  onClose: () => void
+  onApply: (installationId: string) => void
+}) {
+  const t = useOratorioSettingsT()
+  const [value, setValue] = useState(installationId)
+  const trimmed = value.trim()
+  const valid = /^\d+$/.test(trimmed)
+  return <DialogFrame ariaLabel={t('installation')} onClose={onClose}>
+    <ModalHeader icon={<ShieldCheck size={18} />} title={t('installation')} description={owner} onClose={onClose} closeLabel={t('close')} />
+    <div className="oratorio-project-dialog__form">
+      <Field label={t('installationId')} hint={value && !valid ? undefined : t('installationIdHint')} error={value && !valid ? t('installationIdNumber') : undefined}><Input autoFocus mono inputMode="numeric" value={value} invalid={Boolean(value) && !valid} onChange={(event) => setValue(event.target.value)} /></Field>
+    </div>
+    <DialogFooter onClose={onClose}><Button variant="primary" disabled={!valid || trimmed === installationId} onClick={() => onApply(trimmed)}>{t('save')}</Button></DialogFooter>
   </DialogFrame>
 }
 
@@ -134,8 +107,7 @@ function DialogFrame({ ariaLabel, onClose, children }: { ariaLabel: string; onCl
   const returnFocusRef = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null)
   useEffect(() => {
     const panel = panelRef.current
-    const focusable = panel?.querySelector<HTMLElement>('input, button, [role="combobox"], [tabindex]:not([tabindex="-1"])')
-    focusable?.focus()
+    if (!panel?.contains(document.activeElement)) panel?.querySelector<HTMLElement>('input, button, [role="combobox"], [tabindex]:not([tabindex="-1"])')?.focus()
     function keydown(event: KeyboardEvent): void {
       if (event.key === 'Escape') { event.preventDefault(); onClose(); return }
       if (event.key !== 'Tab' || !panel) return
@@ -152,11 +124,14 @@ function DialogFrame({ ariaLabel, onClose, children }: { ariaLabel: string; onCl
   return createPortal(dialog, document.body)
 }
 
-function DialogFooter({ onClose, children, showCancel = true }: { onClose: () => void; children: ReactNode; showCancel?: boolean }) {
+function DialogFooter({ onClose, start, children }: { onClose: () => void; start?: ReactNode; children: ReactNode }) {
   const t = useOratorioSettingsT()
-  return <div style={footerStyle}>{showCancel ? <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button> : null}{children}</div>
+  return <div style={footerStyle}>{start ? <span className="ora-dialog-footer__start">{start}</span> : null}<Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>{children}</div>
 }
-function Field({ label, children }: { label: string; children: ReactNode }) { return <label><span>{label}</span>{children}</label> }
+
+function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
+  return <div className="ora-dialog-field"><label><span>{label}</span>{children}</label>{error ? <small className="ora-dialog-field__error" role="alert">{error}</small> : hint ? <small className="ora-dialog-field__hint">{hint}</small> : null}</div>
+}
 
 const overlayStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay-scrim)' }
 const dialogStyle: CSSProperties = { width: 480, maxWidth: 'calc(100vw - 48px)', maxHeight: 'calc(100vh - 96px)', overflow: 'auto', padding: '20px 22px', borderRadius: 10, background: 'var(--bg-secondary)', boxShadow: 'var(--shadow-level-3)' }

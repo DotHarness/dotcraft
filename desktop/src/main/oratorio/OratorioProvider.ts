@@ -327,8 +327,14 @@ function readErrorCode(data: unknown): string {
 
 function readErrorMessage(data: unknown, status: number): string {
   if (data && typeof data === 'object' && 'error' in data) {
-    const error = (data as { error?: { message?: unknown } }).error
-    if (typeof error?.message === 'string') return error.message
+    const error = (data as { error?: { code?: unknown; message?: unknown; details?: unknown } }).error
+    if (typeof error?.message === 'string') {
+      // Only the message crosses IPC, so a rejected configuration carries its field reasons in it.
+      const reasons = error.code === 'configurationValidationFailed' && error.details && typeof error.details === 'object'
+        ? Object.values(error.details).filter((value): value is string => typeof value === 'string')
+        : []
+      return [error.message, ...new Set(reasons)].join(' ')
+    }
   }
   return `Oratorio request failed with HTTP ${status}.`
 }

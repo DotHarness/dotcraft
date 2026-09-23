@@ -336,13 +336,13 @@
 .ora-allowlist-row { display: flex; width: min(500px, 52vw); max-width: 100%; align-items: center; justify-content: flex-end; gap: 10px; }
 .ora-allowlist-row > div { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .oratorio-project-dialog__form { display: grid; gap: 16px; }
-.oratorio-project-dialog__form > label { display: grid; gap: 6px; color: var(--text-secondary); font-size: var(--type-secondary-size); }
+.ora-dialog-field { display: grid; gap: 6px; }
+.ora-dialog-field > label { display: grid; gap: 6px; color: var(--text-secondary); font-size: var(--type-secondary-size); }
 .oratorio-project-dialog__form .dc-settings-select { width: 100%; }
-.ora-dialog-workspace-state { min-height: 32px; display: flex; align-items: center; color: var(--text-dimmed); font-size: var(--type-secondary-size); }
+.ora-dialog-field__hint { color: var(--text-dimmed); font-size: var(--type-hint-size); }
+.ora-dialog-field__error { color: var(--error); font-size: var(--type-hint-size); }
+.ora-dialog-footer__start { margin-right: auto; }
 .ora-dialog-list { display: grid; gap: 12px; }
-.ora-dialog-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 2px 0 18px; }
-.ora-dialog-progress > span { height: 2px; border-radius: 999px; background: var(--border-default); }
-.ora-dialog-progress > span[data-active='true'] { background: var(--text-secondary); }
 
 /* Simulated cross-workspace thread handoff preserves the mounted Oratorio state. */
 .ora-thread-handoff { position: absolute; z-index: 60; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--bg-primary); }
