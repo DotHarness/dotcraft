@@ -21,7 +21,6 @@ const BOX_OUTLINE =
   'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z'
 const BOX_LID = 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8M3.3 7 12 12l8.7-5'
 const BOX_BODY = 'M3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8'
-const BOX_FRONT_RIM = 'M3.3 7 12 12l8.7-5'
 
 function Glyph({ name }: { name: SidebarNavIconName }): JSX.Element {
   switch (name) {
@@ -50,9 +49,9 @@ function Glyph({ name }: { name: SidebarNavIconName }): JSX.Element {
         <>
           <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" />
           <g className="dotcraft-sidebar-nav-icon__typing">
-            <path className="dotcraft-sidebar-nav-icon__dot" d="M8 11h.01" />
-            <path className="dotcraft-sidebar-nav-icon__dot" d="M12 11h.01" />
-            <path className="dotcraft-sidebar-nav-icon__dot" d="M16 11h.01" />
+            <circle className="dotcraft-sidebar-nav-icon__dot" cx="8" cy="11" r="1.25" />
+            <circle className="dotcraft-sidebar-nav-icon__dot" cx="12" cy="11" r="1.25" />
+            <circle className="dotcraft-sidebar-nav-icon__dot" cx="16" cy="11" r="1.25" />
           </g>
         </>
       )
@@ -86,7 +85,6 @@ function Glyph({ name }: { name: SidebarNavIconName }): JSX.Element {
             <path d="M12 22V12" />
           </g>
           <g className="dotcraft-sidebar-nav-icon__in-motion">
-            <path className="dotcraft-sidebar-nav-icon__rim" d={BOX_FRONT_RIM} />
             <path d={BOX_BODY} />
             <path d="M12 22V12" />
             <path className="dotcraft-sidebar-nav-icon__lid" d={BOX_LID} />

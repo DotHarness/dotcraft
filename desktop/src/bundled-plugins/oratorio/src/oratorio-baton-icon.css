@@ -1,0 +1,4 @@
+/* Desktop marks sidebar destination rows and rail buttons with data-nav-icon-host, so the mark answers their hover like Desktop's own glyphs. */
+.ora-baton-icon__mark { transform-origin: 11.8px 12px; }
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play]) .ora-baton-icon__mark { animation: ora-baton-downbeat 600ms; }
+@keyframes ora-baton-downbeat { 0% { rotate: 0deg; animation-timing-function: cubic-bezier(0.5, 0, 0.7, 1); } 38% { rotate: 12deg; animation-timing-function: cubic-bezier(0.333, 0, 0.667, 1); } 66% { rotate: -4deg; animation-timing-function: cubic-bezier(0.333, 0, 0, 1); } 100% { rotate: 0deg; } }

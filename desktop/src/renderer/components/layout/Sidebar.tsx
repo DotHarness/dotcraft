@@ -305,6 +305,7 @@ function CollapsedSidebar(): JSX.Element {
         return (
         <IconButton
           key={entry.viewKey}
+          data-nav-icon-host=""
           icon={<DesktopPluginIcon icon={entry.icon} />}
           label={label}
           tooltipLabel={label}

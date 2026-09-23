@@ -1,5 +1,5 @@
 ---
-version: "0.26.0"
+version: "0.27.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -697,28 +697,37 @@ icon controls. Modal close buttons stay borderless with neutral hover feedback.
 
 Sidebar destinations answer hover and keyboard focus with one short glyph motion.
 This covers New chat, Search, Channels, Agents, Automations, Plugins, and Settings,
-in the expanded rows and the collapsed rail alike. The row and its hit target never
+in the expanded rows and the collapsed rail alike, and a plugin-contributed
+destination may join under the same contract. The row and its hit target never
 move; one part of the glyph does, for 340–720ms:
 
 | Destination | Motion |
 | --- | --- |
 | New chat | The pen scribbles one small loop about its nib |
 | Search | The lens turns edge-on about its handle and back |
-| Channels | Typing dots rise in a wave inside the bubble |
+| Channels | Typing dots appear one after another inside the bubble, hold, and leave together |
 | Agents | The eyes glance toward the label and back |
 | Automations | The minute hand sweeps one hour |
-| Plugins | The lid lifts off the box and settles |
+| Plugins | The lid rises straight off the box and drops back with one settle |
 | Settings | The gear advances one tooth |
+| Oratorio (plugin) | The mark dips into one downbeat about its ring and rebounds |
 
 - Every motion starts and ends on the static drawing, so leaving mid-motion returns
   the glyph to rest and the shared reduced-motion rule leaves it still.
 - A glyph plays once per hover or focus. Sweeping the pointer across the sidebar
   moves only the glyph under it, never a row of them.
 - Disabled rows stay still; the current destination still answers.
-- Content rows (projects, threads, Chats) and plugin-contributed destinations keep
-  static icons.
+- Content rows (projects, threads, Chats) keep static icons.
+- A plugin destination's icon may move. The Host marks every destination row and
+  rail button with `data-nav-icon-host`; the plugin's own stylesheet keys its motion
+  off that ancestor's hover and focus-visible states and follows the rules above.
+  Oratorio's baton is the reference.
 - Motion moves parts; it does not reshape them. A shape change of a pixel or two,
   such as a blink, reads as a flicker at 16px.
+- Judge motion at 16px, not on the 64px drawing. A part that appears arrives on
+  opacity, in sequence, rather than hopping across pixel rows, and is drawn at least
+  2.5 units wide; two strokes a unit or two apart, such as a lid held over a rim,
+  merge into one, so the glyph never draws them together.
 
 ### Status Indicators
 

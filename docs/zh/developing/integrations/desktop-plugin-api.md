@@ -279,6 +279,8 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 
 `icon` 只接受组件这一种形式。如果并不在意具体图形，就不要写 `icon`，Desktop 会画上自带的回落图形，那一行不会空着。
 
+`mainViews` 的图标也可以像 Desktop 自带的目的地一样响应悬停。Desktop 会给每个侧栏行与折叠栏按钮加上 `data-nav-icon-host`，在插件样式表里以这个祖先的 `:hover` 与 `:focus-visible` 触发一段短 CSS 动画，只动图形的一个部件，时长 340–720ms，从静态图形开始并回到静态图形结束。内置 Oratorio 插件的指挥棒是参考实现，规则见 `specs/architecture/DESIGN.md` 的 Navigation Icon Motion 一节。
+
 ## 使用 Host API
 
 除四个原语外，`DesktopPluginHost` 按 owner 对稳定的产品操作分组：

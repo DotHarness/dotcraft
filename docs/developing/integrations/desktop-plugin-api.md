@@ -283,6 +283,8 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 
 A component is the only thing `icon` accepts. Leave `icon` off when the artwork does not matter to you, and Desktop draws its own fallback glyph so the row never appears blank.
 
+A `mainViews` icon can also answer hover the way Desktop's own destinations do. Desktop marks each sidebar row and collapsed-rail button with `data-nav-icon-host`; in your stylesheet, key one short CSS animation off that ancestor's `:hover` and `:focus-visible`, move one part of the glyph for 340–720ms, and start and end on the static drawing. The bundled Oratorio plugin's baton is the reference, and `specs/architecture/DESIGN.md` states the rules under Navigation Icon Motion.
+
 ## Use the Host API
 
 Beyond the four primitives, `DesktopPluginHost` groups stable product operations by owner:
