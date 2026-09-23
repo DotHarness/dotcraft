@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Tools;
 using Xunit;
 
@@ -113,6 +114,37 @@ public sealed class FileToolsGrepTests : IDisposable
             () => tools.GrepFiles("needle", cancellationToken: cts.Token));
     }
 
+    [Theory]
+    [InlineData(0, 100)]
+    [InlineData(2, 2)]
+    [InlineData(5000, 2000)]
+    public async Task GrepFiles_LimitBoundsManagedSearch(int limit, int expected)
+    {
+        await File.WriteAllLinesAsync(
+            Path.Combine(_workspace, "notes.txt"),
+            Enumerable.Range(1, 2001).Select(i => $"needle {i}"));
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, managedSearchOnly: true);
+
+        var result = await tools.GrepFiles("needle", limit: limit);
+
+        Assert.StartsWith(
+            $"Found {expected} matches (showing first {expected}, there may be more):",
+            result,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GrepFiles_LimitBoundsRipgrepSearch()
+    {
+        var matchingRg = CreateMatchingCommand("matching-rg", matchCount: 3);
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, ripgrepPath: matchingRg);
+
+        var result = await tools.GrepFiles("needle", limit: 2);
+
+        Assert.StartsWith("Found 2 matches (showing first 2, there may be more):", result, StringComparison.Ordinal);
+        Assert.Contains("from-ripgrep.txt:", result, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task RipgrepSearchAsync_CancelledTokenKillsProcessAndPropagates()
     {
@@ -150,6 +182,38 @@ public sealed class FileToolsGrepTests : IDisposable
 
         var unixPath = Path.Combine(_workspace, fileName);
         File.WriteAllText(unixPath, "#!/usr/bin/env sh\nsleep 2\n");
+        File.SetUnixFileMode(
+            unixPath,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        return unixPath;
+    }
+
+    private string CreateMatchingCommand(string fileName, int matchCount)
+    {
+        var events = Enumerable.Range(1, matchCount)
+            .Select(i => JsonSerializer.Serialize(new
+            {
+                type = "match",
+                data = new
+                {
+                    path = new { text = "from-ripgrep.txt" },
+                    lines = new { text = $"needle {i}" },
+                    line_number = i
+                }
+            }))
+            .ToList();
+
+        if (OperatingSystem.IsWindows())
+        {
+            var path = Path.Combine(_workspace, $"{fileName}.cmd");
+            File.WriteAllText(path, "@echo off\r\n" + string.Concat(events.Select(e => $"echo {e}\r\n")));
+            return path;
+        }
+
+        var unixPath = Path.Combine(_workspace, fileName);
+        File.WriteAllText(
+            unixPath,
+            "#!/usr/bin/env sh\n" + string.Concat(events.Select(e => $"printf '%s\\n' '{e}'\n")));
         File.SetUnixFileMode(
             unixPath,
             UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);

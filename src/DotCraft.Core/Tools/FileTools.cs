@@ -29,7 +29,9 @@ public sealed class FileTools(
     IReadOnlyList<string>? workspaceRoots = null,
     bool managedSearchOnly = false)
 {
-    private const int MaxGrepMatches = 100;
+    private const int DefaultGrepMatches = 100;
+
+    private const int MaxGrepMatches = 2000;
 
     private const int MaxFindResults = 200;
 
@@ -298,6 +300,7 @@ public sealed class FileTools(
         [Description("The regular expression pattern to search for.")] string pattern,
         [Description("The directory to search in. Defaults to workspace root.")] string path = "",
         [Description("File name pattern to include (e.g. \"*.cs\", \"*.json\"). Searches all text files if not specified.")] string include = "",
+        [Description("Maximum number of matching lines to return. Defaults to 100, up to 2000.")] int limit = 0,
         CancellationToken cancellationToken = default)
     {
         try
@@ -311,11 +314,12 @@ public sealed class FileTools(
             if (!Directory.Exists(searchPath))
                 return $"Error: Directory not found: {path}";
 
+            var maxMatches = limit > 0 ? Math.Min(limit, MaxGrepMatches) : DefaultGrepMatches;
             var ripgrepResult = managedSearchOnly ? null : await _ripgrep.SearchAsync(new RipgrepSearchRequest(
                 searchPath,
                 pattern,
                 string.IsNullOrEmpty(include) ? null : include,
-                MaxGrepMatches,
+                maxMatches,
                 MaxLineLength,
                 MaxGrepFileSize,
                 _searchTimeout),
@@ -346,7 +350,7 @@ public sealed class FileTools(
                 foreach (var filePath in EnumerateSearchableFiles(searchPath, includePattern, fallbackCancellationToken))
                 {
                     fallbackCancellationToken.ThrowIfCancellationRequested();
-                    if (totalMatches >= MaxGrepMatches)
+                    if (totalMatches >= maxMatches)
                         break;
 
                     try
@@ -366,7 +370,7 @@ public sealed class FileTools(
                             {
                                 totalMatches++;
                                 matches.Add((filePath, i + 1, lines[i]));
-                                if (totalMatches >= MaxGrepMatches)
+                                if (totalMatches >= maxMatches)
                                     break;
                             }
                         }
@@ -390,7 +394,7 @@ public sealed class FileTools(
                 return "No matches found.";
 
             var sb = new StringBuilder();
-            sb.AppendLine($"Found {matches.Count} matches{(totalMatches >= MaxGrepMatches ? $" (showing first {MaxGrepMatches}, there may be more)" : "")}:");
+            sb.AppendLine($"Found {matches.Count} matches{(totalMatches >= maxMatches ? $" (showing first {maxMatches}, there may be more)" : "")}:");
 
             var currentFile = "";
             foreach (var match in matches)
