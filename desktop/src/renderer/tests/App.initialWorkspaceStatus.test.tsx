@@ -1644,6 +1644,53 @@ describe('App initial workspace status bootstrap', () => {
     expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toContain('thread-foreground')
   })
 
+  it('marks threads that arrive from a session import as unread', async () => {
+    let notificationHandler: ((payload: {
+      method: string
+      params?: unknown
+      foreground?: boolean
+    }) => void) | undefined
+    const onNotification = vi.fn((handler: typeof notificationHandler) => {
+      notificationHandler = handler
+      return vi.fn()
+    })
+    installApi(readyWorkspaceStatus, {
+      onNotification,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      appServerSendRequest: vi.fn(async (method: string) => method === 'thread/list' ? { data: [] } : {})
+    })
+
+    renderApp()
+    await waitFor(() => {
+      expect(onNotification).toHaveBeenCalled()
+    })
+
+    await act(async () => {
+      for (const [id, originChannel] of [['thread-imported', 'session-import'], ['thread-native', 'dotcraft-desktop']]) {
+        notificationHandler?.({
+          method: 'thread/started',
+          foreground: true,
+          params: {
+            thread: {
+              id,
+              displayName: id,
+              status: 'active',
+              originChannel,
+              createdAt: '2026-09-23T00:00:00.000Z',
+              lastActiveAt: '2026-09-23T00:00:00.000Z'
+            }
+          }
+        })
+      }
+    })
+
+    const unread = useThreadStore.getState().unreadCompletedThreadIds
+    expect(unread.has('thread-imported')).toBe(true)
+    expect(unread.has('thread-native')).toBe(false)
+  })
+
   it('ignores secondary notifications even if their workspace path matches after normalization', async () => {
     let notificationHandler: ((payload: {
       method: string

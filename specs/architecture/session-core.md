@@ -205,7 +205,10 @@ highest existing item sequence; a Thread with no Turn records nothing. Resolving
 read of existing runtime state: an out-of-band producer never admits, restores, or recreates a Turn
 in order to have somewhere to write. An Item's creation time is the moment it is appended, so a
 Turn's Items stay ordered by creation time in array order; when the instant an event occurred must
-also be known, it belongs in the Item's payload rather than in its creation time.
+also be known, it belongs in the Item's payload rather than in its creation time. Threads created
+through `ImportThreadAsync` are the one exception: their Turns and Items carry the source session's
+timestamps, made monotonic, because the history existed before DotCraft wrote it
+(see [Session Import](../features/session-import.md)).
 
 Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state,
 the model-history suffix, and any compaction checkpoint through the existing rollout contract. Live

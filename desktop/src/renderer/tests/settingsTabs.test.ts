@@ -10,11 +10,13 @@ describe('buildSettingsTabs', () => {
       sourceControlEnabled: true,
       mcpEnabled: true,
       hooksEnabled: true,
-      subAgentEnabled: true
+      subAgentEnabled: true,
+      sessionImportEnabled: true
     })
 
     expect(tabs.map(({ id }) => id)).toEqual([
       'general',
+      'import',
       'profile',
       'appearance',
       'pet',
@@ -32,7 +34,7 @@ describe('buildSettingsTabs', () => {
       'archivedThreads'
     ])
     expect(tabs.map(({ group }) => group)).toEqual([
-      ...Array(7).fill('personal'),
+      ...Array(8).fill('personal'),
       ...Array(3).fill('integrations'),
       ...Array(5).fill('coding'),
       'archived'

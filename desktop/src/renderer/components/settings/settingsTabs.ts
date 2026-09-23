@@ -5,6 +5,7 @@ import {
   Bot,
   Cable,
   Cpu,
+  Download,
   GitBranch,
   Globe2,
   Monitor,
@@ -38,15 +39,21 @@ export interface SettingsTabOptions {
   mcpEnabled: boolean
   hooksEnabled: boolean
   subAgentEnabled: boolean
+  sessionImportEnabled: boolean
 }
 
 export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): SettingsTabDefinition[] {
   const tabs: SettingsTabDefinition[] = [
-    { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon, group: 'personal' },
+    { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon, group: 'personal' }
+  ]
+  if (options.sessionImportEnabled) {
+    tabs.push({ id: 'import', label: t('settings.tab.import'), icon: Download, group: 'personal' })
+  }
+  tabs.push(
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
     { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
     { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' }
-  ]
+  )
 
   if (options.personalizationAvailable) {
     tabs.push({

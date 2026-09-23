@@ -116,6 +116,7 @@ import type {
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
 import { formatPlanLabel } from '../../utils/chatgptPlan'
+import { isSessionImportAvailable } from '../../utils/sessionImport'
 import {
   cloneModelPreference,
   createManualModelPreference,
@@ -145,6 +146,7 @@ const ConnectionsPanel = coreSettingsPanels.connections
 const SourceControlPanel = coreSettingsPanels.sourceControl
 const HooksPanel = coreSettingsPanels.hooks
 const SubAgentsPanel = coreSettingsPanels.subAgents
+const ImportPanel = coreSettingsPanels.import
 const ArchivedThreadsSettingsView = coreSettingsPanels.archivedThreads
 
 interface SettingsViewProps {
@@ -1072,6 +1074,7 @@ export function SettingsView({
   const modelCatalogManagementEnabled = capabilities?.modelCatalogManagement === true
   const memoryManagementEnabled = capabilities?.memoryManagement === true
   const dreamsCapabilityEnabled = capabilities?.dreams === true
+  const sessionImportEnabled = isSessionImportAvailable(capabilities)
   const personalizationAvailable = workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const chromePlugin = plugins.find((plugin) => plugin.id === 'chrome') ?? null
@@ -2233,11 +2236,12 @@ export function SettingsView({
       || (activeSettingsTab === 'subAgents' && !subAgentEnabled)
       || (activeSettingsTab === 'sourceControl' && !sourceControlEnabled)
       || (activeSettingsTab === 'hooks' && !hooksEnabled)
+      || (activeSettingsTab === 'import' && !sessionImportEnabled)
       || (isDesktopPluginSettingsTab(activeSettingsTab) && !activeDesktopPluginSettingsPage)
     if (!unavailable) return
     runWithoutAppNavigationRecording(() => setActiveSettingsTab('general'))
     replaceCurrentAppNavigationLocation()
-  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled])
+  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled, sessionImportEnabled])
 
   useEffect(() => {
     if ((activeSettingsTab === 'browserUse' || activeSettingsTab === 'computerControl') && pluginManagementEnabled) {
@@ -4948,6 +4952,10 @@ export function SettingsView({
                 )}
               </SettingsPanelShell>
               </McpPanel>
+            )}
+
+            {activeSettingsTab === 'import' && sessionImportEnabled && (
+              <ImportPanel workspacePath={identityWorkspacePath || workspacePath} />
             )}
 
             {activeSettingsTab === 'archivedThreads' && (

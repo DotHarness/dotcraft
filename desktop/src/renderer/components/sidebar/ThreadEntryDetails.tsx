@@ -4,6 +4,7 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
+import { importedThreadSourceLabel } from '../../utils/sessionImport'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { Skeleton } from '../ui/Skeleton'
 
@@ -56,10 +57,15 @@ export function threadOriginBadge({
       />
     )
   }
+  const importSource = importedThreadSourceLabel(thread)
   return (
     <ChannelIconBadge
       channelName={thread.originChannel}
-      tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
+      tooltip={
+        importSource
+          ? t('channel.sessionImportFrom', { source: importSource })
+          : t('threadEntry.originChannel', { channel: thread.originChannel })
+      }
       size={14}
       framed={false}
       muted

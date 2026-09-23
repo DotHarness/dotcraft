@@ -1,4 +1,5 @@
 import type { CSSProperties, JSX, ReactNode } from 'react'
+import { Download } from 'lucide-react'
 import qqIcon from '../../assets/channels/qq.svg'
 import wecomIcon from '../../assets/channels/wecom.svg'
 import weixinIcon from '../../assets/channels/weixin.svg'
@@ -58,7 +59,10 @@ const CHANNEL_META = new Map<string, ChannelVisualMeta>([
   ['cli', createSystemMeta('cli', 'CLI', 'CLI', (size) => <TerminalIcon size={size} />)],
   ['automations', createSystemMeta('automations', 'Automations', 'Automations', (size) => <AutomationIcon size={size} />)],
   ['dotcraft', createSystemMeta('dotcraft', 'DotCraft', 'DotCraft', (size) => <SparkIcon size={size} />)],
-  ['dotcraft-desktop', createSystemMeta('dotcraft-desktop', 'Desktop', 'Desktop', (size) => <DesktopIcon size={size} />)]
+  ['dotcraft-desktop', createSystemMeta('dotcraft-desktop', 'Desktop', 'Desktop', (size) => <DesktopIcon size={size} />)],
+  ['session-import', createSystemMeta('session-import', 'Imported chat', 'Imported chat', (size) => (
+    <Download size={size} strokeWidth={1.8} aria-hidden="true" />
+  ))]
 ])
 
 export function getChannelVisualMeta(channelName: string, fallbackTooltip?: string): ChannelVisualMeta {

@@ -86,6 +86,7 @@ import { onDesktopPetPresentationChange } from './components/desktopPet/petPrese
 import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
+import { isSessionImportThread } from './utils/sessionImport'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
@@ -1712,6 +1713,9 @@ export function App(): JSX.Element {
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
             doAddThread(pp.thread)
+            if (isSessionImportThread(pp.thread)) {
+              useThreadStore.getState().markUnreadCompleted(pp.thread.id)
+            }
             if (pp.thread && isSubAgentThread(pp.thread)) {
               const parentThreadId = getSubAgentParentThreadId(pp.thread)
               if (parentThreadId) {

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ImportSessionsDetectResult.schema.json",
+  "title": "ImportSessionsDetectResult",
+  "type": "object",
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "./ImportSourceDetection.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "sources"
+  ]
+}

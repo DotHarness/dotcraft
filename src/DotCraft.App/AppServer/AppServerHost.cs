@@ -24,6 +24,7 @@ using DotCraft.Automations;
 using DotCraft.Tracing;
 using DotCraft.ExternalChannel;
 using DotCraft.DynamicWorkflows;
+using DotCraft.SessionImport;
 using Contract = DotCraft.Protocol.AppServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -256,6 +257,11 @@ public sealed class AppServerHost(
         runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged += BroadcastWorkflowRunUpdated;
+        if (_services.GetService<SessionImportService>() is { } imports)
+        {
+            imports.Progress += BroadcastImportProgress;
+            imports.Completed += BroadcastImportCompleted;
+        }
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
             terminals.TerminalEvent += BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
@@ -288,6 +294,11 @@ public sealed class AppServerHost(
         runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged -= BroadcastWorkflowRunUpdated;
+        if (_services.GetService<SessionImportService>() is { } imports)
+        {
+            imports.Progress -= BroadcastImportProgress;
+            imports.Completed -= BroadcastImportCompleted;
+        }
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
             terminals.TerminalEvent -= BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
@@ -1628,12 +1639,18 @@ public sealed class AppServerHost(
     /// Called by <see cref="AutomationsEventDispatcher"/> when a task status changes.
     /// </summary>
     private void BroadcastAutomationUpdated(Contract.AutomationUpdatedNotification parameters) =>
-        BroadcastAutomationNotification(Contract.AppServerRpc.AutomationUpdated, parameters);
+        BroadcastContractNotification(Contract.AppServerRpc.AutomationUpdated, parameters);
 
     private void BroadcastAutomationRunUpdated(Contract.AutomationRunUpdatedNotification parameters) =>
-        BroadcastAutomationNotification(Contract.AppServerRpc.AutomationRunUpdated, parameters);
+        BroadcastContractNotification(Contract.AppServerRpc.AutomationRunUpdated, parameters);
 
-    private void BroadcastAutomationNotification<T>(DotCraft.Protocol.RpcNotification<T> descriptor, T parameters) where T : class
+    private void BroadcastImportProgress(Contract.ImportSessionsProgressNotification parameters) =>
+        BroadcastContractNotification(Contract.AppServerRpc.ImportSessionsProgress, parameters);
+
+    private void BroadcastImportCompleted(Contract.ImportSessionsCompletedNotification parameters) =>
+        BroadcastContractNotification(Contract.AppServerRpc.ImportSessionsCompleted, parameters);
+
+    private void BroadcastContractNotification<T>(DotCraft.Protocol.RpcNotification<T> descriptor, T parameters) where T : class
     {
         foreach (var (transport, connection) in _activeTransports)
         {

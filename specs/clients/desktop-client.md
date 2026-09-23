@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.19.1 |
+| **Version** | 0.20.0 |
 | **Status** | Living |
-| **Date** | 2026-09-21 |
+| **Date** | 2026-09-23 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -74,6 +74,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [6.5 Model Selection](#65-model-selection)
   - [6.6 Archived chats](#66-archived-chats)
   - [6.7 Settings Surface](#67-settings-surface)
+    - [6.7.1 Session Import](#671-session-import)
   - [6.8 Channel Modules](#68-channel-modules)
     - [6.8.1 Discovery and Identity](#681-discovery-and-identity)
     - [6.8.2 Configuration Workflow](#682-configuration-workflow)
@@ -974,6 +975,20 @@ Required behavior:
 - Edit-race policy is deterministic:
   - Tier A (live-apply) preserves local in-flight edits when the client receives an echo notification for the same logical change.
   - Tier C (process-restart staged edits) keeps pending edits local until the user applies or discards them.
+
+#### 6.7.1 Session Import
+
+When `capabilities.extensions.sessionImport` is present, Settings shows an **Import** tab directly after General for the current workspace. Detection, conversion, and sync semantics are defined in [Session Import](../features/session-import.md).
+
+Required behavior:
+
+- Opening the tab loads `import/settings/get` and runs `import/sessions/detect` for every configured source; **Check again** re-runs detection.
+- **Keep imports in sync** applies immediately through `import/settings/set`. When the workspace configuration opts out, the toggle is off and disabled with an explanation.
+- The source list shows one row per available source with its importable chat count and an **Import** action, disabled when nothing is importable or while any import pass runs. A status line reports checking, no importable chats, and the last sync time.
+- **Import** opens a dialog for that source's chat sessions with a **Keep imports in sync** checkbox. The checkbox starts checked unless the user paused sync after a sync pass had run. Confirming writes `import/settings/set` first when the choice differs from the stored settings, adding the source to the sync sources, then calls `import/sessions/run` for that source and closes the dialog.
+- `import/sessions/progress` updates the importing row. `import/sessions/completed` re-runs detection, refreshes settings, and shows a toast counting imported, updated, and failed chats; a sync pass that changed nothing stays silent.
+- An `import_busy` response closes the dialog and shows the in-progress state until the running pass completes.
+- Imported threads arrive through `thread/started`, are marked unread, and carry an import origin badge naming the source app.
 
 ### 6.8 Channel Modules
 

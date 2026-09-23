@@ -221,6 +221,9 @@ public sealed class ServerCapabilityExtensions : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DynamicWorkflowCapabilities? DynamicWorkflows { get; init; }
 
+    [JsonPropertyName("sessionImport")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionImportCapabilities? SessionImport { get; init; }
 }
 
 /// <summary>Capabilities advertised by AppServer.</summary>

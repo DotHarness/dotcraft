@@ -15,6 +15,8 @@ export const coreSettingsPanels = {
     .then((module) => ({ default: module.HooksPanel }))),
   subAgents: lazy(() => import('./panels/SubAgentsPanel')
     .then((module) => ({ default: module.SubAgentsPanel }))),
+  import: lazy(() => import('./panels/ImportPanel')
+    .then((module) => ({ default: module.ImportPanel }))),
   archivedThreads: lazy(() => import('./ArchivedThreadsSettingsView')
     .then((module) => ({ default: module.ArchivedThreadsSettingsView })))
 } as const

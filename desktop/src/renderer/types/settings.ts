@@ -10,6 +10,7 @@ export type SettingsTab =
   | 'dreams'
   | 'connections'
   | 'llmService'
+  | 'import'
   | 'browserUse'
   | 'computerControl'
   | 'usage'
