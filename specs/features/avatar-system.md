@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Draft |
 | **Date** | 2026-09-23 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
@@ -88,9 +88,9 @@ host can override one slot without touching the others.
 | Slot | Mounts | Rig layer | Notes |
 |------|--------|-----------|-------|
 | `head` | Head top | Replaces the antenna and its status light | Existing hats and novelty objects live here. |
-| `face` | Brow band or a faceplate over the screen | Brow items sit in front of the body behind the face marks; a faceplate replaces the face marks | Brow items never paint on the white screen. A faceplate carries its own expression layers and stays visible at compact size because it defines the head silhouette. |
+| `face` | Brow band, a faceplate over the screen, or a rim site | Brow and rim items sit in front of the body behind the face marks; a faceplate replaces the face marks | Brow and rim items never paint on the white screen. Rim items sit on the blue rim outside the screen at one of two mount sites (section 6), combine with every hat, and are exclusive with brow items and faceplates because they share the face slot. A faceplate carries its own expression layers and stays visible at compact size because it defines the head silhouette. |
 | `hand` | Screen-left hand | Inside the left arm group | Shares the arm pivot; stows for laptop and question-sign work props. |
-| `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, and auras. A ring that passes around the body renders its far half behind and its near half in front; bodies on the ring exist in both layers and the shared phase animation shows the matching copy. Flat rings such as the halo stay behind. |
+| `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, orbits, and auras. An orbit around the body, with or without a visible ring, renders its far half behind and its near half in front; bodies on the orbit exist in both layers and the shared phase animation shows the matching copy. Flat rings such as the halo stay behind. |
 | `skin` | Body and arm material | One material layer spans the torso and independently moving arms, under the screen and held props | Overlay skins retain the palette paint; paint skins replace it. Face marks keep the palette in both kinds. |
 
 Slot precedence for derivation and conflict resolution is `head > face > hand > back > skin`.
@@ -133,7 +133,13 @@ Two items conflict when they share at least one zone. Zones replace per-item all
 
 - Brimmed hats occupy `top` and `brow`; novelty head objects occupy `top` only.
 - Brow-band items such as goggles occupy `brow`.
-- Rim items occupy `rim`; the zone is reserved for future items on the blue rim.
+- Rim items occupy `rim` only. The zone has exactly two mount sites on the blue rim: the chin run
+  below the screen (primary) and the screen-right temple (secondary); section 10 gives their
+  bounds. The side runs are not mount sites because they merge with the arm material, and the
+  screen-left temple is where held props rise (staff orb, blade tip, magnifier lens).
+- Only face-slot items may declare `rim`. Head items never do, so every hat combines with every
+  rim item. A brow-band item may also declare `rim` when part of it runs up the temple, such as a
+  snorkel mask's tube.
 - Faceplates occupy `screen`, so a hat and a faceplate combine.
 - Hand, back, and skin items occupy their own zone and never conflict with other slots.
 
@@ -168,8 +174,8 @@ Presence per slot: head 0.85, face 0.35, hand 0.40, back 0.25, skin 0.30.
 Rarity weights: common 55, uncommon 27, rare 12, epic 5, legendary 1. The tier is drawn over the
 weights of every tier that has an item registered in the slot, before compatibility is applied;
 when the drawn tier has no zone-compatible item the slot stays empty. Rare combinations therefore stay rare instead of being promoted by exclusion
-(a brimmed hat occupies the brow, so a common or uncommon face draw finds no candidate and the
-face slot stays empty instead of falling through to a faceplate).
+(a brimmed hat blocks brow items, so a common or uncommon face draw can find only rim items; when
+that tier has none, the face slot stays empty instead of falling through to a faceplate).
 
 The hash is FNV-1a with an avalanche finalizer. Batch sample IDs encode `[seed, round, index]` as
 a JSON tuple so a wall of 100 samples is reproducible from its seed and any cell can be replayed.
@@ -220,9 +226,13 @@ the palette accent. A paint skin replaces that gradient, so it owns its own reac
 - The paint surface carries an energy wash: a silhouette-clipped field in the material accent whose
   opacity pulses at medium (0.16), high (0.26), extraHigh (0.38), and context max (0.30), on the
   same periods as the default body animation.
-- Flowing materials speed up with effort instead of running a fixed loop: lava, galaxy, and
-  holographic stops and the chrome/gold sheen shorten their periods at medium, high, and extraHigh;
-  galaxy stars blink faster at high and extraHigh.
+- Flowing materials speed up with effort instead of running a fixed loop: the animated stops,
+  sheens, scan lines, and blinking nodes of every paint skin, and the turning group of an overlay
+  skin, shorten their periods as effort rises. A paint's hottest or lightest stop stays clearly
+  off-white so the body never merges with the outline.
+- A signature material, such as a thermal paint that runs cool at idle, may swap its idle loop for
+  a second, hotter keyframe set at high and extraHigh effort and at context max. Changing keyframes
+  restarts the loop, so the swap shows as a cut rather than a speed-up.
 
 All of this is gated on `data-effects="live"`, so compact and standard sizes and motion-off hosts
 show the same static paint as before.
@@ -232,18 +242,35 @@ show the same static paint as before.
 ## 10. Paint Contract For New Items
 
 - Recognizable objects with natural colors, rounded silhouettes, and a white outer contour.
+- Every item attaches to the robot. It rests on the top edge, sits in the brow band or on the rim,
+  is held at the hand, emerges from behind the body silhouette at a plausible anchor (the arm roots
+  are its shoulders, the lower white edge its base, the antenna its crown), or is tied to it by a
+  visible tether such as a string, stem, strut, or beam. Nothing floats beside the body with a gap
+  and no link. Objects made for people are adapted to this geometry rather than placed where a
+  person would wear them.
 - A `Silhouette` path carries the outline; `Detail` groups hide at compact size.
 - Head items rest on the body's upper white edge and stay clear of both arms.
 - Brow items stay inside the brow band (view-box y 408–464) and never enter the screen rectangle
   (x 295–729, y 464–779). The band is thin, so only objects with a strong silhouette such as
   goggles qualify; abstract bands and small strips do not read and are not added.
+- Rim items mount at one of the two `rim` sites.
+  - Chin site: x 400–624, y 784–846. Items may overhang the white outline below the rim. The
+    orbit ring's front belt and the working-pose laptop draw in front of the site, so a chin item
+    passes under them the way held props stow for the laptop.
+  - Temple site: x 746–850, y 362–468, clear of the brow band, the widest hat brim, and the sign
+    pole. Temple items stow in the hold-sign pose, where the sign and its arm cross the site; in
+    the celebrate pose they draw over the raised arm like other accessories.
+  - The chin run is 55 units tall, about 4.5px at 64px, so rim items carry their silhouette by
+    overhanging and must still read at 64px. Rim items need a wider swatch viewBox than brow
+    items.
 - Faceplates fill the screen inside a 12-unit white frame and draw four eye variants with the
   shared face-layer classes. Following rigid-robot references (Iron Man, EVE, Cozmo), cutouts and
   lenses never morph: an armored plate expresses state through light (tint, intensity, a core
   line, a scan line, a breathing ember) over fixed slits; an LED visor uses a pair of thick eyes
   whose lids move on straight or gently curved edges (raised lower lid for happy, lowered upper lid
   for operator, dropped and closed to a line for sleep). Curved "^^" eye arcs on metal are not
-  allowed.
+  allowed. A segmented display with LCD or LED digits expresses state only by which of its fixed
+  cells are lit, never by moving cells.
 - Palette paint and every skin use one material field in the body's coordinate space. The torso
   and moving arm shapes form a union clip; the paint, overlay, effects, and inner shadow are
   composed once, so overlapping parts cannot introduce a color seam or double-painted pattern.
@@ -255,9 +282,15 @@ show the same static paint as before.
 - Hand items meet the left hand at its resting tip and keep their marks upright at rest.
 - Back items stay behind the body and may extend past the body bounds; the avatar canvas is
   `overflow: visible` and hosts reserve headroom already.
-- Overlay skins use translucent white or shadow ink so every palette reads through. All skin
-  layers, including energy washes, must cover the moving silhouette's bounds before the common
-  clip is applied. New skins inherit this composition without per-skin shoulder corrections.
+- Overlay skins use translucent white or the palette shadow (`--dca-part-shadow-color`) as ink so
+  every palette reads through. All skin layers, including energy washes, must cover the moving
+  silhouette's bounds before the common clip is applied. New skins inherit this composition
+  without per-skin shoulder corrections.
+- The screen covers most of the body, so an overlay shows only on the rim (52–56 units wide) and
+  the arms. Overlay features are therefore large planes or wide bands at least 50 units across,
+  such as a half-body split, hoops, radial wedges, or a dipped lower body. Small motifs (dots,
+  checks, hearts, camo, circuit traces, stars) were tried, read as nothing once equipped, and are
+  not re-added.
 
 ---
 
@@ -273,11 +306,16 @@ show the same static paint as before.
 - Compact renders omit brow/rim, hand, and overlay-skin markup; faceplates remain. Detail layers and
   effects stay in the document and are hidden through `data-compact` and `data-effects="off"`, the
   same CSS gates every other tier uses, so no slot needs a second compact rendering path.
+- Rim items render at standard and full size, are omitted at compact size like brow items, and are
+  allowed with every brimmed hat.
 - Faceplates render all four expression layers and no native face marks.
 - Paint skins keep the palette on the face marks, keep their material on raised arms, and overlay
   skins keep the palette body paint.
 - All skins remain continuous at both shoulders at rest, during a full wave, celebration, laptop
   and sign poses, including pause/resume and animated material/energy phases.
+- Every new item is checked worn at 64px on a design-catalog proof sheet and passes the
+  recognizability test in section 2 before it is registered.
+- The frozen fixtures are updated once per registry change.
 - Desktop and Universe compile against the package without local artwork or model copies.
 
 ---

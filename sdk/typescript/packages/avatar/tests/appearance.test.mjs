@@ -3,10 +3,10 @@ import test from 'node:test'
 import { deriveAppearance, originalAppearance, items, itemsOf, slots, rarities, rarityWeights, slotPresence, hasConflicts, conflicts, equip, canEquip, appearanceWall } from '../dist/index.js'
 
 test('name identities are deterministic, normalized and cover every slot', () => {
-  assert.deepEqual(deriveAppearance('Reviewer'), { version: 1, palette: 10, baseFace: 4, head: 'wizard-hat', face: 'none', hand: 'task-board', back: 'none', skin: 'stripes' })
-  assert.deepEqual(deriveAppearance('Explorer'), { version: 1, palette: 10, baseFace: 1, head: 'cowboy-hat', face: 'none', hand: 'lantern', back: 'crescent-moon', skin: 'none' })
-  assert.deepEqual(deriveAppearance('Fixture 29'), { version: 1, palette: 9, baseFace: 1, head: 'traffic-cone', face: 'forehead-goggles', hand: 'flag', back: 'crescent-moon', skin: 'stripes' })
-  assert.deepEqual(deriveAppearance('Fixture 55'), { version: 1, palette: 1, baseFace: 0, head: 'cat-ears', face: 'none', hand: 'shield', back: 'cape', skin: 'lava' })
+  assert.deepEqual(deriveAppearance('Reviewer'), { version: 1, palette: 10, baseFace: 4, head: 'wizard-hat', face: 'none', hand: 'wrench', back: 'none', skin: 'split' })
+  assert.deepEqual(deriveAppearance('Explorer'), { version: 1, palette: 10, baseFace: 1, head: 'cowboy-hat', face: 'none', hand: 'firefly-jar', back: 'solar-panels', skin: 'none' })
+  assert.deepEqual(deriveAppearance('Fixture 29'), { version: 1, palette: 9, baseFace: 1, head: 'traffic-cone', face: 'heart-glasses', hand: 'megaphone', back: 'surfboard', skin: 'split' })
+  assert.deepEqual(deriveAppearance('Fixture 55'), { version: 1, palette: 1, baseFace: 0, head: 'cat-ears', face: 'none', hand: 'shield', back: 'cape', skin: 'terminal' })
   assert.deepEqual(deriveAppearance('  Reviewer \n'), deriveAppearance('Reviewer'))
   assert.deepEqual(deriveAppearance('cafe\u0301'), deriveAppearance('café'))
   assert.notDeepEqual(deriveAppearance('reviewer'), deriveAppearance('Reviewer'))
@@ -19,9 +19,11 @@ test('the registry spans five slots, every rarity and unique ids', () => {
   for (const slot of slots) assert.ok(itemsOf(slot).some(item => item.rarity === 'legendary'), `${slot} has no legendary item`)
   for (const rarity of rarities) assert.ok(items.some(item => item.rarity === rarity), rarity)
   for (const hat of itemsOf('head').filter(item => item.zones.includes('brow'))) {
-    assert.ok(conflicts(hat.id, 'forehead-goggles'))
+    assert.ok(conflicts(hat.id, 'forehead-goggles') && conflicts(hat.id, 'snorkel-mask'))
     assert.ok(!conflicts(hat.id, 'gold-faceplate') && !conflicts(hat.id, 'neon-visor'))
+    assert.ok(!conflicts(hat.id, 'bow-tie') && !conflicts(hat.id, 'ear-pencil'))
   }
+  assert.ok(itemsOf('head').every(item => !item.zones.includes('rim')))
   assert.ok(!conflicts('rubber-duck', 'forehead-goggles'))
 })
 

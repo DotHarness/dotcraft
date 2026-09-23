@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import type { ItemId, HeadId, SkinId } from './items.js'
+import type { ItemId, HeadId, SkinId, Zone } from './items.js'
 import { itemOf } from './items.js'
 import { HatDecoration } from './HatDecorations.js'
 import { ObjectDecoration } from './ObjectDecorations.js'
@@ -42,13 +42,14 @@ export function SlotDecoration({ id }: { id: ItemId }) {
 const swatchViewBox: Record<ReturnType<typeof itemOf>['slot'], string> = {
   head: '265 105 494 360',
   face: '300 280 424 324',
-  hand: '40 330 400 400',
+  hand: '10 330 460 460',
   back: '20 120 984 800',
   skin: '203 368 618 506',
 }
 export function DecorationSwatch({ id, size = 112 }: { id: ItemId; size?: number }) {
   const item = itemOf(id)
-  const viewBox = item.slot === 'face' && isFaceplate(item.id) ? '255 404 514 436' : swatchViewBox[item.slot]
+  const zones: readonly Zone[] = item.zones
+  const viewBox = zones.includes('screen') ? '255 404 514 436' : zones.includes('rim') ? '346 300 546 590' : swatchViewBox[item.slot]
   return <svg width={size} height={size} viewBox={viewBox} fill="none" role="img" aria-label={`${decorationOf(id).name} specimen`}
     className="dca-swatch dca-part-robot" data-expression="neutral" data-slot={item.slot} data-effects="static">
     <SlotDecoration id={id} />

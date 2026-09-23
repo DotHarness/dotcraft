@@ -25,31 +25,38 @@ test('every item mounts in every pose with the original paired arm geometry', ()
   }
 })
 
+const paintSkins = Object.keys(paintMaterials)
+const overlaySkins = itemsOf('skin').map(item => item.id).filter(id => !paintSkins.includes(id))
+
 test('paint skins replace the body paint while face marks keep the palette', () => {
-  for (const skin of ['chrome', 'holographic', 'gold', 'lava', 'galaxy']) {
+  for (const skin of paintSkins) {
     const html = render({ appearance: { ...deriveAppearance('Reviewer'), skin } })
-    assert.ok(html.includes(`dca-skin-${skin === 'holographic' ? 'holo' : skin}`))
+    assert.ok(html.includes('dca-skin-paint'))
     assert.ok(!html.includes('class="dca-paint-body"'))
     assert.ok(html.includes('class="dca-paint-mark"'))
   }
-  const stripes = render({ appearance: { ...deriveAppearance('Reviewer'), skin: 'stripes' } })
-  assert.ok(stripes.includes('class="dca-paint-body"'))
-  assert.ok(stripes.includes('class="dca-part-surface"'))
+  for (const skin of overlaySkins) {
+    const html = render({ appearance: { ...deriveAppearance('Reviewer'), skin } })
+    assert.ok(html.includes('class="dca-paint-body"'))
+    assert.ok(html.includes('class="dca-part-surface"'))
+  }
 })
 
 test('paint skins own the mascot energy accent and carry an energy wash', () => {
   const base = deriveAppearance('Reviewer')
-  for (const skin of ['chrome', 'holographic', 'gold', 'lava', 'galaxy']) {
+  for (const skin of paintSkins) {
     assert.equal(mascotPaletteOf({ ...base, skin }).accent, paintMaterials[skin].accent)
     assert.equal(mascotPaletteOf({ ...base, skin }).markM, mascotPaletteOf(base).markM)
     assert.ok(render({ appearance: { ...base, skin }, size: 64 }).includes('dca-skin-energy'))
   }
-  assert.equal(mascotPaletteOf({ ...base, skin: 'stripes' }).accent, mascotPaletteOf(base).accent)
-  assert.ok(!render({ appearance: { ...base, skin: 'stripes' }, size: 64 }).includes('dca-skin-energy'))
+  for (const skin of overlaySkins) {
+    assert.equal(mascotPaletteOf({ ...base, skin }).accent, mascotPaletteOf(base).accent)
+    assert.ok(!render({ appearance: { ...base, skin }, size: 64 }).includes('dca-skin-energy'))
+  }
 })
 
 test('faceplates replace the native face, keep four expression layers and survive compact size', () => {
-  for (const face of ['gold-faceplate', 'neon-visor', 'mecha-faceplate', 'pixel-screen']) {
+  for (const { id: face } of itemsOf('face').filter(item => item.zones.includes('screen'))) {
     const html = render({ appearance: { ...originalAppearance, face }, size: 64 })
     assert.ok(html.includes(`data-faceplate="${face}"`))
     assert.ok(!html.includes('data-profile-face='))
@@ -62,12 +69,25 @@ test('faceplates replace the native face, keep four expression layers and surviv
   assert.ok(brow.includes('data-profile-face=') && !brow.includes('data-faceplate='))
 })
 
-test('the orbit ring splits into a behind-body half and an in-front half; flat items stay behind', () => {
-  const orbit = render({ appearance: { ...originalAppearance, back: 'orbit-ring' }, size: 64 })
-  const backIndex = orbit.indexOf('data-back="orbit-ring"'), frontIndex = orbit.indexOf('data-back-front="orbit-ring"'), faceIndex = orbit.indexOf('data-profile-face=')
-  assert.ok(backIndex > 0 && frontIndex > 0 && backIndex < faceIndex && faceIndex < frontIndex)
-  assert.equal((orbit.match(/dca-fx-orbit-front/g) ?? []).length, 3)
-  assert.equal((orbit.match(/dca-fx-orbit-back/g) ?? []).length, 3)
+test('rim items keep the native face, hide at compact size and combine with brimmed hats', () => {
+  const rim = { ...originalAppearance, face: 'bow-tie' }
+  const full = render({ appearance: rim, size: 64 })
+  assert.ok(full.includes('data-accessory="bow-tie"') && full.includes('data-profile-face=') && !full.includes('data-faceplate='))
+  assert.ok(!render({ appearance: rim, size: 16 }).includes('data-accessory='))
+  const hatted = equip(rim, 'head', 'cowboy-hat')
+  assert.deepEqual(hatted.cleared, [])
+  const html = render({ appearance: hatted.appearance, size: 64 })
+  assert.ok(html.includes('data-decoration="cowboy-hat"') && html.includes('data-accessory="bow-tie"'))
+})
+
+test('orbiting items split into a behind-body half and an in-front half; flat items stay behind', () => {
+  for (const back of ['orbit-ring', 'koi-orbit']) {
+    const orbit = render({ appearance: { ...originalAppearance, back }, size: 64 })
+    const backIndex = orbit.indexOf(`data-back="${back}"`), frontIndex = orbit.indexOf(`data-back-front="${back}"`), faceIndex = orbit.indexOf('data-profile-face=')
+    assert.ok(backIndex > 0 && frontIndex > 0 && backIndex < faceIndex && faceIndex < frontIndex)
+    const bodies = (orbit.match(/dca-fx-orbit-front/g) ?? []).length
+    assert.ok(bodies > 0 && bodies === (orbit.match(/dca-fx-orbit-back/g) ?? []).length)
+  }
   for (const back of ['halo', 'cape']) assert.ok(!render({ appearance: { ...originalAppearance, back }, size: 64 }).includes('data-back-front='))
 })
 

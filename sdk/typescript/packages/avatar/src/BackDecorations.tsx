@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import type { BackId } from './items.js'
-import { Glow } from './DecorationShapes.js'
+import { Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
+
+const mirrored = (art: ReactNode) => <>{art}<g transform="matrix(-1 0 0 1 1024 0)">{art}</g></>
 
 function Wing({ outer, inner, fill, lining, outline = '#fff', flap = 'dca-fx-flap', children }: { outer: string; inner?: string; fill: string; lining?: string; outline?: string; flap?: string; children?: ReactNode }) {
   return <g className={flap} style={{ transformOrigin: '272px 560px' }}>
@@ -10,7 +12,7 @@ function Wing({ outer, inner, fill, lining, outline = '#fff', flap = 'dca-fx-fla
   </g>
 }
 function Wings(props: Parameters<typeof Wing>[0]) {
-  return <><Wing {...props} /><g transform="matrix(-1 0 0 1 1024 0)"><Wing {...props} /></g></>
+  return mirrored(<Wing {...props} />)
 }
 const batWing = {
   outer: 'M272 520C200 470 120 400 60 340c30 80 10 130-20 160 70 20 90 60 60 100 70 10 100 50 90 100h82Z',
@@ -42,6 +44,38 @@ const balloon = (cx: number, cy: number, fill: string, delay?: string) => <g cla
   <ellipse cx={cx} cy={cy} rx="46" ry="54" fill={fill} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
   <ellipse cx={cx - 14} cy={cy - 18} rx="10" ry="16" fill="#fff" opacity=".6" />
 </g>
+const tether = (d: string) => <><path d={d} stroke="#fff" strokeWidth="16" strokeLinecap="round" /><path d={d} stroke="#8b95a5" strokeWidth="6" strokeLinecap="round" /></>
+
+function SolarPanel() {
+  return <>
+    <path d="M300 455 188 350" stroke="#fff" strokeWidth="46" strokeLinecap="round" />
+    <path d="M300 455 188 350" stroke="#8b95a5" strokeWidth="24" strokeLinecap="round" />
+    <g transform="translate(188 350) rotate(-26)">
+      <rect x="-68" y="-192" width="136" height="178" rx="14" fill="#2f4a8a" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+      <path d="M-54-178h50v44h-50Zm58 0h50v44H4Zm-58 53h50v44h-50Zm58 0h50v44H4Zm-58 53h50v44h-50Zm58 0h50v44H4Z" fill="#5b7fd6" />
+      <circle r="18" fill="#8b95a5" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+    </g>
+  </>
+}
+
+const bladePath = 'M-40-22H720L780 0 720 22H-40Z'
+function Sword({ blade, glow, guard, children }: { blade: string; glow: string; guard: string; children?: ReactNode }) {
+  const clip = useClipId()
+  return <>
+    <defs><clipPath id={clip}><path d={bladePath} /></clipPath></defs>
+    <Glow blur={16} className="dca-fx-pulse"><path d="M-40-30H724L796 0 724 30H-40Z" fill={glow} opacity=".85" /></Glow>
+    <circle cx="-166" r="22" fill={guard} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <rect x="-160" y="-16" width="108" height="32" rx="12" fill="#2b2f3a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <S d={bladePath} fill={blade} stroke={16} />
+    {children}
+    <g clipPath={`url(#${clip})`}><g transform="translate(689 0) scale(.3 1)"><g className="dca-fx dca-fx-sheen" fill="#fff"><path d="M3-30h67l-73 60h-67Z" opacity=".85" /></g></g></g>
+    <rect x="-64" y="-62" width="24" height="124" rx="10" fill={guard} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <rect x="-14" y="-36" width="30" height="72" rx="10" fill="#8b95a5" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+  </>
+}
+const leftShoulder = 'translate(265 392) rotate(43)'
+
+const guitarBody = 'M-86 0C-86-48-48-86 0-86 42-86 66-62 90-54 110-46 124-64 160-64 196-64 224-36 224 0 224 36 196 64 160 64 124 64 110 46 90 54 66 62 42 86 0 86-48 86-86 48-86 0Z'
 
 const orbit = { transform: 'translate(512 760) rotate(-12)', rx: 450, ry: 104 }
 const orbitBodies: { key: string; delay?: string; art: ReactNode }[] = [
@@ -59,6 +93,29 @@ function OrbitArc({ side }: { side: 'front' | 'back' }) {
     <path d={outer} fill="none" stroke="#fff" strokeWidth="46" />
     <path d={outer} fill="none" stroke="#b9c4ff" strokeWidth="30" />
   </>
+}
+
+const koiOrbit = `${orbit.transform} scale(.88)`
+const koi = <>
+  <S d="M68 0 134-56 110 0 134 56Z" fill="#e8654f" />
+  <S d="M-114 2C-102-42-60-60-16-58S62-28 82 0C62 28 28 56-16 58S-106 44-114 2Z" fill="#ed985f" />
+  <ellipse cx="-10" cy="-22" rx="48" ry="24" transform="rotate(8 -10 -22)" fill="#fff4ef" />
+</>
+function KoiBodies({ side }: { side: 'front' | 'back' }) {
+  const art = side === 'front' ? koi : <g transform="scale(-1 1)">{koi}</g>
+  return <>{['a', 'c'].map(key => <g key={key} className={`dca-fx-orbit dca-fx-orbit-${side} dca-fx-orbit-${key}`} style={key === 'c' ? { animationDelay: '-4s' } : undefined}>{art}</g>)}</>
+}
+
+// The tail spirals inward so its tip ends behind the antenna light or the hat crown.
+function cometTail(width: number) {
+  const steps = 18, from = -28, to = -100
+  const point = (step: number, side: number) => {
+    const t = step / steps, a = ((from + (to - from) * t) * Math.PI) / 180, r = 380 - 120 * t + side * (width / 2) * (1 - t) ** .8
+    return `${(512 + r * Math.cos(a)).toFixed(0)} ${(520 + r * Math.sin(a)).toFixed(0)}`
+  }
+  const outer = Array.from({ length: steps + 1 }, (_, step) => point(step, 1))
+  const inner = Array.from({ length: steps }, (_, step) => point(steps - 1 - step, -1))
+  return `M${[...outer, ...inner].join('L')}Z`
 }
 
 const halo = { cx: 512, cy: 229, r: 168 }
@@ -88,7 +145,7 @@ export function BackDecoration({ id }: { id: BackId }) {
     case 'bat-wings': return <Wings {...batWing} fill="#5b3a8c" lining="#3d2563" />
     case 'butterfly-wings': return <Wings {...butterflyWing} fill="#f2a0b4" lining="#fff3c4" />
     case 'angel-wings': return <>
-      <Glow blur={22} className="dca-fx-pulse"><path d={angelWing.outer} fill="#fff7dc" opacity=".6" /><path d={angelWing.outer} fill="#fff7dc" opacity=".6" transform="matrix(-1 0 0 1 1024 0)" /></Glow>
+      <Glow blur={22} className="dca-fx-pulse">{mirrored(<path d={angelWing.outer} fill="#fff7dc" opacity=".6" />)}</Glow>
       <Wings {...angelWing} fill="#fff" lining="#dfe4ff" outline="#b9c4ff" flap="dca-fx-flap-slow" />
     </>
     case 'dragon-wings': return <Wings {...dragonWing} fill="#b23a48" lining="#7f2634">
@@ -104,8 +161,61 @@ export function BackDecoration({ id }: { id: BackId }) {
       <path d="M920 690l12 30 30 12-30 12-12 30-12-30-30-12 30-12Z" style={{ animationDelay: '1.1s' }} />
     </g>
     case 'balloons': return <>
-      <path d="M150 384 262 560M206 306 262 560M112 484 262 560" stroke="#fff" strokeWidth="16" strokeLinecap="round" /><path d="M150 384 262 560M206 306 262 560M112 484 262 560" stroke="#8b95a5" strokeWidth="6" strokeLinecap="round" />
+      {tether('M150 384 262 560M206 306 262 560M112 484 262 560')}
       {balloon(150, 330, '#e8654f')}{balloon(206, 250, '#f6b500', '.5s')}{balloon(112, 430, '#4f7cf6', '1s')}
+    </>
+    case 'kite': return <>
+      {tether('M885 336c-6 96-50 170-116 226')}
+      <g transform="rotate(10 908 206)">
+        <S d="M908 122 986 206 908 338 830 206Z" fill="#e8654f" />
+        <path d="M908 122V206H830ZM908 206H986L908 338Z" fill="#f6b500" />
+      </g>
+    </>
+    case 'solar-panels': return mirrored(<SolarPanel />)
+    case 'power-cord': return <>
+      <path d="M902 836C972 868 1006 812 984 772 962 734 908 748 920 792 930 826 976 832 996 806" stroke="#fff" strokeWidth="60" strokeLinecap="round" />
+      <path d="M902 836C972 868 1006 812 984 772 962 734 908 748 920 792 930 826 976 832 996 806" stroke="#3c4658" strokeWidth="36" strokeLinecap="round" />
+      <g transform="translate(808 792) rotate(25.5)">
+        <rect x="-14" y="-40" width="104" height="80" rx="18" fill="#3c4658" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+        <path d="M30-24v48M54-24v48" stroke="#5b6577" strokeWidth="8" strokeLinecap="round" />
+        <rect x="86" y="-20" width="24" height="40" rx="8" fill="#3c4658" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+      </g>
+    </>
+    case 'surfboard': return <g transform="rotate(8 900 540)">
+      <S d="M900 176c44 64 62 204 62 384s-16 290-40 330c-10 16-34 16-44 0-24-40-40-150-40-330s18-320 62-384Z" fill="#f3cf62" />
+      <rect x="886" y="250" width="28" height="600" rx="14" fill="#e8654f" />
+    </g>
+    case 'fox-tail': return <g className="dca-fx-sway" style={{ transformOrigin: '780px 830px' }}>
+      <S d="M730 790C840 790 878 720 885 650 890 600 905 560 940 552 972 545 990 580 990 640 990 720 968 800 918 848 868 894 780 900 715 866Z" fill="#ed985f" />
+      <path d="M715 866C780 900 868 894 918 848 968 800 990 720 990 640 978 716 948 784 898 818 848 852 780 860 732 850Z" fill="#c96c43" />
+      <path d="M885 650C890 600 905 560 940 552 972 545 990 580 990 640L972 626 956 652 936 630 916 654 900 632Z" fill="#fff1dc" />
+    </g>
+    case 'hero-scarf': return <g className="dca-fx-wave" style={{ transformOrigin: '250px 470px' }}>
+      <S d="M252 470C220 490 190 520 150 520 120 520 90 540 62 568L106 580 90 624C120 600 150 580 180 574 210 568 232 548 252 534Z" fill="#b94f50" />
+      <S d="M252 418C214 400 180 386 140 398 100 410 70 404 22 380L58 430 26 478C76 494 110 478 146 462 186 446 220 470 252 482Z" fill="#e8654f" />
+    </g>
+    case 'guitar': return <>
+      <g transform="translate(92 822) rotate(-35)">
+        <rect x="210" y="-19" width="690" height="38" rx="10" fill="#8b5a2b" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+        <g fill="#f6d365" stroke="#fff" strokeWidth="8" paintOrder="stroke fill"><circle cx="930" cy="-38" r="10" /><circle cx="972" cy="-38" r="10" /><circle cx="930" cy="38" r="10" /><circle cx="972" cy="38" r="10" /></g>
+        <S d="M884-32h116a16 16 0 0 1 16 16v32a16 16 0 0 1-16 16H884Z" fill="#8b5a2b" />
+        <S d={guitarBody} fill="#e0ad84" />
+        <circle cx="100" r="31" fill="#f6d365" /><circle cx="100" r="20" fill="#8b5a2b" />
+        <rect x="-40" y="-30" width="16" height="60" rx="7" fill="#8b5a2b" />
+      </g>
+      <path d="M826 334C840 384 834 424 800 460" stroke="#fff" strokeWidth="44" strokeLinecap="round" />
+      <path d="M826 334C840 384 834 424 800 460" stroke="#3c4658" strokeWidth="22" strokeLinecap="round" />
+    </>
+    case 'twin-blades': return <>
+      <g transform={leftShoulder}><Sword blade="#1f2330" glow="#9fb2ff" guard="#3c4658"><path d="M-28-13H718L772-3" stroke="#dfe6f5" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /></Sword></g>
+      <g transform="matrix(-1 0 0 1 1024 0)"><g transform={leftShoulder}><Sword blade="#8fdccf" glow="#7fe8d8" guard="#a7b1c0"><path d="M-28 0H728" stroke="#e6fbf6" strokeWidth="10" strokeLinecap="round" /></Sword></g></g>
+    </>
+    case 'comet': return <>
+      <S d={cometTail(110)} fill="#b9c4ff" />
+      <path d={cometTail(46)} fill="#fff3c4" />
+      <Glow blur={24} className="dca-fx-pulse"><circle cx="848" cy="342" r="96" fill="#fff3c4" opacity=".8" /></Glow>
+      <S d="M848 282a60 60 0 1 1 0 120 60 60 0 1 1 0-120Z" fill="#f6b500" />
+      <circle cx="828" cy="322" r="20" fill="#fff3c4" />
     </>
     case 'sun-rays': return <SunRays />
     case 'halo': return <>
@@ -118,6 +228,7 @@ export function BackDecoration({ id }: { id: BackId }) {
       <OrbitArc side="back" />
       <OrbitBodies side="back" />
     </g>
+    case 'koi-orbit': return <g transform={koiOrbit}><KoiBodies side="back" /></g>
     default: return null
   }
 }
@@ -128,7 +239,8 @@ export function BackFrontDecoration({ id }: { id: BackId }) {
       <OrbitArc side="front" />
       <OrbitBodies side="front" />
     </g>
+    case 'koi-orbit': return <g data-back-front={id} transform={koiOrbit}><KoiBodies side="front" /></g>
     default: return null
   }
 }
-export function hasFrontPart(id: BackId): boolean { return id === 'orbit-ring' }
+export function hasFrontPart(id: BackId): boolean { return id === 'orbit-ring' || id === 'koi-orbit' }

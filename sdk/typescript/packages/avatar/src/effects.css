@@ -1,6 +1,7 @@
 .dca-robot[data-effects='off'] .dca-fx { display: none; }
 
 .dca-fx-sheen { transform: translateX(120px); }
+.dca-fx-scanline { transform: translateY(260px); }
 .dca-fx-orbit-a { transform: translate(450px, 0); }
 .dca-fx-orbit-b { transform: translate(-450px, 0); }
 .dca-fx-orbit-c { transform: translate(0, 104px); }
@@ -27,6 +28,13 @@
 @keyframes dca-fx-galaxy {
   0%, 100% { stop-color: #1b1040; } 20% { stop-color: #4c1d95; } 40% { stop-color: #2563eb; } 60% { stop-color: #0b3d62; } 80% { stop-color: #7c3aed; }
 }
+@keyframes dca-fx-aurora {
+  0%, 100% { stop-color: #0a1f33; } 20% { stop-color: #1fbf8f; } 40% { stop-color: #5eead4; } 60% { stop-color: #7c6cf0; } 80% { stop-color: #122046; }
+}
+@keyframes dca-fx-thermal { 0%, 100% { stop-color: #1a0b5e; } 25% { stop-color: #5b1fa8; } 50% { stop-color: #c02a6b; } 75% { stop-color: #3b1488; } }
+@keyframes dca-fx-thermal-hot { 0%, 100% { stop-color: #c02a6b; } 25% { stop-color: #ff7a1f; } 50% { stop-color: #ffb020; } 75% { stop-color: #ffd23f; } }
+@keyframes dca-fx-patina { to { stop-color: #58b39a; } }
+@keyframes dca-fx-scanline { 0% { transform: translateY(0); } 100% { transform: translateY(560px); } }
 @keyframes dca-fx-scan { 0% { transform: translateX(-30px); } 100% { transform: translateX(290px); } }
 @keyframes dca-fx-steam { 0% { opacity: 0; transform: translateY(12px); } 35% { opacity: .8; } 100% { opacity: 0; transform: translateY(-28px); } }
 @keyframes dca-fx-sparkle { 0%, 100% { opacity: .15; transform: scale(.55); } 50% { opacity: 1; transform: scale(1.15); } }
@@ -65,10 +73,15 @@
 .dca-robot[data-effects='live'] .dca-fx-flap-slow { animation: dca-fx-flap 2.6s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-skin-lava stop { animation: dca-fx-lava 7s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-skin-galaxy stop { animation: dca-fx-galaxy 9s ease-in-out infinite; }
-.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy) stop:nth-child(2) { animation-delay: -1.4s; }
-.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy) stop:nth-child(3) { animation-delay: -2.8s; }
-.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy) stop:nth-child(4) { animation-delay: -4.2s; }
-.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy) stop:nth-child(5) { animation-delay: -5.6s; }
+.dca-robot[data-effects='live'] .dca-skin-aurora stop { animation: dca-fx-aurora 8s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-skin-thermal stop { animation: dca-fx-thermal 8s ease-in-out infinite; }
+.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-aurora, .dca-skin-thermal) stop:nth-child(2) { animation-delay: -1.4s; }
+.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-aurora, .dca-skin-thermal) stop:nth-child(3) { animation-delay: -2.8s; }
+.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-aurora, .dca-skin-thermal) stop:nth-child(4) { animation-delay: -4.2s; }
+.dca-robot[data-effects='live'] :is(.dca-skin-lava, .dca-skin-galaxy, .dca-skin-aurora, .dca-skin-thermal) stop:nth-child(5) { animation-delay: -5.6s; }
+.dca-robot[data-effects='live'] .dca-skin-patina stop:nth-child(3) { animation: dca-fx-patina 12s ease-in-out infinite alternate; }
+.dca-robot[data-effects='live'] .dca-fx-pinwheel { animation: dca-fx-rotate 24s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-scanline { animation: dca-fx-scanline 3.6s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-scan { animation: dca-fx-scan 2.4s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
 .dca-robot[data-effects='live'] .dca-fx-steam { animation: dca-fx-steam 2.6s ease-out infinite; }
 .dca-robot[data-effects='live'] .dca-fx-sparkle > path { animation: dca-fx-sparkle 1.8s ease-in-out infinite; }

@@ -1,8 +1,10 @@
-.dca-part-held {
+.dca-part-held,
+.dca-part-temple {
   opacity: 1;
   transition: opacity 150ms ease 460ms;
 }
-.dca-robot:is([data-held-state='stowed'], [data-exiting='true']) .dca-part-held {
+.dca-robot:is([data-held-state='stowed'], [data-exiting='true']) .dca-part-held,
+.dca-action-hold-sign .dca-part-temple {
   opacity: 0;
   transition: opacity 140ms ease;
 }

@@ -21,6 +21,8 @@ const object = <I extends string>(id: I, rarity: Rarity, series: Series) =>
   ({ id, slot: 'head', rarity, series, zones: ['top'] }) as const satisfies ItemSpec<'head', I>
 const brow = <I extends string>(id: I, rarity: Rarity, series: Series) =>
   ({ id, slot: 'face', rarity, series, zones: ['brow'] }) as const satisfies ItemSpec<'face', I>
+const rim = <I extends string>(id: I, rarity: Rarity, series: Series) =>
+  ({ id, slot: 'face', rarity, series, zones: ['rim'] }) as const satisfies ItemSpec<'face', I>
 const faceplate = <I extends string>(id: I, rarity: Rarity, series: Series) =>
   ({ id, slot: 'face', rarity, series, zones: ['screen'] }) as const satisfies ItemSpec<'face', I>
 const hand = <I extends string>(id: I, rarity: Rarity, series: Series) =>
@@ -30,7 +32,7 @@ const back = <I extends string>(id: I, rarity: Rarity, series: Series) =>
 const skin = <I extends string>(id: I, rarity: Rarity, series: Series) =>
   ({ id, slot: 'skin', rarity, series, zones: ['body'] }) as const satisfies ItemSpec<'skin', I>
 
-// Registry order is presentation order only; sampling is weighted by rarity, then uniform.
+// Registry order is presentation order and also decides which item a name draws within its rarity.
 export const items = [
   hat('baseball-cap', 'common'), hat('bucket-hat', 'common'), hat('beret', 'uncommon'), hat('beanie', 'common'),
   hat('top-hat', 'rare'), hat('wizard-hat', 'rare', 'fantasy'), hat('chef-hat', 'uncommon', 'snack'), hat('party-hat', 'uncommon'),
@@ -40,28 +42,37 @@ export const items = [
   object('sprout', 'common', 'nature'), object('donut', 'uncommon', 'snack'), object('ringed-planet', 'legendary', 'tech'),
   object('cat-ears', 'common', 'critters'), hat('cowboy-hat', 'common'), object('mushroom', 'common', 'nature'),
   object('shark-fin', 'uncommon', 'critters'), hat('propeller-cap', 'uncommon'), hat('graduation-cap', 'uncommon', 'dev'),
-  object('ice-cream', 'uncommon', 'snack'), object('flower-crown', 'rare', 'nature'), hat('pirate-hat', 'rare', 'fantasy'),
-  object('lightning', 'epic', 'tech'), object('crystal-cluster', 'epic', 'fantasy'), object('ufo', 'legendary', 'tech'),
+  object('ice-cream', 'uncommon', 'snack'), object('floppy-disk', 'uncommon', 'dev'), object('flower-crown', 'rare', 'nature'), hat('pirate-hat', 'rare', 'fantasy'),
+  object('rocket', 'rare', 'dev'), object('lightning', 'epic', 'tech'), object('crystal-cluster', 'epic', 'fantasy'), object('ufo', 'legendary', 'tech'),
+  object('mini-volcano', 'legendary', 'nature'), object('phoenix-perch', 'legendary', 'fantasy'),
 
-  brow('shades', 'common', 'everyday'), brow('forehead-goggles', 'uncommon', 'tech'),
-  faceplate('mecha-faceplate', 'rare', 'tech'), faceplate('pixel-screen', 'rare', 'dev'),
-  faceplate('gold-faceplate', 'epic', 'tech'), faceplate('neon-visor', 'legendary', 'tech'),
+  brow('shades', 'common', 'everyday'), brow('headlamp', 'common', 'nature'),
+  brow('forehead-goggles', 'uncommon', 'tech'), brow('heart-glasses', 'uncommon', 'everyday'), { ...brow('snorkel-mask', 'uncommon', 'nature'), zones: ['brow', 'rim'] },
+  rim('bow-tie', 'common', 'everyday'), rim('neckerchief', 'common', 'everyday'), rim('ear-pencil', 'common', 'dev'), rim('bell-collar', 'uncommon', 'critters'),
+  faceplate('mecha-faceplate', 'rare', 'tech'), faceplate('pixel-screen', 'rare', 'dev'), faceplate('segment-display', 'rare', 'dev'), faceplate('knight-visor', 'rare', 'fantasy'),
+  faceplate('gold-faceplate', 'epic', 'tech'), faceplate('porthole-helmet', 'epic', 'nature'), faceplate('neon-visor', 'legendary', 'tech'), faceplate('dragon-visor', 'legendary', 'fantasy'),
 
   hand('task-board', 'common', 'dev'), hand('wrench', 'common', 'dev'), hand('coffee-mug', 'common', 'dev'),
   hand('paintbrush', 'common', 'everyday'), hand('boba-tea', 'common', 'snack'),
+  hand('umbrella', 'common', 'everyday'), hand('pizza-slice', 'common', 'snack'), hand('sunflower', 'common', 'nature'), hand('camera', 'common', 'everyday'),
   hand('shield', 'uncommon', 'dev'), hand('magnifier', 'uncommon', 'dev'), hand('gamepad', 'uncommon', 'dev'), hand('flag', 'uncommon', 'everyday'),
-  hand('control-panel', 'rare', 'tech'), hand('lantern', 'rare', 'fantasy'),
-  hand('magic-wand', 'epic', 'fantasy'), hand('staff', 'epic', 'fantasy'), hand('energy-blade', 'legendary', 'tech'),
+  hand('binoculars', 'uncommon', 'nature'), hand('goldfish-bag', 'uncommon', 'critters'), hand('megaphone', 'uncommon', 'everyday'),
+  hand('control-panel', 'rare', 'tech'), hand('lantern', 'rare', 'fantasy'), hand('parrot', 'rare', 'critters'), hand('firefly-jar', 'rare', 'nature'),
+  hand('magic-wand', 'epic', 'fantasy'), hand('staff', 'epic', 'fantasy'), hand('trophy', 'epic', 'everyday'), hand('energy-blade', 'legendary', 'tech'), hand('thunder-hammer', 'legendary', 'tech'),
 
   back('cape', 'common', 'fantasy'), back('crescent-moon', 'common', 'nature'),
+  back('kite', 'common', 'everyday'), back('solar-panels', 'common', 'tech'), back('power-cord', 'common', 'dev'), back('surfboard', 'common', 'nature'),
   back('jetpack', 'uncommon', 'tech'), back('star-trail', 'uncommon', 'fantasy'), back('balloons', 'uncommon', 'everyday'),
-  back('bat-wings', 'rare', 'critters'), back('butterfly-wings', 'rare', 'critters'),
-  back('halo', 'epic', 'fantasy'), back('angel-wings', 'epic', 'fantasy'), back('sun-rays', 'epic', 'nature'),
-  back('orbit-ring', 'legendary', 'tech'), back('dragon-wings', 'legendary', 'fantasy'),
+  back('fox-tail', 'uncommon', 'critters'), back('hero-scarf', 'uncommon', 'everyday'), back('guitar', 'uncommon', 'everyday'),
+  back('bat-wings', 'rare', 'critters'), back('butterfly-wings', 'rare', 'critters'), back('comet', 'rare', 'tech'),
+  back('halo', 'epic', 'fantasy'), back('angel-wings', 'epic', 'fantasy'), back('sun-rays', 'epic', 'nature'), back('koi-orbit', 'epic', 'critters'),
+  back('orbit-ring', 'legendary', 'tech'), back('dragon-wings', 'legendary', 'fantasy'), back('twin-blades', 'legendary', 'fantasy'),
 
-  skin('stripes', 'common', 'everyday'),
+  skin('stripes', 'common', 'everyday'), skin('split', 'common', 'everyday'), skin('hoops', 'common', 'everyday'),
+  skin('sunburst', 'uncommon', 'nature'), skin('dipped', 'uncommon', 'everyday'), skin('pinwheel', 'rare', 'everyday'),
   skin('chrome', 'epic', 'tech'), skin('gold', 'epic', 'fantasy'), skin('lava', 'epic', 'nature'),
-  skin('holographic', 'legendary', 'tech'), skin('galaxy', 'legendary', 'fantasy'),
+  skin('bumblebee', 'epic', 'critters'), skin('aurora', 'epic', 'nature'), skin('terminal', 'epic', 'dev'), skin('patina', 'epic', 'nature'),
+  skin('holographic', 'legendary', 'tech'), skin('galaxy', 'legendary', 'fantasy'), skin('thermal', 'legendary', 'tech'),
 ] as const
 
 export type Item = typeof items[number]

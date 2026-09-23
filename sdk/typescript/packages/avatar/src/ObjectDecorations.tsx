@@ -31,6 +31,42 @@ function Ufo() {
   </g>
 }
 
+function MiniVolcano() {
+  return <>
+    <Glow blur={20} className="dca-fx-pulse"><ellipse cx="512" cy="244" rx="90" ry="48" fill="#ff8a3d" opacity=".75" /></Glow>
+    <g fill="#a59c99" stroke="#fff" strokeWidth="10" paintOrder="stroke fill">
+      <path className="dca-fx dca-fx-steam" d="M476 228a16 16 0 1 1 32 0a16 16 0 1 1-32 0ZM492 218a22 22 0 1 1 44 0a22 22 0 1 1-44 0ZM521 230a15 15 0 1 1 30 0a15 15 0 1 1-30 0Z" />
+      <path className="dca-fx dca-fx-steam" d="M506 178a14 14 0 1 1 28 0a14 14 0 1 1-28 0ZM522 170a15 15 0 1 1 30 0a15 15 0 1 1-30 0Z" style={{ animationDelay: '-.9s' }} />
+      <circle className="dca-fx dca-fx-steam" cx="514" cy="134" r="11" style={{ animationDelay: '-1.7s' }} />
+    </g>
+    <S d="M372 400C416 396 448 340 460 262q2-16 16-16h72q14 0 16 16c12 78 44 134 88 138Z" fill="#564545" />
+    <path d="M532 246h16q14 0 16 16c12 78 44 134 88 138h-76c-18-44-32-100-44-154Z" fill="#3f3232" />
+    <path d="M460 262q2-16 16-16h72q14 0 16 16l4 28c0 26-16 26-16 0q-10-8-20-2c0 16-14 16-14 0q-12-8-24 0c0 22-16 22-16 0l-20-2Z" fill="#e8451f" />
+    <ellipse cx="512" cy="256" rx="42" ry="9" fill="#ffb347" />
+  </>
+}
+
+const talons = 'M512 360v36M548 358v38M518 399h-28q-8 0-8 8M554 399h-28q-8 0-8 8'
+function PhoenixPerch() {
+  return <>
+    <Glow blur={24} className="dca-fx-pulse"><ellipse cx="596" cy="252" rx="132" ry="104" fill="#ffb347" opacity=".45" /></Glow>
+    <g className="dca-fx-flame" style={{ transformOrigin: '596px 330px' }}>
+      <S d="M590 356C640 364 700 330 724 282Q706 300 682 290Q722 248 716 196Q696 222 668 236Q684 184 654 142C644 190 596 236 570 300Z" fill="#ffb02e" />
+      <path d="M600 340C640 344 684 320 700 290Q684 296 668 292Q694 256 690 222Q672 244 654 252Q664 212 646 180C636 216 608 250 590 300Z" fill="#ffe27a" />
+    </g>
+    <g className="dca-fx-flame" style={{ transformOrigin: '466px 226px', animationDelay: '-.21s' }}>
+      <S d="M444 230C436 206 446 182 466 168Q468 190 480 196Q496 176 522 174Q506 190 504 200Q518 196 532 204C516 222 500 232 488 236Z" fill="#ffb02e" />
+    </g>
+    <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d={talons} stroke="#fff" strokeWidth="25" /><path d={talons} stroke="#6b4a36" strokeWidth="11" />
+    </g>
+    <S d="M424 258a38 38 0 1 1 76 0a38 38 0 1 1-76 0ZM460 304a74 48 14 1 1 144 36a74 48 14 1 1-144-36Z" fill="#ee6a2c" />
+    <path d="M488 306c30-22 92-22 136 12l-28 6 18 18-30 2 10 16c-40 4-84-4-106-54Z" fill="#c2412a" />
+    <path d="M430 248 396 262 432 274Z" fill="#ffcf4a" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" />
+    <circle cx="452" cy="252" r="7" fill="#3b2418" />
+  </>
+}
+
 export function ObjectDecoration({ id }: { id: HeadId }) {
   switch (id) {
     case 'ringed-planet': return <RingedPlanet />
@@ -69,6 +105,8 @@ export function ObjectDecoration({ id }: { id: HeadId }) {
       <S d="M512 200 560 320 512 404 464 320Z" fill="#8b5cf6" /><path d="M512 200 536 320 512 404Z" fill="#c4b5fd" />
     </>
     case 'ufo': return <Ufo />
+    case 'mini-volcano': return <MiniVolcano />
+    case 'phoenix-perch': return <PhoenixPerch />
     case 'poop': return <>
       <S d="M393 315c-17-37 10-65 57-67-12-33 15-48 39-53 21-5 29-17 27-35 52 20 69 43 55 75 47 0 72 35 52 73 70 9 81 92 8 92H389c-67 0-62-77 4-85Z" fill="#a97b5f" />
       <path d="M397 313c64 19 157 22 227-5-9 32-171 60-227 5Zm53-65c35 16 80 15 121-13-1 31-82 49-121 13Z" fill="#805840" />
@@ -115,6 +153,21 @@ export function ObjectDecoration({ id }: { id: HeadId }) {
       <path d="M403 322c49 72 169 73 218-4-14 51-56 84-109 84-52 0-94-31-109-80Z" fill="#bf8456" />
       <path d="M396 284c0-153 231-153 232 0-2 23-26 20-33 0-9-27-13 5-31 4-6 0-10-3-10-14-13-47-75-41-83 2-4 19-18 27-25 6-11-32-20 22-39 18-8-1-11-8-11-16Z" fill="#e5a0b3" />
       <Detail><path d="m449 230 12 9m58-41 1 14m55 21-9 10" stroke="#fff0ce" strokeWidth="10" strokeLinecap="round" /></Detail>
+    </>
+    // The bottom edge slopes 8° so the rotation lands it flat on the top edge.
+    case 'floppy-disk': return <g transform="rotate(-8 512 404)">
+      <S d="M388 176h234l30 30v218l-280-40V192c0-9 7-16 16-16Z" fill="#3c4658" />
+      <path d="M440 176h156v94c0 6-4 10-10 10H450c-6 0-10-4-10-10Z" fill="#a7b1c0" /><rect x="400" y="302" width="224" height="62" rx="10" fill="#fff" />
+      <Detail><rect x="548" y="196" width="30" height="64" rx="6" fill="#3c4658" /></Detail>
+    </g>
+    case 'rocket': return <>
+      <g className="dca-fx dca-fx-flame" style={{ transformOrigin: '512px 330px' }}>
+        <path d="M512 398c-24-18-34-40-30-68h60c4 28-6 50-30 68Z" fill="#ffb347" /><path d="M512 380c-12-14-16-30-12-50h24c4 20 0 36-12 50Z" fill="#ffe08a" />
+      </g>
+      <S d="M446 248c-34 20-52 56-54 100v44c0 8 8 11 14 6l40-40Zm132 0c34 20 52 56 54 100v44c0 8-8 11-14 6l-40-40Z" fill="#e8654f" />
+      <S d="M512 128c48 28 68 86 68 154v36c0 7-5 12-12 12H456c-7 0-12-5-12-12v-36c0-68 20-126 68-154Z" fill="#dce8f4" />
+      <path d="M512 128c29 17 48 44 58 78H454c10-34 29-61 58-78Z" fill="#e8654f" />
+      <Detail><circle cx="512" cy="258" r="26" fill="#3c4658" /></Detail>
     </>
     default: return null
   }

@@ -11,6 +11,11 @@ export const paintMaterials = {
   gold: { shadow: '#5a3a10', accent: '#f6d365' },
   lava: { shadow: '#3a0a05', accent: '#ff6a2a' },
   galaxy: { shadow: '#0b0620', accent: '#7c3aed' },
+  bumblebee: { shadow: '#3a2c08', accent: '#f6c343' },
+  aurora: { shadow: '#06131f', accent: '#34d399' },
+  terminal: { shadow: '#020604', accent: '#7dff8a' },
+  patina: { shadow: '#123a33', accent: '#58b39a' },
+  thermal: { shadow: '#12072e', accent: '#ff7a1f' },
 } as const satisfies Partial<Record<SkinId, PaintMaterial>>
 
 export type PaintSkinId = keyof typeof paintMaterials
