@@ -3,6 +3,7 @@ import { SquareTerminal } from 'lucide-react'
 import codexIcon from '../../../../assets/agents/codex.svg'
 import cursorIcon from '../../../../assets/agents/cursor.svg'
 import { SparkIcon } from '../../../ui/AppIcons'
+import { TintedMark } from '../../../ui/TintedMark'
 
 interface AgentIconProps {
   /** Profile name (e.g. `native`, `codex-cli`, `cursor-cli`, or a custom name). */
@@ -29,11 +30,7 @@ function renderArt(name: string, isBuiltIn: boolean, size: number): JSX.Element 
     return <img src={codexIcon} alt="" width={size} height={size} style={IMG_STYLE} />
   }
   if (name === 'cursor-cli') {
-    return (
-      <span style={{ ...CURSOR_TINT, width: size, height: size, display: 'inline-flex' }}>
-        <img src={cursorIcon} alt="" width={size} height={size} style={IMG_STYLE} />
-      </span>
-    )
+    return <TintedMark src={cursorIcon} size={size} />
   }
   if (name === 'native') {
     return <SparkIcon size={Math.round(size * 0.72)} />
@@ -49,10 +46,6 @@ const IMG_STYLE: CSSProperties = {
   height: '100%',
   objectFit: 'contain',
   display: 'block'
-}
-
-const CURSOR_TINT: CSSProperties = {
-  color: 'var(--text-primary)'
 }
 
 function frameStyle(size: number): CSSProperties {

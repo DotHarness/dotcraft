@@ -3266,13 +3266,12 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.back': '返回',
   'settings.subAgents.toggleAria': '切换子智能体 {{name}}',
   'settings.subAgents.settings.resumeTitle': '复用外部 CLI 会话',
-  'settings.subAgents.settings.resumeDescription':
-    '开启后，支持 resume 的外部 CLI profile 在复用相同 label 时，会继续当前工作区之前保存的外部会话。',
+  'settings.subAgents.settings.resumeDescription': '让外部 CLI 在这个工作区接着上次的会话继续。',
 
   // List surface
   'settings.subAgents.list.presetSection': '内置智能体',
   'settings.subAgents.list.customSection': '自定义智能体',
-  'settings.subAgents.list.customEmpty': '还没有自定义智能体。如果你想接入其它 CLI，点击下方按钮添加。',
+  'settings.subAgents.list.customEmpty': '还没有自定义智能体。',
   'settings.subAgents.list.addCustomAgent': '添加自定义智能体',
   'settings.subAgents.list.addCustomAgentHint': '描述 DotCraft 应如何调用你的 CLI。',
   'settings.subAgents.card.customizedBadge': '已自定义',
@@ -3291,7 +3290,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.preset.cursor.title': 'Cursor CLI',
   'settings.subAgents.preset.cursor.description':
     'DotCraft 会以 print 模式启动 cursor-agent，并从它返回的 JSON 中读取回复。',
-  'settings.subAgents.preset.native.title': '原生 (Native)',
+  'settings.subAgents.preset.native.title': '原生',
   'settings.subAgents.preset.native.description':
     '原生子智能体运行在 DotCraft 内部，共享主智能体的审批流程，因此无法禁用。',
   'settings.subAgents.preset.enableTitle': '启用该智能体',
@@ -3701,7 +3700,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.import.dialog.description': '选择要导入的内容。当前设置不会改变。',
   'settings.import.dialog.chats': '聊天会话（{{count}}）',
   'settings.import.dialog.chatsHint': '来自 {{source}} 的近期会话',
-  'settings.import.dialog.keepInSync': '保持导入同步',
   'settings.import.dialog.confirm': '导入到 DotCraft',
   'settings.import.toast.done': '导入完成',
   'settings.import.toast.partial': '导入完成，但有错误',

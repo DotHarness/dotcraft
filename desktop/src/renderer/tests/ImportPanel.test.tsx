@@ -113,27 +113,20 @@ describe('ImportPanel', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
   })
 
-  it('turns sync on for the source before running the import it confirms', async () => {
+  it('registers the source for sync before running the import it confirms', async () => {
     await renderLoadedPanel()
-    fireEvent.click(await importButton('Claude Code'))
-    const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('checkbox', { name: en('settings.import.dialog.keepInSync') })).toBeChecked()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: en('settings.import.dialog.confirm') }))
+    await confirmImport('Claude Code')
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const methods = sendRequest.mock.calls.map(([method]) => method)
     expect(methods.indexOf('import/settings/set')).toBeLessThan(methods.indexOf('import/sessions/run'))
-    expect(sendRequest).toHaveBeenCalledWith('import/settings/set', {
-      syncEnabled: true,
-      sources: ['codex', 'claude-code']
-    })
+    expect(sendRequest).toHaveBeenCalledWith('import/settings/set', { sources: ['codex', 'claude-code'] })
     expect(sendRequest).toHaveBeenCalledWith('import/sessions/run', { sources: ['claude-code'] })
     expect(await importButton('Claude Code')).toHaveAttribute('aria-busy', 'true')
   })
 
-  it('leaves sync settings alone when the dialog already matches them', async () => {
-    settingsFixture = { ...settingsFixture, syncEnabled: true, sources: ['claude-code'] }
+  it('leaves sync settings alone when the source is already a sync source', async () => {
+    settingsFixture = { ...settingsFixture, sources: ['claude-code'] }
     await renderLoadedPanel()
 
     await confirmImport('Claude Code')

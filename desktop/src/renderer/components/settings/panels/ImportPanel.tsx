@@ -113,9 +113,10 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
     }
   }
 
-  async function handleImport(source: string, total: number, keepInSync: boolean): Promise<void> {
-    const update = settings && !settings.workspaceOptOut ? syncUpdate(settings, source, keepInSync) : null
-    if (update) await saveSettings(update)
+  async function handleImport(source: string, total: number): Promise<void> {
+    if (settings && !settings.sources.includes(source)) {
+      await saveSettings({ sources: [...settings.sources, source] })
+    }
     const started: RunningImport = { source, completed: 0, total }
     setRunning(started)
     try {
@@ -256,22 +257,12 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
           source={dialogSource}
           sourceLabel={importSourceLabel(dialogSource)}
           count={dialogCount}
-          initialKeepInSync={settings ? settings.syncEnabled || !settings.lastSyncAt : false}
-          syncLocked={!settings || settings.workspaceOptOut}
-          syncNote={settings?.workspaceOptOut ? t('settings.import.sync.optOut') : undefined}
-          onConfirm={(keepInSync) => handleImport(dialogSource, dialogCount, keepInSync)}
+          onConfirm={() => handleImport(dialogSource, dialogCount)}
           onClose={() => setDialogSource(null)}
         />
       )}
     </SettingsPanelShell>
   )
-}
-
-/** Importing a source also makes it a sync source, so the sync list covers every app imported from. */
-function syncUpdate(settings: ImportSettings, source: string, keepInSync: boolean): ImportSettingsSetParams | null {
-  const tracked = settings.sources.includes(source)
-  if (settings.syncEnabled === keepInSync && tracked) return null
-  return { syncEnabled: keepInSync, sources: tracked ? settings.sources : [...settings.sources, source] }
 }
 
 function readyText(count: number, t: Translate): string {

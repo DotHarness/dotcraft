@@ -985,7 +985,7 @@ Required behavior:
 - Opening the tab loads `import/settings/get` and runs `import/sessions/detect` for every configured source; **Check again** re-runs detection.
 - **Keep imports in sync** applies immediately through `import/settings/set`. When the workspace configuration opts out, the toggle is off and disabled with an explanation.
 - The source list shows one row per available source with its importable chat count and an **Import** action, disabled when nothing is importable or while any import pass runs. A status line reports checking, no importable chats, and the last sync time.
-- **Import** opens a dialog for that source's chat sessions with a **Keep imports in sync** checkbox. The checkbox starts checked unless the user paused sync after a sync pass had run. Confirming writes `import/settings/set` first when the choice differs from the stored settings, adding the source to the sync sources, then calls `import/sessions/run` for that source and closes the dialog.
+- **Import** opens a dialog listing the source's chat sessions as a selectable item; sync is controlled only by the **Keep imports in sync** toggle. Confirming writes `import/settings/set` first when the source is not yet a sync source, then calls `import/sessions/run` for that source and closes the dialog.
 - `import/sessions/progress` updates the importing row. `import/sessions/completed` re-runs detection, refreshes settings, and shows a toast counting imported, updated, and failed chats; a sync pass that changed nothing stays silent.
 - An `import_busy` response closes the dialog and shows the in-progress state until the running pass completes.
 - Imported threads arrive through `thread/started`, are marked unread, and carry an import origin badge naming the source app.

@@ -359,9 +359,9 @@ after General:
 - **Import from other apps**: one row per detected source, with the app's icon, the importable session count, and an
   **Import** button; a status line covering checking, no importable chats, and last sync time; and a
   **Check again** action that re-runs detection.
-- The **Import** dialog shows "Chat sessions (N)" for the chosen source and a **Keep imports in sync**
-  checkbox that defaults to checked. Confirming runs `import/sessions/run` and, when the checkbox
-  changed, `import/settings/set`.
+- The **Import** dialog lists what comes over as selectable items, currently the single "Chat sessions
+  (N)" row for the chosen source with its checkbox at the row's end. Confirming adds the source to
+  the sync sources through `import/settings/set` when it is missing, then runs `import/sessions/run`.
 - Progress and completion arrive through the notifications; the thread list receives imported threads
   through the normal `thread/started` broadcast, and newly imported threads are marked unread.
 - Imported threads show the source as their origin badge. Phase 1 keeps no import log and syncs each

@@ -3360,14 +3360,12 @@ export const MESSAGES_EN = {
   'settings.subAgents.back': 'Back',
   'settings.subAgents.toggleAria': 'Toggle subagent {{name}}',
   'settings.subAgents.settings.resumeTitle': 'Resume external CLI sessions',
-  'settings.subAgents.settings.resumeDescription':
-    'When supported profiles reuse the same label, DotCraft can continue the previous external CLI session for this workspace.',
+  'settings.subAgents.settings.resumeDescription': 'Let external CLIs pick up where they left off in this workspace.',
 
   // List surface
   'settings.subAgents.list.presetSection': 'Built-in agents',
   'settings.subAgents.list.customSection': 'Custom agents',
-  'settings.subAgents.list.customEmpty':
-    'No custom agents yet. Add one if you rely on a different CLI.',
+  'settings.subAgents.list.customEmpty': 'No custom agents yet.',
   'settings.subAgents.list.addCustomAgent': 'Add custom agent',
   'settings.subAgents.list.addCustomAgentHint':
     'Describe how DotCraft should invoke your own CLI.',
@@ -3792,7 +3790,6 @@ export const MESSAGES_EN = {
   'settings.import.dialog.description': 'Pick what to import. Nothing in your current setup changes.',
   'settings.import.dialog.chats': 'Chat sessions ({{count}})',
   'settings.import.dialog.chatsHint': 'Recent chats from {{source}}',
-  'settings.import.dialog.keepInSync': 'Keep imports in sync',
   'settings.import.dialog.confirm': 'Import to DotCraft',
   'settings.import.toast.done': 'Import finished',
   'settings.import.toast.partial': 'Import finished with errors',

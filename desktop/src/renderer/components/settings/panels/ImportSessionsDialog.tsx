@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
+import { MessageSquare } from 'lucide-react'
 
 import { LayerBoundary } from '../../../contexts/LayerContext'
 import { useT } from '../../../contexts/LocaleContext'
@@ -13,11 +14,8 @@ interface ImportSessionsDialogProps {
   source: string
   sourceLabel: string
   count: number
-  initialKeepInSync: boolean
-  syncLocked: boolean
-  syncNote?: string
   /** Rejects with the reason to show inline; the owner closes the dialog on success. */
-  onConfirm: (keepInSync: boolean) => Promise<void>
+  onConfirm: () => Promise<void>
   onClose: () => void
 }
 
@@ -25,9 +23,6 @@ export function ImportSessionsDialog({
   source,
   sourceLabel,
   count,
-  initialKeepInSync,
-  syncLocked,
-  syncNote,
   onConfirm,
   onClose
 }: ImportSessionsDialogProps): JSX.Element {
@@ -35,9 +30,9 @@ export function ImportSessionsDialog({
   const titleId = useId()
   const confirmRef = useRef<HTMLButtonElement>(null)
   const [chatsSelected, setChatsSelected] = useState(true)
-  const [keepInSync, setKeepInSync] = useState(initialKeepInSync)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const chatsTitle = t('settings.import.dialog.chats', { count })
 
   // Whatever opened the dialog gets the focus back when it closes, so this runs
   // before anything here moves the focus.
@@ -64,7 +59,7 @@ export function ImportSessionsDialog({
     setBusy(true)
     setError(null)
     try {
-      await onConfirm(keepInSync)
+      await onConfirm()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setBusy(false)
@@ -93,29 +88,21 @@ export function ImportSessionsDialog({
         />
 
         <div className={styles.items}>
-          <Checkbox
-            checked={count > 0 && chatsSelected}
-            disabled={count === 0 || busy}
-            onChange={setChatsSelected}
-            label={
-              <span className={styles.itemText}>
-                <span className={styles.itemTitle}>{t('settings.import.dialog.chats', { count })}</span>
-                <span className={styles.itemHint}>
-                  {t('settings.import.dialog.chatsHint', { source: sourceLabel })}
-                </span>
+          <div className={styles.item}>
+            <MessageSquare size={18} strokeWidth={1.8} aria-hidden className={styles.itemIcon} />
+            <span className={styles.itemText}>
+              <span className={styles.itemTitle}>{chatsTitle}</span>
+              <span className={styles.itemHint}>
+                {t('settings.import.dialog.chatsHint', { source: sourceLabel })}
               </span>
-            }
-          />
-        </div>
-
-        <div className={styles.sync}>
-          <Checkbox
-            checked={!syncLocked && keepInSync}
-            disabled={syncLocked || busy}
-            onChange={setKeepInSync}
-            label={t('settings.import.dialog.keepInSync')}
-          />
-          {syncNote && <p className={styles.syncNote}>{syncNote}</p>}
+            </span>
+            <Checkbox
+              checked={count > 0 && chatsSelected}
+              disabled={count === 0 || busy}
+              onChange={setChatsSelected}
+              ariaLabel={chatsTitle}
+            />
+          </div>
         </div>
 
         {error && <p role="alert" className={styles.error}>{error}</p>}

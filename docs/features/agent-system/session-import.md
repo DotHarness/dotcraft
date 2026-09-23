@@ -13,7 +13,7 @@ Only chats recorded for the open project come over. Chats from other folders sta
 
 1. Open **Settings › Import** in the project.
 2. Each app found on this machine shows how many chats are ready. Click **Import** next to one.
-3. Leave **Keep imports in sync** checked to have new and updated chats arrive on their own, then confirm.
+3. Confirm. To have new and updated chats keep arriving on their own, turn on **Keep imports in sync** on the same page.
 
 Imported chats appear in the chat list with a badge naming the app they came from. Open one to read it, or send a message to continue it with DotCraft.
 

@@ -3,6 +3,7 @@ import { Download } from 'lucide-react'
 import claudeIcon from '../../../assets/agents/claude.svg'
 import cursorIcon from '../../../assets/agents/cursor.svg'
 import openAiIcon from '../../../assets/agents/openai.svg'
+import { TintedMark } from '../../ui/TintedMark'
 
 interface ImportSourceIconProps {
   source: string
@@ -13,10 +14,10 @@ interface ImportSourceIconProps {
 }
 
 /** Each mark fills its 24px viewBox differently, so the scale evens out their optical size. */
-const SOURCE_ART: Record<string, { src: string; scale: number }> = {
+const SOURCE_ART: Record<string, { src: string; scale: number; tinted?: boolean }> = {
   'claude-code': { src: claudeIcon, scale: 0.6 },
-  codex: { src: openAiIcon, scale: 0.6 },
-  cursor: { src: cursorIcon, scale: 0.62 }
+  codex: { src: openAiIcon, scale: 0.6, tinted: true },
+  cursor: { src: cursorIcon, scale: 0.62, tinted: true }
 }
 
 export function ImportSourceIcon({ source, size = 36, framed = true }: ImportSourceIconProps): JSX.Element {
@@ -24,9 +25,11 @@ export function ImportSourceIcon({ source, size = 36, framed = true }: ImportSou
   const glyph = Math.round(size * (art?.scale ?? 0.5))
   return (
     <span style={framed ? frameStyle(size) : inlineStyle(size)}>
-      {art
-        ? <img src={art.src} alt="" width={glyph} height={glyph} style={{ width: glyph, height: glyph, display: 'block' }} />
-        : <Download size={glyph} strokeWidth={1.8} aria-hidden="true" />}
+      {!art
+        ? <Download size={glyph} strokeWidth={1.8} aria-hidden="true" />
+        : art.tinted
+          ? <TintedMark src={art.src} size={glyph} />
+          : <img src={art.src} alt="" width={glyph} height={glyph} style={{ width: glyph, height: glyph, display: 'block' }} />}
     </span>
   )
 }

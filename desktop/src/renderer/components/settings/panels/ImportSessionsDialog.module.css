@@ -22,13 +22,26 @@
 }
 
 .items {
-  padding: 12px 14px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
 }
 
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
 .itemText {
   display: flex;
+  flex: 1;
+  min-width: 0;
   flex-direction: column;
   gap: 2px;
 }
@@ -44,19 +57,6 @@
   color: var(--text-secondary);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
-}
-
-.sync {
-  margin-top: 16px;
-  font-size: var(--type-ui-size);
-  line-height: var(--type-ui-line-height);
-}
-
-.syncNote {
-  margin: 6px 0 0 24px;
-  color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-prose-line-height);
 }
 
 .error {
