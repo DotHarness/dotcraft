@@ -47,7 +47,7 @@
   padding: 0;
   text-align: left;
   font-family: inherit;
-  font-size: var(--type-ui-size);
+  font-size: var(--conversation-secondary-size);
   font-weight: 500;
 }
 button.dc-context-attachment__title {
@@ -61,7 +61,7 @@ button.dc-context-attachment__title {
   padding: 0;
   text-align: left;
   font-family: inherit;
-  font-size: var(--type-secondary-size);
+  font-size: var(--conversation-meta-size);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -198,7 +198,6 @@ button.dc-context-attachment__title {
 .dc-feedback-attachments__source {
   display: block;
   color: var(--text-secondary);
-  font-size: var(--type-caption-size);
   margin-top: 8px;
   overflow-wrap: anywhere;
 }

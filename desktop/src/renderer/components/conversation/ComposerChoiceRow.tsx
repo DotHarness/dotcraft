@@ -166,7 +166,7 @@ export function composerChoiceNumberStyle(density: ComposerChoiceDensity = 'comp
     color: 'var(--text-dimmed)',
     width: decision ? '20px' : '22px',
     flex: decision ? '0 0 20px' : '0 0 22px',
-    fontSize: decision ? '13px' : 'var(--text-body-size)',
+    fontSize: decision ? 'var(--conversation-secondary-size)' : 'var(--text-body-size)',
     lineHeight: decision ? '24px' : 'var(--text-body-line-height)',
     fontWeight: 'var(--conversation-font-weight)'
   }

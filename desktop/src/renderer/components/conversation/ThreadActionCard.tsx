@@ -103,7 +103,8 @@ const textWrapStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   display: 'block',
-  fontSize: '14px',
+  fontSize: 'var(--conversation-font-size)',
+  lineHeight: 'var(--conversation-line-height)',
   fontWeight: 600,
   color: 'var(--text-primary)',
   overflow: 'hidden',
@@ -114,7 +115,8 @@ const titleStyle: CSSProperties = {
 const subtitleStyle: CSSProperties = {
   display: 'block',
   marginTop: '2px',
-  fontSize: '12px',
+  fontSize: 'var(--conversation-secondary-size)',
+  lineHeight: 'var(--conversation-line-height)',
   color: 'var(--text-secondary)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -132,7 +134,7 @@ const openButtonStyle: CSSProperties = {
   background: 'transparent',
   color: 'var(--text-primary)',
   cursor: 'pointer',
-  fontSize: '13px',
+  fontSize: 'var(--conversation-secondary-size)',
   fontWeight: 500,
   flexShrink: 0
 }

@@ -122,7 +122,7 @@ export function AgentMessage({
             justifyContent: 'flex-start',
             gap: '6px',
             color: 'var(--text-tertiary)',
-            fontSize: '11px',
+            fontSize: 'var(--conversation-meta-size)',
             lineHeight: 1,
             userSelect: 'none'
           }}

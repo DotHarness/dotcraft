@@ -143,7 +143,7 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             gap: '5px',
             minWidth: 0,
             color: 'var(--text-secondary)',
-            fontSize: 'var(--type-ui-size)',
+            fontSize: 'var(--conversation-secondary-size)',
             fontWeight: 500,
             lineHeight: 1.2
           }}
@@ -166,8 +166,9 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
           margin: '0 0 8px',
           minWidth: 0,
           color: 'var(--text-primary)',
-          fontSize: '18px',
-          fontWeight: 700,
+          fontSize: 'var(--conversation-font-size)',
+          lineHeight: 'var(--conversation-line-height)',
+          fontWeight: 600,
           overflowWrap: 'anywhere',
           wordBreak: 'break-word'
         }}
@@ -182,7 +183,8 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             minWidth: 0,
             color: 'var(--text-secondary)',
             whiteSpace: 'pre-wrap',
-            lineHeight: 1.5,
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)',
             overflowWrap: 'anywhere',
             wordBreak: 'break-word'
           }}
@@ -225,8 +227,8 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             display: 'grid',
             gap: '6px',
             color: 'var(--text-primary)',
-            fontSize: '14px',
-            lineHeight: 1.6
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)'
           }}
         >
           {parsed.todos.map((todo) => {
@@ -325,7 +327,7 @@ const expandToggleStyle: CSSProperties = {
   background: 'var(--text-primary)',
   color: 'var(--bg-primary)',
   cursor: 'pointer',
-  fontSize: '12px',
+  fontSize: 'var(--conversation-secondary-size)',
   fontWeight: 600
 }
 

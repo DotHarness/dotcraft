@@ -318,7 +318,7 @@ const dockHeaderStyle: CSSProperties = {
   gap: '8px',
   padding: '0 4px 0 10px',
   color: 'var(--text-secondary)',
-  fontSize: '12px'
+  fontSize: 'var(--type-ui-size)'
 }
 
 
@@ -353,8 +353,8 @@ function queueSectionStyle(separated: boolean): CSSProperties {
 const queueSectionLabelStyle: CSSProperties = {
   padding: '1px 0 5px 18px',
   color: 'var(--text-dimmed)',
-  fontSize: '11px',
-  lineHeight: '14px'
+  fontSize: 'var(--type-secondary-size)',
+  lineHeight: 'var(--type-secondary-line-height)'
 }
 
 const queueRowsStyle: CSSProperties = {
@@ -371,7 +371,7 @@ const queueRowStyle: CSSProperties = {
   alignItems: 'center',
   gap: '6px',
   color: 'var(--text-secondary)',
-  fontSize: '12px',
+  fontSize: 'var(--type-ui-size)',
   borderRadius: '7px',
   background: 'transparent'
 }

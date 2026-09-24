@@ -22,7 +22,7 @@ export function PendingMessageIndicator({ message }: PendingMessageIndicatorProp
         alignItems: 'center',
         gap: '6px',
         padding: '4px 12px',
-        fontSize: '11px',
+        fontSize: 'var(--conversation-meta-size)',
         color: 'var(--text-dimmed)'
       }}
     >

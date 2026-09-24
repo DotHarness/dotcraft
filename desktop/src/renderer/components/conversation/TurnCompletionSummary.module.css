@@ -4,7 +4,8 @@
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--bg-primary);
-  font-size: var(--type-ui-size);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
 }
 
 .header {
@@ -26,15 +27,14 @@
 .title {
   overflow: hidden;
   font-weight: var(--type-ui-emphasis-weight);
-  line-height: var(--type-ui-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .stats {
-  font-family: var(--font-mono);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
+  flex-shrink: 0;
+  font-size: var(--conversation-secondary-size);
+  font-variant-numeric: tabular-nums;
 }
 
 .actions {
@@ -77,8 +77,6 @@
   background: none;
   color: inherit;
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 12px;
   text-align: left;
 }
 

@@ -88,7 +88,6 @@ export function InlineDiffView({
                     padding: '2px 8px',
                     background: 'var(--bg-secondary)',
                     color: 'var(--text-dimmed)',
-                    fontSize: '11px',
                     userSelect: 'none',
                     minWidth: 'max-content'
                   }}
@@ -244,7 +243,7 @@ export function FileResultHeader({
         background: 'var(--bg-tertiary)',
         borderBottom: '1px solid var(--border-default)',
         color: 'var(--text-secondary)',
-        fontSize: '11px'
+        fontSize: 'var(--conversation-secondary-size)'
       }}
     >
       <ActionTooltip
@@ -293,6 +292,5 @@ const lineNumberStyle: CSSProperties = {
   textAlign: 'right',
   paddingRight: '6px',
   color: 'var(--text-dimmed)',
-  userSelect: 'none',
-  fontSize: '11px'
+  userSelect: 'none'
 }

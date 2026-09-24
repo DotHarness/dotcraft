@@ -53,7 +53,8 @@ export function ThinkingIndicator({
             cursor: canExpand ? 'pointer' : 'default',
             padding: '3px 6px',
             color: rowColor,
-            fontSize: '12px',
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)',
             textAlign: 'left'
           }}
           aria-expanded={expanded}
@@ -91,8 +92,8 @@ export function ThinkingIndicator({
             background: 'transparent',
             color: 'var(--text-dimmed)',
             fontStyle: 'italic',
-            fontSize: '13px',
-            lineHeight: 1.6,
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word'
           }}

@@ -67,8 +67,8 @@ const footerStyle: CSSProperties = {
   gap: '8px',
   minHeight: '28px',
   color: 'var(--composer-footer-text)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)'
+  fontSize: 'var(--type-ui-size)',
+  lineHeight: 'var(--type-ui-line-height)'
 }
 
 function currentBranchLabel(branches: GitBranchListSnapshot | null): string | null {

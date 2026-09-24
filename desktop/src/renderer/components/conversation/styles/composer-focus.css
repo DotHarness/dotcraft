@@ -17,9 +17,9 @@
 
 .request-user-input-countdown {
   color: var(--text-dimmed);
-  font-size: var(--type-secondary-size);
+  font-size: var(--conversation-meta-size);
   font-variant-numeric: tabular-nums;
-  line-height: var(--type-secondary-line-height);
+  line-height: var(--conversation-meta-line-height);
 }
 
 /* Composer card popovers need to clear the workspace footer below the card.

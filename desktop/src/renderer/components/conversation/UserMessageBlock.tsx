@@ -336,7 +336,7 @@ export function UserMessageBlock({
                     color: 'var(--text-secondary)',
                     cursor: !remoteWorkspaceActive && workspacePath && activeThreadId ? 'pointer' : 'default',
                     font: 'inherit',
-                    fontSize: '12px',
+                    fontSize: 'var(--conversation-secondary-size)',
                     lineHeight: 1.2
                   }}
                 >
@@ -385,7 +385,7 @@ export function UserMessageBlock({
               justifyContent: 'flex-end',
               gap: '6px',
               color: 'var(--text-tertiary)',
-              fontSize: '11px',
+              fontSize: 'var(--conversation-meta-size)',
               lineHeight: 1,
               userSelect: 'none'
             }}
@@ -495,8 +495,6 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
         onContextMenu={(event) => { void handleContextMenu(event) }}
         style={{
           margin: '0 4px',
-          fontSize: '12px',
-          lineHeight: 1.25,
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
@@ -523,8 +521,6 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
         className="dc-ref dc-ref-command"
         style={{
           margin: '0 4px',
-          fontSize: '12px',
-          lineHeight: 1.25,
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
@@ -583,8 +579,6 @@ function FileRefChip({
         }}
         style={{
           margin: '0 4px',
-          fontSize: '12px',
-          lineHeight: 1.25,
           maxWidth: 'var(--inline-reference-max-width)',
           cursor: canOpen ? 'pointer' : 'default',
           fontFamily: 'inherit'

@@ -495,11 +495,11 @@ const messageStyle: CSSProperties = {
   minHeight: '72px',
   padding: '36px 16px 16px',
   color: 'var(--text-secondary)',
-  fontSize: '13px'
+  fontSize: 'var(--conversation-secondary-size)'
 }
 
 const errorMessageStyle: CSSProperties = {
   padding: '36px 16px 0',
   color: 'var(--warning)',
-  fontSize: '12px'
+  fontSize: 'var(--conversation-secondary-size)'
 }

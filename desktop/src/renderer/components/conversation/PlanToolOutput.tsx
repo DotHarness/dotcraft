@@ -33,8 +33,8 @@ export function PlanToolOutput({
         minWidth: 0,
         maxWidth: '100%',
         boxSizing: 'border-box',
-        fontSize: '12px',
-        lineHeight: 1.55,
+        fontSize: 'var(--conversation-secondary-size)',
+        lineHeight: 'var(--conversation-line-height)',
         color: 'var(--text-secondary)',
         overflowWrap: 'anywhere',
         wordBreak: 'break-word'
@@ -44,7 +44,7 @@ export function PlanToolOutput({
         <h3
           style={{
             margin: '0 0 6px',
-            fontSize: '13px',
+            fontSize: 'var(--conversation-font-size)',
             fontWeight: 600,
             color: 'var(--text-primary)'
           }}
@@ -55,7 +55,7 @@ export function PlanToolOutput({
 
       {overview && (
         <div style={{ marginBottom: '10px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', marginBottom: '4px' }}>
+          <div style={{ fontSize: 'var(--conversation-meta-size)', color: 'var(--text-dimmed)', marginBottom: '4px' }}>
             {translate(locale, 'toolCall.plan.overviewLabel')}
           </div>
           <p
@@ -75,7 +75,7 @@ export function PlanToolOutput({
 
       {content && (
         <div style={{ marginBottom: todos.length > 0 ? '12px' : 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', marginBottom: '6px' }}>
+          <div style={{ fontSize: 'var(--conversation-meta-size)', color: 'var(--text-dimmed)', marginBottom: '6px' }}>
             {translate(locale, 'toolCall.plan.contentLabel')}
           </div>
           <MarkdownRenderer content={content} containOverflow />
@@ -84,7 +84,7 @@ export function PlanToolOutput({
 
       {todos.length > 0 && (
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', marginBottom: '6px' }}>
+          <div style={{ fontSize: 'var(--conversation-meta-size)', color: 'var(--text-dimmed)', marginBottom: '6px' }}>
             {translate(locale, 'toolCall.plan.todosLabel')}
           </div>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '4px' }}>

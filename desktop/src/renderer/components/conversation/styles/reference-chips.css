@@ -4,6 +4,8 @@
   /* inline-block, not inline-flex, so the label sits on the surrounding text baseline. */
   display: inline-block;
   vertical-align: baseline;
+  font-size: var(--conversation-secondary-size);
+  line-height: 1.25;
   padding: 0 2px;
   border: 0;
   border-radius: 0;

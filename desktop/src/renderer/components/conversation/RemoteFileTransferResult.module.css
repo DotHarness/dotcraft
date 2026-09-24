@@ -3,8 +3,8 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-prose-line-height);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
 }
 
 .route {

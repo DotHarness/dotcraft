@@ -14,7 +14,7 @@ export function TurnFailureNotice({ message, providerError }: TurnFailureNoticeP
 
   if (providerError === 'usageLimitExceeded') {
     const label = translate(locale, 'conversation.providerFailure.usageLimit')
-    return <NoticeDivider ariaLabel={label} title={label} icon={<Info size={12} aria-hidden />} />
+    return <NoticeDivider ariaLabel={label} title={label} icon={<Info size={14} aria-hidden />} />
   }
 
   if (providerError === 'serverOverloaded' || providerError === 'rateLimitExceeded') {

@@ -597,7 +597,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
           minWidth: 0
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 8px 6px 10px', color: 'var(--text-secondary)', fontSize: 12, flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 8px 6px 10px', color: 'var(--text-secondary)', fontSize: 'var(--conversation-secondary-size)', flexShrink: 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span
               aria-hidden
@@ -615,7 +615,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               <span
                 title={sandboxTooltip}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--text-dimmed)', fontSize: 11, padding: '1px 6px 1px 5px', borderRadius: 999, border: '1px solid var(--border-default)', cursor: 'default' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--text-dimmed)', fontSize: 'var(--conversation-meta-size)', padding: '1px 6px 1px 5px', borderRadius: 999, border: '1px solid var(--border-default)', cursor: 'default' }}
               >
                 <ShieldCheck size={12} />
                 {translate(locale, 'mcpApp.sandboxed')}

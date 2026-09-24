@@ -275,6 +275,24 @@ The text colour ramp is `--text-primary` → `--text-secondary` → `--text-dimm
 → `--text-disabled`. `--text-tertiary` is an alias of `--text-dimmed`, not a
 fifth step.
 
+### The conversation scale
+
+The transcript has its own four tiers. Code follows the code font size setting;
+the other three derive from `--conversation-font-size`, so one value sizes the
+rest of the conversation.
+
+| Token | Size / leading | Use |
+| --- | --- | --- |
+| `--conversation-font-size` | 14 / 1.5 | messages, markdown body, card titles, and every process line: the activity divider, tool rows, thinking and reasoning, system notices |
+| `--conversation-secondary-size` | 13 / 1.5 | content nested under a process line: expanded tool output and commands, card subtitles and counts, reference chips, error blocks |
+| `--text-code-size` | 12 / 1.5 | code blocks, diffs, inline code, file content; follows the code font size setting |
+| `--conversation-meta-size` | 12 / 16 | timestamps, message origin, key hints, counters |
+
+A process line ranks against the answer by colour, not size: it stays at
+conversation size in `--text-secondary` or `--text-dimmed`. Markdown headings
+scale from the body in `em` (1.5, 1.25, 1.125, then 1 for `h4`–`h6`) at weight
+600. Composer controls outside the input are UI chrome and use `--type-ui`.
+
 ### Retuning the scale by context
 
 A surface may override the `--type-*` tokens for the subtree it owns instead of

@@ -438,7 +438,7 @@ const waveformStyle: CSSProperties = {
 const timerStyle: CSSProperties = {
   minWidth: 32,
   color: 'var(--composer-footer-text)',
-  fontSize: 12,
+  fontSize: 'var(--type-ui-size)',
   fontVariantNumeric: 'tabular-nums',
   textAlign: 'right'
 }

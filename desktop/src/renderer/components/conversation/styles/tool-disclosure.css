@@ -20,8 +20,8 @@
   background: transparent;
   color: var(--text-dimmed);
   font: inherit;
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
   text-align: left;
   list-style: none;
   transition: color var(--duration-fast) var(--ease-standard);
@@ -117,8 +117,8 @@
   margin: 2px 0 6px;
   padding-left: 6px;
   color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-prose-line-height);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
 }
 
 /* Output that is its own artifact keeps a quiet surface; the row does not. */
@@ -140,7 +140,7 @@
 
 /* A live group bounds its children so a long run cannot push the answer off screen. */
 .dc-tool-children[data-live="true"] {
-  max-height: 132px;
+  max-height: 162px;
   overflow-y: auto;
   mask-image: linear-gradient(
     to bottom,
@@ -188,19 +188,14 @@
   color: var(--text-secondary);
 }
 
-/* The reference chip is sized for 14px bubble text; pin it to this row's line box. */
-.dc-tool-row-title .dc-ref {
-  line-height: 14px;
-}
-
 .dc-subagent-chips {
   padding: 3px 6px;
   color: var(--text-dimmed);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
 }
 
-/* `middle` aligns to half the x-height, leaving a 16px mark 2px low on a 12/16 line. */
+/* `middle` aligns to half the x-height, which leaves a 16px mark low on the row's line. */
 .dc-subagent-marks {
   display: inline-flex;
   align-items: center;
@@ -244,7 +239,6 @@
   background: transparent;
   color: var(--text-dimmed);
   font: inherit;
-  font-size: var(--type-secondary-size);
   text-decoration: underline;
   text-decoration-color: var(--border-active);
   text-underline-offset: 2px;

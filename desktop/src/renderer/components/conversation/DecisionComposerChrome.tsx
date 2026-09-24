@@ -41,9 +41,9 @@ export const decisionComposerTitleStyle: CSSProperties = {
   minWidth: 0,
   flex: '1 1 auto',
   color: 'var(--text-primary)',
-  fontSize: '14px',
+  fontSize: 'var(--conversation-font-size)',
   fontWeight: 600,
-  lineHeight: '20px'
+  lineHeight: 'var(--conversation-line-height)'
 }
 
 export const decisionComposerFooterActionsStyle: CSSProperties = {
@@ -110,6 +110,6 @@ const decisionKbdChipStyle: CSSProperties = {
   border: '1px solid var(--border-default)',
   background: 'var(--bg-secondary)',
   color: 'var(--text-secondary)',
-  fontSize: '11px',
+  fontSize: 'var(--conversation-meta-size)',
   fontFamily: 'var(--font-mono, ui-monospace)'
 }

@@ -280,14 +280,15 @@
   --conversation-font-size: 14px;
   --conversation-line-height: 1.5;
   --conversation-font-weight: 400;
+  --conversation-secondary-size: calc(var(--conversation-font-size) - 1px);
+  --conversation-meta-size: calc(var(--conversation-font-size) - 2px);
+  --conversation-meta-line-height: 16px;
   --conversation-reading-width: 48rem;
   --conversation-block-gap: 12px;
   --conversation-tool-assistant-gap: 16px;
   --conversation-tool-run-gap: 4px;
   --text-body-size: var(--conversation-font-size);
   --text-body-line-height: var(--conversation-line-height);
-  --text-body-secondary-size: 12px;
-  --text-body-secondary-line-height: 1.54;
   --text-code-size: 12px;
   --text-code-line-height: 1.44;
   --inline-reference-max-width: 28rem;

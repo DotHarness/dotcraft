@@ -59,8 +59,8 @@ export function ErrorBlock({ message }: ErrorBlockProps): JSX.Element {
         borderRadius: '6px',
         padding: '10px 46px 10px 14px',
         color: 'var(--error)',
-        fontSize: '13px',
-        lineHeight: 1.5,
+        fontSize: 'var(--conversation-secondary-size)',
+        lineHeight: 'var(--conversation-line-height)',
         marginTop: '4px',
         position: 'relative'
       }}

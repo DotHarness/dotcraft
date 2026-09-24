@@ -135,7 +135,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
                   background: 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
-                  fontSize: '13px',
+                  fontSize: 'var(--conversation-secondary-size)',
                   fontWeight: 500,
                   flexShrink: 0
                 }}
@@ -230,7 +230,8 @@ const artifactTextWrapStyle: CSSProperties = {
 
 const artifactTitleStyle: CSSProperties = {
   display: 'block',
-  fontSize: '14px',
+  fontSize: 'var(--conversation-font-size)',
+  lineHeight: 'var(--conversation-line-height)',
   fontWeight: 600,
   color: 'var(--text-primary)',
   overflow: 'hidden',
@@ -241,6 +242,7 @@ const artifactTitleStyle: CSSProperties = {
 const artifactSubtitleStyle: CSSProperties = {
   display: 'block',
   marginTop: '2px',
-  fontSize: '12px',
+  fontSize: 'var(--conversation-secondary-size)',
+  lineHeight: 'var(--conversation-line-height)',
   color: 'var(--text-secondary)'
 }

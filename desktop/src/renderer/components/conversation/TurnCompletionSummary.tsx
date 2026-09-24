@@ -195,11 +195,13 @@ function TurnFileRow({
             <ChangePath path={toWorkspaceRelativePath(workspacePath, file.filePath)} />
           </button>
         </span>
-        <FileDiffStats
-          additions={file.additions}
-          deletions={file.deletions}
-          tone={file.status === 'reverted' ? 'dimmed' : 'semantic'}
-        />
+        <span className={styles.stats}>
+          <FileDiffStats
+            additions={file.additions}
+            deletions={file.deletions}
+            tone={file.status === 'reverted' ? 'dimmed' : 'semantic'}
+          />
+        </span>
         <span className={styles.chevron}>
           {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
         </span>
