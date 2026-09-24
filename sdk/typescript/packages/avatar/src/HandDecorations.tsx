@@ -1,5 +1,5 @@
 import type { HandId } from './items.js'
-import { Glow, useClipId } from './DecorationShapes.js'
+import { Glow, Plane, useClipId } from './DecorationShapes.js'
 
 const mark = 'var(--dca-held-mark, #3161f7)'
 const accent = 'var(--dca-held-accent, #f6b500)'
@@ -305,22 +305,26 @@ function MasterKey() {
 
 const dragonWing = 'M0 0C-10-60-50-110-100-128Q-84-104-92-80Q-72-86-60-66Q-40-66-30-40Q-14-30 0 0Z'
 const dragonFarWing = 'M0 0C-4-60-20-110-42-138Q-40-112-54-92Q-40-88-34-66Q-22-62-18-40Q-8-26 0 0Z'
+// One outline for tail, body and head: the head overlaps the body so no contour cuts across the neck.
+const petDragonBody = [
+  'M824 604C852 636 852 688 820 710c-10 6-18-2-10-10 22-20 22-50 2-78Z',
+  'M806 532c34 0 48 34 46 64-2 34-24 54-50 54s-40-20-38-54c2-30 14-64 42-64Z',
+  'M826 512c0-22-16-38-38-38-18 0-32 8-40 20-10 4-18 10-18 20 0 10 10 16 24 16 14 10 30 14 46 12 16-4 26-14 26-30Z',
+]
 function PetDragon() {
   return <g transform="translate(233 640) translate(-800 -640)">
     {[{ at: 'translate(790 552)', d: dragonWing }, { at: 'translate(814 552) scale(-1 1)', d: dragonFarWing }].map(wing =>
       <g key={wing.at} transform={wing.at}><g className="dca-fx-flap-slow" style={{ transformOrigin: '0px 0px' }}>
         <path d={wing.d} fill="#2f7a4f" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" />
       </g></g>)}
-    <path d="M824 604C852 636 852 688 820 710c-10 6-18-2-10-10 22-20 22-50 2-78Z" fill="#4fae6a" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
+    <path d="M812 486 840 446 826 490ZM796 482 806 438 786 482Z" fill="#e0ad84" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
+    <Plane d={petDragonBody} fill="#4fae6a" contour={14} />
     <path d="M812 700l-26 6 18 18Z" fill="#2f7a4f" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
-    <path d="M806 532c34 0 48 34 46 64-2 34-24 54-50 54s-40-20-38-54c2-30 14-64 42-64Z" fill="#4fae6a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
     <ellipse cx="786" cy="600" rx="16" ry="34" fill="#f6e3a1" />
     <path d="M788 644v14M812 646v14" stroke="#fff" strokeWidth="22" />
     <path d="M788 644v14M812 646v14" stroke="#2f7a4f" strokeWidth="10" />
-    <path d="M812 464 840 424 826 468ZM796 460 806 416 786 460Z" fill="#e0ad84" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
-    <path d="M826 490c0-22-16-38-38-38-18 0-32 8-40 20-10 4-18 10-18 20 0 10 10 16 24 16 14 10 30 14 46 12 16-4 26-14 26-30Z" fill="#4fae6a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
-    <circle cx="794" cy="480" r="7" fill="#202124" /><circle cx="740" cy="490" r="3" fill="#202124" />
-    <g transform="translate(728 496) rotate(-80)">
+    <circle cx="794" cy="502" r="7" fill="#202124" />
+    <g transform="translate(728 518) rotate(-80)">
       <Glow blur={10} className="dca-fx-pulse"><ellipse cy="-30" rx="18" ry="32" fill="#ffb347" opacity=".75" /></Glow>
       <g className="dca-fx dca-fx-flame" style={{ transformOrigin: '0px 0px' }}>
         <path d="M0 0C-16-6-22-24-14-40c2 10 8 14 14 14-4-14 2-28 12-36-4 16 6 26 6 40S10 0 0 0Z" fill="#ffb347" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
