@@ -2771,7 +2771,6 @@ export const MESSAGES_EN = {
   'changesFile.reverted': 'Reverted',
   'changesFile.openFolder': 'Open containing folder',
   'changesFile.copyPath': 'Copy path',
-  'diffViewer.newFile': 'New file',
   'diffViewer.noChanges': 'No changes',
   'diffViewer.inlineMode': 'Show unified diff',
   'diffViewer.splitMode': 'Show split diff',

@@ -3272,7 +3272,6 @@ export const MESSAGES_ES = {
   'changesFile.reverted': 'Revertido',
   'changesFile.openFolder': 'Abrir carpeta contenedora',
   'changesFile.copyPath': 'Copiar ruta',
-  'diffViewer.newFile': 'Nuevo archivo',
   'diffViewer.noChanges': 'Sin cambios',
   'diffViewer.inlineMode': 'Mostrar diferencia unificada',
   'diffViewer.splitMode': 'Mostrar diferencia dividida',

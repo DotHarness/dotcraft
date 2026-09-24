@@ -2670,7 +2670,6 @@ export const MESSAGES_ZH_HANS = {
   'changesFile.reverted': '已还原',
   'changesFile.openFolder': '打开所在文件夹',
   'changesFile.copyPath': '复制路径',
-  'diffViewer.newFile': '新文件',
   'diffViewer.noChanges': '无更改',
   'diffViewer.inlineMode': '显示统一差异',
   'diffViewer.splitMode': '显示拆分差异',

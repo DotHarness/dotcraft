@@ -8,7 +8,7 @@
 .directory {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-overflow: ellipsis;
 }
 

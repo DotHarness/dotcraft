@@ -82,16 +82,6 @@
   text-align: left;
 }
 
-.newFileDot {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 7px;
-  height: 7px;
-  margin-left: 6px;
-  border-radius: 999px;
-  background: var(--success);
-}
-
 .chevron {
   display: inline-flex;
   justify-content: center;
@@ -104,7 +94,9 @@
 }
 
 .moreToggle {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   padding: 8px 12px;
   border: none;

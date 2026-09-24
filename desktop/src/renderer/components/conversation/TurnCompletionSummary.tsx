@@ -11,7 +11,6 @@ import type { TurnFileChange } from '../../types/turnDiff'
 import { basename } from '../../utils/path'
 import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
 import { ChangePath } from '../detail/changes/ChangePath'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { FileDiffStats } from './FileDiffStats'
@@ -87,6 +86,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
               aria-expanded={showAll}
               onClick={() => setShowAll((current) => !current)}
             >
+              {showAll ? <ChevronUp size={15} strokeWidth={1.8} aria-hidden /> : <ChevronDown size={15} strokeWidth={1.8} aria-hidden />}
               {showAll
                 ? t('turnChanges.collapseFiles')
                 : t(hiddenCount === 1 ? 'turnChanges.showMoreFiles.one' : 'turnChanges.showMoreFiles.other', { count: hiddenCount })}
@@ -167,7 +167,6 @@ function TurnFileRow({
   expanded: boolean
   onToggle: () => void
 }): JSX.Element {
-  const t = useT()
   const file = row.diff
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -195,7 +194,6 @@ function TurnFileRow({
           <button type="button" className={styles.pathLink} onClick={openInChanges}>
             <ChangePath path={toWorkspaceRelativePath(workspacePath, file.filePath)} />
           </button>
-          {file.isNewFile && <NewFileDot label={t('diffViewer.newFile')} />}
         </span>
         <FileDiffStats
           additions={file.additions}
@@ -212,13 +210,5 @@ function TurnFileRow({
         </div>
       )}
     </div>
-  )
-}
-
-function NewFileDot({ label }: { label: string }): JSX.Element {
-  return (
-    <ActionTooltip label={label}>
-      <span role="img" aria-label={label} className={styles.newFileDot} />
-    </ActionTooltip>
   )
 }

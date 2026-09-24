@@ -63,7 +63,6 @@ export function InlineDiffView({
           displayPath={displayPath}
           additions={totalAdd}
           deletions={totalDel}
-          meta={headerMode === 'full' && diff.isNewFile ? '(new file)' : undefined}
           copyPath={conversationFileTool}
           inlineStats={conversationFileTool}
           locale={locale}

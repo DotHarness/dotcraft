@@ -3274,7 +3274,6 @@ export const MESSAGES_DE = {
   'changesFile.reverted': 'Zurückgesetzt',
   'changesFile.openFolder': 'Öffnen Sie den enthaltenden Ordner',
   'changesFile.copyPath': 'Pfad kopieren',
-  'diffViewer.newFile': 'Neue Datei',
   'diffViewer.noChanges': 'Keine Änderungen',
   'diffViewer.inlineMode': 'Einheitliches Diff anzeigen',
   'diffViewer.splitMode': 'Split-Diff anzeigen',

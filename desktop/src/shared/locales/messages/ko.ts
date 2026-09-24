@@ -3261,7 +3261,6 @@ export const MESSAGES_KO = {
   'changesFile.reverted': '되돌림',
   'changesFile.openFolder': '포함된 폴더 열기',
   'changesFile.copyPath': '경로 복사',
-  'diffViewer.newFile': '새 파일',
   'diffViewer.noChanges': '변경사항 없음',
   'diffViewer.inlineMode': '통합 차이점 표시',
   'diffViewer.splitMode': '분할 차이점 표시',

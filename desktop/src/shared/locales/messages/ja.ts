@@ -3260,7 +3260,6 @@ export const MESSAGES_JA = {
   'changesFile.reverted': '元に戻した',
   'changesFile.openFolder': '含まれているフォルダーを開く',
   'changesFile.copyPath': 'パスをコピー',
-  'diffViewer.newFile': '新しいファイル',
   'diffViewer.noChanges': '変更なし',
   'diffViewer.inlineMode': '統合された差分を表示',
   'diffViewer.splitMode': '分割差分を表示',
