@@ -270,7 +270,8 @@ export function FileEditor({
       {showToolbar && (
         <div className="dc-file-editor__toolbar" role="status">
           <IconButton
-            size={26}
+            size={24}
+            radius={6}
             label={t('viewer.undo')}
             disabled={!undoCount}
             onClick={() => {
@@ -279,7 +280,8 @@ export function FileEditor({
             icon={<Undo2 size={14} aria-hidden />}
           />
           <IconButton
-            size={26}
+            size={24}
+            radius={6}
             label={t('viewer.redo')}
             disabled={!redoCount}
             onClick={() => {

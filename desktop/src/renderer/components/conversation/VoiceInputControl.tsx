@@ -257,7 +257,8 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
             }
             void activate()
           }}
-          style={controlStyle(recording != null, compact)}
+          className="dc-composer-icon-control"
+          style={controlStyle(compact)}
         >
           {view.kind === 'recording' || view.kind === 'processing'
             ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden style={{ display: 'block' }} />
@@ -403,18 +404,10 @@ function formatElapsed(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
 }
 
-function controlStyle(active: boolean, compact: boolean): CSSProperties {
+function controlStyle(compact: boolean): CSSProperties {
   return {
     width: compact ? 28 : 32,
-    height: compact ? 28 : 32,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    border: 'none',
-    borderRadius: 999,
-    color: active ? 'var(--text-primary)' : 'var(--composer-footer-text)',
-    background: active ? 'var(--bg-tertiary)' : 'transparent'
+    height: compact ? 28 : 32
   }
 }
 

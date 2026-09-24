@@ -154,5 +154,5 @@ function ToolbarButton({
   title: string
   children: React.ReactNode
 }): JSX.Element {
-  return <IconButton size={24} label={title} tooltipLabel={title} tooltipPlacement="bottom" onClick={onClick} style={{ borderRadius: 4 }} icon={children} />
+  return <IconButton size={24} radius={6} label={title} tooltipLabel={title} tooltipPlacement="bottom" onClick={onClick} icon={children} />
 }

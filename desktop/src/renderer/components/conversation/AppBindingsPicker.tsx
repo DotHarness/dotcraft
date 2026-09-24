@@ -80,7 +80,7 @@ export function AppBindingsPicker({
         aria-expanded={open}
         disabled={disabled}
         onClick={toggle}
-        icon={<Link2 size={15} aria-hidden />}
+        icon={<Link2 size={16} aria-hidden />}
       />
       {open && (
         <div className="dc-app-bindings-picker__popover" role="dialog" aria-label={t('appBinding.title')}>

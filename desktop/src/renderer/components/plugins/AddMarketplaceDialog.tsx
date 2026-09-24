@@ -127,7 +127,7 @@ export function AddMarketplaceDialog({
                   label={t('plugins.marketplace.add.browse')}
                   tooltipLabel={t('plugins.marketplace.add.browse')}
                   disabled={busy}
-                  icon={<FolderOpen size={15} aria-hidden />}
+                  icon={<FolderOpen size={16} aria-hidden />}
                   onClick={() => void handlePickFolder()}
                 />
               )}

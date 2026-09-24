@@ -97,12 +97,12 @@ export function FileDiffSection({
           style={hoverActionStyle}
         />
         <IconButton
-          icon={<FolderOpen size={14} strokeWidth={1.8} aria-hidden />}
+          icon={<FolderOpen size={14} aria-hidden />}
           label={t('changesFile.openFolder')}
           tooltipLabel={t('changesFile.openFolder')}
           tooltipPlacement="bottom"
           size={24}
-          radius={5}
+          radius={6}
           onClick={(event) => {
             event.stopPropagation()
             void openParentFolder()

@@ -445,6 +445,7 @@ export function ModuleConfigForm({
               <IconButton
                 icon={<FolderIcon size={16} />}
                 label={t('settings.modulesDirectoryBrowse')}
+                tooltipLabel={t('settings.modulesDirectoryBrowse')}
                 onClick={() => {
                   void window.api.modules.pickDirectory().then((pickedPath) => {
                     if (!pickedPath) return

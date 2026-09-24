@@ -242,24 +242,24 @@ function QueuedInputDockRow({
         </Button>
       </ActionTooltip>
       <IconButton
-        icon={<Trash2 size={14} strokeWidth={1.8} aria-hidden />}
+        icon={<Trash2 size={14} aria-hidden />}
         label={t('composer.queueRemove')}
         tooltipLabel={t('composer.queueRemove')}
         tooltipPlacement="top"
         size={24}
-        radius={5}
+        radius={6}
         onClick={() => onRemove?.(item.id)}
         disabled={!onRemove || isLocalEcho}
       />
       <IconButton
         icon={editing
           ? <Spinner size={14} testId={`queued-editing-${item.id}`} />
-          : <Pencil size={14} strokeWidth={1.8} aria-hidden />}
+          : <Pencil size={14} aria-hidden />}
         label={t('composer.queueEdit')}
         tooltipLabel={t('composer.queueEdit')}
         tooltipPlacement="top"
         size={24}
-        radius={5}
+        radius={6}
         onClick={() => onEdit?.(item.id)}
         disabled={!canEdit || editing}
         aria-busy={editing}

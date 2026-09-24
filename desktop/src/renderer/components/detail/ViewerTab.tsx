@@ -77,8 +77,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
         <div style={{ height: 38, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 8px 0 14px', borderBottom: '1px solid var(--glass-border)' }}>
           <span style={{ flex: 1, color: 'var(--text-primary)', fontSize: 13 }}>/</span>
           <IconButton
-            size={26}
-            radius={6}
+            size={28}
             active={explorerVisible}
             activeTone="neutral"
             aria-pressed={explorerVisible}

@@ -320,7 +320,7 @@ export function DetailPanel({
             onClick={() => {
               void handleOpenAddTabMenu()
             }}
-            icon={<Plus size={14} aria-hidden style={{ display: 'block' }} />}
+            icon={<Plus size={16} aria-hidden style={{ display: "block" }} />}
           />
         </div>
 

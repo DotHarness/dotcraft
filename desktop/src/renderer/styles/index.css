@@ -8,6 +8,7 @@
 @import "../components/conversation/styles/welcome-heading.css";
 @import "../components/conversation/styles/composer-focus.css";
 @import "../components/conversation/styles/composer-submit.css";
+@import "../components/conversation/styles/composer-controls.css";
 @import "../components/conversation/styles/model-picker.css";
 @import "../components/conversation/styles/reference-chips.css";
 @import "../components/conversation/styles/message-stream.css";

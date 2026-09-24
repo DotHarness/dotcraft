@@ -625,9 +625,9 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
                 label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
                 tooltipLabel={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
                 tooltipPlacement="top"
+                radius={6}
                 onClick={() => setFullscreen((value) => !value)}
-                style={{ color: 'inherit', borderRadius: 6 }}
-                icon={fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                icon={fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               />
             </span>
           )}

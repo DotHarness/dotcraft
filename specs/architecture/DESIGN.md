@@ -732,6 +732,11 @@ label. It takes the footprint of its band; a Thread List trigger adds the list's
 foreground-only class. The menu it opens is the shared `ContextMenu`; a feature
 does not draw its own bordered popover.
 
+The composer footer's icon-only controls (the `+` trigger and the microphone) share
+`.dc-composer-icon-control`: round and frameless, the composer's hover fill, and a
+neutral fill while their menu is open or recording runs. Each takes the height of
+the controls beside it; Send and Stop keep their own treatment.
+
 An icon-only copy action is always the shared `CopyButton`: frameless on every
 surface, including error blocks and diagram toolbars. It confirms in place by
 swapping to a `--success` check and relabelling its tooltip, with no toast. A copy

@@ -35,7 +35,6 @@ export function AppNavigationControls(): JSX.Element | null {
         shortcut={ACTION_SHORTCUTS.navigateBack}
         tooltipPlacement="bottom"
         size={28}
-        radius={7}
         disabled={!canGoBack}
         onClick={goBack}
       />
@@ -46,7 +45,6 @@ export function AppNavigationControls(): JSX.Element | null {
         shortcut={ACTION_SHORTCUTS.navigateForward}
         tooltipPlacement="bottom"
         size={28}
-        radius={7}
         disabled={!canGoForward}
         onClick={goForward}
       />

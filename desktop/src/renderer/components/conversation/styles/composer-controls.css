@@ -1,0 +1,36 @@
+/* The composer footer's icon-only controls. Size comes from the neighbours each one
+   sits beside; the treatment is shared. */
+.dc-composer-icon-control {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--composer-footer-text);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dc-composer-icon-control:hover:not(:disabled) {
+  background: var(--sidebar-control-hover);
+}
+
+.dc-composer-icon-control[data-active="true"],
+.dc-composer-icon-control[aria-pressed="true"] {
+  background: var(--sidebar-control-active);
+  color: var(--text-primary);
+}
+
+.dc-composer-icon-control:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.dc-composer-icon-control:disabled {
+  color: var(--composer-footer-muted);
+  cursor: default;
+}

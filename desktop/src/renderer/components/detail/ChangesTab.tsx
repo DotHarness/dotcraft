@@ -6,7 +6,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
 import { useUIStore, type ChangesDiffMode } from '../../stores/uiStore'
 import type { TurnFileChange } from '../../types/turnDiff'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { ChangesActionsMenu } from './ChangesActionsMenu'
 import { ChangesFileList } from './ChangesFileList'
 import { JumpToFileButton } from './JumpToFileButton'
@@ -148,28 +148,19 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
             mode={mode}
             onChange={(next) => setMode(activeThreadId, next)}
           />
-          <ActionTooltip
+          <IconButton
+            size={28}
             label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
-            placement="bottom"
-          >
-            <button
-              type="button"
-              aria-label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
-              aria-pressed={explorerVisible}
-              onClick={toggleExplorer}
-              style={{
-                ...headerIconButtonStyle,
-                color: explorerVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
-                background: explorerVisible ? 'var(--bg-tertiary)' : 'transparent'
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = explorerVisible ? 'var(--bg-tertiary)' : 'transparent' }}
-            >
-              {explorerVisible
-                ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />
-                : <Folder size={16} aria-hidden style={{ display: 'block' }} />}
-            </button>
-          </ActionTooltip>
+            tooltipLabel={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
+            tooltipPlacement="bottom"
+            aria-pressed={explorerVisible}
+            active={explorerVisible}
+            activeTone="neutral"
+            onClick={toggleExplorer}
+            icon={explorerVisible
+              ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />
+              : <Folder size={16} aria-hidden style={{ display: 'block' }} />}
+          />
         </div>
       </div>
 
@@ -228,20 +219,16 @@ function DiffModeToggle({
   const next: ChangesDiffMode = mode === 'inline' ? 'split' : 'inline'
   const label = next === 'split' ? t('diffViewer.splitMode') : t('diffViewer.inlineMode')
   return (
-    <ActionTooltip label={label} placement="bottom">
-      <button
-        type="button"
-        aria-label={label}
-        onClick={() => onChange(next)}
-        style={headerIconButtonStyle}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-      >
-        {next === 'split'
-          ? <Columns2 size={16} strokeWidth={1.8} aria-hidden style={{ display: 'block' }} />
-          : <Rows2 size={16} strokeWidth={1.8} aria-hidden style={{ display: 'block' }} />}
-      </button>
-    </ActionTooltip>
+    <IconButton
+      size={28}
+      label={label}
+      tooltipLabel={label}
+      tooltipPlacement="bottom"
+      onClick={() => onChange(next)}
+      icon={next === 'split'
+        ? <Columns2 size={16} aria-hidden style={{ display: 'block' }} />
+        : <Rows2 size={16} aria-hidden style={{ display: 'block' }} />}
+    />
   )
 }
 
@@ -263,21 +250,4 @@ const actionsClusterStyle: CSSProperties = {
   alignItems: 'center',
   gap: '4px',
   flexShrink: 0
-}
-
-/** Borderless 28×28 header action button, matching `ViewerHeader`. */
-const headerIconButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '28px',
-  height: '28px',
-  padding: 0,
-  border: 'none',
-  borderRadius: '6px',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'background-color 100ms ease, color 100ms ease'
 }
