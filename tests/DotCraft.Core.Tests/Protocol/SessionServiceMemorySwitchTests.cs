@@ -63,6 +63,24 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
         Assert.False(reloaded.Configuration?.MemoryEnabled);
     }
 
+    [Fact]
+    public async Task ForkWithPartialConfig_InheritsTheSourceMemorySettings()
+    {
+        _config.Memory.Enabled = false;
+        await using var factory = CreateAgentFactory();
+        var service = CreateService(factory);
+        var source = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryScope = "nightly" });
+        await DrainAsync(service.SubmitInputAsync(source.Id, [new TextContent("hello")]));
+        _config.Memory.Enabled = true;
+
+        var fork = await service.ForkThreadAsync(
+            source.Id,
+            new ThreadForkOptions { Config = new ThreadConfiguration { Mode = "agent" } });
+
+        Assert.False(fork.Configuration?.MemoryEnabled);
+        Assert.Equal("nightly", fork.Configuration?.MemoryScope);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { }
