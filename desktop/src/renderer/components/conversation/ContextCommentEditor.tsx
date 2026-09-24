@@ -64,7 +64,7 @@ export function ContextCommentEditor({
             !voice.busy
           ) {
             event.preventDefault()
-            onSave(comment)
+            if (hasText) onSave(comment)
           }
         }}
       />

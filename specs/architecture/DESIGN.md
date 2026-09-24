@@ -1594,6 +1594,30 @@ is defined in [Desktop Plugins](desktop-plugins.md).
   removing applicable decisions. Behavior and size limits are specified in
   [Desktop UX §10.1](../clients/desktop-client.md#101-viewer-panel).
 
+### Line comments
+
+A comment on code lines is the shared `LineCommentCard`, placed under the line it
+ends on in a diff or a file preview (a CodeMirror block widget there). It is the
+same card as a draft, a saved comment, and a model review comment, so the three
+never read as different components. The workflow lives in
+[Desktop browser and feedback](../features/desktop-browser-feedback.md#line-comments).
+
+- The card starts at the code column with a `6px` inset, spans the visible column
+  up to `48rem`, and stays pinned to it while the code scrolls sideways. It is a
+  `--bg-secondary` surface with a `10px` radius, a `1px` `--border-default` ring,
+  and the level-1 shadow.
+- The header names the author on the left and the line on the right, both
+  `--type-secondary` in `--text-secondary`. Lines read as `L` (old side) or `R`
+  (new side) plus the number. The author is "You" for the reader, with no avatar,
+  and the product for a model review comment, which adds a bold title and no footer.
+- The body is a bare field at `--type-ui`. Footer actions sit on the `sm` band: a
+  draft shows Cancel (`ghost`), dictation, and Comment (`primary`, disabled while
+  empty); a saved comment at rest shows only a `ghost` Delete, and while editing
+  moves Delete to the left as `danger` beside Cancel, dictation, and Save.
+- The diff's start control is an `18px` inverted square (`--text-primary` fill,
+  `--bg-primary` plus glyph, `4px` radius) over the row's line-number edge. It
+  answers row hover and keyboard focus. Selected lines take a `16%` accent tint.
+
 ## Feature surfaces
 
 ### Pet

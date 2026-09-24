@@ -14,7 +14,13 @@ import {
   EmptyDiffMessage,
   UnchangedDivider,
 } from './DiffRow'
-import { DiffFeedbackGutter, DiffLineFeedback } from './DiffFeedback'
+import {
+  DiffCommentAdd,
+  DiffFeedbackGutter,
+  DiffLineFeedback,
+  useDiffComments,
+} from './DiffFeedback'
+import { DIFF_GUTTER_WIDTH } from './diffStyles'
 import type { DiffModel } from './useDiffModel'
 
 export interface UnifiedDiffBodyProps {
@@ -32,6 +38,7 @@ export function UnifiedDiffBody({
 }: UnifiedDiffBodyProps): JSX.Element {
   const signMode = useUIStore((state) => state.diffMarkers) === 'sign'
   const containerRef = useRef<HTMLDivElement>(null)
+  const comments = useDiffComments()
   const rows = useMemo(
     () => buildUnifiedRows(diff, model.sides),
     [diff, model.sides],
@@ -70,7 +77,11 @@ export function UnifiedDiffBody({
     <div
       ref={containerRef}
       data-testid="unified-diff-body"
-      style={{ overflowX: wordWrap ? 'hidden' : 'auto' }}
+      style={{
+        overflowX: wordWrap ? 'hidden' : 'auto',
+        containerType: 'inline-size',
+        ['--dc-line-comment-inset' as string]: `${DIFF_GUTTER_WIDTH * 2 + (signMode ? 16 : 0)}px`,
+      }}
     >
       <div style={{ minWidth: wordWrap ? undefined : 'max-content' }}>
         {rows.map((row, index) => {
@@ -79,13 +90,21 @@ export function UnifiedDiffBody({
               <UnchangedDivider key={`divider-${index}`} count={row.count} />
             )
           }
+          const side = row.cell.type === 'remove' ? 'left' : 'right'
+          const line = side === 'left' ? row.oldNum : row.newNum
           return (
             <Fragment key={`line-${index}`}>
               <DiffRowFrame
                 type={row.cell.type}
                 signMode={signMode}
                 wordWrap={wordWrap}
+                commentTarget={
+                  comments && line
+                    ? { side, line: Number(line), selected: comments.isSelected(side, Number(line)) }
+                    : undefined
+                }
               >
+                <DiffCommentAdd side={side} line={line} />
                 <DiffFeedbackGutter side="left" value={row.oldNum}>
                   <DiffGutter value={row.oldNum} />
                 </DiffFeedbackGutter>

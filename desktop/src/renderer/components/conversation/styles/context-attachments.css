@@ -276,36 +276,6 @@ button.dc-context-attachment__title {
   border-left: 1px solid var(--glass-border);
 }
 
-.dc-diff-feedback {
-  padding: 8px 12px;
-  max-width: 420px;
-  box-sizing: border-box;
-  white-space: normal;
-  font-family: var(--font-ui);
-  font-size: var(--type-ui-size);
-}
-.dc-diff-feedback__comment {
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-}
-.dc-diff-feedback__comment header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-}
-.dc-diff-feedback__comment header > span {
-  flex: 1;
-}
-.dc-diff-feedback__comment p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  margin: 6px 0 0;
-}
 .dc-diff-feedback__gutter {
   display: inline-flex;
   flex-shrink: 0;

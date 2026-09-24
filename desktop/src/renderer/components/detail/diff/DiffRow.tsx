@@ -55,6 +55,7 @@ export interface DiffRowFrameProps {
   signMode: boolean
   wordWrap: boolean
   style?: CSSProperties
+  commentTarget?: { side: 'left' | 'right'; line: number; selected: boolean }
   children: ReactNode
 }
 
@@ -63,11 +64,17 @@ export function DiffRowFrame({
   signMode,
   wordWrap,
   style,
+  commentTarget,
   children
 }: DiffRowFrameProps): JSX.Element {
   return (
     <div
+      className="dc-diff-row"
+      data-comment-side={commentTarget?.side}
+      data-comment-line={commentTarget?.line}
+      data-selected={commentTarget?.selected || undefined}
       style={{
+        position: 'relative',
         display: 'flex',
         minWidth: wordWrap ? undefined : 'max-content',
         background: type === 'blank' ? 'var(--bg-primary)' : diffLineBackground(type),

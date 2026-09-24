@@ -15,10 +15,13 @@ import {
   UnchangedDivider,
 } from './DiffRow'
 import {
+  DiffCommentAdd,
   DiffFeedbackGutter,
   DiffFeedbackRow,
   DiffLineFeedback,
+  useDiffComments,
 } from './DiffFeedback'
+import { DIFF_GUTTER_WIDTH } from './diffStyles'
 import type { DiffModel } from './useDiffModel'
 
 export interface SplitDiffBodyProps {
@@ -89,8 +92,13 @@ export function SplitDiffBody({
   }
 
   const paneStyle = wordWrap
-    ? { minWidth: 0, overflow: 'hidden' as const }
-    : { minWidth: 0, overflowX: 'auto' as const, overflowY: 'hidden' as const }
+    ? { minWidth: 0, overflow: 'hidden' as const, containerType: 'inline-size' as const }
+    : {
+        minWidth: 0,
+        overflowX: 'auto' as const,
+        overflowY: 'hidden' as const,
+        containerType: 'inline-size' as const,
+      }
 
   return (
     <div
@@ -151,8 +159,15 @@ function SplitPaneRows({
   wordWrap: boolean
 }): JSX.Element {
   const signMode = useUIStore((state) => state.diffMarkers) === 'sign'
+  const comments = useDiffComments()
+  const commentSide = side === 'deletion' ? 'left' : 'right'
   return (
-    <div style={{ minWidth: wordWrap ? undefined : 'max-content' }}>
+    <div
+      style={{
+        minWidth: wordWrap ? undefined : 'max-content',
+        ['--dc-line-comment-inset' as string]: `${DIFF_GUTTER_WIDTH + (signMode ? 16 : 0)}px`,
+      }}
+    >
       {rows.map((row, index) => {
         if (row.kind === 'divider') {
           return <UnchangedDivider key={`divider-${index}`} count={row.count} />
@@ -168,7 +183,17 @@ function SplitPaneRows({
                 width: wordWrap ? '100%' : 'max-content',
                 minWidth: '100%',
               }}
+              commentTarget={
+                comments && cell.num
+                  ? {
+                      side: commentSide,
+                      line: Number(cell.num),
+                      selected: comments.isSelected(commentSide, Number(cell.num)),
+                    }
+                  : undefined
+              }
             >
+              <DiffCommentAdd side={commentSide} line={cell.num} />
               <DiffFeedbackGutter
                 side={side === 'deletion' ? 'left' : 'right'}
                 value={cell.num}

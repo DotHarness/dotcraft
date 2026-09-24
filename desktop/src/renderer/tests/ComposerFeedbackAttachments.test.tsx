@@ -63,7 +63,7 @@ describe('feedback attachment summary', () => {
   })
   it('summarizes feedback and removes it without removing pasted files', async () => {
     render(<Fixture />)
-    fireEvent.click(screen.getByRole('button', { name: '2 annotations' }))
+    fireEvent.click(screen.getByRole('button', { name: '1 annotation, 1 comment' }))
     expect(await screen.findByText(reply.selectedText)).toBeTruthy()
     expect(screen.getByText(diff.comment)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Remove annotations' }))
@@ -73,7 +73,7 @@ describe('feedback attachment summary', () => {
   })
   it('edits only the comment and preserves the original source and code range', async () => {
     render(<Fixture />)
-    fireEvent.click(screen.getByRole('button', { name: '2 annotations' }))
+    fireEvent.click(screen.getByRole('button', { name: '1 annotation, 1 comment' }))
     fireEvent.click(
       (await screen.findAllByRole('button', { name: 'Edit annotation' }))[1],
     )
