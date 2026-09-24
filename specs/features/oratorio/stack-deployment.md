@@ -58,9 +58,9 @@ API key when subscription credentials are missing or expired.
 
 For headless Linux hosts, an opt-in Compose auth helper shares that stack's
 `state/dotcraft` directory and uses the host network only during login. The
-operator forwards loopback OAuth callback ports 1455 and 1457 over SSH, then
-runs `dotcraft auth openai login --no-browser` in the helper and completes the
-browser flow locally. The helper receives no AppServer token or model API key.
+operator forwards loopback OAuth callback ports 1455 and 1457 to the server's
+`localhost` over SSH, then runs `dotcraft auth openai login --no-browser` in the
+helper and completes the browser flow locally. The helper receives no AppServer token or model API key.
 Each deployment has its own credential directory, even if both log in to the
 same ChatGPT account. Authorization URLs may be displayed to the operator;
 authorization codes and token bundles must not enter CLI arguments or logs.

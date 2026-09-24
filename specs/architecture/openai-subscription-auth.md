@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.0.0 |
+| Version | 1.1.0 |
 | Status | Living |
-| Date | 2026-09-05 |
+| Date | 2026-09-24 |
 
 DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
 subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
@@ -39,6 +39,12 @@ OAuth 2.0 Authorization Code Flow with PKCE (S256).
 
 The authorize URL additionally carries `id_token_add_organizations=true` and
 `codex_cli_simplified_flow=true`, both required by the upstream backend.
+
+The loopback listener accepts a callback only when its `state` matches the pending authorization.
+It answers any other request with an error page and keeps waiting, so stray requests to the
+callback port cannot end sign-in. A matching callback that carries an OAuth `error` or no `code`
+ends the flow. The listener binds the host's `localhost` resolution, which may be IPv6-only;
+port forwards to it target `localhost`, not a literal loopback address.
 
 ## Credential refresh lifecycle
 
@@ -510,7 +516,8 @@ Composer footer:
 | 401 from `chatgpt.com/backend-api/codex/responses` | Access token rejected | Pipeline policy tries a same-account disk rotation, then authority refresh, with at most two retries |
 | `refresh_token_expired` / `_reused` / `_invalidated` from token endpoint | Refresh token permanently invalid and no newer same-account credentials exist | `OpenAIAuthException` with explicit reason; user must re-login |
 | Network error during refresh | Transient | Caller sees `OpenAIAuthFailureReason.Network`; old access token is left in place |
-| User cancels browser flow | Loopback returns no `code` | `OpenAIAuthException(Unknown, "Sign-in was not completed")` |
+| User cancels browser flow | Callback with matching `state` carries `error` or no `code` | `OpenAIAuthException(Unknown, "Sign-in was not completed")` |
+| Stray request on the callback port | Missing or mismatched `state` | Error page; the listener keeps waiting for the real callback |
 
 ## Limitations
 

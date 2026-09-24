@@ -100,6 +100,12 @@ internal sealed class LoopbackOAuthServer : IDisposable
             var error = query.Get("error");
             var errorDescription = query.Get("error_description");
 
+            if (!string.Equals(state, expectedState, StringComparison.Ordinal))
+            {
+                await WriteHtmlAsync(response, HttpStatusCode.BadRequest, RenderErrorPage("state_mismatch", "State parameter did not match the request.")).ConfigureAwait(false);
+                return;
+            }
+
             if (!string.IsNullOrEmpty(error))
             {
                 await WriteHtmlAsync(response, HttpStatusCode.BadRequest, RenderErrorPage(error, errorDescription)).ConfigureAwait(false);
@@ -107,17 +113,10 @@ internal sealed class LoopbackOAuthServer : IDisposable
                 return;
             }
 
-            if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
+            if (string.IsNullOrEmpty(code))
             {
                 await WriteHtmlAsync(response, HttpStatusCode.BadRequest, RenderErrorPage("missing_code", "Authorization code was not returned by OpenAI.")).ConfigureAwait(false);
                 _resultSource.TrySetResult(new LoopbackOAuthResult(false, null, "missing_code", null));
-                return;
-            }
-
-            if (!string.Equals(state, expectedState, StringComparison.Ordinal))
-            {
-                await WriteHtmlAsync(response, HttpStatusCode.BadRequest, RenderErrorPage("state_mismatch", "State parameter did not match the request.")).ConfigureAwait(false);
-                _resultSource.TrySetResult(new LoopbackOAuthResult(false, null, "state_mismatch", null));
                 return;
             }
 

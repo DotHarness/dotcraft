@@ -37,7 +37,7 @@ The Compose template passes `OPENAI_API_KEY` to the model-service container. For
 For ChatGPT, forward the callback ports from the computer with your browser:
 
 ```bash
-ssh -N -L 1455:127.0.0.1:1455 -L 1457:127.0.0.1:1457 user@model-host
+ssh -N -L 1455:localhost:1455 -L 1457:localhost:1457 user@model-host
 ```
 
 On the Linux server, run:

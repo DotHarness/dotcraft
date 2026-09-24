@@ -46,7 +46,7 @@ DOTCRAFT_AUTH_METHOD=chatgptOAuth
 On the computer with your browser, forward the login callback ports through SSH:
 
 ```bash
-ssh -N -L 1455:127.0.0.1:1455 -L 1457:127.0.0.1:1457 user@host
+ssh -N -L 1455:localhost:1455 -L 1457:localhost:1457 user@host
 ```
 
 On the server, run the login command from the deployment directory:

@@ -37,7 +37,7 @@ Compose 模板会将 `OPENAI_API_KEY` 传入 model-service 容器。其他提供
 使用 ChatGPT 时，在有浏览器的电脑上转发回调端口：
 
 ```bash
-ssh -N -L 1455:127.0.0.1:1455 -L 1457:127.0.0.1:1457 user@model-host
+ssh -N -L 1455:localhost:1455 -L 1457:localhost:1457 user@model-host
 ```
 
 在 Linux 服务器上运行：
