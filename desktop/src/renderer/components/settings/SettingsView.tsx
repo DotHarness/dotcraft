@@ -57,6 +57,7 @@ import {
   SETTINGS_SURFACE_CLASS,
   settingsDescriptionStyle,
   settingsHintStyle,
+  settingsMetaTextStyle,
   settingsPlaceholderStyle,
   settingsSectionLabelStyle as sectionLabelStyle
 } from './settingsTypography'
@@ -79,7 +80,6 @@ import {
 import { SettingsSelect } from './ui/SettingsSelect'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
-import { AppVersionUpdateCheck } from './AppVersionUpdateCheck'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
@@ -2869,7 +2869,11 @@ export function SettingsView({
                   title={t('settings.group.application')}
                   // Version belongs in the header slot: a row here would read like
                   // something you can change.
-                  headerAction={<AppVersionUpdateCheck version={version} />}
+                  headerAction={
+                    <span style={settingsMetaTextStyle()}>
+                      {t('settings.version')} {version}
+                    </span>
+                  }
                 >
                   <SettingsRow
                     label={t('settings.language')}

@@ -66,9 +66,13 @@ export function CustomMenuBar(): JSX.Element {
     const unsubscribe = window.api.updates.onStateChanged((state) => {
       setUpdateState(state)
     })
+    const unsubscribeOpenDialog = window.api.updates.onOpenDialog(() => {
+      setUpdateDialogOpen(true)
+    })
     return () => {
       disposed = true
       unsubscribe()
+      unsubscribeOpenDialog()
     }
   }, [])
 

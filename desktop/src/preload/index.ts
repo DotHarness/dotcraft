@@ -420,6 +420,12 @@ ipcRenderer.on('app:update-state-changed', (_event: Electron.IpcRendererEvent, s
   activeAppUpdateStateCallback?.(state)
 })
 
+let openUpdateDialogToken = 0
+let activeOpenUpdateDialogCallback: (() => void) | null = null
+ipcRenderer.on('app:open-update-dialog', () => {
+  activeOpenUpdateDialogCallback?.()
+})
+
 let openThreadToken = 0
 let activeOpenThreadCallback: ((payload: OpenThreadPayload) => void) | null = null
 ipcRenderer.on('app:open-thread', (_event: Electron.IpcRendererEvent, payload: OpenThreadPayload) => {
@@ -1629,9 +1635,6 @@ const api = {
     getState(): Promise<AppUpdateState> {
       return ipcRenderer.invoke('app:update-get-state')
     },
-    check(): Promise<AppUpdateState> {
-      return ipcRenderer.invoke('app:update-check')
-    },
     download(): Promise<AppUpdateState> {
       return ipcRenderer.invoke('app:update-download')
     },
@@ -1644,6 +1647,15 @@ const api = {
       return () => {
         if (appUpdateStateToken === token) {
           activeAppUpdateStateCallback = null
+        }
+      }
+    },
+    onOpenDialog(callback: () => void): UnsubscribeFn {
+      const token = ++openUpdateDialogToken
+      activeOpenUpdateDialogCallback = callback
+      return () => {
+        if (openUpdateDialogToken === token) {
+          activeOpenUpdateDialogCallback = null
         }
       }
     }

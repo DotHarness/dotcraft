@@ -195,6 +195,7 @@ export const MESSAGES_EN = {
   'menu.newWindow': 'New Window',
   'menu.whatsNew': "What's New",
   'menu.documentation': 'Documentation',
+  'menu.checkForUpdates': 'Check for Updates…',
   'menu.openDashboard': 'Open Dashboard',
   'tray.hub': 'DotCraft Hub',
   'tray.running': 'Running',
@@ -252,6 +253,8 @@ export const MESSAGES_EN = {
   'update.retry': 'Retry download',
   'update.cancel': 'Cancel',
   'update.closeAria': 'Close update dialog',
+  'update.upToDate': 'DotCraft is up to date.',
+  'update.checkFailed': 'Unable to check for DotCraft updates.',
 
   // Settings
   'settings.title': 'Settings',
@@ -964,10 +967,6 @@ export const MESSAGES_EN = {
   'settings.pendingReconnect.apply': 'Apply & Connect',
   'settings.connection.applyAndRestart': 'Apply & Restart AppServer',
   'settings.version': 'Version',
-  'settings.checkForUpdates': 'Check for updates',
-  'settings.updateCheck.upToDate': 'Up to date',
-  'settings.updateCheck.available': 'Version {{version}} available',
-  'settings.updateCheck.failed': 'Couldn’t check for updates',
   'settings.binaryPlaceholder': 'Choose a dotcraft executable',
   'settings.binaryBrowse': 'Browse',
   'settings.binaryResolving': 'Resolving binary location...',

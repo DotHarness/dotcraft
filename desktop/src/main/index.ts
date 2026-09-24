@@ -1,5 +1,5 @@
 import { stopBeforeArchive } from '../shared/stopBeforeArchive'
-import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage, nativeTheme, powerMonitor } from 'electron'
+import { app, BrowserWindow, dialog, session, Menu, ipcMain, shell, nativeImage, nativeTheme, powerMonitor } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from './desktopPet'
 import {
   registerViewerScheme,
@@ -783,6 +783,20 @@ function openWhatsNewFromMenu(): void {
   const win = BrowserWindow.getFocusedWindow() ?? mainWindow
   if (!win || win.isDestroyed()) return
   win.webContents.send('app:open-whats-new')
+}
+
+async function checkForUpdatesFromMenu(): Promise<void> {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+  const state = await getAppUpdateService().checkForUpdates()
+  if (!win || win.isDestroyed()) return
+  const L = (key: string) => translate(normalizeLocale(sharedSettings.locale), key)
+  if (state.status === 'not-available') {
+    await dialog.showMessageBox(win, { type: 'info', message: L('update.upToDate') })
+  } else if (state.status === 'error') {
+    await dialog.showMessageBox(win, { type: 'error', message: L('update.checkFailed'), detail: state.error })
+  } else if (state.update) {
+    win.webContents.send('app:open-update-dialog')
+  }
 }
 
 function broadcastWhatsNewMediaState(state: WhatsNewMediaState): void {
@@ -2945,7 +2959,18 @@ function buildAppMenu(locale: AppLocale): Menu {
           click: async () => {
             await shell.openExternal('https://github.com/DotHarness/dotcraft')
           }
-        }
+        },
+        ...(getAppUpdateService().getState().status === 'unsupported'
+          ? []
+          : ([
+              { type: 'separator' },
+              {
+                label: L('menu.checkForUpdates'),
+                click: () => {
+                  void checkForUpdatesFromMenu()
+                }
+              }
+            ] as MenuItemConstructorOptions[]))
       ]
     }
   ]
@@ -2996,8 +3021,8 @@ function registerMenuPopupIpc(): void {
   ipcMain.removeHandler('app:whats-new-get-media-states')
   ipcMain.removeHandler('app:whats-new-prefetch-media')
   ipcMain.removeHandler('app:update-get-state')
-  ipcMain.removeHandler('app:update-check')
-  ipcMain.removeHandler('app:update-download-and-install')
+  ipcMain.removeHandler('app:update-download')
+  ipcMain.removeHandler('app:update-install')
   ipcMain.handle(
     'menu:popup-top-level',
     (event, payload: { menuId: TopLevelMenuId; x: number; y: number }) => {
@@ -3022,7 +3047,6 @@ function registerMenuPopupIpc(): void {
     getWhatsNewMediaCache().prefetchMedia(Array.isArray(releaseVersions) ? releaseVersions : [])
   ))
   ipcMain.handle('app:update-get-state', () => getAppUpdateService().getState())
-  ipcMain.handle('app:update-check', () => getAppUpdateService().checkForUpdates())
   ipcMain.handle('app:update-download', () => getAppUpdateService().download())
   ipcMain.handle('app:update-install', () => getAppUpdateService().install())
   ipcMain.handle('profile:get-github-identity', (_event, username: string) =>

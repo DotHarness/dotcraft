@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.22.0 |
+| **Version** | 0.23.0 |
 | **Status** | Living |
 | **Date** | 2026-09-24 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -1165,7 +1165,7 @@ Packaged Windows builds update themselves from GitHub Releases through `electron
 - Desktop checks at startup and every 15 minutes, skipping a check while an update is downloading or ready. The check reads the release feed and the `latest.yml` channel file, not the GitHub REST API.
 - A newer version downloads in the background. The installer is verified against its SHA-512 and, when the running version's block map is published, downloaded as a differential update.
 - A verified download makes the update ready. The title bar shows an update control whose dialog restarts DotCraft into a silent install of the same installation. An update that is ready but not installed survives restarts without downloading again.
-- `Settings › General` offers a manual check beside the app version and reports when the app is up to date or the check failed. Background check failures stay silent.
+- The Help menu ends with **Check for Updates…**. A manual check reports an up-to-date app or a failed check in a native message box and opens the update dialog when it finds an update. `Settings › General` shows only the app version. Background check failures stay silent.
 - Each release publishes `DotCraft-v<version>-win-<arch>-Setup.exe` with its `.blockmap` for every Windows architecture and one `latest.yml` listing all of them; the updater selects the installer whose name contains the running architecture.
 
 ---
