@@ -623,6 +623,7 @@ export interface ApprovalRequestParams {
   scopeKey: string;
   shell?: ApprovalShellDetails | null;
   target: string;
+  targetLabel?: string | null;
   threadId: string;
   turnId: string;
   [key: string]: unknown;
@@ -637,6 +638,7 @@ export interface ApprovalRequestPayload {
   scopeKey: string;
   shell?: ApprovalShellDetails | null;
   target: string;
+  targetLabel?: string | null;
   [key: string]: unknown;
 }
 
@@ -1013,6 +1015,7 @@ export interface ClientCapabilities {
   browserUse?: BrowserUseCapability | null;
   channelAdapter?: ChannelAdapterCapability | null;
   commandExecutionStreaming?: boolean | null;
+  computerUse?: ComputerUseCapability | null;
   configChange?: boolean | null;
   extensions?: Record<string, JsonValue> | null;
   inlineVisualizations?: boolean | null;
@@ -1090,6 +1093,11 @@ export interface CommandListParams {
 
 export interface CommandListResult {
   commands?: CommandInfo[];
+  [key: string]: unknown;
+}
+
+export interface ComputerUseCapability {
+  backend: string;
   [key: string]: unknown;
 }
 
@@ -2254,6 +2262,21 @@ export interface NodeReplEvaluateResult {
 export interface NodeReplImageResult {
   dataBase64?: string;
   mediaType?: string;
+  [key: string]: unknown;
+}
+
+export interface NodeReplRequestApprovalParams {
+  approvalType?: string;
+  evaluationId?: string;
+  operation?: string;
+  target?: string;
+  targetLabel?: string | null;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface NodeReplRequestApprovalResult {
+  approved: boolean;
   [key: string]: unknown;
 }
 

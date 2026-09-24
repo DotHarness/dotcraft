@@ -193,6 +193,8 @@ public sealed class AppServerConnection
     /// </summary>
     public bool HasBrowserUse => BrowserUse != null;
 
+    public bool HasComputerUse => _clientCapabilities?.ComputerUse != null;
+
     /// <summary>
     /// Browser automation backends declared by the client. Falls back to the legacy
     /// single <c>browserUse.backend</c> field when <c>browserUse.backends</c> is omitted.

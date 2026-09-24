@@ -41,6 +41,7 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider,
             ProfileBuilderSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, NodeReplProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedSocialToolSource>());
         return services;

@@ -112,6 +112,12 @@ if %ERRORLEVEL% neq 0 (
     cd ..
     goto :failure
 )
+node scripts\stage-cua-driver.mjs --platform win32 --arch x64
+if %ERRORLEVEL% neq 0 (
+    echo Failed to stage the computer use driver for Desktop build.
+    cd ..
+    goto :failure
+)
 if exist resources\modules (
     rmdir /s /q resources\modules
 )

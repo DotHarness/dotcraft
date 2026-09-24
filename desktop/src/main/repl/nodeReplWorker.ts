@@ -4,6 +4,7 @@ import { createConnection } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { isAllowedBrowserUsePipePath } from '../browserUseBackendServer'
+import { COMPUTER_API_METHODS } from '../computerUse/methods'
 import type { ReplContext, ReplTransport } from './protocol'
 
 function describe(value: unknown): string {
@@ -44,6 +45,10 @@ export function startReplWorker(transport: ReplTransport): void {
     checkExtension: () => host('chrome.checkExtension', null),
     checkNativeHost: () => host('chrome.checkNativeHost', null)
   })
+  const computer = process.platform === 'win32'
+    ? Object.freeze(Object.fromEntries(COMPUTER_API_METHODS.map((method) =>
+      [method, (args?: unknown) => host(`computer.${method}`, args ?? {})])))
+    : undefined
   const nativePipe = Object.freeze({
     createConnection: async (path: string) => {
       current()
@@ -70,7 +75,10 @@ export function startReplWorker(transport: ReplTransport): void {
       } }
     }
   })
-  Object.defineProperty(globals, 'dotcraft', { configurable: true, get: () => Object.freeze({ ...current().dotcraft, chrome }) })
+  Object.defineProperty(globals, 'dotcraft', {
+    configurable: true,
+    get: () => Object.freeze({ ...current().dotcraft, chrome, ...(computer ? { computer } : {}) })
+  })
   globals.console = Object.freeze({ log: write, warn: write, error: write, info: write, debug: write })
   globals.display = (value: unknown) => host('emitImage', value)
   globals.__dotcraftSetChromeCancelHook = (hook: typeof cancelHook) => { cancelHook = hook }

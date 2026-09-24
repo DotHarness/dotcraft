@@ -97,6 +97,28 @@ public sealed class NodeReplToolProviderTests
     }
 
     [Fact]
+    public async Task Source_ComputerUseOnlyClient_ExposesComputerPluginAndIgnoresBrowser()
+    {
+        var fixture = CreateSource(
+            new FakeNodeReplProxy(true, browserUse: false, computerUse: true),
+            [PluginIds.Browser, PluginIds.Computer]);
+
+        var registration = Assert.Single(await fixture.Source.GetRegistrationsAsync(fixture.Planning));
+
+        Assert.Equal(PluginIds.Computer, registration.Definition.Id.SourceId);
+    }
+
+    [Fact]
+    public async Task Source_BrowserOnlyClient_DoesNotExposeComputerPlugin()
+    {
+        var fixture = CreateSource(new FakeNodeReplProxy(true), [PluginIds.Computer]);
+
+        var registrations = await fixture.Source.GetRegistrationsAsync(fixture.Planning);
+
+        Assert.Empty(registrations);
+    }
+
+    [Fact]
     public async Task Dispatch_WhenProxyReturnsError_PreservesTurnMetadataAndStableFailure()
     {
         var proxy = new FakeNodeReplProxy(true, new NodeReplEvaluation
@@ -198,9 +220,15 @@ public sealed class NodeReplToolProviderTests
 
     private sealed class FakeNodeReplProxy(
         bool available,
-        NodeReplEvaluation? result = null) : INodeReplProxy
+        NodeReplEvaluation? result = null,
+        bool browserUse = true,
+        bool computerUse = false) : INodeReplProxy
     {
         public bool IsAvailable => available;
+
+        public bool IsBrowserUseAvailable => available && browserUse;
+
+        public bool IsComputerUseAvailable => available && computerUse;
 
         public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
         public int? LastTimeoutSeconds { get; private set; }

@@ -1,0 +1,16 @@
+{
+  "repository": "trycua/cua",
+  "tag": "cua-driver-rs-v0.28.2",
+  "version": "0.28.2",
+  "signer": "Cua AI, Inc.",
+  "artifacts": {
+    "win32-x64": {
+      "file": "cua-driver-rs-0.28.2-windows-x86_64.zip",
+      "sha256": "3c1fcf10ff9513b94e4af78ad6a216ab62aa95b2c9a3b70dfbdba9f04e021533"
+    },
+    "win32-arm64": {
+      "file": "cua-driver-rs-0.28.2-windows-arm64.zip",
+      "sha256": "69720568a44ed8eab3620c892b9df524a8231013ac42e0afcdaa4317cd90d0f1"
+    }
+  }
+}

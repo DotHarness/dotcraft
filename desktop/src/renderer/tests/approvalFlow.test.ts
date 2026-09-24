@@ -50,6 +50,27 @@ describe('decision mapping', () => {
   }
 })
 
+describe('computer use approvals', () => {
+  it('keeps the computerUse type and the app display label', () => {
+    s().onApprovalRequest('bridge-cu', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-cu-1',
+      approvalType: 'computerUse',
+      operation: 'use',
+      target: 'C:/Windows/notepad.exe',
+      targetLabel: 'Notepad',
+      reason: 'Agent wants to use Notepad.'
+    })
+
+    expect(s().pendingApproval).toMatchObject({
+      approvalType: 'computerUse',
+      target: 'C:/Windows/notepad.exe',
+      targetLabel: 'Notepad'
+    })
+  })
+})
+
 describe('approval card state machine', () => {
   it('pending → onApprovalRequest creates approvalCard item with pending state', () => {
     s().onApprovalRequest('bridge-1', SHELL_PARAMS)

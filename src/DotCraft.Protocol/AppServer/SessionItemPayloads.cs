@@ -607,6 +607,10 @@ public sealed class ApprovalRequestPayload : ExtensibleJsonObject
     [JsonPropertyName("target")]
     public required string Target { get; init; }
 
+    [JsonPropertyName("targetLabel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetLabel { get; init; }
+
     [JsonPropertyName("requestId")]
     public required string RequestId { get; init; }
 

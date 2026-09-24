@@ -28,13 +28,16 @@ internal sealed class SessionApprovalService : IApprovalService
         string scopeKey,
         ApprovalRequestPayload payload,
         TaskCompletionSource<SessionApprovalDecision> completion,
-        ShellApprovalRequest? shellRequest)
+        ShellApprovalRequest? shellRequest,
+        bool persistAcceptAlways)
     {
         public string ScopeKey { get; } = scopeKey;
         public ApprovalRequestPayload Payload { get; } = payload;
         public TaskCompletionSource<SessionApprovalDecision> Completion { get; } = completion;
 
         public ShellApprovalRequest? ShellRequest { get; } = shellRequest;
+
+        public bool PersistAcceptAlways { get; } = persistAcceptAlways;
     }
 
     public SessionApprovalService(
@@ -113,21 +116,29 @@ internal sealed class SessionApprovalService : IApprovalService
         string kind,
         string operation,
         string target,
+        ApprovalContext? context = null) =>
+        RequestResourceApprovalAsync(new ResourceApprovalRequest(kind, operation, target), context);
+
+    public Task<bool> RequestResourceApprovalAsync(
+        ResourceApprovalRequest request,
         ApprovalContext? context = null)
     {
         var requestId = Guid.NewGuid().ToString("N")[..12];
-        var scopeKey = BuildScopeKey(kind, operation, target);
+        var scopeKey = BuildScopeKey(request.Kind, request.Operation, request.Target);
         var payload = new ApprovalRequestPayload
         {
-            ApprovalType = kind,
-            Operation = operation,
-            Target = target,
+            ApprovalType = request.Kind,
+            Operation = request.Operation,
+            Target = request.Target,
+            TargetLabel = request.TargetLabel,
             RequestId = requestId,
             ScopeKey = scopeKey,
-            Reason = $"Agent wants to perform '{operation}' on remote resource: {target}",
+            Reason = string.IsNullOrWhiteSpace(request.TargetLabel)
+                ? $"Agent wants to perform '{request.Operation}' on remote resource: {request.Target}"
+                : $"Agent wants to {request.Operation} {request.TargetLabel}.",
             ExpiresAt = ApprovalExpiry()
         };
-        return RequestApprovalAsync(requestId, scopeKey, payload);
+        return RequestApprovalAsync(requestId, scopeKey, payload, persistAcceptAlways: request.PersistAcceptAlways);
     }
 
     /// <summary>
@@ -142,7 +153,7 @@ internal sealed class SessionApprovalService : IApprovalService
         if (decision.AppliesToSession())
             _sessionScopes.Add(_turn.ThreadId, pending.ScopeKey);
 
-        if (decision.IsPersistent())
+        if (decision.IsPersistent() && pending.PersistAcceptAlways)
             PersistApproval(pending);
 
         var responseItem = CreateItem(ItemType.ApprovalResponse, new ApprovalResponsePayload
@@ -175,12 +186,13 @@ internal sealed class SessionApprovalService : IApprovalService
         string requestId,
         string scopeKey,
         ApprovalRequestPayload payload,
-        ShellApprovalRequest? shellRequest = null)
+        ShellApprovalRequest? shellRequest = null,
+        bool persistAcceptAlways = true)
     {
         if (_sessionScopes.Contains(_turn.ThreadId, scopeKey))
             return true;
 
-        if (IsPersistedApproval(payload, shellRequest))
+        if (persistAcceptAlways && IsPersistedApproval(payload, shellRequest))
             return true;
 
         var requestItem = CreateItem(ItemType.ApprovalRequest, payload);
@@ -189,7 +201,7 @@ internal sealed class SessionApprovalService : IApprovalService
 
         // Register TCS before emitting the event so there's no race
         var tcs = new TaskCompletionSource<SessionApprovalDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest);
+        _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest, persistAcceptAlways);
 
         _channel.EmitItemStarted(requestItem);
         _channel.EmitItemCompleted(requestItem);

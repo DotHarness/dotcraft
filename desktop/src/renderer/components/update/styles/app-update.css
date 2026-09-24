@@ -1,17 +1,60 @@
-/* The markdown renderer sizes headings inline for conversation prose; inside the
-   update dialog they step down so they do not outrank the dialog title. */
+/* Release notes arrive as the feed's HTML, so the prose rhythm of rendered
+   markdown is restated here, with headings stepped below the dialog title. */
+.app-update-notes h1,
+.app-update-notes h2,
+.app-update-notes h3 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .app-update-notes h1,
 .app-update-notes h2 {
-  margin-top: 0 !important;
-  font-size: var(--type-heading-size) !important;
-  line-height: var(--type-heading-line-height) !important;
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line-height);
 }
 
 .app-update-notes h3 {
-  font-size: var(--type-ui-size) !important;
-  line-height: var(--type-ui-line-height) !important;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+.app-update-notes p,
+.app-update-notes ul,
+.app-update-notes ol {
+  margin: 0 0 6px;
+}
+
+.app-update-notes p,
+.app-update-notes li {
+  color: var(--text-primary);
+}
+
+.app-update-notes ul,
+.app-update-notes ol {
+  padding-left: 22px;
+}
+
+.app-update-notes li {
+  margin: 0 0 3px;
+}
+
+.app-update-notes a {
+  color: var(--ref-base);
+}
+
+.app-update-notes :not(pre) > code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+}
+
+.app-update-notes .markdown-body > :first-child {
+  margin-top: 0;
 }
 
 .app-update-notes .markdown-body > :last-child {
-  margin-bottom: 0 !important;
+  margin-bottom: 0;
 }

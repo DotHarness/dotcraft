@@ -18,7 +18,7 @@ import {
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Skeleton } from '../ui/Skeleton'
 import { Button, ButtonLabel } from '../ui/Button'
-import { DialogCloseButton } from '../ui/DialogCloseButton'
+import { ModalHeader } from '../ui/ModalHeader'
 
 interface WhatsNewDialogProps {
   releases: WhatsNewRelease[]
@@ -43,7 +43,6 @@ export function WhatsNewDialog({
   const newerRelease = activeIndex > 0 ? releases[activeIndex - 1] : null
   const olderRelease =
     activeIndex < releases.length - 1 ? releases[activeIndex + 1] : null
-  const eyebrowVersion = activeRelease?.version ?? ''
 
   useEffect(() => {
     setFailedMediaIds(new Set())
@@ -76,23 +75,19 @@ export function WhatsNewDialog({
         aria-labelledby="whats-new-title"
         style={dialogStyle}
       >
-        <header style={headerStyle}>
-          <div style={{ minWidth: 0 }}>
-            <div style={eyebrowStyle}>
-              <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-              <span>{eyebrowVersion ? t('whatsNew.subtitle', { version: eyebrowVersion }) : t('whatsNew.open')}</span>
-            </div>
-            <h2 id="whats-new-title" style={titleStyle}>
-              {t('whatsNew.title')}
-            </h2>
-          </div>
-          <DialogCloseButton label={t('whatsNew.closeAria')} onClose={onClose} />
-        </header>
+        <ModalHeader
+          icon={<Sparkles size={18} aria-hidden />}
+          title={t('whatsNew.title')}
+          titleId="whats-new-title"
+          description={activeRelease ? t('whatsNew.subtitle', { version: activeRelease.version }) : undefined}
+          onClose={onClose}
+          closeLabel={t('whatsNew.closeAria')}
+          style={headerStyle}
+        />
 
         <div style={contentStyle}>
           {releases.length === 0 ? (
             <div style={emptyStyle}>
-              <Sparkles size={28} strokeWidth={1.8} aria-hidden="true" />
               <h3 style={emptyTitleStyle}>{t('whatsNew.emptyTitle')}</h3>
               <p style={emptyBodyStyle}>{t('whatsNew.emptyBody')}</p>
             </div>
@@ -232,6 +227,7 @@ function WhatsNewCardView({
           <Button
             variant="ghost"
             size="sm"
+            style={docsButtonStyle}
             onClick={() => {
               void window.api.shell.openExternal(card.docsUrl as string)
             }}
@@ -253,8 +249,7 @@ const backdropStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   padding: 16,
-  background: 'rgba(6, 10, 18, 0.62)',
-  backdropFilter: 'blur(10px)'
+  background: 'var(--overlay-scrim)'
 }
 
 const dialogStyle: CSSProperties = {
@@ -271,32 +266,12 @@ const dialogStyle: CSSProperties = {
 }
 
 const headerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: 16,
-  padding: '20px 22px 14px',
-  borderBottom: '1px solid var(--border-subtle)'
-}
-
-const eyebrowStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 7,
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)'
-}
-
-const titleStyle: CSSProperties = {
-  margin: '6px 0 0',
-  fontSize: 22,
-  lineHeight: '30px',
-  fontWeight: 680
+  margin: '20px 22px 16px'
 }
 
 const contentStyle: CSSProperties = {
-  padding: '16px 22px 20px',
+  minHeight: 0,
+  padding: '0 22px',
   overflowY: 'auto'
 }
 
@@ -344,9 +319,9 @@ const cardBodyStyle: CSSProperties = {
 const cardTitleStyle: CSSProperties = {
   margin: 0,
   color: 'var(--text-primary)',
-  fontSize: 15,
-  lineHeight: '21px',
-  fontWeight: 660,
+  fontSize: 'var(--type-heading-size)',
+  lineHeight: 'var(--type-heading-line-height)',
+  fontWeight: 600,
   overflowWrap: 'anywhere'
 }
 
@@ -358,13 +333,18 @@ const cardSummaryStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
+const docsButtonStyle: CSSProperties = {
+  alignSelf: 'flex-start',
+  marginLeft: -10
+}
+
 const emptyStyle: CSSProperties = {
   minHeight: 220,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 8,
+  gap: 6,
   color: 'var(--text-secondary)',
   textAlign: 'center'
 }
@@ -372,9 +352,9 @@ const emptyStyle: CSSProperties = {
 const emptyTitleStyle: CSSProperties = {
   margin: 0,
   color: 'var(--text-primary)',
-  fontSize: 16,
-  lineHeight: '22px',
-  fontWeight: 650
+  fontSize: 'var(--type-heading-size)',
+  lineHeight: 'var(--type-heading-line-height)',
+  fontWeight: 600
 }
 
 const emptyBodyStyle: CSSProperties = {
@@ -386,15 +366,16 @@ const emptyBodyStyle: CSSProperties = {
 
 const footerStyle: CSSProperties = {
   display: 'flex',
+  flex: '0 0 auto',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 12,
-  padding: '14px 22px',
-  borderTop: '1px solid var(--border-subtle)'
+  padding: '18px 22px 20px'
 }
 
 const footerNavStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 8
+  gap: 8,
+  marginLeft: -10
 }

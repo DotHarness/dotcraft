@@ -1,0 +1,6 @@
+interface:
+  display_name: "Computer"
+  short_description: "Operate desktop apps on this computer with DotCraft."
+  icon_small: "../../assets/computer-small.svg"
+  icon_large: "../../assets/computer.svg"
+  default_prompt: "Use $computer to open Notepad and write a short note."

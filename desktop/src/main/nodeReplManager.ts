@@ -2,6 +2,16 @@ import { type BrowserWindow } from 'electron'
 import { browserUseManager, type BrowserUseImageResult, type BrowserUseManager } from './browserUseManager'
 import { NodeReplWorkerClient, defaultForkReplWorker, type ForkReplWorker } from './repl/NodeReplWorkerClient'
 import { createReplHostContext, handleChromeHostCall } from './repl/nodeReplHost'
+import { computerUseManager } from './computerUse/runtime'
+import type { ComputerUseManager } from './computerUse/ComputerUseManager'
+
+export interface NodeReplApprovalRequest {
+  evaluationId: string
+  approvalType: 'computerUse'
+  operation: string
+  target: string
+  targetLabel?: string
+}
 
 export interface NodeReplEvaluateParams {
   threadId: string
@@ -11,6 +21,7 @@ export interface NodeReplEvaluateParams {
   code: string
   timeoutMs?: number
   workspacePath?: string
+  requestApproval?: (request: NodeReplApprovalRequest) => Promise<boolean>
 }
 
 export interface BrowserSessionMetadata {
@@ -69,6 +80,48 @@ class NodeReplEvaluationCancelledError extends Error {
   }
 }
 
+class EvaluationTimer {
+  private remaining: number
+  private startedAt = 0
+  private handle: ReturnType<typeof setTimeout> | undefined
+  private pauses = 0
+  private onExpire: (() => void) | undefined
+
+  constructor(timeoutMs: number) {
+    this.remaining = timeoutMs
+  }
+
+  start(onExpire: () => void): void {
+    this.onExpire = onExpire
+    this.arm()
+  }
+
+  pause(): () => void {
+    if (this.pauses++ === 0 && this.handle) {
+      clearTimeout(this.handle)
+      this.handle = undefined
+      this.remaining -= Date.now() - this.startedAt
+    }
+    let resumed = false
+    return () => {
+      if (resumed) return
+      resumed = true
+      if (--this.pauses === 0 && this.onExpire) this.arm()
+    }
+  }
+
+  clear(): void {
+    clearTimeout(this.handle)
+    this.handle = undefined
+    this.onExpire = undefined
+  }
+
+  private arm(): void {
+    this.startedAt = Date.now()
+    this.handle = setTimeout(() => this.onExpire?.(), Math.max(0, this.remaining))
+  }
+}
+
 function newEvaluationId(): string {
   return `node-repl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
@@ -99,7 +152,8 @@ export class NodeReplManager {
 
   constructor(
     private readonly browserManager: BrowserUseManager = browserUseManager,
-    private readonly forkWorker: ForkReplWorker = defaultForkReplWorker
+    private readonly forkWorker: ForkReplWorker = defaultForkReplWorker,
+    private readonly computerUse: Pick<ComputerUseManager, 'handleHostCall'> = computerUseManager
   ) {}
 
   async evaluate(owner: BrowserWindow, params: NodeReplEvaluateParams): Promise<NodeReplEvaluateResult> {
@@ -136,6 +190,7 @@ export class NodeReplManager {
     runtime.phase = 'prepare'
     let browserRuntime: Awaited<ReturnType<BrowserUseManager['prepareNodeRepl']>> | undefined
     const timeoutMs = Math.max(1_000, Math.min(params.timeoutMs ?? 30_000, 120_000))
+    const timer = new EvaluationTimer(timeoutMs)
     try {
       const result = await this.withTimeout((async () => {
         browserRuntime = await this.browserManager.prepareNodeRepl(owner, {
@@ -152,9 +207,26 @@ export class NodeReplManager {
           if (abortController.signal.aborted) throw new NodeReplEvaluationCancelledError(runtime.phase)
           if (method === 'emitImage') return await browserRuntime!.display(value)
           if (method === 'createElicitation') return await this.browserManager.handleBrowserUseElicitation(params.threadId, value)
+          if (method.startsWith('computer.')) {
+            return await this.computerUse.handleHostCall(method.slice('computer.'.length), value, {
+              threadId: params.threadId,
+              turnId: params.turnId ?? browserSession.turnId,
+              evaluationId,
+              signal: abortController.signal,
+              requestApproval: (app) => params.requestApproval?.({
+                evaluationId,
+                approvalType: 'computerUse',
+                operation: 'use',
+                target: app.id,
+                targetLabel: app.displayName
+              }) ?? Promise.resolve(false),
+              pauseTimeout: () => timer.pause(),
+              emitImage: async (image) => { await browserRuntime!.display(image) }
+            })
+          }
           return await handleChromeHostCall(method, workspacePath)
         })
-      })(), timeoutMs, abortController.signal, () => runtime.phase)
+      })(), timer, timeoutMs, abortController.signal, () => runtime.phase)
       const collected = browserRuntime?.collect()
       return { ...result, images: collected?.images ?? [], logs: [...result.logs, ...(collected?.logs ?? [])] }
     } catch (error: unknown) {
@@ -302,6 +374,7 @@ export class NodeReplManager {
 
   private withTimeout<T>(
     promise: Promise<T>,
+    timer: EvaluationTimer,
     timeoutMs: number,
     signal: AbortSignal,
     phase: () => string | undefined
@@ -309,7 +382,7 @@ export class NodeReplManager {
     return new Promise((resolve, reject) => {
       let settled = false
       const cleanup = () => {
-        clearTimeout(timeout)
+        timer.clear()
         signal.removeEventListener('abort', onAbort)
       }
       const finish = (callback: () => void) => {
@@ -324,9 +397,7 @@ export class NodeReplManager {
           ? reason
           : new NodeReplEvaluationCancelledError(phase())))
       }
-      const timeout = setTimeout(
-        () => finish(() => reject(new NodeReplEvaluationTimeoutError(timeoutMs, phase()))),
-        timeoutMs)
+      timer.start(() => finish(() => reject(new NodeReplEvaluationTimeoutError(timeoutMs, phase()))))
       if (signal.aborted) {
         onAbort()
         return

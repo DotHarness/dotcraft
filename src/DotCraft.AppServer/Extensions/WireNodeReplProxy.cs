@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Contract = DotCraft.Protocol.AppServer;
@@ -11,6 +12,7 @@ namespace DotCraft.AppServer;
 public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSource
 {
     private readonly ConcurrentDictionary<string, NodeReplThreadBinding> _byThread = new();
+    private readonly ConcurrentDictionary<string, InFlightEvaluation> _inFlight = new();
 
     /// <inheritdoc />
     public bool IsAvailable
@@ -18,7 +20,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
         get
         {
             var binding = GetCurrentBinding();
-            return binding?.Connection is { HasNodeRepl: true, HasBrowserUse: true };
+            return binding?.Connection is { } connection && SupportsNodeRepl(connection);
         }
     }
 
@@ -27,7 +29,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
     /// </summary>
     public void BindThread(string threadId, IAppServerTransport transport, AppServerConnection connection)
     {
-        if (!connection.HasNodeRepl || !connection.HasBrowserUse)
+        if (!SupportsNodeRepl(connection))
             return;
         _byThread[threadId] = new NodeReplThreadBinding(threadId, transport, connection);
     }
@@ -60,6 +62,53 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
     /// Removes a single thread binding.
     /// </summary>
     public void UnbindThread(string threadId) => _byThread.TryRemove(threadId, out _);
+
+    /// <inheritdoc />
+    public bool IsComputerUseAvailable
+    {
+        get
+        {
+            var binding = GetCurrentBinding();
+            return binding?.Connection is { HasNodeRepl: true, HasComputerUse: true };
+        }
+    }
+
+    /// <inheritdoc />
+    public bool IsBrowserUseAvailable
+    {
+        get
+        {
+            var binding = GetCurrentBinding();
+            return binding?.Connection is { HasNodeRepl: true, HasBrowserUse: true };
+        }
+    }
+
+    public async Task<bool> RequestApprovalAsync(
+        AppServerConnection connection,
+        string threadId,
+        string evaluationId,
+        ResourceApprovalRequest request)
+    {
+        if (!_inFlight.TryGetValue(evaluationId, out var evaluation)
+            || !ReferenceEquals(evaluation.Connection, connection)
+            || !string.Equals(evaluation.ThreadId, threadId, StringComparison.Ordinal))
+        {
+            throw new KeyNotFoundException($"Evaluation '{evaluationId}' is not in flight for thread '{threadId}'.");
+        }
+
+        if (evaluation.ApprovalService is null)
+            return false;
+
+        evaluation.Deadline.Pause();
+        try
+        {
+            return await evaluation.ApprovalService.RequestResourceApprovalAsync(request).ConfigureAwait(false);
+        }
+        finally
+        {
+            evaluation.Deadline.Resume();
+        }
+    }
 
     /// <inheritdoc />
     public async Task<NodeReplEvaluation?> EvaluateAsync(
@@ -104,11 +153,25 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
                 Code = code,
                 TimeoutMs = safeTimeout * 1000
             };
-            var response = await binding.Transport.RequestAsync(
-                Contract.AppServerRpc.ExtNodeReplEvaluate,
-                request,
-                ct,
-                TimeSpan.FromSeconds(safeTimeout + 5));
+            using var deadline = new PausableDeadline(TimeSpan.FromSeconds(safeTimeout + 5), ct);
+            _inFlight[evaluationId] = new InFlightEvaluation(
+                threadId,
+                binding.Connection,
+                deadline,
+                ToolHostExecutionScope.Current?.ApprovalService);
+            AppServerTypedClientResponse<Contract.NodeReplEvaluateResult> response;
+            try
+            {
+                response = await binding.Transport.RequestAsync(
+                    Contract.AppServerRpc.ExtNodeReplEvaluate,
+                    request,
+                    deadline.Token,
+                    Timeout.InfiniteTimeSpan);
+            }
+            finally
+            {
+                _inFlight.TryRemove(evaluationId, out _);
+            }
 
             if (response.Result is null)
                 return new NodeReplEvaluation
@@ -131,6 +194,9 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
             return new NodeReplEvaluation { Error = "Node REPL evaluation was cancelled." };
         }
     }
+
+    private static bool SupportsNodeRepl(AppServerConnection connection) =>
+        connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse);
 
     private NodeReplThreadBinding? GetCurrentBinding()
     {
@@ -169,6 +235,12 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
         string ThreadId,
         IAppServerTransport Transport,
         AppServerConnection Connection);
+
+    private sealed record InFlightEvaluation(
+        string ThreadId,
+        AppServerConnection Connection,
+        PausableDeadline Deadline,
+        IApprovalService? ApprovalService);
 
     private static NodeReplEvaluation ToDomain(Contract.NodeReplEvaluateResult value) => new()
     {

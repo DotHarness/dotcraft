@@ -25,5 +25,6 @@ export function approvalQuestionKey(type: ApprovalType): string {
   if (type === 'file') return 'approval.question.file'
   if (type === 'remoteResource') return 'approval.question.remoteResource'
   if (type === 'skill') return 'approval.question.skill'
+  if (type === 'computerUse') return 'approval.question.computerUse'
   return 'approval.question.shell'
 }

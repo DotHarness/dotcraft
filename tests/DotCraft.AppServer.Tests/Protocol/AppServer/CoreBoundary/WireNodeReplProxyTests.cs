@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DotCraft.Tracing;
 using DotCraft.AppServer;
+using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions.Wire;
 using DotCraft.Tools;
 using Xunit;
@@ -210,6 +212,94 @@ public sealed class WireNodeReplProxyTests
         finally
         {
             TracingChatClient.CurrentSessionKey = prev;
+        }
+    }
+
+    [Fact]
+    public async Task RequestApprovalAsync_UsesTurnApprovalServiceOfInFlightEvaluation()
+    {
+        var prev = TracingChatClient.CurrentSessionKey;
+        try
+        {
+            var proxy = new WireNodeReplProxy();
+            var transport = new StubTransport { BlockEvaluate = true };
+            var connection = new AppServerConnection();
+            connection.TryMarkInitialized(
+                new ClientConnectionInfo { Name = "desktop", Version = "1" },
+                new ClientConnectionCapabilities
+                {
+                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
+                    ComputerUse = new ComputerUseClientCapability { Backend = "cua-driver" }
+                });
+            proxy.BindThread("thread-d", transport, connection);
+            TracingChatClient.CurrentSessionKey = "thread-d";
+            Assert.True(proxy.IsAvailable);
+            Assert.True(proxy.IsComputerUseAvailable);
+            Assert.False(proxy.IsBrowserUseAvailable);
+
+            var approvals = new RecordingApprovalService(approve: true);
+            using var cts = new CancellationTokenSource();
+            Task<NodeReplEvaluation?> pending;
+            using (ToolHostExecutionScope.Set(new ToolHostExecutionContext("thread-d", "turn-d", Path.GetTempPath(), approvals, null!)))
+                pending = proxy.EvaluateAsync("await dotcraft.computer.list_apps()", 30, cts.Token);
+
+            var evaluationId = transport.Calls
+                .Single(call => call.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.ExtNodeReplEvaluate)
+                .Params.GetProperty("evaluationId").GetString()!;
+            var request = new ResourceApprovalRequest("computerUse", "use", @"C:\Apps\Notepad.exe")
+            {
+                TargetLabel = "Notepad",
+                PersistAcceptAlways = false
+            };
+
+            Assert.True(await proxy.RequestApprovalAsync(connection, "thread-d", evaluationId, request));
+            Assert.Same(request, approvals.LastRequest);
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                proxy.RequestApprovalAsync(connection, "thread-other", evaluationId, request));
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                proxy.RequestApprovalAsync(new AppServerConnection(), "thread-d", evaluationId, request));
+
+            cts.Cancel();
+            await pending;
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                proxy.RequestApprovalAsync(connection, "thread-d", evaluationId, request));
+        }
+        finally
+        {
+            TracingChatClient.CurrentSessionKey = prev;
+        }
+    }
+
+    [Fact]
+    public async Task PausableDeadline_DoesNotExpireWhilePaused()
+    {
+        using var deadline = new PausableDeadline(TimeSpan.FromMilliseconds(150), CancellationToken.None);
+        deadline.Pause();
+        await Task.Delay(400);
+        Assert.False(deadline.Token.IsCancellationRequested);
+
+        deadline.Resume();
+        await Task.Delay(600);
+        Assert.True(deadline.Token.IsCancellationRequested);
+    }
+
+    private sealed class RecordingApprovalService(bool approve) : IApprovalService
+    {
+        public ResourceApprovalRequest? LastRequest { get; private set; }
+
+        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
+            Task.FromResult(false);
+
+        public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) =>
+            Task.FromResult(false);
+
+        public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) =>
+            Task.FromResult(false);
+
+        public Task<bool> RequestResourceApprovalAsync(ResourceApprovalRequest request, ApprovalContext? context = null)
+        {
+            LastRequest = request;
+            return Task.FromResult(approve);
         }
     }
 

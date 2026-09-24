@@ -127,8 +127,8 @@ public sealed class ClientConnectionCapabilities
     public AcpClientCapability? AcpExtensions { get; set; }
 
     /// <summary>
-    /// Node REPL runtime capability. When set with <see cref="BrowserUse"/>, the client can
-    /// receive server-initiated <c>ext/nodeRepl/*</c> requests for thread-bound browser automation.
+    /// Node REPL runtime capability. When set with <see cref="BrowserUse"/> or <see cref="ComputerUse"/>,
+    /// the client can receive server-initiated <c>ext/nodeRepl/*</c> requests for thread-bound automation.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NodeReplClientCapability? NodeRepl { get; set; }
@@ -139,6 +139,9 @@ public sealed class ClientConnectionCapabilities
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BrowserUseClientCapability? BrowserUse { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ComputerUseClientCapability? ComputerUse { get; set; }
 }
 
 /// <summary>
@@ -160,6 +163,11 @@ public sealed class AcpClientCapability
 /// Client-declared Desktop Node REPL support during <c>initialize</c>.
 /// </summary>
 public sealed class NodeReplClientCapability
+{
+    public string Backend { get; set; } = string.Empty;
+}
+
+public sealed class ComputerUseClientCapability
 {
     public string Backend { get; set; } = string.Empty;
 }

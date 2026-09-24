@@ -57,6 +57,7 @@
     "@xterm/xterm": "^6.0.0",
     "diff": "^8.0.3",
     "dompurify": "^3.4.11",
+    "electron-updater": "^6.8.9",
     "fflate": "^0.8.2",
     "ignore-walk": "^8.0.0",
     "js-yaml": "^4.2.0",
@@ -118,6 +119,11 @@
       }
     ],
     "icon": "resources/icon.png",
+    "publish": {
+      "provider": "github",
+      "owner": "DotHarness",
+      "repo": "dotcraft"
+    },
     "directories": {
       "buildResources": "resources"
     },
@@ -182,7 +188,7 @@
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [
-          "dotcraft-bundled/plugins/{browser,chrome,dotcraft,oratorio,token-hud,wallpaper}/**/*",
+          "dotcraft-bundled/plugins/{browser,chrome,computer,dotcraft,oratorio,token-hud,wallpaper}/**/*",
           "!**/__pycache__/**",
           "!**/*.pyc"
         ]
@@ -243,7 +249,7 @@
       "selectPerMachineByDefault": false,
       "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "DotCraft-Setup-${version}.${ext}",
+      "artifactName": "DotCraft-v${version}-win-${arch}-Setup.${ext}",
       "installerIcon": "resources/icon.ico",
       "uninstallerIcon": "resources/icon.ico",
       "installerHeaderIcon": "resources/icon.ico"

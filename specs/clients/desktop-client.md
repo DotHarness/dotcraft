@@ -75,6 +75,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [6.6 Archived chats](#66-archived-chats)
   - [6.7 Settings Surface](#67-settings-surface)
     - [6.7.1 Session Import](#671-session-import)
+    - [6.7.2 Computer Use](#672-computer-use)
   - [6.8 Channel Modules](#68-channel-modules)
     - [6.8.1 Discovery and Identity](#681-discovery-and-identity)
     - [6.8.2 Configuration Workflow](#682-configuration-workflow)
@@ -524,6 +525,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
    - declined work reflects rejection and may continue with an alternative path
    - cancelled work terminates the turn
 6. If approval times out or is no longer valid, the user sees the resulting turn outcome.
+7. A `computerUse` approval asks whether DotCraft may use the application named by `targetLabel` and offers exactly three choices: always allow (`acceptAlways`), allow for this thread (`acceptForSession`) and decline. Choosing always allow also adds the application to the Desktop always-allowed list; see [Desktop Computer Use](../features/desktop-computer-use.md).
 
 ### 5.7 User Input Request Handling
 
@@ -996,6 +998,18 @@ Required behavior:
 - An `import_busy` response closes the dialog and shows the in-progress state until the running pass completes.
 - Imported threads arrive through `thread/started`, are marked unread, and carry an import origin badge naming the source app.
 
+#### 6.7.2 Computer Use
+
+Settings shows a **Computer use** tab in the Integrations group. Runtime and authorization semantics are defined in [Desktop Computer Use](../features/desktop-computer-use.md).
+
+Required behavior:
+
+- The **Control** group lists one row per control channel with the same row structure: icon, name, a status or description line, an optional **Manage** action, and an enable toggle.
+- **Any app** controls the bundled `computer` plugin. Turning it on installs the plugin when missing and enables it; turning it off disables it without uninstalling.
+- **Chrome** controls the bundled `chrome` plugin. Turning it on installs the plugin when missing; its status line reports the browser extension state, and **Manage** opens the Chrome setup detail.
+- The **Always-allowed apps** group is always visible and shows an empty state when no application is allowed. Each row shows the application's icon and display name and can be removed after confirmation. Applications are added only by answering an approval with always allow.
+- On platforms without computer use, the Control group shows only Chrome and the Always-allowed apps group is hidden.
+
 ### 6.8 Channel Modules
 
 This section defines the user-visible workflow for TypeScript channel modules configured from Desktop. The workspace AppServer owns their runtime lifecycle. This section intentionally omits build scripts, package-pipeline internals, IPC method names, and UI component-level design.
@@ -1143,6 +1157,16 @@ The default companion can be coloured and dressed with items from the [Avatar Sy
 - All tab, card, and toast copy is client-owned and localized; item names are the collection's English catalog copy, which the Avatar System spec leaves to a later per-host localization.
 
 Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
+
+### 6.14 App Updates
+
+Packaged Windows builds update themselves from GitHub Releases through `electron-updater`. Other platforms and unpackaged builds report updates as unsupported and show no update controls.
+
+- Desktop checks at startup and every 15 minutes, skipping a check while an update is downloading or ready. The check reads the release feed and the `latest.yml` channel file, not the GitHub REST API.
+- A newer version downloads in the background. The installer is verified against its SHA-512 and, when the running version's block map is published, downloaded as a differential update.
+- A verified download makes the update ready. The title bar shows an update control whose dialog restarts DotCraft into a silent install of the same installation. An update that is ready but not installed survives restarts without downloading again.
+- `Settings › General` offers a manual check beside the app version and reports when the app is up to date or the check failed. Background check failures stay silent.
+- Each release publishes `DotCraft-v<version>-win-<arch>-Setup.exe` with its `.blockmap` for every Windows architecture and one `latest.yml` listing all of them; the updater selects the installer whose name contains the running architecture.
 
 ---
 

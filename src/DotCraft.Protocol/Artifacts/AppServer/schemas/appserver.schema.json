@@ -2178,6 +2178,16 @@
         "target": {
           "type": "string"
         },
+        "targetLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "threadId": {
           "type": "string"
         },
@@ -2233,6 +2243,16 @@
         },
         "target": {
           "type": "string"
+        },
+        "targetLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true,
@@ -4017,6 +4037,16 @@
             }
           ]
         },
+        "computerUse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerUseCapability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "configChange": {
           "anyOf": [
             {
@@ -4447,6 +4477,19 @@
         }
       },
       "additionalProperties": true
+    },
+    "ComputerUseCapability": {
+      "title": "ComputerUseCapability",
+      "type": "object",
+      "properties": {
+        "backend": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "backend"
+      ]
     },
     "ConfigSchemaField": {
       "title": "ConfigSchemaField",
@@ -9019,6 +9062,51 @@
         }
       },
       "additionalProperties": true
+    },
+    "NodeReplRequestApprovalParams": {
+      "title": "NodeReplRequestApprovalParams",
+      "type": "object",
+      "properties": {
+        "approvalType": {
+          "type": "string"
+        },
+        "evaluationId": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "targetLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "NodeReplRequestApprovalResult": {
+      "title": "NodeReplRequestApprovalResult",
+      "type": "object",
+      "properties": {
+        "approved": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "approved"
+      ]
     },
     "PerforceConnection": {
       "title": "PerforceConnection",

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="computer-tile" x1="6" y1="60" x2="58" y2="4" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2458F7"/>
+      <stop offset=".46" stop-color="#5F82F7"/>
+      <stop offset="1" stop-color="#8FA5FF"/>
+    </linearGradient>
+    <radialGradient id="computer-sheen" cx="14" cy="10" r="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#computer-tile)"/>
+  <rect width="64" height="64" rx="14" fill="url(#computer-sheen)"/>
+  <path d="M27.2 19v28l7.4-6.8 4.8 10.6 4.8-2.1-4.8-10.5 10.1-.4L27.2 19Z" fill="#1B3FC2" fill-opacity=".35"/>
+  <path d="M26 17v28l7.4-6.8 4.8 10.6 4.8-2.1-4.8-10.5 10.1-.4L26 17Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+  <g stroke="#FFCF11" stroke-width="3.2" stroke-linecap="round">
+    <path d="M26 11V7.5"/>
+    <path d="M20 17h-3.5"/>
+    <path d="M21.6 12.6 19.1 10.1"/>
+  </g>
+</svg>

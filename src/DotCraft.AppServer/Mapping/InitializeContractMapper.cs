@@ -37,7 +37,8 @@ internal static class InitializeContractMapper
             ChannelAdapter = ToChannelAdapter(value.ChannelAdapter),
             AcpExtensions = ToAcp(value.AcpExtensions),
             NodeRepl = value.NodeRepl is null ? null : new NodeReplClientCapability { Backend = value.NodeRepl.Backend },
-            BrowserUse = ToBrowserUse(value.BrowserUse)
+            BrowserUse = ToBrowserUse(value.BrowserUse),
+            ComputerUse = value.ComputerUse is null ? null : new ComputerUseClientCapability { Backend = value.ComputerUse.Backend }
         };
     }
 

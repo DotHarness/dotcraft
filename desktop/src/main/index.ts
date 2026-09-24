@@ -1,5 +1,5 @@
 import { stopBeforeArchive } from '../shared/stopBeforeArchive'
-import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage, nativeTheme } from 'electron'
+import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage, nativeTheme, powerMonitor } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from './desktopPet'
 import {
   registerViewerScheme,
@@ -17,7 +17,9 @@ import {
 import { MCP_APP_SANDBOX_SCHEME } from '../shared/mcpAppSandbox'
 import { viewerBrowserManager } from './viewerBrowser'
 import { browserUseManager } from './browserUseManager'
-import { nodeReplManager } from './nodeReplManager'
+import { nodeReplManager, type NodeReplApprovalRequest } from './nodeReplManager'
+import { computerUseManager, disposeComputerUse, rememberAlwaysAllowedApp, setComputerUseRuntimeHost } from './computerUse/runtime'
+import { readBrowserTurnNotification } from './browserTabLifecycle'
 import { getGitHubIdentity } from './githubProfile'
 import { registerVoiceIpc, shutdownVoiceService } from './voice/voiceIpc'
 import { closeAllScreenViews } from './screenView/screenViewManager'
@@ -283,7 +285,6 @@ let workspaceActivationGeneration = 0
 let whatsNewMediaCache: WhatsNewMediaCache | null = null
 let whatsNewCatalog: WhatsNewCatalog | null = null
 let appUpdateService: AppUpdateService | null = null
-let initialUpdateCheckStarted = false
 let desktopProcessRegistration: DesktopProcessRegistrationHandle | null = null
 const isTrayMode = process.argv.includes('--tray')
 const CHROME_SETTINGS_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10)
@@ -663,14 +664,24 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
     if (browserClient && typeof browserTurnId === 'string') {
       await browserClient.retainBrowserTurn(p.threadId, browserTurnId)
     }
+    const threadId = p.threadId
     return nodeReplManager.evaluate(browserOwner, {
-      threadId: p.threadId,
+      threadId,
       turnId: p.turnId,
       evaluationId: p.evaluationId,
       browserSession: p.browserSession,
       code: p.code,
       timeoutMs: p.timeoutMs,
-      workspacePath: browserWorkspace
+      workspacePath: browserWorkspace,
+      requestApproval: browserClient
+        ? async (request: NodeReplApprovalRequest) => {
+            const result = await browserClient.sendRequest<{ approved?: boolean }>(
+              'ext/nodeRepl/requestApproval',
+              { threadId, ...request },
+              null)
+            return result?.approved === true
+          }
+        : undefined
     })
   }
 
@@ -682,6 +693,26 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
   }
 
   return undefined
+}
+
+function observeComputerUseApproval(win: BrowserWindow, params: unknown, response: Promise<unknown>): void {
+  const request = (params ?? {}) as Record<string, unknown>
+  if (
+    typeof request.threadId === 'string'
+    && typeof request.turnId === 'string'
+    && computerUseManager.hasActiveTurn(request.threadId, request.turnId)
+  ) {
+    showWindowSafely(win)
+    sendOpenThread(win, request.threadId)
+  }
+  if (request.approvalType !== 'computerUse' || typeof request.target !== 'string') return
+  const target = request.target
+  const displayName = typeof request.targetLabel === 'string' && request.targetLabel ? request.targetLabel : target
+  void response.then((result) => {
+    if ((result as { decision?: unknown } | undefined)?.decision === 'acceptAlways') {
+      return rememberAlwaysAllowedApp({ id: target, displayName })
+    }
+  }).catch(() => {})
 }
 
 async function bridgeServerRequestToRenderer(method: string, params: unknown): Promise<unknown> {
@@ -709,6 +740,7 @@ async function bridgeServerRequestToRenderer(method: string, params: unknown): P
     }
   }
   broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
+  if (method === 'item/approval/request') observeComputerUseApproval(win, params, promise)
   return promise
 }
 
@@ -804,13 +836,7 @@ function getAppUpdateService(): AppUpdateService {
 }
 
 function scheduleInitialUpdateCheck(): void {
-  if (initialUpdateCheckStarted) return
-  initialUpdateCheckStarted = true
-  setTimeout(() => {
-    void getAppUpdateService().checkForUpdates().catch((error) => {
-      console.warn('[desktop] failed to check for updates', error)
-    })
-  }, 1200)
+  setTimeout(() => getAppUpdateService().start(), 1200)
 }
 
 
@@ -853,6 +879,11 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
 }
 
 browserUseManager.setPolicyHost({
+  getSettings: () => sharedSettings,
+  updateSettings: updateSharedSettings
+})
+
+setComputerUseRuntimeHost({
   getSettings: () => sharedSettings,
   updateSettings: updateSharedSettings
 })
@@ -1142,6 +1173,7 @@ async function teardownRuntime(
   }
 ): Promise<void> {
   await nodeReplManager.disposeAll()
+  await disposeComputerUse()
   const moduleManager = getChannelModuleManager()
   const cleanedIpc = options?.cleanupIpcHandlers
     ? unregisterDesktopIpcHandlers()
@@ -1924,6 +1956,8 @@ async function connectViaWebSocket(
   client.onNotification((method, params) => {
     if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
       nodeReplManager.handleNotification(method, params)
+      const turnEvent = readBrowserTurnNotification(method, params)
+      if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
       const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
       if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
     }
@@ -2260,6 +2294,8 @@ function createSecondaryWorkspaceConnection(
   client.onNotification((method, params) => {
     if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
       nodeReplManager.handleNotification(method, params)
+      const turnEvent = readBrowserTurnNotification(method, params)
+      if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
       const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
       if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
     }
@@ -2987,9 +3023,8 @@ function registerMenuPopupIpc(): void {
   ))
   ipcMain.handle('app:update-get-state', () => getAppUpdateService().getState())
   ipcMain.handle('app:update-check', () => getAppUpdateService().checkForUpdates())
-  ipcMain.handle('app:update-download-and-install', () => (
-    getAppUpdateService().downloadAndInstall()
-  ))
+  ipcMain.handle('app:update-download', () => getAppUpdateService().download())
+  ipcMain.handle('app:update-install', () => getAppUpdateService().install())
   ipcMain.handle('profile:get-github-identity', (_event, username: string) =>
     getGitHubIdentity(typeof username === 'string' ? username : '')
   )
@@ -3030,6 +3065,8 @@ app.whenReady().then(async () => {
     })
     return
   }
+
+  powerMonitor.on('lock-screen', () => computerUseManager.stop('locked'))
 
   try {
     app.setAsDefaultProtocolClient('dotcraft')

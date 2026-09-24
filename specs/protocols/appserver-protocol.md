@@ -232,8 +232,9 @@ Client                              Server
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [external-channel-adapter.md](external-channel-adapter.md). |
 | `capabilities.acpExtensions` | object | no | ACP tool proxy capabilities. When present, the client can handle server-initiated `ext/acp/*` requests. See [Section 11.4](#114-acp-tool-proxy). Default omitted (no ACP support). |
-| `capabilities.nodeRepl` | object | no | Persistent Node REPL capability. When present with `browserUse`, the client can handle server-initiated `ext/nodeRepl/*` requests for thread-bound local browser automation. Default omitted (no browser automation support). |
+| `capabilities.nodeRepl` | object | no | Persistent Node REPL capability. When present with `browserUse` or `computerUse`, the client can handle server-initiated `ext/nodeRepl/*` requests for thread-bound local browser or desktop automation. Default omitted (no Node REPL support). |
 | `capabilities.browserUse` | object | no | Browser automation capability. When present with `nodeRepl`, the Node REPL is backed by one or more client browser backends such as Desktop embedded browser tabs or the Chrome extension backend. Default omitted (no browser automation support). |
+| `capabilities.computerUse` | object | no | Desktop application automation capability. When present with `nodeRepl`, the Node REPL exposes the client's computer use runtime defined in [Desktop Computer Use](../features/desktop-computer-use.md). Default omitted (no computer use support). |
 
 `capabilities.configChange` is an opt-out capability. When omitted, the server treats it as `true` and may push `workspace/configChanged` notifications. Modern clients should declare it explicitly for clarity, even when using the default behavior.
 
@@ -267,6 +268,12 @@ Client                              Server
 | `maxCommandTimeoutMs` | number | Optional. Maximum accepted browser command timeout after clamping. |
 | `supportsTypedFinalize` | boolean | Optional. When `true`, `browser.tabs.finalize({ keep })` requires typed keep entries with `handoff` or `deliverable` status. |
 | `supportsChromeDiagnostics` | boolean | Optional. When `true`, the Chrome backend can surface safe setup, discovery, command, and cancellation diagnostic summaries. |
+
+**`computerUse` object** (when present):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `backend` | string | Client computer use runtime identifier. Windows Desktop reports `cua-driver`. |
 
 **`channelAdapter` object** (when present):
 
@@ -2701,9 +2708,10 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `turnId` | string | Active turn. |
 | `itemId` | string | The `approvalRequest` item ID. |
 | `requestId` | string | Unique correlation ID for this approval. |
-| `approvalType` | string | `"shell"` or `"file"`. |
+| `approvalType` | string | `"shell"`, `"file"`, `"computerUse"`, or another resource kind contributed by a tool. |
 | `operation` | string | For shell: the command. For file: `"read"`, `"write"`, `"edit"`, `"list"`. |
-| `target` | string | For shell: working directory. For file: the file path. |
+| `target` | string | For shell: working directory. For file: the file path. For computerUse: the application identity defined in [Desktop Computer Use](../features/desktop-computer-use.md). |
+| `targetLabel` | string? | Optional display label for `target`, for example an application's display name. |
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
 | `expiresAt` | string | UTC ISO-8601 instant after which the Runtime resolves the request through its safe timeout path. Replayed requests retain the original expiry. |
@@ -2747,7 +2755,7 @@ The client responds with the standard JSON-RPC response format:
 |-------|---------|
 | `"accept"` | Approve this single operation. |
 | `"acceptForSession"` | Approve this operation and similar operations for the remainder of the thread's lifetime. |
-| `"acceptAlways"` | Approve this operation permanently. The server persists the approval so future sessions do not prompt again. Also suppresses further prompts for the current session. |
+| `"acceptAlways"` | Approve this operation permanently. The server persists the approval so future sessions do not prompt again. Also suppresses further prompts for the current session. For `approvalType = "computerUse"` the server records only the session scope; the client that owns the computer use runtime persists the permanent grant. |
 | `"decline"` | Reject the operation. The agent receives a rejection signal and may try an alternative approach. |
 | `"cancel"` | Reject and cancel the entire turn. Equivalent to `turn/interrupt`. |
 
@@ -3262,9 +3270,9 @@ Version 1 callbacks return the same result envelope as `item/tool/call`: `succes
 | `terminal/kill` | `ext/acp/terminal/kill` |
 | `terminal/release` | `ext/acp/terminal/release` |
 
-### 11.5 Node REPL Browser Runtime
+### 11.5 Node REPL Runtime
 
-The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`. A native SubAgent full-history fork snapshots the direct parent's live Node REPL transport and connection authority onto the child before its first model sampling; fresh and bounded forks do not. Evaluations use the child thread/session/turn identity, and later parent rebinding does not update the child. The binding remains ephemeral and must be established again through the normal thread resume capability flow after process recovery.
+The browser and computer use integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared `capabilities.nodeRepl` together with `capabilities.browserUse` or `capabilities.computerUse` during `initialize`. A native SubAgent full-history fork snapshots the direct parent's live Node REPL transport and connection authority onto the child before its first model sampling; fresh and bounded forks do not. Evaluations use the child thread/session/turn identity, and later parent rebinding does not update the child. The binding remains ephemeral and must be established again through the normal thread resume capability flow after process recovery.
 
 Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md).
 
@@ -3307,7 +3315,7 @@ Clients may back the runtime with Desktop embedded browser tabs, a Chrome extens
 }
 ```
 
-The client should return before `timeoutMs` when possible. Browser sub-operations should use shorter internal timeouts and return a readable `error` rather than leaving the server request pending until the overall timeout.
+The client should return before `timeoutMs` when possible. Browser sub-operations should use shorter internal timeouts and return a readable `error` rather than leaving the server request pending until the overall timeout. The evaluation deadline does not advance while an `ext/nodeRepl/requestApproval` for the evaluation is pending.
 
 #### `ext/nodeRepl/cancel`
 
@@ -3327,6 +3335,31 @@ The client should return before `timeoutMs` when possible. Browser sub-operation
 ```
 
 If no matching in-flight evaluation exists, the client returns `{ "ok": false }`. Cancellation is best-effort: the client should abort pending browser operations, rebuild the thread's REPL context when needed, and ignore any late result from the cancelled evaluation.
+
+#### `ext/nodeRepl/requestApproval`
+
+**Direction**: client → server (request)
+
+Asks the user, through the turn that issued an in-flight evaluation, to approve an operation performed by the client runtime. Computer use uses it for application authorization.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Thread that owns the evaluation. |
+| `evaluationId` | string | yes | In-flight evaluation from `ext/nodeRepl/evaluate`. |
+| `approvalType` | string | yes | Approval kind. Currently `computerUse`. |
+| `operation` | string | yes | Operation label. Computer use sends `use`. |
+| `target` | string | yes | Target identity. Computer use sends the application identity. |
+| `targetLabel` | string | no | Display label forwarded to `item/approval/request`. |
+
+**Result**:
+
+```json
+{ "approved": true }
+```
+
+The server resolves the request with the approval service of the turn that issued the evaluation, so thread approval policy, hooks, session scopes, approval items and approval replay behave as for any tool approval. The evaluation deadline is paused until the request resolves. The request fails with a JSON-RPC error when the evaluation is not in flight on this connection or the thread does not match.
 
 ### 11.6 Dynamic Workflow Control
 

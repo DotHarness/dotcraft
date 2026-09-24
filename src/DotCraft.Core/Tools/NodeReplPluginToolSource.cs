@@ -28,7 +28,8 @@ public sealed class NodeReplPluginToolSource(
     string dataPath,
     Func<string, string, bool>? isPluginInstalled = null) : IToolSource, IThreadForkToolBindingSource
 {
-    private static readonly string[] RuntimePluginIds = [PluginIds.Browser, PluginIds.Chrome];
+    private static readonly string[] BrowserPluginIds = [PluginIds.Browser, PluginIds.Chrome];
+    private static readonly string[] ComputerPluginIds = [PluginIds.Computer];
     private readonly string _dataPath = !string.IsNullOrWhiteSpace(dataPath)
         ? dataPath
         : throw new ArgumentException("A data path is required.", nameof(dataPath));
@@ -53,7 +54,11 @@ public sealed class NodeReplPluginToolSource(
         if (!proxy.IsAvailable)
             return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
 
-        var runtimePluginId = RuntimePluginIds.FirstOrDefault(pluginId =>
+        IEnumerable<string> candidates = [
+            .. proxy.IsBrowserUseAvailable ? BrowserPluginIds : [],
+            .. proxy.IsComputerUseAvailable ? ComputerPluginIds : []
+        ];
+        var runtimePluginId = candidates.FirstOrDefault(pluginId =>
             config.Plugins.IsPluginEnabled(pluginId, defaultEnabled: true)
             && (isPluginInstalled?.Invoke(context.WorkspacePath, pluginId)
                 ?? PluginRuntimeConfigurator.IsPluginInstalledAndEnabled(

@@ -45,7 +45,7 @@ import { SecretInput } from '../channels/FormShared'
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ExtensionsIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
+import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
@@ -57,14 +57,13 @@ import {
   SETTINGS_SURFACE_CLASS,
   settingsDescriptionStyle,
   settingsHintStyle,
-  settingsMetaTextStyle,
   settingsPlaceholderStyle,
   settingsSectionLabelStyle as sectionLabelStyle
 } from './settingsTypography'
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
-import { PluginCatalogItem, PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
+import { PluginCatalogItem, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
 import { showPluginInstalledToast } from '../plugins/pluginToasts'
 import {
@@ -80,6 +79,7 @@ import {
 import { SettingsSelect } from './ui/SettingsSelect'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
+import { AppVersionUpdateCheck } from './AppVersionUpdateCheck'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
@@ -110,7 +110,6 @@ import {
 import type {
   BinarySource,
   BrowserUseApprovalMode,
-  ChromeSetupStatus,
   ConnectionMode,
   TaskCompletionNotificationMode
 } from '../../../preload/api'
@@ -143,6 +142,7 @@ declare const __APP_VERSION__: string | undefined
 const AppearancePanel = coreSettingsPanels.appearance
 const PetPanel = coreSettingsPanels.pet
 const VoicePanel = coreSettingsPanels.voice
+const ComputerUsePanel = coreSettingsPanels.computerUse
 const ConnectionsPanel = coreSettingsPanels.connections
 const SourceControlPanel = coreSettingsPanels.sourceControl
 const HooksPanel = coreSettingsPanels.hooks
@@ -585,8 +585,6 @@ export async function readWorkspaceCoreStrictFromApi(
   return normalizeWorkspaceCoreResult(await getCore())
 }
 
-type ChromeSetupTone = 'ok' | 'warning' | 'error' | 'muted'
-
 const DEFAULT_WS_HOST = '127.0.0.1'
 const DEFAULT_WS_PORT = 9100
 
@@ -745,18 +743,6 @@ function normalizeBrowserUseDomainInput(input: string): string | null {
   }
 }
 
-function chromeActionToolbarStyle(): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
-    flexWrap: 'wrap',
-    flex: '1 1 320px',
-    minWidth: 0
-  }
-}
-
 function mcpSourcePillStyle(): CSSProperties {
   return {
     display: 'inline-flex',
@@ -769,73 +755,6 @@ function mcpSourcePillStyle(): CSSProperties {
     fontSize: 11,
     fontWeight: 600
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value != null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null
-}
-
-function setupResultOk(value: unknown): boolean {
-  return asRecord(value)?.ok === true
-}
-
-function setupResultText(value: unknown, key: string): string {
-  const record = asRecord(value)
-  const candidate = record?.[key]
-  return typeof candidate === 'string' ? candidate : ''
-}
-
-function chromeSetupSummary(
-  status: ChromeSetupStatus | null,
-  t: (key: MessageKey | string, vars?: Record<string, string | number>) => string
-): { label: string; tone: ChromeSetupTone } {
-  if (!status) return { label: t('settings.chrome.status.notChecked'), tone: 'muted' }
-  if (!setupResultOk(status.installedBrowsers)) return { label: t('settings.chrome.status.chromeMissing'), tone: 'error' }
-  if (!setupResultOk(status.extension)) return { label: t('settings.chrome.status.extensionMissing'), tone: 'error' }
-  if (!setupResultOk(status.nativeHost)) return { label: t('settings.chrome.status.nativeHostMissing'), tone: 'warning' }
-  if (!setupResultOk(status.chromeRunning)) return { label: t('settings.chrome.status.notRunning'), tone: 'warning' }
-  if (!setupResultOk(status.backend)) return { label: t('settings.chrome.status.backendDisconnected'), tone: 'warning' }
-  return { label: t('settings.chrome.status.connected'), tone: 'ok' }
-}
-
-function chromeExtensionManagementUrl(): string {
-  return 'chrome://extensions'
-}
-
-function chromeNativeHostActionLabel(
-  status: ChromeSetupStatus | null,
-  installing: boolean,
-  t: (key: MessageKey | string, vars?: Record<string, string | number>) => string
-): string {
-  if (installing) return t('settings.chrome.installingNativeHost')
-  const nativeHost = asRecord(status?.nativeHost)
-  const safeDetails = asRecord(nativeHost?.safeDetails)
-  if (
-    status &&
-    !setupResultOk(nativeHost) &&
-    safeDetails?.exists === false &&
-    safeDetails?.hostExists === false
-  ) {
-    return t('settings.chrome.installHost')
-  }
-  return t('settings.chrome.repairHost')
-}
-
-/** The connection state is this row's whole content, so it reads as a badge. */
-function ChromeStatusPill({
-  label,
-  tone
-}: {
-  label: string
-  tone: ChromeSetupTone
-}): JSX.Element {
-  return (
-    <span className="dc-status-badge" data-tone={tone === 'ok' ? 'success' : tone === 'muted' ? undefined : tone}>
-      {label}
-    </span>
-  )
 }
 
 export function SettingsView({
@@ -865,7 +784,6 @@ export function SettingsView({
     state.settingsPages.find((entry) => entry.settingsKey === activeSettingsTab) ?? null)
   const fetchPlugins = usePluginStore((s) => s.fetchPlugins)
   const installPlugin = usePluginStore((s) => s.installPlugin)
-  const togglePluginEnabled = usePluginStore((s) => s.togglePluginEnabled)
   const fetchSkills = useSkillsStore((s) => s.fetchSkills)
   const mcpStatuses = useMcpStore((s) => s.statuses)
   const setMcpStatuses = useMcpStore((s) => s.setStatuses)
@@ -895,14 +813,7 @@ export function SettingsView({
   const [clearingBrowserCookies, setClearingBrowserCookies] = useState(false)
   const [browserUseInstallOpen, setBrowserUseInstallOpen] = useState(false)
   const [browserUseInstalling, setBrowserUseInstalling] = useState(false)
-  const [chromeInstallOpen, setChromeInstallOpen] = useState(false)
-  const [chromeInstalling, setChromeInstalling] = useState(false)
-  const [chromeDetailOpen, setChromeDetailOpen] = useState(false)
-  const [chromeSetupStatus, setChromeSetupStatus] = useState<ChromeSetupStatus | null>(null)
-  const [chromeSetupLoading, setChromeSetupLoading] = useState(false)
-  const [chromeNativeHostInstalling, setChromeNativeHostInstalling] = useState(false)
-  const [chromeOpening, setChromeOpening] = useState(false)
-  const [chromeToggling, setChromeToggling] = useState(false)
+  const [chromeDetailRequested, setChromeDetailRequested] = useState(false)
   const [baselineConnection, setBaselineConnection] = useState<{
     binarySource: BinarySource
     binaryPath: string
@@ -1017,9 +928,7 @@ export function SettingsView({
   const sessionImportEnabled = isSessionImportAvailable(capabilities)
   const personalizationAvailable = workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
-  const chromePlugin = plugins.find((plugin) => plugin.id === 'chrome') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
-  const chromeSetup = chromeSetupSummary(chromeSetupStatus, t)
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
   const providerEditorProvider =
     providerEditorId != null && providerEditorId !== '__new__'
@@ -2185,7 +2094,7 @@ export function SettingsView({
   }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled, sessionImportEnabled])
 
   useEffect(() => {
-    if ((activeSettingsTab === 'browserUse' || activeSettingsTab === 'computerControl') && pluginManagementEnabled) {
+    if (activeSettingsTab === 'browserUse' && pluginManagementEnabled) {
       void fetchPlugins()
     }
   }, [activeSettingsTab, fetchPlugins, pluginManagementEnabled])
@@ -2193,15 +2102,8 @@ export function SettingsView({
   useEffect(() => {
     if (openChromeSettingsSeq <= 0) return
     setActiveSettingsTab('computerControl')
-    setChromeDetailOpen(true)
+    setChromeDetailRequested(true)
   }, [openChromeSettingsSeq])
-
-  useEffect(() => {
-    if (activeSettingsTab !== 'computerControl' || !chromeDetailOpen || chromePlugin?.installed !== true) {
-      return
-    }
-    void reloadChromeSetupStatus()
-  }, [activeSettingsTab, chromeDetailOpen, chromePlugin?.installed])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -2708,86 +2610,6 @@ export function SettingsView({
     }
   }
 
-  async function handleInstallChromePlugin(): Promise<void> {
-    if (!chromePlugin) return
-    setChromeInstalling(true)
-    try {
-      await installPlugin(chromePlugin.id)
-      await fetchPlugins()
-      await fetchSkills()
-      setChromeInstallOpen(false)
-      setChromeDetailOpen(true)
-      showPluginInstalledToast(chromePlugin, {
-        message: t('plugins.installSuccess', { name: pluginTitle(chromePlugin) })
-      })
-    } catch {
-      addToast(t('plugins.installFailed'), 'error')
-    } finally {
-      setChromeInstalling(false)
-    }
-  }
-
-  async function handleToggleChromePlugin(enabled: boolean): Promise<void> {
-    if (!chromePlugin || chromeToggling) return
-    setChromeToggling(true)
-    try {
-      await togglePluginEnabled(chromePlugin.id, enabled)
-      await fetchSkills()
-    } catch {
-      addToast(t('plugins.updateFailed'), 'error')
-    } finally {
-      setChromeToggling(false)
-    }
-  }
-
-  async function reloadChromeSetupStatus(): Promise<void> {
-    if (!window.api.chrome?.checkSetup) return
-    setChromeSetupLoading(true)
-    try {
-      const status = await window.api.chrome.checkSetup()
-      setChromeSetupStatus(status)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      addToast(t('settings.chrome.checkFailed', { error: message }), 'error')
-    } finally {
-      setChromeSetupLoading(false)
-    }
-  }
-
-  async function handleInstallChromeNativeHost(): Promise<void> {
-    if (!window.api.chrome?.installNativeHost) return
-    setChromeNativeHostInstalling(true)
-    try {
-      const result = await window.api.chrome.installNativeHost()
-      if (!setupResultOk(result)) {
-        throw new Error(setupResultText(result, 'error') || setupResultText(result, 'stderr') || 'Chrome connection component install failed.')
-      }
-      addToast(t('settings.chrome.nativeHostInstalled'), 'success')
-      await reloadChromeSetupStatus()
-    } catch (err) {
-      addToast(t('settings.chrome.nativeHostInstallFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
-    } finally {
-      setChromeNativeHostInstalling(false)
-    }
-  }
-
-  async function handleOpenChrome(url?: string): Promise<void> {
-    if (!window.api.chrome?.openChrome) return
-    setChromeOpening(true)
-    try {
-      const result = await window.api.chrome.openChrome({ url })
-      if (!setupResultOk(result)) {
-        throw new Error(setupResultText(result, 'error') || 'Google Chrome was not found.')
-      }
-      addToast(t('settings.chrome.opened'), 'success')
-      await reloadChromeSetupStatus()
-    } catch (err) {
-      addToast(t('settings.chrome.openFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
-    } finally {
-      setChromeOpening(false)
-    }
-  }
-
   function handleTryBrowserUseInChat(): void {
     const prompt = browserUsePlugin?.interface?.defaultPrompt || ''
     // The segments are the content, so the default prompt needs one of its own —
@@ -3047,11 +2869,7 @@ export function SettingsView({
                   title={t('settings.group.application')}
                   // Version belongs in the header slot: a row here would read like
                   // something you can change.
-                  headerAction={
-                    <span style={settingsMetaTextStyle()}>
-                      {t('settings.version')} {version}
-                    </span>
-                  }
+                  headerAction={<AppVersionUpdateCheck version={version} />}
                 >
                   <SettingsRow
                     label={t('settings.language')}
@@ -4305,151 +4123,10 @@ export function SettingsView({
             )}
 
             {activeSettingsTab === 'computerControl' && (
-              <GeneralPanel>
-                {!chromeDetailOpen ? (
-                  <SettingsPanelShell
-                      title={t('settings.chrome.pageTitle')}
-                      description={t('settings.chrome.pageDescription')}
-                    >
-                    <SettingsGroup title={t('settings.chrome.control')}>
-                      {!pluginManagementEnabled && (
-                        <SettingsRow>
-                          <div style={{ width: '100%', fontSize: 12, color: 'var(--text-dimmed)' }}>
-                            {t('plugins.unavailable')}
-                          </div>
-                        </SettingsRow>
-                      )}
-                      {pluginManagementEnabled && !chromePlugin && (
-                        <SettingsRow>
-                          <div style={{ width: '100%', fontSize: 12, color: 'var(--text-dimmed)' }}>
-                            {t('plugins.loading')}
-                          </div>
-                        </SettingsRow>
-                      )}
-                      {pluginManagementEnabled && chromePlugin && !chromePlugin.installed && (
-                        <SettingsRow orientation="block">
-                          <PluginCatalogItem
-                            plugin={chromePlugin}
-                            tryLabel={t('plugins.tryInChat')}
-                            installLabel={t('plugins.install')}
-                            onInstall={() => setChromeInstallOpen(true)}
-                            style={{ height: 54, padding: '0 4px' }}
-                          />
-                        </SettingsRow>
-                      )}
-                      {pluginManagementEnabled && chromePlugin?.installed && (
-                        <SettingsRow>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-                            <PluginIcon plugin={chromePlugin} role="list" size={38} />
-                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                              <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                                {pluginTitle(chromePlugin)}
-                              </strong>
-                              <span style={{ fontSize: 12, color: 'var(--text-dimmed)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {pluginSubtitle(chromePlugin)}
-                              </span>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                            <Button onClick={() => setChromeDetailOpen(true)}>
-                              {t('settings.chrome.manage')}
-                            </Button>
-                            <PillSwitch
-                              checked={chromePlugin.enabled}
-                              disabled={chromeToggling}
-                              onChange={(checked) => void handleToggleChromePlugin(checked)}
-                              aria-label={t('settings.chrome.toggleAria')}
-                            />
-                          </div>
-                        </SettingsRow>
-                      )}
-                    </SettingsGroup>
-
-                  </SettingsPanelShell>
-                ) : (
-                  <SettingsPanelShell
-                      title={t('settings.chrome.detailTitle')}
-                      description={chromePlugin ? pluginSubtitle(chromePlugin) || t('settings.chrome.pageDescription') : t('settings.chrome.pageDescription')}
-                      breadcrumb={
-                        <SettingsBreadcrumb
-                          parentLabel={t('settings.chrome.pageTitle')}
-                          currentLabel={t('settings.chrome.detailTitle')}
-                          onBack={() => setChromeDetailOpen(false)}
-                        />
-                      }
-                    >
-                    <SettingsGroup title={t('settings.chrome.connectionStatus')} flush>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 16,
-                          flexWrap: 'wrap'
-                        }}
-                      >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 260px', minWidth: 0 }}>
-                        {chromePlugin && <PluginIcon plugin={chromePlugin} role="list" size={38} />}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div>
-                            <ChromeStatusPill label={chromeSetup.label} tone={chromeSetup.tone} />
-                          </div>
-                        </div>
-                      </div>
-                      <div style={chromeActionToolbarStyle()}>
-                        <IconButton
-                          icon={<RefreshIcon size={15} />}
-                          label={t('settings.chrome.refreshStatus')}
-                          tooltipLabel={t('settings.chrome.refreshStatus')}
-                          tooltipPlacement="top"
-                          onClick={() => void reloadChromeSetupStatus()}
-                          disabled={chromeSetupLoading}
-                          disabledReason={chromeSetupLoading ? t('settings.loading') : undefined}
-                        />
-                        <IconButton
-                          icon={<OpenInBrowserIcon size={15} />}
-                          label={t('settings.chrome.openChrome')}
-                          tooltipLabel={t('settings.chrome.openChrome')}
-                          tooltipPlacement="top"
-                          onClick={() => void handleOpenChrome()}
-                          disabled={chromeOpening}
-                          disabledReason={chromeOpening ? t('settings.chrome.opening') : undefined}
-                        />
-                        {chromeSetupStatus && !setupResultOk(chromeSetupStatus.extension) && (
-                          <IconButton
-                            icon={<ExtensionsIcon size={15} />}
-                            label={t('settings.chrome.openExtensions')}
-                            tooltipLabel={t('settings.chrome.openExtensions')}
-                            tooltipPlacement="top"
-                            onClick={() => void handleOpenChrome(chromeExtensionManagementUrl())}
-                            disabled={chromeOpening}
-                            disabledReason={chromeOpening ? t('settings.chrome.opening') : undefined}
-                          />
-                        )}
-                        <IconButton
-                          icon={<WrenchIcon size={15} />}
-                          label={chromeNativeHostActionLabel(chromeSetupStatus, false, t)}
-                          tooltipLabel={chromeNativeHostActionLabel(chromeSetupStatus, false, t)}
-                          tooltipPlacement="top"
-                          onClick={() => void handleInstallChromeNativeHost()}
-                          disabled={chromeNativeHostInstalling}
-                          disabledReason={chromeNativeHostInstalling ? t('settings.chrome.installingNativeHost') : undefined}
-                        />
-                      </div>
-                    </div>
-                    </SettingsGroup>
-
-                  </SettingsPanelShell>
-                )}
-              {chromePlugin && chromeInstallOpen && (
-                <PluginInstallDialog
-                  plugin={chromePlugin}
-                  installing={chromeInstalling}
-                  onClose={() => setChromeInstallOpen(false)}
-                  onInstall={() => void handleInstallChromePlugin()}
-                />
-              )}
-              </GeneralPanel>
+              <ComputerUsePanel
+                chromeDetailRequested={chromeDetailRequested}
+                onChromeDetailRequestHandled={() => setChromeDetailRequested(false)}
+              />
             )}
 
             {activeSettingsTab === 'usage' && (

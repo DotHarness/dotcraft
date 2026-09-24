@@ -46,6 +46,16 @@
     "target": {
       "type": "string"
     },
+    "targetLabel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "threadId": {
       "type": "string"
     },

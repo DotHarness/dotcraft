@@ -8,7 +8,7 @@ namespace DotCraft.Sessions;
 public sealed record ApprovalRequestPayload
 {
     /// <summary>
-    /// "file" or "shell"
+    /// "file", "shell", or a resource kind such as "computerUse".
     /// </summary>
     public string ApprovalType { get; init; } = string.Empty;
 
@@ -21,6 +21,8 @@ public sealed record ApprovalRequestPayload
     /// For file: the path. For shell: the working directory.
     /// </summary>
     public string Target { get; init; } = string.Empty;
+
+    public string? TargetLabel { get; init; }
 
     /// <summary>
     /// Unique ID for correlating with ApprovalResponse.

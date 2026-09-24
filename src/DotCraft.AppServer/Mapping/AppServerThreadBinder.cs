@@ -42,7 +42,7 @@ internal sealed class AppServerThreadBinder(
     {
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
             wireAcpExtensionProxy.BindThread(threadId, transport, connection);
-        if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
+        if (wireNodeReplProxy != null && connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse))
             wireNodeReplProxy.BindThread(threadId, transport, connection);
         if (dynamicTools != null)
             wireDynamicToolProxy?.BindThread(threadId, transport, connection, dynamicTools);
@@ -76,7 +76,7 @@ internal sealed class AppServerThreadBinder(
         // reaches the model as a thread context item reconciled on each Turn.
         var shouldRefreshAgent = false;
         inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection);
-        if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
+        if (wireNodeReplProxy != null && connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse))
         {
             wireNodeReplProxy.BindThread(thread.Id, transport, connection);
             shouldRefreshAgent = true;

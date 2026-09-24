@@ -86,6 +86,15 @@ export interface BrowserUseSettings {
   allowedDomains?: string[]
 }
 
+export interface ComputerUseAllowedApp {
+  id: string
+  displayName: string
+}
+
+export interface ComputerUseSettings {
+  alwaysAllowedApps?: ComputerUseAllowedApp[]
+}
+
 export interface NotificationSettings {
   taskCompletionMode?: TaskCompletionNotificationMode
 }
@@ -149,6 +158,7 @@ export interface AppSettings {
   recentWorkspaces?: RecentWorkspace[]
   lastOpenEditorId?: LastOpenEditorId
   browserUse?: BrowserUseSettings
+  computerUse?: ComputerUseSettings
   notifications?: NotificationSettings
   profile?: ProfileSettings
   voice?: VoiceSettings
@@ -239,6 +249,22 @@ function normalizeBrowserUseSettings(settings: AppSettings): BrowserUseSettings 
     blockedDomains: normalizeDomainList(source.blockedDomains),
     allowedDomains: normalizeDomainList(source.allowedDomains)
   }
+}
+
+export function normalizeComputerUseSettings(settings: AppSettings): ComputerUseSettings {
+  const raw = settings.computerUse
+  const source = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const seen = new Set<string>()
+  const alwaysAllowedApps: ComputerUseAllowedApp[] = []
+  for (const entry of Array.isArray(source.alwaysAllowedApps) ? source.alwaysAllowedApps : []) {
+    if (!entry || typeof entry !== 'object') continue
+    const id = typeof entry.id === 'string' ? entry.id.trim() : ''
+    if (!id || seen.has(id.toLowerCase())) continue
+    seen.add(id.toLowerCase())
+    const displayName = typeof entry.displayName === 'string' && entry.displayName.trim() ? entry.displayName.trim() : id
+    alwaysAllowedApps.push({ id, displayName })
+  }
+  return { alwaysAllowedApps }
 }
 
 function normalizeTaskCompletionNotificationMode(value: unknown): TaskCompletionNotificationMode {
@@ -547,6 +573,7 @@ export function loadSettings(): AppSettings {
       raw.modulesDirectory = normalizeModulesDirectory(raw)
       raw.lastOpenEditorId = normalizeLastOpenEditorId(raw)
       raw.browserUse = normalizeBrowserUseSettings(raw)
+      raw.computerUse = normalizeComputerUseSettings(raw)
       raw.notifications = normalizeNotificationSettings(raw)
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
@@ -602,6 +629,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.modulesDirectory = normalizeModulesDirectory(settings)
     settings.lastOpenEditorId = normalizeLastOpenEditorId(settings)
     settings.browserUse = normalizeBrowserUseSettings(settings)
+    settings.computerUse = normalizeComputerUseSettings(settings)
     settings.notifications = normalizeNotificationSettings(settings)
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)

@@ -4,6 +4,7 @@ public static class PluginIds
 {
     public const string Browser = "browser";
     public const string Chrome = "chrome";
+    public const string Computer = "computer";
 
     public static string Canonicalize(string pluginId) => pluginId;
 
