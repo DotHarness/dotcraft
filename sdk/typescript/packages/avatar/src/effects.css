@@ -9,8 +9,6 @@
 .dca-fx-orbit-back { opacity: 0; }
 .dca-fx-sparkle > path { transform-box: fill-box; transform-origin: center; }
 .dca-fx-spray { opacity: 0; transform-box: fill-box; transform-origin: center; }
-.dca-fx-glint-rise { transform: translateY(-720px); }
-.dca-fx-glint-flow { transform: translateX(-1200px); }
 .dca-fx-eye-flare { opacity: .25; }
 
 @keyframes dca-fx-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
@@ -61,8 +59,6 @@
 @keyframes dca-fx-reach { 0%, 100% { transform: scale(.8); } 40% { transform: scale(1.05); } }
 @keyframes dca-fx-foam { 0%, 100% { opacity: .55; } 40% { opacity: 1; } }
 @keyframes dca-fx-spray { 0% { opacity: 0; transform: translate(0, 10px) scale(.4); } 25% { opacity: 1; transform: translate(10px, -12px) scale(1); } 100% { opacity: 0; transform: translate(44px, -76px) scale(.2); } }
-@keyframes dca-fx-glint-rise { 0%, 22% { transform: translateY(0); } 52%, 100% { transform: translateY(-720px); } }
-@keyframes dca-fx-glint-flow { 0% { transform: translateX(0); } 30%, 100% { transform: translateX(-1200px); } }
 @keyframes dca-fx-coil { 0%, 100% { transform: rotate(calc(var(--dca-coil) * -1deg)); } 50% { transform: rotate(calc(var(--dca-coil) * 1deg)); } }
 @keyframes dca-fx-whisker { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(6deg); } }
 @keyframes dca-fx-whisker-tip { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(10deg); } }
@@ -135,8 +131,6 @@
 .dca-robot[data-effects='live'] .dca-fx-reach { animation: dca-fx-reach 5.6s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-fx-foam { animation: dca-fx-foam 5.6s ease-in-out infinite; animation-delay: inherit; }
 .dca-robot[data-effects='live'] .dca-fx-spray { animation: dca-fx-spray 4.8s ease-out infinite; }
-.dca-robot[data-effects='live'] .dca-fx-glint-rise { animation: dca-fx-glint-rise 8.4s linear infinite; }
-.dca-robot[data-effects='live'] .dca-fx-glint-flow { animation: dca-fx-glint-flow 8.4s linear infinite; }
 .dca-robot[data-effects='live'] .dca-fx-coil { animation: dca-fx-coil 3.6s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-fx-whisker { animation: dca-fx-whisker 3.6s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-fx-whisker-tip { animation: dca-fx-whisker-tip 3.6s ease-in-out infinite; }

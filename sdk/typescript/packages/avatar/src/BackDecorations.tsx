@@ -154,16 +154,12 @@ function claw(x: number, y: number, deg: number, len: number, w: number, bend = 
 }
 type Claw = Parameters<typeof claw>
 type Drop = readonly [x: number, y: number, r: number]
-interface WaterMass { motion: string; pivot: string; body: string; band: string; claws: Claw[]; stagger: number; glint: { className: string; d: string }; spray: Drop[] }
+interface WaterMass { motion: string; pivot: string; body: string; band: string; claws: Claw[]; stagger: number; spray: Drop[] }
 const swing = (points: Pt[]) => points.slice(1).map(([x, y], i) => { const [px, py] = points[i], k = (x - px) * .36; return `C${n0(px + k)} ${py} ${n0(x - k)} ${y} ${x} ${y}` }).join('')
 const rim = 12
 
 function Foam({ mass, paint }: { mass: WaterMass; paint: (d: string) => ReactNode }) {
   return <>{mass.claws.map((c, i) => <g key={i} className="dca-fx-reach" style={{ transformOrigin: `${c[0]}px ${c[1]}px`, animationDelay: `${(mass.stagger + i * .45).toFixed(2)}s` }}>{paint(claw(...c))}</g>)}</>
-}
-function Glint({ clip: shape, className, d }: { clip: string; className: string; d: string }) {
-  const clip = useClipId()
-  return <><defs><clipPath id={clip}><path d={shape} /></clipPath></defs><g clipPath={`url(#${clip})`}><path className={`dca-fx ${className}`} d={d} fill="#f4fbff" opacity=".92" /></g></>
 }
 function Spray({ drops }: { drops: Drop[] }) {
   return <g className="dca-fx">{drops.map(([x, y, r], i) => <g key={i} className="dca-fx-spray" style={{ animationDelay: `${(-i * 4.8 / drops.length).toFixed(2)}s` }}>
@@ -180,7 +176,7 @@ function Water({ masses }: { masses: WaterMass[] }) {
     {masses.map((m, i) => <g key={`f${i}`} className={m.motion} style={{ transformOrigin: m.pivot }}>
       <path d={m.body} fill={sea.deep} />
       <Foam mass={m} paint={d => <path d={d} fill={sea.deep} stroke={sea.deep} strokeWidth={2 * rim} />} />
-      <Detail><path d={m.band} fill={sea.band} /><Glint clip={m.band} {...m.glint} /></Detail>
+      <Detail><path d={m.band} fill={sea.band} /></Detail>
       <Foam mass={m} paint={d => <><path d={d} fill={sea.band} /><path className="dca-fx-foam" d={d} fill={sea.foam} /></>} />
       <Spray drops={m.spray} />
     </g>)}
@@ -191,7 +187,6 @@ const curl: WaterMass = {
   body: 'M230 270C300 270 350 296 352 330C354 356 330 366 306 356C270 340 230 330 200 350C170 370 160 420 164 470C170 580 180 680 200 740C222 806 262 846 330 870L330 880L56 880C38 866 30 836 30 796C20 660 28 520 60 420C92 324 156 270 230 270Z',
   band: tube([[330, 904], [200, 872], [122, 790], [94, 660], [98, 520], [130, 420], [184, 358], [240, 336], [284, 340]], t => 56 - 28 * t),
   claws: [[60, 420, -70, 96, 50, .9], [116, 326, -34, 100, 50, .95], [196, 280, 0, 104, 50, 1], [284, 286, 38, 100, 50, .95], [344, 336, 88, 72, 42, .8]],
-  glint: { className: 'dca-fx-glint-rise', d: 'M-40 900L400 830V960L-40 1030Z' },
   spray: [[150, 248, 13], [226, 220, 15], [298, 228, 12], [352, 270, 10], [96, 316, 10]],
 }
 const swell: WaterMass = {
@@ -199,7 +194,6 @@ const swell: WaterMass = {
   body: `M30 886C28 856 44 838 64 836C96 834 124 846 170 850${swing([[170, 850], [300, 834], [430, 858], [560, 836], [700, 852]])}C750 846 776 796 812 786C846 776 880 762 910 770C942 780 964 812 964 848C964 886 950 906 924 914${swing([[924, 914], [810, 944], [690, 916], [570, 944], [450, 916], [330, 944], [210, 916], [90, 944]])}C60 944 32 922 30 886Z`,
   band: tube([[900, 862], [820, 906], [700, 894], [580, 912], [460, 894], [340, 912], [240, 900], [180, 866], [134, 806]], t => 16 + 26 * t ** 2),
   claws: [[58, 846, -84, 58, 36, .8], [96, 842, -54, 60, 36, .85], [134, 850, -26, 54, 34, .8], [870, 776, -40, 64, 38, .9], [914, 772, 6, 66, 38, .95], [950, 806, 56, 54, 34, .8]],
-  glint: { className: 'dca-fx-glint-flow', d: 'M1000 760H1120L1060 980H940Z' },
   spray: [[944, 730, 11], [984, 774, 9]],
 }
 
