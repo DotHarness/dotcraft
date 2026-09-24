@@ -6,7 +6,6 @@ import {
   AlertCircle,
   Archive,
   ArrowUpRight,
-  ChevronRight,
   Cloud,
   Copy,
   CircleDashed,
@@ -15,7 +14,6 @@ import {
   FolderOpen,
   FolderPlus,
   LogOut,
-  MoreHorizontal,
   Pin,
   RotateCw,
   Server,
@@ -39,6 +37,8 @@ import { Spinner } from '../ui/Spinner'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
@@ -587,30 +587,19 @@ interface PinnedProjectRow {
 }
 
 /** Callers gate `visible` on their own hover/focus state, so the chevron only appears while their header or row is hovered. */
-function CollapseChevron({
-  collapsed,
-  visible,
-  size = 14
-}: {
-  collapsed: boolean
-  visible: boolean
-  size?: number
-}): JSX.Element {
+function CollapseChevron({ collapsed, visible }: { collapsed: boolean; visible: boolean }): JSX.Element {
   return (
     <span
       aria-hidden
       style={{
         display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         flexShrink: 0,
         color: 'var(--text-dimmed)',
         opacity: visible ? 1 : 0,
-        transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
-        transition: 'opacity 120ms ease, transform 160ms cubic-bezier(0.4, 0, 0.2, 1)'
+        transition: 'opacity 120ms ease'
       }}
     >
-      <ChevronRight size={size} strokeWidth={2} aria-hidden />
+      <DisclosureChevron expanded={!collapsed} />
     </span>
   )
 }
@@ -1022,7 +1011,6 @@ function ProjectHeader({
 }): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
-  const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -1030,7 +1018,6 @@ function ProjectHeader({
   const addProject = useAddProjectFlow()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
-  const showActions = hovered || menuOpen
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
   const errorLabel = project.errorMessage || t('projectsRail.error')
   const showErrorIndicator = project.state === 'error'
@@ -1247,7 +1234,8 @@ function ProjectHeader({
     >
     <div
       ref={rowRef}
-      className="dotcraft-sidebar-row-radius"
+      className="dotcraft-sidebar-row-radius dc-project-row"
+      data-menu-open={menuOpen || undefined}
       role="button"
       tabIndex={0}
       aria-expanded={cold ? undefined : !collapsed}
@@ -1256,8 +1244,6 @@ function ProjectHeader({
       onClick={handlePrimaryAction}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       onContextMenu={(event) => {
         event.preventDefault()
         updateProjectMenuPosition()
@@ -1275,7 +1261,6 @@ function ProjectHeader({
         margin: '2px 4px',
         padding: '2px 6px 2px 12px',
         borderRadius: 'var(--sidebar-row-radius)',
-        backgroundColor: hovered ? 'var(--sidebar-control-hover)' : 'transparent',
         cursor: 'pointer',
         userSelect: 'none'
       }}
@@ -1297,7 +1282,11 @@ function ProjectHeader({
           >
             {label}
           </span>
-        {!cold && <CollapseChevron collapsed={collapsed} visible={hovered} size={13} />}
+        {!cold && (
+          <span className="dc-project-row__chevron" aria-hidden>
+            <DisclosureChevron expanded={!collapsed} />
+          </span>
+        )}
       </div>
       <div
         style={{
@@ -1309,8 +1298,7 @@ function ProjectHeader({
         }}
         onClick={(event) => event.stopPropagation()}
       >
-        {showActions ? (
-          <>
+        <span className="dc-project-row__actions">
             <IconButton
               icon={<SquarePen size={14} aria-hidden />}
               label={t('projectsRail.newChat')}
@@ -1320,31 +1308,30 @@ function ProjectHeader({
               className="dc-thread-list-icon-button"
               onClick={() => { void newChat() }}
             />
-            <IconButton
-              icon={<MoreHorizontal size={15} aria-hidden />}
+            <MoreActionsButton
               label={t('projectsRail.moreActions')}
-              tooltipLabel={t('projectsRail.moreActions')}
               size={24}
               radius={6}
+              iconSize={15}
+              tooltipPlacement="top"
               className="dc-thread-list-icon-button"
-              aria-expanded={menuOpen}
+              open={menuOpen}
               onClick={() => {
                 if (!menuOpen) updateProjectMenuPosition()
                 setMenuOpen((open) => !open)
               }}
             />
-            {showErrorIndicator && <ProjectErrorIndicator label={errorLabel} />}
-          </>
-        ) : showErrorIndicator ? (
+        </span>
+        {showErrorIndicator ? (
           <ProjectErrorIndicator label={errorLabel} />
         ) : collapsed && activity === 'running' ? (
-          <span style={projectStatusIndicatorSlotStyle}>
+          <span className="dc-project-row__status" style={projectStatusIndicatorSlotStyle}>
             <span className="dc-status-indicator">
               <Spinner label={t('threadEntry.turnRunning')} />
             </span>
           </span>
         ) : collapsed && activity === 'waiting' ? (
-          <span style={projectStatusIndicatorSlotStyle}>
+          <span className="dc-project-row__status" style={projectStatusIndicatorSlotStyle}>
             <span className="dc-status-indicator" role="img" aria-label={t('projectsRail.awaitingResponse')}>
               <span className="dc-status-indicator__dot" data-tone="warning" />
             </span>

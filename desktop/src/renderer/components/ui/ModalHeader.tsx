@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { X } from 'lucide-react'
-import { IconButton } from './IconButton'
+import { useT } from '../../contexts/LocaleContext'
+import { DialogCloseButton } from './DialogCloseButton'
 
 interface ModalHeaderProps {
   /**
@@ -38,20 +38,14 @@ export function ModalHeader({
   actions,
   style
 }: ModalHeaderProps): JSX.Element {
+  const t = useT()
   return (
     <div style={{ ...containerStyle, ...style }}>
       <div style={topRowStyle}>
         {badgedIcon ? <span style={badgeStyle}>{icon}</span> : icon}
         <span style={actionRowStyle}>
           {actions}
-          {onClose && (
-            <IconButton
-              icon={<X size={16} aria-hidden />}
-              label={closeLabel ?? 'Close'}
-              size={30}
-              onClick={onClose}
-            />
-          )}
+          {onClose && <DialogCloseButton label={closeLabel ?? t('common.close')} onClose={onClose} />}
         </span>
       </div>
       <div style={titleRowStyle}>

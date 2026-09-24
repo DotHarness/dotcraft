@@ -1,10 +1,10 @@
-import { CirclePause, CirclePlay, MoreHorizontal, Play, Trash2 } from 'lucide-react'
+import { CirclePause, CirclePlay, Play, Trash2 } from 'lucide-react'
 import { useState, type DragEvent } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import type { AutomationDefinition } from '../../types/automation'
-import { Button } from '../ui/Button'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { AutomationStatusControl } from './AutomationStatusControl'
 import { AutomationTaskTiming } from './AutomationTaskTiming'
@@ -44,12 +44,12 @@ export function AutomationTaskRow({ automation, selected, disabled, disabledReas
     </button>
     <span className="dc-automation-task-actions">
       {unread ? <span className="dc-automation-task-unread" aria-label={t('automation.unread')} /> : null}
-      <Button variant="ghost" size="iconSm" className="dc-automation-task-menu" aria-label={t('automation.actions')}
-        aria-haspopup="menu" aria-expanded={menu != null} onClick={event => {
+      <MoreActionsButton size={28} className="dc-automation-task-menu" label={t('automation.actions')}
+        open={menu != null} onClick={event => {
           event.stopPropagation()
           const rect = event.currentTarget.getBoundingClientRect()
           setMenu({ x: rect.right, y: rect.bottom })
-        }}><MoreHorizontal size={16} /></Button>
+        }} />
     </span>
     {menu ? <ContextMenu position={menu} onClose={() => setMenu(null)} items={[
       ...(!completed ? [

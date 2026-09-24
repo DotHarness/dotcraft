@@ -7,7 +7,8 @@
 }
 
 .dc-tool-row > summary,
-.dc-tool-row-static {
+.dc-tool-row-static,
+.dc-thinking-row {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
@@ -27,7 +28,8 @@
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.dc-tool-row > summary {
+.dc-tool-row > summary,
+.dc-thinking-row[data-expandable] {
   cursor: pointer;
 }
 
@@ -42,17 +44,20 @@
 /* The row is a label first and a target second, so hover lifts the text and the
    chevron fades in; a fill would read as chrome wrapped around the label. Focus
    therefore carries its own ring -- see primitives/quiet-action.css. */
-.dc-tool-row > summary:hover {
+.dc-tool-row > summary:hover,
+.dc-thinking-row:hover {
   color: var(--text-primary);
 }
 
-.dc-tool-row > summary:focus-visible {
+.dc-tool-row > summary:focus-visible,
+.dc-thinking-row:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
   color: var(--text-primary);
 }
 
-.dc-tool-row[open] > summary {
+.dc-tool-row[open] > summary,
+.dc-thinking-row[aria-expanded="true"] {
   color: var(--text-secondary);
 }
 
@@ -165,6 +170,8 @@
 
 .dc-tool-row > summary:hover .dc-tool-chevron,
 .dc-tool-row > summary:focus-visible .dc-tool-chevron,
+.dc-thinking-row:hover .dc-tool-chevron,
+.dc-thinking-row:focus-visible .dc-tool-chevron,
 .dc-tool-row[open] > summary .dc-tool-chevron,
 .dc-tool-chevron[data-visible="true"] {
   opacity: 1;

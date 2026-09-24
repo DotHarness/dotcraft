@@ -72,7 +72,7 @@ function approveConfirmation(): void {
 
 function clickUpdateAction(): void {
   fireEvent.click(screen.getAllByRole('button', { name: /more/i })[0])
-  fireEvent.click(screen.getByRole('button', { name: /^update$/i }))
+  fireEvent.click(screen.getByRole('menuitem', { name: /^update$/i }))
 }
 
 const stackHost: RemoteHost = {

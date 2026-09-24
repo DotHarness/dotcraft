@@ -214,33 +214,3 @@ export const switchRow: CSSProperties = {
   justifyContent: 'space-between',
   gap: 16
 }
-
-export const overflowMenu: CSSProperties = {
-  position: 'absolute',
-  right: 0,
-  top: 'calc(100% + 4px)',
-  width: 184,
-  zIndex: 20,
-  border: '1px solid var(--border-active)',
-  borderRadius: 10,
-  background: 'var(--bg-elevated)',
-  boxShadow: 'var(--shadow-level-3)',
-  padding: 5,
-  fontSize: 13
-}
-
-export const overflowItem: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 9,
-  width: '100%',
-  textAlign: 'left',
-  padding: '8px 10px',
-  borderRadius: 7,
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer'
-}

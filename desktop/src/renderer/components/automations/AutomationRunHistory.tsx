@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Check, Circle, GitCompareArrows, MoreHorizontal } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, Circle, GitCompareArrows } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { openAutomationRun } from '../../stores/automationRunNavigation'
@@ -6,7 +6,7 @@ import { useAutomationsStore } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { AutomationRun } from '../../types/automation'
-import { Button } from '../ui/Button'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { AutomationRunRow } from './AutomationRunRow'
@@ -65,8 +65,8 @@ export function AutomationRunHistory({ automationId, automationName }: { automat
   const selectedArchived = !!selected?.threadId && threads[selected.threadId]?.status === 'archived'
   return <section className="dc-automation-section">
     <div className="dc-automation-history-heading"><h3>{t('automation.history')}</h3>
-      {!!runs.length && <Button variant="ghost" size="iconSm" aria-label={t('automation.historyActions')} disabled={pending}
-        onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ position: { x: rect.right, y: rect.bottom } }) }}><MoreHorizontal size={16} /></Button>}
+      {!!runs.length && <MoreActionsButton size={28} label={t('automation.historyActions')} disabled={pending} open={menu != null && !menu.run}
+        onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ position: { x: rect.right, y: rect.bottom } }) }} />}
     </div>
     {error || threadError ? <p role="alert" className="dc-automation-error">{error ?? threadError}</p> : null}
     {runs.length === 0 ? <p className="dc-automation-hint">{t('automation.noRuns')}</p> :

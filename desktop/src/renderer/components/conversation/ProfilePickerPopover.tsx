@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { RobotAvatar } from '../agents/RobotAvatar'
+import { IconButton } from '../ui/IconButton'
 
 interface ProfileEntry {
   id: string
@@ -67,9 +68,7 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
       <div style={CARD_STYLE} role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
         <div style={HEAD_STYLE}>
           <span>{t('composer.profile.pickTitle')}</span>
-          <button type="button" style={CLOSE_STYLE} aria-label={t('composer.customPill.aria')} onClick={onDismiss}>
-            <X size={16} aria-hidden />
-          </button>
+          <IconButton size={24} radius={6} icon={<X size={14} aria-hidden />} label={t('common.close')} onClick={onDismiss} />
         </div>
         <div style={BODY_STYLE}>
           {loading ? (
@@ -136,18 +135,6 @@ const HEAD_STYLE: CSSProperties = {
   fontWeight: 650,
   color: 'var(--text-primary)',
   borderBottom: '1px solid var(--border-default)'
-}
-
-const CLOSE_STYLE: CSSProperties = {
-  width: 26,
-  height: 26,
-  display: 'grid',
-  placeItems: 'center',
-  border: 0,
-  borderRadius: 8,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer'
 }
 
 const BODY_STYLE: CSSProperties = {

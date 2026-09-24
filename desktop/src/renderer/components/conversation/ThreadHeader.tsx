@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelLeft } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, Pencil, Pin, PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
@@ -19,6 +19,7 @@ import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
@@ -386,14 +387,10 @@ export function ThreadHeader({
               </h1>
             </ActionTooltip>
 
-            <IconButton
+            <MoreActionsButton
                 size={28}
                 label={t('threadHeader.moreActions')}
-                tooltipPlacement="bottom"
-                tooltipLabel={t('threadHeader.moreActions')}
-                icon={<MoreHorizontal size={16} aria-hidden />}
-                aria-haspopup="menu"
-                aria-expanded={menuPosition != null}
+                open={menuPosition != null}
                 onClick={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect()
                   setMenuPosition({ x: rect.left, y: rect.bottom + 4 })

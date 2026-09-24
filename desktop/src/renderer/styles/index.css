@@ -48,7 +48,6 @@
 @import "./primitives/input-with-action.css";
 @import "./primitives/color-picker.css";
 @import "./primitives/shortcut-key.css";
-@import "./shared/whats-new.css";
 @import "./shared/action-tooltip.css";
 @import "../components/conversation/styles/inline-visualization.css";
 @import "../components/conversation/styles/context-attachments.css";

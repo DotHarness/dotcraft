@@ -465,8 +465,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
     const projectRow = screen.getByRole('button', { name: 'b' })
-    fireEvent.mouseEnter(projectRow)
-    fireEvent.click(screen.getByRole('button', { name: 'New chat in project' }))
+    fireEvent.click(within(projectRow).getByRole('button', { name: 'New chat in project' }))
 
     await waitFor(() => {
       expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
@@ -1135,8 +1134,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList({ workspacePath: '/workspace/a' })
     const projectRow = screen.getByRole('button', { name: 'b' })
-    fireEvent.mouseEnter(projectRow)
-    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(within(projectRow).getByRole('button', { name: 'Project actions' }))
 
     expect(screen.getByRole('menuitem', { name: 'Restart' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Stop' })).toBeInTheDocument()
@@ -1149,7 +1147,7 @@ describe('ThreadList project-first layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(workspaceRemoveRecent).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(within(projectRow).getByRole('button', { name: 'Project actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove project' }))
 
@@ -1779,8 +1777,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'a' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(within(screen.getByRole('button', { name: 'a' })).getByRole('button', { name: 'Project actions' }))
     fireEvent.click(await screen.findByText('Stop'))
 
     await waitFor(() => {

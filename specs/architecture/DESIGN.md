@@ -722,7 +722,15 @@ omit connection counts.
 
 A visible neutral frame (`bordered`: `var(--bg-secondary)` +
 `1px solid var(--border-default)`) is opt-in and reserved for special or important
-icon controls. Modal close buttons stay borderless with neutral hover feedback.
+icon controls. Every dialog close is the shared `DialogCloseButton` (`30px`, a `16px`
+X), borderless with neutral hover feedback; a dialog that positions it passes
+placement only, never a colour or fill that would override the hover state.
+
+A menu trigger is the shared `MoreActionsButton`: the horizontal ellipsis at `16px`,
+`aria-haspopup="menu"`, `aria-expanded` while open, and a tooltip that repeats its
+label. It takes the footprint of its band; a Thread List trigger adds the list's
+foreground-only class. The menu it opens is the shared `ContextMenu`; a feature
+does not draw its own bordered popover.
 
 An icon-only copy action is always the shared `CopyButton`: frameless on every
 surface, including error blocks and diagram toolbars. It confirms in place by

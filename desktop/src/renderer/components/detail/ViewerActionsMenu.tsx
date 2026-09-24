@@ -3,11 +3,11 @@
  * `overflow: hidden`.
  */
 import { useRef, useState } from 'react'
-import { Copy, FileText, MoreHorizontal, WrapText } from 'lucide-react'
+import { Copy, FileText, WrapText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 
 interface ViewerActionsMenuProps {
   absolutePath: string
@@ -62,16 +62,12 @@ export function ViewerActionsMenu({
 
   return (
     <>
-      <IconButton
+      <MoreActionsButton
         ref={buttonRef}
         size={28}
         label={t('viewer.moreActions')}
-        tooltipLabel={t('viewer.moreActions')}
-        tooltipPlacement="bottom"
-        aria-haspopup="menu"
-        aria-expanded={position != null}
+        open={position != null}
         onClick={toggleOpen}
-        icon={<MoreHorizontal size={16} aria-hidden style={{ display: 'block' }} />}
       />
       {position && (
         <ContextMenu

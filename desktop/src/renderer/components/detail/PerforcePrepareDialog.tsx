@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, ListChecks } from 'lucide-react'
+import { ListChecks } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { threadFileSummaries } from '../../stores/turnDiffs'
 import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { Textarea } from '../ui/Input'
 import { Select, type SelectOption } from '../ui/Select'
 import { toRelativePath } from './CommitDialog'
@@ -125,7 +126,7 @@ export function PerforcePrepareDialog({
         <button
           type="button"
           onClick={() => setFilesExpanded((v) => !v)}
-          aria-label={filesExpanded ? t('perforcePrepare.collapseFiles') : t('perforcePrepare.expandFiles')}
+          aria-expanded={filesExpanded}
           style={{
             ...infoRowStyle,
             width: '100%',
@@ -141,7 +142,7 @@ export function PerforcePrepareDialog({
             <span>{t('perforcePrepare.changesSummary', { files: writtenFiles.length })}</span>
             <span style={{ color: 'var(--success)' }}>+{totalAdditions}</span>
             <span style={{ color: 'var(--error)' }}>-{totalDeletions}</span>
-            {filesExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            <DisclosureChevron expanded={filesExpanded} />
           </span>
         </button>
 

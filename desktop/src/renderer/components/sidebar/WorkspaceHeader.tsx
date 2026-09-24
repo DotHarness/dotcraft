@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, MoreHorizontal } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { stripWorkspaceLockedIpcPrefix } from '../../../shared/workspaceSwitchErrors'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 
 /** Extracts a clean user-facing message from a workspace switch error. */
@@ -181,15 +181,13 @@ export function WorkspaceOptionsMenu({
         alignItems: 'center'
       }}
     >
-      <IconButton
-        icon={<MoreHorizontal size={16} aria-hidden />}
+      <MoreActionsButton
         label={t('workspaceHeader.optionsAria')}
-        tooltipLabel={t('workspaceHeader.optionsAria')}
-        tooltipPlacement="bottom"
         size={24}
-        radius={4}
+        radius={6}
+        iconSize={15}
         className="dc-thread-list-icon-button"
-        aria-expanded={open}
+        open={open}
         onClick={(e) => {
           e.stopPropagation()
           if (!open) updateMenuPosition()

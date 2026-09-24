@@ -26,6 +26,36 @@
   display: none;
 }
 
+.dc-project-row:hover {
+  background-color: var(--sidebar-control-hover);
+}
+
+.dc-project-row__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.dc-project-row__actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__chevron {
+  opacity: 1;
+}
+
+.dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__actions {
+  display: inline-flex;
+}
+
+.dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__status {
+  display: none;
+}
+
 .dc-thread-row[data-hover]:hover .dc-status-badge {
   background: color-mix(in srgb, var(--text-primary) 10%, transparent);
   color: var(--text-secondary);

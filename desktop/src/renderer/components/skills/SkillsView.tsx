@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Download, ExternalLink, Plus, Settings, Sparkles, X } from 'lucide-react'
+import { Check, Download, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
 import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
@@ -21,7 +21,7 @@ import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
 import { CatalogBreadcrumb, CatalogFilterButton, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
-import { IconButton } from '../ui/IconButton'
+import { DialogCloseButton } from '../ui/DialogCloseButton'
 import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 
 type ViewMode = 'browse' | 'manage'
@@ -741,15 +741,7 @@ function MarketSkillDetailDialog({
             <h2 id="skill-market-detail-title" style={modalTitle}>{skill.name}</h2>
             <p style={modalSubtitle}>{skill.description || skill.slug}</p>
           </div>
-          <IconButton
-            icon={<X size={18} aria-hidden />}
-            label={t('skillDetail.close')}
-            tooltipLabel={t('skillDetail.close')}
-            tooltipPlacement="bottom"
-            size={32}
-            radius={6}
-            onClick={onClose}
-          />
+          <DialogCloseButton label={t('skillDetail.close')} onClose={onClose} />
         </header>
         <div style={metaRow}>
           <Meta label={t('skillMarket.provider')} value={providerLabel(skill.provider)} />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Check, ExternalLink, Link2, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, Check, ExternalLink, Link2, RefreshCw } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
 import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
@@ -9,7 +9,7 @@ import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { openAppHandoff } from '../../utils/threadAppBindings'
 import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { DialogCloseButton } from '../ui/DialogCloseButton'
 import { IdentityMark } from '../ui/IdentityMark'
 import { PluginContentIcon } from './PluginContentIcon'
 
@@ -197,7 +197,7 @@ export function PluginInstallDialog({
       if (event.target === event.currentTarget) onClose()
     }}>
       <div style={dialogCard} onMouseDown={(event) => event.stopPropagation()}>
-        <IconButton label={t('common.close')} onClick={onClose} style={closeButton} icon={<X size={16} aria-hidden />} />
+        <DialogCloseButton label={t('common.close')} onClose={onClose} style={closeButton} />
         <div style={logoRow}>
           <IdentityMark role="hero" size={56} src={dotharLogoUrl} fallback="D" />
           <span style={dotTrail}>•••</span>
@@ -524,14 +524,7 @@ const dialogCard: CSSProperties = {
 const closeButton: CSSProperties = {
   position: 'absolute',
   top: 18,
-  right: 18,
-  width: 30,
-  height: 30,
-  border: 'none',
-  borderRadius: 8,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer'
+  right: 18
 }
 const logoRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }
 const dotTrail: CSSProperties = { color: 'var(--text-dimmed)', letterSpacing: 2 }

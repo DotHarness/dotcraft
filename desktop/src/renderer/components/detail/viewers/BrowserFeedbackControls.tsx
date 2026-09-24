@@ -1,10 +1,11 @@
 export { BrowserFindBar } from './BrowserFindBar'
 import { createPortal } from 'react-dom'
-import { Minus, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
+import { Minus, Plus, RotateCcw } from 'lucide-react'
 import type { BrowserDownloadRecord, BrowserFindState } from '../../../../shared/viewer/browserFeedback'
 import { useT } from '../../../contexts/LocaleContext'
 import { useLayerPresence } from '../../../contexts/LayerContext'
 import { IconButton } from '../../ui/IconButton'
+import { MoreActionsButton } from '../../ui/MoreActionsButton'
 import { useUIStore } from '../../../stores/uiStore'
 import { useBrowserPopup } from './useBrowserPopup'
 
@@ -33,8 +34,8 @@ export function BrowserFeedbackControls({ tabId, state, run, active = true }: {
   }
   return (
     <div className="dc-browser-controls">
-      <IconButton ref={more} icon={<MoreHorizontal size={16} />} label={t('viewer.browser.more')}
-        aria-expanded={popup === 'more'} onClick={() => setPopup(popup === 'more' ? null : 'more')} />
+      <MoreActionsButton ref={more} label={t('viewer.browser.more')}
+        open={popup === 'more'} onClick={() => setPopup(popup === 'more' ? null : 'more')} />
       {popup === 'more' && createPortal(
         <div ref={content} style={position} role="menu" aria-label={t('viewer.browser.more')}
           className="dc-browser-controls__popup dc-browser-controls__menu">

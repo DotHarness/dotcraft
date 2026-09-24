@@ -11,9 +11,10 @@ import {
   useState,
   type CSSProperties
 } from 'react'
-import { ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -195,11 +196,7 @@ export function WorkspaceExplorer(): JSX.Element {
           onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
         >
           <span style={chevronSlotStyle}>
-            {entry.isDir && (
-              isOpen
-                ? <ChevronDown size={13} aria-hidden style={{ color: 'var(--text-secondary)' }} />
-                : <ChevronRight size={13} aria-hidden style={{ color: 'var(--text-secondary)' }} />
-            )}
+            {entry.isDir && <DisclosureChevron expanded={isOpen} />}
           </span>
           <FileTypeIcon path={entry.name} size={15} dir={entry.isDir} expanded={isOpen} />
           <span style={rowLabelStyle}>{entry.name}</span>
@@ -338,7 +335,8 @@ const chevronSlotStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   width: '14px',
-  flexShrink: 0
+  flexShrink: 0,
+  color: 'var(--text-secondary)'
 }
 
 const rowLabelStyle: CSSProperties = {
