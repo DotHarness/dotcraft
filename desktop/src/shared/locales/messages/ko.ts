@@ -214,7 +214,6 @@ export const MESSAGES_KO = {
   'tray.satellitesOnline.one': '위성 {{count}}대 온라인',
   'tray.satellitesOnline.other': '위성 {{count}}대 온라인',
 
-  'whatsNew.open': '새로운 기능',
   'whatsNew.title': 'DotCraft의 새로운 기능',
   'whatsNew.subtitle': 'v{{version}} 하이라이트',
   'whatsNew.close': '시작하기',

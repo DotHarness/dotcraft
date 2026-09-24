@@ -214,7 +214,6 @@ export const MESSAGES_DE = {
   'tray.satellitesOnline.one': '{{count}} Satellit online',
   'tray.satellitesOnline.other': '{{count}} Satelliten online',
 
-  'whatsNew.open': 'Neuigkeiten',
   'whatsNew.title': 'Neu in DotCraft',
   'whatsNew.subtitle': 'Highlights aus v{{version}}',
   'whatsNew.close': 'Loslegen',

@@ -344,7 +344,6 @@ export const MESSAGES_ZH_HANS = {
   'tray.satellitesOnline.one': '{{count}} 台卫星在线',
   'tray.satellitesOnline.other': '{{count}} 台卫星在线',
 
-  'whatsNew.open': '最新功能',
   'whatsNew.title': 'DotCraft 最新功能',
   'whatsNew.subtitle': 'v{{version}} 亮点',
   'whatsNew.close': '开始吧！',

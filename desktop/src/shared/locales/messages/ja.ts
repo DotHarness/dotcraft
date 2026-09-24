@@ -214,7 +214,6 @@ export const MESSAGES_JA = {
   'tray.satellitesOnline.one': 'サテライト {{count}} 台がオンライン',
   'tray.satellitesOnline.other': 'サテライト {{count}} 台がオンライン',
 
-  'whatsNew.open': '新機能',
   'whatsNew.title': 'DotCraft の新機能',
   'whatsNew.subtitle': 'v{{version}} のハイライト',
   'whatsNew.close': '始める',
