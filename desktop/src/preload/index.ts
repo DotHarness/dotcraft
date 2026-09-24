@@ -1230,6 +1230,9 @@ const api = {
         destroy(params: { tabId: string }): Promise<void> {
           return ipcRenderer.invoke('viewer:browser:destroy', params)
         },
+        rebindThread(params: { fromThreadId: string; toThreadId: string }): Promise<void> {
+          return ipcRenderer.invoke('viewer:browser:rebind-thread', params)
+        },
         navigate(params: { tabId: string; url: string }): Promise<void> {
           return ipcRenderer.invoke('viewer:browser:navigate', params)
         },

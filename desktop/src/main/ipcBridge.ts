@@ -2002,6 +2002,11 @@ export function registerIpcHandlers(
     if (!win || win.isDestroyed()) return
     viewerBrowserManager.destroyTab(win, params.tabId)
   })
+  handleSafe('viewer:browser:rebind-thread', async (event, params: { fromThreadId: string; toThreadId: string }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return
+    viewerBrowserManager.rebindThread(win, params.fromThreadId, params.toThreadId)
+  })
   handleSafe('viewer:browser:navigate', async (event, params: { tabId: string; url: string }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || win.isDestroyed()) return
@@ -2638,6 +2643,7 @@ export function unregisterIpcHandlers(): void {
   for (const channel of BROWSER_FEEDBACK_CHANNELS) ipcMain.removeHandler(channel)
   ipcMain.removeHandler('viewer:browser:create')
   ipcMain.removeHandler('viewer:browser:destroy')
+  ipcMain.removeHandler('viewer:browser:rebind-thread')
   ipcMain.removeHandler('viewer:browser:navigate')
   ipcMain.removeHandler('viewer:browser:back')
   ipcMain.removeHandler('viewer:browser:forward')

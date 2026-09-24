@@ -54,6 +54,7 @@ beforeEach(() => {
   useViewerTabStore.setState({
     byThread: new Map(),
     currentThreadId: null,
+    welcomeScopeId: null,
     currentWorkspacePath: null
   })
   installDesktopApiMock({
@@ -193,6 +194,7 @@ describe('viewer tab in uiStore', () => {
   })
 
   it('closeViewerTab falls back to an open system tab', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
     ui().setActiveDetailTab('plan')
     ui().setActiveViewerTab('vtab-abc')
 
@@ -286,6 +288,7 @@ describe('optional system tabs', () => {
   })
 
   it('closeViewerTab keeps the panel open when a system tab remains', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
     useUIStore.setState({ detailPanelPreferredVisible: true, detailPanelVisible: true, responsiveLayout: 'full' })
     ui().setActiveDetailTab('plan')
     ui().setActiveViewerTab('vtab-2')
@@ -426,6 +429,7 @@ describe('optional system tabs', () => {
   })
 
   it('restores the last active system tab only for a thread saved as visible', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
     useUIStore.setState({
       openSystemTabs: ['changes', 'plan'],
       lastActiveSystemTab: 'changes',
@@ -517,6 +521,7 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('offers Changes and Checks entries that open the system tabs', async () => {
+    useThreadStore.getState().setActiveThreadId('thread-1')
     useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
     render(createElement(Harness, { workspacePath: '' }))
 
@@ -527,6 +532,33 @@ describe('detail panel add-tab menu', () => {
       expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
     })
     expect(ui().openSystemTabs).toEqual(['plan'])
+  })
+
+  it('offers only Files, Browser and Terminal on Welcome and opens them in the Welcome draft', async () => {
+    const welcome = 'welcome:/workspace/path'
+    cs().setWorkspacePath('/workspace/path')
+    useViewerTabStore.getState().setWelcomeScope(welcome)
+    useViewerTabStore.getState().onThreadSwitched(welcome)
+    useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
+    render(createElement(Harness, {}))
+
+    fireEvent.click(screen.getByLabelText('Add tab'))
+
+    expect(await screen.findByRole('menuitem', { name: /^Files$/ })).not.toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: /Terminal/ })).not.toHaveProperty('disabled', true)
+    expect(screen.queryByRole('menuitem', { name: /Changes/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Checks/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Subagents/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /Browser/ }))
+
+    await waitFor(() => {
+      expect(useViewerTabStore.getState().getThreadState(welcome).tabs.some((tab) => tab.kind === 'browser')).toBe(true)
+    })
+    expect(window.api.workspace.viewer.browser.create).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: welcome
+    }))
+    expect(ui().detailPanelPreferredVisibleByThread[welcome]).toBe(true)
   })
 
   it('opens an empty Files viewer when the menu returns openFile', async () => {

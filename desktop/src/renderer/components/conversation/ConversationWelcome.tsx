@@ -43,6 +43,10 @@ import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfig
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
+import { welcomeScopeKey } from '../../utils/detailPanelScope'
+import { handOffWelcomePanel } from '../../utils/welcomePanelHandoff'
+import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
+import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
@@ -820,7 +824,7 @@ function ConversationWelcomeCore({
   }, [canUseSkillPicker, fetchSkills])
 
   useEffect(() => {
-    const persistedText = readPlainComposerDraft(`welcome:${draftProjectKey}`)
+    const persistedText = readPlainComposerDraft(welcomeScopeKey(draftProjectKey))
     const welcomeDraft: WelcomeDraft | null = initialWelcomeDraftRef.current ?? (persistedText ? { text: persistedText, segments: [], images: [], mode: 'agent' as const, model: 'Default', updatedAt: 0 } : null)
     if (draftHydratedRef.current) return
     if (!welcomeDraft) {
@@ -992,7 +996,7 @@ function ConversationWelcomeCore({
     return welcomeContextExplicit ? { mode: welcomeContextMode } : undefined
   }, [welcomeContextExplicit, welcomeContextMode])
 
-  const contextKey = `welcome:${draftProjectKey}`
+  const contextKey = welcomeScopeKey(draftProjectKey)
   const contexts = useComposerContextStore((state) => state.getContexts(contextKey))
   const pastedText = usePastedText(contextKey, workspacePath, remoteWorkspace)
 
@@ -1362,6 +1366,7 @@ function ConversationWelcomeCore({
   // If the user opened another thread while creation was in flight, leave them there and start the
   // first turn unseen rather than dropping it.
   const openOrDetachCreatedThread = useCallback((threadId: string): void => {
+    handOffWelcomePanel(contextKey, threadId)
     if (useThreadStore.getState().activeThreadId == null) {
       setActiveThreadId(threadId)
       return
@@ -1370,7 +1375,7 @@ function ConversationWelcomeCore({
     if (pending) {
       void startPendingWelcomeTurn({ threadId, pending, workspacePath: identityPath, translate: t })
     }
-  }, [identityPath, setActiveThreadId, t])
+  }, [contextKey, identityPath, setActiveThreadId, t])
 
   const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
     if (!canUseThreadGoals) {
@@ -1666,6 +1671,11 @@ function ConversationWelcomeCore({
     }
   }, [onPasteImage, remoteWorkspace, t])
 
+  useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
+    setFiles((prev) => mergeComposerFileAttachments(prev, [attachment]))
+    setTimeout(() => richRef.current?.focus(), 0)
+  })
+
   const onDrop = useCallback(
     (e: React.DragEvent): void => {
       e.preventDefault()
@@ -1735,8 +1745,8 @@ function ConversationWelcomeCore({
         overflow: 'hidden'
       }}
     >
-      {canUseAppBinding && isConnected && (
-        <div style={welcomeAppButtonSlot}>
+      <div style={welcomeHeaderActionsSlot}>
+        {canUseAppBinding && isConnected && (
           <WelcomeAppBindingsButton
             apps={welcomeApps}
             selectedAppIds={welcomeAppIds}
@@ -1745,8 +1755,9 @@ function ConversationWelcomeCore({
             onRetry={retryWelcomeApps}
             onToggleApp={toggleWelcomeApp}
           />
-        </div>
-      )}
+        )}
+        <DetailPanelToggleButton />
+      </div>
       <div
         style={{
           flex: 1,
@@ -2264,7 +2275,16 @@ function AppLogo({ app }: { app: AppInfo }): JSX.Element {
   )
 }
 
-const welcomeAppButtonSlot: CSSProperties = { position: 'absolute', top: 12, right: 16, zIndex: 8 }
+const welcomeHeaderActionsSlot: CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  right: 16,
+  zIndex: 8,
+  height: 'var(--chrome-header-height)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8
+}
 
 function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' } | null {
   const trimmed = text.trim().toLowerCase()

@@ -511,6 +511,12 @@ export class ViewerBrowserManager {
       .map(tab => this.snapshotFromRuntime(tab)) : []
   }
 
+  rebindThread(win: BrowserWindow, fromThreadId: string, toThreadId: string): void {
+    for (const tab of this.byWindowId.get(win.id)?.tabs.values() ?? []) {
+      if (tab.threadId === fromThreadId) tab.threadId = toThreadId
+    }
+  }
+
   getAutomationTargetTab(win: BrowserWindow, threadId: string): BrowserSnapshot | null {
     const runtime = this.byWindowId.get(win.id)
     if (!runtime) return null

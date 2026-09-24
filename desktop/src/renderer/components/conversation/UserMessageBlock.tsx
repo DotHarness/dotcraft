@@ -2,7 +2,6 @@ import { projectInputParts } from '../../utils/inputPresentation'
 import { SentContextAttachments } from './SentContextAttachments'
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Box, Image as ImageIcon, Pencil, Terminal } from 'lucide-react'
-import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { Textarea } from '../ui/Input'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -16,14 +15,15 @@ import {
 } from './MessageOriginMarkers'
 import { parseUserMessageSegments, segmentsFromNativeInputParts } from './parseUserMessageSegments'
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../../types/conversation'
-import { openConversationLink, openImagePathInViewer } from '../../utils/conversationDeepLink'
+import { openImagePathInViewer } from '../../utils/conversationDeepLink'
 import { stripSystemReminderBlocks } from '../../utils/systemReminderText'
 import { formatMessageTime } from '../../utils/messageTime'
-import { resolveLocalReferencePath, resolveSkillReferencePath } from '../../utils/referencePaths'
+import { resolveSkillReferencePath } from '../../utils/referencePaths'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
+import { FileRefChip } from './FileRefChip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
 
@@ -356,6 +356,7 @@ export function UserMessageBlock({
               ) : seg.type === 'fileRef' ? (
                 <FileRefChip
                   key={`f-${idx}-${seg.relativePath}`}
+                  className="dc-message-ref"
                   displayPath={seg.relativePath}
                   targetPath={seg.targetPath ?? seg.relativePath}
                   workspacePath={workspacePath}
@@ -506,74 +507,6 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
       <span>{label}</span>
     </span>
     </ActionTooltip>
-  )
-}
-
-function FileRefChip({
-  displayPath,
-  targetPath,
-  workspacePath,
-  activeThreadId,
-  remoteWorkspaceActive
-}: {
-  displayPath: string
-  targetPath: string
-  workspacePath: string
-  activeThreadId: string | null
-  remoteWorkspaceActive: boolean
-}): JSX.Element {
-  const t = useT()
-  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
-  const fileName = displayPath.split(/[/\\]/).pop() ?? displayPath
-  const resolvedTargetPath = resolveLocalReferencePath(targetPath, workspacePath)
-  const title = resolvedTargetPath ?? targetPath
-  const canOpen = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
-
-  return (
-    <>
-      <ActionTooltip label={title}>
-      <button
-        type="button"
-        aria-label={t('conversation.openFileRefAria', { file: fileName })}
-        disabled={!canOpen}
-        className="dc-ref dc-ref-file"
-        onContextMenu={(event) => {
-          if (!resolvedTargetPath) return
-          event.preventDefault()
-          event.stopPropagation()
-          setContextMenu({
-            position: { x: event.clientX, y: event.clientY },
-            targetPath: resolvedTargetPath
-          })
-        }}
-        onClick={() => {
-          if (!canOpen || !activeThreadId) return
-          void openConversationLink({
-            target: targetPath,
-            workspacePath,
-            threadId: activeThreadId,
-            t
-          })
-        }}
-        style={{
-          margin: '0 4px',
-          maxWidth: 'var(--inline-reference-max-width)',
-          cursor: canOpen ? 'pointer' : 'default',
-          fontFamily: 'inherit'
-        }}
-      >
-        <FileTypeIcon path={displayPath} size={12} style={{ display: 'inline-block' }} />
-        <span>{fileName}</span>
-      </button>
-      </ActionTooltip>
-      {contextMenu && (
-        <ReferencePathContextMenu
-          position={contextMenu.position}
-          targetPath={contextMenu.targetPath}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-    </>
   )
 }
 

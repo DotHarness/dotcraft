@@ -34,6 +34,7 @@ import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
+import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { interruptTurn } from '../../utils/interruptTurn'
@@ -318,7 +319,6 @@ function InputComposerCore({
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
-  const composerFileAttachmentRequest = useUIStore((s) => s.composerFileAttachmentRequest)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
   const visibleQueuedInputs = hasSubmitOverride ? [] : queuedInputs
   const visiblePendingMessage = hasSubmitOverride ? null : pendingMessage
@@ -696,17 +696,10 @@ function InputComposerCore({
     }
   }, [composerPrefill])
 
-  useEffect(() => {
-    if (!composerFileAttachmentRequest) return
-    const attachment = useUIStore.getState().consumeComposerFileAttachmentRequest()
-    if (!attachment) return
-    if (remoteWorkspace) {
-      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
+  useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
     setFiles((current) => mergeComposerFileAttachments(current, [attachment]))
     setTimeout(() => richRef.current?.focus(), 0)
-  }, [composerFileAttachmentRequest, remoteWorkspace, t])
+  })
 
   useEffect(() => {
     const prefill = prefillRequest?.text

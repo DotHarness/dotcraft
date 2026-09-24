@@ -608,4 +608,44 @@ describe('ViewerBrowserManager automation input', () => {
     })
     expect(manager.getAutomationTargetTab(win, 'thread-missing')).toBeNull()
   })
+
+  it('rebinds Welcome draft pages so automation finds them on the created thread', () => {
+    const { manager, win } = createAutomationHarness()
+    const page = {
+      isDestroyed: vi.fn(() => false),
+      getURL: vi.fn(() => 'http://localhost:5173/'),
+      getTitle: vi.fn(() => 'Local app'),
+      isLoading: vi.fn(() => false),
+      navigationHistory: {
+        canGoBack: vi.fn(() => false),
+        canGoForward: vi.fn(() => false)
+      }
+    }
+    const tab = (tabId: string, threadId: string) => ({
+      tabId,
+      threadId,
+      workspacePath: '/workspace/test-root',
+      page,
+      desiredVisible: false,
+      visible: false,
+      boundsInitialized: true,
+      currentUrl: 'http://localhost:5173/',
+      title: 'Local app'
+    })
+    ;(manager as unknown as {
+      byWindowId: Map<number, { tabs: Map<string, unknown>; activeTabId: string | null }>
+    }).byWindowId.set(1, {
+      activeTabId: null,
+      tabs: new Map([
+        ['tab-welcome', tab('tab-welcome', 'welcome:/workspace/test-root')],
+        ['tab-other', tab('tab-other', 'thread-other')]
+      ])
+    })
+
+    manager.rebindThread(win, 'welcome:/workspace/test-root', 'thread-new')
+
+    expect(manager.listAutomationTargetTabs(win, 'thread-new').map((snapshot) => snapshot.tabId)).toEqual(['tab-welcome'])
+    expect(manager.listAutomationTargetTabs(win, 'thread-other').map((snapshot) => snapshot.tabId)).toEqual(['tab-other'])
+    expect(manager.listAutomationTargetTabs(win, 'welcome:/workspace/test-root')).toEqual([])
+  })
 })

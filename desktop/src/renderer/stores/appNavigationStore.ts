@@ -263,14 +263,15 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
       return null
     }
     if (location.activeDetailTab.kind === 'viewer') {
-      if (!location.threadId) return { ...location, activeDetailTab: { kind: 'launcher' }, detailVisible: false }
       const viewerTabId = location.activeDetailTab.id
       const viewerExists = useViewerTabStore
         .getState()
-        .getThreadState(location.threadId)
+        .getThreadState(locationDetailScopeId(location))
         .tabs
         .some((tab) => tab.id === viewerTabId)
-      if (!viewerExists) return null
+      if (!viewerExists) {
+        return location.threadId ? null : { ...location, activeDetailTab: { kind: 'launcher' }, detailVisible: false }
+      }
     }
     return location
   }
@@ -299,6 +300,10 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
   return location
 }
 
+function locationDetailScopeId(location: ConversationNavigationLocation): string {
+  return location.threadId ?? useViewerTabStore.getState().welcomeScopeId ?? ''
+}
+
 function restoreLocation(location: AppNavigationLocation): void {
   const ui = useUIStore.getState()
 
@@ -308,8 +313,8 @@ function restoreLocation(location: AppNavigationLocation): void {
     ui.selectChangeKey(location.selectedChangeKey)
     if (location.activeDetailTab.kind === 'system') {
       ui.setActiveDetailTab(location.activeDetailTab.id, { reveal: false })
-    } else if (location.activeDetailTab.kind === 'viewer' && location.threadId) {
-      useViewerTabStore.getState().setActiveTab(location.threadId, location.activeDetailTab.id)
+    } else if (location.activeDetailTab.kind === 'viewer') {
+      useViewerTabStore.getState().setActiveTab(locationDetailScopeId(location), location.activeDetailTab.id)
       ui.setActiveViewerTab(location.activeDetailTab.id, { reveal: false })
     } else {
       useUIStore.setState({ activeDetailTab: { kind: 'launcher' } })

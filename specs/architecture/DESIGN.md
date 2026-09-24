@@ -1,5 +1,5 @@
 ---
-version: "0.28.0"
+version: "0.29.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1333,6 +1333,15 @@ own placeholder and state already say.
   `.dc-composer-icon-control`: round and frameless, the composer's hover fill, and a
   neutral fill while their menu is open or recording runs. Each takes the height of
   the controls beside it.
+- Line comments and annotations each ride one attachment pill above the input:
+  pill radius, a hairline border on the elevated surface, a tertiary icon, and the
+  count as a medium label. Its remove control sits inside the pill's trailing edge
+  and appears only on hover or focus. Hovering or clicking the pill opens its list
+  above it, start-aligned, 384px wide and at most 320px tall before it scrolls; rows
+  are divided by hairlines with `8px 10px` padding. A comment row carries its file
+  reference, `L`/`R`, and line on one `12px` secondary line above the comment text;
+  annotation rows lead with a tertiary ordinal and label their parts in `12px`
+  semibold tertiary. Row actions appear only on hover or focus.
 - Composer-adjacent activity docks use `--background-activity-dock-background`,
   which stays visually close to `--composer-input-background` while preserving
   soft glass translucency; when attached to the composer, they keep their top and

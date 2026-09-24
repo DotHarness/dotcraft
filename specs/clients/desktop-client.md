@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.23.0 |
+| **Version** | 0.24.0 |
 | **Status** | Living |
 | **Date** | 2026-09-24 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -1274,6 +1274,9 @@ Surfaces beyond the conversation follow the same rules as the rest of this docum
 ### 10.1 Viewer Panel
 
 - The auxiliary right-side **viewer panel** coexists with the changes / plan / terminal tabs and lets users open native file viewers and embedded browser tabs without leaving the workspace.
+- The panel belongs to the conversation surface: an open thread and the Welcome screen show it, and every other main view (Agents, Plugins, Automations, Channels, Settings, and plugin-contributed views) hides it without changing its saved state. Both conversation states offer the same top-right toggle and shortcut.
+- On Welcome the panel belongs to the foreground project's Welcome draft: its open state, tabs, and unsent line comments and annotations. Its new-tab choices offer only what works without a thread — Files, Browser, and Terminal — and leave out the rest rather than disabling them. Line comments and annotations made there, and files added to the chat from the panel, attach to the Welcome composer.
+- When the first message creates the thread, the Welcome draft's panel state moves to that thread: the panel stays open with the same tabs, running terminals and browser pages keep their sessions, and unsent comment drafts follow. The next visit to Welcome starts with a closed, empty panel.
 - Chat-local file references, including absolute local paths and `file://` links, may open in the viewer panel even when the file is outside the active workspace. External local files must be served only after a user-triggered exact-file authorization; authorizing one external file must not authorize its parent directory or sibling files.
 - Existing local text files up to 10 MiB (10 × 1024 × 1024 bytes) open directly as editable documents. Desktop saves after three seconds of inactivity and immediately on the platform Save shortcut. Editing after failure schedules another attempt; the shortcut retries immediately. Tab-owned sessions retain drafts, baseline/version, save tasks, subscriptions, mode, undo history, selection and scroll position even while not mounted.
 - Markdown defaults to editable semantic preview and offers View source / View preview in the header. Each mode has a content-versioned history/selection/scroll snapshot. Mode switching waits for `saveUntilClean`, including input received during a pending save, and stays in the current mode on failure or unresolved review.

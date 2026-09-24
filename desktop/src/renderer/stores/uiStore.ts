@@ -6,6 +6,7 @@ import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } fro
 import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
+import { activeDetailScopeId } from '../utils/detailPanelScope'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import {
   AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
@@ -138,7 +139,6 @@ export interface UIState {
   sidebarWidth: number
   /** User preference for whether the active thread's detail panel is visible when width allows it. */
   detailPanelPreferredVisible: boolean
-  /** Per-thread detail panel visibility intent for the current renderer session. */
   detailPanelPreferredVisibleByThread: Record<string, boolean>
   detailPanelVisible: boolean
   /** User preference for detail panel width as a share of the main work surface. */
@@ -182,7 +182,6 @@ export interface UIState {
   /** Generic one-shot auto-show reasons to avoid repeated auto-open fights. */
   autoShowReasons: Set<string>
   composerPrefill: string | null
-  /** One-shot local file attachment to add to the active InputComposer. */
   composerFileAttachmentRequest: {
     id: number
     file: ComposerFileAttachment
@@ -237,8 +236,7 @@ interface UIStore extends UIState {
   closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null): void
   /** Resets the detail panel to its empty state (no tabs open → launcher). */
   resetDetailTabs(): void
-  /** Reconciles the detail panel with the incoming thread's saved visibility and viewer tab. */
-  syncDetailPanelForThread(threadId: string | null, activeViewerTabId: string | null): void
+  syncDetailPanelForThread(scopeId: string | null, activeViewerTabId: string | null): void
   /** Activates a viewer tab by its ID and makes the detail panel visible. */
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
   /** Closes the viewer panel and falls back to an open system tab or the launcher. */
@@ -322,13 +320,17 @@ export function resolveResponsivePanels(
   }
 }
 
-function withActiveThreadDetailVisibility(
+function withActiveScopeDetailVisibility(
   current: Record<string, boolean>,
   visible: boolean
 ): Record<string, boolean> {
-  const threadId = useThreadStore.getState().activeThreadId
-  if (!threadId || current[threadId] === visible) return current
-  return { ...current, [threadId]: visible }
+  const scopeId = activeDetailScopeId()
+  if (!scopeId || current[scopeId] === visible) return current
+  return { ...current, [scopeId]: visible }
+}
+
+function scopedSystemTabs(openSystemTabs: SystemDetailTab[]): SystemDetailTab[] {
+  return useThreadStore.getState().activeThreadId ? openSystemTabs : []
 }
 
 function normalizeWorkspaceDraftKey(path: string | null | undefined): string {
@@ -464,7 +466,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       const detailPanelPreferredVisible = !state.detailPanelPreferredVisible
       return {
         detailPanelPreferredVisible,
-        detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+        detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
           state.detailPanelPreferredVisibleByThread,
           detailPanelPreferredVisible
         ),
@@ -480,7 +482,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   setDetailPanelVisible(visible: boolean) {
     set((state) => ({
       detailPanelPreferredVisible: visible,
-      detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+      detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
         state.detailPanelPreferredVisibleByThread,
         visible
       ),
@@ -539,7 +541,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       detailPanelPreferredVisible,
       detailPanelPreferredVisibleByThread: options?.reveal === false
         ? state.detailPanelPreferredVisibleByThread
-        : withActiveThreadDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
+        : withActiveScopeDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -568,7 +570,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         openSystemTabs,
         activeDetailTab: nextActive,
         detailPanelPreferredVisible: false,
-        detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+        detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
           state.detailPanelPreferredVisibleByThread,
           false
         ),
@@ -598,21 +600,22 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     })
   },
 
-  syncDetailPanelForThread(threadId, activeViewerTabId) {
+  syncDetailPanelForThread(scopeId, activeViewerTabId) {
     const state = get()
+    const systemTabs = scopedSystemTabs(state.openSystemTabs)
     const hasViewerTab = activeViewerTabId != null
-    const hasSystemTab = state.openSystemTabs.length > 0
-    const savedVisible = threadId != null
-      && state.detailPanelPreferredVisibleByThread[threadId] === true
+    const hasSystemTab = systemTabs.length > 0
+    const savedVisible = scopeId != null
+      && state.detailPanelPreferredVisibleByThread[scopeId] === true
     const detailPanelPreferredVisible = savedVisible && (hasViewerTab || hasSystemTab)
     const activeDetailTab: ActiveDetailTab = hasViewerTab
       ? { kind: 'viewer', id: activeViewerTabId }
       : hasSystemTab
         ? {
             kind: 'system',
-            id: state.openSystemTabs.includes(state.lastActiveSystemTab)
+            id: systemTabs.includes(state.lastActiveSystemTab)
               ? state.lastActiveSystemTab
-              : state.openSystemTabs[state.openSystemTabs.length - 1]
+              : systemTabs[systemTabs.length - 1]
           }
         : { kind: 'launcher' }
 
@@ -637,7 +640,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       detailPanelPreferredVisible,
       detailPanelPreferredVisibleByThread: options?.reveal === false
         ? state.detailPanelPreferredVisibleByThread
-        : withActiveThreadDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
+        : withActiveScopeDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -648,7 +651,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   closeViewerTab(options?: DetailRevealOptions) {
     const state = get()
-    const open = state.openSystemTabs
+    const open = scopedSystemTabs(state.openSystemTabs)
     const fallsBackToLauncher = open.length === 0
     const nextActive: ActiveDetailTab = fallsBackToLauncher
       ? { kind: 'launcher' }
@@ -664,7 +667,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       activeDetailTab: nextActive,
       detailPanelPreferredVisible,
       detailPanelPreferredVisibleByThread: fallsBackToLauncher
-        ? withActiveThreadDetailVisibility(state.detailPanelPreferredVisibleByThread, false)
+        ? withActiveScopeDetailVisibility(state.detailPanelPreferredVisibleByThread, false)
         : state.detailPanelPreferredVisibleByThread,
       ...resolveResponsivePanels(
         state.responsiveLayout,
@@ -733,7 +736,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       lastActiveSystemTab: 'changes',
       selectedChangeKey: key,
       detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+      detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
         state.detailPanelPreferredVisibleByThread,
         true
       ),
@@ -764,7 +767,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({
       autoShowReasons,
       detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+      detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
         state.detailPanelPreferredVisibleByThread,
         true
       ),

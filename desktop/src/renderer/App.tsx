@@ -86,6 +86,7 @@ import { conversationRenderPaused } from './utils/conversationRenderPause'
 import { onDesktopPetPresentationChange } from './components/desktopPet/petPresentation'
 import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
+import { welcomeScopeKey } from './utils/detailPanelScope'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isSessionImportThread } from './utils/sessionImport'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
@@ -634,6 +635,7 @@ export function App(): JSX.Element {
     workspacePath
   )
   const foregroundThreadListKey = activeProjectKey || protocolWorkspacePath || workspacePath
+  const welcomeScopeId = welcomeScopeKey(activeProjectKey || workspacePath)
   const foregroundThreadListIdentityKey = currentForegroundThreadListIdentityKey(
     activeProjectKey,
     protocolWorkspacePath,
@@ -2516,7 +2518,6 @@ export function App(): JSX.Element {
         if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
         e.preventDefault()
         performAddTabAction('newBrowser', {
-          threadId: useThreadStore.getState().activeThreadId,
           workspacePath: workspacePathRef.current,
           t: (key, vars) => translate(localeRef.current, key, vars)
         })
@@ -2529,7 +2530,6 @@ export function App(): JSX.Element {
         if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
         e.preventDefault()
         performAddTabAction('newTerminal', {
-          threadId: useThreadStore.getState().activeThreadId,
           workspacePath: workspacePathRef.current,
           t: (key, vars) => translate(localeRef.current, key, vars)
         })
@@ -2539,7 +2539,6 @@ export function App(): JSX.Element {
       if (ctrl && e.shiftKey && e.key === 'G') {
         e.preventDefault()
         performAddTabAction('newChanges', {
-          threadId: useThreadStore.getState().activeThreadId,
           workspacePath: workspacePathRef.current,
           t: (key, vars) => translate(localeRef.current, key, vars)
         })
@@ -2549,7 +2548,6 @@ export function App(): JSX.Element {
       if (ctrl && e.shiftKey && e.key === 'P') {
         e.preventDefault()
         performAddTabAction('newPlan', {
-          threadId: useThreadStore.getState().activeThreadId,
           workspacePath: workspacePathRef.current,
           t: (key, vars) => translate(localeRef.current, key, vars)
         })
@@ -2813,8 +2811,11 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const viewerStore = useViewerTabStore.getState()
-    useUIStore.getState().resetAutoShowReasons()
+    viewerStore.setWelcomeScope(welcomeScopeId)
+    const scopeId = activeThreadId ?? welcomeScopeId
     const outgoingThreadId = viewerStore.currentThreadId
+    if (outgoingThreadId === scopeId) return
+    useUIStore.getState().resetAutoShowReasons()
     if (outgoingThreadId) {
       const outgoingState = viewerStore.getThreadState(outgoingThreadId)
       for (const tab of outgoingState.tabs) {
@@ -2824,25 +2825,20 @@ export function App(): JSX.Element {
       }
     }
 
-    viewerStore.onThreadSwitched(activeThreadId)
-    const threadState = activeThreadId
-      ? viewerStore.getThreadState(activeThreadId)
-      : null
+    viewerStore.onThreadSwitched(scopeId)
+    const threadState = viewerStore.getThreadState(scopeId)
     runWithoutAppNavigationRecording(() => {
-      useUIStore.getState().syncDetailPanelForThread(
-        activeThreadId,
-        threadState?.activeTabId ?? null
-      )
+      useUIStore.getState().syncDetailPanelForThread(scopeId, threadState.activeTabId)
     })
 
-    if (threadState?.activeTabId) {
+    if (threadState.activeTabId) {
       const activeTab = threadState.tabs.find((tab) => tab.id === threadState.activeTabId)
       const uiState = useUIStore.getState()
       if (activeTab?.kind === 'browser' && uiState.detailPanelVisible && uiState.activeMainView === 'conversation') {
         void window.api.workspace.viewer.browser.setActive({ tabId: activeTab.id })
       }
     }
-  }, [activeThreadId])
+  }, [activeThreadId, welcomeScopeId])
 
   // Hide native browser views when non-conversation surfaces or overlays are shown.
   useEffect(() => {

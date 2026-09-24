@@ -8,7 +8,6 @@ import {
   type UIState
 } from '../../stores/uiStore'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
-import { useThreadStore } from '../../stores/threadStore'
 import { DragHandle } from './DragHandle'
 import { ResizeEdgeGlow } from './ResizeEdgeGlow'
 
@@ -27,17 +26,9 @@ type ResizeEdge = 'sidebar' | 'detail' | null
 
 function isDetailPanelEffectivelyVisible(
   activeMainView: UIState['activeMainView'],
-  detailPanelVisible: boolean,
-  activeThreadId: string | null
+  detailPanelVisible: boolean
 ): boolean {
-  const isWelcomeState = activeMainView === 'conversation' && !activeThreadId
-  return !(
-    activeMainView === 'settings' ||
-    activeMainView === 'channels' ||
-    activeMainView === 'skills' ||
-    activeMainView === 'automations' ||
-    isWelcomeState
-  ) && detailPanelVisible
+  return activeMainView === 'conversation' && detailPanelVisible
 }
 
 function resolveMaxDetailPanelWidth(mainSurfaceWidth: number): number {
@@ -76,7 +67,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     detailPanelWidthRatio,
     activeMainView
   } = useUIStore()
-  const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const mainSurfaceRef = useRef<HTMLDivElement>(null)
   const mainSurfaceWidthRef = useRef<number | null>(null)
   const [observedMainSurfaceWidth, setObservedMainSurfaceWidth] = useState<number | null>(null)
@@ -86,11 +76,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
   const sidebarDividerHighlighted = sidebarDividerActive || resizingEdge === 'sidebar'
   const detailDividerHighlighted = detailDividerActive || resizingEdge === 'detail'
 
-  const effectiveDetailPanelVisible = isDetailPanelEffectivelyVisible(
-    activeMainView,
-    detailPanelVisible,
-    activeThreadId
-  )
+  const effectiveDetailPanelVisible = isDetailPanelEffectivelyVisible(activeMainView, detailPanelVisible)
 
   const effectiveSidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
 
@@ -129,13 +115,8 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     const state = useUIStore.getState()
     if (state.sidebarCollapsed) return
 
-    const currentActiveThreadId = useThreadStore.getState().activeThreadId
     const currentMainSurfaceWidth = window.innerWidth - state.sidebarWidth
-    const detailVisible = isDetailPanelEffectivelyVisible(
-      state.activeMainView,
-      state.detailPanelVisible,
-      currentActiveThreadId
-    )
+    const detailVisible = isDetailPanelEffectivelyVisible(state.activeMainView, state.detailPanelVisible)
     const detailWidth = detailVisible
       ? resolveDetailPanelWidth(
         state.detailPanelWidth,

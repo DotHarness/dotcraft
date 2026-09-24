@@ -68,3 +68,8 @@ button.dc-ref:hover,
 button.dc-ref[disabled] {
   cursor: default;
 }
+
+.dc-message-ref {
+  margin: 0 4px;
+  max-width: var(--inline-reference-max-width);
+}

@@ -222,3 +222,49 @@ describe('ThreePanel sidebar resize', () => {
     expect(useUIStore.getState().detailPanelWidthRatio).toBe(DETAIL_DEFAULT_WIDTH_RATIO)
   })
 })
+
+describe('ThreePanel detail visibility', () => {
+  beforeEach(() => {
+    installDesktopApiMock({ platform: 'win32', window: { toggleMaximize: vi.fn().mockResolvedValue(false) } })
+    Object.defineProperty(window, 'ResizeObserver', {
+      configurable: true,
+      writable: true,
+      value: ResizeObserverMock
+    })
+    useThreadStore.getState().reset()
+    useUIStore.setState({
+      activeMainView: 'conversation',
+      detailPanelPreferredVisible: true,
+      detailPanelVisible: true,
+      responsiveLayout: 'full'
+    })
+  })
+
+  it('shows the drawer on Welcome', () => {
+    renderThreePanel()
+
+    expect(screen.getByText('Detail')).toBeInTheDocument()
+  })
+
+  it.each([
+    'agents',
+    'skills',
+    'automations',
+    'channels',
+    'settings',
+    'desktop-plugin:sample:view'
+  ] as const)('hides the drawer on %s without changing its saved state', (view) => {
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    useUIStore.setState({ activeMainView: view })
+
+    renderThreePanel()
+
+    expect(screen.queryByText('Detail')).not.toBeInTheDocument()
+    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
+    expect(useUIStore.getState().detailPanelVisible).toBe(true)
+
+    act(() => useUIStore.getState().setActiveMainView('conversation'))
+
+    expect(screen.getByText('Detail')).toBeInTheDocument()
+  })
+})

@@ -3,14 +3,14 @@
  * window keydown handler can all dispatch without duplicating the open-a-tab logic.
  */
 import type { AddTabMenuAction } from '../../shared/addTabMenu'
+import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { activeDetailScopeId } from './detailPanelScope'
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
 
 interface AddTabActionContext {
-  /** Active thread id — required for browser/terminal tabs. */
-  threadId: string | null
   /** Active workspace path — required for browser/terminal tabs. */
   workspacePath: string
   /** Locale translator, used for initial browser/terminal tab labels. */
@@ -21,20 +21,14 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
   const ui = useUIStore.getState()
 
   // System tabs (Diff / Progress) — no active workspace required.
-  if (action === 'newChanges') {
-    ui.setActiveDetailTab('changes')
-    return
-  }
-  if (action === 'newPlan') {
-    ui.setActiveDetailTab('plan')
-    return
-  }
-  if (action === 'newSubagents') {
-    ui.setActiveDetailTab('subagents')
+  if (action === 'newChanges' || action === 'newPlan' || action === 'newSubagents') {
+    if (!useThreadStore.getState().activeThreadId) return
+    ui.setActiveDetailTab(action === 'newChanges' ? 'changes' : action === 'newPlan' ? 'plan' : 'subagents')
     return
   }
 
-  const { threadId, workspacePath, t } = ctx
+  const { workspacePath, t } = ctx
+  const threadId = activeDetailScopeId()
   if (!threadId || !workspacePath) return
   const viewer = useViewerTabStore.getState()
 

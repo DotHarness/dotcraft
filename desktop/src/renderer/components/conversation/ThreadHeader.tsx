@@ -1,20 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, Pencil, Pin, PanelLeft } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
 import { addToast, useToastStore } from '../../stores/toastStore'
 import { CommitDialog, toRelativePath } from '../detail/CommitDialog'
 import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
 import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { OpenWorkspaceButton } from './OpenWorkspaceButton'
+import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -47,8 +46,6 @@ export function ThreadHeader({
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
-  const detailPanelPreferredVisible = useUIStore((s) => s.detailPanelPreferredVisible)
-  const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel)
   const activeThread = useThreadStore((s) => s.activeThread)
   const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
   const togglePinnedThread = useThreadStore((s) => s.togglePinnedThread)
@@ -433,18 +430,7 @@ export function ThreadHeader({
           icon={<CommitIcon size={16} />}
         />
 
-        {/* Only opens the panel; closing is handled by the panel's own rightmost button. */}
-        {!detailPanelPreferredVisible && (
-          <IconButton
-            size={28}
-            label={t('threadHeader.panelToggleShowLabel')}
-            tooltipLabel={t('threadHeader.panelToggleShowLabel')}
-            shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
-            tooltipPlacement="bottom"
-            onClick={toggleDetailPanel}
-            icon={<PanelLeft size={16} aria-hidden />}
-          />
-        )}
+        <DetailPanelToggleButton />
       </div>
 
       {commitOpen && (

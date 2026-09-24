@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1.0 |
+| Version | 1.2.0 |
 | Status | Accepted |
-| Date | 2026-09-14 |
+| Date | 2026-09-24 |
 | Parent Specs | [Desktop client](../clients/desktop-client.md), [In-app browser](desktop-inapp-browser.md) |
 
 ## Purpose and scope
@@ -81,7 +81,7 @@ A draft opens focused, with Cancel, dictation, and a Comment action that stays d
 
 ### Composer summary
 
-The composer summarizes feedback in a compact count entry that counts line comments separately from page and response annotations. Opening it reveals the sources and selected text separately from user comments, with per-entry edit and removal. Pasted text retains its separate file-card presentation. The compact editor used for page and response annotations exposes dictation while empty and a circular 28px primary confirm action with a check glyph once populated, and never submits empty text; editing an existing comment has explicit cancel/save controls. Dictation targets the active comment and is discarded with that editor, without replacing the task composer draft. Comments use existing field and action primitives, without a full-width form beneath the source or duplicate selected text in the compact annotation editor.
+The composer summarizes feedback in two count pills: line comments (`N comments`) and page and response annotations (`N annotations`). Hovering or clicking a pill opens its list; the pill's remove action clears everything it counts. A line comment row names its file as a reference that opens it, its side as `L` or `R`, and its line or range, followed by the comment; it does not repeat the selected code, and the comment is edited or deleted on its card at the line. The annotations list shows page annotations first, as what was selected and the comment, then numbered response annotations with `Selected text:` and `User comment:`, each offering edit and removal on hover or focus. Sent messages show the same pills and lists without actions. Pasted text retains its separate file-card presentation. The compact editor used for page and response annotations exposes dictation while empty and a circular 28px primary confirm action with a check glyph once populated, and never submits empty text; editing an existing comment has explicit cancel/save controls. Dictation targets the active comment and is discarded with that editor, without replacing the task composer draft. Comments use existing field and action primitives, without a full-width form beneath the source or duplicate selected text in the compact annotation editor.
 
 The single-line comment editor keeps the same height and text baseline when focus changes or dictation and save actions switch. Action controls do not determine the input height.
 

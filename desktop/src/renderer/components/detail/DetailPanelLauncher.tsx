@@ -12,8 +12,8 @@ import type { AddTabMenuAction } from '../../../shared/addTabMenu'
 interface DetailPanelLauncherProps {
   /** Dispatches the same actions as the "+" add-tab menu. */
   onAction: (action: AddTabMenuAction) => void
-  /** Whether browser/terminal tabs can be created (needs an active thread + workspace). */
   canOpenWorkspaceTab: boolean
+  systemTabsAvailable: boolean
   /** Remote stacks do not yet expose Desktop-local file, diff, or terminal IPC. */
   remoteWorkspace?: boolean
 }
@@ -30,6 +30,7 @@ interface LauncherCardSpec {
 export function DetailPanelLauncher({
   onAction,
   canOpenWorkspaceTab,
+  systemTabsAvailable,
   remoteWorkspace = false
 }: DetailPanelLauncherProps): JSX.Element {
   const t = useT()
@@ -37,7 +38,7 @@ export function DetailPanelLauncher({
   const fmt = (spec: typeof ACTION_SHORTCUTS[keyof typeof ACTION_SHORTCUTS]): string =>
     formatShortcutParts(spec).join('+')
 
-  const cards: LauncherCardSpec[] = [
+  const allCards: LauncherCardSpec[] = [
     {
       action: 'openFile',
       title: t('detailPanel.launcherFilesTitle'),
@@ -85,6 +86,9 @@ export function DetailPanelLauncher({
       enabled: canOpenWorkspaceTab && !remoteWorkspace
     }
   ]
+  const cards = systemTabsAvailable
+    ? allCards
+    : allCards.filter((card) => card.action !== 'newChanges' && card.action !== 'newPlan' && card.action !== 'newSubagents')
 
   return (
     <div style={containerStyle}>

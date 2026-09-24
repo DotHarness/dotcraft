@@ -10,6 +10,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 function renderLauncher(props: {
   onAction: (action: AddTabMenuAction) => void
   canOpenWorkspaceTab?: boolean
+  systemTabsAvailable?: boolean
 }): void {
   render(
     createElement(
@@ -17,7 +18,8 @@ function renderLauncher(props: {
       null,
       createElement(DetailPanelLauncher, {
         onAction: props.onAction,
-        canOpenWorkspaceTab: props.canOpenWorkspaceTab ?? true
+        canOpenWorkspaceTab: props.canOpenWorkspaceTab ?? true,
+        systemTabsAvailable: props.systemTabsAvailable ?? true
       })
     )
   )
@@ -52,6 +54,19 @@ describe('DetailPanelLauncher', () => {
     expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Changes' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Checks' })).not.toBeDisabled()
+  })
+
+  it('leaves out the thread-only cards when no thread is open', () => {
+    const onAction = vi.fn()
+    renderLauncher({ onAction, systemTabsAvailable: false })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser' }))
+    expect(onAction).toHaveBeenCalledWith('newBrowser')
+    expect(screen.getByRole('button', { name: 'Files' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Terminal' })).not.toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Changes' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Checks' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Subagents' })).toBeNull()
   })
 
 })

@@ -80,9 +80,12 @@ export function DetailPanel({
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
   const closingTabs = useRef(new Set<string>())
 
-  const activeSystemId = activeDetailTab.kind === 'system' ? activeDetailTab.id : null
+  const systemTabsAvailable = activeThreadId != null
+  const systemTabs = systemTabsAvailable ? openSystemTabs : []
+  const canOpenWorkspaceTab = Boolean(currentThreadId && workspacePath)
+  const activeSystemId = activeDetailTab.kind === 'system' && systemTabsAvailable ? activeDetailTab.id : null
   const activeViewerId = activeDetailTab.kind === 'viewer' ? activeDetailTab.id : null
-  const isLauncher = activeDetailTab.kind === 'launcher'
+  const isLauncher = activeDetailTab.kind === 'launcher' || (activeDetailTab.kind === 'system' && !systemTabsAvailable)
 
   const handleCloseViewerTab = (tabId: string): void => {
     if (closingTabs.current.has(tabId)) return
@@ -148,7 +151,7 @@ export function DetailPanel({
     if (remoteWorkspace && (action === 'openFile' || action === 'newTerminal')) {
       return
     }
-    performAddTabAction(action, { threadId: activeThreadId, workspacePath, t })
+    performAddTabAction(action, { workspacePath, t })
   }
 
   const handleOpenAddTabMenu = (): void => {
@@ -158,7 +161,6 @@ export function DetailPanel({
     }
     const anchor = addButtonRef.current?.getBoundingClientRect()
     if (!anchor) return
-    const canOpenWorkspaceTab = Boolean(activeThreadId && workspacePath)
     const fmt = (spec: ShortcutSpec): string => formatShortcutParts(spec).join('+')
     const theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
     const request: AddTabMenuRequest = {
@@ -190,7 +192,7 @@ export function DetailPanel({
           shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
           enabled: canOpenWorkspaceTab && !remoteWorkspace
         },
-        ...(openSystemTabs.includes('changes')
+        ...(!systemTabsAvailable || openSystemTabs.includes('changes')
           ? []
           : [{
               action: 'newChanges' as const,
@@ -198,7 +200,7 @@ export function DetailPanel({
               shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
               enabled: true
             }]),
-        ...(openSystemTabs.includes('plan')
+        ...(!systemTabsAvailable || openSystemTabs.includes('plan')
           ? []
           : [{
               action: 'newPlan' as const,
@@ -206,7 +208,7 @@ export function DetailPanel({
               shortcut: fmt(ACTION_SHORTCUTS.newPlan),
               enabled: true
             }]),
-        ...(openSystemTabs.includes('subagents')
+        ...(!systemTabsAvailable || openSystemTabs.includes('subagents')
           ? []
           : [{
               action: 'newSubagents' as const,
@@ -264,7 +266,7 @@ export function DetailPanel({
       >
         {/* System tabs (Changes / Checks) — icon + label, so the label stays a
             click target; the icon slot becomes the close button on hover. */}
-        {openSystemTabs.map((id) => {
+        {systemTabs.map((id) => {
           const meta = systemTabMeta[id]
           return (
             <DetailPanelTab
@@ -360,15 +362,14 @@ export function DetailPanel({
         {isLauncher && (
           <DetailPanelLauncher
             onAction={handleAddTabAction}
-            canOpenWorkspaceTab={Boolean(activeThreadId && workspacePath)}
+            canOpenWorkspaceTab={canOpenWorkspaceTab}
+            systemTabsAvailable={systemTabsAvailable}
             remoteWorkspace={remoteWorkspace}
           />
         )}
-        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'changes' && (
-          <ChangesTab workspacePath={workspacePath} />
-        )}
-        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'plan' && <PlanTab />}
-        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'subagents' && <SubagentsTab />}
+        {activeSystemId === 'changes' && <ChangesTab workspacePath={workspacePath} />}
+        {activeSystemId === 'plan' && <PlanTab />}
+        {activeSystemId === 'subagents' && <SubagentsTab />}
         {activeDetailTab.kind === 'viewer' && (
           <ViewerTabContainer tabId={activeDetailTab.id} />
         )}

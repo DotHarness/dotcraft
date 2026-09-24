@@ -5,7 +5,6 @@ import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemir
 import { MessageSquarePlus } from 'lucide-react'
 import type { DiffAnnotationContext } from '../../../../shared/composerContext'
 import { useT } from '../../../contexts/LocaleContext'
-import { useThreadStore } from '../../../stores/threadStore'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useComposerContextStore } from '../../../stores/composerContextStore'
 import { useFileEditorStore } from '../../../stores/fileEditorStore'
@@ -83,7 +82,7 @@ export function FileEditorComments({
   preview: boolean
 }): JSX.Element | null {
   const t = useT()
-  const threadId = useThreadStore((state) => state.activeThreadId)
+  const threadId = useViewerTabStore((state) => state.currentThreadId)
   const workspacePath = useViewerTabStore((state) => state.currentWorkspacePath)
   const turns = useConversationStore((state) => state.turns)
   const contexts = useComposerContextStore((state) => state.getContexts(threadId ?? ''))

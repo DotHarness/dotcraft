@@ -138,8 +138,8 @@ function applyFileNavigationHint(tab: FileViewerTab, navigationHint?: FileNaviga
 
 interface ViewerTabStoreState {
   byThread: Map<string, PerThreadViewerState>
-  /** Currently active thread ID (mirrors threadStore.activeThreadId). */
   currentThreadId: string | null
+  welcomeScopeId: string | null
   /** Current workspace path — used to scope tab identity. */
   currentWorkspacePath: string | null
 }
@@ -192,8 +192,9 @@ interface ViewerTabStoreActions {
 
   setWordWrap(threadId: string, tabId: string, wordWrap: boolean): void
 
-  /** Sets the active thread (does not alter tab state). */
   onThreadSwitched(newThreadId: string | null): void
+
+  setWelcomeScope(scopeId: string): void
 
   onThreadDeleted(
     threadId: string,
@@ -236,6 +237,7 @@ function nextTabId(): string {
 export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
   byThread: new Map(),
   currentThreadId: null,
+  welcomeScopeId: null,
   currentWorkspacePath: null,
 
   openFiles({ threadId, initialLabel }) {
@@ -554,6 +556,10 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
 
   onThreadSwitched(newThreadId) {
     set({ currentThreadId: newThreadId })
+  },
+
+  setWelcomeScope(scopeId) {
+    set({ welcomeScopeId: scopeId })
   },
 
   onThreadDeleted(threadId, options) {

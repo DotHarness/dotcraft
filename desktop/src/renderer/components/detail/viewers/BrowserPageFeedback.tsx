@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MessageSquarePlus, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import type { BrowserPageReference } from '../../../../shared/viewer/browserFeedback'
@@ -33,6 +33,8 @@ export function BrowserPageFeedback({
   const [selecting, setSelecting] = useState(false)
   const [reference, setReference] = useState<BrowserPageReference | null>(null)
   const api = window.api.workspace.viewer.browser
+  const threadIdRef = useRef(threadId)
+  threadIdRef.current = threadId
   useLayerPresence(reference !== null)
   useEffect(() => {
     const cancelSelection = api.cancelSelection
@@ -42,7 +44,7 @@ export function BrowserPageFeedback({
       if (
         event.type === 'selection' &&
         event.reference.tabId === tabId &&
-        event.reference.threadId === threadId
+        event.reference.threadId === threadIdRef.current
       ) {
         setReference(event.reference)
         setSelecting(false)
@@ -52,7 +54,7 @@ export function BrowserPageFeedback({
       unsubscribe()
       void cancelSelection({ tabId }).catch(() => {})
     }
-  }, [tabId, threadId])
+  }, [tabId])
   useEffect(() => {
     if (!selecting) return
     const onKeyDown = (event: KeyboardEvent) => {
