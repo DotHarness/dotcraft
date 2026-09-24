@@ -245,6 +245,24 @@ describe('ApprovalDecisionComposer', () => {
     expect(useConversationStore.getState().pendingApproval).toBeNull()
   })
 
+  it('offers always, this conversation and decline for a computer use approval', async () => {
+    const pending = pendingApproval({
+      approvalType: 'computerUse',
+      operation: 'use',
+      target: 'C:/Windows/notepad.exe',
+      targetLabel: 'Notepad'
+    })
+    setPendingApproval(pending)
+    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+
+    fireEvent.keyDown(window, { key: '2' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval', { decision: 'acceptForSession' })
+    })
+  })
+
   it('uses number keys and Arrow keys to submit the selected decision', async () => {
     const pending = pendingApproval()
     setPendingApproval(pending)

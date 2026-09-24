@@ -288,6 +288,7 @@ function buildInitializeCapabilities(_profile: InitializeProfile): Record<string
       defaultCommandTimeoutMs: 10_000,
       maxCommandTimeoutMs: 120_000,
       supportsTypedFinalize: true
-    }
+    },
+    ...(process.platform === 'win32' ? { computerUse: { backend: 'cua-driver' } } : {})
   }
 }

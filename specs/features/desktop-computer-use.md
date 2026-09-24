@@ -77,7 +77,7 @@ The Node REPL is not an OS sandbox. The skill forbids launching the driver or na
 | `list_apps()` | Installed and running applications, excluding blocked applications. |
 | `list_windows()` | On-screen top-level windows, excluding windows of blocked applications. |
 | `get_window({ id })` | One window from `list_windows()` by handle. |
-| `launch_app({ app })` | Launches an application by an `id` returned from `list_apps()`. Requires authorization of that application. |
+| `launch_app({ app })` | Launches an application by an `id` returned from `list_apps()` in the same turn. Requires authorization of that application. |
 | `get_window_state({ window, include_screenshot = true, include_text = false })` | Returns `{ window, screenshots: [Screenshot], accessibility: { tree } \| null }`. At least one of the two includes must be true. Screenshots are attached to the evaluation's image output automatically; the model must not re-emit them. |
 | `click({ window, element_index? , x?, y?, screenshotId?, click_count = 1, mouse_button = "left" })` | Clicks an element from the latest accessibility observation of that window, or a pixel of the referenced screenshot. |
 | `type_text({ window, text })` | Types literal text into the focused control. |
@@ -125,7 +125,7 @@ The following are never operated, listed or launched, and no approval is request
 
 - DotCraft's own processes and the driver.
 - Terminals, command shells and shell hosts.
-- The Windows Run dialog and lock screen processes.
+- Lock screen, sign-in and credential prompt processes.
 - Password managers.
 - Security and antivirus software.
 
@@ -171,13 +171,13 @@ For each gated call, Desktop main:
 
 - Desktop starts `cua-driver.exe mcp --direct` lazily on the first gated or listing call, with telemetry and update checks disabled, and verifies the reported version before use.
 - The runtime speaks the minimal MCP subset required: `initialize` and `tools/call`. Only the driver tools needed by Section 4 are called.
-- Each turn uses one named driver session. When the turn that owns computer use ends, Desktop stops admitting calls, waits a bounded time for the in-flight call, ends the driver session and closes the driver.
+- A driver process serves at most one turn. When the turn that owns computer use ends, Desktop stops admitting calls for it, waits a bounded time for the in-flight call and closes the driver. A call from another turn closes the previous turn's driver first.
 - Desktop teardown and application quit close the driver.
 
 ### 8.3 Admission and deadlines
 
 - One computer use request runs at a time per Desktop process. A concurrent request fails immediately with `computer_use_busy`.
-- `launch_app` has a 15 second deadline and other requests have 10 seconds. A request that exceeds its deadline fails with `timeout`; the driver is terminated and restarted on the next call.
+- `launch_app` and `list_apps` have a 15 second deadline and other requests have 10 seconds. A request that exceeds its deadline fails with `timeout`; the driver is terminated and restarted on the next call.
 - Cancelling or timing out the outer evaluation abandons the in-flight request and discards its late result.
 
 ### 8.4 Stop affordance and lock

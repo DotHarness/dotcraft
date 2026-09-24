@@ -861,6 +861,12 @@ const api = {
     }
   },
 
+  computerUse: {
+    getAppIcon(appId: string): Promise<string | null> {
+      return ipcRenderer.invoke('computerUse:app-icon', appId)
+    }
+  },
+
   file: {
     writeFile(absPath: string, content: string): Promise<void> {
       return ipcRenderer.invoke('file:write', absPath, content)
@@ -1501,6 +1507,9 @@ const api = {
         blockedDomains?: string[]
         allowedDomains?: string[]
       }
+      computerUse?: {
+        alwaysAllowedApps?: Array<{ id: string; displayName: string }>
+      }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
       }
@@ -1561,6 +1570,9 @@ const api = {
         approvalMode?: BrowserUseApprovalMode
         blockedDomains?: string[]
         allowedDomains?: string[]
+      }
+      computerUse?: {
+        alwaysAllowedApps?: Array<{ id: string; displayName: string }>
       }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode

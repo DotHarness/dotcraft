@@ -118,6 +118,52 @@ describe('NodeReplManager', () => {
     manager.reset('thread-1')
   })
 
+  it.runIf(process.platform === 'win32')('routes dotcraft.computer calls with approval and a paused deadline', async () => {
+    const browserManager = createFakeBrowserManager()
+    const computerUse = {
+      handleHostCall: vi.fn(async (method: string, args: unknown, context: {
+        turnId?: string
+        pauseTimeout(): () => void
+        requestApproval(app: { id: string; displayName: string }): Promise<boolean>
+        emitImage(image: { mediaType: string; dataBase64: string }): Promise<void>
+      }) => {
+        const resume = context.pauseTimeout()
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        resume()
+        const approved = await context.requestApproval({ id: 'C:\\Apps\\App.exe', displayName: 'App' })
+        await context.emitImage({ mediaType: 'image/png', dataBase64: 'AQID' })
+        return { method, args, approved, turnId: context.turnId }
+      })
+    }
+    const manager = new NodeReplManager(browserManager as never, workerFixture.fork, computerUse as never)
+    managers.push(manager)
+    browserManagers.push(browserManager)
+    const requestApproval = vi.fn(async () => true)
+
+    const result = await manager.evaluate({} as Electron.BrowserWindow, {
+      threadId: 'thread-computer',
+      turnId: 'turn-computer',
+      evaluationId: 'eval-computer',
+      timeoutMs: 1000,
+      requestApproval,
+      code: 'JSON.stringify(await dotcraft.computer.list_windows({ probe: 1 }))'
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      method: 'list_windows', args: { probe: 1 }, approved: true, turnId: 'turn-computer'
+    })
+    expect(requestApproval).toHaveBeenCalledWith({
+      evaluationId: 'eval-computer',
+      approvalType: 'computerUse',
+      operation: 'use',
+      target: 'C:\\Apps\\App.exe',
+      targetLabel: 'App'
+    })
+    expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'AQID' }])
+    manager.reset('thread-computer')
+  })
+
   it('does not expose browser agent globals before browser-client setup', async () => {
     const browserManager = createFakeBrowserManager()
     const manager = createManager(browserManager)

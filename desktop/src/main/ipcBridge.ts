@@ -2111,6 +2111,16 @@ export function registerIpcHandlers(
   })
 
 
+  handleSafe('computerUse:app-icon', async (_event, appId: unknown) => {
+    if (typeof appId !== 'string' || !/\.exe$/i.test(appId)) return null
+    try {
+      const icon = await app.getFileIcon(appId, { size: 'normal' })
+      return icon.isEmpty() ? null : icon.toDataURL()
+    } catch {
+      return null
+    }
+  })
+
   handleSafe('chrome:check-setup', async () => {
     return checkChromeSetup(workspacePath)
   })
@@ -2644,6 +2654,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('viewer:terminal:resize')
   ipcMain.removeHandler('viewer:terminal:dispose')
   ipcMain.removeHandler('chrome:check-setup')
+  ipcMain.removeHandler('computerUse:app-icon')
   ipcMain.removeHandler('chrome:install-native-host')
   ipcMain.removeHandler('chrome:open')
   ipcMain.removeHandler('settings:get')

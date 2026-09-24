@@ -143,6 +143,7 @@ export interface PendingApproval {
   approvalType: ApprovalType
   operation: string
   target: string
+  targetLabel?: string
   reason: string
   shell?: ApprovalShellInfo
   /**
@@ -2996,11 +2997,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const approvalType: ApprovalType =
       rawApprovalType === 'file' ||
       rawApprovalType === 'remoteResource' ||
-      rawApprovalType === 'skill'
+      rawApprovalType === 'skill' ||
+      rawApprovalType === 'computerUse'
         ? rawApprovalType
         : 'shell'
     const operation = (params.operation as string) ?? ''
     const target = (params.target as string) ?? ''
+    const targetLabel = typeof params.targetLabel === 'string' && params.targetLabel.trim()
+      ? params.targetLabel
+      : undefined
     const reason = (params.reason as string) ?? ''
     const shell = normalizeApprovalShell(params.shell)
     const itemId = typeof params.itemId === 'string' && params.itemId.trim().length > 0
@@ -3031,6 +3036,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       approvalType,
       operation,
       target,
+      targetLabel,
       reason,
       shell
     }

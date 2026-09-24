@@ -182,7 +182,7 @@
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [
-          "dotcraft-bundled/plugins/{browser,chrome,dotcraft,oratorio,token-hud,wallpaper}/**/*",
+          "dotcraft-bundled/plugins/{browser,chrome,computer,dotcraft,oratorio,token-hud,wallpaper}/**/*",
           "!**/__pycache__/**",
           "!**/*.pyc"
         ]

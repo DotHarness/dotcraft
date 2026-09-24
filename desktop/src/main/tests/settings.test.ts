@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   clearRecentWorkspaces,
+  normalizeComputerUseSettings,
   normalizeCreatedSatelliteInviteIds,
   normalizePinnedProjectIds,
   normalizePinnedThreadIdsByWorkspace,
@@ -18,6 +19,25 @@ vi.mock('electron', () => ({
 }))
 
 describe('settings normalization', () => {
+  it('keeps one always-allowed entry per app id and drops invalid entries', () => {
+    expect(normalizeComputerUseSettings({
+      computerUse: {
+        alwaysAllowedApps: [
+          { id: ' C:/Windows/notepad.exe ', displayName: ' Notepad ' },
+          { id: 'c:/windows/NOTEPAD.EXE', displayName: 'Duplicate' },
+          { id: 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App', displayName: '' },
+          { id: '', displayName: 'Missing id' },
+          'not-an-object' as never
+        ]
+      }
+    })).toEqual({
+      alwaysAllowedApps: [
+        { id: 'C:/Windows/notepad.exe', displayName: 'Notepad' },
+        { id: 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App', displayName: 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App' }
+      ]
+    })
+  })
+
   it('normalizes and de-duplicates pinned local and remote project ids', () => {
     expect(normalizePinnedProjectIds({
       pinnedProjectIds: [

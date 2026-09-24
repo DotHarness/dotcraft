@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "computer",
+  "version": "0.1.0",
+  "displayName": "Computer",
+  "description": "Operate native desktop applications on this Windows computer with the user's per-app permission.",
+  "capabilities": ["interactive", "read", "write", "desktop", "javascript"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Computer",
+    "shortDescription": "Control desktop apps on this computer",
+    "longDescription": "Computer lets DotCraft look at and operate native Windows applications, asking before it uses each app and stopping whenever you press Escape.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": "Open Notepad and write a short to-do list for today.",
+    "composerIcon": "./assets/computer-small.svg",
+    "logo": "./assets/computer.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
+  }
+}

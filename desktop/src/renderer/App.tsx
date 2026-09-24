@@ -2931,6 +2931,7 @@ export function App(): JSX.Element {
             approvalType: pending.approvalType,
             operation: pending.operation,
             target: pending.target,
+            targetLabel: pending.targetLabel,
             reason: pending.reason
           }
         })

@@ -33,6 +33,9 @@ function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT
   const rows: ApprovalDetailRowSpec[] = [
     { label: t('approval.detail.type'), value: t(approvalTypeLabelKey(request.approvalType)) }
   ]
+  if (request.approvalType === 'computerUse') {
+    return [...rows, { label: t('approval.detail.target'), value: request.target.trim(), mono: true }]
+  }
   const operation = request.operation.trim()
   const target = request.target.trim()
   const reason = (request.shell ? request.shell.reasons.join(' ') : request.reason).trim()
@@ -42,7 +45,28 @@ function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT
   return rows
 }
 
+function buildComputerUseOptions(t: ReturnType<typeof useT>): ApprovalOptionSpec[] {
+  return [
+    {
+      value: 'acceptAlways',
+      label: t('approval.computerUse.alwaysAllow.label'),
+      description: t('approval.computerUse.alwaysAllow.description')
+    },
+    {
+      value: 'acceptForSession',
+      label: t('approval.computerUse.allowThread.label'),
+      description: t('approval.computerUse.allowThread.description')
+    },
+    {
+      value: 'decline',
+      label: t('approval.option.decline.label'),
+      description: t('approval.computerUse.decline.description')
+    }
+  ]
+}
+
 function buildToolOptions(request: PendingApproval, t: ReturnType<typeof useT>): ApprovalOptionSpec[] {
+  if (request.approvalType === 'computerUse') return buildComputerUseOptions(t)
   const shell = request.shell
   return [
     {
@@ -178,7 +202,8 @@ export function ApprovalDecisionComposer({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [declineValue, locked, options.length, selectedIndex, sendDecision, submitSelected])
 
-  const questionText = request.question ?? t(approvalQuestionKey(request.approvalType))
+  const questionText = request.question
+    ?? t(approvalQuestionKey(request.approvalType), { app: request.targetLabel ?? request.target })
   const detailRows = request.detailRows ?? buildToolDetailRows(request, t)
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
@@ -307,6 +332,7 @@ function approvalTypeLabelKey(type: ApprovalType): string {
   if (type === 'file') return 'approval.type.file'
   if (type === 'remoteResource') return 'approval.type.remoteResource'
   if (type === 'skill') return 'approval.kind.skill'
+  if (type === 'computerUse') return 'approval.type.computerUse'
   return 'approval.type.shell'
 }
 

@@ -215,6 +215,10 @@ jobs:
         Copy-Item -Path publish/${{ matrix.output_name }}/dotcraft.exe -Destination desktop/resources/bin/dotcraft.exe -Force
         Copy-Item -Path publish/oratorio-${{ matrix.runtime_id }}/oratorio.exe -Destination desktop/resources/bin/oratorio.exe -Force
 
+    - name: Stage computer use driver for desktop - Windows
+      if: runner.os == 'Windows'
+      run: node desktop/scripts/stage-cua-driver.mjs --platform win32 --arch ${{ matrix.companion_arch }}
+
     - name: Stage embedded binary for desktop - macOS
       if: runner.os == 'macOS'
       shell: bash
