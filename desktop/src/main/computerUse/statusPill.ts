@@ -1,55 +1,42 @@
-import { BrowserWindow, globalShortcut, screen } from 'electron'
+import { BrowserWindow, globalShortcut, screen, type Rectangle } from 'electron'
 
-interface StatusPillStrings {
-  usingComputer: string
-  escToCancel: string
-}
+import {
+  COMPUTER_USE_PILL_HEIGHT,
+  COMPUTER_USE_PILL_WIDTH,
+  computerUseGlowHtml,
+  computerUsePillHtml,
+  type ComputerUsePillStrings
+} from '../../shared/computerUsePill'
 
-const PILL_WIDTH = 380
-const PILL_HEIGHT = 44
 const TOP_MARGIN = 12
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
-}
-
-function pillHtml(strings: StatusPillStrings): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:500 13px/1 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;}
-.pill{box-sizing:border-box;height:100%;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 18px;border-radius:22px;
-background:rgba(22,22,30,.92);color:#f4f4f8;border:1px solid rgba(140,130,255,.55);width:max-content;max-width:100%;}
-.dot{width:8px;height:8px;border-radius:50%;background:#8b83ff;animation:pulse 1.6s ease-in-out infinite;}
-.sep{opacity:.5}.hint{opacity:.72}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-@media (prefers-reduced-motion:reduce){.dot{animation:none}}
-</style></head><body><div class="pill"><span class="dot"></span><span>${escapeHtml(strings.usingComputer)}</span><span class="sep">·</span><span class="hint">${escapeHtml(strings.escToCancel)}</span></div></body></html>`
-}
-
 export class ComputerUseStatusPill {
-  private window: BrowserWindow | null = null
+  private pill: BrowserWindow | null = null
+  private glow: BrowserWindow | null = null
   private onEscape: (() => void) | null = null
   private escapeRegistered = false
   private suspended = 0
 
-  show(strings: StatusPillStrings, onEscape: () => void): void {
+  show(strings: ComputerUsePillStrings, onEscape: () => void): void {
     this.onEscape = onEscape
-    const window = this.ensureWindow()
-    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(pillHtml(strings))}`)
-    const area = screen.getPrimaryDisplay().workArea
-    window.setBounds({
-      x: Math.round(area.x + (area.width - PILL_WIDTH) / 2),
+    const display = screen.getPrimaryDisplay()
+    this.glow = this.present(this.glow, computerUseGlowHtml(), display.bounds)
+    const area = display.workArea
+    this.pill = this.present(this.pill, computerUsePillHtml(strings), {
+      x: Math.round(area.x + (area.width - COMPUTER_USE_PILL_WIDTH) / 2),
       y: area.y + TOP_MARGIN,
-      width: PILL_WIDTH,
-      height: PILL_HEIGHT
+      width: COMPUTER_USE_PILL_WIDTH,
+      height: COMPUTER_USE_PILL_HEIGHT
     })
-    window.showInactive()
     this.registerEscape()
   }
 
   hide(): void {
     this.onEscape = null
     this.unregisterEscape()
-    if (this.window && !this.window.isDestroyed()) this.window.hide()
+    for (const window of [this.pill, this.glow]) {
+      if (window && !window.isDestroyed()) window.hide()
+    }
   }
 
   async suspendEscape<T>(run: () => Promise<T>): Promise<T> {
@@ -65,32 +52,18 @@ export class ComputerUseStatusPill {
 
   dispose(): void {
     this.hide()
-    if (this.window && !this.window.isDestroyed()) this.window.destroy()
-    this.window = null
+    for (const window of [this.pill, this.glow]) {
+      if (window && !window.isDestroyed()) window.destroy()
+    }
+    this.pill = null
+    this.glow = null
   }
 
-  private ensureWindow(): BrowserWindow {
-    if (this.window && !this.window.isDestroyed()) return this.window
-    const window = new BrowserWindow({
-      width: PILL_WIDTH,
-      height: PILL_HEIGHT,
-      show: false,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      movable: false,
-      minimizable: false,
-      maximizable: false,
-      focusable: false,
-      skipTaskbar: true,
-      hasShadow: false,
-      alwaysOnTop: true,
-      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false }
-    })
-    window.setAlwaysOnTop(true, 'screen-saver')
-    window.setIgnoreMouseEvents(true)
-    window.setContentProtection(true)
-    this.window = window
+  private present(existing: BrowserWindow | null, html: string, bounds: Rectangle): BrowserWindow {
+    const window = existing && !existing.isDestroyed() ? existing : createOverlayWindow()
+    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    window.setBounds(bounds)
+    window.showInactive()
     return window
   }
 
@@ -104,4 +77,25 @@ export class ComputerUseStatusPill {
     globalShortcut.unregister('Escape')
     this.escapeRegistered = false
   }
+}
+
+function createOverlayWindow(): BrowserWindow {
+  const window = new BrowserWindow({
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    alwaysOnTop: true,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false }
+  })
+  window.setAlwaysOnTop(true, 'screen-saver')
+  window.setIgnoreMouseEvents(true)
+  window.setContentProtection(true)
+  return window
 }

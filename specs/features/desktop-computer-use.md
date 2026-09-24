@@ -49,7 +49,7 @@ Desktop main: ComputerUseManager (one per Desktop process)
   ├─ API adapter ──► cua-driver (stdio MCP child process)
   ├─ application identity, blocked applications, authorization
   ├─ ext/nodeRepl/requestApproval ──► AppServer turn approval service
-  └─ status pill, Escape stop, lock handling
+  └─ status pill and edge glow, Escape stop, lock handling
 ```
 
 - **AppServer** exposes `NodeReplJs` to connections that declared `capabilities.nodeRepl` together with `capabilities.browserUse` or `capabilities.computerUse`, subject to plugin enablement (Section 8). It owns approval policy, approval items and the evaluate deadline.
@@ -183,10 +183,10 @@ For each gated call, Desktop main:
 
 ### 8.4 Stop affordance and lock
 
-- From the first computer use call until the turn ends, Desktop shows a non-focusable status pill reading "DotCraft is using your computer · Esc to cancel". The pill is excluded from screen capture.
+- From the first computer use call until the turn ends, Desktop shows a non-focusable status pill reading "DotCraft is using your computer · Esc to cancel" at the top of the primary display, and a breathing brand-gradient glow around that display's edges. Both ignore the pointer and are excluded from screen capture; the driver's own agent cursor is the only cursor overlay.
 - While the pill is visible, Escape stops computer use for the turn. Desktop suspends its Escape shortcut while the runtime itself injects Escape.
 - Locking the workstation stops computer use for the turn.
-- Stopping terminates the driver, hides the pill and makes later calls in the same turn fail with `computer_use_stopped`. The turn itself continues so the model can report what happened.
+- Stopping terminates the driver, hides the pill and glow, and makes later calls in the same turn fail with `computer_use_stopped`. The turn itself continues so the model can report what happened.
 
 ---
 
