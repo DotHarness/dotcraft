@@ -286,6 +286,15 @@ Chrome setup detection must not inspect cookies, passwords, session stores, loca
 
 The long-term Chrome automation runtime contract is defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md). Plugin architecture owns contribution and installation semantics; Chrome Browser Runtime owns browser session lifecycle, tab ownership, command timeout, diagnostics, and runtime migration goals.
 
+### Computer Built-In Plugin
+
+DotCraft ships desktop application control as the built-in plugin `computer`. It contributes:
+
+- The `computer` skill and its reference documents, loaded from the plugin's `skills` directory.
+- Client-facing metadata for Desktop and plugin-management views.
+
+When Computer is installed and enabled, DotCraft may expose the server-owned `NodeReplJs` runtime tool for threads bound to an AppServer client that advertises both Node REPL and Computer Use support. Computer does not count toward `NodeReplJs` exposure for clients that advertise only Browser support, and Browser and Chrome do not count for clients that advertise only Computer Use support. The runtime, authorization and packaging contract is defined in [Desktop Computer Use](../features/desktop-computer-use.md).
+
 ### External Integration Registry Plugins
 
 Optional external application integrations should be distributed through the plugin registry rather than bundled with the DotCraft Desktop package. A registry plugin may contribute:

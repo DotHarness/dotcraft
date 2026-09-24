@@ -75,6 +75,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [6.6 Archived chats](#66-archived-chats)
   - [6.7 Settings Surface](#67-settings-surface)
     - [6.7.1 Session Import](#671-session-import)
+    - [6.7.2 Computer Use](#672-computer-use)
   - [6.8 Channel Modules](#68-channel-modules)
     - [6.8.1 Discovery and Identity](#681-discovery-and-identity)
     - [6.8.2 Configuration Workflow](#682-configuration-workflow)
@@ -524,6 +525,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
    - declined work reflects rejection and may continue with an alternative path
    - cancelled work terminates the turn
 6. If approval times out or is no longer valid, the user sees the resulting turn outcome.
+7. A `computerUse` approval asks whether DotCraft may use the application named by `targetLabel` and offers exactly three choices: always allow (`acceptAlways`), allow for this thread (`acceptForSession`) and decline. Choosing always allow also adds the application to the Desktop always-allowed list; see [Desktop Computer Use](../features/desktop-computer-use.md).
 
 ### 5.7 User Input Request Handling
 
@@ -995,6 +997,18 @@ Required behavior:
 - `import/sessions/progress` updates the importing row. `import/sessions/completed` re-runs detection, refreshes settings, and shows a toast counting imported, updated, and failed chats; a sync pass that changed nothing stays silent.
 - An `import_busy` response closes the dialog and shows the in-progress state until the running pass completes.
 - Imported threads arrive through `thread/started`, are marked unread, and carry an import origin badge naming the source app.
+
+#### 6.7.2 Computer Use
+
+Settings shows a **Computer use** tab in the Integrations group. Runtime and authorization semantics are defined in [Desktop Computer Use](../features/desktop-computer-use.md).
+
+Required behavior:
+
+- The **Control** group lists one row per control channel with the same row structure: icon, name, a status or description line, an optional **Manage** action, and an enable toggle.
+- **Any app** controls the bundled `computer` plugin. Turning it on installs the plugin when missing and enables it; turning it off disables it without uninstalling.
+- **Chrome** controls the bundled `chrome` plugin. Turning it on installs the plugin when missing; its status line reports the browser extension state, and **Manage** opens the Chrome setup detail.
+- The **Always-allowed apps** group is always visible and shows an empty state when no application is allowed. Each row shows the application's icon and display name and can be removed after confirmation. Applications are added only by answering an approval with always allow.
+- On platforms without computer use, the Control group shows only Chrome and the Always-allowed apps group is hidden.
 
 ### 6.8 Channel Modules
 

@@ -1,6 +1,6 @@
 # Desktop Node REPL
 
-The Desktop implements `NodeReplJs` with one lazily created Electron utility process per task. This execution contract is shared by the in-app browser and Chrome clients. The existing evaluate/cancel request and text, image, logs, result and error response fields remain unchanged.
+The Desktop implements `NodeReplJs` with one lazily created Electron utility process per task. This execution contract is shared by the in-app browser and Chrome clients and by Windows computer use. The existing evaluate/cancel request and text, image, logs, result and error response fields remain unchanged.
 
 ## Evaluation
 
@@ -41,6 +41,12 @@ nodeRepl.write(await browser.documentation());
 Chrome uses `dotcraft.chromeBrowserClientPath` and the `extension` selector. Stable bindings use `const`; handles that need reacquisition use `let`. An invalid tab or an empty tab list does not justify reinitializing the runtime. A browser disconnect requires reconnecting the browser, while process replacement requires fresh bootstrap.
 
 The host supplies client paths, current browser-session metadata, image output, elicitation and Chrome setup/cancellation integration. Imported modules read the current task's capabilities inside its process. `globalThis` remains a normal JavaScript feature, not a required persistence technique.
+
+## Computer use host API
+
+On Windows, the worker exposes `dotcraft.computer`, whose methods are host calls routed to the Desktop computer use runtime. Calls carry the current task, turn and evaluation identity, and their screenshots join the evaluation's image output. The API, authorization and lifecycle are defined in [Desktop Computer Use](desktop-computer-use.md).
+
+When the runtime asks the AppServer for approval during an evaluation, the manager pauses that evaluation's outer timeout until the approval resolves.
 
 ## Build and validation
 
