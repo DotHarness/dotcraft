@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Check, ChevronDown, ChevronUp, Copy, Lightbulb } from 'lucide-react'
+import { useMemo, useState, type CSSProperties } from 'react'
+import { ChevronDown, ChevronUp, Lightbulb } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
-import { addToast } from '../../stores/toastStore'
 import { extractPartialTodos } from '../../stores/conversationStore'
 import { extractPartialJsonStringValue } from '../../utils/toolCallDisplay'
 import { parsePlanMarkdown } from '../../utils/planMarkdown'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { CompactIconButton } from '../ui/CompactIconButton'
+import { CopyButton } from '../ui/CopyButton'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 
 interface CreatePlanCardProps {
@@ -40,8 +40,6 @@ export function hasCreatePlanDisplayData(item: ConversationItem): boolean {
 
 export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const parsed = useMemo(() => parseCreatePlanData(item), [item])
   const isRunning = item.status !== 'completed'
 
@@ -58,50 +56,12 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
     isRunning ? 'toolCall.plan.previewBadgeRunning' : 'toolCall.plan.previewBadge'
   )
 
-  useEffect(() => {
-    return () => {
-      if (copyResetTimerRef.current != null) {
-        clearTimeout(copyResetTimerRef.current)
-        copyResetTimerRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (copyResetTimerRef.current != null) {
-      clearTimeout(copyResetTimerRef.current)
-      copyResetTimerRef.current = null
-    }
-    setCopied(false)
-  }, [item.id])
-
-  async function handleCopy(): Promise<void> {
-    if (!copyContent) return
-    try {
-      await navigator.clipboard.writeText(copyContent)
-      setCopied(true)
-      addToast(translate(locale, 'toast.copied'), 'success', 2000)
-      if (copyResetTimerRef.current != null) {
-        clearTimeout(copyResetTimerRef.current)
-      }
-      copyResetTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        copyResetTimerRef.current = null
-      }, 1500)
-    } catch {
-      // Ignore clipboard failures silently.
-    }
-  }
-
   const copyButton = copyContent ? (
-    <CompactIconButton
-      icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-      label={translate(locale, copied ? 'toolCall.plan.copiedAria' : 'toolCall.plan.copyAria')}
-      active={copied}
-      activeColor="var(--success)"
-      onClick={() => {
-        void handleCopy()
-      }}
+    <CopyButton
+      key={item.id}
+      getText={() => copyContent}
+      label={translate(locale, 'toolCall.plan.copyAria')}
+      copiedLabel={translate(locale, 'toolCall.plan.copiedAria')}
     />
   ) : null
 

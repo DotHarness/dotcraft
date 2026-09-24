@@ -1,10 +1,10 @@
 import { useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronUp, Copy, FolderOpen } from 'lucide-react'
+import { ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
-import { addToast } from '../../../stores/toastStore'
 import type { ChangesDiffMode } from '../../../stores/uiStore'
 import type { TurnFileChange } from '../../../types/turnDiff'
 import { ActionTooltip } from '../../ui/ActionTooltip'
+import { CopyButton } from '../../ui/CopyButton'
 import { IconButton } from '../../ui/IconButton'
 import { DiffViewer } from '../DiffViewer'
 import { ChangePath } from './ChangePath'
@@ -40,15 +40,6 @@ export function FileDiffSection({
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     onToggle()
-  }
-
-  async function copyPath(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(relativePath)
-      addToast(t('toast.copied'), 'success')
-    } catch (err) {
-      console.error('Copy path failed:', err)
-    }
   }
 
   async function openParentFolder(): Promise<void> {
@@ -97,17 +88,11 @@ export function FileDiffSection({
           <ChangePath path={relativePath} />
           {isReverted && <span className={styles.reverted}>{t('changesFile.reverted')}</span>}
         </span>
-        <IconButton
-          icon={<Copy size={14} strokeWidth={1.8} aria-hidden />}
+        <CopyButton
+          getText={() => relativePath}
           label={t('changesFile.copyPath')}
-          tooltipLabel={t('changesFile.copyPath')}
+          copiedLabel={t('common.copied')}
           tooltipPlacement="bottom"
-          size={24}
-          radius={5}
-          onClick={(event) => {
-            event.stopPropagation()
-            void copyPath()
-          }}
           style={hoverActionStyle}
         />
         <IconButton

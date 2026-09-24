@@ -3115,6 +3115,7 @@ export const MESSAGES_EN = {
   'common.backToApp': 'Back to app',
   'common.close': 'Close',
   'common.undo': 'Undo',
+  'common.copied': 'Copied',
   'common.refresh': 'Refresh',
   'common.retry': 'Retry',
   'common.showSecret': 'Show secret',

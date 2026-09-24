@@ -3,7 +3,6 @@ import {
   Anchor,
   ChevronDown,
   ChevronRight,
-  Copy,
   FileSearch,
   RefreshCw,
   Settings as SettingsIcon,
@@ -18,6 +17,7 @@ import { usePluginStore, type PluginEntry } from '../../../stores/pluginStore'
 import { addToast } from '../../../stores/toastStore'
 import type { MessageKey } from '../../../../shared/locales'
 import { PluginIcon, pluginTitle } from '../../plugins/PluginCatalogItem'
+import { CopyButton } from '../../ui/CopyButton'
 import { IconButton } from '../../ui/IconButton'
 import { Button } from '../../ui/Button'
 import { PillSwitch } from '../../ui/PillSwitch'
@@ -380,15 +380,12 @@ function HookRow({
         </span>
         <div style={{ flex: 1 }} />
         {!readOnlyActions && hook.command && (
-          <IconButton
-            icon={<Copy size={14} aria-hidden />}
+          <CopyButton
+            getText={() => hook.command ?? ''}
             label={t('settings.hooks.copyCommand')}
-            tooltipLabel={t('settings.hooks.copyCommand')}
+            copiedLabel={t('common.copied')}
             size={28}
-            onClick={() => {
-              void navigator.clipboard?.writeText(hook.command ?? '')
-              addToast(t('toast.copied'), 'success')
-            }}
+            radius={null}
           />
         )}
         {!readOnlyActions && hook.sourcePath && (

@@ -2998,6 +2998,7 @@ export const MESSAGES_ZH_HANS = {
   'common.backToApp': '返回应用',
   'common.close': '关闭',
   'common.undo': '撤销',
+  'common.copied': '已复制',
   'common.refresh': '刷新',
   'common.retry': '重试',
   'common.showSecret': '显示密钥',

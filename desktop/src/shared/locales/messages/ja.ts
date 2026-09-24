@@ -1836,6 +1836,7 @@ export const MESSAGES_JA = {
   'common.backToApp': 'アプリに戻る',
   'common.close': '閉じる',
   'common.undo': '元に戻す',
+  'common.copied': 'コピーしました',
 
   // Welcome composer coverage
   'interactiveTool.loading': 'アプリビューを読み込み中…',

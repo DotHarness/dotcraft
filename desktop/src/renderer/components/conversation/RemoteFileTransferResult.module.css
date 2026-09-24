@@ -59,13 +59,12 @@
 
 .copy {
   margin: -3px 0;
-  color: var(--text-dimmed);
   opacity: 0;
   transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .pathCell:hover .copy,
-.pathCell[data-copied] .copy,
+.copy[data-copied],
 .copy:focus-visible {
   opacity: 1;
 }

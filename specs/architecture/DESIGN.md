@@ -711,6 +711,12 @@ A visible neutral frame (`bordered`: `var(--bg-secondary)` +
 `1px solid var(--border-default)`) is opt-in and reserved for special or important
 icon controls. Modal close buttons stay borderless with neutral hover feedback.
 
+An icon-only copy action is always the shared `CopyButton`: frameless on every
+surface, including error blocks and diagram toolbars. It confirms in place by
+swapping to a `--success` check and relabelling its tooltip, with no toast. A copy
+action that carries a text label, such as Copy link in a dialog, is an ordinary
+`Button` and follows that surface's variant.
+
 ### Navigation Icon Motion
 
 Sidebar destinations answer hover and keyboard focus with one short glyph motion.

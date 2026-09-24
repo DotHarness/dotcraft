@@ -1843,6 +1843,7 @@ export const MESSAGES_DE = {
   'common.backToApp': 'Zurück zur App',
   'common.close': 'Schließen',
   'common.undo': 'Rückgängig',
+  'common.copied': 'Kopiert',
 
   // Welcome composer coverage
   'interactiveTool.loading': 'App-Ansicht wird geladen…',

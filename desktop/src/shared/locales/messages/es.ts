@@ -1841,6 +1841,7 @@ export const MESSAGES_ES = {
   'common.backToApp': 'Volver a la aplicación',
   'common.close': 'Cerrar',
   'common.undo': 'Deshacer',
+  'common.copied': 'Copiado',
 
   // Welcome composer coverage
   'interactiveTool.loading': 'Cargando la vista de la app…',

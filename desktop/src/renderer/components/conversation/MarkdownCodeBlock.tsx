@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
-import { Check, Copy, WrapText } from 'lucide-react'
+import { Fragment, useMemo, useState, type HTMLAttributes } from 'react'
+import { WrapText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { addToast } from '../../stores/toastStore'
 import { CompactIconButton } from '../ui/CompactIconButton'
+import { CopyButton } from '../ui/CopyButton'
 import { LineSpans } from '../code/CodeSpans'
 import {
   fileCacheKey,
@@ -38,36 +38,10 @@ export function PlainCodeBlock({
   ...props
 }: HTMLAttributes<HTMLPreElement>): JSX.Element {
   const t = useT()
-  const [copied, setCopied] = useState(false)
   const [wordWrap, setWordWrap] = useState(true)
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    return () => {
-      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
-    }
-  }, [])
-
-  async function handleCopy(): Promise<void> {
-    const text = extractText(children)
-    if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      addToast(t('toast.copied'), 'success', 2000)
-      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
-      copyResetTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        copyResetTimerRef.current = null
-      }, 1500)
-    } catch {
-      // Clipboard access can be denied; there is nothing useful to report.
-    }
-  }
-
-  const copyLabel = t(copied ? 'markdown.codeCopied' : 'markdown.copyCode')
   const wrapLabel = t(wordWrap ? 'markdown.disableWordWrap' : 'markdown.enableWordWrap')
   const actionsVisible = hovered || focusedWithin
 
@@ -127,12 +101,10 @@ export function PlainCodeBlock({
           aria-pressed={wordWrap}
           onClick={() => setWordWrap((current) => !current)}
         />
-        <CompactIconButton
-          icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-          label={copyLabel}
-          active={copied}
-          activeColor="var(--success)"
-          onClick={() => { void handleCopy() }}
+        <CopyButton
+          getText={() => extractText(children)}
+          label={t('markdown.copyCode')}
+          copiedLabel={t('markdown.codeCopied')}
         />
       </div>
     </div>

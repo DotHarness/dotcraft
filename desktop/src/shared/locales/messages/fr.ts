@@ -1842,6 +1842,7 @@ export const MESSAGES_FR = {
   'common.backToApp': 'Retour à l\'application',
   'common.close': 'Fermer',
   'common.undo': 'Annuler',
+  'common.copied': 'Copié',
 
   // Welcome composer coverage
   'interactiveTool.loading': "Chargement de la vue de l'app…",

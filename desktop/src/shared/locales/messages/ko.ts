@@ -1840,6 +1840,7 @@ export const MESSAGES_KO = {
   'common.backToApp': '앱으로 돌아가기',
   'common.close': '닫기',
   'common.undo': '실행 취소',
+  'common.copied': '복사됨',
 
   // Welcome composer coverage
   'interactiveTool.loading': '앱 뷰를 불러오는 중…',
